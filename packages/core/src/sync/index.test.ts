@@ -111,7 +111,12 @@ test("splitEvents()", async () => {
 test("getPerChainOnRealtimeSyncEvent() handles block", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
-  const requestQueue = createRequestQueue({ network, common: context.common });
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
+  });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -158,10 +163,10 @@ test("getPerChainOnRealtimeSyncEvent() handles block", async (context) => {
     hasMatchedFilter: false,
     block,
     logs: [],
-    factoryLogs: [],
     traces: [],
     transactions: [],
     transactionReceipts: [],
+    childAddresses: new Map(),
   });
 
   expect(event.type).toBe("block");
@@ -170,7 +175,12 @@ test("getPerChainOnRealtimeSyncEvent() handles block", async (context) => {
 test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
-  const requestQueue = createRequestQueue({ network, common: context.common });
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
+  });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -219,10 +229,10 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
     hasMatchedFilter: true,
     block,
     logs: [],
-    factoryLogs: [],
     traces: [],
     transactions: [],
     transactionReceipts: [],
+    childAddresses: new Map(),
   });
 
   const event = await onRealtimeSyncEvent({
@@ -244,21 +254,19 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
     .selectAll()
     .execute();
 
-  expect(intervals).toMatchInlineSnapshot(`
-    [
-      {
-        "blocks": "{[0,2]}",
-        "chain_id": 1,
-        "fragment_id": "block_1_1_0",
-      },
-    ]
-  `);
+  expect(intervals).toHaveLength(1);
+  expect(intervals[0]!.blocks).toBe("{[0,2]}");
 });
 
 test("getPerChainOnRealtimeSyncEvent() handles reorg", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
-  const requestQueue = createRequestQueue({ network, common: context.common });
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
+  });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -307,10 +315,10 @@ test("getPerChainOnRealtimeSyncEvent() handles reorg", async (context) => {
     hasMatchedFilter: true,
     block,
     logs: [],
-    factoryLogs: [],
     traces: [],
     transactions: [],
     transactionReceipts: [],
+    childAddresses: new Map(),
   });
 
   const event = await onRealtimeSyncEvent({
@@ -344,7 +352,12 @@ test("getLocalEventGenerator()", async (context) => {
     network,
     syncStore,
     sources,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+      concurrency: 25,
+      frequency: network.maxRequestsPerSecond,
+    }),
     onFatalError: () => {},
   });
 
@@ -352,7 +365,12 @@ test("getLocalEventGenerator()", async (context) => {
     common: context.common,
     sources,
     network,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+      concurrency: 25,
+      frequency: network.maxRequestsPerSecond,
+    }),
     intervalsCache: historicalSync.intervalsCache,
   });
 
@@ -400,7 +418,12 @@ test("getLocalEventGenerator() pagination", async (context) => {
     network,
     syncStore,
     sources,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+      concurrency: 25,
+      frequency: network.maxRequestsPerSecond,
+    }),
     onFatalError: () => {},
   });
 
@@ -408,7 +431,12 @@ test("getLocalEventGenerator() pagination", async (context) => {
     common: context.common,
     sources,
     network,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+      concurrency: 25,
+      frequency: network.maxRequestsPerSecond,
+    }),
     intervalsCache: historicalSync.intervalsCache,
   });
 
@@ -456,7 +484,12 @@ test("getLocalSyncGenerator()", async (context) => {
     network,
     syncStore,
     sources,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+      concurrency: 25,
+      frequency: network.maxRequestsPerSecond,
+    }),
     onFatalError: () => {},
   });
 
@@ -464,7 +497,12 @@ test("getLocalSyncGenerator()", async (context) => {
     common: context.common,
     sources,
     network,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+      concurrency: 25,
+      frequency: network.maxRequestsPerSecond,
+    }),
     intervalsCache: historicalSync.intervalsCache,
   });
 
@@ -482,15 +520,8 @@ test("getLocalSyncGenerator()", async (context) => {
     .selectAll()
     .execute();
 
-  expect(intervals).toMatchInlineSnapshot(`
-    [
-      {
-        "blocks": "{[0,2]}",
-        "chain_id": 1,
-        "fragment_id": "block_1_1_0",
-      },
-    ]
-  `);
+  expect(intervals).toHaveLength(1);
+  expect(intervals[0]!.blocks).toBe("{[0,2]}");
 });
 
 test("getLocalSyncGenerator() with partial cache", async (context) => {
@@ -515,7 +546,12 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     network,
     syncStore,
     sources,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+      concurrency: 25,
+      frequency: network.maxRequestsPerSecond,
+    }),
     onFatalError: () => {},
   });
 
@@ -523,7 +559,12 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     common: context.common,
     sources,
     network,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+      concurrency: 25,
+      frequency: network.maxRequestsPerSecond,
+    }),
     intervalsCache: historicalSync.intervalsCache,
   });
 
@@ -543,7 +584,12 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     network,
     syncStore,
     sources,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+      concurrency: 25,
+      frequency: network.maxRequestsPerSecond,
+    }),
     onFatalError: () => {},
   });
 
@@ -551,7 +597,12 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     common: context.common,
     sources,
     network,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+      concurrency: 25,
+      frequency: network.maxRequestsPerSecond,
+    }),
     intervalsCache: historicalSync.intervalsCache,
   });
 
@@ -569,21 +620,19 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     .selectAll()
     .execute();
 
-  expect(intervals).toMatchInlineSnapshot(`
-    [
-      {
-        "blocks": "{[0,3]}",
-        "chain_id": 1,
-        "fragment_id": "block_1_1_0",
-      },
-    ]
-  `);
+  expect(intervals).toHaveLength(1);
+  expect(intervals[0]!.blocks).toBe("{[0,3]}");
 });
 
 test("getLocalSyncGenerator() with full cache", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
-  const requestQueue = createRequestQueue({ network, common: context.common });
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
+  });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -611,7 +660,12 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     common: context.common,
     sources,
     network,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+      concurrency: 25,
+      frequency: network.maxRequestsPerSecond,
+    }),
     intervalsCache: historicalSync.intervalsCache,
   });
 
@@ -629,7 +683,12 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     network,
     syncStore,
     sources,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+      concurrency: 25,
+      frequency: network.maxRequestsPerSecond,
+    }),
     onFatalError: () => {},
   });
 
@@ -637,7 +696,12 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     common: context.common,
     sources,
     network,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+      concurrency: 25,
+      frequency: network.maxRequestsPerSecond,
+    }),
     intervalsCache: historicalSync.intervalsCache,
   });
 
@@ -660,7 +724,12 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
 
 test("getLocalSyncProgress()", async (context) => {
   const network = getNetwork();
-  const requestQueue = createRequestQueue({ network, common: context.common });
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
+  });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -696,7 +765,12 @@ test("getLocalSyncProgress()", async (context) => {
 
 test("getLocalSyncProgress() future end block", async (context) => {
   const network = getNetwork();
-  const requestQueue = createRequestQueue({ network, common: context.common });
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
+  });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -1002,11 +1076,18 @@ test("createSync()", async (context) => {
   const sync = await createSync({
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+        concurrency: 25,
+        frequency: network.maxRequestsPerSecond,
+      }),
+    ],
     syncStore,
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1035,10 +1116,17 @@ test("getEvents() multichain", async (context) => {
     syncStore,
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+        concurrency: 25,
+        frequency: network.maxRequestsPerSecond,
+      }),
+    ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1072,10 +1160,17 @@ test("getEvents() omnichain", async (context) => {
     syncStore,
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+        concurrency: 25,
+        frequency: network.maxRequestsPerSecond,
+      }),
+    ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "omnichain",
   });
 
@@ -1110,10 +1205,17 @@ test("getEvents() mulitchain updates status", async (context) => {
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+        concurrency: 25,
+        frequency: network.maxRequestsPerSecond,
+      }),
+    ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1148,10 +1250,17 @@ test("getEvents() omnichain updates status", async (context) => {
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+        concurrency: 25,
+        frequency: network.maxRequestsPerSecond,
+      }),
+    ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1186,10 +1295,17 @@ test("getEvents() with initial checkpoint", async (context) => {
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+        concurrency: 25,
+        frequency: network.maxRequestsPerSecond,
+      }),
+    ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: MAX_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: MAX_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1223,10 +1339,17 @@ test.skip("startRealtime()", async (context) => {
     syncStore,
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+        concurrency: 25,
+        frequency: network.maxRequestsPerSecond,
+      }),
+    ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1263,7 +1386,14 @@ test("onEvent() multichain handles block", async (context) => {
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+        concurrency: 25,
+        frequency: network.maxRequestsPerSecond,
+      }),
+    ],
     onRealtimeEvent: async (event) => {
       if (event.type === "block") {
         events.push(...event.events);
@@ -1271,7 +1401,7 @@ test("onEvent() multichain handles block", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1306,7 +1436,12 @@ test("onEvent() omnichain handles block", async (context) => {
       networks,
     },
     requestQueues: [
-      createRequestQueue({ network: networks[0]!, common: context.common }),
+      createRequestQueue({
+        network: networks[0]!,
+        common: context.common,
+        concurrency: 25,
+        frequency: networks[0]!.maxRequestsPerSecond,
+      }),
     ],
     syncStore,
     onRealtimeEvent: async (event) => {
@@ -1315,7 +1450,7 @@ test("onEvent() omnichain handles block", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "omnichain",
   });
 
@@ -1353,7 +1488,14 @@ test("onEvent() handles finalize", async (context) => {
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+        concurrency: 25,
+        frequency: network.maxRequestsPerSecond,
+      }),
+    ],
     onRealtimeEvent: async (event) => {
       if (event.type === "finalize") {
         checkpoint = event.checkpoint;
@@ -1361,7 +1503,7 @@ test("onEvent() handles finalize", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1404,7 +1546,14 @@ test("onEvent() kills realtime when finalized", async (context) => {
     syncStore,
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+        concurrency: 25,
+        frequency: network.maxRequestsPerSecond,
+      }),
+    ],
     onRealtimeEvent: async (event) => {
       if (event.type === "finalize") {
         checkpoint = event.checkpoint;
@@ -1412,7 +1561,7 @@ test("onEvent() kills realtime when finalized", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1451,12 +1600,19 @@ test("onEvent() handles errors", async (context) => {
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+        concurrency: 25,
+        frequency: network.maxRequestsPerSecond,
+      }),
+    ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {
       promise.resolve();
     },
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 

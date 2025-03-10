@@ -1,66 +1,54 @@
-import { createSchema } from "ponder";
+import { onchainTable } from "ponder";
 
-export default createSchema((p) => ({
-  UniswapFactory: p.createTable({
-    id: p.string(),
-    pairCount: p.int(),
-    txCount: p.int(),
-  }),
+export const factory = onchainTable("uniswap_factory", (t) => ({
+  id: t.text().primaryKey(),
+  pairCount: t.integer().notNull(),
+  txCount: t.integer().notNull(),
+}));
 
-  Pair: p.createTable({
-    id: p.string(),
+export const pair = onchainTable("uniswap_pair", (t) => ({
+  id: t.text().primaryKey(),
+  token0: t.hex().notNull(),
+  token1: t.hex().notNull(),
+  reserve0: t.bigint().notNull(),
+  reserve1: t.bigint().notNull(),
+  totalSupply: t.bigint().notNull(),
+  txCount: t.integer().notNull(),
+  createdAtTimestamp: t.bigint().notNull(),
+  createdAtBlockNumber: t.bigint().notNull(),
+}));
 
-    token0: p.string(),
-    token1: p.string(),
-    reserve0: p.bigint(),
-    reserve1: p.bigint(),
-    totalSupply: p.bigint(),
+export const mint = onchainTable("uniswap_mint", (t) => ({
+  id: t.text().primaryKey(),
+  timestamp: t.bigint().notNull(),
+  pair: t.hex().notNull(),
+  sender: t.hex().notNull(),
+  amount0: t.bigint().notNull(),
+  amount1: t.bigint().notNull(),
+  logIndex: t.integer().notNull(),
+}));
 
-    txCount: p.int(),
+export const burn = onchainTable("uniswap_burn", (t) => ({
+  id: t.text().primaryKey(),
+  timestamp: t.bigint().notNull(),
+  pair: t.hex().notNull(),
+  sender: t.hex().notNull(),
+  amount0: t.bigint().notNull(),
+  amount1: t.bigint().notNull(),
+  to: t.hex().notNull(),
+  logIndex: t.integer().notNull(),
+}));
 
-    createdAtTimestamp: p.bigint(),
-    createdAtBlockNumber: p.bigint(),
-
-    mints: p.many("Mint.pair"),
-    burns: p.many("Burn.pair"),
-    swaps: p.many("Swap.pair"),
-  }),
-  Mint: p.createTable({
-    id: p.string(),
-    timestamp: p.bigint(),
-    pair: p.string().references("Pair.id"),
-
-    sender: p.string(),
-    amount0: p.bigint(),
-    amount1: p.bigint(),
-
-    logIndex: p.int(),
-  }),
-  Burn: p.createTable({
-    id: p.string(),
-    timestamp: p.bigint(),
-    pair: p.string().references("Pair.id"),
-
-    sender: p.string(),
-    amount0: p.bigint(),
-    amount1: p.bigint(),
-    to: p.string(),
-
-    logIndex: p.int(),
-  }),
-  Swap: p.createTable({
-    id: p.string(),
-    timestamp: p.bigint(),
-    pair: p.string().references("Pair.id"),
-
-    sender: p.string(),
-    from: p.string(),
-    amount0In: p.bigint(),
-    amount1In: p.bigint(),
-    amount0Out: p.bigint(),
-    amount1Out: p.bigint(),
-    to: p.string(),
-
-    logIndex: p.int(),
-  }),
+export const swap = onchainTable("uniswap_swap", (t) => ({
+  id: t.text().primaryKey(),
+  timestamp: t.bigint().notNull(),
+  pair: t.hex().notNull(),
+  sender: t.hex().notNull(),
+  from: t.hex().notNull(),
+  amount0In: t.bigint().notNull(),
+  amount1In: t.bigint().notNull(),
+  amount0Out: t.bigint().notNull(),
+  amount1Out: t.bigint().notNull(),
+  to: t.hex().notNull(),
+  logIndex: t.integer().notNull(),
 }));

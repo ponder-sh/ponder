@@ -16,6 +16,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
+import { recordAsyncGenerator } from "@/utils/generators.js";
 import { createMutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
@@ -38,13 +39,20 @@ export async function run({
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
 }) {
-  const initialCheckpoint = await database.recoverCheckpoint();
+  const crashRecoveryCheckpoint = await database.recoverCheckpoint();
   await database.migrateSync();
 
   runCodegen({ common });
 
   const requestQueues = indexingBuild.networks.map((network) =>
-    createRequestQueue({ network, common }),
+    createRequestQueue({
+      network,
+      common,
+      concurrency: Math.floor(
+        common.options.rpcMaxConcurrency / indexingBuild.networks.length,
+      ),
+      frequency: network.maxRequestsPerSecond,
+    }),
   );
 
   const syncStore = createSyncStore({ common, database });
@@ -64,7 +72,7 @@ export async function run({
       return onRealtimeEvent(realtimeEvent);
     },
     onFatalError,
-    initialCheckpoint,
+    crashRecoveryCheckpoint,
     ordering: preBuild.ordering,
   });
 
@@ -78,7 +86,7 @@ export async function run({
   const indexingCache = createIndexingCache({
     common,
     schemaBuild,
-    checkpoint: initialCheckpoint,
+    checkpoint: crashRecoveryCheckpoint,
   });
 
   await database.setStatus(sync.getStatus());
@@ -117,7 +125,7 @@ export async function run({
   common.metrics.start_timestamp = Date.now();
 
   // If the initial checkpoint is zero, we need to run setup events.
-  if (initialCheckpoint === ZERO_CHECKPOINT_STRING) {
+  if (crashRecoveryCheckpoint === ZERO_CHECKPOINT_STRING) {
     await database.retry(async () => {
       await database.transaction(async (client, tx) => {
         const historicalIndexingStore = createHistoricalIndexingStore({
@@ -140,7 +148,23 @@ export async function run({
   }
 
   // Run historical indexing until complete.
-  for await (const events of sync.getEvents()) {
+  for await (const events of recordAsyncGenerator(
+    sync.getEvents(),
+    (params) => {
+      common.metrics.ponder_historical_phase_duration.inc(
+        { phase: "extract" },
+        params.await,
+      );
+      common.metrics.ponder_historical_phase_duration.inc(
+        { phase: "transform" },
+        params.yield,
+      );
+      common.metrics.ponder_historical_phase_duration.inc(
+        { phase: "total" },
+        params.total,
+      );
+    },
+  )) {
     if (events.length > 0) {
       await database.retry(async () => {
         await database
@@ -173,7 +197,7 @@ export async function run({
                 common.metrics.ponder_historical_completed_indexing_seconds.set(
                   { network: network.name },
                   Math.max(
-                    checkpoint.blockTimestamp -
+                    Number(checkpoint.blockTimestamp) -
                       sync.seconds[network.name]!.start -
                       sync.seconds[network.name]!.cached,
                     0,
@@ -181,7 +205,7 @@ export async function run({
                 );
                 common.metrics.ponder_indexing_timestamp.set(
                   { network: network.name },
-                  checkpoint.blockTimestamp,
+                  Number(checkpoint.blockTimestamp),
                 );
               }
 
@@ -349,13 +373,13 @@ export async function run({
 
               common.metrics.ponder_indexing_timestamp.set(
                 { network: network.name },
-                decodeCheckpoint(checkpoint).blockTimestamp,
+                Number(decodeCheckpoint(checkpoint).blockTimestamp),
               );
             } else {
               for (const network of indexingBuild.networks) {
                 common.metrics.ponder_indexing_timestamp.set(
                   { network: network.name },
-                  decodeCheckpoint(checkpoint).blockTimestamp,
+                  Number(decodeCheckpoint(checkpoint).blockTimestamp),
                 );
               }
             }

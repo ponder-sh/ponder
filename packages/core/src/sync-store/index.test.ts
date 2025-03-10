@@ -12,13 +12,9 @@ import {
   deployErc20,
   deployFactory,
   mintErc20,
-  swapPair,
-  transferEth,
 } from "@/_test/simulate.js";
 import {
-  getAccountsConfigAndIndexingFunctions,
   getBlocksConfigAndIndexingFunctions,
-  getErc20ConfigAndIndexingFunctions,
   getNetwork,
   getPairWithFactoryConfigAndIndexingFunctions,
   testClient,
@@ -27,16 +23,10 @@ import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFuncti
 import type {
   BlockFilter,
   Factory,
-  LogFactory,
   LogFilter,
+  SyncTrace,
+  SyncTransaction,
 } from "@/internal/types.js";
-import type { SyncTrace, SyncTransaction } from "@/types/sync.js";
-import {
-  MAX_CHECKPOINT,
-  MAX_CHECKPOINT_STRING,
-  ZERO_CHECKPOINT_STRING,
-  decodeCheckpoint,
-} from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import {
   _eth_getBlockByNumber,
@@ -44,13 +34,10 @@ import {
   _eth_getTransactionReceipt,
 } from "@/utils/rpc.js";
 import {
-  type Address,
   encodeFunctionData,
   encodeFunctionResult,
-  hexToNumber,
   parseEther,
   zeroAddress,
-  zeroHash,
 } from "viem";
 import { beforeEach, expect, test } from "vitest";
 
@@ -68,7 +55,7 @@ test("setup creates tables", async (context) => {
   expect(tableNames).toContain("logs");
   expect(tableNames).toContain("transactions");
   expect(tableNames).toContain("traces");
-  expect(tableNames).toContain("transactionReceipts");
+  expect(tableNames).toContain("transaction_receipts");
 
   expect(tableNames).toContain("rpc_request_results");
 });
@@ -479,18 +466,8 @@ test("insertIntervals() preserves fragments", async (context) => {
 test("getChildAddresses()", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
   const { address } = await deployFactory({ sender: ALICE });
   const { result } = await createPair({ factory: address, sender: ALICE });
-  const rpcLogs = await _eth_getLogs(requestQueue, {
-    fromBlock: 2,
-    toBlock: 2,
-  });
 
   const { config, rawIndexingFunctions } =
     getPairWithFactoryConfigAndIndexingFunctions({
@@ -500,22 +477,23 @@ test("getChildAddresses()", async (context) => {
     config,
     rawIndexingFunctions,
   });
+  const filter = sources[0]!.filter as LogFilter<Factory>;
 
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
+  await syncStore.insertChildAddresses({
+    factory: filter.address,
+    childAddresses: new Map([[result, 0]]),
     chainId: 1,
   });
 
-  const filter = sources[0]!.filter as LogFilter<Factory>;
-
   const addresses = await syncStore.getChildAddresses({
-    filter: filter.address,
-    limit: 10,
+    factory: filter.address,
   });
 
-  expect(addresses).toHaveLength(1);
-  expect(addresses[0]).toBe(result);
+  expect(addresses).toMatchInlineSnapshot(`
+    Map {
+      "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be" => 0,
+    }
+  `);
 });
 
 test("getChildAddresses() empty", async (context) => {
@@ -535,28 +513,17 @@ test("getChildAddresses() empty", async (context) => {
   const filter = sources[0]!.filter as LogFilter<Factory>;
 
   const addresses = await syncStore.getChildAddresses({
-    filter: filter.address,
-    limit: 10,
+    factory: filter.address,
   });
 
-  expect(addresses).toHaveLength(0);
+  expect(addresses).toMatchInlineSnapshot("Map {}");
 });
 
 test("getChildAddresses() distinct", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
   const { address } = await deployFactory({ sender: ALICE });
   const { result } = await createPair({ factory: address, sender: ALICE });
-  const rpcLogs = await _eth_getLogs(requestQueue, {
-    fromBlock: 2,
-    toBlock: 2,
-  });
 
   const { config, rawIndexingFunctions } =
     getPairWithFactoryConfigAndIndexingFunctions({
@@ -566,39 +533,35 @@ test("getChildAddresses() distinct", async (context) => {
     config,
     rawIndexingFunctions,
   });
+  const filter = sources[0]!.filter as LogFilter<Factory>;
 
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }, { log: { ...rpcLogs[0]!, logIndex: "0x1" } }],
-    shouldUpdateCheckpoint: false,
+  await syncStore.insertChildAddresses({
+    factory: filter.address,
+    childAddresses: new Map([[result, 0]]),
     chainId: 1,
   });
-
-  const filter = sources[0]!.filter as LogFilter<Factory>;
+  await syncStore.insertChildAddresses({
+    factory: filter.address,
+    childAddresses: new Map([[result, 3]]),
+    chainId: 1,
+  });
 
   const addresses = await syncStore.getChildAddresses({
-    filter: filter.address,
-    limit: 10,
+    factory: filter.address,
   });
 
-  expect(addresses).toHaveLength(1);
-  expect(addresses[0]).toBe(result);
+  expect(addresses).toMatchInlineSnapshot(`
+    Map {
+      "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be" => 0,
+    }
+  `);
 });
 
-test("filterChildAddresses()", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
+test("insertChildAddresses()", async (context) => {
+  const { syncStore, database } = await setupDatabaseServices(context);
 
   const { address } = await deployFactory({ sender: ALICE });
   const { result } = await createPair({ factory: address, sender: ALICE });
-  const rpcLogs = await _eth_getLogs(requestQueue, {
-    fromBlock: 2,
-    toBlock: 2,
-  });
 
   const { config, rawIndexingFunctions } =
     getPairWithFactoryConfigAndIndexingFunctions({
@@ -608,21 +571,30 @@ test("filterChildAddresses()", async (context) => {
     config,
     rawIndexingFunctions,
   });
+  const filter = sources[0]!.filter as LogFilter<Factory>;
 
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
+  await syncStore.insertChildAddresses({
+    factory: filter.address,
+    childAddresses: new Map([[result, 0]]),
+    chainId: 1,
+  });
+  await syncStore.insertChildAddresses({
+    factory: filter.address,
+    childAddresses: new Map([[result, 3]]),
     chainId: 1,
   });
 
-  const filter = sources[0]!.filter as LogFilter<Factory>;
+  const factories = await database.qb.sync
+    .selectFrom("factories")
+    .selectAll()
+    .execute();
+  const factoryAddresses = await database.qb.sync
+    .selectFrom("factory_addresses")
+    .selectAll()
+    .execute();
 
-  const addresses = await syncStore.filterChildAddresses({
-    filter: filter.address,
-    addresses: [address, result, zeroAddress],
-  });
-
-  expect(addresses.size).toBe(1);
+  expect(factories).toHaveLength(1);
+  expect(factoryAddresses).toHaveLength(2);
 });
 
 test("insertLogs()", async (context) => {
@@ -632,6 +604,8 @@ test("insertLogs()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -646,11 +620,7 @@ test("insertLogs()", async (context) => {
     toBlock: 2,
   });
 
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
-    chainId: 1,
-  });
+  await syncStore.insertLogs({ logs: [rpcLogs[0]!], chainId: 1 });
 
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(1);
@@ -663,6 +633,8 @@ test("insertLogs() with duplicates", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -677,113 +649,12 @@ test("insertLogs() with duplicates", async (context) => {
     toBlock: 2,
   });
 
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
-    chainId: 1,
-  });
+  await syncStore.insertLogs({ logs: [rpcLogs[0]!], chainId: 1 });
 
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
-    chainId: 1,
-  });
+  await syncStore.insertLogs({ logs: [rpcLogs[0]!], chainId: 1 });
 
   const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(1);
-});
-
-test("insertLogs() creates checkpoint", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
-  const { address } = await deployErc20({ sender: ALICE });
-  await mintErc20({
-    erc20: address,
-    to: ALICE,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
-  const rpcLogs = await _eth_getLogs(requestQueue, {
-    fromBlock: 2,
-    toBlock: 2,
-  });
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 2,
-  });
-
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
-    chainId: 1,
-  });
-
-  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
-  const checkpoint = decodeCheckpoint(logs[0]!.checkpoint!);
-
-  expect(checkpoint.blockTimestamp).toBe(hexToNumber(rpcBlock.timestamp));
-  expect(checkpoint.chainId).toBe(1n);
-  expect(checkpoint.blockNumber).toBe(2n);
-  expect(checkpoint.transactionIndex).toBe(0n);
-  expect(checkpoint.eventType).toBe(5);
-  expect(checkpoint.eventIndex).toBe(0n);
-});
-
-test("insertLogs() upserts checkpoint", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
-  const { address } = await deployErc20({ sender: ALICE });
-  await mintErc20({
-    erc20: address,
-    to: ALICE,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
-  const rpcLogs = await _eth_getLogs(requestQueue, {
-    fromBlock: 2,
-    toBlock: 2,
-  });
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 2,
-  });
-
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
-    chainId: 1,
-  });
-
-  let logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
-  expect(logs[0]!.checkpoint).toBe(null);
-
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
-    chainId: 1,
-  });
-
-  logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
-  expect(logs[0]!.checkpoint).not.toBe(null);
-
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
-    chainId: 1,
-  });
-
-  logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
-  expect(logs[0]!.checkpoint).not.toBe(null);
 });
 
 test("insertBlocks()", async (context) => {
@@ -793,6 +664,8 @@ test("insertBlocks()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -816,6 +689,8 @@ test("insertBlocks() with duplicates", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -833,63 +708,6 @@ test("insertBlocks() with duplicates", async (context) => {
   expect(blocks).toHaveLength(1);
 });
 
-test("insertBlocks() creates checkpoint", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
-  await testClient.mine({ blocks: 1 });
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 1,
-  });
-
-  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
-
-  const blocks = await database.qb.sync
-    .selectFrom("blocks")
-    .selectAll()
-    .execute();
-  const checkpoint = decodeCheckpoint(blocks[0]!.checkpoint!);
-
-  expect(checkpoint.blockTimestamp).toBe(hexToNumber(rpcBlock.timestamp));
-  expect(checkpoint.chainId).toBe(1n);
-  expect(checkpoint.blockNumber).toBe(1n);
-  expect(checkpoint.transactionIndex).toBe(MAX_CHECKPOINT.transactionIndex);
-  expect(checkpoint.eventType).toBe(5);
-  expect(checkpoint.eventIndex).toBe(0n);
-});
-
-test("hasBlock()", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
-  await testClient.mine({ blocks: 1 });
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 1,
-  });
-
-  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
-
-  let block = await syncStore.hasBlock({
-    hash: rpcBlock.hash,
-  });
-  expect(block).toBe(true);
-
-  block = await syncStore.hasBlock({
-    hash: zeroHash,
-  });
-  expect(block).toBe(false);
-});
-
 test("insertTransactions()", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
@@ -897,6 +715,8 @@ test("insertTransactions()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -911,7 +731,7 @@ test("insertTransactions()", async (context) => {
     blockNumber: 2,
   });
   await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
+    transactions: [rpcBlock.transactions[0]!],
     chainId: 1,
   });
 
@@ -929,6 +749,8 @@ test("insertTransactions() with duplicates", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -943,11 +765,11 @@ test("insertTransactions() with duplicates", async (context) => {
     blockNumber: 2,
   });
   await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
+    transactions: [rpcBlock.transactions[0]!],
     chainId: 1,
   });
   await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
+    transactions: [rpcBlock.transactions[0]!],
     chainId: 1,
   });
 
@@ -958,42 +780,6 @@ test("insertTransactions() with duplicates", async (context) => {
   expect(transactions).toHaveLength(1);
 });
 
-test("hasTransaction()", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
-  const { address } = await deployErc20({ sender: ALICE });
-  const { hash } = await mintErc20({
-    erc20: address,
-    to: ALICE,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
-
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 2,
-  });
-  await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
-    chainId: 1,
-  });
-
-  let transaction = await syncStore.hasTransaction({
-    hash,
-  });
-  expect(transaction).toBe(true);
-
-  transaction = await syncStore.hasTransaction({
-    hash: zeroHash,
-  });
-  expect(transaction).toBe(false);
-});
-
 test("insertTransactionReceipts()", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
@@ -1001,6 +787,8 @@ test("insertTransactionReceipts()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1021,7 +809,7 @@ test("insertTransactionReceipts()", async (context) => {
   });
 
   const transactionReceipts = await database.qb.sync
-    .selectFrom("transactionReceipts")
+    .selectFrom("transaction_receipts")
     .selectAll()
     .execute();
   expect(transactionReceipts).toHaveLength(1);
@@ -1034,6 +822,8 @@ test("insertTransactionReceipts() with duplicates", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1058,47 +848,10 @@ test("insertTransactionReceipts() with duplicates", async (context) => {
   });
 
   const transactionReceipts = await database.qb.sync
-    .selectFrom("transactionReceipts")
+    .selectFrom("transaction_receipts")
     .selectAll()
     .execute();
   expect(transactionReceipts).toHaveLength(1);
-});
-
-test("hasTransactionReceipt()", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
-  const { address } = await deployErc20({ sender: ALICE });
-  const { hash } = await mintErc20({
-    erc20: address,
-    to: ALICE,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
-
-  const rpcTransactionReceipt = await _eth_getTransactionReceipt(requestQueue, {
-    hash,
-  });
-
-  await syncStore.insertTransactionReceipts({
-    transactionReceipts: [rpcTransactionReceipt],
-    chainId: 1,
-  });
-
-  let transaction = await syncStore.hasTransactionReceipt({
-    hash: rpcTransactionReceipt.transactionHash,
-  });
-  expect(transaction).toBe(true);
-
-  transaction = await syncStore.hasTransactionReceipt({
-    hash: zeroHash,
-  });
-  expect(transaction).toBe(false);
 });
 
 test("insertTraces()", async (context) => {
@@ -1108,6 +861,8 @@ test("insertTraces()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1164,76 +919,6 @@ test("insertTraces()", async (context) => {
   expect(traces).toHaveLength(1);
 });
 
-test("insertTraces() creates checkpoint", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
-  const { address } = await deployErc20({ sender: ALICE });
-  const { hash } = await mintErc20({
-    erc20: address,
-    to: ALICE,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
-
-  const trace = {
-    trace: {
-      type: "CALL",
-      from: ALICE,
-      to: address,
-      gas: "0x0",
-      gasUsed: "0x0",
-      input: encodeFunctionData({
-        abi: erc20ABI,
-        functionName: "transfer",
-        args: [BOB, parseEther("1")],
-      }),
-      output: encodeFunctionResult({
-        abi: erc20ABI,
-        functionName: "transfer",
-        result: true,
-      }),
-      value: "0x0",
-      index: 0,
-      subcalls: 0,
-    },
-    transactionHash: hash,
-  } satisfies SyncTrace;
-
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 1,
-  });
-
-  await syncStore.insertTraces({
-    traces: [
-      {
-        trace,
-        block: rpcBlock,
-        transaction: rpcBlock.transactions[0] as SyncTransaction,
-      },
-    ],
-    chainId: 1,
-  });
-
-  const traces = await database.qb.sync
-    .selectFrom("traces")
-    .selectAll()
-    .execute();
-  const checkpoint = decodeCheckpoint(traces[0]!.checkpoint!);
-
-  expect(checkpoint.blockTimestamp).toBe(hexToNumber(rpcBlock.timestamp));
-  expect(checkpoint.chainId).toBe(1n);
-  expect(checkpoint.blockNumber).toBe(1n);
-  expect(checkpoint.transactionIndex).toBe(0n);
-  expect(checkpoint.eventType).toBe(7);
-  expect(checkpoint.eventIndex).toBe(0n);
-});
-
 test("insertTraces() with duplicates", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
@@ -1241,6 +926,8 @@ test("insertTraces() with duplicates", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1314,6 +1001,8 @@ test("getEvents() returns events", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1333,12 +1022,11 @@ test("getEvents() returns events", async (context) => {
   });
 
   await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
+    logs: [rpcLogs[0]!],
     chainId: 1,
   });
   await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
+    transactions: [rpcBlock.transactions[0]!],
     chainId: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
@@ -1356,577 +1044,15 @@ test("getEvents() returns events", async (context) => {
     include: [],
   } satisfies LogFilter;
 
-  const { events } = await syncStore.getEvents({
+  const { blockData } = await syncStore.getEventBlockData({
     filters: [filter],
-    from: ZERO_CHECKPOINT_STRING,
-    to: MAX_CHECKPOINT_STRING,
+    fromBlock: 0,
+    toBlock: 10,
+    chainId: 1,
     limit: 10,
   });
 
-  expect(events).toHaveLength(1);
-});
-
-test("getEvents() handles log filter logic", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
-  const { address } = await deployErc20({ sender: ALICE });
-  await mintErc20({
-    erc20: address,
-    to: ALICE,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
-
-  // noisy data
-  const { address: factory } = await deployFactory({ sender: ALICE });
-  await createPair({ factory, sender: ALICE });
-
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
-    address,
-  });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
-
-  let rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 2,
-  });
-  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
-
-  await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
-    chainId: 1,
-  });
-
-  let rpcLogs = await _eth_getLogs(requestQueue, {
-    fromBlock: 2,
-    toBlock: 2,
-  });
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
-    chainId: 1,
-  });
-
-  // noisy data
-
-  rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 4,
-  });
-  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
-
-  await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
-    chainId: 1,
-  });
-
-  rpcLogs = await _eth_getLogs(requestQueue, {
-    fromBlock: 4,
-    toBlock: 4,
-  });
-  syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
-    chainId: 1,
-  });
-
-  const { events } = await syncStore.getEvents({
-    filters: [sources[0]!.filter],
-    from: ZERO_CHECKPOINT_STRING,
-    to: MAX_CHECKPOINT_STRING,
-    limit: 10,
-  });
-
-  expect(events).toHaveLength(1);
-});
-
-test("getEvents() handles log factory", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
-  const { address: factory } = await deployFactory({ sender: ALICE });
-  const { result: pair } = await createPair({ factory, sender: ALICE });
-  await swapPair({
-    pair,
-    sender: ALICE,
-    amount0Out: 1n,
-    amount1Out: 1n,
-    to: ALICE,
-  });
-
-  const { config, rawIndexingFunctions } =
-    getPairWithFactoryConfigAndIndexingFunctions({
-      address: factory,
-    });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
-
-  // factory
-
-  let rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 2,
-  });
-  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
-
-  await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
-    chainId: 1,
-  });
-
-  let rpcLogs = await _eth_getLogs(requestQueue, {
-    fromBlock: 2,
-    toBlock: 2,
-  });
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
-    chainId: 1,
-  });
-
-  // pair
-
-  rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 3,
-  });
-  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
-
-  await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
-    chainId: 1,
-  });
-
-  rpcLogs = await _eth_getLogs(requestQueue, {
-    fromBlock: 3,
-    toBlock: 3,
-  });
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
-    chainId: 1,
-  });
-
-  const { events } = await syncStore.getEvents({
-    filters: [sources[0]!.filter],
-    from: ZERO_CHECKPOINT_STRING,
-    to: MAX_CHECKPOINT_STRING,
-    limit: 10,
-  });
-
-  expect(events).toHaveLength(1);
-});
-
-test("getEvents() handles multiple log factories", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
-  const { address: factory } = await deployFactory({ sender: ALICE });
-  const { result: pair } = await createPair({ factory, sender: ALICE });
-  await swapPair({
-    pair,
-    sender: ALICE,
-    amount0Out: 1n,
-    amount1Out: 1n,
-    to: ALICE,
-  });
-
-  const { config, rawIndexingFunctions } =
-    getPairWithFactoryConfigAndIndexingFunctions({
-      address: factory,
-    });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
-
-  // factory
-
-  let rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 2,
-  });
-  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
-
-  await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
-    chainId: 1,
-  });
-
-  let rpcLogs = await _eth_getLogs(requestQueue, {
-    fromBlock: 2,
-    toBlock: 2,
-  });
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]! }],
-    shouldUpdateCheckpoint: false,
-    chainId: 1,
-  });
-
-  // pair
-
-  rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 3,
-  });
-  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
-
-  await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
-    chainId: 1,
-  });
-
-  rpcLogs = await _eth_getLogs(requestQueue, {
-    fromBlock: 3,
-    toBlock: 3,
-  });
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
-    chainId: 1,
-  });
-
-  const filter = sources[0]!.filter as LogFilter<LogFactory>;
-
-  filter.address.address = [
-    filter.address.address as Address,
-    filter.address.address as Address,
-    zeroAddress,
-  ];
-
-  const { events } = await syncStore.getEvents({
-    filters: [filter],
-    from: ZERO_CHECKPOINT_STRING,
-    to: MAX_CHECKPOINT_STRING,
-    limit: 10,
-  });
-
-  expect(events).toHaveLength(1);
-});
-
-test("getEvents() handles block filter logic", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
-  await testClient.mine({ blocks: 2 });
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
-    interval: 2,
-  });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
-
-  let rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 1,
-  });
-  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
-
-  rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 2,
-  });
-  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
-
-  const { events } = await syncStore.getEvents({
-    filters: [sources[0]!.filter],
-    from: ZERO_CHECKPOINT_STRING,
-    to: MAX_CHECKPOINT_STRING,
-    limit: 10,
-  });
-
-  expect(events).toHaveLength(1);
-});
-
-test("getEvents() handles trace filter logic", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
-  const { address } = await deployErc20({ sender: ALICE });
-  const { hash } = await mintErc20({
-    erc20: address,
-    to: ALICE,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
-
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
-    address,
-    includeCallTraces: true,
-  });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
-
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 2,
-  });
-  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
-
-  await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
-    chainId: 1,
-  });
-
-  const rpcTrace = {
-    trace: {
-      type: "CALL",
-      from: ALICE,
-      to: address,
-      gas: "0x0",
-      gasUsed: "0x0",
-      input: encodeFunctionData({
-        abi: erc20ABI,
-        functionName: "transfer",
-        args: [BOB, parseEther("1")],
-      }),
-      output: encodeFunctionResult({
-        abi: erc20ABI,
-        functionName: "transfer",
-        result: true,
-      }),
-      value: "0x0",
-      index: 0,
-      subcalls: 0,
-    },
-    transactionHash: hash,
-  } satisfies SyncTrace;
-
-  await syncStore.insertTraces({
-    traces: [
-      {
-        trace: rpcTrace,
-        block: rpcBlock,
-        transaction: rpcBlock.transactions[0] as SyncTransaction,
-      },
-    ],
-    chainId: 1,
-  });
-
-  const { events } = await syncStore.getEvents({
-    filters: sources.map((source) => source.filter),
-    from: ZERO_CHECKPOINT_STRING,
-    to: MAX_CHECKPOINT_STRING,
-    limit: 10,
-  });
-
-  expect(events).toHaveLength(1);
-});
-
-test("getEvents() handles transaction filter logic", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
-  const { hash } = await transferEth({
-    to: BOB,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
-
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
-
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 1,
-  });
-  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
-
-  await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
-    chainId: 1,
-  });
-
-  const rpcReceipt = await _eth_getTransactionReceipt(requestQueue, { hash });
-
-  await syncStore.insertTransactionReceipts({
-    transactionReceipts: [rpcReceipt],
-    chainId: 1,
-  });
-
-  const { events } = await syncStore.getEvents({
-    filters: sources.map((source) => source.filter),
-    from: ZERO_CHECKPOINT_STRING,
-    to: MAX_CHECKPOINT_STRING,
-    limit: 10,
-  });
-
-  expect(events).toHaveLength(1);
-});
-
-test("getEvents() handles transfer filter logic", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
-  const { hash } = await transferEth({
-    to: BOB,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
-
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
-
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 1,
-  });
-  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
-
-  await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
-    chainId: 1,
-  });
-
-  const rpcReceipt = await _eth_getTransactionReceipt(requestQueue, { hash });
-
-  await syncStore.insertTransactionReceipts({
-    transactionReceipts: [rpcReceipt],
-    chainId: 1,
-  });
-
-  const rpcTrace = {
-    trace: {
-      type: "CALL",
-      from: ALICE,
-      to: BOB,
-      gas: "0x0",
-      gasUsed: "0x0",
-      input: "0x0",
-      output: "0x0",
-      value: rpcBlock.transactions[0]!.value,
-      index: 0,
-      subcalls: 0,
-    },
-    transactionHash: hash,
-  } satisfies SyncTrace;
-
-  await syncStore.insertTraces({
-    traces: [
-      {
-        trace: rpcTrace,
-        block: rpcBlock,
-        transaction: rpcBlock.transactions[0] as SyncTransaction,
-      },
-    ],
-    chainId: 1,
-  });
-
-  const { events } = await syncStore.getEvents({
-    filters: sources.map((source) => source.filter),
-    from: ZERO_CHECKPOINT_STRING,
-    to: MAX_CHECKPOINT_STRING,
-    limit: 10,
-  });
-
-  // transaction:from and transfer:from
-  expect(events).toHaveLength(2);
-});
-
-test("getEvents() handles block bounds", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
-  const { address } = await deployErc20({ sender: ALICE });
-  await mintErc20({
-    erc20: address,
-    to: ALICE,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
-
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
-    address,
-  });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
-
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 2,
-  });
-  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
-
-  await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
-    chainId: 1,
-  });
-
-  const rpcLogs = await _eth_getLogs(requestQueue, {
-    fromBlock: 2,
-    toBlock: 2,
-  });
-  await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
-    chainId: 1,
-  });
-
-  const filter = sources[0]!.filter as LogFilter<undefined>;
-  filter.toBlock = 1;
-
-  const { events } = await syncStore.getEvents({
-    filters: [sources[0]!.filter],
-    from: ZERO_CHECKPOINT_STRING,
-    to: MAX_CHECKPOINT_STRING,
-    limit: 10,
-  });
-
-  expect(events).toHaveLength(0);
+  expect(blockData).toHaveLength(1);
 });
 
 test("getEvents() pagination", async (context) => {
@@ -1936,6 +1062,8 @@ test("getEvents() pagination", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   await testClient.mine({ blocks: 2 });
@@ -1958,23 +1086,25 @@ test("getEvents() pagination", async (context) => {
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
-  const { events, cursor } = await syncStore.getEvents({
+  const { blockData, cursor } = await syncStore.getEventBlockData({
     filters: [sources[0]!.filter],
-    from: ZERO_CHECKPOINT_STRING,
-    to: MAX_CHECKPOINT_STRING,
+    fromBlock: 0,
+    toBlock: 10,
+    chainId: 1,
     limit: 1,
   });
 
-  expect(events).toHaveLength(1);
+  expect(blockData).toHaveLength(1);
 
-  const { events: events2 } = await syncStore.getEvents({
+  const { blockData: blockData2 } = await syncStore.getEventBlockData({
     filters: [sources[0]!.filter],
-    from: cursor,
-    to: MAX_CHECKPOINT_STRING,
+    fromBlock: cursor,
+    toBlock: 10,
+    chainId: 1,
     limit: 1,
   });
 
-  expect(events2).toHaveLength(1);
+  expect(blockData2).toHaveLength(1);
 });
 
 test("pruneRpcRequestResult", async (context) => {
@@ -2025,6 +1155,8 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
+    concurrency: 25,
+    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -2049,7 +1181,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
   await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
+    transactions: [rpcBlock.transactions[0]!],
     chainId: 1,
   });
 
@@ -2058,8 +1190,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
     toBlock: 2,
   });
   await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
+    logs: [rpcLogs[0]!],
     chainId: 1,
   });
 
@@ -2115,7 +1246,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
   await syncStore.insertTransactions({
-    transactions: [{ transaction: rpcBlock.transactions[0]!, block: rpcBlock }],
+    transactions: [rpcBlock.transactions[0]!],
     chainId: 1,
   });
 
@@ -2124,8 +1255,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
     toBlock: 3,
   });
   await syncStore.insertLogs({
-    logs: [{ log: rpcLogs[0]!, block: rpcBlock }],
-    shouldUpdateCheckpoint: true,
+    logs: [rpcLogs[0]!],
     chainId: 1,
   });
 
@@ -2167,7 +1297,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
     .selectAll()
     .execute();
   const transactionReceipts = await database.qb.sync
-    .selectFrom("transactionReceipts")
+    .selectFrom("transaction_receipts")
     .selectAll()
     .execute();
 
