@@ -621,7 +621,7 @@ export const createIndexingCache = ({
       for (const [eventName, events] of eventsPerName) {
         for (const table of tables) {
           const tableAccess = access.get(eventName)?.get(table);
-          console.log(tableAccess);
+
           if (tableAccess) {
             const sortedTableAccess = Array.from(tableAccess.values()).sort(
               (a, b) => b.count - a.count,
