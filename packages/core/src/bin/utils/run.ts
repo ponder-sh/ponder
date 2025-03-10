@@ -242,6 +242,8 @@ export async function run({
             );
 
             endClock = startClock();
+            // Note: at this point, the next events can be preloaded, as long as the are not indexed until
+            // the "flush" + "finalize" is complete.
 
             try {
               await indexingCache.flush({ client });
