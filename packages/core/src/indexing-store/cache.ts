@@ -664,6 +664,7 @@ export const createIndexingCache = ({
               ([key]) => key,
             ).map(([, prediction]) => getWhereCondition(table, prediction));
 
+            if (conditions.length === 0) return;
             const endClock = startClock();
 
             await db
