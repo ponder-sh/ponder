@@ -688,7 +688,7 @@ export const createIndexingCache = ({
               .then((results) => {
                 common.logger.debug({
                   service: "indexing",
-                  msg: `Loaded ${results.length} '${getTableName(table)}' rows based on previous access patterns`,
+                  msg: `Loaded ${results.length} '${getTableName(table)}' rows`,
                 });
                 const resultsPerKey = new Map<
                   string,
