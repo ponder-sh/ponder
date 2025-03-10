@@ -5,14 +5,13 @@ export const getAccessKey = (access: { [key: string]: string }): string => {
   return Object.values(access).join("_");
 };
 
-export const recoverAccess = (
+export const predictAccess = (
   event: Event,
   table: Table,
   key: object,
+  hints: { [key: string]: string }[],
   cache: Map<Table, [string, Column][]>,
 ): { [key: string]: string } | undefined => {
-  const result: { [key: string]: string } = {};
-
   const eq = (
     target: bigint | string | number | boolean | null | undefined,
     value: bigint | string | number | boolean | null | undefined,
@@ -22,6 +21,27 @@ export const recoverAccess = (
     if (target && value && target.toString() === value.toString()) return true;
     return false;
   };
+
+  for (const hint of hints) {
+    let isMatch = true;
+    for (const js of Object.keys(hint)) {
+      if (js in key === false) {
+        isMatch = false;
+        break;
+      }
+
+      const value = recoverAccess(event.event, hint[js]!.split("."));
+      // @ts-ignore
+      if (eq(value, key[js]!) === false) {
+        isMatch = false;
+        break;
+      }
+    }
+
+    if (isMatch) return hint;
+  }
+
+  const result: { [key: string]: string } = {};
 
   for (const [js] of cache.get(table)!) {
     // @ts-ignore
@@ -452,12 +472,12 @@ export const recoverAccess = (
   return result;
 };
 
-export const getAccess = <T extends object>(
+export const recoverAccess = <T extends object>(
   base: T,
   access: (keyof T | unknown)[],
 ): unknown => {
   if (access.length === 0) return base;
   const a = access.splice(0, 1);
   // @ts-ignore
-  return getAccess(base[a]!, access);
+  return recoverAccess(base[a]!, access);
 };
