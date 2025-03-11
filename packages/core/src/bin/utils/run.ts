@@ -19,6 +19,7 @@ import { formatEta, formatPercentage } from "@/utils/format.js";
 import { createMutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
+import { startClock } from "@/utils/timer.js";
 
 /** Starts the sync and indexing services for the specified build. */
 export async function run({
@@ -151,6 +152,7 @@ export async function run({
       await database.retry(async () => {
         await database
           .transaction(async (client, tx) => {
+            let endClock = startClock();
             const historicalIndexingStore = createHistoricalIndexingStore({
               common,
               schemaBuild,
@@ -212,6 +214,10 @@ export async function run({
               });
             }
 
+            console.log(`index: ${endClock()}ms`);
+
+            endClock = startClock();
+
             try {
               await indexingCache.flush({ client });
             } catch (error) {
@@ -226,6 +232,8 @@ export async function run({
               checkpoint: events[events.length - 1]!.checkpoint,
               db: tx,
             });
+
+            console.log(`load: ${endClock()}ms`);
           })
           .catch((error) => {
             indexingCache.rollback();

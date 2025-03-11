@@ -675,6 +675,8 @@ export const createSyncStore = ({
             : Number(tracesRows[tracesRows.length - 1]!.block_number),
         );
 
+        const endClock = startClock();
+
         const blockData: {
           block: InternalBlock;
           logs: InternalLog[];
@@ -744,6 +746,8 @@ export const createSyncStore = ({
             transactionReceipts,
           });
         }
+
+        console.log(`decode: ${endClock()}ms`);
 
         let cursor: number;
         if (

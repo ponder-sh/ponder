@@ -38,7 +38,6 @@ export class MetricsService {
 
   ponder_indexing_completed_events: prometheus.Gauge<"event">;
   ponder_indexing_function_duration: prometheus.Histogram<"event">;
-  ponder_indexing_abi_decoding_duration: prometheus.Histogram;
   ponder_indexing_cache_requests_total: prometheus.Counter<"table" | "type">;
   ponder_indexing_cache_query_duration: prometheus.Histogram<
     "table" | "method"
@@ -148,12 +147,6 @@ export class MetricsService {
       name: "ponder_indexing_function_duration",
       help: "Duration of indexing function execution",
       labelNames: ["network", "event"] as const,
-      buckets: databaseQueryDurationMs,
-      registers: [this.registry],
-    });
-    this.ponder_indexing_abi_decoding_duration = new prometheus.Histogram({
-      name: "ponder_indexing_abi_decoding_duration",
-      help: "Total time spent decoding log arguments and call trace arguments and results",
       buckets: databaseQueryDurationMs,
       registers: [this.registry],
     });
@@ -336,7 +329,6 @@ export class MetricsService {
     this.ponder_indexing_timestamp.reset();
     this.ponder_indexing_has_error.reset();
     this.ponder_indexing_function_duration.reset();
-    this.ponder_indexing_abi_decoding_duration.reset();
     this.ponder_sync_block.reset();
     this.ponder_sync_is_realtime.reset();
     this.ponder_sync_is_complete.reset();

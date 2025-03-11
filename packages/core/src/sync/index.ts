@@ -32,7 +32,10 @@ import {
   min,
 } from "@/utils/checkpoint.js";
 import { formatPercentage } from "@/utils/format.js";
-import { bufferAsyncGenerator } from "@/utils/generators.js";
+import {
+  bufferAsyncGenerator,
+  recordAsyncGenerator,
+} from "@/utils/generators.js";
 import {
   type Interval,
   intervalDifference,
@@ -324,11 +327,13 @@ export const createSync = async (params: {
           }>,
         ) {
           for await (const { events, checkpoint } of eventGenerator) {
+            const endClock = startClock();
             const decodedEvents = decodeEvents(params.common, sources, events);
             params.common.logger.debug({
               service: "app",
               msg: `Decoded ${decodedEvents.length} '${network.name}' events`,
             });
+            console.log(`decode: ${endClock()}ms`);
             yield { events: decodedEvents, checkpoint };
           }
         }
@@ -400,8 +405,13 @@ export const createSync = async (params: {
       },
     );
 
-    for await (const { events } of mergeAsyncGeneratorsWithEventOrder(
-      eventGenerators,
+    for await (const { events } of recordAsyncGenerator(
+      mergeAsyncGeneratorsWithEventOrder(eventGenerators),
+      (params) => {
+        // Note: query time is params.await - sequence time (I think)
+        // Note: must subtract out "sync" time
+        console.log(`query + sync: ${params.await}ms`);
+      },
     )) {
       params.common.logger.debug({
         service: "sync",
@@ -1196,6 +1206,7 @@ export async function* getLocalEventGenerator(params: {
           limit: params.limit,
         });
 
+      const endClock = startClock();
       const events = blockData.flatMap((bd) =>
         buildEvents({
           sources: params.sources,
@@ -1204,6 +1215,7 @@ export async function* getLocalEventGenerator(params: {
           chainId: params.network.chainId,
         }),
       );
+      console.log(`build: ${endClock()}ms`);
 
       params.common.logger.debug({
         service: "sync",
@@ -1565,6 +1577,7 @@ export async function* mergeAsyncGeneratorsWithEventOrder(
   const results = await Promise.all(generators.map((gen) => gen.next()));
 
   while (results.some((res) => res.done !== true)) {
+    const endClock = startClock();
     const supremum = min(
       ...results.map((res) => (res.done ? undefined : res.value.checkpoint)),
     );
@@ -1592,6 +1605,7 @@ export async function* mergeAsyncGeneratorsWithEventOrder(
     );
 
     const resultPromise = generators[index]!.next();
+    console.log(`sequence: ${endClock()}ms`);
     if (events.length > 0) {
       yield { events, checkpoint: supremum };
     }

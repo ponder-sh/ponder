@@ -23,7 +23,6 @@ import {
   encodeCheckpoint,
 } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
-import { startClock } from "@/utils/timer.js";
 import type { AbiEvent, AbiParameter } from "abitype";
 import {
   type Address,
@@ -334,8 +333,6 @@ export const decodeEvents = (
 ): Event[] => {
   const events: Event[] = [];
 
-  const endClock = startClock();
-
   for (const event of rawEvents) {
     const source = sources[event.sourceIndex]!;
 
@@ -527,8 +524,6 @@ export const decodeEvents = (
         never(source);
     }
   }
-
-  common.metrics.ponder_indexing_abi_decoding_duration.observe(endClock());
 
   return events;
 };
