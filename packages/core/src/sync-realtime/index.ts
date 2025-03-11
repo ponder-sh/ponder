@@ -691,8 +691,8 @@ export const createRealtimeSync = (
     for (const filter of factories) {
       blockChildAddresses.set(filter, new Set<Address>());
       for (const log of logs) {
-        const address = getChildAddress({ log, factory: filter });
         if (isLogFactoryMatched({ filter, log })) {
+          const address = getChildAddress({ log, factory: filter });
           blockChildAddresses.get(filter)!.add(address);
         }
       }
