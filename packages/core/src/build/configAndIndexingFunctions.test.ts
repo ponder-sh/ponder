@@ -179,10 +179,10 @@ test("buildConfigAndIndexingFunctions() builds topics for event filter", async (
   });
 
   expect(sources).toHaveLength(1);
-  expect((sources[0]!.filter as LogFilter).topic0).toMatchObject(
+  expect((sources[0]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event0),
   );
-  expect((sources[0]!.filter as LogFilter).topic1).toMatchObject(bytes1);
+  expect((sources[0]!.filter as LogFilter).topic1).toEqual(bytes1);
 });
 
 test("buildConfigAndIndexingFunctions() builds topics for multiple event filters", async () => {
@@ -222,17 +222,17 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple event filters
   });
 
   expect(sources).toHaveLength(2);
-  expect((sources[0]!.filter as LogFilter).topic0).toMatchObject(
+  expect((sources[0]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event1Overloaded),
   );
   expect((sources[0]!.filter as LogFilter).topic1).toMatchObject([
     bytes1,
     bytes2,
   ]);
-  expect((sources[1]!.filter as LogFilter).topic0).toMatchObject(
+  expect((sources[1]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event0),
   );
-  expect((sources[1]!.filter as LogFilter).topic1).toMatchObject(bytes1);
+  expect((sources[1]!.filter as LogFilter).topic1).toEqual(bytes1);
 });
 
 test("buildConfigAndIndexingFunctions() overrides default values with network-specific values", async () => {
@@ -590,7 +590,7 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
   expect((sources[0]!.filter as TraceFilter).fromAddress).toBeUndefined();
   expect(
     ((sources[0]!.filter as TraceFilter).toAddress as LogFactory).address,
-  ).toMatchObject(address2);
+  ).toEqual(address2);
   expect((sources[0]!.filter as TraceFilter).functionSelector).toMatchObject([
     toFunctionSelector(func0),
   ]);
