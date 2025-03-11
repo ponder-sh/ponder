@@ -30,11 +30,19 @@ export const predictAccess = (
         break;
       }
 
-      const value = recoverAccess(event.event, hint[js]!.split("."));
-      // @ts-ignore
-      if (eq(value, key[js]!) === false) {
-        isMatch = false;
-        break;
+      if (hint[js] === "chainId") {
+        // @ts-ignore
+        if (eq(event.chainId, key[js]!) === false) {
+          isMatch = false;
+          break;
+        }
+      } else {
+        const value = recoverAccess(event.event, hint[js]!.split("."));
+        // @ts-ignore
+        if (eq(value, key[js]!) === false) {
+          isMatch = false;
+          break;
+        }
       }
     }
 
