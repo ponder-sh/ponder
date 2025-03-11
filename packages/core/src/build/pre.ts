@@ -6,8 +6,17 @@ import type { DatabaseConfig } from "@/internal/types.js";
 import parse from "pg-connection-string";
 
 function getDatabaseName(connectionString: string) {
-  const parsed = (parse as unknown as typeof parse.parse)(connectionString);
-  return `${parsed.host}:${parsed.port}/${parsed.database}`;
+  try {
+    const parsed = (parse as unknown as typeof parse.parse)(connectionString);
+    return `${parsed.host}:${parsed.port}/${parsed.database}`;
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+
+    throw new Error(
+      `Failed to parse database connection string: ${errorMessage}.`,
+    );
+  }
 }
 
 export function buildPre({
