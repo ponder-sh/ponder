@@ -506,6 +506,9 @@ export const createSyncStore = ({
     database.wrap(
       { method: "getEventBlockData", includeTraceLogs: true },
       async () => {
+        const blockFilters = filters.filter(
+          (f): f is BlockFilter => f.type === "block",
+        );
         const logFilters = filters.filter(
           (f): f is LogFilter => f.type === "log",
         );
@@ -534,6 +537,34 @@ export const createSyncStore = ({
           .where("blocks.chain_id", "=", String(chainId))
           .where("blocks.number", ">=", String(fromBlock))
           .where("blocks.number", "<=", String(toBlock))
+          .where((eb) =>
+            eb.or([
+              ...blockFilters.map((f) => blockFilter(eb, f)),
+              eb.exists(
+                database.qb.sync
+                  .selectFrom("traces")
+                  .where((eb) =>
+                    eb.or([
+                      ...traceFilters.map((f) => traceFilter(eb, f)),
+                      ...transferFilters.map((f) => transferFilter(eb, f)),
+                    ]),
+                  )
+                  .where("traces.chain_id", "=", sql.ref("blocks.chain_id"))
+                  .where("traces.block_number", "=", sql.ref("blocks.number"))
+                  .select(["chain_id", "block_number"])
+                  .limit(limit),
+              ),
+              eb.exists(
+                database.qb.sync
+                  .selectFrom("logs")
+                  .where((eb) => eb.or(logFilters.map((f) => logFilter(eb, f))))
+                  .where("logs.chain_id", "=", sql.ref("blocks.chain_id"))
+                  .where("logs.block_number", "=", sql.ref("blocks.number"))
+                  .select(["chain_id", "block_number"])
+                  .limit(limit),
+              ),
+            ]),
+          )
           .orderBy("blocks.number", "asc")
           .selectAll()
           .limit(limit);
@@ -543,6 +574,56 @@ export const createSyncStore = ({
           .where("chain_id", "=", String(chainId))
           .where("block_number", ">=", String(fromBlock))
           .where("block_number", "<=", String(toBlock))
+          .where((eb) =>
+            eb.or([
+              ...transactionFilters.map((f) => transactionFilter(eb, f)),
+              eb.exists(
+                database.qb.sync
+                  .selectFrom("traces")
+                  .where((eb) =>
+                    eb.or([
+                      ...traceFilters.map((f) => traceFilter(eb, f)),
+                      ...transferFilters.map((f) => transferFilter(eb, f)),
+                    ]),
+                  )
+                  .where(
+                    "traces.chain_id",
+                    "=",
+                    sql.ref("transactions.chain_id"),
+                  )
+                  .where(
+                    "traces.block_number",
+                    "=",
+                    sql.ref("transactions.block_number"),
+                  )
+                  .where(
+                    "traces.transaction_index",
+                    "=",
+                    sql.ref("transactions.transaction_index"),
+                  )
+                  .select(["chain_id", "block_number", "transaction_index"])
+                  .limit(limit),
+              ),
+              eb.exists(
+                database.qb.sync
+                  .selectFrom("logs")
+                  .where((eb) => eb.or(logFilters.map((f) => logFilter(eb, f))))
+                  .where("logs.chain_id", "=", sql.ref("transactions.chain_id"))
+                  .where(
+                    "logs.block_number",
+                    "=",
+                    sql.ref("transactions.block_number"),
+                  )
+                  .where(
+                    "logs.transaction_index",
+                    "=",
+                    sql.ref("transactions.transaction_index"),
+                  )
+                  .select(["chain_id", "block_number", "transaction_index"])
+                  .limit(limit),
+              ),
+            ]),
+          )
           .orderBy("block_number", "asc")
           .orderBy("transaction_index", "asc")
           .selectAll()
@@ -553,6 +634,97 @@ export const createSyncStore = ({
           .where("chain_id", "=", String(chainId))
           .where("block_number", ">=", String(fromBlock))
           .where("block_number", "<=", String(toBlock))
+          .where((eb) =>
+            eb.or([
+              eb.exists(
+                database.qb.sync
+                  .selectFrom("transactions")
+                  .where((eb) =>
+                    eb.or(
+                      transactionFilters
+                        .filter(shouldGetTransactionReceipt)
+                        .map((f) => transactionFilter(eb, f)),
+                    ),
+                  )
+                  .where(
+                    "transactions.chain_id",
+                    "=",
+                    sql.ref("transaction_receipts.chain_id"),
+                  )
+                  .where(
+                    "transactions.block_number",
+                    "=",
+                    sql.ref("transaction_receipts.block_number"),
+                  )
+                  .where(
+                    "transactions.transaction_index",
+                    "=",
+                    sql.ref("transaction_receipts.transaction_index"),
+                  )
+                  .select(["chain_id", "block_number", "transaction_index"])
+                  .limit(limit),
+              ),
+              eb.exists(
+                database.qb.sync
+                  .selectFrom("traces")
+                  .where((eb) =>
+                    eb.or([
+                      ...traceFilters
+                        .filter(shouldGetTransactionReceipt)
+                        .map((f) => traceFilter(eb, f)),
+                      ...transferFilters
+                        .filter(shouldGetTransactionReceipt)
+                        .map((f) => transferFilter(eb, f)),
+                    ]),
+                  )
+                  .where(
+                    "traces.chain_id",
+                    "=",
+                    sql.ref("transaction_receipts.chain_id"),
+                  )
+                  .where(
+                    "traces.block_number",
+                    "=",
+                    sql.ref("transaction_receipts.block_number"),
+                  )
+                  .where(
+                    "traces.transaction_index",
+                    "=",
+                    sql.ref("transaction_receipts.transaction_index"),
+                  )
+                  .select(["chain_id", "block_number", "transaction_index"])
+                  .limit(limit),
+              ),
+              eb.exists(
+                database.qb.sync
+                  .selectFrom("logs")
+                  .where((eb) =>
+                    eb.or(
+                      logFilters
+                        .filter(shouldGetTransactionReceipt)
+                        .map((f) => logFilter(eb, f)),
+                    ),
+                  )
+                  .where(
+                    "logs.chain_id",
+                    "=",
+                    sql.ref("transaction_receipts.chain_id"),
+                  )
+                  .where(
+                    "logs.block_number",
+                    "=",
+                    sql.ref("transaction_receipts.block_number"),
+                  )
+                  .where(
+                    "logs.transaction_index",
+                    "=",
+                    sql.ref("transaction_receipts.transaction_index"),
+                  )
+                  .select(["chain_id", "block_number", "transaction_index"])
+                  .limit(limit),
+              ),
+            ]),
+          )
           .orderBy("block_number", "asc")
           .orderBy("transaction_index", "asc")
           .selectAll()
@@ -855,7 +1027,6 @@ const logFilter = (
   return eb.and(conditions);
 };
 
-// @ts-expect-error
 const blockFilter = (
   eb: ExpressionBuilder<PonderSyncSchema, "blocks">,
   filter: BlockFilter,
@@ -876,7 +1047,6 @@ const blockFilter = (
   return eb.and(conditions);
 };
 
-// @ts-expect-error
 const transactionFilter = (
   eb: ExpressionBuilder<PonderSyncSchema, "transactions">,
   filter: TransactionFilter,
