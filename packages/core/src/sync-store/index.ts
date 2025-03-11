@@ -540,29 +540,64 @@ export const createSyncStore = ({
           .where((eb) =>
             eb.or([
               ...blockFilters.map((f) => blockFilter(eb, f)),
-              eb.exists(
-                database.qb.sync
-                  .selectFrom("traces")
-                  .where((eb) =>
-                    eb.or([
-                      ...traceFilters.map((f) => traceFilter(eb, f)),
-                      ...transferFilters.map((f) => transferFilter(eb, f)),
-                    ]),
+              transactionFilters.length > 0
+                ? eb.exists(
+                    database.qb.sync
+                      .selectFrom("transactions")
+                      .where((eb) =>
+                        eb.or(
+                          transactionFilters.map((f) =>
+                            transactionFilter(eb, f),
+                          ),
+                        ),
+                      )
+                      .where(
+                        "transactions.chain_id",
+                        "=",
+                        sql.ref("blocks.chain_id"),
+                      )
+                      .where(
+                        "transactions.block_number",
+                        "=",
+                        sql.ref("blocks.number"),
+                      )
+                      .select(["chain_id", "block_number"])
+                      .limit(limit),
                   )
-                  .where("traces.chain_id", "=", sql.ref("blocks.chain_id"))
-                  .where("traces.block_number", "=", sql.ref("blocks.number"))
-                  .select(["chain_id", "block_number"])
-                  .limit(limit),
-              ),
-              eb.exists(
-                database.qb.sync
-                  .selectFrom("logs")
-                  .where((eb) => eb.or(logFilters.map((f) => logFilter(eb, f))))
-                  .where("logs.chain_id", "=", sql.ref("blocks.chain_id"))
-                  .where("logs.block_number", "=", sql.ref("blocks.number"))
-                  .select(["chain_id", "block_number"])
-                  .limit(limit),
-              ),
+                : eb.val(false),
+              traceFilters.length > 0 || transferFilters.length > 0
+                ? eb.exists(
+                    database.qb.sync
+                      .selectFrom("traces")
+                      .where((eb) =>
+                        eb.or([
+                          ...traceFilters.map((f) => traceFilter(eb, f)),
+                          ...transferFilters.map((f) => transferFilter(eb, f)),
+                        ]),
+                      )
+                      .where("traces.chain_id", "=", sql.ref("blocks.chain_id"))
+                      .where(
+                        "traces.block_number",
+                        "=",
+                        sql.ref("blocks.number"),
+                      )
+                      .select(["chain_id", "block_number"])
+                      .limit(limit),
+                  )
+                : eb.val(false),
+              logFilters.length > 0
+                ? eb.exists(
+                    database.qb.sync
+                      .selectFrom("logs")
+                      .where((eb) =>
+                        eb.or(logFilters.map((f) => logFilter(eb, f))),
+                      )
+                      .where("logs.chain_id", "=", sql.ref("blocks.chain_id"))
+                      .where("logs.block_number", "=", sql.ref("blocks.number"))
+                      .select(["chain_id", "block_number"])
+                      .limit(limit),
+                  )
+                : eb.val(false),
             ]),
           )
           .orderBy("blocks.number", "asc")
@@ -577,51 +612,61 @@ export const createSyncStore = ({
           .where((eb) =>
             eb.or([
               ...transactionFilters.map((f) => transactionFilter(eb, f)),
-              eb.exists(
-                database.qb.sync
-                  .selectFrom("traces")
-                  .where((eb) =>
-                    eb.or([
-                      ...traceFilters.map((f) => traceFilter(eb, f)),
-                      ...transferFilters.map((f) => transferFilter(eb, f)),
-                    ]),
+              traceFilters.length > 0 || transferFilters.length > 0
+                ? eb.exists(
+                    database.qb.sync
+                      .selectFrom("traces")
+                      .where((eb) =>
+                        eb.or([
+                          ...traceFilters.map((f) => traceFilter(eb, f)),
+                          ...transferFilters.map((f) => transferFilter(eb, f)),
+                        ]),
+                      )
+                      .where(
+                        "traces.chain_id",
+                        "=",
+                        sql.ref("transactions.chain_id"),
+                      )
+                      .where(
+                        "traces.block_number",
+                        "=",
+                        sql.ref("transactions.block_number"),
+                      )
+                      .where(
+                        "traces.transaction_index",
+                        "=",
+                        sql.ref("transactions.transaction_index"),
+                      )
+                      .select(["chain_id", "block_number", "transaction_index"])
+                      .limit(limit),
                   )
-                  .where(
-                    "traces.chain_id",
-                    "=",
-                    sql.ref("transactions.chain_id"),
+                : eb.val(false),
+              logFilters.length > 0
+                ? eb.exists(
+                    database.qb.sync
+                      .selectFrom("logs")
+                      .where((eb) =>
+                        eb.or(logFilters.map((f) => logFilter(eb, f))),
+                      )
+                      .where(
+                        "logs.chain_id",
+                        "=",
+                        sql.ref("transactions.chain_id"),
+                      )
+                      .where(
+                        "logs.block_number",
+                        "=",
+                        sql.ref("transactions.block_number"),
+                      )
+                      .where(
+                        "logs.transaction_index",
+                        "=",
+                        sql.ref("transactions.transaction_index"),
+                      )
+                      .select(["chain_id", "block_number", "transaction_index"])
+                      .limit(limit),
                   )
-                  .where(
-                    "traces.block_number",
-                    "=",
-                    sql.ref("transactions.block_number"),
-                  )
-                  .where(
-                    "traces.transaction_index",
-                    "=",
-                    sql.ref("transactions.transaction_index"),
-                  )
-                  .select(["chain_id", "block_number", "transaction_index"])
-                  .limit(limit),
-              ),
-              eb.exists(
-                database.qb.sync
-                  .selectFrom("logs")
-                  .where((eb) => eb.or(logFilters.map((f) => logFilter(eb, f))))
-                  .where("logs.chain_id", "=", sql.ref("transactions.chain_id"))
-                  .where(
-                    "logs.block_number",
-                    "=",
-                    sql.ref("transactions.block_number"),
-                  )
-                  .where(
-                    "logs.transaction_index",
-                    "=",
-                    sql.ref("transactions.transaction_index"),
-                  )
-                  .select(["chain_id", "block_number", "transaction_index"])
-                  .limit(limit),
-              ),
+                : eb.val(false),
             ]),
           )
           .orderBy("block_number", "asc")
@@ -636,93 +681,100 @@ export const createSyncStore = ({
           .where("block_number", "<=", String(toBlock))
           .where((eb) =>
             eb.or([
-              eb.exists(
-                database.qb.sync
-                  .selectFrom("transactions")
-                  .where((eb) =>
-                    eb.or(
-                      transactionFilters
-                        .filter(shouldGetTransactionReceipt)
-                        .map((f) => transactionFilter(eb, f)),
-                    ),
+              transactionFilters.filter(shouldGetTransactionReceipt).length > 0
+                ? eb.exists(
+                    database.qb.sync
+                      .selectFrom("transactions")
+                      .where((eb) =>
+                        eb.or(
+                          transactionFilters
+                            .filter(shouldGetTransactionReceipt)
+                            .map((f) => transactionFilter(eb, f)),
+                        ),
+                      )
+                      .where(
+                        "transactions.chain_id",
+                        "=",
+                        sql.ref("transaction_receipts.chain_id"),
+                      )
+                      .where(
+                        "transactions.block_number",
+                        "=",
+                        sql.ref("transaction_receipts.block_number"),
+                      )
+                      .where(
+                        "transactions.transaction_index",
+                        "=",
+                        sql.ref("transaction_receipts.transaction_index"),
+                      )
+                      .select(["chain_id", "block_number", "transaction_index"])
+                      .limit(limit),
                   )
-                  .where(
-                    "transactions.chain_id",
-                    "=",
-                    sql.ref("transaction_receipts.chain_id"),
+                : eb.val(false),
+              traceFilters.filter(shouldGetTransactionReceipt).length > 0 ||
+              transferFilters.filter(shouldGetTransactionReceipt).length > 0
+                ? eb.exists(
+                    database.qb.sync
+                      .selectFrom("traces")
+                      .where((eb) =>
+                        eb.or([
+                          ...traceFilters
+                            .filter(shouldGetTransactionReceipt)
+                            .map((f) => traceFilter(eb, f)),
+                          ...transferFilters
+                            .filter(shouldGetTransactionReceipt)
+                            .map((f) => transferFilter(eb, f)),
+                        ]),
+                      )
+                      .where(
+                        "traces.chain_id",
+                        "=",
+                        sql.ref("transaction_receipts.chain_id"),
+                      )
+                      .where(
+                        "traces.block_number",
+                        "=",
+                        sql.ref("transaction_receipts.block_number"),
+                      )
+                      .where(
+                        "traces.transaction_index",
+                        "=",
+                        sql.ref("transaction_receipts.transaction_index"),
+                      )
+                      .select(["chain_id", "block_number", "transaction_index"])
+                      .limit(limit),
                   )
-                  .where(
-                    "transactions.block_number",
-                    "=",
-                    sql.ref("transaction_receipts.block_number"),
+                : eb.val(false),
+              logFilters.filter(shouldGetTransactionReceipt).length > 0
+                ? eb.exists(
+                    database.qb.sync
+                      .selectFrom("logs")
+                      .where((eb) =>
+                        eb.or(
+                          logFilters
+                            .filter(shouldGetTransactionReceipt)
+                            .map((f) => logFilter(eb, f)),
+                        ),
+                      )
+                      .where(
+                        "logs.chain_id",
+                        "=",
+                        sql.ref("transaction_receipts.chain_id"),
+                      )
+                      .where(
+                        "logs.block_number",
+                        "=",
+                        sql.ref("transaction_receipts.block_number"),
+                      )
+                      .where(
+                        "logs.transaction_index",
+                        "=",
+                        sql.ref("transaction_receipts.transaction_index"),
+                      )
+                      .select(["chain_id", "block_number", "transaction_index"])
+                      .limit(limit),
                   )
-                  .where(
-                    "transactions.transaction_index",
-                    "=",
-                    sql.ref("transaction_receipts.transaction_index"),
-                  )
-                  .select(["chain_id", "block_number", "transaction_index"])
-                  .limit(limit),
-              ),
-              eb.exists(
-                database.qb.sync
-                  .selectFrom("traces")
-                  .where((eb) =>
-                    eb.or([
-                      ...traceFilters
-                        .filter(shouldGetTransactionReceipt)
-                        .map((f) => traceFilter(eb, f)),
-                      ...transferFilters
-                        .filter(shouldGetTransactionReceipt)
-                        .map((f) => transferFilter(eb, f)),
-                    ]),
-                  )
-                  .where(
-                    "traces.chain_id",
-                    "=",
-                    sql.ref("transaction_receipts.chain_id"),
-                  )
-                  .where(
-                    "traces.block_number",
-                    "=",
-                    sql.ref("transaction_receipts.block_number"),
-                  )
-                  .where(
-                    "traces.transaction_index",
-                    "=",
-                    sql.ref("transaction_receipts.transaction_index"),
-                  )
-                  .select(["chain_id", "block_number", "transaction_index"])
-                  .limit(limit),
-              ),
-              eb.exists(
-                database.qb.sync
-                  .selectFrom("logs")
-                  .where((eb) =>
-                    eb.or(
-                      logFilters
-                        .filter(shouldGetTransactionReceipt)
-                        .map((f) => logFilter(eb, f)),
-                    ),
-                  )
-                  .where(
-                    "logs.chain_id",
-                    "=",
-                    sql.ref("transaction_receipts.chain_id"),
-                  )
-                  .where(
-                    "logs.block_number",
-                    "=",
-                    sql.ref("transaction_receipts.block_number"),
-                  )
-                  .where(
-                    "logs.transaction_index",
-                    "=",
-                    sql.ref("transaction_receipts.transaction_index"),
-                  )
-                  .select(["chain_id", "block_number", "transaction_index"])
-                  .limit(limit),
-              ),
+                : eb.val(false),
             ]),
           )
           .orderBy("block_number", "asc")
