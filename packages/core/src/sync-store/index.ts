@@ -602,24 +602,24 @@ export const createSyncStore = ({
         ]);
 
         const supremum = Math.min(
-          blocksRows.length === 0
+          blocksRows.length < limit
             ? Number.POSITIVE_INFINITY
             : Number(blocksRows[blocksRows.length - 1]!.number),
-          transactionsRows.length === 0
+          transactionsRows.length < limit
             ? Number.POSITIVE_INFINITY
             : Number(
                 transactionsRows[transactionsRows.length - 1]!.block_number,
               ),
-          transactionReceiptsRows.length === 0
+          transactionReceiptsRows.length < limit
             ? Number.POSITIVE_INFINITY
             : Number(
                 transactionReceiptsRows[transactionReceiptsRows.length - 1]!
                   .block_number,
               ),
-          logsRows.length === 0
+          logsRows.length < limit
             ? Number.POSITIVE_INFINITY
             : Number(logsRows[logsRows.length - 1]!.block_number),
-          tracesRows.length === 0
+          tracesRows.length < limit
             ? Number.POSITIVE_INFINITY
             : Number(tracesRows[tracesRows.length - 1]!.block_number),
         );

@@ -994,7 +994,7 @@ test("insertTraces() with duplicates", async (context) => {
   expect(traces).toHaveLength(1);
 });
 
-test("getEvents() returns events", async (context) => {
+test("getEventBlockData() returns events", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
@@ -1055,7 +1055,7 @@ test("getEvents() returns events", async (context) => {
   expect(blockData).toHaveLength(1);
 });
 
-test("getEvents() pagination", async (context) => {
+test("getEventBlockData() pagination", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
   const network = getNetwork();
