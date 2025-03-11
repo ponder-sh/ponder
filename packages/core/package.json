@@ -97,7 +97,7 @@
     "@types/pg-copy-streams": "^1.2.5",
     "@types/semver": "^7.5.8",
     "@viem/anvil": "^0.0.6",
-    "@vitest/coverage-v8": "^1.0.2",
+    "@vitest/coverage-v8": "^1.6.1",
     "@wagmi/cli": "^1.5.2",
     "chokidar": "^4.0.3",
     "execa": "^8.0.1",

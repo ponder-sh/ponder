@@ -925,7 +925,7 @@ importers:
         specifier: ^0.0.6
         version: 0.0.6
       '@vitest/coverage-v8':
-        specifier: ^1.0.2
+        specifier: ^1.6.1
         version: 1.6.1(vitest@1.0.2(@types/node@20.11.24))
       '@wagmi/cli':
         specifier: ^1.5.2
