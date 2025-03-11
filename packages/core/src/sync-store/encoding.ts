@@ -398,8 +398,8 @@ export const decodeTrace = ({ trace }: { trace: DbTrace }): InternalTrace => ({
 
 type RpcRequestResultsTable = {
   request_hash: string;
-  chain_id: number;
-  block_number: number | undefined;
+  chain_id: PgBigInt;
+  block_number: PgBigInt | undefined;
   result: string;
 };
 
