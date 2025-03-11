@@ -2,14 +2,6 @@ import os from "node:os";
 import path from "node:path";
 import { defineConfig } from "vitest/config";
 
-const defaultExclude = [
-  "**/node_modules/**",
-  "**/dist/**",
-  "**/cypress/**",
-  "**/.{idea,git,cache,output,temp}/**",
-  "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build,eslint,prettier}.config.*",
-];
-
 export default defineConfig({
   resolve: {
     alias: {
@@ -21,7 +13,6 @@ export default defineConfig({
   test: {
     globalSetup: ["src/_test/globalSetup.ts"],
     setupFiles: ["src/_test/setup.ts"],
-    exclude: [...defaultExclude, "**/tsconfig*"],
     poolOptions: {
       threads: {
         maxThreads: 4,
@@ -32,8 +23,8 @@ export default defineConfig({
     testTimeout: os.platform() === "win32" ? 30_000 : 10_000,
     coverage: {
       enabled: true,
-      // provider: "v8",
-      // reporter: ["text", "json", "html"],
+      provider: "v8",
+      reporter: ["text", "json", "html"],
       reportsDirectory: "coverage",
       thresholds: {
         statements: 0,
