@@ -106,18 +106,18 @@ const isValueMatched = <T extends string>(
  * Returns `true` if `log` matches `filter`
  */
 export const isLogFactoryMatched = ({
-  filter,
+  factory,
   log,
-}: { filter: LogFactory; log: InternalLog | SyncLog }): boolean => {
-  const addresses = Array.isArray(filter.address)
-    ? filter.address
-    : [filter.address];
+}: { factory: LogFactory; log: InternalLog | SyncLog }): boolean => {
+  const addresses = Array.isArray(factory.address)
+    ? factory.address
+    : [factory.address];
 
   if (addresses.every((address) => address !== toLowerCase(log.address))) {
     return false;
   }
   if (log.topics.length === 0) return false;
-  if (filter.eventSelector !== toLowerCase(log.topics[0]!)) return false;
+  if (factory.eventSelector !== toLowerCase(log.topics[0]!)) return false;
 
   return true;
 };

@@ -23,6 +23,7 @@ import {
   getChildAddress,
   isAddressFactory,
   isAddressMatched,
+  isLogFactoryMatched,
   isTraceFilterMatched,
   isTransactionFilterMatched,
   isTransferFilterMatched,
@@ -433,8 +434,10 @@ export const createHistoricalSync = async (
 
     const childAddresses = new Map<Address, number>();
     for (const log of logs) {
-      const address = getChildAddress({ log, factory });
-      childAddresses.set(address, hexToNumber(log.blockNumber));
+      if (isLogFactoryMatched({ factory, log })) {
+        const address = getChildAddress({ log, factory });
+        childAddresses.set(address, hexToNumber(log.blockNumber));
+      }
     }
 
     // Note: `factory` must refer to the same original `factory` in `filter`
