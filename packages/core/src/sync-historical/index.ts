@@ -675,7 +675,7 @@ export const createHistoricalSync = async (
               address: trace.trace.from,
               blockNumber: number,
               childAddresses: fromChildAddresses!,
-            })
+            }) === false
           ) {
             return false;
           }
@@ -686,7 +686,7 @@ export const createHistoricalSync = async (
               address: trace.trace.to,
               blockNumber: number,
               childAddresses: toChildAddresses!,
-            })
+            }) === false
           ) {
             return false;
           }
