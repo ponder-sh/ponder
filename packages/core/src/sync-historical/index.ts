@@ -643,34 +643,53 @@ export const createHistoricalSync = async (
         let traces = await syncTrace(number);
 
         // remove unmatched traces
-        traces = traces.filter(
-          (trace) =>
-            (filter.type === "trace"
-              ? isTraceFilterMatched({
-                  filter,
-                  trace: trace.trace,
-                  block: { number: BigInt(number) },
-                })
-              : isTransferFilterMatched({
-                  filter,
-                  trace: trace.trace,
-                  block: { number: BigInt(number) },
-                })) &&
-            (isAddressFactory(filter.fromAddress)
-              ? isAddressMatched({
-                  address: trace.trace.from,
-                  blockNumber: number,
-                  childAddresses: fromChildAddresses!,
-                })
-              : true) &&
-            (isAddressFactory(filter.toAddress)
-              ? isAddressMatched({
-                  address: trace.trace.to,
-                  blockNumber: number,
-                  childAddresses: toChildAddresses!,
-                })
-              : true),
-        );
+        traces = traces.filter((trace) => {
+          if (
+            filter.type === "trace" &&
+            isTraceFilterMatched({
+              filter,
+              trace: trace.trace,
+              block: { number: BigInt(number) },
+            }) === false
+          ) {
+            return false;
+          }
+
+          if (
+            filter.type === "transfer" &&
+            isTransferFilterMatched({
+              filter,
+              trace: trace.trace,
+              block: { number: BigInt(number) },
+            }) === false
+          ) {
+            return false;
+          }
+
+          if (
+            isAddressFactory(filter.fromAddress) &&
+            isAddressMatched({
+              address: trace.trace.from,
+              blockNumber: number,
+              childAddresses: fromChildAddresses!,
+            })
+          ) {
+            return false;
+          }
+
+          if (
+            isAddressFactory(filter.toAddress) &&
+            isAddressMatched({
+              address: trace.trace.to,
+              blockNumber: number,
+              childAddresses: toChildAddresses!,
+            })
+          ) {
+            return false;
+          }
+
+          return true;
+        });
 
         if (traces.length === 0) return [];
 
