@@ -4,3 +4,4 @@ ponder-env.d.ts
 generated/
 .env.local
 **/*.node
+tsconfig.vitest-temp.json
