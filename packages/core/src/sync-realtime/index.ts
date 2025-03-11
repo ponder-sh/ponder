@@ -505,12 +505,12 @@ export const createRealtimeSync = (
 
     // remove reorged blocks from `childAddresses`
     for (const block of reorgedBlocks) {
-      for (const filter of factories) {
+      for (const factory of factories) {
         const addresses = childAddressesPerBlock
           .get(hexToNumber(block.number))!
-          .get(filter)!;
+          .get(factory)!;
         for (const address of addresses) {
-          childAddresses.get(filter)!.delete(address);
+          childAddresses.get(factory)!.delete(address);
         }
       }
       childAddressesPerBlock.delete(hexToNumber(block.number));
@@ -688,12 +688,12 @@ export const createRealtimeSync = (
 
     // Record `blockChildAddresses` that contain factory child addresses
     const blockChildAddresses = new Map<Factory, Set<Address>>();
-    for (const filter of factories) {
-      blockChildAddresses.set(filter, new Set<Address>());
+    for (const factory of factories) {
+      blockChildAddresses.set(factory, new Set<Address>());
       for (const log of logs) {
-        if (isLogFactoryMatched({ filter, log })) {
-          const address = getChildAddress({ log, factory: filter });
-          blockChildAddresses.get(filter)!.add(address);
+        if (isLogFactoryMatched({ factory, log })) {
+          const address = getChildAddress({ log, factory });
+          blockChildAddresses.get(factory)!.add(address);
         }
       }
     }
