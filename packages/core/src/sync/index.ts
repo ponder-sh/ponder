@@ -333,7 +333,10 @@ export const createSync = async (params: {
               service: "app",
               msg: `Decoded ${decodedEvents.length} '${network.name}' events`,
             });
-            console.log(`decode: ${endClock()}ms`);
+            params.common.metrics.ponder_historical_phase_duration.inc(
+              { phase: "decode", concurrency: "extract" },
+              endClock(),
+            );
             yield { events: decodedEvents, checkpoint };
           }
         }
@@ -407,10 +410,11 @@ export const createSync = async (params: {
 
     for await (const { events } of recordAsyncGenerator(
       mergeAsyncGeneratorsWithEventOrder(eventGenerators),
-      (params) => {
-        // Note: query time is params.await - sequence time (I think)
-        // Note: must subtract out "sync" time
-        console.log(`query + sync: ${params.await}ms`);
+      (results) => {
+        params.common.metrics.ponder_historical_phase_duration.inc(
+          { phase: "query + sync", concurrency: "extract" },
+          results.await,
+        );
       },
     )) {
       params.common.logger.debug({
@@ -1215,7 +1219,10 @@ export async function* getLocalEventGenerator(params: {
           chainId: params.network.chainId,
         }),
       );
-      console.log(`build: ${endClock()}ms`);
+      params.common.metrics.ponder_historical_phase_duration.inc(
+        { phase: "build", concurrency: "extract" },
+        endClock(),
+      );
 
       params.common.logger.debug({
         service: "sync",
@@ -1577,7 +1584,6 @@ export async function* mergeAsyncGeneratorsWithEventOrder(
   const results = await Promise.all(generators.map((gen) => gen.next()));
 
   while (results.some((res) => res.done !== true)) {
-    const endClock = startClock();
     const supremum = min(
       ...results.map((res) => (res.done ? undefined : res.value.checkpoint)),
     );
@@ -1605,7 +1611,6 @@ export async function* mergeAsyncGeneratorsWithEventOrder(
     );
 
     const resultPromise = generators[index]!.next();
-    console.log(`sequence: ${endClock()}ms`);
     if (events.length > 0) {
       yield { events, checkpoint: supremum };
     }

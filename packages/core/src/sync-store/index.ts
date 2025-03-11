@@ -747,7 +747,10 @@ export const createSyncStore = ({
           });
         }
 
-        console.log(`decode: ${endClock()}ms`);
+        common.metrics.ponder_historical_phase_duration.inc(
+          { phase: "decode", concurrency: "extract" },
+          endClock(),
+        );
 
         let cursor: number;
         if (

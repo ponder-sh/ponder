@@ -16,6 +16,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
+import { recordAsyncGenerator } from "@/utils/generators.js";
 import { createMutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
@@ -147,7 +148,23 @@ export async function run({
   }
 
   // Run historical indexing until complete.
-  for await (const events of sync.getEvents()) {
+  for await (const events of recordAsyncGenerator(
+    sync.getEvents(),
+    (params) => {
+      common.metrics.ponder_historical_phase_duration.inc(
+        { concurrency: "extract" },
+        params.await,
+      );
+      common.metrics.ponder_historical_phase_duration.inc(
+        { concurrency: "transform" },
+        params.yield,
+      );
+      common.metrics.ponder_historical_phase_duration.inc(
+        { phase: "total" },
+        params.total,
+      );
+    },
+  )) {
     if (events.length > 0) {
       await database.retry(async () => {
         await database
@@ -214,7 +231,10 @@ export async function run({
               });
             }
 
-            console.log(`index: ${endClock()}ms`);
+            common.metrics.ponder_historical_phase_duration.inc(
+              { phase: "index", concurrency: "transform" },
+              endClock(),
+            );
 
             endClock = startClock();
 
@@ -233,7 +253,10 @@ export async function run({
               db: tx,
             });
 
-            console.log(`load: ${endClock()}ms`);
+            common.metrics.ponder_historical_phase_duration.inc(
+              { phase: "load", concurrency: "transform" },
+              endClock(),
+            );
           })
           .catch((error) => {
             indexingCache.rollback();
