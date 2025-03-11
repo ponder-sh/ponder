@@ -115,7 +115,7 @@ test("isLogFactoryMatched()", async (context) => {
   });
 
   let isMatched = isLogFactoryMatched({
-    filter: filter.address,
+    factory: filter.address,
     log: rpcLogs[0]!,
   });
   expect(isMatched).toBe(true);
@@ -123,7 +123,7 @@ test("isLogFactoryMatched()", async (context) => {
   filter.address.address = [filter.address.address as Address];
 
   isMatched = isLogFactoryMatched({
-    filter: filter.address,
+    factory: filter.address,
     log: rpcLogs[0]!,
   });
   expect(isMatched).toBe(true);
@@ -131,7 +131,7 @@ test("isLogFactoryMatched()", async (context) => {
   rpcLogs[0]!.topics[0] = zeroHash;
 
   isMatched = isLogFactoryMatched({
-    filter: filter.address,
+    factory: filter.address,
     log: rpcLogs[0]!,
   });
   expect(isMatched).toBe(false);
