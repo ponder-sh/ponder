@@ -15,7 +15,7 @@ export default createConfig({
       abi: erc20ABI,
       address: "0x32353A6C91143bfd6C7d363B546e62a9A2489A20",
       startBlock: 13142655,
-      endBlock: 13160000,
+      endBlock: 13300000,
     },
   },
 });
