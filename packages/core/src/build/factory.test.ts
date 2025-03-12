@@ -73,7 +73,7 @@ test("buildLogFactory handles Morpho CreateMarket marketParams.oracle", () => {
 const testEventAbiItem = parseAbiItem([
   "struct SomeNestedStruct { uint256 c1; address[3] c2; }",
   "struct SomeStruct { address b1; SomeNestedStruct[42] b2; }",
-  "event SomeEvent(SomeStruct indexed a1, SomeStruct a2, address[] a3, (uint256[] x, address y) z, (string s, address t)[10] u)",
+  "event SomeEvent(SomeStruct indexed a1, SomeStruct a2, address[] a3, (uint256[] x, address y) z, (string s, address t)[10] u, uint256 indexed v, address indexed w)",
 ]);
 
 test("buildLogFactory handles fixed length arrays and tuples", () => {
@@ -91,11 +91,27 @@ test("buildLogFactory handles fixed length arrays and tuples", () => {
   });
 });
 
+test("buildLogFactory handles indexed address parameters", () => {
+  const criteria = buildLogFactory({
+    address: "0xa",
+    event: testEventAbiItem,
+    parameterPath: "w",
+    chainId: 1,
+  });
+
+  expect(criteria).toMatchObject({
+    address: "0xa",
+    eventSelector: getEventSelector(testEventAbiItem),
+    childAddressLocation: "topic3",
+  });
+});
+
 test("buildLogFactory throws if provided path is nested in an indexed parameter", () => {
   expect(() => {
     buildLogFactory({
       address: "0xa",
       event: testEventAbiItem,
+      // @ts-expect-error
       parameterPath: "a1.b2[10].c2[1]",
       chainId: 1,
     });
@@ -138,6 +154,18 @@ test("buildLogFactory throws if provided path is not an address", () => {
       event: testEventAbiItem,
       // @ts-expect-error
       parameterPath: "a2.b2[10].c1",
+      chainId: 1,
+    });
+  }).toThrowError("Factory event parameter is not an address. Got 'uint256'.");
+});
+
+test("buildLogFactory throws if provided path is not an address (indexed)", () => {
+  expect(() => {
+    buildLogFactory({
+      address: "0xa",
+      event: testEventAbiItem,
+      // @ts-expect-error
+      parameterPath: "v",
       chainId: 1,
     });
   }).toThrowError("Factory event parameter is not an address. Got 'uint256'.");

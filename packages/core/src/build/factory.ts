@@ -30,17 +30,28 @@ export function buildLogFactory<event extends AbiEvent>({
     convertToDotNotation(parameterPath).split(".");
 
   // Check if the provided parameter is present in the list of indexed inputs.
-  const indexedInputPosition = event.inputs
-    .filter((x) => "indexed" in x && x.indexed)
-    .findIndex((input) => input.name === parameter);
+  const indexedInputPosition = event.inputs.findIndex(
+    (input) => input.indexed && input.name === parameter,
+  );
 
   if (indexedInputPosition > -1) {
-    // If the parameter is indexed, nested paths cannot be accessed.
+    // If the parameter is indexed, nested paths cannot be accessed (reference types are hashed).
     if (pathSegments.length > 0) {
       throw new Error(
         `Factory event parameter is indexed, so nested path '${parameterPath}' cannot be accessed.`,
       );
     }
+
+    // Type must be address
+    if (event.inputs[indexedInputPosition]!.type !== "address") {
+      throw new Error(
+        `Factory event parameter is not an address. Got '${event.inputs[indexedInputPosition]!.type}'.`,
+      );
+    }
+
+    const topicPosition = event.inputs
+      .filter((input) => input.indexed)
+      .findIndex((input) => input.name === parameter);
 
     return {
       type: "log",
@@ -48,13 +59,11 @@ export function buildLogFactory<event extends AbiEvent>({
       address,
       eventSelector,
       // Add 1 because inputs will not contain an element for topic0 (the signature).
-      childAddressLocation: `topic${(indexedInputPosition + 1) as 1 | 2 | 3}`,
+      childAddressLocation: `topic${(topicPosition + 1) as 1 | 2 | 3}`,
     };
   }
 
-  const nonIndexedInputs = event.inputs.filter(
-    (x) => !("indexed" in x && x.indexed),
-  );
+  const nonIndexedInputs = event.inputs.filter((input) => !input.indexed);
   const nonIndexedInputPosition = nonIndexedInputs.findIndex(
     (input) => input.name === parameter,
   );

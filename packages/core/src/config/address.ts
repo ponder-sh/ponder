@@ -1,4 +1,8 @@
-import type { SolidityArrayWithTuple, SolidityTuple } from "abitype";
+import type {
+  AbiEventParameter,
+  SolidityArrayWithTuple,
+  SolidityTuple,
+} from "abitype";
 import type { AbiEvent, AbiParameter } from "viem";
 
 type CommonFactoryParams<event extends AbiEvent = AbiEvent> = {
@@ -21,6 +25,7 @@ export type DeprecatedFactoryEventParameter<event extends AbiEvent = AbiEvent> =
 type ExtractValidPaths<T extends AbiParameter> = T extends {
   name: infer Name extends string;
   type: infer Type;
+  indexed?: false;
 }
   ? Type extends SolidityTuple
     ? // Case 1: Tuple types - must access nested fields with dot notation
@@ -39,7 +44,7 @@ type ExtractValidPaths<T extends AbiParameter> = T extends {
         ? `${Name}[${number}].${ExtractValidPaths<Components[number]>}`
         : never
       : Type extends `address[${number}]`
-        ? // Case 3: Simple arrays - must access with index
+        ? // Case 3: Fixed length address arrays - must access with index
           // Example: "myArray[0]"
           `${Name}[${number}]`
         : // Case 4: Primitive types - only address type can be accessed directly
@@ -51,8 +56,11 @@ type ExtractValidPaths<T extends AbiParameter> = T extends {
 type FactoryEventParameter<event extends AbiEvent = AbiEvent> = {
   /** Path to the field in factory event parameters that contains the new child contract address. */
   parameterPath: event["inputs"][number] extends infer Input extends
-    AbiParameter
-    ? ExtractValidPaths<Input>
+    AbiEventParameter
+    ? // Only allow indexed parameter if address type
+      Input extends { indexed: true; type: "address"; name: infer Name }
+      ? Name
+      : ExtractValidPaths<Input>
     : never;
   parameter?: never;
 };
