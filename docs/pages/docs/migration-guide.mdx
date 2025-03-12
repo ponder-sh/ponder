@@ -7,6 +7,16 @@ import { FileTree, Steps, Tabs, Callout } from "nextra/components";
 
 # Migration guide
 
+## 0.10
+
+<Callout type="warning">
+  This release includes an irreversible migration to the `ponder_sync` schema (RPC request cache). Once you run a `0.10` app against a database, you can no longer run `<=0.9` apps against the same database.
+</Callout>
+
+### `event.id`
+
+`event.id` is a property for all event types. It replaces `event.log.id` and `event.trace.id` as the unique identifier for the event. `event.name` is also removed.
+
 ## 0.9
 
 ### Breaking changes
