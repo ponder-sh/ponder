@@ -1,5 +1,5 @@
 import { type AddressInfo, createServer } from "node:net";
-import { factory } from "@/config/address.js";
+import { type DeprecatedFactory, factory } from "@/config/address.js";
 import { createConfig } from "@/config/index.js";
 import type { Network, Status } from "@/internal/types.js";
 import type { Address, Chain } from "viem";
@@ -103,7 +103,7 @@ export const getPairWithFactoryConfigAndIndexingFunctions = (params: {
           address: params.address,
           event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
           parameter: "pair",
-        }),
+        } as DeprecatedFactory),
         includeCallTraces: params.includeCallTraces,
         includeTransactionReceipts: params.includeTransactionReceipts,
       },

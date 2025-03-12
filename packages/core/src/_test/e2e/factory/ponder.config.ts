@@ -1,4 +1,4 @@
-import { factory } from "@/config/address.js";
+import { type DeprecatedFactory, factory } from "@/config/address.js";
 import { http, getAbiItem } from "viem";
 import { createConfig } from "../../../config/index.js";
 import { factoryABI, pairABI } from "../../generated.js";
@@ -32,7 +32,7 @@ export default createConfig({
         address: "0x5fbdb2315678afecb367f032d93f642f64180aa3",
         event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
         parameter: "pair",
-      }),
+      } as DeprecatedFactory),
     },
   },
 });

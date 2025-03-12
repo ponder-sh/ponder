@@ -1,6 +1,6 @@
 import { setupAnvil } from "@/_test/setup.js";
 import { poolId } from "@/_test/utils.js";
-import { factory } from "@/config/address.js";
+import { type DeprecatedFactory, factory } from "@/config/address.js";
 import type { LogFactory, LogFilter, TraceFilter } from "@/internal/types.js";
 import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import {
@@ -574,7 +574,7 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
           address: address2,
           event: eventFactory,
           parameter: "child",
-        }),
+        } as DeprecatedFactory),
         abi: [func0],
       },
     },

@@ -1,45 +1,69 @@
+import type { Factory } from "@/config/address.js";
 import type { LogFactory } from "@/internal/types.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { getBytesConsumedByParam } from "@/utils/offset.js";
-import type { AbiEvent } from "abitype";
-import { type Address, toEventSelector } from "viem";
+import {
+  computeNestedOffset,
+  convertToDotNotation,
+  getBytesConsumedByParam,
+} from "@/utils/offset.js";
+import { type AbiEvent, toEventSelector } from "viem";
 
-export function buildLogFactory({
+type BuildLogFactoryParams<event extends AbiEvent> = Factory<event> & {
+  chainId: number;
+};
+
+export function buildLogFactory<event extends AbiEvent>({
   address: _address,
   event,
-  parameter,
+  parameter: oldParameterInput,
+  parameterPath: newParameterInput,
   chainId,
-}: {
-  address: Address | readonly Address[];
-  event: AbiEvent;
-  parameter: string;
-  chainId: number;
-}): LogFactory {
+}: BuildLogFactoryParams<event>): LogFactory {
   const address = Array.isArray(_address)
     ? dedupe(_address).map(toLowerCase)
     : toLowerCase(_address);
   const eventSelector = toEventSelector(event);
 
+  const parameterPath = (newParameterInput || oldParameterInput)!;
+  const [parameter, ...pathSegments] =
+    convertToDotNotation(parameterPath).split(".");
+
   // Check if the provided parameter is present in the list of indexed inputs.
-  const indexedInputPosition = event.inputs
-    .filter((x) => "indexed" in x && x.indexed)
-    .findIndex((input) => input.name === parameter);
+  const indexedInputPosition = event.inputs.findIndex(
+    (input) => input.indexed && input.name === parameter,
+  );
 
   if (indexedInputPosition > -1) {
+    // If the parameter is indexed, nested paths cannot be accessed (reference types are hashed).
+    if (pathSegments.length > 0) {
+      throw new Error(
+        `Factory event parameter is indexed, so nested path '${parameterPath}' cannot be accessed.`,
+      );
+    }
+
+    // Type must be address
+    if (event.inputs[indexedInputPosition]!.type !== "address") {
+      throw new Error(
+        `Factory event parameter is not an address. Got '${event.inputs[indexedInputPosition]!.type}'.`,
+      );
+    }
+
+    const topicPosition = event.inputs
+      .filter((input) => input.indexed)
+      .findIndex((input) => input.name === parameter);
+
     return {
       type: "log",
       chainId,
       address,
       eventSelector,
       // Add 1 because inputs will not contain an element for topic0 (the signature).
-      childAddressLocation: `topic${(indexedInputPosition + 1) as 1 | 2 | 3}`,
+      childAddressLocation: `topic${(topicPosition + 1) as 1 | 2 | 3}`,
     };
   }
 
-  const nonIndexedInputs = event.inputs.filter(
-    (x) => !("indexed" in x && x.indexed),
-  );
+  const nonIndexedInputs = event.inputs.filter((input) => !input.indexed);
   const nonIndexedInputPosition = nonIndexedInputs.findIndex(
     (input) => input.name === parameter,
   );
@@ -53,9 +77,15 @@ export function buildLogFactory({
   }
 
   let offset = 0;
+
   for (let i = 0; i < nonIndexedInputPosition; i++) {
     offset += getBytesConsumedByParam(nonIndexedInputs[i]!);
   }
+
+  offset += computeNestedOffset(
+    nonIndexedInputs[nonIndexedInputPosition]!,
+    pathSegments,
+  );
 
   return {
     type: "log",
