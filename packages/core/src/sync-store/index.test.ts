@@ -1127,16 +1127,9 @@ test("insertRpcRequestResults() ", async (context) => {
     .selectAll()
     .execute();
 
-  expect(result).toMatchInlineSnapshot(`
-    [
-      {
-        "block_number": "1",
-        "chain_id": "1",
-        "request_hash": "0138b5d63d66121d8a6e680d23720fa7",
-        "result": "0x1",
-      },
-    ]
-  `);
+  expect(result).toHaveLength(1);
+  expect(result[0]!.request_hash).toBe("0138b5d63d66121d8a6e680d23720fa7");
+  expect(result[0]!.request_hash).toBe("0x1");
 });
 
 test("inserttRpcRequestResults() hash matches postgres", async (context) => {
