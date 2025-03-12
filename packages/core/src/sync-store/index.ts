@@ -551,6 +551,13 @@ export const createSyncStore = ({
                           ),
                         ),
                       )
+                      .where("transactions.chain_id", "=", String(chainId))
+                      .where(
+                        "transactions.block_number",
+                        ">=",
+                        String(fromBlock),
+                      )
+                      .where("transactions.block_number", "<=", String(toBlock))
                       .where(
                         "transactions.chain_id",
                         "=",
@@ -575,6 +582,9 @@ export const createSyncStore = ({
                           ...transferFilters.map((f) => transferFilter(eb, f)),
                         ]),
                       )
+                      .where("traces.chain_id", "=", String(chainId))
+                      .where("traces.block_number", ">=", String(fromBlock))
+                      .where("traces.block_number", "<=", String(toBlock))
                       .where("traces.chain_id", "=", sql.ref("blocks.chain_id"))
                       .where(
                         "traces.block_number",
@@ -592,6 +602,9 @@ export const createSyncStore = ({
                       .where((eb) =>
                         eb.or(logFilters.map((f) => logFilter(eb, f))),
                       )
+                      .where("logs.chain_id", "=", String(chainId))
+                      .where("logs.block_number", ">=", String(fromBlock))
+                      .where("logs.block_number", "<=", String(toBlock))
                       .where("logs.chain_id", "=", sql.ref("blocks.chain_id"))
                       .where("logs.block_number", "=", sql.ref("blocks.number"))
                       .select(["chain_id", "block_number"])
@@ -622,6 +635,9 @@ export const createSyncStore = ({
                           ...transferFilters.map((f) => transferFilter(eb, f)),
                         ]),
                       )
+                      .where("traces.chain_id", "=", String(chainId))
+                      .where("traces.block_number", ">=", String(fromBlock))
+                      .where("traces.block_number", "<=", String(toBlock))
                       .where(
                         "traces.chain_id",
                         "=",
@@ -648,6 +664,9 @@ export const createSyncStore = ({
                       .where((eb) =>
                         eb.or(logFilters.map((f) => logFilter(eb, f))),
                       )
+                      .where("logs.chain_id", "=", String(chainId))
+                      .where("logs.block_number", ">=", String(fromBlock))
+                      .where("logs.block_number", "<=", String(toBlock))
                       .where(
                         "logs.chain_id",
                         "=",
@@ -692,6 +711,13 @@ export const createSyncStore = ({
                             .map((f) => transactionFilter(eb, f)),
                         ),
                       )
+                      .where("transactions.chain_id", "=", String(chainId))
+                      .where(
+                        "transactions.block_number",
+                        ">=",
+                        String(fromBlock),
+                      )
+                      .where("transactions.block_number", "<=", String(toBlock))
                       .where(
                         "transactions.chain_id",
                         "=",
@@ -726,6 +752,9 @@ export const createSyncStore = ({
                             .map((f) => transferFilter(eb, f)),
                         ]),
                       )
+                      .where("traces.chain_id", "=", String(chainId))
+                      .where("traces.block_number", ">=", String(fromBlock))
+                      .where("traces.block_number", "<=", String(toBlock))
                       .where(
                         "traces.chain_id",
                         "=",
@@ -756,6 +785,9 @@ export const createSyncStore = ({
                             .map((f) => logFilter(eb, f)),
                         ),
                       )
+                      .where("logs.chain_id", "=", String(chainId))
+                      .where("logs.block_number", ">=", String(fromBlock))
+                      .where("logs.block_number", "<=", String(toBlock))
                       .where(
                         "logs.chain_id",
                         "=",
