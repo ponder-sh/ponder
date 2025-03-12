@@ -299,6 +299,7 @@ export const createHistoricalIndexingStore = ({
       async (_sql, params, method, typings) => {
         await indexingCache.flush({ client });
         indexingCache.invalidate();
+        indexingCache.clear();
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
         const endClock = startClock();
