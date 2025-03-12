@@ -30,6 +30,7 @@ import {
 } from "@/sync/filter.js";
 import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import { getFragments, recoverFilter } from "@/sync/fragments.js";
+import { dedupe } from "@/utils/dedupe.js";
 import {
   type Interval,
   getChunks,
@@ -436,7 +437,9 @@ export const createHistoricalSync = async (
     for (const log of logs) {
       if (isLogFactoryMatched({ factory, log })) {
         const address = getChildAddress({ log, factory });
-        childAddresses.set(address, hexToNumber(log.blockNumber));
+        if (childAddresses.has(address) === false) {
+          childAddresses.set(address, hexToNumber(log.blockNumber));
+        }
       }
     }
 
@@ -451,8 +454,7 @@ export const createHistoricalSync = async (
 
   /**
    * Return all addresses that match `filter` after extracting addresses
-   * that match `filter` and `interval`. Returns `undefined` if the number of
-   * child addresses is above the limit.
+   * that match `filter` and `interval`.
    */
   const syncAddressFactory = async (
     factory: Factory,
@@ -520,7 +522,7 @@ export const createHistoricalSync = async (
 
     if (shouldGetTransactionReceipt(filter)) {
       const transactionReceipts = await Promise.all(
-        blocks.map((block) => {
+        dedupe(blocks, (b) => b.hash).map((block) => {
           const blockTransactionHashes = new Set<Hash>();
 
           for (const log of logs) {

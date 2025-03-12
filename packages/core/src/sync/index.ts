@@ -888,10 +888,7 @@ export const createSync = async (params: {
                       factory: filter.address,
                     });
 
-                  initialChildAddresses.set(
-                    filter.address,
-                    new Map(childAddresses),
-                  );
+                  initialChildAddresses.set(filter.address, childAddresses);
                 }
                 break;
 
@@ -904,10 +901,7 @@ export const createSync = async (params: {
                       factory: filter.fromAddress,
                     });
 
-                  initialChildAddresses.set(
-                    filter.fromAddress,
-                    new Map(childAddresses),
-                  );
+                  initialChildAddresses.set(filter.fromAddress, childAddresses);
                 }
 
                 if (isAddressFactory(filter.toAddress)) {
@@ -916,10 +910,7 @@ export const createSync = async (params: {
                       factory: filter.toAddress,
                     });
 
-                  initialChildAddresses.set(
-                    filter.toAddress,
-                    new Map(childAddresses),
-                  );
+                  initialChildAddresses.set(filter.toAddress, childAddresses);
                 }
 
                 break;
@@ -1168,7 +1159,7 @@ export async function* getLocalEventGenerator(params: {
               factory: filter.address,
             });
 
-            initialChildAddresses.set(filter.address, new Map(childAddresses));
+            initialChildAddresses.set(filter.address, childAddresses);
           }
           break;
 
@@ -1180,10 +1171,7 @@ export async function* getLocalEventGenerator(params: {
               factory: filter.fromAddress,
             });
 
-            initialChildAddresses.set(
-              filter.fromAddress,
-              new Map(childAddresses),
-            );
+            initialChildAddresses.set(filter.fromAddress, childAddresses);
           }
 
           if (isAddressFactory(filter.toAddress)) {
@@ -1191,10 +1179,7 @@ export async function* getLocalEventGenerator(params: {
               factory: filter.toAddress,
             });
 
-            initialChildAddresses.set(
-              filter.toAddress,
-              new Map(childAddresses),
-            );
+            initialChildAddresses.set(filter.toAddress, childAddresses);
           }
 
           break;
