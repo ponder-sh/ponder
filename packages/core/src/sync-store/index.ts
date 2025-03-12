@@ -809,6 +809,20 @@ export const createSyncStore = ({
           .selectAll()
           .limit(limit);
 
+        let planText = await blocksQuery.explain("text", sql`analyze`);
+        let prettyPlanText = planText
+          .map((line) => line["QUERY PLAN"])
+          .join("\n");
+        console.log(prettyPlanText);
+
+        planText = await transactionsQuery.explain("text", sql`analyze`);
+        prettyPlanText = planText.map((line) => line["QUERY PLAN"]).join("\n");
+        console.log(prettyPlanText);
+
+        planText = await logsQuery.explain("text", sql`analyze`);
+        prettyPlanText = planText.map((line) => line["QUERY PLAN"]).join("\n");
+        console.log(prettyPlanText);
+
         const [
           blocksRows,
           transactionsRows,
