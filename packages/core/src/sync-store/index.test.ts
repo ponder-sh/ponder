@@ -1129,7 +1129,7 @@ test("insertRpcRequestResults() ", async (context) => {
 
   expect(result).toHaveLength(1);
   expect(result[0]!.request_hash).toBe("0138b5d63d66121d8a6e680d23720fa7");
-  expect(result[0]!.request_hash).toBe("0x1");
+  expect(result[0]!.result).toBe("0x1");
 });
 
 test("inserttRpcRequestResults() hash matches postgres", async (context) => {
