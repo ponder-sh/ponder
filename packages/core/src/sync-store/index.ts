@@ -731,7 +731,7 @@ export const createSyncStore = ({
   insertRpcRequestResults: async ({ requests, chainId }) => {
     if (requests.length === 0) return;
     return database.wrap(
-      { method: "insertRpcRequestResult", includeTraceLogs: true },
+      { method: "insertRpcRequestResults", includeTraceLogs: true },
       async () => {
         const values = requests.map(({ request, blockNumber, result }) => ({
           request_hash: crypto.createHash("md5").update(request).digest("hex"),
@@ -778,7 +778,7 @@ export const createSyncStore = ({
   pruneRpcRequestResults: async ({ blocks, chainId }) => {
     if (blocks.length === 0) return;
     return database.wrap(
-      { method: "pruneRpcRequestResult", includeTraceLogs: true },
+      { method: "pruneRpcRequestResults", includeTraceLogs: true },
       async () => {
         const numbers = blocks.map(({ number }) => String(hexToNumber(number)));
 
