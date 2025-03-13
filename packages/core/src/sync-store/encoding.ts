@@ -416,7 +416,7 @@ type FactoriesTable = {
 
 type FactoryAddressesTable = {
   id: ColumnType<number, undefined>;
-  factory_id: number;
+  factory_id: number; // references `factories.id`
   chain_id: PgInt8;
   block_number: PgInt8;
   address: Address;

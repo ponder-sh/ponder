@@ -38,7 +38,7 @@ import { toHex } from "viem";
 
 ponder.on("EntryPoint:UserOp", async ({ event, context }) => {
   await context.db.insert(userOperations).values({
-    id: event.log.id,
+    id: event.id,
     receipt: replaceBigInts(event.transactionReceipt, toHex),
   });
 });

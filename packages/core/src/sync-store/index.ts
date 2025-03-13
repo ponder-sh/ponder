@@ -833,6 +833,7 @@ const addressFilter = (
     | TransactionFilter["toAddress"],
   column: "address" | "from" | "to",
 ): OperandExpression<SqlBool> => {
+  // `factory` filtering is handled in-memory
   if (isAddressFactory(address)) return eb.val(true);
   // @ts-ignore
   if (Array.isArray(address)) return eb(column, "in", address);
