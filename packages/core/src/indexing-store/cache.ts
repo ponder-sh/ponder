@@ -244,7 +244,7 @@ export const createIndexingCache = ({
 
   return {
     has({ table, key }) {
-      if (isCacheComplete) return true;
+      if (isCacheComplete.get(table)) return true;
       const ck = getCacheKey(table, key, primaryKeyCache);
 
       return (
