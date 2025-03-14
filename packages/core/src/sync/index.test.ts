@@ -114,8 +114,6 @@ test("getPerChainOnRealtimeSyncEvent() handles block", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -178,8 +176,6 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -264,8 +260,6 @@ test("getPerChainOnRealtimeSyncEvent() handles reorg", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -355,8 +349,6 @@ test("getLocalEventGenerator()", async (context) => {
     requestQueue: createRequestQueue({
       network,
       common: context.common,
-      concurrency: 25,
-      frequency: network.maxRequestsPerSecond,
     }),
     onFatalError: () => {},
   });
@@ -368,8 +360,6 @@ test("getLocalEventGenerator()", async (context) => {
     requestQueue: createRequestQueue({
       network,
       common: context.common,
-      concurrency: 25,
-      frequency: network.maxRequestsPerSecond,
     }),
     intervalsCache: historicalSync.intervalsCache,
   });
@@ -421,8 +411,6 @@ test("getLocalEventGenerator() pagination", async (context) => {
     requestQueue: createRequestQueue({
       network,
       common: context.common,
-      concurrency: 25,
-      frequency: network.maxRequestsPerSecond,
     }),
     onFatalError: () => {},
   });
@@ -434,8 +422,6 @@ test("getLocalEventGenerator() pagination", async (context) => {
     requestQueue: createRequestQueue({
       network,
       common: context.common,
-      concurrency: 25,
-      frequency: network.maxRequestsPerSecond,
     }),
     intervalsCache: historicalSync.intervalsCache,
   });
@@ -487,8 +473,6 @@ test("getLocalSyncGenerator()", async (context) => {
     requestQueue: createRequestQueue({
       network,
       common: context.common,
-      concurrency: 25,
-      frequency: network.maxRequestsPerSecond,
     }),
     onFatalError: () => {},
   });
@@ -500,8 +484,6 @@ test("getLocalSyncGenerator()", async (context) => {
     requestQueue: createRequestQueue({
       network,
       common: context.common,
-      concurrency: 25,
-      frequency: network.maxRequestsPerSecond,
     }),
     intervalsCache: historicalSync.intervalsCache,
   });
@@ -549,8 +531,6 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     requestQueue: createRequestQueue({
       network,
       common: context.common,
-      concurrency: 25,
-      frequency: network.maxRequestsPerSecond,
     }),
     onFatalError: () => {},
   });
@@ -562,8 +542,6 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     requestQueue: createRequestQueue({
       network,
       common: context.common,
-      concurrency: 25,
-      frequency: network.maxRequestsPerSecond,
     }),
     intervalsCache: historicalSync.intervalsCache,
   });
@@ -587,8 +565,6 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     requestQueue: createRequestQueue({
       network,
       common: context.common,
-      concurrency: 25,
-      frequency: network.maxRequestsPerSecond,
     }),
     onFatalError: () => {},
   });
@@ -600,8 +576,6 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     requestQueue: createRequestQueue({
       network,
       common: context.common,
-      concurrency: 25,
-      frequency: network.maxRequestsPerSecond,
     }),
     intervalsCache: historicalSync.intervalsCache,
   });
@@ -630,8 +604,6 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -663,8 +635,6 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     requestQueue: createRequestQueue({
       network,
       common: context.common,
-      concurrency: 25,
-      frequency: network.maxRequestsPerSecond,
     }),
     intervalsCache: historicalSync.intervalsCache,
   });
@@ -686,8 +656,6 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     requestQueue: createRequestQueue({
       network,
       common: context.common,
-      concurrency: 25,
-      frequency: network.maxRequestsPerSecond,
     }),
     onFatalError: () => {},
   });
@@ -699,8 +667,6 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     requestQueue: createRequestQueue({
       network,
       common: context.common,
-      concurrency: 25,
-      frequency: network.maxRequestsPerSecond,
     }),
     intervalsCache: historicalSync.intervalsCache,
   });
@@ -727,8 +693,6 @@ test("getLocalSyncProgress()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -768,8 +732,6 @@ test("getLocalSyncProgress() future end block", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -1080,8 +1042,6 @@ test("createSync()", async (context) => {
       createRequestQueue({
         network,
         common: context.common,
-        concurrency: 25,
-        frequency: network.maxRequestsPerSecond,
       }),
     ],
     syncStore,
@@ -1120,8 +1080,6 @@ test("getEvents() multichain", async (context) => {
       createRequestQueue({
         network,
         common: context.common,
-        concurrency: 25,
-        frequency: network.maxRequestsPerSecond,
       }),
     ],
     onRealtimeEvent: async () => {},
@@ -1164,8 +1122,6 @@ test("getEvents() omnichain", async (context) => {
       createRequestQueue({
         network,
         common: context.common,
-        concurrency: 25,
-        frequency: network.maxRequestsPerSecond,
       }),
     ],
     onRealtimeEvent: async () => {},
@@ -1209,8 +1165,6 @@ test("getEvents() mulitchain updates status", async (context) => {
       createRequestQueue({
         network,
         common: context.common,
-        concurrency: 25,
-        frequency: network.maxRequestsPerSecond,
       }),
     ],
     onRealtimeEvent: async () => {},
@@ -1254,8 +1208,6 @@ test("getEvents() omnichain updates status", async (context) => {
       createRequestQueue({
         network,
         common: context.common,
-        concurrency: 25,
-        frequency: network.maxRequestsPerSecond,
       }),
     ],
     onRealtimeEvent: async () => {},
@@ -1299,8 +1251,6 @@ test("getEvents() with initial checkpoint", async (context) => {
       createRequestQueue({
         network,
         common: context.common,
-        concurrency: 25,
-        frequency: network.maxRequestsPerSecond,
       }),
     ],
     onRealtimeEvent: async () => {},
@@ -1343,8 +1293,6 @@ test.skip("startRealtime()", async (context) => {
       createRequestQueue({
         network,
         common: context.common,
-        concurrency: 25,
-        frequency: network.maxRequestsPerSecond,
       }),
     ],
     onRealtimeEvent: async () => {},
@@ -1390,8 +1338,6 @@ test("onEvent() multichain handles block", async (context) => {
       createRequestQueue({
         network,
         common: context.common,
-        concurrency: 25,
-        frequency: network.maxRequestsPerSecond,
       }),
     ],
     onRealtimeEvent: async (event) => {
@@ -1439,8 +1385,6 @@ test("onEvent() omnichain handles block", async (context) => {
       createRequestQueue({
         network: networks[0]!,
         common: context.common,
-        concurrency: 25,
-        frequency: networks[0]!.maxRequestsPerSecond,
       }),
     ],
     syncStore,
@@ -1492,8 +1436,6 @@ test("onEvent() handles finalize", async (context) => {
       createRequestQueue({
         network,
         common: context.common,
-        concurrency: 25,
-        frequency: network.maxRequestsPerSecond,
       }),
     ],
     onRealtimeEvent: async (event) => {
@@ -1550,8 +1492,6 @@ test("onEvent() kills realtime when finalized", async (context) => {
       createRequestQueue({
         network,
         common: context.common,
-        concurrency: 25,
-        frequency: network.maxRequestsPerSecond,
       }),
     ],
     onRealtimeEvent: async (event) => {
@@ -1604,8 +1544,6 @@ test("onEvent() handles errors", async (context) => {
       createRequestQueue({
         network,
         common: context.common,
-        concurrency: 25,
-        frequency: network.maxRequestsPerSecond,
       }),
     ],
     onRealtimeEvent: async () => {},

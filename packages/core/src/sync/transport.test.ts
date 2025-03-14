@@ -32,8 +32,6 @@ test("default", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { syncStore } = await setupDatabaseServices(context);
@@ -67,8 +65,6 @@ test("request() block dependent method", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { syncStore } = await setupDatabaseServices(context);
@@ -107,8 +103,6 @@ test("request() non-block dependent method", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -156,8 +150,6 @@ test("request() non-cached method", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { syncStore } = await setupDatabaseServices(context);
@@ -182,8 +174,6 @@ test("request() multicall", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { syncStore } = await setupDatabaseServices(context);
@@ -314,8 +304,6 @@ test("request() multicall empty", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { syncStore } = await setupDatabaseServices(context);

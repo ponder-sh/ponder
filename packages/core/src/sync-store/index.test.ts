@@ -15,6 +15,7 @@ import {
 } from "@/_test/simulate.js";
 import {
   getBlocksConfigAndIndexingFunctions,
+  getErc20ConfigAndIndexingFunctions,
   getNetwork,
   getPairWithFactoryConfigAndIndexingFunctions,
   testClient,
@@ -605,8 +606,6 @@ test("insertLogs()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -634,8 +633,6 @@ test("insertLogs() with duplicates", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -665,8 +662,6 @@ test("insertBlocks()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -690,8 +685,6 @@ test("insertBlocks() with duplicates", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -716,8 +709,6 @@ test("insertTransactions()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -750,8 +741,6 @@ test("insertTransactions() with duplicates", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -788,8 +777,6 @@ test("insertTransactionReceipts()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -823,8 +810,6 @@ test("insertTransactionReceipts() with duplicates", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -862,8 +847,6 @@ test("insertTraces()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -927,8 +910,6 @@ test("insertTraces() with duplicates", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1002,8 +983,6 @@ test("getEventBlockData() returns events", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1063,8 +1042,6 @@ test("getEventBlockData() pagination", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   await testClient.mine({ blocks: 2 });
@@ -1114,7 +1091,7 @@ test("insertRpcRequestResults() ", async (context) => {
   await syncStore.insertRpcRequestResults({
     requests: [
       {
-        request: "0x1",
+        request: { method: "eth_call", params: ["0x1"] },
         blockNumber: 1,
         result: "0x1",
       },
@@ -1138,7 +1115,7 @@ test("inserttRpcRequestResults() hash matches postgres", async (context) => {
   await syncStore.insertRpcRequestResults({
     requests: [
       {
-        request: "0x1",
+        request: { method: "eth_call", params: ["0x1"] },
         blockNumber: 1,
         result: "0x1",
       },
@@ -1166,7 +1143,7 @@ test("getRpcRequestResults()", async (context) => {
   await syncStore.insertRpcRequestResults({
     requests: [
       {
-        request: "0x1",
+        request: { method: "eth_call", params: ["0x1"] },
         blockNumber: 1,
         result: "0x1",
       },
@@ -1174,7 +1151,10 @@ test("getRpcRequestResults()", async (context) => {
     chainId: 1,
   });
   const result = await syncStore.getRpcRequestResults({
-    requests: ["0x1", "0x2"],
+    requests: [
+      { method: "eth_call", params: ["0x1"] },
+      { method: "eth_call", params: ["0x2"] },
+    ],
     chainId: 1,
   });
 
@@ -1186,28 +1166,96 @@ test("getRpcRequestResults()", async (context) => {
   `);
 });
 
+test("getEventBlockData() pagination with multiple filters", async (context) => {
+  const { syncStore } = await setupDatabaseServices(context);
+
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { sources: erc20Sources } = await buildConfigAndIndexingFunctions(
+    getErc20ConfigAndIndexingFunctions({ address }),
+  );
+
+  const { sources: blockSources } = await buildConfigAndIndexingFunctions(
+    getBlocksConfigAndIndexingFunctions({
+      interval: 1,
+    }),
+  );
+
+  let rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+    blockNumber: 1,
+  });
+  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
+
+  await syncStore.insertTransactions({
+    transactions: [rpcBlock.transactions[0]!],
+    chainId: 1,
+  });
+
+  rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+    blockNumber: 2,
+  });
+  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
+
+  await syncStore.insertTransactions({
+    transactions: [rpcBlock.transactions[0]!],
+    chainId: 1,
+  });
+
+  const rpcLogs = await _eth_getLogs(requestQueue, {
+    fromBlock: 2,
+    toBlock: 2,
+  });
+  await syncStore.insertLogs({
+    logs: [rpcLogs[0]!],
+    chainId: 1,
+  });
+
+  const { blockData, cursor } = await syncStore.getEventBlockData({
+    filters: [erc20Sources[0]!.filter, blockSources[0]!.filter],
+    fromBlock: 0,
+    toBlock: 10,
+    chainId: 1,
+    limit: 3,
+  });
+
+  expect(blockData).toHaveLength(2);
+  expect(cursor).toBe(10);
+});
+
 test("pruneRpcRequestResult", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
   await syncStore.insertRpcRequestResults({
     requests: [
       {
-        request: "0x1",
+        request: { method: "eth_call", params: ["0x1"] },
         blockNumber: 1,
         result: "0x1",
       },
       {
-        request: "0x2",
+        request: { method: "eth_call", params: ["0x2"] },
         blockNumber: 2,
         result: "0x2",
       },
       {
-        request: "0x3",
+        request: { method: "eth_call", params: ["0x3"] },
         blockNumber: 3,
         result: "0x3",
       },
       {
-        request: "0x4",
+        request: { method: "eth_call", params: ["0x4"] },
         blockNumber: 4,
         result: "0x4",
       },
@@ -1234,8 +1282,6 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
   const requestQueue = createRequestQueue({
     network,
     common: context.common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });

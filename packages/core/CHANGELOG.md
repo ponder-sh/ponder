@@ -1,5 +1,13 @@
 # ponder
 
+## 0.9.28
+
+### Patch Changes
+
+- [#1592](https://github.com/ponder-sh/ponder/pull/1592) [`75bdb0fc83e8fb48c1764a601377afabc8abc8b6`](https://github.com/ponder-sh/ponder/commit/75bdb0fc83e8fb48c1764a601377afabc8abc8b6) Thanks [@tk-o](https://github.com/tk-o)! - Improved error message for invalid database connection strings.
+
+- [#1599](https://github.com/ponder-sh/ponder/pull/1599) [`3950e751bfda0795a667a59e119d8b0ccf27c304`](https://github.com/ponder-sh/ponder/commit/3950e751bfda0795a667a59e119d8b0ccf27c304) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue with stale indexing cache values being used after raw sql queries.
+
 ## 0.9.27
 
 ### Patch Changes

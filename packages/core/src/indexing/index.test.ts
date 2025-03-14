@@ -69,8 +69,6 @@ test("createIndexing()", async (context) => {
       createRequestQueue({
         network: networks[0]!,
         common,
-        concurrency: 25,
-        frequency: networks[0]!.maxRequestsPerSecond,
       }),
     ],
     syncStore,
@@ -96,8 +94,6 @@ test("processSetupEvents() empty", async (context) => {
       createRequestQueue({
         network: networks[0]!,
         common,
-        concurrency: 25,
-        frequency: networks[0]!.maxRequestsPerSecond,
       }),
     ],
     syncStore,
@@ -129,8 +125,6 @@ test("processSetupEvents()", async (context) => {
       createRequestQueue({
         network: networks[0]!,
         common,
-        concurrency: 25,
-        frequency: networks[0]!.maxRequestsPerSecond,
       }),
     ],
     syncStore,
@@ -182,8 +176,6 @@ test("processEvent()", async (context) => {
       createRequestQueue({
         network: networks[0]!,
         common,
-        concurrency: 25,
-        frequency: networks[0]!.maxRequestsPerSecond,
       }),
     ],
     syncStore,
@@ -270,8 +262,6 @@ test("processEvents eventCount", async (context) => {
       createRequestQueue({
         network: networks[0]!,
         common,
-        concurrency: 25,
-        frequency: networks[0]!.maxRequestsPerSecond,
       }),
     ],
     syncStore,
@@ -328,8 +318,6 @@ test("executeSetup() context.client", async (context) => {
   const requestQueue = createRequestQueue({
     network: networks[0]!,
     common,
-    concurrency: 25,
-    frequency: networks[0]!.maxRequestsPerSecond,
   });
 
   const indexing = createIndexing({
@@ -381,8 +369,6 @@ test("executeSetup() context.db", async (context) => {
       createRequestQueue({
         network: networks[0]!,
         common,
-        concurrency: 25,
-        frequency: networks[0]!.maxRequestsPerSecond,
       }),
     ],
     syncStore,
@@ -422,8 +408,6 @@ test("executeSetup() metrics", async (context) => {
       createRequestQueue({
         network: networks[0]!,
         common,
-        concurrency: 25,
-        frequency: networks[0]!.maxRequestsPerSecond,
       }),
     ],
     syncStore,
@@ -457,8 +441,6 @@ test("executeSetup() error", async (context) => {
       createRequestQueue({
         network: networks[0]!,
         common,
-        concurrency: 25,
-        frequency: networks[0]!.maxRequestsPerSecond,
       }),
     ],
     syncStore,
@@ -487,8 +469,6 @@ test("processEvents() context.client", async (context) => {
   const requestQueue = createRequestQueue({
     network: networks[0]!,
     common,
-    concurrency: 25,
-    frequency: networks[0]!.maxRequestsPerSecond,
   });
 
   const indexing = createIndexing({
@@ -567,8 +547,6 @@ test("processEvents() context.db", async (context) => {
       createRequestQueue({
         network: networks[0]!,
         common,
-        concurrency: 25,
-        frequency: networks[0]!.maxRequestsPerSecond,
       }),
     ],
     syncStore,
@@ -627,8 +605,6 @@ test("processEvents() metrics", async (context) => {
       createRequestQueue({
         network: networks[0]!,
         common,
-        concurrency: 25,
-        frequency: networks[0]!.maxRequestsPerSecond,
       }),
     ],
     syncStore,
@@ -686,8 +662,6 @@ test("processEvents() error", async (context) => {
       createRequestQueue({
         network: networks[0]!,
         common,
-        concurrency: 25,
-        frequency: networks[0]!.maxRequestsPerSecond,
       }),
     ],
     syncStore,
@@ -761,8 +735,6 @@ test("processEvents() error with missing event object properties", async (contex
       createRequestQueue({
         network,
         common: context.common,
-        concurrency: 25,
-        frequency: networks[0]!.maxRequestsPerSecond,
       }),
     ],
     syncStore,
@@ -808,8 +780,6 @@ test("ponderActions getBalance()", async (context) => {
   const requestQueue = createRequestQueue({
     network: networks[0]!,
     common,
-    concurrency: 25,
-    frequency: networks[0]!.maxRequestsPerSecond,
   });
 
   const client = createClient({
@@ -836,8 +806,6 @@ test("ponderActions getCode()", async (context) => {
   const requestQueue = createRequestQueue({
     network: networks[0]!,
     common,
-    concurrency: 25,
-    frequency: networks[0]!.maxRequestsPerSecond,
   });
 
   const client = createClient({
@@ -870,8 +838,6 @@ test("ponderActions getStorageAt()", async (context) => {
   const requestQueue = createRequestQueue({
     network: networks[0]!,
     common,
-    concurrency: 25,
-    frequency: networks[0]!.maxRequestsPerSecond,
   });
 
   const client = createClient({
@@ -906,8 +872,6 @@ test("ponderActions readContract()", async (context) => {
   const requestQueue = createRequestQueue({
     network: networks[0]!,
     common,
-    concurrency: 25,
-    frequency: networks[0]!.maxRequestsPerSecond,
   });
 
   const client = createClient({
@@ -942,8 +906,6 @@ test("ponderActions readContract() blockNumber", async (context) => {
   const requestQueue = createRequestQueue({
     network: networks[0]!,
     common,
-    concurrency: 25,
-    frequency: networks[0]!.maxRequestsPerSecond,
   });
 
   const client = createClient({
@@ -980,8 +942,6 @@ test("ponderActions multicall()", async (context) => {
   const requestQueue = createRequestQueue({
     network: networks[0]!,
     common,
-    concurrency: 25,
-    frequency: networks[0]!.maxRequestsPerSecond,
   });
 
   const client = createClient({

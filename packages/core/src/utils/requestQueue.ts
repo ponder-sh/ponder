@@ -47,13 +47,11 @@ const BASE_DURATION = 125;
 export const createRequestQueue = ({
   common,
   network,
-  concurrency,
-  frequency,
+  concurrency = 25,
 }: {
   common: Common;
   network: Network;
-  concurrency: number;
-  frequency: number;
+  concurrency?: number;
 }): RequestQueue => {
   // @ts-ignore
   const fetchRequest = async (request: EIP1193Parameters<PublicRpcSchema>) => {
@@ -138,7 +136,7 @@ export const createRequestQueue = ({
       stopClockLag: () => number;
     }
   > = createQueue({
-    frequency,
+    frequency: network.maxRequestsPerSecond,
     concurrency,
     initialStart: true,
     browser: false,
