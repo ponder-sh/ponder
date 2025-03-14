@@ -84,7 +84,6 @@ export type SyncStore = {
     }[];
     chainId: number;
   }): Promise<void>;
-  /** Returns an ordered list of events based on the `filters` and pagination arguments. */
   getEventBlockData(args: {
     filters: Filter[];
     fromBlock: number;

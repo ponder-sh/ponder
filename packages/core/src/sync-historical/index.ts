@@ -582,31 +582,36 @@ export const createHistoricalSync = async (
     const requiredBlocks: Set<SyncBlock> = new Set();
 
     for (const block of blocks) {
-      block.transactions.map((transaction) => {
-        if (
-          isTransactionFilterMatched({
-            filter,
-            transaction,
-          }) &&
-          (isAddressFactory(filter.fromAddress)
-            ? isAddressMatched({
-                address: transaction.from,
-                blockNumber: Number(block.number),
-                childAddresses: fromChildAddresses!,
-              })
-            : true) &&
-          (isAddressFactory(filter.toAddress)
-            ? isAddressMatched({
-                address: transaction.to ?? undefined,
-                blockNumber: Number(block.number),
-                childAddresses: toChildAddresses!,
-              })
-            : true)
-        ) {
-          transactionHashes.add(transaction.hash);
-          requiredBlocks.add(block);
+      for (const transaction of block.transactions) {
+        if (isTransactionFilterMatched({ filter, transaction }) === false) {
+          continue;
         }
-      });
+
+        if (
+          isAddressFactory(filter.fromAddress) &&
+          isAddressMatched({
+            address: transaction.from,
+            blockNumber: Number(block.number),
+            childAddresses: fromChildAddresses!,
+          }) === false
+        ) {
+          continue;
+        }
+
+        if (
+          isAddressFactory(filter.toAddress) &&
+          isAddressMatched({
+            address: transaction.to ?? undefined,
+            blockNumber: Number(block.number),
+            childAddresses: toChildAddresses!,
+          }) === false
+        ) {
+          continue;
+        }
+
+        transactionHashes.add(transaction.hash);
+        requiredBlocks.add(block);
+      }
     }
 
     for (const hash of transactionHashes) {

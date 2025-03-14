@@ -105,6 +105,7 @@ export const createRealtimeSync = (
   let isBlockReceipts = true;
   let finalizedBlock: LightBlock;
   let childAddresses = new Map<Factory, Map<Address, number>>();
+  /** Annotates `childAddresses` for efficient lookup by block number */
   const childAddressesPerBlock = new Map<
     number,
     BlockWithEventData["childAddresses"]
@@ -194,12 +195,12 @@ export const createRealtimeSync = (
     });
 
     // Update `childAddresses`
-    for (const filter of factories) {
-      for (const address of blockChildAddresses.get(filter)!) {
-        if (childAddresses.get(filter)!.has(address) === false) {
-          childAddresses.get(filter)!.set(address, hexToNumber(block.number));
+    for (const factory of factories) {
+      for (const address of blockChildAddresses.get(factory)!) {
+        if (childAddresses.get(factory)!.has(address) === false) {
+          childAddresses.get(factory)!.set(address, hexToNumber(block.number));
         } else {
-          blockChildAddresses.get(filter)!.delete(address);
+          blockChildAddresses.get(factory)!.delete(address);
         }
       }
     }

@@ -50,8 +50,6 @@ test("createRealtimeSyncService()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -82,8 +80,6 @@ test("start() handles block", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -126,8 +122,6 @@ test("start() no-op when receiving same block twice", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -177,8 +171,6 @@ test("start() gets missing block", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -222,8 +214,6 @@ test("start() retries on error", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -271,8 +261,6 @@ test("kill()", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -314,8 +302,6 @@ test("handleBlock() block event with log", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -388,8 +374,6 @@ test("handleBlock() block event with log factory", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployFactory({ sender: ALICE });
@@ -506,8 +490,6 @@ test("handleBlock() block event with block", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -574,8 +556,6 @@ test("handleBlock() block event with transaction", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   await transferEth({
@@ -648,8 +628,6 @@ test("handleBlock() block event with transfer", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { hash } = await transferEth({
@@ -748,8 +726,6 @@ test("handleBlock() block event with trace", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -901,8 +877,6 @@ test("handleBlock() finalize event", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -958,8 +932,6 @@ test("handleReorg() finds common ancestor", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -1015,8 +987,6 @@ test("handleReorg() throws error for deep reorg", async (context) => {
   const requestQueue = createRequestQueue({
     network,
     common,
-    concurrency: 25,
-    frequency: network.maxRequestsPerSecond,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
