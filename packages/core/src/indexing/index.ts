@@ -1,3 +1,4 @@
+import type { IndexingCache } from "@/indexing-store/cache.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
 import type { Common } from "@/internal/common.js";
 import { ShutdownError } from "@/internal/errors.js";
@@ -53,7 +54,8 @@ export type Indexing = {
   processEvents: ({
     events,
     db,
-  }: { events: Event[]; db: IndexingStore }) => Promise<
+    cache,
+  }: { events: Event[]; db: IndexingStore; cache?: IndexingCache }) => Promise<
     { status: "error"; error: Error } | { status: "success" }
   >;
 };
@@ -310,11 +312,13 @@ export const createIndexing = ({
 
       return { status: "success" };
     },
-    async processEvents({ events, db }) {
+    async processEvents({ events, db, cache }) {
       context.db = db;
       for (let i = 0; i < events.length; i++) {
         const event = events[i]!;
-        db.event = event;
+        if (cache) {
+          cache.event = event;
+        }
 
         eventCount[event.name]!++;
 

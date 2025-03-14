@@ -147,6 +147,7 @@ export async function run({
 
   // Run historical indexing until complete.
   for await (const events of sync.getEvents()) {
+    await indexingCache.commit({ events, db: database.qb.drizzle });
     if (events.length > 0) {
       await database.retry(async () => {
         await database
@@ -164,6 +165,7 @@ export async function run({
               const result = await indexing.processEvents({
                 events: eventChunk,
                 db: historicalIndexingStore,
+                cache: indexingCache,
               });
 
               if (result.status === "error") {
@@ -212,6 +214,9 @@ export async function run({
               });
             }
 
+            // Note: at this point, the next events can be preloaded, as long as the are not indexed until
+            // the "flush" + "finalize" is complete.
+
             try {
               await indexingCache.flush({ client });
             } catch (error) {
@@ -232,7 +237,6 @@ export async function run({
             throw error;
           });
       });
-      indexingCache.commit();
     }
 
     await database.setStatus(sync.getStatus());
