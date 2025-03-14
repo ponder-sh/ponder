@@ -569,8 +569,6 @@ export const createSyncStore = ({
                         sql.ref("blocks.number"),
                       )
                       .select(sql.val(1).as("col"))
-                      .orderBy("transactions.block_number", "asc")
-                      .orderBy("transactions.transaction_index", "asc")
                       .limit(limit),
                   )
                 : eb.val(false),
@@ -594,9 +592,6 @@ export const createSyncStore = ({
                         sql.ref("blocks.number"),
                       )
                       .select(sql.val(1).as("col"))
-                      .orderBy("traces.block_number", "asc")
-                      .orderBy("traces.transaction_index", "asc")
-                      .orderBy("traces.trace_index", "asc")
                       .limit(limit),
                   )
                 : eb.val(false),
@@ -613,8 +608,6 @@ export const createSyncStore = ({
                       .where("logs.chain_id", "=", sql.ref("blocks.chain_id"))
                       .where("logs.block_number", "=", sql.ref("blocks.number"))
                       .select(sql.val(1).as("col"))
-                      .orderBy("logs.block_number", "asc")
-                      .orderBy("logs.log_index", "asc")
                       .limit(limit),
                   )
                 : eb.val(false),
@@ -661,9 +654,6 @@ export const createSyncStore = ({
                         sql.ref("transactions.transaction_index"),
                       )
                       .select(sql.val(1).as("col"))
-                      .orderBy("traces.block_number", "asc")
-                      .orderBy("traces.transaction_index", "asc")
-                      .orderBy("traces.trace_index", "asc")
                       .limit(limit),
                   )
                 : eb.val(false),
@@ -693,8 +683,6 @@ export const createSyncStore = ({
                         sql.ref("transactions.transaction_index"),
                       )
                       .select(sql.val(1).as("col"))
-                      .orderBy("logs.block_number", "asc")
-                      .orderBy("logs.log_index", "asc")
                       .limit(limit),
                   )
                 : eb.val(false),
@@ -746,8 +734,6 @@ export const createSyncStore = ({
                         sql.ref("transaction_receipts.transaction_index"),
                       )
                       .select(sql.val(1).as("col"))
-                      .orderBy("transactions.block_number", "asc")
-                      .orderBy("transactions.transaction_index", "asc")
                       .limit(limit),
                   )
                 : eb.val(false),
@@ -785,9 +771,6 @@ export const createSyncStore = ({
                         sql.ref("transaction_receipts.transaction_index"),
                       )
                       .select(sql.val(1).as("col"))
-                      .orderBy("traces.block_number", "asc")
-                      .orderBy("traces.transaction_index", "asc")
-                      .orderBy("traces.trace_index", "asc")
                       .limit(limit),
                   )
                 : eb.val(false),
@@ -821,8 +804,6 @@ export const createSyncStore = ({
                         sql.ref("transaction_receipts.transaction_index"),
                       )
                       .select(sql.val(1).as("col"))
-                      .orderBy("logs.block_number", "asc")
-                      .orderBy("logs.log_index", "asc")
                       .limit(limit),
                   )
                 : eb.val(false),
