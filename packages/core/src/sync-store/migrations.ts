@@ -1,6 +1,7 @@
 import type { Common } from "@/internal/common.js";
 import type { Kysely, Migration, MigrationProvider } from "kysely";
 import { sql } from "kysely";
+import { maxUint256 } from "viem";
 
 const migrations: Record<string, Migration> = {
   "2023_05_15_0_initial": {
@@ -1677,6 +1678,64 @@ GROUP BY fragment_id, chain_id
 
       await sql`ANALYZE ponder_sync.factories`.execute(db);
       await sql`ANALYZE ponder_sync.factory_addresses`.execute(db);
+    },
+  },
+  "2025_02_26_1_rpc_request_results": {
+    async up(db) {
+      await db.schema
+        .alterTable("rpc_request_results")
+        .dropConstraint("rpc_request_result_primary_key")
+        .execute();
+      await db.schema
+        .alterTable("rpc_request_results")
+        .addColumn("request_hash_temp", "text")
+        .execute();
+      await db
+        .updateTable("rpc_request_results")
+        .set({ request_hash_temp: sql`request_hash` })
+        .execute();
+      await db.schema
+        .alterTable("rpc_request_results")
+        .dropColumn("request_hash")
+        .execute();
+      await db.schema
+        .alterTable("rpc_request_results")
+        .renameColumn("request_hash_temp", "request_hash")
+        .execute();
+      await db.schema
+        .alterTable("rpc_request_results")
+        .addPrimaryKeyConstraint("rpc_request_results_pkey", [
+          "chain_id",
+          "request_hash",
+        ])
+        .execute();
+      await db.schema
+        .alterTable("rpc_request_results")
+        .dropColumn("request")
+        .execute();
+      await db
+        .updateTable("rpc_request_results")
+        .set({ block_number: 0 })
+        .where("block_number", "=", maxUint256)
+        .execute();
+      await db.schema
+        .alterTable("rpc_request_results")
+        .alterColumn("block_number", (col) => col.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("rpc_request_results")
+        .alterColumn("chain_id", (col) => col.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .createIndex("rpc_request_results_chain_id_block_number_index")
+        .on("rpc_request_results")
+        .columns(["chain_id", "block_number"])
+        .execute();
+      await db
+        .deleteFrom("rpc_request_results")
+        .where("result", "=", "0x")
+        .execute();
+      await sql`ANALYZE ponder_sync.rpc_request_results`.execute(db);
     },
   },
 };

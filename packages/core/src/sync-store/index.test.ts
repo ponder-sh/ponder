@@ -28,12 +28,14 @@ import type {
   SyncTrace,
   SyncTransaction,
 } from "@/internal/types.js";
+import { orderObject } from "@/utils/order.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import {
   _eth_getBlockByNumber,
   _eth_getLogs,
   _eth_getTransactionReceipt,
 } from "@/utils/rpc.js";
+import { sql } from "kysely";
 import {
   encodeFunctionData,
   encodeFunctionResult,
@@ -1084,6 +1086,91 @@ test("getEventBlockData() pagination", async (context) => {
   expect(blockData2).toHaveLength(1);
 });
 
+test("insertRpcRequestResults() ", async (context) => {
+  const { database, syncStore } = await setupDatabaseServices(context);
+
+  await syncStore.insertRpcRequestResults({
+    requests: [
+      {
+        request: { method: "eth_call", params: ["0x1"] },
+        blockNumber: 1,
+        result: "0x1",
+      },
+    ],
+    chainId: 1,
+  });
+
+  const result = await database.qb.sync
+    .selectFrom("rpc_request_results")
+    .selectAll()
+    .execute();
+
+  expect(result).toHaveLength(1);
+  expect(result[0]!.request_hash).toBe("39d5ace8093d42c1bd00ce7781a7891a");
+  expect(result[0]!.result).toBe("0x1");
+});
+
+test("inserttRpcRequestResults() hash matches postgres", async (context) => {
+  const { database, syncStore } = await setupDatabaseServices(context);
+
+  await syncStore.insertRpcRequestResults({
+    requests: [
+      {
+        request: { method: "eth_call", params: ["0x1"] },
+        blockNumber: 1,
+        result: "0x1",
+      },
+    ],
+    chainId: 1,
+  });
+
+  const jsHash = await database.qb.sync
+    .selectFrom("rpc_request_results")
+    .selectAll()
+    .execute()
+    .then((result) => result[0]!.request_hash);
+
+  const psqlHash = await database.qb.sync
+    .selectNoFrom(
+      sql`MD5(${JSON.stringify(orderObject({ method: "eth_call", params: ["0x1"] }))})`.as(
+        "request_hash",
+      ),
+    )
+    .execute()
+    .then((result) => result[0]!.request_hash);
+
+  expect(jsHash).toBe(psqlHash);
+});
+
+test("getRpcRequestResults()", async (context) => {
+  const { syncStore } = await setupDatabaseServices(context);
+
+  await syncStore.insertRpcRequestResults({
+    requests: [
+      {
+        request: { method: "eth_call", params: ["0x1"] },
+        blockNumber: 1,
+        result: "0x1",
+      },
+    ],
+    chainId: 1,
+  });
+  const result = await syncStore.getRpcRequestResults({
+    requests: [
+      { method: "eth_call", params: ["0x1"] },
+      { method: "eth_call", params: ["0x2"] },
+    ],
+    chainId: 1,
+  });
+
+  expect(result).toMatchInlineSnapshot(`
+    [
+      "0x1",
+      undefined,
+    ]
+  `);
+});
+
 test("getEventBlockData() pagination with multiple filters", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
@@ -1155,32 +1242,32 @@ test("getEventBlockData() pagination with multiple filters", async (context) => 
 test("pruneRpcRequestResult", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  await syncStore.insertRpcRequestResult({
-    request: "0x1",
-    blockNumber: 1n,
+  await syncStore.insertRpcRequestResults({
+    requests: [
+      {
+        request: { method: "eth_call", params: ["0x1"] },
+        blockNumber: 1,
+        result: "0x1",
+      },
+      {
+        request: { method: "eth_call", params: ["0x2"] },
+        blockNumber: 2,
+        result: "0x2",
+      },
+      {
+        request: { method: "eth_call", params: ["0x3"] },
+        blockNumber: 3,
+        result: "0x3",
+      },
+      {
+        request: { method: "eth_call", params: ["0x4"] },
+        blockNumber: 4,
+        result: "0x4",
+      },
+    ],
     chainId: 1,
-    result: "0x1",
   });
-  await syncStore.insertRpcRequestResult({
-    request: "0x2",
-    blockNumber: 2n,
-    chainId: 1,
-    result: "0x2",
-  });
-  await syncStore.insertRpcRequestResult({
-    request: "0x3",
-    blockNumber: 3n,
-    chainId: 1,
-    result: "0x3",
-  });
-  await syncStore.insertRpcRequestResult({
-    request: "0x4",
-    blockNumber: 4n,
-    chainId: 1,
-    result: "0x4",
-  });
-
-  await syncStore.pruneRpcRequestResult({
+  await syncStore.pruneRpcRequestResults({
     blocks: [{ number: "0x2" }, { number: "0x4" }],
     chainId: 1,
   });
