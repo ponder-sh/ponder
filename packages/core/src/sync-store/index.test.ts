@@ -28,6 +28,7 @@ import type {
   SyncTrace,
   SyncTransaction,
 } from "@/internal/types.js";
+import { orderObject } from "@/utils/order.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import {
   _eth_getBlockByNumber,
@@ -1105,7 +1106,7 @@ test("insertRpcRequestResults() ", async (context) => {
     .execute();
 
   expect(result).toHaveLength(1);
-  expect(result[0]!.request_hash).toBe("0138b5d63d66121d8a6e680d23720fa7");
+  expect(result[0]!.request_hash).toBe("39d5ace8093d42c1bd00ce7781a7891a");
   expect(result[0]!.result).toBe("0x1");
 });
 
@@ -1130,7 +1131,11 @@ test("inserttRpcRequestResults() hash matches postgres", async (context) => {
     .then((result) => result[0]!.request_hash);
 
   const psqlHash = await database.qb.sync
-    .selectNoFrom(sql`MD5(${"0x1"})`.as("request_hash"))
+    .selectNoFrom(
+      sql`MD5(${JSON.stringify(orderObject({ method: "eth_call", params: ["0x1"] }))})`.as(
+        "request_hash",
+      ),
+    )
     .execute()
     .then((result) => result[0]!.request_hash);
 
