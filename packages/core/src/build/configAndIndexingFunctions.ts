@@ -13,6 +13,7 @@ import type {
   Network,
   RawIndexingFunctions,
   Source,
+  SyncBlock,
 } from "@/internal/types.js";
 import { buildAbiEvents, buildAbiFunctions, buildTopics } from "@/sync/abi.js";
 import {
@@ -23,7 +24,6 @@ import {
   defaultTransactionReceiptInclude,
   defaultTransferFilterInclude,
 } from "@/sync/filter.js";
-import type { SyncBlock } from "@/types/sync.js";
 import { chains } from "@/utils/chains.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
@@ -440,6 +440,8 @@ export async function buildConfigAndIndexingFunctions({
             const logFactory = buildLogFactory({
               chainId: network.chainId,
               ...resolvedAddress,
+              fromBlock,
+              toBlock,
             });
 
             const logSources = topicsArray.map(
@@ -617,6 +619,8 @@ export async function buildConfigAndIndexingFunctions({
             const logFactory = buildLogFactory({
               chainId: network.chainId,
               ...resolvedAddress,
+              fromBlock,
+              toBlock,
             });
 
             return [

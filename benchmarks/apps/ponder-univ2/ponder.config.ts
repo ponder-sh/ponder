@@ -1,4 +1,4 @@
-import { createConfig } from "ponder";
+import { createConfig, factory } from "ponder";
 import { http, getAbiItem } from "viem";
 
 import { FactoryAbi } from "./abis/FactoryAbi";
@@ -22,11 +22,11 @@ export default createConfig({
     Pair: {
       network: "mainnet",
       abi: PairAbi,
-      factory: {
+      address: factory({
         address: "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
         event: getAbiItem({ abi: FactoryAbi, name: "PairCreated" }),
         parameter: "pair",
-      },
+      }),
       startBlock: 18700000,
       endBlock: 18700500,
     },

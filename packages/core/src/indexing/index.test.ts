@@ -65,7 +65,12 @@ test("createIndexing()", async (context) => {
       networks,
       indexingFunctions: {},
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+      }),
+    ],
     syncStore,
   });
 
@@ -85,7 +90,12 @@ test("processSetupEvents() empty", async (context) => {
       networks,
       indexingFunctions: {},
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+      }),
+    ],
     syncStore,
   });
 
@@ -111,7 +121,12 @@ test("processSetupEvents()", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+      }),
+    ],
     syncStore,
   });
 
@@ -157,7 +172,12 @@ test("processEvent()", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+      }),
+    ],
     syncStore,
   });
 
@@ -178,11 +198,7 @@ test("processEvent()", async (context) => {
     checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
-    log: {
-      id: "test",
-      data,
-      topics,
-    },
+    log: { data, topics },
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
@@ -200,7 +216,7 @@ test("processEvent()", async (context) => {
     ],
   ).toHaveBeenCalledWith({
     event: {
-      name: "Transfer(address indexed from, address indexed to, uint256 amount)",
+      id: expect.any(String),
       args: expect.any(Object),
       log: expect.any(Object),
       block: expect.any(Object),
@@ -242,17 +258,19 @@ test("processEvents eventCount", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+      }),
+    ],
     syncStore,
   });
 
   const topics = encodeEventTopics({
     abi: erc20ABI,
     eventName: "Transfer",
-    args: {
-      from: zeroAddress,
-      to: ALICE,
-    },
+    args: { from: zeroAddress, to: ALICE },
   });
 
   const data = padHex(toHex(parseEther("1")), { size: 32 });
@@ -263,11 +281,7 @@ test("processEvents eventCount", async (context) => {
     checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
-    log: {
-      id: "test",
-      data,
-      topics,
-    },
+    log: { data, topics },
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
@@ -301,7 +315,10 @@ test("executeSetup() context.client", async (context) => {
     },
   };
 
-  const requestQueue = createRequestQueue({ network: networks[0]!, common });
+  const requestQueue = createRequestQueue({
+    network: networks[0]!,
+    common,
+  });
 
   const indexing = createIndexing({
     common,
@@ -348,7 +365,12 @@ test("executeSetup() context.db", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+      }),
+    ],
     syncStore,
   });
 
@@ -382,7 +404,12 @@ test("executeSetup() metrics", async (context) => {
       sources,
       networks,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+      }),
+    ],
     syncStore,
   });
 
@@ -410,7 +437,12 @@ test("executeSetup() error", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+      }),
+    ],
     syncStore,
   });
 
@@ -434,7 +466,10 @@ test("processEvents() context.client", async (context) => {
     });
   };
 
-  const requestQueue = createRequestQueue({ network: networks[0]!, common });
+  const requestQueue = createRequestQueue({
+    network: networks[0]!,
+    common,
+  });
 
   const indexing = createIndexing({
     common,
@@ -469,11 +504,7 @@ test("processEvents() context.client", async (context) => {
     checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
-    log: {
-      id: "test",
-      data,
-      topics,
-    },
+    log: { data, topics },
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
@@ -512,7 +543,12 @@ test("processEvents() context.db", async (context) => {
       sources,
       networks,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+      }),
+    ],
     syncStore,
   });
 
@@ -535,11 +571,7 @@ test("processEvents() context.db", async (context) => {
     checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
-    log: {
-      id: "test",
-      data,
-      topics,
-    },
+    log: { data, topics },
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
@@ -569,7 +601,12 @@ test("processEvents() metrics", async (context) => {
       sources,
       networks,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+      }),
+    ],
     syncStore,
   });
 
@@ -590,11 +627,7 @@ test("processEvents() metrics", async (context) => {
     checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
-    log: {
-      id: "test",
-      data,
-      topics,
-    },
+    log: { data, topics },
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
@@ -625,7 +658,12 @@ test("processEvents() error", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    requestQueues: [
+      createRequestQueue({
+        network: networks[0]!,
+        common,
+      }),
+    ],
     syncStore,
   });
 
@@ -650,11 +688,7 @@ test("processEvents() error", async (context) => {
     checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
-    log: {
-      id: "test",
-      data,
-      topics,
-    },
+    log: { data, topics },
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
@@ -697,7 +731,12 @@ test("processEvents() error with missing event object properties", async (contex
       sources,
       networks,
     },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+      }),
+    ],
     syncStore,
   });
 
@@ -718,11 +757,7 @@ test("processEvents() error with missing event object properties", async (contex
     checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
-    log: {
-      id: "test",
-      data,
-      topics,
-    },
+    log: { data, topics },
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
@@ -742,7 +777,10 @@ test("ponderActions getBalance()", async (context) => {
     schemaBuild: { schema },
   });
 
-  const requestQueue = createRequestQueue({ network: networks[0]!, common });
+  const requestQueue = createRequestQueue({
+    network: networks[0]!,
+    common,
+  });
 
   const client = createClient({
     transport: cachedTransport({ requestQueue, syncStore }),
@@ -765,7 +803,10 @@ test("ponderActions getCode()", async (context) => {
 
   const { address } = await deployErc20({ sender: ALICE });
 
-  const requestQueue = createRequestQueue({ network: networks[0]!, common });
+  const requestQueue = createRequestQueue({
+    network: networks[0]!,
+    common,
+  });
 
   const client = createClient({
     transport: cachedTransport({ requestQueue, syncStore }),
@@ -794,7 +835,10 @@ test("ponderActions getStorageAt()", async (context) => {
     sender: ALICE,
   });
 
-  const requestQueue = createRequestQueue({ network: networks[0]!, common });
+  const requestQueue = createRequestQueue({
+    network: networks[0]!,
+    common,
+  });
 
   const client = createClient({
     transport: cachedTransport({ requestQueue, syncStore }),
@@ -825,7 +869,10 @@ test("ponderActions readContract()", async (context) => {
     sender: ALICE,
   });
 
-  const requestQueue = createRequestQueue({ network: networks[0]!, common });
+  const requestQueue = createRequestQueue({
+    network: networks[0]!,
+    common,
+  });
 
   const client = createClient({
     transport: cachedTransport({ requestQueue, syncStore }),
@@ -856,7 +903,10 @@ test("ponderActions readContract() blockNumber", async (context) => {
     sender: ALICE,
   });
 
-  const requestQueue = createRequestQueue({ network: networks[0]!, common });
+  const requestQueue = createRequestQueue({
+    network: networks[0]!,
+    common,
+  });
 
   const client = createClient({
     transport: cachedTransport({ requestQueue, syncStore }),
@@ -889,7 +939,10 @@ test.skip("ponderActions multicall()", async (context) => {
     sender: ALICE,
   });
 
-  const requestQueue = createRequestQueue({ network: networks[0]!, common });
+  const requestQueue = createRequestQueue({
+    network: networks[0]!,
+    common,
+  });
 
   const client = createClient({
     transport: cachedTransport({ requestQueue, syncStore }),

@@ -1,4 +1,5 @@
 import type { SqlStatements } from "@/drizzle/kit/index.js";
+import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import type { AbiEvents, AbiFunctions } from "@/sync/abi.js";
 import type {
   Block,
@@ -9,11 +10,25 @@ import type {
   Transfer,
 } from "@/types/eth.js";
 import type { Prettify } from "@/types/utils.js";
+import type { Trace as DebugTrace } from "@/utils/debug.js";
 import type { PGliteOptions } from "@/utils/pglite.js";
 import type { PGlite } from "@electric-sql/pglite";
 import type { Hono } from "hono";
+import type { Selectable } from "kysely";
 import type { PoolConfig } from "pg";
-import type { Abi, Address, Chain, Hex, LogTopic, Transport } from "viem";
+import type {
+  Abi,
+  Address,
+  BlockTag,
+  Chain,
+  Hex,
+  LogTopic,
+  RpcBlock,
+  RpcTransaction,
+  RpcTransactionReceipt,
+  Transport,
+  Log as ViemLog,
+} from "viem";
 
 // Database
 
@@ -161,6 +176,8 @@ export type LogFactory = {
   address: Address | Address[];
   eventSelector: Hex;
   childAddressLocation: "topic1" | "topic2" | "topic3" | `offset${number}`;
+  fromBlock: number | undefined;
+  toBlock: number | undefined;
 };
 
 // Fragments
@@ -352,17 +369,58 @@ export type Seconds = {
   [network: string]: { start: number; end: number; cached: number };
 };
 
+// Blockchain data
+
+export type SyncBlock = RpcBlock<Exclude<BlockTag, "pending">, true>;
+export type SyncLog = ViemLog<Hex, Hex, false>;
+export type SyncTransaction = RpcTransaction<false>;
+export type SyncTransactionReceipt = RpcTransactionReceipt;
+export type SyncTrace = {
+  trace: DebugTrace["result"] & { index: number; subcalls: number };
+  transactionHash: DebugTrace["txHash"];
+};
+
+export type LightBlock = Pick<
+  SyncBlock,
+  "hash" | "parentHash" | "number" | "timestamp"
+>;
+
+export type DbBlock = Selectable<PonderSyncSchema["blocks"]>;
+export type DbLog = Selectable<PonderSyncSchema["logs"]>;
+export type DbTransaction = Selectable<PonderSyncSchema["transactions"]>;
+export type DbTransactionReceipt = Selectable<
+  PonderSyncSchema["transaction_receipts"]
+>;
+export type DbTrace = Selectable<PonderSyncSchema["traces"]>;
+
+export type InternalBlock = Block;
+export type InternalLog = Log & {
+  blockNumber: number;
+  transactionIndex: number;
+};
+export type InternalTransaction = Transaction & {
+  blockNumber: number;
+};
+export type InternalTransactionReceipt = TransactionReceipt & {
+  blockNumber: number;
+  transactionIndex: number;
+};
+export type InternalTrace = Trace & {
+  blockNumber: number;
+  transactionIndex: number;
+};
+
 // Events
 
 export type RawEvent = {
   chainId: number;
   sourceIndex: number;
   checkpoint: string;
-  log?: Log;
-  block: Block;
-  transaction?: Transaction;
-  transactionReceipt?: TransactionReceipt;
-  trace?: Trace;
+  log?: InternalLog;
+  block: InternalBlock;
+  transaction?: InternalTransaction;
+  transactionReceipt?: InternalTransactionReceipt;
+  trace?: InternalTrace;
 };
 
 export type Event =
@@ -392,7 +450,7 @@ export type LogEvent = {
   name: string;
 
   event: {
-    name: string;
+    id: string;
     args: any;
     log: Log;
     block: Block;
@@ -410,6 +468,7 @@ export type BlockEvent = {
   name: string;
 
   event: {
+    id: string;
     block: Block;
   };
 };
@@ -423,6 +482,7 @@ export type TransactionEvent = {
   name: string;
 
   event: {
+    id: string;
     block: Block;
     transaction: Transaction;
     transactionReceipt?: TransactionReceipt;
@@ -438,6 +498,7 @@ export type TransferEvent = {
   name: string;
 
   event: {
+    id: string;
     transfer: Transfer;
     block: Block;
     transaction: Transaction;
@@ -455,6 +516,7 @@ export type TraceEvent = {
   name: string;
 
   event: {
+    id: string;
     args: any;
     result: any;
     trace: Trace;

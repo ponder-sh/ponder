@@ -10,10 +10,7 @@ beforeEach(setupCleanup);
 test("requests", async ({ common }) => {
   const network = getNetwork();
 
-  const { request } = createRequestQueue({
-    network: { ...network, maxRequestsPerSecond: 1 },
-    common,
-  });
+  const { request } = createRequestQueue({ network, common });
 
   const chainId = await request({ method: "eth_chainId" });
 

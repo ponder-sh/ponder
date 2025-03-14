@@ -133,8 +133,6 @@ export type Transaction = Prettify<
  * @link https://docs.soliditylang.org/en/v0.8.20/abi-spec.html#events
  */
 export type Log = {
-  /** Globally unique identifier for this log (`${blockHash}-${logIndex}`) */
-  id: string;
   /** The address from which this log originated */
   address: Address;
   /** Contains the non-indexed arguments of the log */
@@ -170,8 +168,6 @@ export type TransactionReceipt = {
 };
 
 export type Trace = {
-  /** Globally unique identifier for this trace (`${transactionHash}-${tracePosition}`) */
-  id: string;
   /** The type of the call. */
   type:
     | "CALL"
