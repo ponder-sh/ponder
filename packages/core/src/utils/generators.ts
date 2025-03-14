@@ -1,4 +1,5 @@
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
+import { startClock } from "./timer.js";
 
 /**
  * Merges multiple async generators into a single async generator.
@@ -86,4 +87,28 @@ export async function drainAsyncGenerator<T>(
   }
 
   return result;
+}
+
+/**
+ * Records the total time taken to yield results from an async generator.
+ *
+ * @param asyncGenerator - The async generator to record.
+ * @param callback - A callback function that receives duration metrics.
+ * @returns An async generator that yields results from the input generator.
+ */
+export async function* recordAsyncGenerator<T>(
+  asyncGenerator: AsyncGenerator<T>,
+  callback: (params: { await: number; yield: number; total: number }) => void,
+): AsyncGenerator<T> {
+  let endClockTotal = startClock();
+  for await (const result of asyncGenerator) {
+    const endClockInner = startClock();
+    yield result;
+    callback({
+      await: endClockTotal() - endClockInner(),
+      yield: endClockInner(),
+      total: endClockTotal(),
+    });
+    endClockTotal = startClock();
+  }
 }

@@ -13,6 +13,8 @@ test("buildLogFactory throws if provided parameter not found in inputs", () => {
       event: llamaFactoryEventAbiItem,
       parameter: "fakeParameter",
       chainId: 1,
+      fromBlock: undefined,
+      toBlock: undefined,
     }),
   ).toThrowError(
     "Factory event parameter not found in factory event signature. Got 'fakeParameter', expected one of ['deployer', 'name', 'llamaCore', 'llamaExecutor', 'llamaPolicy', 'chainId'].",
@@ -25,6 +27,8 @@ test("buildLogFactory handles LlamaInstanceCreated llamaCore", () => {
     event: llamaFactoryEventAbiItem,
     parameter: "llamaCore",
     chainId: 1,
+    fromBlock: undefined,
+    toBlock: undefined,
   });
 
   expect(criteria).toMatchObject({
@@ -40,6 +44,8 @@ test("buildLogFactory handles LlamaInstanceCreated llamaPolicy", () => {
     event: llamaFactoryEventAbiItem,
     parameter: "llamaPolicy",
     chainId: 1,
+    fromBlock: undefined,
+    toBlock: undefined,
   });
 
   expect(criteria).toMatchObject({

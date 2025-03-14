@@ -10,14 +10,20 @@ export function buildLogFactory({
   event,
   parameter,
   chainId,
+  fromBlock,
+  toBlock,
 }: {
   address: Address | readonly Address[];
   event: AbiEvent;
   parameter: string;
   chainId: number;
+  fromBlock: number | undefined;
+  toBlock: number | undefined;
 }): LogFactory {
   const address = Array.isArray(_address)
-    ? dedupe(_address).map(toLowerCase)
+    ? dedupe(_address)
+        .map(toLowerCase)
+        .sort((a, b) => (a < b ? -1 : 1))
     : toLowerCase(_address);
   const eventSelector = toEventSelector(event);
 
@@ -34,6 +40,8 @@ export function buildLogFactory({
       eventSelector,
       // Add 1 because inputs will not contain an element for topic0 (the signature).
       childAddressLocation: `topic${(indexedInputPosition + 1) as 1 | 2 | 3}`,
+      fromBlock,
+      toBlock,
     };
   }
 
@@ -63,5 +71,7 @@ export function buildLogFactory({
     address,
     eventSelector,
     childAddressLocation: `offset${offset}`,
+    fromBlock,
+    toBlock,
   };
 }

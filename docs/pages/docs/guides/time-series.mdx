@@ -114,7 +114,7 @@ import { swapEvents } from "ponder:schema";
 
 ponder.on("Token:Swap", async ({ event, context }) => {
   await context.db.insert(swapEvents).values({
-    id: event.log.id,
+    id: event.id,
     from: event.args.from,
     to: event.args.to,
     amount: event.args.amount,

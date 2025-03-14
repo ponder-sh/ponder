@@ -43,7 +43,7 @@ The `event` argument contains the decoded log arguments and the raw log, block, 
 
 ```ts
 type LogEvent = {
-  name: string;
+  id: string;
   args: Args;
   log: Log;
   block: Block;
@@ -88,7 +88,7 @@ The `event` argument contains the decoded call trace args and result and the raw
 
 ```ts
 type TraceEvent = {
-  name: string;
+  id: string;
   args: Args;
   result: Result;
   trace: Trace;
@@ -119,6 +119,7 @@ The `event` argument contains the raw block, transaction, and transaction receip
 
 ```ts
 type TransactionEvent = {
+  id: string;
   block: Block;
   transaction: Transaction;
   transactionReceipt: TransactionReceipt;
@@ -141,6 +142,7 @@ The `event` argument contains the transfer and raw block, transaction, and trace
 
 ```ts
 type TransferEvent = {
+  id: string;
   transfer: {
     from: `0x${string}`;
     to: `0x${string}`;
@@ -170,6 +172,7 @@ The `event` argument contains the raw block.
 
 ```ts
 type BlockEvent = {
+  id: string;
   block: Block;
 };
 ```
@@ -263,8 +266,6 @@ type TransactionReceipt = {
 
 /** The log being processed. */
 type Log = {
-  /** Globally unique identifier for this log (`${blockHash}-${logIndex}`). */
-  id: string;
   /** The address from which this log originated */
   address: `0x${string}`;
   /** Contains the non-indexed arguments of the log */
@@ -278,8 +279,6 @@ type Log = {
 };
 
 type Trace = {
-  /** Globally unique identifier for this trace (`${transactionHash}-${tracePosition}`) */
-  id: string;
   /** The type of the call. */
   type:
     | "CALL"

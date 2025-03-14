@@ -49,7 +49,7 @@ test("createRealtimeSyncService()", async (context) => {
   const network = getNetwork();
   const requestQueue = createRequestQueue({
     network,
-    common: context.common,
+    common,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -79,7 +79,7 @@ test("start() handles block", async (context) => {
   const network = getNetwork();
   const requestQueue = createRequestQueue({
     network,
-    common: context.common,
+    common,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -121,7 +121,7 @@ test("start() no-op when receiving same block twice", async (context) => {
   const network = getNetwork();
   const requestQueue = createRequestQueue({
     network,
-    common: context.common,
+    common,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -170,7 +170,7 @@ test("start() gets missing block", async (context) => {
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
     network,
-    common: context.common,
+    common,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -213,7 +213,7 @@ test("start() retries on error", async (context) => {
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
     network,
-    common: context.common,
+    common,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -260,7 +260,7 @@ test("kill()", async (context) => {
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
     network,
-    common: context.common,
+    common,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -301,7 +301,7 @@ test("handleBlock() block event with log", async (context) => {
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
     network,
-    common: context.common,
+    common,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -354,10 +354,10 @@ test("handleBlock() block event with log", async (context) => {
     endClock: expect.any(Function),
     block: expect.any(Object),
     logs: expect.any(Object),
-    factoryLogs: expect.any(Object),
     transactions: expect.any(Object),
     traces: expect.any(Object),
     transactionReceipts: expect.any(Object),
+    childAddresses: expect.any(Object),
   });
 
   expect(data[0]?.block.number).toBe("0x2");
@@ -373,7 +373,7 @@ test("handleBlock() block event with log factory", async (context) => {
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
     network,
-    common: context.common,
+    common,
   });
 
   const { address } = await deployFactory({ sender: ALICE });
@@ -421,7 +421,7 @@ test("handleBlock() block event with log factory", async (context) => {
 
   const queue = await realtimeSync.start({
     syncProgress: { finalized: finalizedBlock },
-    initialChildAddresses: new Map([[filter.address, new Set()]]),
+    initialChildAddresses: new Map([[filter.address, new Map()]]),
   });
   await queue.onIdle();
 
@@ -434,10 +434,10 @@ test("handleBlock() block event with log factory", async (context) => {
     endClock: expect.any(Function),
     block: expect.any(Object),
     logs: expect.any(Object),
-    factoryLogs: expect.any(Object),
     transactions: expect.any(Object),
     traces: expect.any(Object),
     transactionReceipts: expect.any(Object),
+    childAddresses: expect.any(Object),
   });
 
   expect(data[0]?.block.number).toBe("0x2");
@@ -446,8 +446,34 @@ test("handleBlock() block event with log factory", async (context) => {
   expect(data[0]?.logs).toHaveLength(0);
   expect(data[1]?.logs).toHaveLength(1);
 
-  expect(data[0]?.factoryLogs).toHaveLength(1);
-  expect(data[1]?.factoryLogs).toHaveLength(0);
+  expect(data[0]?.childAddresses).toMatchInlineSnapshot(`
+    Map {
+      {
+        "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+        "chainId": 1,
+        "childAddressLocation": "topic1",
+        "eventSelector": "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
+        "fromBlock": undefined,
+        "toBlock": undefined,
+        "type": "log",
+      } => Set {
+        "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be",
+      },
+    }
+  `);
+  expect(data[1]?.childAddresses).toMatchInlineSnapshot(`
+    Map {
+      {
+        "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+        "chainId": 1,
+        "childAddressLocation": "topic1",
+        "eventSelector": "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
+        "fromBlock": undefined,
+        "toBlock": undefined,
+        "type": "log",
+      } => Set {},
+    }
+  `);
 
   expect(data[0]?.traces).toHaveLength(0);
   expect(data[1]?.traces).toHaveLength(0);
@@ -463,7 +489,7 @@ test("handleBlock() block event with block", async (context) => {
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
     network,
-    common: context.common,
+    common,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -510,10 +536,10 @@ test("handleBlock() block event with block", async (context) => {
     endClock: expect.any(Function),
     block: expect.any(Object),
     logs: expect.any(Object),
-    factoryLogs: expect.any(Object),
     transactions: expect.any(Object),
     traces: expect.any(Object),
     transactionReceipts: expect.any(Object),
+    childAddresses: expect.any(Object),
   });
 
   expect(data[0]?.block.number).toBe("0x1");
@@ -529,7 +555,7 @@ test("handleBlock() block event with transaction", async (context) => {
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
     network,
-    common: context.common,
+    common,
   });
 
   await transferEth({
@@ -581,10 +607,10 @@ test("handleBlock() block event with transaction", async (context) => {
     endClock: expect.any(Function),
     block: expect.any(Object),
     logs: expect.any(Object),
-    factoryLogs: expect.any(Object),
     transactions: expect.any(Object),
     traces: expect.any(Object),
     transactionReceipts: expect.any(Object),
+    childAddresses: expect.any(Object),
   });
 
   expect(data[0]?.block.number).toBe("0x1");
@@ -601,7 +627,7 @@ test("handleBlock() block event with transfer", async (context) => {
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
     network,
-    common: context.common,
+    common,
   });
 
   const { hash } = await transferEth({
@@ -679,10 +705,10 @@ test("handleBlock() block event with transfer", async (context) => {
     endClock: expect.any(Function),
     block: expect.any(Object),
     logs: expect.any(Object),
-    factoryLogs: expect.any(Object),
     transactions: expect.any(Object),
     traces: expect.any(Object),
     transactionReceipts: expect.any(Object),
+    childAddresses: expect.any(Object),
   });
 
   expect(data[0]?.block.number).toBe("0x1");
@@ -699,7 +725,7 @@ test("handleBlock() block event with trace", async (context) => {
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
     network,
-    common: context.common,
+    common,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -821,10 +847,10 @@ test("handleBlock() block event with trace", async (context) => {
     endClock: expect.any(Function),
     block: expect.any(Object),
     logs: expect.any(Object),
-    factoryLogs: expect.any(Object),
     transactions: expect.any(Object),
     traces: expect.any(Object),
     transactionReceipts: expect.any(Object),
+    childAddresses: expect.any(Object),
   });
 
   expect(data[0]?.block.number).toBe("0x2");
@@ -850,7 +876,7 @@ test("handleBlock() finalize event", async (context) => {
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
     network,
-    common: context.common,
+    common,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -905,7 +931,7 @@ test("handleReorg() finds common ancestor", async (context) => {
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
     network,
-    common: context.common,
+    common,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -960,7 +986,7 @@ test("handleReorg() throws error for deep reorg", async (context) => {
   const network = getNetwork({ finalityBlockCount: 2 });
   const requestQueue = createRequestQueue({
     network,
-    common: context.common,
+    common,
   });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({

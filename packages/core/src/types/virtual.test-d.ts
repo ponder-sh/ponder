@@ -327,7 +327,7 @@ test("Event", () => {
   //   ^?
 
   type expectedEvent = {
-    name: "Event0";
+    id: string;
     args: {
       arg: Hex;
       arg1: Hex;
@@ -346,7 +346,7 @@ test("Event transaction receipt", () => {
   //   ^?
 
   type expectedEvent = {
-    name: "Event1()";
+    id: string;
     args: readonly [];
     log: Log;
     block: Block;
@@ -363,7 +363,7 @@ test("Event with unnamed parameters", () => {
   //   ^?
 
   type expectedEvent = {
-    name: "Event1(bytes32)";
+    id: string;
     args: readonly [Hex];
     log: Log;
     block: Block;
@@ -379,6 +379,7 @@ test("Event with functions", () => {
   //   ^?
 
   type expectedEvent = {
+    id: string;
     args: readonly [Address];
     result: bigint;
     trace: Trace;
@@ -395,6 +396,7 @@ test("Event with functions and no inputs or outputs", () => {
   //   ^?
 
   type expectedEvent = {
+    id: string;
     args: never;
     result: never;
     trace: Trace;
@@ -411,6 +413,7 @@ test("Event with account transaction", () => {
   //   ^?
 
   type expectedEvent = {
+    id: string;
     block: Block;
     transaction: Transaction;
     transactionReceipt: TransactionReceipt;
@@ -425,6 +428,7 @@ test("Event with account transfer", () => {
   //   ^?
 
   type expectedEvent = {
+    id: string;
     transfer: {
       from: Address;
       to: Address;
@@ -444,6 +448,7 @@ test("Event with block", () => {
   //   ^?
 
   type expectedEvent = {
+    id: string;
     block: Block;
   };
 
@@ -455,7 +460,7 @@ test("Registry", () => {
   const ponder = {} as any as Virtual.Registry<typeof config, typeof schema>;
 
   ponder.on("c1:Event0", async ({ event, context }) => {
-    event.name;
+    event.id;
     event.args;
     event.log;
     event.block;
