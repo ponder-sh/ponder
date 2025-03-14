@@ -544,6 +544,13 @@ export const createSyncStore = ({
                 ? eb.exists(
                     database.qb.sync
                       .selectFrom("transactions")
+                      .where("transactions.chain_id", "=", String(chainId))
+                      .where(
+                        "transactions.block_number",
+                        ">=",
+                        String(fromBlock),
+                      )
+                      .where("transactions.block_number", "<=", String(toBlock))
                       .where((eb) =>
                         eb.or(
                           transactionFilters.map((f) =>
@@ -568,7 +575,9 @@ export const createSyncStore = ({
                         "=",
                         sql.ref("blocks.number"),
                       )
-                      .select(["chain_id", "block_number"])
+                      .select(sql.val(1).as("col"))
+                      .orderBy("transactions.block_number", "asc")
+                      .orderBy("transactions.transaction_index", "asc")
                       .limit(limit),
                   )
                 : eb.val(false),
@@ -576,6 +585,9 @@ export const createSyncStore = ({
                 ? eb.exists(
                     database.qb.sync
                       .selectFrom("traces")
+                      .where("traces.chain_id", "=", String(chainId))
+                      .where("traces.block_number", ">=", String(fromBlock))
+                      .where("traces.block_number", "<=", String(toBlock))
                       .where((eb) =>
                         eb.or([
                           ...traceFilters.map((f) => traceFilter(eb, f)),
@@ -591,7 +603,10 @@ export const createSyncStore = ({
                         "=",
                         sql.ref("blocks.number"),
                       )
-                      .select(["chain_id", "block_number"])
+                      .select(sql.val(1).as("col"))
+                      .orderBy("traces.block_number", "asc")
+                      .orderBy("traces.transaction_index", "asc")
+                      .orderBy("traces.trace_index", "asc")
                       .limit(limit),
                   )
                 : eb.val(false),
@@ -599,6 +614,9 @@ export const createSyncStore = ({
                 ? eb.exists(
                     database.qb.sync
                       .selectFrom("logs")
+                      .where("logs.chain_id", "=", String(chainId))
+                      .where("logs.block_number", ">=", String(fromBlock))
+                      .where("logs.block_number", "<=", String(toBlock))
                       .where((eb) =>
                         eb.or(logFilters.map((f) => logFilter(eb, f))),
                       )
@@ -607,7 +625,9 @@ export const createSyncStore = ({
                       .where("logs.block_number", "<=", String(toBlock))
                       .where("logs.chain_id", "=", sql.ref("blocks.chain_id"))
                       .where("logs.block_number", "=", sql.ref("blocks.number"))
-                      .select(["chain_id", "block_number"])
+                      .select(sql.val(1).as("col"))
+                      .orderBy("logs.block_number", "asc")
+                      .orderBy("logs.log_index", "asc")
                       .limit(limit),
                   )
                 : eb.val(false),
@@ -629,6 +649,9 @@ export const createSyncStore = ({
                 ? eb.exists(
                     database.qb.sync
                       .selectFrom("traces")
+                      .where("traces.chain_id", "=", String(chainId))
+                      .where("traces.block_number", ">=", String(fromBlock))
+                      .where("traces.block_number", "<=", String(toBlock))
                       .where((eb) =>
                         eb.or([
                           ...traceFilters.map((f) => traceFilter(eb, f)),
@@ -653,7 +676,10 @@ export const createSyncStore = ({
                         "=",
                         sql.ref("transactions.transaction_index"),
                       )
-                      .select(["chain_id", "block_number", "transaction_index"])
+                      .select(sql.val(1).as("col"))
+                      .orderBy("traces.block_number", "asc")
+                      .orderBy("traces.transaction_index", "asc")
+                      .orderBy("traces.trace_index", "asc")
                       .limit(limit),
                   )
                 : eb.val(false),
@@ -661,6 +687,9 @@ export const createSyncStore = ({
                 ? eb.exists(
                     database.qb.sync
                       .selectFrom("logs")
+                      .where("logs.chain_id", "=", String(chainId))
+                      .where("logs.block_number", ">=", String(fromBlock))
+                      .where("logs.block_number", "<=", String(toBlock))
                       .where((eb) =>
                         eb.or(logFilters.map((f) => logFilter(eb, f))),
                       )
@@ -682,7 +711,9 @@ export const createSyncStore = ({
                         "=",
                         sql.ref("transactions.transaction_index"),
                       )
-                      .select(["chain_id", "block_number", "transaction_index"])
+                      .select(sql.val(1).as("col"))
+                      .orderBy("logs.block_number", "asc")
+                      .orderBy("logs.log_index", "asc")
                       .limit(limit),
                   )
                 : eb.val(false),
@@ -704,6 +735,13 @@ export const createSyncStore = ({
                 ? eb.exists(
                     database.qb.sync
                       .selectFrom("transactions")
+                      .where("transactions.chain_id", "=", String(chainId))
+                      .where(
+                        "transactions.block_number",
+                        ">=",
+                        String(fromBlock),
+                      )
+                      .where("transactions.block_number", "<=", String(toBlock))
                       .where((eb) =>
                         eb.or(
                           transactionFilters
@@ -733,7 +771,9 @@ export const createSyncStore = ({
                         "=",
                         sql.ref("transaction_receipts.transaction_index"),
                       )
-                      .select(["chain_id", "block_number", "transaction_index"])
+                      .select(sql.val(1).as("col"))
+                      .orderBy("transactions.block_number", "asc")
+                      .orderBy("transactions.transaction_index", "asc")
                       .limit(limit),
                   )
                 : eb.val(false),
@@ -742,6 +782,9 @@ export const createSyncStore = ({
                 ? eb.exists(
                     database.qb.sync
                       .selectFrom("traces")
+                      .where("traces.chain_id", "=", String(chainId))
+                      .where("traces.block_number", ">=", String(fromBlock))
+                      .where("traces.block_number", "<=", String(toBlock))
                       .where((eb) =>
                         eb.or([
                           ...traceFilters
@@ -770,7 +813,10 @@ export const createSyncStore = ({
                         "=",
                         sql.ref("transaction_receipts.transaction_index"),
                       )
-                      .select(["chain_id", "block_number", "transaction_index"])
+                      .select(sql.val(1).as("col"))
+                      .orderBy("traces.block_number", "asc")
+                      .orderBy("traces.transaction_index", "asc")
+                      .orderBy("traces.trace_index", "asc")
                       .limit(limit),
                   )
                 : eb.val(false),
@@ -778,6 +824,9 @@ export const createSyncStore = ({
                 ? eb.exists(
                     database.qb.sync
                       .selectFrom("logs")
+                      .where("logs.chain_id", "=", String(chainId))
+                      .where("logs.block_number", ">=", String(fromBlock))
+                      .where("logs.block_number", "<=", String(toBlock))
                       .where((eb) =>
                         eb.or(
                           logFilters
@@ -803,7 +852,9 @@ export const createSyncStore = ({
                         "=",
                         sql.ref("transaction_receipts.transaction_index"),
                       )
-                      .select(["chain_id", "block_number", "transaction_index"])
+                      .select(sql.val(1).as("col"))
+                      .orderBy("logs.block_number", "asc")
+                      .orderBy("logs.log_index", "asc")
                       .limit(limit),
                   )
                 : eb.val(false),
@@ -819,9 +870,9 @@ export const createSyncStore = ({
           .where("logs.chain_id", "=", String(chainId))
           .where("logs.block_number", ">=", String(fromBlock))
           .where("logs.block_number", "<=", String(toBlock))
+          .where((eb) => eb.or(logFilters.map((f) => logFilter(eb, f))))
           .orderBy("logs.block_number", "asc")
           .orderBy("logs.log_index", "asc")
-          .where((eb) => eb.or(logFilters.map((f) => logFilter(eb, f))))
           .selectAll()
           .limit(limit);
 
@@ -830,14 +881,14 @@ export const createSyncStore = ({
           .where("chain_id", "=", String(chainId))
           .where("block_number", ">=", String(fromBlock))
           .where("block_number", "<=", String(toBlock))
-          .orderBy("block_number", "asc")
-          .orderBy("trace_index", "asc")
           .where((eb) =>
             eb.or([
               ...traceFilters.map((f) => traceFilter(eb, f)),
               ...transferFilters.map((f) => transferFilter(eb, f)),
             ]),
           )
+          .orderBy("block_number", "asc")
+          .orderBy("trace_index", "asc")
           .selectAll()
           .limit(limit);
 
