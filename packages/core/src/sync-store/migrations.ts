@@ -1705,8 +1705,8 @@ GROUP BY fragment_id, chain_id
       await db.schema
         .alterTable("rpc_request_results")
         .addPrimaryKeyConstraint("rpc_request_results_pkey", [
-          "request_hash",
           "chain_id",
+          "request_hash",
         ])
         .execute();
       await db.schema

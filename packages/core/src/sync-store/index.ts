@@ -30,6 +30,8 @@ import {
 } from "@/sync/filter.js";
 import { encodeFragment, getFragments } from "@/sync/fragments.js";
 import type { Interval } from "@/utils/interval.js";
+import { toLowerCase } from "@/utils/lowercase.js";
+import { orderObject } from "@/utils/order.js";
 import {
   type ExpressionBuilder,
   type OperandExpression,
@@ -38,7 +40,7 @@ import {
   sql,
 } from "kysely";
 import type { InsertObject } from "kysely";
-import { type Address, hexToNumber } from "viem";
+import { type Address, type EIP1193Parameters, hexToNumber } from "viem";
 import {
   type PonderSyncSchema,
   decodeBlock,
@@ -104,15 +106,16 @@ export type SyncStore = {
   }>;
   insertRpcRequestResults(args: {
     requests: {
-      request: string;
+      request: EIP1193Parameters;
       blockNumber: number | undefined;
       result: string;
     }[];
     chainId: number;
   }): Promise<void>;
-  getRpcRequestResults(args: { requests: string[]; chainId: number }): Promise<
-    (string | undefined)[]
-  >;
+  getRpcRequestResults(args: {
+    requests: EIP1193Parameters[];
+    chainId: number;
+  }): Promise<(string | undefined)[]>;
   pruneRpcRequestResults(args: {
     blocks: Pick<LightBlock, "number">[];
     chainId: number;
@@ -734,7 +737,10 @@ export const createSyncStore = ({
       { method: "insertRpcRequestResults", includeTraceLogs: true },
       async () => {
         const values = requests.map(({ request, blockNumber, result }) => ({
-          request_hash: crypto.createHash("md5").update(request).digest("hex"),
+          request_hash: crypto
+            .createHash("md5")
+            .update(toLowerCase(JSON.stringify(orderObject(request))))
+            .digest("hex"),
           chain_id: chainId,
           block_number: blockNumber,
           result,
@@ -757,7 +763,10 @@ export const createSyncStore = ({
       { method: "getRpcRequestResults", includeTraceLogs: true },
       async () => {
         const requestHashes = requests.map((request) =>
-          crypto.createHash("md5").update(request).digest("hex"),
+          crypto
+            .createHash("md5")
+            .update(toLowerCase(JSON.stringify(orderObject(request))))
+            .digest("hex"),
         );
 
         const result = await database.qb.sync

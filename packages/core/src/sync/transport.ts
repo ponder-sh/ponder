@@ -1,6 +1,4 @@
 import type { SyncStore } from "@/sync-store/index.js";
-import { toLowerCase } from "@/utils/lowercase.js";
-import { orderObject } from "@/utils/order.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
   type Hex,
@@ -81,9 +79,7 @@ export const cachedTransport = ({
               },
               blockNumber,
             ],
-          })).map((request) =>
-            toLowerCase(JSON.stringify(orderObject(request))),
-          );
+          }));
 
           if (requests.length === 0) {
             return encodeFunctionResult({
@@ -183,7 +179,6 @@ export const cachedTransport = ({
           blockDependentMethods.has(method) ||
           nonBlockDependentMethods.has(method)
         ) {
-          const request = toLowerCase(JSON.stringify(orderObject(body)));
           let blockNumber: Hex | "latest" | undefined = undefined;
 
           switch (method) {
@@ -209,7 +204,7 @@ export const cachedTransport = ({
           }
 
           const [cachedResult] = await syncStore.getRpcRequestResults({
-            requests: [request],
+            requests: [body],
             chainId: chain!.id,
           });
 
@@ -230,7 +225,7 @@ export const cachedTransport = ({
                 .insertRpcRequestResults({
                   requests: [
                     {
-                      request,
+                      request: body,
                       blockNumber:
                         blockNumber === undefined
                           ? undefined
