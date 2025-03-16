@@ -167,15 +167,13 @@ test("buildScheama() error with $onUpdateFn sql", () => {
 
 test("buildScheama() error with foreign key", () => {
   // @ts-ignore
+  const ref = () => schema.account.address;
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.integer().primaryKey(),
-      balance: p
-        .bigint()
-        .notNull()
-        .references(() => schema.account.address),
+      balance: p.bigint().notNull().references(ref),
     })),
-  };
+  } as any;
 
   expect(() => buildSchema({ schema })).toThrowError();
 });

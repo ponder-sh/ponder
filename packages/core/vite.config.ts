@@ -21,5 +21,17 @@ export default defineConfig({
     },
     sequence: { hooks: "stack" },
     testTimeout: os.platform() === "win32" ? 30_000 : 10_000,
+    coverage: {
+      enabled: true,
+      provider: "v8",
+      reporter: ["text", "json", "html"],
+      reportsDirectory: "coverage",
+      thresholds: {
+        statements: 0,
+        branches: 0,
+        functions: 0,
+        lines: 0,
+      },
+    },
   },
 });
