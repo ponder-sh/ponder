@@ -1285,6 +1285,10 @@ GROUP BY fragment_id, chain_id
       // 6. create new primary key
       // 7. reset metadata
 
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] started 2025_02_19_0_primary_key`,
+      );
+
       await db.schema.dropIndex("logAddressIndex").ifExists().execute();
       await db.schema.dropIndex("logBlockHashIndex").ifExists().execute();
       await db.schema.dropIndex("logBlockNumberIndex").ifExists().execute();
@@ -1319,6 +1323,10 @@ GROUP BY fragment_id, chain_id
         .execute();
       await db.schema.dropIndex("trace_type_index").ifExists().execute();
       await db.schema.dropIndex("trace_value_index").ifExists().execute();
+
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] dropped indexes`,
+      );
 
       await db.schema.alterTable("logs").dropConstraint("logs_pkey").execute();
       await db.schema
@@ -1387,6 +1395,10 @@ GROUP BY fragment_id, chain_id
         .alterColumn("chain_id", (qb) => qb.setDataType("bigint"))
         .execute();
 
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] updated column types`,
+      );
+
       await db.deleteFrom("logs").where("checkpoint", "=", null).execute();
       await db.schema.alterTable("logs").dropColumn("checkpoint").execute();
       await db.schema.alterTable("logs").dropColumn("id").execute();
@@ -1407,6 +1419,10 @@ GROUP BY fragment_id, chain_id
         .dropColumn("functionSelector")
         .execute();
       await db.schema.alterTable("traces").dropColumn("isReverted").execute();
+
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] dropped columns`,
+      );
 
       await db.schema
         .alterTable("logs")
@@ -1581,6 +1597,10 @@ GROUP BY fragment_id, chain_id
         .renameColumn("revertReason", "revert_reason")
         .execute();
 
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] renamed columns`,
+      );
+
       await db.schema
         .alterTable("logs")
         .addPrimaryKeyConstraint("logs_pkey", [
@@ -1619,6 +1639,10 @@ GROUP BY fragment_id, chain_id
         ])
         .execute();
 
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] added primary keys`,
+      );
+
       await sql`ANALYZE ponder_sync.logs`.execute(db);
       await sql`ANALYZE ponder_sync.blocks`.execute(db);
       await sql`ANALYZE ponder_sync.transactions`.execute(db);
@@ -1630,10 +1654,18 @@ GROUP BY fragment_id, chain_id
       await sql`REINDEX TABLE ponder_sync.transactions`.execute(db);
       await sql`REINDEX TABLE ponder_sync.transaction_receipts`.execute(db);
       await sql`REINDEX TABLE ponder_sync.traces`.execute(db);
+
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] finished 2025_02_19_0_primary_key`,
+      );
     },
   },
   "2025_02_26_0_factories": {
     async up(db) {
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] started 2025_02_26_0_factories`,
+      );
+
       // drop any intervals that contain a factory address
       await db
         .deleteFrom("intervals")
@@ -1676,12 +1708,17 @@ GROUP BY fragment_id, chain_id
         .column("factory_id")
         .execute();
 
-      await sql`ANALYZE ponder_sync.factories`.execute(db);
-      await sql`ANALYZE ponder_sync.factory_addresses`.execute(db);
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] finished 2025_02_26_0_factories`,
+      );
     },
   },
   "2025_02_26_1_rpc_request_results": {
     async up(db) {
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] started 2025_02_26_1_rpc_request_results`,
+      );
+
       await db.schema
         .alterTable("rpc_request_results")
         .dropConstraint("rpc_request_result_primary_key")
@@ -1736,6 +1773,10 @@ GROUP BY fragment_id, chain_id
         .where("result", "=", "0x")
         .execute();
       await sql`ANALYZE ponder_sync.rpc_request_results`.execute(db);
+
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] finished 2025_02_26_1_rpc_request_results`,
+      );
     },
   },
 };
