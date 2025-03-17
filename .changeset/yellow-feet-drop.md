@@ -2,4 +2,4 @@
 "ponder": patch
 ---
 
-Fixed an issue with rpc request contention with multiple chains, causing requests per second to be throttled. 
+Fixed an issue where setting a network `maxRequestsPerSecond` value greater than ~256 could freeze the indexer and cause contention with other chains.

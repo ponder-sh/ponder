@@ -9,13 +9,68 @@ import { FileTree, Steps, Tabs, Callout } from "nextra/components";
 
 ## 0.10
 
-<Callout type="warning">
-  This release includes an irreversible migration to the `ponder_sync` schema (RPC request cache). Once you run a `0.10` app against a database, you can no longer run `<=0.9` apps against the same database.
-</Callout>
+### Breaking changes
 
-### `event.id`
+#### `ponder_sync` database migration
 
-`event.id` is a property for all event types. It replaces `event.log.id` and `event.trace.id` as the unique identifier for the event. `event.name` is also removed.
+**WARNING**: This release includes an irreversible database migration to the RPC request cache located in the `ponder_sync` schema. Here are some details to consider when upgrading your production environment.
+
+1. When an `0.10` instance starts up, it will attempt to run the migration against the connected database.
+2. Any `<=0.9` instances currently connected to the database will crash, or the migration will fail.
+3. Once the migration is complete, it's not possible to run `<=0.9` instances against the upgraded database.
+
+#### Removed `event.log.id`
+
+The `event.log.id` and `event.trace.id` properties were removed. Replace each occurence with the new `event.id` property (described below), or update the table definition to use a compound primary key that better represents the business logic / domain.
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```ts filename="Before" {7}
+import { ponder } from "ponder:registry";
+import { transferEvent } from "ponder:registry";
+
+ponder.on("ERC20:Transfer", ({ event, context }) => {
+  await context.db
+    .insert(transferEvent)
+    .values({ id: event.log.id });
+});
+```
+
+{/* prettier-ignore */}
+```ts filename="After" {7}
+import { ponder } from "ponder:registry";
+import { transferEvent } from "ponder:registry";
+
+ponder.on("ERC20:Transfer", ({ event, context }) => {
+  await context.db
+    .insert(transferEvent)
+    .values({ id: event.id });
+});
+```
+
+</div>
+
+#### Removed `event.name`
+
+The undocumented `event.name` property was also removed.
+
+### New features
+
+#### `event.id`
+
+The new `event.id` property is a globally unique identifier for a log, block, transaction, or trace event that works across any number of chains. Each `event.id` value is a 75-digit positive integer represented as a string.
+
+#### Factory performance
+
+This release fixes a long-standing performance issue affecting large factory contracts (10k+ addresses). Before, a SQL query was used to dynamically generate the list of addresses for each batch of events. This did not scale well. Now, the list of addresses is materialized directly and all address filtering occurs in-memory.
+
+#### RPC request cache fixes
+
+This release fixes two performance issues related to the ad-hoc RPC request cache.
+
+1. **Reorg reconciliation** — Before, the query that evicted non-canonical results from the cache did not have an appropriate index. This occasionally caused timeouts leading to a crash.
+2. **Large multicalls** — Before, multicall requests were treated naively as a single large `eth_call`. Now, the caching logic intelligently splits large multicall requests into smaller chunks.
 
 ## 0.9
 
