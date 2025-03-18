@@ -167,7 +167,7 @@ export async function run({
         await database
           .transaction(async (client, tx) => {
             common.metrics.ponder_historical_transform_duration.inc(
-              { step: "setup" },
+              { step: "begin" },
               endClock(),
             );
 
@@ -250,10 +250,22 @@ export async function run({
               throw error;
             }
 
+            common.metrics.ponder_historical_transform_duration.inc(
+              { step: "load" },
+              endClock(),
+            );
+            endClock = startClock();
+
             await database.finalize({
               checkpoint: events[events.length - 1]!.checkpoint,
               db: tx,
             });
+
+            common.metrics.ponder_historical_transform_duration.inc(
+              { step: "finalize" },
+              endClock(),
+            );
+            endClock = startClock();
           })
           .catch((error) => {
             indexingCache.rollback();
@@ -262,7 +274,7 @@ export async function run({
       });
       indexingCache.commit();
       common.metrics.ponder_historical_transform_duration.inc(
-        { step: "load" },
+        { step: "commit" },
         endClock(),
       );
     }
