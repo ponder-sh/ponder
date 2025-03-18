@@ -747,8 +747,8 @@ export const createSyncStore = ({
           });
         }
 
-        common.metrics.ponder_historical_phase_duration.inc(
-          { phase: "decode", concurrency: "extract" },
+        common.metrics.ponder_historical_extract_duration.inc(
+          { step: "decode" },
           endClock(),
         );
 

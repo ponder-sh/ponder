@@ -333,8 +333,8 @@ export const createSync = async (params: {
               service: "app",
               msg: `Decoded ${decodedEvents.length} '${network.name}' events`,
             });
-            params.common.metrics.ponder_historical_phase_duration.inc(
-              { phase: "decode", concurrency: "extract" },
+            params.common.metrics.ponder_historical_extract_duration.inc(
+              { step: "decode" },
               endClock(),
             );
             yield { events: decodedEvents, checkpoint };
@@ -411,8 +411,8 @@ export const createSync = async (params: {
     for await (const { events } of recordAsyncGenerator(
       mergeAsyncGeneratorsWithEventOrder(eventGenerators),
       (results) => {
-        params.common.metrics.ponder_historical_phase_duration.inc(
-          { phase: "query + sync", concurrency: "extract" },
+        params.common.metrics.ponder_historical_extract_duration.inc(
+          { step: "query + sync" },
           results.await,
         );
       },
@@ -1219,8 +1219,8 @@ export async function* getLocalEventGenerator(params: {
           chainId: params.network.chainId,
         }),
       );
-      params.common.metrics.ponder_historical_phase_duration.inc(
-        { phase: "build", concurrency: "extract" },
+      params.common.metrics.ponder_historical_extract_duration.inc(
+        { step: "build" },
         endClock(),
       );
 

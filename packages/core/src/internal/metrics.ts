@@ -26,7 +26,9 @@ export class MetricsService {
   >;
   ponder_settings_info: prometheus.Gauge<"ordering" | "database" | "command">;
 
-  ponder_historical_phase_duration: prometheus.Gauge<"concurrency" | "phase">;
+  ponder_historical_concurrency_group_duration: prometheus.Gauge<"group">;
+  ponder_historical_extract_duration: prometheus.Gauge<"step">;
+  ponder_historical_transform_duration: prometheus.Gauge<"step">;
 
   ponder_historical_start_timestamp_seconds: prometheus.Gauge;
   ponder_historical_end_timestamp_seconds: prometheus.Gauge;
@@ -99,10 +101,22 @@ export class MetricsService {
       registers: [this.registry],
     });
 
-    this.ponder_historical_phase_duration = new prometheus.Gauge({
-      name: "ponder_historical_phase_duration",
-      help: "Duration of individual historical indexing phases",
-      labelNames: ["concurrency", "phase"] as const,
+    this.ponder_historical_concurrency_group_duration = new prometheus.Gauge({
+      name: "ponder_historical_concurrency_group_duration",
+      help: "Duration of historical concurrency groups",
+      labelNames: ["group"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_historical_extract_duration = new prometheus.Gauge({
+      name: "ponder_historical_extract_duration",
+      help: "Duration of historical extract phase",
+      labelNames: ["step"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_historical_transform_duration = new prometheus.Gauge({
+      name: "ponder_historical_transform_duration",
+      help: "Duration of historical transform phase",
+      labelNames: ["step"] as const,
       registers: [this.registry],
     });
 

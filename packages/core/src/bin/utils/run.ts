@@ -151,25 +151,27 @@ export async function run({
   for await (const events of recordAsyncGenerator(
     sync.getEvents(),
     (params) => {
-      common.metrics.ponder_historical_phase_duration.inc(
-        { concurrency: "extract" },
+      common.metrics.ponder_historical_concurrency_group_duration.inc(
+        { group: "extract" },
         params.await,
       );
-      common.metrics.ponder_historical_phase_duration.inc(
-        { concurrency: "transform" },
+      common.metrics.ponder_historical_concurrency_group_duration.inc(
+        { group: "transform" },
         params.yield,
-      );
-      common.metrics.ponder_historical_phase_duration.inc(
-        { phase: "total" },
-        params.total,
       );
     },
   )) {
     if (events.length > 0) {
+      let endClock = startClock();
       await database.retry(async () => {
         await database
           .transaction(async (client, tx) => {
-            let endClock = startClock();
+            common.metrics.ponder_historical_transform_duration.inc(
+              { step: "setup" },
+              endClock(),
+            );
+
+            endClock = startClock();
             const historicalIndexingStore = createHistoricalIndexingStore({
               common,
               schemaBuild,
@@ -231,8 +233,8 @@ export async function run({
               });
             }
 
-            common.metrics.ponder_historical_phase_duration.inc(
-              { phase: "index", concurrency: "transform" },
+            common.metrics.ponder_historical_transform_duration.inc(
+              { step: "index" },
               endClock(),
             );
 
@@ -252,11 +254,6 @@ export async function run({
               checkpoint: events[events.length - 1]!.checkpoint,
               db: tx,
             });
-
-            common.metrics.ponder_historical_phase_duration.inc(
-              { phase: "load", concurrency: "transform" },
-              endClock(),
-            );
           })
           .catch((error) => {
             indexingCache.rollback();
@@ -264,6 +261,10 @@ export async function run({
           });
       });
       indexingCache.commit();
+      common.metrics.ponder_historical_transform_duration.inc(
+        { step: "load" },
+        endClock(),
+      );
     }
 
     await database.setStatus(sync.getStatus());
