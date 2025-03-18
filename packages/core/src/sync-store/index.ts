@@ -591,7 +591,7 @@ export const createSyncStore = ({
           .selectAll()
           .limit(limit);
 
-        const endClock = startClock();
+        let endClock = startClock();
 
         const [
           blocksRows,
@@ -675,7 +675,7 @@ export const createSyncStore = ({
             : Number(tracesRows[tracesRows.length - 1]!.block_number),
         );
 
-        const endClock = startClock();
+        endClock = startClock();
 
         const blockData: {
           block: InternalBlock;
