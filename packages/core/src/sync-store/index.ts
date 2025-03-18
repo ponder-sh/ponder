@@ -32,6 +32,7 @@ import { encodeFragment, getFragments } from "@/sync/fragments.js";
 import type { Interval } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
+import { startClock } from "@/utils/timer.js";
 import {
   type ExpressionBuilder,
   type OperandExpression,
@@ -590,6 +591,8 @@ export const createSyncStore = ({
           .selectAll()
           .limit(limit);
 
+        const endClock = startClock();
+
         const [
           blocksRows,
           transactionsRows,
@@ -597,13 +600,56 @@ export const createSyncStore = ({
           logsRows,
           tracesRows,
         ] = await Promise.all([
-          shouldQueryBlocks ? blocksQuery.execute() : [],
-          shouldQueryTransactions ? transactionsQuery.execute() : [],
-          shouldQueryTransactionReceipts
-            ? transactionReceiptsQuery.execute()
+          shouldQueryBlocks
+            ? blocksQuery.execute().then((res) => {
+                common.metrics.ponder_database_method_duration.observe(
+                  { method: "getEventBlockData_blocks" },
+                  endClock(),
+                );
+
+                return res;
+              })
             : [],
-          shouldQueryLogs ? logsQuery.execute() : [],
-          shouldQueryTraces ? tracesQuery.execute() : [],
+          shouldQueryTransactions
+            ? transactionsQuery.execute().then((res) => {
+                common.metrics.ponder_database_method_duration.observe(
+                  { method: "getEventBlockData_transactions" },
+                  endClock(),
+                );
+
+                return res;
+              })
+            : [],
+          shouldQueryTransactionReceipts
+            ? transactionReceiptsQuery.execute().then((res) => {
+                common.metrics.ponder_database_method_duration.observe(
+                  { method: "getEventBlockData_transaction_receipts" },
+                  endClock(),
+                );
+
+                return res;
+              })
+            : [],
+          shouldQueryLogs
+            ? logsQuery.execute().then((res) => {
+                common.metrics.ponder_database_method_duration.observe(
+                  { method: "getEventBlockData_logs" },
+                  endClock(),
+                );
+
+                return res;
+              })
+            : [],
+          shouldQueryTraces
+            ? tracesQuery.execute().then((res) => {
+                common.metrics.ponder_database_method_duration.observe(
+                  { method: "getEventBlockData_traces" },
+                  endClock(),
+                );
+
+                return res;
+              })
+            : [],
         ]);
 
         const supremum = Math.min(
