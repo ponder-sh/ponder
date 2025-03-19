@@ -1,5 +1,19 @@
 # ponder
 
+## 1.0.0
+
+### Minor Changes
+
+- [#1603](https://github.com/ponder-sh/ponder/pull/1603) [`c4452f6798e44b62704ad38d8217cfcc9cabb496`](https://github.com/ponder-sh/ponder/commit/c4452f6798e44b62704ad38d8217cfcc9cabb496) Thanks [@kyscott18](https://github.com/kyscott18)! - Released `0.10`. Visit the [migration guide](https://ponder.sh/docs/migration-guide#010) for details.
+
+### Patch Changes
+
+- [#1603](https://github.com/ponder-sh/ponder/pull/1603) [`c4452f6798e44b62704ad38d8217cfcc9cabb496`](https://github.com/ponder-sh/ponder/commit/c4452f6798e44b62704ad38d8217cfcc9cabb496) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with factories incorrectly filtering events.
+
+- [#1603](https://github.com/ponder-sh/ponder/pull/1603) [`c4452f6798e44b62704ad38d8217cfcc9cabb496`](https://github.com/ponder-sh/ponder/commit/c4452f6798e44b62704ad38d8217cfcc9cabb496) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue where `eth_call` responses containing `0x` were being cached. Now, only non-empty responses are cached.
+
+- [#1603](https://github.com/ponder-sh/ponder/pull/1603) [`c4452f6798e44b62704ad38d8217cfcc9cabb496`](https://github.com/ponder-sh/ponder/commit/c4452f6798e44b62704ad38d8217cfcc9cabb496) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue where setting a network `maxRequestsPerSecond` value greater than ~256 could freeze the indexer and cause contention with other chains.
+
 ## 0.9.28
 
 ### Patch Changes
