@@ -8,6 +8,7 @@ import dotenv from "dotenv";
 import { codegen } from "./commands/codegen.js";
 import { dev } from "./commands/dev.js";
 import { list } from "./commands/list.js";
+import { prune } from "./commands/prune.js";
 import { serve } from "./commands/serve.js";
 import { start } from "./commands/start.js";
 
@@ -133,6 +134,18 @@ const listCommand = new Command("list")
     await list({ cliOptions });
   });
 
+const pruneCommand = new Command("prune")
+  .description("Prune all inactive deployments")
+  .showHelpAfterError()
+  .action(async (_, command) => {
+    const cliOptions = {
+      ...command.optsWithGlobals(),
+      command: command.name(),
+      version: packageJson.version,
+    } as GlobalOptions & ReturnType<typeof command.opts>;
+    await prune({ cliOptions });
+  });
+
 const codegenCommand = new Command("codegen")
   .description("Generate the ponder-env.d.ts file, then exit")
   .showHelpAfterError()
@@ -166,6 +179,7 @@ const codegenCommand = new Command("codegen")
 //   });
 
 dbCommand.addCommand(listCommand);
+dbCommand.addCommand(pruneCommand);
 
 ponder.addCommand(devCommand);
 ponder.addCommand(startCommand);
