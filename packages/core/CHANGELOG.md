@@ -1,5 +1,11 @@
 # ponder
 
+## 0.10.1
+
+### Patch Changes
+
+- [#1607](https://github.com/ponder-sh/ponder/pull/1607) [`e723e358fe2909485afc97782bef8819b66374e3`](https://github.com/ponder-sh/ponder/commit/e723e358fe2909485afc97782bef8819b66374e3) Thanks [@kyscott18](https://github.com/kyscott18)! - Changed event decoding behavior to allow users to handle null bytes.
+
 ## 0.10.0
 
 ### Minor Changes
