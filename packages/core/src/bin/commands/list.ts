@@ -85,7 +85,10 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
   );
 
   if (queries.length === 0) {
-    console.log("No 'ponder start' apps found in this database.\n");
+    logger.warn({
+      service: "app",
+      msg: "No 'ponder start' apps found in this database.",
+    });
     await exit({ reason: "Success", code: 0 });
     return;
   }
@@ -124,7 +127,10 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
     }));
 
   if (rows.length === 0) {
-    console.log("No 'ponder start' apps found in this database.\n");
+    logger.warn({
+      service: "app",
+      msg: "No 'ponder start' apps found in this database.",
+    });
     await exit({ reason: "Success", code: 0 });
     return;
   }

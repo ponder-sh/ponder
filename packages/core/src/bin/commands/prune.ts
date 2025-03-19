@@ -93,7 +93,10 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   );
 
   if (queries.length === 0) {
-    console.log("No inactive Ponder apps found in this database.\n");
+    logger.warn({
+      service: "app",
+      msg: "No inactive Ponder apps found in this database.",
+    });
     await exit({ reason: "Success", code: 0 });
     return;
   }
@@ -138,7 +141,10 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   if (tablesToDrop.length === 0) {
-    console.log("No inactive Ponder apps found in this database.\n");
+    logger.warn({
+      service: "app",
+      msg: "No inactive Ponder apps found in this database.",
+    });
     await exit({ reason: "Success", code: 0 });
     return;
   }
@@ -147,20 +153,29 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     sql.raw(`DROP TABLE IF EXISTS ${tablesToDrop.join(", ")} CASCADE`),
   );
 
-  console.log(`Dropped ${tablesToDrop.length} tables`);
+  logger.info({
+    service: "app",
+    msg: `Dropped ${tablesToDrop.length} tables`,
+  });
 
   await database.qb.drizzle.execute(
     sql.raw(`DROP FUNCTION IF EXISTS ${functionsToDrop.join(", ")} CASCADE`),
   );
 
-  console.log(`Dropped ${functionsToDrop.length} functions`);
+  logger.info({
+    service: "app",
+    msg: `Dropped ${functionsToDrop.length} functions`,
+  });
 
   if (schemasToDrop.length > 0) {
     await database.qb.drizzle.execute(
       sql.raw(`DROP SCHEMA IF EXISTS ${schemasToDrop.join(", ")} CASCADE`),
     );
 
-    console.log(`Dropped ${schemasToDrop.length} schemas`);
+    logger.info({
+      service: "app",
+      msg: `Dropped ${schemasToDrop.length} schemas`,
+    });
   }
 
   await exit({ reason: "Success", code: 0 });
