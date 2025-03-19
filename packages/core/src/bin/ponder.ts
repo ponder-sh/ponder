@@ -123,7 +123,7 @@ const serveCommand = new Command("serve")
 const dbCommand = new Command("db").description("Database management commands");
 
 const listCommand = new Command("list")
-  .description("List all deployments")
+  .description("List all Ponder deployments")
   .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
@@ -135,7 +135,9 @@ const listCommand = new Command("list")
   });
 
 const pruneCommand = new Command("prune")
-  .description("Prune all inactive deployments")
+  .description(
+    "Drop all database tables, functions, and schemas created by Ponder deployments that are not active",
+  )
   .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
