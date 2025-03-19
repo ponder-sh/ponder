@@ -1,15 +1,11 @@
 import { createConfig, factory } from "ponder";
 import { http, getAbiItem } from "viem";
-
 import { UniswapV3FactoryAbi } from "./abis/UniswapV3FactoryAbi";
 import { UniswapV3PoolAbi } from "./abis/UniswapV3PoolAbi";
 
 export default createConfig({
   networks: {
-    mainnet: {
-      chainId: 1,
-      transport: http(process.env.PONDER_RPC_URL_1),
-    },
+    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
   },
   contracts: {
     UniswapV3Pool: {
@@ -21,9 +17,6 @@ export default createConfig({
         parameter: "pool",
       }),
       startBlock: 12369621,
-      filter: {
-        event: "Flash",
-      },
     },
   },
 });
