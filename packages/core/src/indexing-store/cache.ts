@@ -143,30 +143,34 @@ const getBytes = (value: unknown) => {
   return size;
 };
 
+const ESCAPE_REGEX = /([\\\b\f\n\r\t\v])/g;
+
 export const getCopyText = (
   table: Table,
   rows: { [key: string]: unknown }[],
 ) => {
   const columns = Object.entries(getTableColumns(table));
-  const results: string[] = [];
-  for (const row of rows) {
-    const values: string[] = [];
-    for (const [columnName, column] of columns) {
+  const results = new Array(rows.length);
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    const values = new Array(columns.length);
+    for (let j = 0; j < columns.length; j++) {
+      const [columnName, column] = columns[j]!;
       let value = row[columnName];
       if (value === null || value === undefined) {
-        values.push("\\N");
+        values[j] = "\\N";
       } else {
         if (column.mapToDriverValue !== undefined) {
           value = column.mapToDriverValue(value);
         }
         if (value === null || value === undefined) {
-          values.push("\\N");
+          values[j] = "\\N";
         } else {
-          values.push(String(value).replace(/([\\\b\f\n\r\t\v])/g, "\\$1"));
+          values[j] = String(value).replace(ESCAPE_REGEX, "\\$1");
         }
       }
     }
-    results.push(values.join("\t"));
+    results[i] = values.join("\t");
   }
   return results.join("\n");
 };

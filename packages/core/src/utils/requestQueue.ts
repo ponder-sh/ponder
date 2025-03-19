@@ -42,12 +42,17 @@ const RETRY_COUNT = 9;
 const BASE_DURATION = 125;
 
 /**
- * Creates a queue built to manage rpc requests.
+ * Creates a queue to manage rpc requests.
  */
 export const createRequestQueue = ({
   common,
   network,
-}: { common: Common; network: Network }): RequestQueue => {
+  concurrency = 25,
+}: {
+  common: Common;
+  network: Network;
+  concurrency?: number;
+}): RequestQueue => {
   // @ts-ignore
   const fetchRequest = async (request: EIP1193Parameters<PublicRpcSchema>) => {
     for (let i = 0; i <= RETRY_COUNT; i++) {
@@ -132,7 +137,7 @@ export const createRequestQueue = ({
     }
   > = createQueue({
     frequency: network.maxRequestsPerSecond,
-    concurrency: Math.ceil(network.maxRequestsPerSecond / 4),
+    concurrency,
     initialStart: true,
     browser: false,
     worker: async (task: {

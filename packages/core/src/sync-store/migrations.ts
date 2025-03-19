@@ -1,6 +1,7 @@
 import type { Common } from "@/internal/common.js";
 import type { Kysely, Migration, MigrationProvider } from "kysely";
 import { sql } from "kysely";
+import { maxUint256 } from "viem";
 
 const migrations: Record<string, Migration> = {
   "2023_05_15_0_initial": {
@@ -1272,6 +1273,510 @@ GROUP BY fragment_id, chain_id
           "chain_id",
         ])
         .execute();
+    },
+  },
+  "2025_02_19_0_primary_key": {
+    async up(db) {
+      // 1. drop unused indexes
+      // 2. drop primary key
+      // 3. update column types
+      // 4. drop unused columns
+      // 5. rename tables and columns
+      // 6. create new primary key
+      // 7. reset metadata
+
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] started 2025_02_19_0_primary_key`,
+      );
+
+      await db.schema.dropIndex("logAddressIndex").ifExists().execute();
+      await db.schema.dropIndex("logBlockHashIndex").ifExists().execute();
+      await db.schema.dropIndex("logBlockNumberIndex").ifExists().execute();
+      await db.schema.dropIndex("logChainIdIndex").ifExists().execute();
+      await db.schema.dropIndex("logTopic0Index").ifExists().execute();
+      await db.schema
+        .dropIndex("log_transaction_hash_index")
+        .ifExists()
+        .execute();
+      await db.schema.dropIndex("logs_checkpoint_index").ifExists().execute();
+      await db.schema.dropIndex("blockChainIdIndex").execute();
+      await db.schema.dropIndex("blockCheckpointIndex").execute();
+      await db.schema.dropIndex("blockNumberIndex").execute();
+      await db.schema.dropIndex("transactions_checkpoint_index").execute();
+      await db.schema.dropIndex("trace_block_hash_index").ifExists().execute();
+      await db.schema
+        .dropIndex("trace_block_number_index")
+        .ifExists()
+        .execute();
+      await db.schema.dropIndex("trace_chain_id_index").ifExists().execute();
+      await db.schema.dropIndex("trace_checkpoint_index").ifExists().execute();
+      await db.schema.dropIndex("trace_from_index").ifExists().execute();
+      await db.schema
+        .dropIndex("trace_function_selector_index")
+        .ifExists()
+        .execute();
+      await db.schema.dropIndex("trace_is_reverted_index").ifExists().execute();
+      await db.schema.dropIndex("trace_to_index").ifExists().execute();
+      await db.schema
+        .dropIndex("trace_transaction_hash_index")
+        .ifExists()
+        .execute();
+      await db.schema.dropIndex("trace_type_index").ifExists().execute();
+      await db.schema.dropIndex("trace_value_index").ifExists().execute();
+
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] dropped indexes`,
+      );
+
+      await db.schema.alterTable("logs").dropConstraint("logs_pkey").execute();
+      await db.schema
+        .alterTable("blocks")
+        .dropConstraint("blocks_pkey")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .dropConstraint("transactions_pkey")
+        .execute();
+      await db.schema
+        .alterTable("transactionReceipts")
+        .dropConstraint("transactionReceipts_pkey")
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .dropConstraint("traces_pkey")
+        .execute();
+
+      await db.schema
+        .alterTable("logs")
+        .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .alterColumn("number", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .alterColumn("timestamp", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("transactionReceipts")
+        .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("transactionReceipts")
+        .alterColumn("chainId", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .alterColumn("chainId", (qb) => qb.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .addColumn("transaction_index", "integer")
+        .execute();
+      await db
+        .updateTable("traces")
+        .set({ transaction_index: sql`SUBSTRING(checkpoint, 43, 16)::bigint` })
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .alterColumn("transaction_index", (col) => col.setNotNull())
+        .execute();
+      await db.schema
+        .alterTable("intervals")
+        .alterColumn("chain_id", (qb) => qb.setDataType("bigint"))
+        .execute();
+
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] updated column types`,
+      );
+
+      await db.deleteFrom("logs").where("checkpoint", "=", null).execute();
+      await db.schema.alterTable("logs").dropColumn("checkpoint").execute();
+      await db.schema.alterTable("logs").dropColumn("id").execute();
+      await db.schema.alterTable("blocks").dropColumn("checkpoint").execute();
+      await db.schema
+        .alterTable("transactions")
+        .dropColumn("checkpoint")
+        .execute();
+      await db.schema.alterTable("traces").dropColumn("id").execute();
+      await db.schema.alterTable("traces").dropColumn("checkpoint").execute();
+      await db.schema
+        .alterTable("traces")
+        .dropColumn("transactionHash")
+        .execute();
+      await db.schema.alterTable("traces").dropColumn("blockHash").execute();
+      await db.schema
+        .alterTable("traces")
+        .dropColumn("functionSelector")
+        .execute();
+      await db.schema.alterTable("traces").dropColumn("isReverted").execute();
+
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] dropped columns`,
+      );
+
+      await db.schema
+        .alterTable("logs")
+        .renameColumn("chainId", "chain_id")
+        .execute();
+      await db.schema
+        .alterTable("logs")
+        .renameColumn("blockNumber", "block_number")
+        .execute();
+      await db.schema
+        .alterTable("logs")
+        .renameColumn("logIndex", "log_index")
+        .execute();
+      await db.schema
+        .alterTable("logs")
+        .renameColumn("transactionIndex", "transaction_index")
+        .execute();
+      await db.schema
+        .alterTable("logs")
+        .renameColumn("blockHash", "block_hash")
+        .execute();
+      await db.schema
+        .alterTable("logs")
+        .renameColumn("transactionHash", "transaction_hash")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("chainId", "chain_id")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("parentHash", "parent_hash")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("logsBloom", "logs_bloom")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("gasUsed", "gas_used")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("gasLimit", "gas_limit")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("baseFeePerGas", "base_fee_per_gas")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("mixHash", "mix_hash")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("stateRoot", "state_root")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("receiptsRoot", "receipts_root")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("transactionsRoot", "transactions_root")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("sha3Uncles", "sha3_uncles")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("totalDifficulty", "total_difficulty")
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .renameColumn("extraData", "extra_data")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .renameColumn("chainId", "chain_id")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .renameColumn("blockNumber", "block_number")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .renameColumn("transactionIndex", "transaction_index")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .renameColumn("blockHash", "block_hash")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .renameColumn("gasPrice", "gas_price")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .renameColumn("maxFeePerGas", "max_fee_per_gas")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .renameColumn("maxPriorityFeePerGas", "max_priority_fee_per_gas")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .renameColumn("accessList", "access_list")
+        .execute();
+      await db.schema
+        .alterTable("transactionReceipts")
+        .renameTo("transaction_receipts")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("chainId", "chain_id")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("blockNumber", "block_number")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("transactionIndex", "transaction_index")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("blockHash", "block_hash")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("transactionHash", "transaction_hash")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("contractAddress", "contract_address")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("logsBloom", "logs_bloom")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("gasUsed", "gas_used")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("cumulativeGasUsed", "cumulative_gas_used")
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .renameColumn("effectiveGasPrice", "effective_gas_price")
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .renameColumn("chainId", "chain_id")
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .renameColumn("blockNumber", "block_number")
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .renameColumn("index", "trace_index")
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .renameColumn("gasUsed", "gas_used")
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .renameColumn("revertReason", "revert_reason")
+        .execute();
+
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] renamed columns`,
+      );
+
+      await db.schema
+        .alterTable("logs")
+        .addPrimaryKeyConstraint("logs_pkey", [
+          "chain_id",
+          "block_number",
+          "log_index",
+        ])
+        .execute();
+      await db.schema
+        .alterTable("blocks")
+        .addPrimaryKeyConstraint("blocks_pkey", ["chain_id", "number"])
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .addPrimaryKeyConstraint("transactions_pkey", [
+          "chain_id",
+          "block_number",
+          "transaction_index",
+        ])
+        .execute();
+      await db.schema
+        .alterTable("transaction_receipts")
+        .addPrimaryKeyConstraint("transaction_receipts_pkey", [
+          "chain_id",
+          "block_number",
+          "transaction_index",
+        ])
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .addPrimaryKeyConstraint("traces_pkey", [
+          "chain_id",
+          "block_number",
+          "transaction_index",
+          "trace_index",
+        ])
+        .execute();
+
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] added primary keys`,
+      );
+
+      await sql`ANALYZE ponder_sync.logs`.execute(db);
+      await sql`ANALYZE ponder_sync.blocks`.execute(db);
+      await sql`ANALYZE ponder_sync.transactions`.execute(db);
+      await sql`ANALYZE ponder_sync.transaction_receipts`.execute(db);
+      await sql`ANALYZE ponder_sync.traces`.execute(db);
+
+      await sql`REINDEX TABLE ponder_sync.logs`.execute(db);
+      await sql`REINDEX TABLE ponder_sync.blocks`.execute(db);
+      await sql`REINDEX TABLE ponder_sync.transactions`.execute(db);
+      await sql`REINDEX TABLE ponder_sync.transaction_receipts`.execute(db);
+      await sql`REINDEX TABLE ponder_sync.traces`.execute(db);
+
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] finished 2025_02_19_0_primary_key`,
+      );
+    },
+  },
+  "2025_02_26_0_factories": {
+    async up(db) {
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] started 2025_02_26_0_factories`,
+      );
+
+      // drop any intervals that contain a factory address
+      await db
+        .deleteFrom("intervals")
+        .where((qb) =>
+          qb.or([
+            qb("fragment_id", "like", "%offset%"),
+            qb("fragment_id", "like", "%topic%"),
+          ]),
+        )
+        .execute();
+
+      await db.schema
+        .createTable("factories")
+        .addColumn("id", "integer", (col) =>
+          col.generatedAlwaysAsIdentity().primaryKey(),
+        )
+        .addColumn("factory", "jsonb", (col) => col.notNull().unique())
+        .execute();
+
+      await db.schema
+        .createTable("factory_addresses")
+        .addColumn("id", "integer", (col) =>
+          col.generatedAlwaysAsIdentity().primaryKey(),
+        )
+        .addColumn("factory_id", "integer", (col) => col.notNull())
+        .addColumn("chain_id", "bigint", (col) => col.notNull())
+        .addColumn("block_number", "bigint", (col) => col.notNull())
+        .addColumn("address", "text", (col) => col.notNull())
+        .execute();
+
+      await db.schema
+        .createIndex("factories_factory_index")
+        .on("factories")
+        .column("factory")
+        .execute();
+
+      await db.schema
+        .createIndex("factory_addresses_factory_id_index")
+        .on("factory_addresses")
+        .column("factory_id")
+        .execute();
+
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] finished 2025_02_26_0_factories`,
+      );
+    },
+  },
+  "2025_02_26_1_rpc_request_results": {
+    async up(db) {
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] started 2025_02_26_1_rpc_request_results`,
+      );
+
+      await db.schema
+        .alterTable("rpc_request_results")
+        .dropConstraint("rpc_request_result_primary_key")
+        .execute();
+      await db.schema
+        .alterTable("rpc_request_results")
+        .addColumn("request_hash_temp", "text")
+        .execute();
+      await db
+        .updateTable("rpc_request_results")
+        .set({ request_hash_temp: sql`request_hash` })
+        .execute();
+      await db.schema
+        .alterTable("rpc_request_results")
+        .dropColumn("request_hash")
+        .execute();
+      await db.schema
+        .alterTable("rpc_request_results")
+        .renameColumn("request_hash_temp", "request_hash")
+        .execute();
+      await db.schema
+        .alterTable("rpc_request_results")
+        .addPrimaryKeyConstraint("rpc_request_results_pkey", [
+          "chain_id",
+          "request_hash",
+        ])
+        .execute();
+      await db.schema
+        .alterTable("rpc_request_results")
+        .dropColumn("request")
+        .execute();
+      await db
+        .updateTable("rpc_request_results")
+        .set({ block_number: 0 })
+        .where("block_number", "=", maxUint256)
+        .execute();
+      await db.schema
+        .alterTable("rpc_request_results")
+        .alterColumn("block_number", (col) => col.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .alterTable("rpc_request_results")
+        .alterColumn("chain_id", (col) => col.setDataType("bigint"))
+        .execute();
+      await db.schema
+        .createIndex("rpc_request_results_chain_id_block_number_index")
+        .on("rpc_request_results")
+        .columns(["chain_id", "block_number"])
+        .execute();
+      await db
+        .deleteFrom("rpc_request_results")
+        .where("result", "=", "0x")
+        .execute();
+      await sql`ANALYZE ponder_sync.rpc_request_results`.execute(db);
+
+      console.log(
+        `${new Date().toISOString()} [ponder_sync migration] finished 2025_02_26_1_rpc_request_results`,
+      );
     },
   },
 };
