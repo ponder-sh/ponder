@@ -109,6 +109,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
 
   const tablesToDrop: string[] = [];
   const schemasToDrop: string[] = [];
+  const functionsToDrop: string[] = [];
 
   for (const { value, schema } of result) {
     if (value.is_dev === 1) continue;
@@ -122,6 +123,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     for (const table of value.table_names) {
       tablesToDrop.push(`"${schema}"."${table}"`);
       tablesToDrop.push(`"${schema}"."${sqlToReorgTableName(table)}"`);
+      functionsToDrop.push(`"${schema}"."operation_reorg__${table}"`);
     }
     tablesToDrop.push(`"${schema}"."_ponder_meta"`);
     tablesToDrop.push(`"${schema}"."_ponder_status"`);
@@ -146,6 +148,12 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   );
 
   console.log(`Dropped ${tablesToDrop.length} tables`);
+
+  await database.qb.drizzle.execute(
+    sql.raw(`DROP FUNCTION IF EXISTS ${functionsToDrop.join(", ")} CASCADE`),
+  );
+
+  console.log(`Dropped ${functionsToDrop.length} functions`);
 
   if (schemasToDrop.length > 0) {
     await database.qb.drizzle.execute(
