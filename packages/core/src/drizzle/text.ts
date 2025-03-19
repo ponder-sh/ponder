@@ -62,7 +62,7 @@ export class PgText<
     if (value.match(/\0/g)) {
       globalThis.PONDER_COMMON?.logger.warn({
         service: "indexing",
-        msg: `${getTableName(this.table)}.${this.name} contains an invalid null byte character in ${value}. The null bytes will be removed to prevent a crash.`,
+        msg: `Detected and removed null byte characters from the string '${value}' inserted into the ${getTableName(this.table)}.${this.name} column. Postgres "text" columns do not support null byte characters. Please consider handling this case in your indexing logic.`,
       });
 
       return value.replace(/\0/g, "");

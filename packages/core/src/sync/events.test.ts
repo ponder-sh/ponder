@@ -25,7 +25,7 @@ import {
 } from "viem";
 import { encodeFunctionData, encodeFunctionResult } from "viem/utils";
 import { beforeEach, expect, test } from "vitest";
-import { decodeEventLog, decodeEvents } from "./events.js";
+import { decodeEvents } from "./events.js";
 
 beforeEach(setupCommon);
 
