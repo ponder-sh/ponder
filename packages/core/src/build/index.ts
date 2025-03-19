@@ -33,6 +33,7 @@ import { safeBuildSchema } from "./schema.js";
 import { parseViteNodeError } from "./stacktrace.js";
 
 declare global {
+  var PONDER_COMMON: Common;
   var PONDER_NAMESPACE_BUILD: NamespaceBuild;
   var PONDER_INDEXING_BUILD: IndexingBuild;
   var PONDER_DATABASE: Database;
@@ -82,6 +83,8 @@ export const createBuild = async ({
   cliOptions: CliOptions;
 }): Promise<Build> => {
   const escapeRegex = /[.*+?^${}()|[\]\\]/g;
+
+  globalThis.PONDER_COMMON = common;
 
   const escapedIndexingDir = common.options.indexingDir
     // If on Windows, use a POSIX path for this regex.

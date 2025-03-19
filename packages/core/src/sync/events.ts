@@ -369,7 +369,7 @@ export const decodeEvents = (
 
                 event: {
                   id: event.checkpoint,
-                  args: removeNullCharacters(args),
+                  args,
                   log: event.log!,
                   block: event.block,
                   transaction: event.transaction!,
@@ -426,8 +426,8 @@ export const decodeEvents = (
 
                 event: {
                   id: event.checkpoint,
-                  args: removeNullCharacters(args),
-                  result: removeNullCharacters(result),
+                  args,
+                  result,
                   trace: event.trace!,
                   block: event.block,
                   transaction: event.transaction!,
@@ -592,36 +592,18 @@ export function decodeEventLog({
   return Object.values(args).length > 0 ? args : undefined;
 }
 
+const ARRAY_REGEX = /^(.*)\[(\d+)?\]$/;
+
 function decodeTopic({ param, value }: { param: AbiParameter; value: Hex }) {
   if (
     param.type === "string" ||
     param.type === "bytes" ||
     param.type === "tuple" ||
-    param.type.match(/^(.*)\[(\d+)?\]$/)
+    param.type.match(ARRAY_REGEX)
   )
     return value;
   const decodedArg = decodeAbiParameters([param], value) || [];
   return decodedArg[0];
-}
-
-export function removeNullCharacters(obj: unknown): unknown {
-  if (typeof obj === "string") {
-    return obj.replace(/\0/g, "");
-  }
-  if (Array.isArray(obj)) {
-    // Recursively handle array elements
-    return obj.map(removeNullCharacters);
-  }
-  if (obj && typeof obj === "object") {
-    // Recursively handle object properties
-    const newObj: { [key: string]: unknown } = {};
-    for (const [key, val] of Object.entries(obj)) {
-      newObj[key] = removeNullCharacters(val);
-    }
-    return newObj;
-  }
-  // For other types (number, boolean, null, undefined, etc.), return as-is
-  return obj;
 }
 
 export const syncBlockToInternal = ({
