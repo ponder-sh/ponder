@@ -758,3 +758,36 @@ test("bytes", async (context) => {
     calldata: toBytes(zeroAddress),
   });
 });
+
+test("text with null bytes", async (context) => {
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      name: t.text().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+  });
+
+  await indexingStore.insert(schema.account).values({
+    address: zeroAddress,
+    name: "tencentclub\x00\x00\x00\x00\x00\x00",
+  });
+
+  const result = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    name: "tencentclub",
+  });
+});

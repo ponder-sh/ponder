@@ -994,3 +994,44 @@ test("bytes", async (context) => {
     });
   });
 });
+
+test("text with null bytes", async (context) => {
+  const { database } = await setupDatabaseServices(context);
+
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      name: t.text().notNull(),
+    })),
+  };
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    checkpoint: ZERO_CHECKPOINT_STRING,
+  });
+
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    await indexingStore.insert(schema.account).values({
+      address: zeroAddress,
+      name: "tencentclub\x00\x00\x00\x00\x00\x00",
+    });
+
+    const result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      name: "tencentclub",
+    });
+  });
+});

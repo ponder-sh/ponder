@@ -25,11 +25,7 @@ import {
 } from "viem";
 import { encodeFunctionData, encodeFunctionResult } from "viem/utils";
 import { beforeEach, expect, test } from "vitest";
-import {
-  decodeEventLog,
-  decodeEvents,
-  removeNullCharacters,
-} from "./events.js";
+import { decodeEvents } from "./events.js";
 
 beforeEach(setupCommon);
 
@@ -312,67 +308,4 @@ test("decodeEvents() trace error", async (context) => {
   const events = decodeEvents(common, sources, [rawEvent]) as [TraceEvent];
 
   expect(events).toHaveLength(0);
-});
-
-test("removeNullCharacters removes null characters", () => {
-  // NameRegistered event from this transaction contains null characters:
-  // https://etherscan.io/tx/0x2e67be22d5e700e61e102b926f28ba451c53a6cd6438c53b43dbb783c2081a12#eventlog
-  const log = {
-    topics: [
-      "0xca6abbe9d7f11422cb6ca7629fbf6fe9efb1c621f71ce8f02b9f2a230097404f",
-      "0x56e1003dc29ff83445ba93c493f4a76570eb667494e78c6974a745593131ae2a",
-      "0x0000000000000000000000008504a09352555ff1acf9c8a8d9fb5fdcc4161cbc",
-    ],
-    data: "0x0000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000697a5dd2a81dc000000000000000000000000000000000000000000000000000000006457430e000000000000000000000000000000000000000000000000000000000000001174656e63656e74636c7562000000000000000000000000000000000000000000",
-  } as const;
-
-  const abiItem = {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: false,
-        internalType: "string",
-        name: "name",
-        type: "string",
-      },
-      {
-        indexed: true,
-        internalType: "bytes32",
-        name: "label",
-        type: "bytes32",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "owner",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "cost",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "expires",
-        type: "uint256",
-      },
-    ],
-    name: "NameRegistered",
-    type: "event",
-  } as const;
-
-  const args = decodeEventLog({
-    abiItem,
-    topics: log.topics as unknown as [signature: Hex, ...args: Hex[]],
-    data: log.data,
-  });
-
-  expect(args.name).toBe("tencentclub\x00\x00\x00\x00\x00\x00");
-
-  const cleanedArgs = removeNullCharacters(args);
-
-  expect((cleanedArgs as any).name).toBe("tencentclub");
 });
