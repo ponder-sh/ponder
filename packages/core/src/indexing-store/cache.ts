@@ -642,16 +642,12 @@ export const createIndexingCache = ({
     async commit({ events, db }) {
       if (Array.from(isCacheComplete.values()).every((c) => c)) {
         if (cacheBytes < common.options.indexingCacheMaxBytes) {
-          common.logger.debug({
-            service: "indexing",
-            msg: "Used in-memory cache",
-          });
           return;
         }
 
         for (const table of cache.keys()) {
           isCacheComplete.set(table, false);
-          cache.delete(table);
+          cache.get(table)!.clear();
           // Note: spillover is not cleared because it is an invariant
           // it is empty
         }
