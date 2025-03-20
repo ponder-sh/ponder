@@ -1,5 +1,11 @@
 # ponder
 
+## 0.10.2
+
+### Patch Changes
+
+- [#1611](https://github.com/ponder-sh/ponder/pull/1611) [`21560f3927abd3389832a510ac1fb3dc2009204e`](https://github.com/ponder-sh/ponder/commit/21560f3927abd3389832a510ac1fb3dc2009204e) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in v0.10.1 with text column encoding.
+
 ## 0.10.1
 
 ### Patch Changes
