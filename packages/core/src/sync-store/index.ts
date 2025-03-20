@@ -44,11 +44,6 @@ import type { InsertObject } from "kysely";
 import { type Address, type EIP1193Parameters, hexToNumber } from "viem";
 import {
   type PonderSyncSchema,
-  decodeBlock,
-  decodeLog,
-  decodeTrace,
-  decodeTransaction,
-  decodeTransactionReceipt,
   encodeBlock,
   encodeLog,
   encodeTrace,
@@ -541,7 +536,27 @@ export const createSyncStore = ({
           .where("blocks.number", ">=", String(fromBlock))
           .where("blocks.number", "<=", String(toBlock))
           .orderBy("blocks.number", "asc")
-          .selectAll()
+          .select([
+            "number",
+            "timestamp",
+            "hash",
+            sql<string>`parent_hash`.as("parentHash"),
+            sql<string>`logs_bloom`.as("logsBloom"),
+            "miner",
+            sql<string>`gas_used`.as("gasUsed"),
+            sql<string>`gas_limit`.as("gasLimit"),
+            sql<string>`base_fee_per_gas`.as("baseFeePerGas"),
+            "nonce",
+            sql<string>`mix_hash`.as("mixHash"),
+            sql<string>`state_root`.as("stateRoot"),
+            sql<string>`receipts_root`.as("receiptsRoot"),
+            sql<string>`transactions_root`.as("transactionsRoot"),
+            sql<string>`sha3_uncles`.as("sha3Uncles"),
+            "size",
+            "difficulty",
+            sql<string>`total_difficulty`.as("totalDifficulty"),
+            sql<string>`extra_data`.as("extraData"),
+          ])
           .limit(limit);
 
         const transactionsQuery = database.qb.sync
@@ -551,7 +566,27 @@ export const createSyncStore = ({
           .where("block_number", "<=", String(toBlock))
           .orderBy("block_number", "asc")
           .orderBy("transaction_index", "asc")
-          .selectAll()
+          .select([
+            sql<string>`block_number`.as("blockNumber"),
+            sql<number>`transaction_index`.as("transactionIndex"),
+            "hash",
+            "from",
+            "to",
+            "input",
+            "value",
+            "nonce",
+            "r",
+            "s",
+            "v",
+            "type",
+            "gas",
+            sql<string | null>`gas_price`.as("gasPrice"),
+            sql<string | null>`max_fee_per_gas`.as("maxFeePerGas"),
+            sql<string | null>`max_priority_fee_per_gas`.as(
+              "maxPriorityFeePerGas",
+            ),
+            sql<string | null>`access_list`.as("accessList"),
+          ])
           .limit(limit);
 
         const transactionReceiptsQuery = database.qb.sync
@@ -561,7 +596,19 @@ export const createSyncStore = ({
           .where("block_number", "<=", String(toBlock))
           .orderBy("block_number", "asc")
           .orderBy("transaction_index", "asc")
-          .selectAll()
+          .select([
+            sql<string>`block_number`.as("blockNumber"),
+            sql<number>`transaction_index`.as("transactionIndex"),
+            "from",
+            "to",
+            sql<Address | null>`contract_address`.as("contractAddress"),
+            sql<string>`logs_bloom`.as("logsBloom"),
+            sql<string>`gas_used`.as("gasUsed"),
+            sql<string>`cumulative_gas_used`.as("cumulativeGasUsed"),
+            sql<string>`effective_gas_price`.as("effectiveGasPrice"),
+            "status",
+            "type",
+          ])
           .limit(limit);
 
         const logsQuery = database.qb.sync
@@ -572,7 +619,17 @@ export const createSyncStore = ({
           .where((eb) => eb.or(logFilters.map((f) => logFilter(eb, f))))
           .orderBy("logs.block_number", "asc")
           .orderBy("logs.log_index", "asc")
-          .selectAll()
+          .select([
+            sql<string>`block_number`.as("blockNumber"),
+            sql<number>`log_index`.as("logIndex"),
+            sql<number>`transaction_index`.as("transactionIndex"),
+            "address",
+            "topic0",
+            "topic1",
+            "topic2",
+            "topic3",
+            "data",
+          ])
           .limit(limit);
 
         const tracesQuery = database.qb.sync
@@ -588,7 +645,22 @@ export const createSyncStore = ({
           )
           .orderBy("block_number", "asc")
           .orderBy("trace_index", "asc")
-          .selectAll()
+          .select([
+            sql<string>`block_number`.as("blockNumber"),
+            sql<number>`transaction_index`.as("transactionIndex"),
+            sql<number>`trace_index`.as("traceIndex"),
+            "from",
+            "to",
+            "input",
+            "output",
+            "value",
+            "type",
+            "gas",
+            sql<string>`gas_used`.as("gasUsed"),
+            "error",
+            sql<string | null>`revert_reason`.as("revertReason"),
+            "subcalls",
+          ])
           .limit(limit);
 
         const endClock = startClock();
@@ -659,20 +731,20 @@ export const createSyncStore = ({
           transactionsRows.length < limit
             ? Number.POSITIVE_INFINITY
             : Number(
-                transactionsRows[transactionsRows.length - 1]!.block_number,
+                transactionsRows[transactionsRows.length - 1]!.blockNumber,
               ),
           transactionReceiptsRows.length < limit
             ? Number.POSITIVE_INFINITY
             : Number(
                 transactionReceiptsRows[transactionReceiptsRows.length - 1]!
-                  .block_number,
+                  .blockNumber,
               ),
           logsRows.length < limit
             ? Number.POSITIVE_INFINITY
-            : Number(logsRows[logsRows.length - 1]!.block_number),
+            : Number(logsRows[logsRows.length - 1]!.blockNumber),
           tracesRows.length < limit
             ? Number.POSITIVE_INFINITY
-            : Number(tracesRows[tracesRows.length - 1]!.block_number),
+            : Number(tracesRows[tracesRows.length - 1]!.blockNumber),
         );
 
         const blockData: {
@@ -698,46 +770,171 @@ export const createSyncStore = ({
 
           while (
             transactionIndex < transactionsRows.length &&
-            transactionsRows[transactionIndex]!.block_number === block.number
+            transactionsRows[transactionIndex]!.blockNumber === block.number
           ) {
             const transaction = transactionsRows[transactionIndex]!;
-            transactions.push(decodeTransaction({ transaction }));
+            const internalTransaction =
+              transaction as unknown as InternalTransaction;
+
+            internalTransaction.blockNumber = Number(transaction.blockNumber);
+            internalTransaction.value = BigInt(transaction.value);
+            internalTransaction.gas = BigInt(transaction.gas);
+
+            if (transaction.type === "0x0") {
+              internalTransaction.type = "legacy";
+              internalTransaction.gasPrice = BigInt(transaction.gasPrice!);
+            } else if (transaction.type === "0x1") {
+              internalTransaction.type = "eip2930";
+              internalTransaction.gasPrice = BigInt(transaction.gasPrice!);
+              internalTransaction.accessList = JSON.parse(
+                transaction.accessList!,
+              );
+            } else if (transaction.type === "0x2") {
+              internalTransaction.type = "eip1559";
+              internalTransaction.maxFeePerGas = BigInt(
+                transaction.maxFeePerGas!,
+              );
+              internalTransaction.maxPriorityFeePerGas = BigInt(
+                transaction.maxPriorityFeePerGas!,
+              );
+            } else if (transaction.type === "0x7e") {
+              internalTransaction.type = "deposit";
+              if (transaction.maxFeePerGas !== null) {
+                internalTransaction.maxFeePerGas = BigInt(
+                  transaction.maxFeePerGas!,
+                );
+              }
+              if (transaction.maxPriorityFeePerGas !== null) {
+                internalTransaction.maxPriorityFeePerGas = BigInt(
+                  transaction.maxPriorityFeePerGas!,
+                );
+              }
+            }
+
+            transactions.push(internalTransaction);
             transactionIndex++;
           }
 
           while (
             transactionReceiptIndex < transactionReceiptsRows.length &&
-            transactionReceiptsRows[transactionReceiptIndex]!.block_number ===
+            transactionReceiptsRows[transactionReceiptIndex]!.blockNumber ===
               block.number
           ) {
             const transactionReceipt =
               transactionReceiptsRows[transactionReceiptIndex]!;
-            transactionReceipts.push(
-              decodeTransactionReceipt({ transactionReceipt }),
+
+            const internalTransactionReceipt =
+              transactionReceipt as unknown as InternalTransactionReceipt;
+
+            internalTransactionReceipt.blockNumber = Number(
+              transactionReceipt.blockNumber,
             );
+            internalTransactionReceipt.gasUsed = BigInt(
+              transactionReceipt.gasUsed,
+            );
+            internalTransactionReceipt.cumulativeGasUsed = BigInt(
+              transactionReceipt.cumulativeGasUsed,
+            );
+            internalTransactionReceipt.effectiveGasPrice = BigInt(
+              transactionReceipt.effectiveGasPrice,
+            );
+            internalTransactionReceipt.status =
+              transactionReceipt.status === "0x1"
+                ? "success"
+                : transactionReceipt.status === "0x0"
+                  ? "reverted"
+                  : (transactionReceipt.status as InternalTransactionReceipt["status"]);
+            internalTransactionReceipt.type =
+              transactionReceipt.type === "0x0"
+                ? "legacy"
+                : transactionReceipt.type === "0x1"
+                  ? "eip2930"
+                  : transactionReceipt.type === "0x2"
+                    ? "eip1559"
+                    : transactionReceipt.type === "0x7e"
+                      ? "deposit"
+                      : transactionReceipt.type;
+
+            transactionReceipts.push(internalTransactionReceipt);
             transactionReceiptIndex++;
           }
 
           while (
             logIndex < logsRows.length &&
-            logsRows[logIndex]!.block_number === block.number
+            logsRows[logIndex]!.blockNumber === block.number
           ) {
             const log = logsRows[logIndex]!;
-            logs.push(decodeLog({ log }));
+            const internalLog = log as unknown as InternalLog;
+
+            internalLog.blockNumber = Number(log.blockNumber);
+            internalLog.removed = false;
+            internalLog.topics = [
+              // @ts-ignore
+              log.topic0,
+              log.topic1,
+              log.topic2,
+              log.topic3,
+            ];
+
+            logs.push(internalLog);
             logIndex++;
           }
 
           while (
             traceIndex < tracesRows.length &&
-            tracesRows[traceIndex]!.block_number === block.number
+            tracesRows[traceIndex]!.blockNumber === block.number
           ) {
             const trace = tracesRows[traceIndex]!;
-            traces.push(decodeTrace({ trace }));
+            const internalTrace = trace as unknown as InternalTrace;
+
+            internalTrace.blockNumber = Number(trace.blockNumber);
+
+            if (trace.output === null) {
+              internalTrace.output = undefined;
+            }
+
+            if (trace.value !== null) {
+              internalTrace.value = BigInt(trace.value);
+            }
+            internalTrace.gas = BigInt(trace.gas);
+            internalTrace.gasUsed = BigInt(trace.gasUsed);
+
+            if (trace.error !== null) {
+              internalTrace.error = trace.error.replace(/\0/g, "");
+            } else {
+              internalTrace.error = undefined;
+            }
+
+            if (trace.revertReason !== null) {
+              internalTrace.revertReason = trace.revertReason.replace(
+                /\0/g,
+                "",
+              );
+            } else {
+              internalTrace.revertReason = undefined;
+            }
+
+            traces.push(internalTrace);
             traceIndex++;
           }
 
+          const internalBlock = block as unknown as InternalBlock;
+
+          internalBlock.number = BigInt(block.number);
+          internalBlock.timestamp = BigInt(block.timestamp);
+          internalBlock.gasUsed = BigInt(block.gasUsed);
+          internalBlock.gasLimit = BigInt(block.gasLimit);
+          if (block.baseFeePerGas !== null) {
+            internalBlock.baseFeePerGas = BigInt(block.baseFeePerGas);
+          }
+          internalBlock.size = BigInt(block.size);
+          internalBlock.difficulty = BigInt(block.difficulty);
+          if (block.totalDifficulty !== null) {
+            internalBlock.totalDifficulty = BigInt(block.totalDifficulty);
+          }
+
           blockData.push({
-            block: decodeBlock({ block }),
+            block: internalBlock,
             logs,
             transactions,
             traces,
