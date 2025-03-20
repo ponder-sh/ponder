@@ -1,4 +1,5 @@
 import path from "node:path";
+import v8 from "node:v8";
 import type { CliOptions } from "@/bin/ponder.js";
 import type { LevelWithSilent } from "pino";
 import { type SemVer, parse } from "semver";
@@ -31,6 +32,8 @@ export type Options = {
   databaseMaxQueryParameters: number;
 
   factoryAddressCountThreshold: number;
+
+  indexingCacheMaxBytes: number;
 
   rpcMaxConcurrency: number;
 
@@ -104,6 +107,17 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
     rpcMaxConcurrency: 256,
 
-    syncEventsQuerySize: 15_000,
+    // v8.getHeapStatistics().heap_size_limit / 5, rounded up to the nearest 64 MB
+    indexingCacheMaxBytes:
+      process.env.PONDER_CACHE_BYTES !== undefined
+        ? Number(process.env.PONDER_CACHE_BYTES)
+        : Math.ceil(
+            v8.getHeapStatistics().heap_size_limit / 1_024 / 1_024 / 5 / 64,
+          ) *
+          64 *
+          1_024 *
+          1_024,
+
+    syncEventsQuerySize: 10_000,
   } satisfies Options;
 };

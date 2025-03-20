@@ -86,7 +86,7 @@ export async function run({
   const indexingCache = createIndexingCache({
     common,
     schemaBuild,
-    checkpoint: crashRecoveryCheckpoint,
+    crashRecoveryCheckpoint,
   });
 
   await database.setStatus(sync.getStatus());
