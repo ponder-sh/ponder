@@ -1,5 +1,12 @@
 # @ponder/react
 
+## 0.10.2
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @ponder/client@0.10.2
+
 ## 0.10.1
 
 ### Patch Changes
