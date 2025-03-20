@@ -86,7 +86,7 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
 
   if (queries.length === 0) {
     logger.warn({
-      service: "app",
+      service: "list",
       msg: "No 'ponder start' apps found in this database.",
     });
     await exit({ reason: "Success", code: 0 });
@@ -128,7 +128,7 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
 
   if (rows.length === 0) {
     logger.warn({
-      service: "app",
+      service: "list",
       msg: "No 'ponder start' apps found in this database.",
     });
     await exit({ reason: "Success", code: 0 });
