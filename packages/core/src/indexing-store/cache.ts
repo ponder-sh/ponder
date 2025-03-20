@@ -70,13 +70,9 @@ export type IndexingCache = {
    */
   flush: (params: { client: PoolClient | PGlite }) => Promise<void>;
   /**
-   * Make all temporary data permanent and prepare the cache for
-   * the next iteration.
-   *
-   * Note: It is assumed this is called after `flush`
-   * because it clears the buffers.
+   * Predict and load rows that will be accessed in the next event batch.
    */
-  commit: (params: { events: Event[]; db: Drizzle<Schema> }) => Promise<void>;
+  load: (params: { events: Event[]; db: Drizzle<Schema> }) => Promise<void>;
   /**
    * Remove spillover and buffer entries.
    */
@@ -240,6 +236,11 @@ export const createIndexingCache = ({
   schemaBuild: Pick<SchemaBuild, "schema">;
   crashRecoveryCheckpoint: string;
 }): IndexingCache => {
+  /**
+   * Estimated size of the cache in bytes.
+   *
+   * Note: this stops getting updated once the cache is incomplete.
+   */
   let cacheBytes = 0;
   let event: Event | undefined;
   const isCacheComplete = new Map<Table, boolean>();
@@ -639,7 +640,7 @@ export const createIndexingCache = ({
         }
       }
     },
-    async commit({ events, db }) {
+    async load({ events, db }) {
       if (Array.from(isCacheComplete.values()).every((c) => c)) {
         if (cacheBytes < common.options.indexingCacheMaxBytes) {
           return;
