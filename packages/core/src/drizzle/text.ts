@@ -59,14 +59,17 @@ export class PgText<
   }
 
   override mapToDriverValue(value: string) {
-    if (value.match(/\0/g)) {
-      globalThis.PONDER_COMMON?.logger.warn({
-        service: "indexing",
-        msg: `Detected and removed null byte characters from the string '${value}' inserted into the ${getTableName(this.table)}.${this.name} column. Postgres "text" columns do not support null byte characters. Please consider handling this case in your indexing logic.`,
-      });
+    // Note: swallow errors because drizzle will throw a more specific error if the value is invalid
+    try {
+      if (value.match(/\0/g)) {
+        globalThis.PONDER_COMMON?.logger.warn({
+          service: "indexing",
+          msg: `Detected and removed null byte characters from the string '${value}' inserted into the ${getTableName(this.table)}.${this.name} column. Postgres "text" columns do not support null byte characters. Please consider handling this case in your indexing logic.`,
+        });
 
-      return value.replace(/\0/g, "");
-    }
+        return value.replace(/\0/g, "");
+      }
+    } catch {}
     return value;
   }
 }
