@@ -642,6 +642,10 @@ export const createIndexingCache = ({
     async commit({ events, db }) {
       if (Array.from(isCacheComplete.values()).every((c) => c)) {
         if (cacheBytes < common.options.indexingCacheMaxBytes) {
+          common.logger.debug({
+            service: "indexing",
+            msg: "Used in-memory cache",
+          });
           return;
         }
 
