@@ -30,7 +30,7 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
 
   const logger = createLogger({
-    level: options.logLevel,
+    level: "warn",
     mode: options.logFormat,
   });
 

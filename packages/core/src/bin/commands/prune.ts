@@ -29,7 +29,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
 
   const logger = createLogger({
-    level: options.logLevel,
+    level: "warn",
     mode: options.logFormat,
   });
 
@@ -94,7 +94,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
 
   if (queries.length === 0) {
     logger.warn({
-      service: "app",
+      service: "prune",
       msg: "No inactive Ponder apps found in this database.",
     });
     await exit({ reason: "Success", code: 0 });
@@ -142,7 +142,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
 
   if (tablesToDrop.length === 0) {
     logger.warn({
-      service: "app",
+      service: "prune",
       msg: "No inactive Ponder apps found in this database.",
     });
     await exit({ reason: "Success", code: 0 });
@@ -153,8 +153,8 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     sql.raw(`DROP TABLE IF EXISTS ${tablesToDrop.join(", ")} CASCADE`),
   );
 
-  logger.info({
-    service: "app",
+  logger.warn({
+    service: "prune",
     msg: `Dropped ${tablesToDrop.length} tables`,
   });
 
@@ -162,8 +162,8 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     sql.raw(`DROP FUNCTION IF EXISTS ${functionsToDrop.join(", ")} CASCADE`),
   );
 
-  logger.info({
-    service: "app",
+  logger.warn({
+    service: "prune",
     msg: `Dropped ${functionsToDrop.length} functions`,
   });
 
@@ -172,8 +172,8 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
       sql.raw(`DROP SCHEMA IF EXISTS ${schemasToDrop.join(", ")} CASCADE`),
     );
 
-    logger.info({
-      service: "app",
+    logger.warn({
+      service: "prune",
       msg: `Dropped ${schemasToDrop.length} schemas`,
     });
   }

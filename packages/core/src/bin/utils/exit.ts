@@ -25,7 +25,7 @@ export const createExit = ({
     }, SHUTDOWN_GRACE_PERIOD_MS);
 
     if (reason !== undefined) {
-      common.logger.warn({
+      common.logger[code === 0 ? "info" : "warn"]({
         service: "process",
         msg: `${reason}, starting shutdown sequence`,
       });
