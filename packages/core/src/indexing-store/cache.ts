@@ -119,6 +119,32 @@ type Access = Map<
   >
 >;
 
+const getBytes = (value: unknown) => {
+  let size = 0;
+
+  if (typeof value === "number") {
+    size += 8;
+  } else if (typeof value === "string") {
+    size += 2 * value.length;
+  } else if (typeof value === "boolean") {
+    size += 4;
+  } else if (typeof value === "bigint") {
+    size += 48;
+  } else if (value === null || value === undefined) {
+    size += 8;
+  } else if (Array.isArray(value)) {
+    for (const e of value) {
+      size += getBytes(e);
+    }
+  } else {
+    for (const col of Object.values(value)) {
+      size += getBytes(col);
+    }
+  }
+
+  return size;
+};
+
 const ESCAPE_REGEX = /([\\\b\f\n\r\t\v])/g;
 
 export const getCopyText = (
@@ -208,12 +234,14 @@ export const recoverBatchError = async <T>(
 export const createIndexingCache = ({
   common,
   schemaBuild: { schema },
-  checkpoint,
+  crashRecoveryCheckpoint,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
-  checkpoint: string;
+  crashRecoveryCheckpoint: string;
 }): IndexingCache => {
+  let cacheBytes = 0;
+  let event: Event | undefined;
   const isCacheComplete = new Map<Table, boolean>();
   const primaryKeyCache = new Map<Table, [string, Column][]>();
 
@@ -222,8 +250,6 @@ export const createIndexingCache = ({
   const insertBuffer: Buffer = new Map();
   const updateBuffer: Buffer = new Map();
   const access: Access = new Map();
-
-  let event: Event | undefined;
 
   const tables = Object.values(schema).filter(
     (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
@@ -234,7 +260,10 @@ export const createIndexingCache = ({
     spillover.set(table, new Set());
     insertBuffer.set(table, new Map());
     updateBuffer.set(table, new Map());
-    isCacheComplete.set(table, checkpoint === ZERO_CHECKPOINT_STRING);
+    isCacheComplete.set(
+      table,
+      crashRecoveryCheckpoint === ZERO_CHECKPOINT_STRING,
+    );
 
     primaryKeyCache.set(table, []);
     for (const { js } of getPrimaryKeyColumns(table)) {
@@ -329,6 +358,10 @@ export const createIndexingCache = ({
         .then((res) => (res.length === 0 ? null : res[0]!))
         .then((row) => {
           cache.get(table)!.set(ck, structuredClone(row));
+
+          // Note: the size is not recorded because it is not possible
+          // to miss the cache when in the "full in-memory" mode
+
           return row;
         });
 
@@ -377,6 +410,10 @@ export const createIndexingCache = ({
     },
     async flush({ client }) {
       const copy = getCopyHelper({ client });
+
+      const shouldRecordBytes = Array.from(isCacheComplete.values()).every(
+        (c) => c,
+      );
 
       for (const table of cache.keys()) {
         const tableCache = cache.get(table)!;
@@ -454,6 +491,9 @@ export const createIndexingCache = ({
 
           for (const [key, entry] of insertBuffer.get(table)!) {
             tableCache.set(key, entry.row);
+            if (shouldRecordBytes) {
+              cacheBytes += getBytes(entry.row);
+            }
           }
           insertBuffer.get(table)!.clear();
 
@@ -579,6 +619,9 @@ export const createIndexingCache = ({
 
           for (const [key, entry] of updateBuffer.get(table)!) {
             tableCache.set(key, entry.row);
+            if (shouldRecordBytes) {
+              cacheBytes += getBytes(entry.row);
+            }
           }
           updateBuffer.get(table)!.clear();
 
@@ -597,6 +640,19 @@ export const createIndexingCache = ({
       }
     },
     async commit({ events, db }) {
+      if (Array.from(isCacheComplete.values()).every((c) => c)) {
+        if (cacheBytes < common.options.indexingCacheMaxBytes) {
+          return;
+        }
+
+        for (const table of cache.keys()) {
+          isCacheComplete.set(table, false);
+          cache.delete(table);
+          // Note: spillover is not cleared because it is an invariant
+          // it is empty
+        }
+      }
+
       // Use historical accesses + next event batch to determine which
       // rows are going to be accessed, and preload them into the cache.
 
