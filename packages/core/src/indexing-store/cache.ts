@@ -489,10 +489,10 @@ export const createIndexingCache = ({
             });
 
           for (const [key, entry] of insertBuffer.get(table)!) {
-            tableCache.set(key, entry.row);
-            if (shouldRecordBytes) {
+            if (shouldRecordBytes && tableCache.has(key) === false) {
               cacheBytes += getBytes(entry.row);
             }
+            tableCache.set(key, entry.row);
           }
           insertBuffer.get(table)!.clear();
 
@@ -605,10 +605,10 @@ export const createIndexingCache = ({
             );
           }
           for (const [key, entry] of updateBuffer.get(table)!) {
-            tableCache.set(key, entry.row);
-            if (shouldRecordBytes) {
+            if (shouldRecordBytes && tableCache.has(key) === false) {
               cacheBytes += getBytes(entry.row);
             }
+            tableCache.set(key, entry.row);
           }
           updateBuffer.get(table)!.clear();
 
