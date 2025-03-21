@@ -217,6 +217,7 @@ export async function run({
                 await new Promise(setImmediate);
               }
             }
+            await new Promise(setImmediate);
 
             // underlying metrics collection is actually synchronous
             // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
@@ -277,6 +278,8 @@ export async function run({
         { step: "commit" },
         endClock(),
       );
+
+      await new Promise(setImmediate);
     }
 
     await database.setStatus(sync.getStatus());

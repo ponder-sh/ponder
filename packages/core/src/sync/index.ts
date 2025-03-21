@@ -334,6 +334,9 @@ export const createSync = async (params: {
               { step: "decode" },
               endClock(),
             );
+
+            await new Promise(setImmediate);
+
             yield { events: decodedEvents, checkpoint };
           }
         }
@@ -1219,6 +1222,8 @@ export async function* getLocalEventGenerator(params: {
         service: "sync",
         msg: `Extracted ${events.length} '${params.network.name}' events for block range [${cursor}, ${queryCursor}]`,
       });
+
+      await new Promise(setImmediate);
 
       cursor = queryCursor + 1;
       if (cursor === toBlock) {

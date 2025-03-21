@@ -752,6 +752,8 @@ export const createSyncStore = ({
           endClock(),
         );
 
+        await new Promise(setImmediate);
+
         let cursor: number;
         if (
           Math.max(
