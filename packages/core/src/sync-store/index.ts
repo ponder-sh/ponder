@@ -748,7 +748,7 @@ export const createSyncStore = ({
         }
 
         common.metrics.ponder_historical_extract_duration.inc(
-          { step: "decode" },
+          { step: "format" },
           endClock(),
         );
 

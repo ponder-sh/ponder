@@ -408,14 +408,8 @@ export const createSync = async (params: {
       },
     );
 
-    for await (const { events } of recordAsyncGenerator(
-      mergeAsyncGeneratorsWithEventOrder(eventGenerators),
-      (results) => {
-        params.common.metrics.ponder_historical_extract_duration.inc(
-          { step: "query + sync" },
-          results.await,
-        );
-      },
+    for await (const { events } of mergeAsyncGeneratorsWithEventOrder(
+      eventGenerators,
     )) {
       params.common.logger.debug({
         service: "sync",
