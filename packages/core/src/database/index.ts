@@ -199,10 +199,12 @@ export const createDatabase = async ({
     common.shutdown.add(async () => {
       clearInterval(heartbeatInterval);
 
-      await qb.drizzle
-        .update(PONDER_META)
-        .set({ value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))` })
-        .where(eq(PONDER_META.key, "app"));
+      if (["start", "dev"].includes(common.options.command)) {
+        await qb.drizzle
+          .update(PONDER_META)
+          .set({ value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))` })
+          .where(eq(PONDER_META.key, "app"));
+      }
 
       if (dialect === "pglite") {
         await (driver as PGliteDriver).instance.close();
