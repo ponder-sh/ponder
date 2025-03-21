@@ -1,5 +1,13 @@
 # ponder
 
+## 0.10.4
+
+### Patch Changes
+
+- [#1618](https://github.com/ponder-sh/ponder/pull/1618) [`e68750a1c46ccb4ef671fa07d160051168cf710a`](https://github.com/ponder-sh/ponder/commit/e68750a1c46ccb4ef671fa07d160051168cf710a) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with `client.multicall` introduced in v0.10.0.
+
+- [#1608](https://github.com/ponder-sh/ponder/pull/1608) [`8e5dc9dfa3b648a4f2a8a9421471bac47bb0b970`](https://github.com/ponder-sh/ponder/commit/8e5dc9dfa3b648a4f2a8a9421471bac47bb0b970) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `ponder db prune` command to drop all inactive tables and schemas.
+
 ## 0.10.3
 
 ### Patch Changes
