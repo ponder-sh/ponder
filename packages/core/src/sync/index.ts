@@ -32,10 +32,7 @@ import {
   min,
 } from "@/utils/checkpoint.js";
 import { formatPercentage } from "@/utils/format.js";
-import {
-  bufferAsyncGenerator,
-  recordAsyncGenerator,
-} from "@/utils/generators.js";
+import { bufferAsyncGenerator } from "@/utils/generators.js";
 import {
   type Interval,
   intervalDifference,
