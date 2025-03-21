@@ -407,6 +407,8 @@ export const createIndexingCache = ({
             insertValues.map(({ row }) => row),
           );
 
+          await new Promise(setImmediate);
+
           const endClock = startClock();
 
           // @ts-ignore
@@ -483,6 +485,8 @@ export const createIndexingCache = ({
               table,
             )}' rows`,
           });
+
+          await new Promise(setImmediate);
         }
 
         if (updateValues.length > 0) {
@@ -526,6 +530,8 @@ export const createIndexingCache = ({
             table,
             updateValues.map(({ row }) => row),
           );
+
+          await new Promise(setImmediate);
 
           const endClock = startClock();
 
@@ -596,6 +602,8 @@ export const createIndexingCache = ({
             service: "database",
             msg: `Updated ${updateValues.length} '${getTableName(table)}' rows`,
           });
+
+          await new Promise(setImmediate);
         }
 
         if (insertValues.length > 0 || updateValues.length > 0) {
