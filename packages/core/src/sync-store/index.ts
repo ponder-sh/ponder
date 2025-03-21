@@ -899,18 +899,11 @@ export const createSyncStore = ({
             internalTrace.gas = BigInt(trace.gas);
             internalTrace.gasUsed = BigInt(trace.gasUsed);
 
-            if (trace.error !== null) {
-              internalTrace.error = trace.error.replace(/\0/g, "");
-            } else {
+            if (trace.error === null) {
               internalTrace.error = undefined;
             }
 
-            if (trace.revertReason !== null) {
-              internalTrace.revertReason = trace.revertReason.replace(
-                /\0/g,
-                "",
-              );
-            } else {
+            if (trace.revertReason === null) {
               internalTrace.revertReason = undefined;
             }
 
