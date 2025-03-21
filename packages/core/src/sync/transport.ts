@@ -159,35 +159,29 @@ export const cachedTransport = ({
           // another layer of array nesting.
           // Fixed by this commit https://github.com/wevm/viem/commit/9c442de0ff38ac1f654b5c751d292e9a9f8d574c
 
+          const resultToEncode = cachedResults.map((result) => {
+            if (result === undefined) {
+              return multicallResult[multicallIndex++]!;
+            }
+            return {
+              success: true,
+              returnData: JSON.parse(result) as Hex,
+            };
+          });
+
           try {
             return encodeFunctionResult({
               abi: multicall3Abi,
               functionName: "aggregate3",
-              result: cachedResults.map((result) => {
-                if (result === undefined) {
-                  return multicallResult[multicallIndex++]!;
-                }
-                return {
-                  success: true,
-                  returnData: JSON.parse(result) as Hex,
-                };
-              }),
+              result: resultToEncode,
             });
-          } catch {
+          } catch (e) {
             return encodeFunctionResult({
               abi: multicall3Abi,
               functionName: "aggregate3",
               result: [
                 // @ts-expect-error known issue in viem <= 2.23.6
-                cachedResults.map((result) => {
-                  if (result === undefined) {
-                    return multicallResult[multicallIndex++]!;
-                  }
-                  return {
-                    success: true,
-                    returnData: JSON.parse(result) as Hex,
-                  };
-                }),
+                resultToEncode,
               ],
             });
           }
