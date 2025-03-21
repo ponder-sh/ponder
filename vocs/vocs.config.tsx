@@ -52,6 +52,7 @@ export default defineConfig({
   head() {
     return (
       <>
+        <link rel="preload" as="image" href="/hero.png" />
         <script async src="https://sa-api.ponder.sh/latest.js" />
         <noscript>
           <img
