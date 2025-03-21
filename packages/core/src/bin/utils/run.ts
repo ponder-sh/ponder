@@ -86,7 +86,7 @@ export async function run({
   const indexingCache = createIndexingCache({
     common,
     schemaBuild,
-    checkpoint: crashRecoveryCheckpoint,
+    crashRecoveryCheckpoint,
   });
 
   await database.setStatus(sync.getStatus());
@@ -161,6 +161,7 @@ export async function run({
       );
     },
   )) {
+    await indexingCache.load({ events, db: database.qb.drizzle });
     if (events.length > 0) {
       let endClock = startClock();
       await database.retry(async () => {
@@ -185,6 +186,7 @@ export async function run({
               const result = await indexing.processEvents({
                 events: eventChunk,
                 db: historicalIndexingStore,
+                cache: indexingCache,
               });
 
               if (result.status === "error") {
@@ -240,6 +242,8 @@ export async function run({
             );
 
             endClock = startClock();
+            // Note: at this point, the next events can be preloaded, as long as the are not indexed until
+            // the "flush" + "finalize" is complete.
 
             try {
               await indexingCache.flush({ client });
@@ -273,7 +277,6 @@ export async function run({
             throw error;
           });
       });
-      indexingCache.commit();
       common.metrics.ponder_historical_transform_duration.inc(
         { step: "commit" },
         endClock(),
