@@ -60,8 +60,6 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   // biome-ignore lint/style/useConst: <explanation>
   let database: Database | undefined;
 
-  // const shutdown = setupShutdown({ common, cleanup });
-
   const namespaceResult = build.namespaceCompile();
   if (namespaceResult.status === "error") {
     await exit({ reason: "Failed to initialize namespace", code: 1 });

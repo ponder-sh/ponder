@@ -92,18 +92,31 @@ Options:
 
 ## db list
 
-List all deployments.
+List all Ponder deployments.
 
 ```bash
 Usage: ponder db list
 
-List all deployments
+List all Ponder deployments
 
 │ Schema        │ Active   │ Last active    │ Table count │
 ├───────────────┼──────────┼────────────────┼─────────────┤
 │ indexer_prod  │      yes │            --- │          10 │
 │ test          │       no │    26m 58s ago │          10 │
 │ demo          │       no │      1 day ago │           5 │
+```
+
+## db prune
+
+Drop all database tables, functions, and schemas created by Ponder deployments that are not active.
+
+```bash
+Usage: ponder db prune [options]
+
+Drop all database tables, functions, and schemas created by Ponder deployments that are not active
+
+Options:
+  -h, --help  display help for command
 ```
 
 ## codegen
