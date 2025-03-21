@@ -1,5 +1,15 @@
 # ponder
 
+## 0.10.3
+
+### Patch Changes
+
+- [#1615](https://github.com/ponder-sh/ponder/pull/1615) [`fac32d1811b162a6df641e818267a159f444fcea`](https://github.com/ponder-sh/ponder/commit/fac32d1811b162a6df641e818267a159f444fcea) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in v0.10.1 with trace encoding.
+
+- [#1604](https://github.com/ponder-sh/ponder/pull/1604) [`4b9cf21fa85f94b88beb80790aae3bd4f34f0dfa`](https://github.com/ponder-sh/ponder/commit/4b9cf21fa85f94b88beb80790aae3bd4f34f0dfa) Thanks [@SukkaW](https://github.com/SukkaW)! - Updated the `graphql` middleware to use the jsDelivr CDN for the GraphiQL bundle.
+
+- [#1605](https://github.com/ponder-sh/ponder/pull/1605) [`8aafdde458fc899ef4f8fb591b982e35525ed250`](https://github.com/ponder-sh/ponder/commit/8aafdde458fc899ef4f8fb591b982e35525ed250) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `ponder_historical_concurrency_group_duration`, `ponder_historical_extract_duration`, `ponder_historical_transform_duration` metrics.
+
 ## 0.10.2
 
 ### Patch Changes
