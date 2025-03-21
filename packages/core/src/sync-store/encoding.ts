@@ -372,8 +372,10 @@ export const encodeTrace = ({
   type: trace.trace.type,
   gas: hexToBigInt(trace.trace.gas),
   gas_used: hexToBigInt(trace.trace.gasUsed),
-  error: trace.trace.error ?? null,
-  revert_reason: trace.trace.revertReason ?? null,
+  error: trace.trace.error ? trace.trace.error.replace(/\0/g, "") : null,
+  revert_reason: trace.trace.revertReason
+    ? trace.trace.revertReason.replace(/\0/g, "")
+    : null,
   subcalls: trace.trace.subcalls,
 });
 
@@ -389,10 +391,8 @@ export const decodeTrace = ({ trace }: { trace: DbTrace }): InternalTrace => ({
   type: trace.type as Trace["type"],
   gas: BigInt(trace.gas),
   gasUsed: BigInt(trace.gas_used),
-  error: trace.error ? trace.error.replace(/\0/g, "") : undefined,
-  revertReason: trace.revert_reason
-    ? trace.revert_reason.replace(/\0/g, "")
-    : undefined,
+  error: trace.error ?? undefined,
+  revertReason: trace.revert_reason ?? undefined,
   subcalls: trace.subcalls,
 });
 
