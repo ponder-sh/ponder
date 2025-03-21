@@ -13,7 +13,6 @@ export const sidebar = {
     {
       text: "Config",
       items: [
-        { text: "Introduction", link: "/docs/config" },
         { text: "Networks", link: "/docs/config/networks" },
         { text: "Contracts", link: "/docs/config/contracts" },
         { text: "Accounts", link: "/docs/config/accounts" },
@@ -23,7 +22,6 @@ export const sidebar = {
     {
       text: "Schema",
       items: [
-        { text: "Introduction", link: "/docs/schema" },
         { text: "Tables", link: "/docs/schema/tables" },
         { text: "Relations", link: "/docs/schema/relations" },
       ],
@@ -31,7 +29,7 @@ export const sidebar = {
     {
       text: "Indexing",
       items: [
-        { text: "Introduction", link: "/docs/indexing" },
+        { text: "Overview", link: "/docs/indexing" },
         { text: "Write to the database", link: "/docs/indexing/write" },
         { text: "Fetch RPC data", link: "/docs/indexing/fetch" },
       ],
@@ -39,7 +37,7 @@ export const sidebar = {
     {
       text: "Query",
       items: [
-        { text: "Introduction", link: "/docs/query" },
+        { text: "Overview", link: "/docs/query" },
         { text: "API functions", link: "/docs/query/api-functions" },
         { text: "SQL client", link: "/docs/query/sql-client" },
         { text: "GraphQL", link: "/docs/query/graphql" },
@@ -47,15 +45,13 @@ export const sidebar = {
       ],
     },
     {
-      text: "Recipes",
+      text: "Guides",
       items: [
-        { text: "Factory contracts", link: "/docs/recipes/factory-contracts" },
-        { text: "Proxy contracts", link: "/docs/recipes/proxy-contracts" },
-        { text: "Time series data", link: "/docs/recipes/time-series-data" },
-        {
-          text: "Foundry",
-          link: "/docs/recipes/foundry",
-        },
+        { text: "Factory pattern", link: "/docs/guides/factory" },
+        { text: "Call traces", link: "/docs/guides/traces" },
+        { text: "Transaction receipts", link: "/docs/guides/receipts" },
+        { text: "Time series data", link: "/docs/guides/time-series-data" },
+        { text: "Foundry", link: "/docs/guides/foundry" },
       ],
     },
     {
