@@ -324,11 +324,16 @@ export const createSync = async (params: {
           }>,
         ) {
           for await (const { events, checkpoint } of eventGenerator) {
+            const endClock = startClock();
             const decodedEvents = decodeEvents(params.common, sources, events);
             params.common.logger.debug({
               service: "app",
               msg: `Decoded ${decodedEvents.length} '${network.name}' events`,
             });
+            params.common.metrics.ponder_historical_extract_duration.inc(
+              { step: "decode" },
+              endClock(),
+            );
             yield { events: decodedEvents, checkpoint };
           }
         }
@@ -1196,6 +1201,7 @@ export async function* getLocalEventGenerator(params: {
           limit: params.limit,
         });
 
+      const endClock = startClock();
       const events = blockData.flatMap((bd) =>
         buildEvents({
           sources: params.sources,
@@ -1203,6 +1209,10 @@ export async function* getLocalEventGenerator(params: {
           childAddresses: initialChildAddresses,
           chainId: params.network.chainId,
         }),
+      );
+      params.common.metrics.ponder_historical_extract_duration.inc(
+        { step: "build" },
+        endClock(),
       );
 
       params.common.logger.debug({
