@@ -1,14 +1,59 @@
 import { Callout } from "vocs/components";
 
-# Contracts [Configure contracts in ponder.config.ts]
+# Contracts [Specify which contracts to index]
 
-To add a new contract to your app, use the `contracts` field in `ponder.config.ts`. For each contract you add, the indexing engine will fetch raw blockchain data, decode it, and pass it to the indexing functions you register.
+To index **event logs** or **call traces** produced by a contract, use the `contracts` field in `ponder.config.ts`.
 
-This guide explains how each contract configuration option works, and suggests patterns for common use cases. Visit the config [reference](/docs/api-reference/config) for complete API documentation.
+This guide describes each configuration option and suggests patterns for common use cases. Visit the config [API reference](/docs/api-reference/config) for more information.
 
-## Contract name
+## Example
 
-Each contract must have a unique name, provided as a key to the `contracts` object.
+This config instructs the indexing engine to fetch event logs emitted by the [Blitmap](https://blitmap.xyz/) NFT contract.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+import { http } from "viem";
+import { BlitmapAbi } from "./abis/Blitmap";
+
+export default createConfig({
+  networks: {
+    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
+  },
+  contracts: {
+    Blitmap: {
+      abi: BlitmapAbi,
+      network: "mainnet",
+      address: "0x8d04a8c79cEB0889Bdd12acdF3Fa9D207eD3Ff63",
+      startBlock: 12439123,
+    },
+  },
+});
+```
+
+Now, we can register an indexing function for the `MetadataChanged` event that will be called for each event log. In this case, the indexing function inserts or updates a row in the `tokens` table.
+
+```ts [src/index.ts]
+import { ponder } from "ponder:registry";
+import { tokens } from "ponder:schema";
+
+ponder.on("Blitmap:MetadataChanged", async ({ event, context }) => {
+  await context.db
+    .insert(tokens)
+    .values({
+      id: event.args.tokenId,
+      metadata: event.args.newMetadata,
+    })
+    .onConflictDoUpdate({
+      metadata: event.args.newMetadata,
+    });
+});
+```
+
+[Read more](/docs/indexing/overview) about writing indexing functions.
+
+## Name
+
+Each contract must have a unique name, provided as a key to the `contracts` object. Names must be unique across contracts, accounts, and block intervals.
 
 ```ts [ponder.config.ts]
 import { createConfig } from "ponder";
@@ -32,15 +77,18 @@ Each contract must have an ABI. The indexing engine uses the ABI to validate inp
 
 ```ts [ponder.config.ts]
 import { createConfig } from "ponder";
-import { BlitmapAbi } from "./abis/Blitmap"; // [!code focus]
+import { BlitmapAbi } from "./abis/Blitmap"; 
 
 export default createConfig({
-  networks: { /* ... */ },
+  networks: {
+    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
+  },
   contracts: {
     Blitmap: {
-      abi: BlitmapAbi, // [!code focus]
+      abi: BlitmapAbi,
       network: "mainnet",
       address: "0x8d04a8c79cEB0889Bdd12acdF3Fa9D207eD3Ff63",
+      startBlock: 
     },
   },
 });
@@ -363,7 +411,7 @@ export default createConfig({
 
 ### Start block
 
-The `startBlock` option specifies the block number to begin indexing from. The default is `0` – it's a good idea to set `startBlock` to the contract deployment block number to avoid wasteful RPC requests.
+The `startBlock` option specifies the block number to begin indexing from. The default is `0` – to avoid wasteful RPC requests, set `startBlock` to the contract deployment block number.
 
 If you set `startBlock` to `"latest"`, the indexing engine will fetch the latest block on startup and use that value. This is the best way to skip the historical period and only index in realtime.
 
@@ -381,7 +429,7 @@ If you set `endBlock` to `"latest"`, the indexing engine will fetch the latest b
 ## Filter by indexed parameter value
 
 <Callout type="warning">
-  You do **not** need to keep `filter` in sync with your indexing function registrations; the build step does this automatically.  Most apps should not use `filter`.
+  You do **not** need to keep `filter` in sync with your indexing function registrations; the build step does this automatically. Most apps should not use `filter`.
 </Callout>
 
 Sometimes, it's useful to filter for event logs that match specific [indexed parameter](https://docs.soliditylang.org/en/latest/contracts.html#events) values (topics).
@@ -471,7 +519,7 @@ ponder.on("Blitmap.mintOriginal()", async ({ event }) => {
   Visit the [transaction receipts](/docs/guides/receipts) guide for more information.
 </Callout>
 
-Use the `includeTransactionReceipts` option to fetch transaction receipts for each event, which makes the `event.transactionReceipt` property available in all indexing functions for the contract.
+Use the `includeTransactionReceipts` option to fetch the transaction receipt for each event. This will make the `event.transactionReceipt` object available in all indexing functions for the contract.
 
 Transaction receipts are **disabled** by default.
 
