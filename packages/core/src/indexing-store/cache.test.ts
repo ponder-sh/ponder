@@ -32,7 +32,7 @@ test("flush() insert", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   await database.transaction(async (client, tx) => {
@@ -77,7 +77,7 @@ test("flush() update", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   await database.transaction(async (client, tx) => {
@@ -104,7 +104,7 @@ test("flush() update", async (context) => {
     });
 
     await indexingCache.flush({ client });
-    await indexingCache.commit({ events: [], db: tx });
+    await indexingCache.load({ events: [], db: tx });
 
     await indexingStore.update(schema.account, { address: zeroAddress }).set({
       balance: 12n,
@@ -161,7 +161,7 @@ test("flush() encoding", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   await database.transaction(async (client, tx) => {
@@ -223,7 +223,7 @@ test("flush() encoding escape", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   await database.transaction(async (client, tx) => {
@@ -267,7 +267,7 @@ test("flush() encoding escape", async (context) => {
   });
 });
 
-test("commit() loads predicted rows", async (context) => {
+test("load() loads predicted rows", async (context) => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -300,7 +300,7 @@ test("commit() loads predicted rows", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
   indexingCache.event = event;
@@ -326,7 +326,7 @@ test("commit() loads predicted rows", async (context) => {
     event.event.args.to = BOB;
 
     await indexingCache.flush({ client });
-    await indexingCache.commit({ events: [event], db: tx });
+    await indexingCache.load({ events: [event], db: tx });
 
     const result = indexingCache.has({
       table: schema.account,
@@ -337,7 +337,7 @@ test("commit() loads predicted rows", async (context) => {
   });
 });
 
-test("commit() evicts rows", async (context) => {
+test("load() evicts rows", async (context) => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -352,8 +352,11 @@ test("commit() evicts rows", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
+
+  // skip hot loop
+  indexingCache.invalidate();
 
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
@@ -370,7 +373,7 @@ test("commit() evicts rows", async (context) => {
     });
 
     await indexingCache.flush({ client });
-    await indexingCache.commit({ events: [], db: tx });
+    await indexingCache.load({ events: [], db: tx });
 
     const result = indexingCache.has({
       table: schema.account,
