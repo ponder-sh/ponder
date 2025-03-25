@@ -2,18 +2,11 @@ import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import type { QueryWithTypings } from "drizzle-orm";
-import { type PgSession, pgTable } from "drizzle-orm/pg-core";
+import type { PgSession } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
 import superjson from "superjson";
 import { validateQuery } from "./validate.js";
-
-const status = pgTable("_ponder_status", (t) => ({
-  chainId: t.bigint({ mode: "number" }).primaryKey(),
-  blockNumber: t.bigint({ mode: "number" }),
-  blockTimestamp: t.bigint({ mode: "number" }),
-  ready: t.boolean().notNull(),
-}));
 
 /**
  * Middleware for `@ponder/client`.
@@ -129,7 +122,7 @@ export const client = ({
     }
 
     if (c.req.path === "/sql/status") {
-      const statusResult = await db.select().from(status);
+      const statusResult = await globalThis.PONDER_DATABASE.getStatus();
       return c.json(statusResult);
     }
 
