@@ -1,5 +1,11 @@
 # ponder
 
+## 0.10.5
+
+### Patch Changes
+
+- [#1619](https://github.com/ponder-sh/ponder/pull/1619) [`a2e98bb1953b645114d28f5a6d659351721c0ea3`](https://github.com/ponder-sh/ponder/commit/a2e98bb1953b645114d28f5a6d659351721c0ea3) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with `client.getStatus()`.
+
 ## 0.10.4
 
 ### Patch Changes
