@@ -50,13 +50,22 @@ export const normalizeColumn = (
   }
   if (value === null) return null;
   if (column.mapToDriverValue === undefined) return value;
+
   try {
     if (Array.isArray(value) && column instanceof PgArray) {
-      return value.map((v) =>
-        column.baseColumn.mapFromDriverValue(
+      return value.map((v) => {
+        if (column.baseColumn.columnType === "PgTimestamp") {
+          return v;
+        }
+
+        return column.baseColumn.mapFromDriverValue(
           column.baseColumn.mapToDriverValue(v),
-        ),
-      );
+        );
+      });
+    }
+
+    if (column.columnType === "PgTimestamp") {
+      return value;
     }
 
     return column.mapFromDriverValue(column.mapToDriverValue(value));
