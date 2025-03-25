@@ -395,15 +395,12 @@ export const createSync = async (params: {
           ),
           limit: Math.round(
             params.common.options.syncEventsQuerySize /
-              (params.indexingBuild.networks.length * 2),
+              (params.indexingBuild.networks.length + 1),
           ),
         });
 
-        return bufferAsyncGenerator(
-          sortCompletedAndPendingEvents(
-            decodeEventGenerator(localEventGenerator),
-          ),
-          1,
+        return sortCompletedAndPendingEvents(
+          decodeEventGenerator(localEventGenerator),
         );
       },
     );
