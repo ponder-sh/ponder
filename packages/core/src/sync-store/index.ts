@@ -778,6 +778,9 @@ export const createSyncStore = ({
 
             internalTransaction.blockNumber = Number(transaction.blockNumber);
             internalTransaction.value = BigInt(transaction.value);
+            if (transaction.v !== null) {
+              internalTransaction.v = BigInt(transaction.v);
+            }
             internalTransaction.gas = BigInt(transaction.gas);
 
             if (transaction.type === "0x0") {
