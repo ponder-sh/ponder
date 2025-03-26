@@ -1,5 +1,15 @@
 # ponder
 
+## 0.10.6
+
+### Patch Changes
+
+- [#1623](https://github.com/ponder-sh/ponder/pull/1623) [`5af3aaceb9b53da7b968e09a683040d5cc151ac2`](https://github.com/ponder-sh/ponder/commit/5af3aaceb9b53da7b968e09a683040d5cc151ac2) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed `timestamp` column.
+
+- [#1620](https://github.com/ponder-sh/ponder/pull/1620) [`bc519502afe7794c26122d6d6c0c26de58632de3`](https://github.com/ponder-sh/ponder/commit/bc519502afe7794c26122d6d6c0c26de58632de3) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved historical indexing performance.
+
+- [#1613](https://github.com/ponder-sh/ponder/pull/1613) [`940cdda510eedeaa7527a93c415d9ede5f39189c`](https://github.com/ponder-sh/ponder/commit/940cdda510eedeaa7527a93c415d9ede5f39189c) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed missing checksums for addresses.
+
 ## 0.10.5
 
 ### Patch Changes
