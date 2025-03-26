@@ -28,8 +28,12 @@ import {
 } from "drizzle-orm/pg-core";
 import type { PoolClient } from "pg";
 import copy from "pg-copy-streams";
-import { getAccessKey, predictAccess, recoverAccess } from "./access.js";
 import { parseSqlError } from "./index.js";
+import {
+  getProfileAccessKey,
+  recordProfile,
+  recoverProfileAccess,
+} from "./profile.js";
 import { getCacheKey, getWhereCondition, normalizeRow } from "./utils.js";
 
 export type IndexingCache = {
@@ -101,11 +105,13 @@ type Buffer = Map<
   >
 >;
 
-type Access = Map<
+type Profile = Map<
+  // event name
   string,
   Map<
     Table,
     Map<
+      // profile access key
       string,
       {
         access: { [key: string]: string };
@@ -243,14 +249,16 @@ export const createIndexingCache = ({
    */
   let cacheBytes = 0;
   let event: Event | undefined;
-  const isCacheComplete = new Map<Table, boolean>();
+  let isCacheComplete = crashRecoveryCheckpoint === ZERO_CHECKPOINT_STRING;
   const primaryKeyCache = new Map<Table, [string, Column][]>();
 
   const cache: Cache = new Map();
-  const spillover: Map<Table, Set<string>> = new Map();
   const insertBuffer: Buffer = new Map();
   const updateBuffer: Buffer = new Map();
-  const access: Access = new Map();
+  /** Metadata about which entries in `cache` were the result of a prediction miss. */
+  const spillover: Map<Table, Set<string>> = new Map();
+  /** Profiling data about access patterns for each event. */
+  const profile: Profile = new Map();
 
   const tables = Object.values(schema).filter(
     (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
@@ -261,10 +269,6 @@ export const createIndexingCache = ({
     spillover.set(table, new Set());
     insertBuffer.set(table, new Map());
     updateBuffer.set(table, new Map());
-    isCacheComplete.set(
-      table,
-      crashRecoveryCheckpoint === ZERO_CHECKPOINT_STRING,
-    );
 
     primaryKeyCache.set(table, []);
     for (const { js } of getPrimaryKeyColumns(table)) {
@@ -274,7 +278,7 @@ export const createIndexingCache = ({
 
   return {
     has({ table, key }) {
-      if (isCacheComplete.get(table)) return true;
+      if (isCacheComplete) return true;
       const ck = getCacheKey(table, key, primaryKeyCache);
 
       return (
@@ -285,27 +289,27 @@ export const createIndexingCache = ({
     },
     async get({ table, key, db }) {
       if (event) {
-        if (access.has(event.name) === false) {
-          access.set(event.name, new Map());
+        if (profile.has(event.name) === false) {
+          profile.set(event.name, new Map());
           for (const table of tables) {
-            access.get(event.name)!.set(table, new Map());
+            profile.get(event.name)!.set(table, new Map());
           }
         }
 
-        const a = predictAccess(
+        const profileAccess = recordProfile(
           event,
           table,
           key,
-          Array.from(access.get(event.name)!.get(table)!.values()).map(
+          Array.from(profile.get(event.name)!.get(table)!.values()).map(
             ({ access }) => access,
           ),
           primaryKeyCache,
         );
-        if (a) {
-          const tableAccess = access.get(event.name)!.get(table)!;
-          const ak = getAccessKey(a);
+        if (profileAccess) {
+          const tableAccess = profile.get(event.name)!.get(table)!;
+          const ak = getProfileAccessKey(profileAccess);
           tableAccess.set(ak, {
-            access: a,
+            access: profileAccess,
             count: (tableAccess.get(ak)?.count ?? 0) + 1,
           });
         }
@@ -335,7 +339,7 @@ export const createIndexingCache = ({
         return structuredClone(entry);
       }
 
-      if (isCacheComplete.get(table)) {
+      if (isCacheComplete) {
         common.metrics.ponder_indexing_cache_requests_total.inc({
           table: getTableName(table),
           type: "hit",
@@ -412,9 +416,7 @@ export const createIndexingCache = ({
     async flush({ client }) {
       const copy = getCopyHelper({ client });
 
-      const shouldRecordBytes = Array.from(isCacheComplete.values()).every(
-        (c) => c,
-      );
+      const shouldRecordBytes = isCacheComplete;
 
       for (const table of cache.keys()) {
         const tableCache = cache.get(table)!;
@@ -641,13 +643,13 @@ export const createIndexingCache = ({
       }
     },
     async load({ events, db }) {
-      if (Array.from(isCacheComplete.values()).every((c) => c)) {
+      if (isCacheComplete) {
         if (cacheBytes < common.options.indexingCacheMaxBytes) {
           return;
         }
 
+        isCacheComplete = false;
         for (const table of cache.keys()) {
-          isCacheComplete.set(table, false);
           cache.get(table)!.clear();
           // Note: spillover is not cleared because it is an invariant
           // it is empty
@@ -677,10 +679,10 @@ export const createIndexingCache = ({
 
       for (const [eventName, events] of eventsPerName) {
         for (const table of tables) {
-          const tableAccess = access.get(eventName)?.get(table);
+          const tableProfile = profile.get(eventName)?.get(table);
 
-          if (tableAccess) {
-            const sortedTableAccess = Array.from(tableAccess.values()).sort(
+          if (tableProfile) {
+            const sortedTableAccess = Array.from(tableProfile.values()).sort(
               (a, b) => b.count - a.count,
             );
 
@@ -694,7 +696,7 @@ export const createIndexingCache = ({
                   if (value === "chainId") {
                     prediction[key] = event.chainId;
                   } else {
-                    prediction[key] = recoverAccess(
+                    prediction[key] = recoverProfileAccess(
                       event.event,
                       value.split("."),
                     );
@@ -727,7 +729,7 @@ export const createIndexingCache = ({
             cachePrediction.get(table)!.delete(key);
           } else {
             tableCache.delete(key);
-            isCacheComplete.set(table, false);
+            isCacheComplete = false;
           }
         }
       }
@@ -787,9 +789,7 @@ export const createIndexingCache = ({
       );
     },
     invalidate() {
-      for (const table of cache.keys()) {
-        isCacheComplete.set(table, false);
-      }
+      isCacheComplete = false;
     },
     rollback() {
       for (const tableCache of cache.values()) {
@@ -825,7 +825,7 @@ export const createIndexingCache = ({
         tableBuffer.clear();
       }
 
-      access.clear();
+      profile.clear();
     },
     set event(_event: Event | undefined) {
       event = _event;

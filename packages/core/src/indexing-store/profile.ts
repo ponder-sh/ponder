@@ -1,27 +1,29 @@
 import type { Event } from "@/internal/types.js";
 import type { Column, Table } from "drizzle-orm";
 
-export const getAccessKey = (access: { [key: string]: string }): string => {
+export const getProfileAccessKey = (access: {
+  [key: string]: string;
+}): string => {
   return Object.values(access).join("_");
 };
 
-export const predictAccess = (
+const eq = (
+  target: bigint | string | number | boolean | null | undefined,
+  value: bigint | string | number | boolean | null | undefined,
+) => {
+  if (!target) return false;
+  if (target === value) return true;
+  if (target && value && target.toString() === value.toString()) return true;
+  return false;
+};
+
+export const recordProfile = (
   event: Event,
   table: Table,
   key: object,
   hints: { [key: string]: string }[],
   cache: Map<Table, [string, Column][]>,
 ): { [key: string]: string } | undefined => {
-  const eq = (
-    target: bigint | string | number | boolean | null | undefined,
-    value: bigint | string | number | boolean | null | undefined,
-  ) => {
-    if (!target) return false;
-    if (target === value) return true;
-    if (target && value && target.toString() === value.toString()) return true;
-    return false;
-  };
-
   for (const hint of hints) {
     let isMatch = true;
     for (const js of Object.keys(hint)) {
@@ -37,7 +39,7 @@ export const predictAccess = (
           break;
         }
       } else {
-        const value = recoverAccess(event.event, hint[js]!.split("."));
+        const value = recoverProfileAccess(event.event, hint[js]!.split("."));
         // @ts-ignore
         if (eq(value, key[js]!) === false) {
           isMatch = false;
@@ -480,7 +482,7 @@ export const predictAccess = (
   return result;
 };
 
-export const recoverAccess = <T extends object>(
+export const recoverProfileAccess = <T extends object>(
   base: T,
   access: (keyof T | unknown)[],
 ): unknown => {
