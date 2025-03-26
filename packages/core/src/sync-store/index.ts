@@ -41,7 +41,12 @@ import {
   sql,
 } from "kysely";
 import type { InsertObject } from "kysely";
-import { type Address, type EIP1193Parameters, hexToNumber } from "viem";
+import {
+  type Address,
+  type EIP1193Parameters,
+  checksumAddress,
+  hexToNumber,
+} from "viem";
 import {
   type PonderSyncSchema,
   encodeBlock,
@@ -777,6 +782,10 @@ export const createSyncStore = ({
               transaction as unknown as InternalTransaction;
 
             internalTransaction.blockNumber = Number(transaction.blockNumber);
+            internalTransaction.from = checksumAddress(transaction.from);
+            if (transaction.to !== null) {
+              internalTransaction.to = checksumAddress(transaction.to);
+            }
             internalTransaction.value = BigInt(transaction.value);
             if (transaction.v !== null) {
               internalTransaction.v = BigInt(transaction.v);
@@ -786,12 +795,17 @@ export const createSyncStore = ({
             if (transaction.type === "0x0") {
               internalTransaction.type = "legacy";
               internalTransaction.gasPrice = BigInt(transaction.gasPrice!);
+              internalTransaction.accessList = undefined;
+              internalTransaction.maxFeePerGas = undefined;
+              internalTransaction.maxPriorityFeePerGas = undefined;
             } else if (transaction.type === "0x1") {
               internalTransaction.type = "eip2930";
               internalTransaction.gasPrice = BigInt(transaction.gasPrice!);
               internalTransaction.accessList = JSON.parse(
                 transaction.accessList!,
               );
+              internalTransaction.maxFeePerGas = undefined;
+              internalTransaction.maxPriorityFeePerGas = undefined;
             } else if (transaction.type === "0x2") {
               internalTransaction.type = "eip1559";
               internalTransaction.maxFeePerGas = BigInt(
@@ -800,6 +814,8 @@ export const createSyncStore = ({
               internalTransaction.maxPriorityFeePerGas = BigInt(
                 transaction.maxPriorityFeePerGas!,
               );
+              internalTransaction.gasPrice = undefined;
+              internalTransaction.accessList = undefined;
             } else if (transaction.type === "0x7e") {
               internalTransaction.type = "deposit";
               if (transaction.maxFeePerGas !== null) {
@@ -812,6 +828,8 @@ export const createSyncStore = ({
                   transaction.maxPriorityFeePerGas!,
                 );
               }
+              internalTransaction.gasPrice = undefined;
+              internalTransaction.accessList = undefined;
             }
 
             transactions.push(internalTransaction);
@@ -832,6 +850,19 @@ export const createSyncStore = ({
             internalTransactionReceipt.blockNumber = Number(
               transactionReceipt.blockNumber,
             );
+            if (transactionReceipt.contractAddress !== null) {
+              internalTransactionReceipt.contractAddress = checksumAddress(
+                transactionReceipt.contractAddress,
+              );
+            }
+            internalTransactionReceipt.from = checksumAddress(
+              transactionReceipt.from,
+            );
+            if (transactionReceipt.to !== null) {
+              internalTransactionReceipt.to = checksumAddress(
+                transactionReceipt.to,
+              );
+            }
             internalTransactionReceipt.gasUsed = BigInt(
               transactionReceipt.gasUsed,
             );
@@ -870,6 +901,7 @@ export const createSyncStore = ({
             const internalLog = log as unknown as InternalLog;
 
             internalLog.blockNumber = Number(log.blockNumber);
+            internalLog.address = checksumAddress(log.address);
             internalLog.removed = false;
             internalLog.topics = [
               // @ts-ignore
@@ -878,6 +910,14 @@ export const createSyncStore = ({
               log.topic2,
               log.topic3,
             ];
+            // @ts-ignore
+            log.topic0 = undefined;
+            // @ts-ignore
+            log.topic1 = undefined;
+            // @ts-ignore
+            log.topic2 = undefined;
+            // @ts-ignore
+            log.topic3 = undefined;
 
             logs.push(internalLog);
             logIndex++;
@@ -891,6 +931,11 @@ export const createSyncStore = ({
             const internalTrace = trace as unknown as InternalTrace;
 
             internalTrace.blockNumber = Number(trace.blockNumber);
+
+            internalTrace.from = checksumAddress(trace.from);
+            if (trace.to !== null) {
+              internalTrace.to = checksumAddress(trace.to);
+            }
 
             if (trace.output === null) {
               internalTrace.output = undefined;
@@ -919,6 +964,7 @@ export const createSyncStore = ({
           internalBlock.number = BigInt(block.number);
           internalBlock.timestamp = BigInt(block.timestamp);
           internalBlock.gasUsed = BigInt(block.gasUsed);
+          internalBlock.miner = checksumAddress(block.miner);
           internalBlock.gasLimit = BigInt(block.gasLimit);
           if (block.baseFeePerGas !== null) {
             internalBlock.baseFeePerGas = BigInt(block.baseFeePerGas);
