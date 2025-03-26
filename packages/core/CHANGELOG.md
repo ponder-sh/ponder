@@ -1,5 +1,35 @@
 # ponder
 
+## 0.10.5
+
+### Patch Changes
+
+- [#1619](https://github.com/ponder-sh/ponder/pull/1619) [`a2e98bb1953b645114d28f5a6d659351721c0ea3`](https://github.com/ponder-sh/ponder/commit/a2e98bb1953b645114d28f5a6d659351721c0ea3) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with `client.getStatus()`.
+
+## 0.10.4
+
+### Patch Changes
+
+- [#1618](https://github.com/ponder-sh/ponder/pull/1618) [`e68750a1c46ccb4ef671fa07d160051168cf710a`](https://github.com/ponder-sh/ponder/commit/e68750a1c46ccb4ef671fa07d160051168cf710a) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with `client.multicall` introduced in v0.10.0.
+
+- [#1608](https://github.com/ponder-sh/ponder/pull/1608) [`8e5dc9dfa3b648a4f2a8a9421471bac47bb0b970`](https://github.com/ponder-sh/ponder/commit/8e5dc9dfa3b648a4f2a8a9421471bac47bb0b970) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `ponder db prune` command to drop all inactive tables and schemas.
+
+## 0.10.3
+
+### Patch Changes
+
+- [#1615](https://github.com/ponder-sh/ponder/pull/1615) [`fac32d1811b162a6df641e818267a159f444fcea`](https://github.com/ponder-sh/ponder/commit/fac32d1811b162a6df641e818267a159f444fcea) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in v0.10.1 with trace encoding.
+
+- [#1604](https://github.com/ponder-sh/ponder/pull/1604) [`4b9cf21fa85f94b88beb80790aae3bd4f34f0dfa`](https://github.com/ponder-sh/ponder/commit/4b9cf21fa85f94b88beb80790aae3bd4f34f0dfa) Thanks [@SukkaW](https://github.com/SukkaW)! - Updated the `graphql` middleware to use the jsDelivr CDN for the GraphiQL bundle.
+
+- [#1605](https://github.com/ponder-sh/ponder/pull/1605) [`8aafdde458fc899ef4f8fb591b982e35525ed250`](https://github.com/ponder-sh/ponder/commit/8aafdde458fc899ef4f8fb591b982e35525ed250) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `ponder_historical_concurrency_group_duration`, `ponder_historical_extract_duration`, `ponder_historical_transform_duration` metrics.
+
+## 0.10.2
+
+### Patch Changes
+
+- [#1611](https://github.com/ponder-sh/ponder/pull/1611) [`21560f3927abd3389832a510ac1fb3dc2009204e`](https://github.com/ponder-sh/ponder/commit/21560f3927abd3389832a510ac1fb3dc2009204e) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in v0.10.1 with text column encoding.
+
 ## 0.10.1
 
 ### Patch Changes

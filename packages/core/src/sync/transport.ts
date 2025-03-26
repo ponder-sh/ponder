@@ -82,12 +82,8 @@ export const cachedTransport = ({
           }));
 
           if (requests.length === 0) {
-            return encodeFunctionResult({
-              abi: multicall3Abi,
-              functionName: "aggregate3",
-              // @ts-expect-error known issue in viem
-              result: [[]],
-            });
+            // empty multicall result
+            return "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000";
           }
 
           const cachedResults = await syncStore.getRpcRequestResults({
@@ -159,22 +155,36 @@ export const cachedTransport = ({
 
           let multicallIndex = 0;
 
-          return encodeFunctionResult({
-            abi: multicall3Abi,
-            functionName: "aggregate3",
-            result: [
-              // @ts-expect-error known issue in viem
-              cachedResults.map((result) => {
-                if (result === undefined) {
-                  return multicallResult[multicallIndex++]!;
-                }
-                return {
-                  success: true,
-                  returnData: JSON.parse(result) as Hex,
-                };
-              }),
-            ],
+          // Note: viem <= 2.23.6 had a bug with `encodeFunctionResult` which can be worked around by adding
+          // another layer of array nesting.
+          // Fixed by this commit https://github.com/wevm/viem/commit/9c442de0ff38ac1f654b5c751d292e9a9f8d574c
+
+          const resultToEncode = cachedResults.map((result) => {
+            if (result === undefined) {
+              return multicallResult[multicallIndex++]!;
+            }
+            return {
+              success: true,
+              returnData: JSON.parse(result) as Hex,
+            };
           });
+
+          try {
+            return encodeFunctionResult({
+              abi: multicall3Abi,
+              functionName: "aggregate3",
+              result: resultToEncode,
+            });
+          } catch (e) {
+            return encodeFunctionResult({
+              abi: multicall3Abi,
+              functionName: "aggregate3",
+              result: [
+                // @ts-expect-error known issue in viem <= 2.23.6
+                resultToEncode,
+              ],
+            });
+          }
         } else if (
           blockDependentMethods.has(method) ||
           nonBlockDependentMethods.has(method)

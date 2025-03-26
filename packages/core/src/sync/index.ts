@@ -324,11 +324,19 @@ export const createSync = async (params: {
           }>,
         ) {
           for await (const { events, checkpoint } of eventGenerator) {
+            const endClock = startClock();
             const decodedEvents = decodeEvents(params.common, sources, events);
             params.common.logger.debug({
               service: "app",
               msg: `Decoded ${decodedEvents.length} '${network.name}' events`,
             });
+            params.common.metrics.ponder_historical_extract_duration.inc(
+              { step: "decode" },
+              endClock(),
+            );
+
+            await new Promise(setImmediate);
+
             yield { events: decodedEvents, checkpoint };
           }
         }
@@ -387,15 +395,12 @@ export const createSync = async (params: {
           ),
           limit: Math.round(
             params.common.options.syncEventsQuerySize /
-              (params.indexingBuild.networks.length * 2),
+              (params.indexingBuild.networks.length + 1),
           ),
         });
 
-        return bufferAsyncGenerator(
-          sortCompletedAndPendingEvents(
-            decodeEventGenerator(localEventGenerator),
-          ),
-          1,
+        return sortCompletedAndPendingEvents(
+          decodeEventGenerator(localEventGenerator),
         );
       },
     );
@@ -1196,6 +1201,7 @@ export async function* getLocalEventGenerator(params: {
           limit: params.limit,
         });
 
+      const endClock = startClock();
       const events = blockData.flatMap((bd) =>
         buildEvents({
           sources: params.sources,
@@ -1204,11 +1210,17 @@ export async function* getLocalEventGenerator(params: {
           chainId: params.network.chainId,
         }),
       );
+      params.common.metrics.ponder_historical_extract_duration.inc(
+        { step: "build" },
+        endClock(),
+      );
 
       params.common.logger.debug({
         service: "sync",
         msg: `Extracted ${events.length} '${params.network.name}' events for block range [${cursor}, ${queryCursor}]`,
       });
+
+      await new Promise(setImmediate);
 
       cursor = queryCursor + 1;
       if (cursor === toBlock) {

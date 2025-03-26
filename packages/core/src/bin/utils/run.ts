@@ -16,9 +16,11 @@ import {
 } from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
+import { recordAsyncGenerator } from "@/utils/generators.js";
 import { createMutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
+import { startClock } from "@/utils/timer.js";
 
 /** Starts the sync and indexing services for the specified build. */
 export async function run({
@@ -146,11 +148,30 @@ export async function run({
   }
 
   // Run historical indexing until complete.
-  for await (const events of sync.getEvents()) {
+  for await (const events of recordAsyncGenerator(
+    sync.getEvents(),
+    (params) => {
+      common.metrics.ponder_historical_concurrency_group_duration.inc(
+        { group: "extract" },
+        params.await,
+      );
+      common.metrics.ponder_historical_concurrency_group_duration.inc(
+        { group: "transform" },
+        params.yield,
+      );
+    },
+  )) {
     if (events.length > 0) {
+      let endClock = startClock();
       await database.retry(async () => {
         await database
           .transaction(async (client, tx) => {
+            common.metrics.ponder_historical_transform_duration.inc(
+              { step: "begin" },
+              endClock(),
+            );
+
+            endClock = startClock();
             const historicalIndexingStore = createHistoricalIndexingStore({
               common,
               schemaBuild,
@@ -196,6 +217,7 @@ export async function run({
                 await new Promise(setImmediate);
               }
             }
+            await new Promise(setImmediate);
 
             // underlying metrics collection is actually synchronous
             // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
@@ -212,6 +234,13 @@ export async function run({
               });
             }
 
+            common.metrics.ponder_historical_transform_duration.inc(
+              { step: "index" },
+              endClock(),
+            );
+
+            endClock = startClock();
+
             try {
               await indexingCache.flush({ client });
             } catch (error) {
@@ -222,10 +251,22 @@ export async function run({
               throw error;
             }
 
+            common.metrics.ponder_historical_transform_duration.inc(
+              { step: "load" },
+              endClock(),
+            );
+            endClock = startClock();
+
             await database.finalize({
               checkpoint: events[events.length - 1]!.checkpoint,
               db: tx,
             });
+
+            common.metrics.ponder_historical_transform_duration.inc(
+              { step: "finalize" },
+              endClock(),
+            );
+            endClock = startClock();
           })
           .catch((error) => {
             indexingCache.rollback();
@@ -233,6 +274,12 @@ export async function run({
           });
       });
       indexingCache.commit();
+      common.metrics.ponder_historical_transform_duration.inc(
+        { step: "commit" },
+        endClock(),
+      );
+
+      await new Promise(setImmediate);
     }
 
     await database.setStatus(sync.getStatus());

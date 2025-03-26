@@ -240,8 +240,10 @@ export const encodeTrace = ({
   type: trace.trace.type,
   gas: hexToBigInt(trace.trace.gas),
   gas_used: hexToBigInt(trace.trace.gasUsed),
-  error: trace.trace.error ?? null,
-  revert_reason: trace.trace.revertReason ?? null,
+  error: trace.trace.error ? trace.trace.error.replace(/\0/g, "") : null,
+  revert_reason: trace.trace.revertReason
+    ? trace.trace.revertReason.replace(/\0/g, "")
+    : null,
   subcalls: trace.trace.subcalls,
 });
 

@@ -4,14 +4,13 @@ import {
   createDatabase,
   getPonderMeta,
 } from "@/database/index.js";
+import { sqlToReorgTableName } from "@/drizzle/kit/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { createTelemetry } from "@/internal/telemetry.js";
-import { buildTable } from "@/ui/app.js";
-import { formatEta } from "@/utils/format.js";
-import { eq, sql } from "drizzle-orm";
+import { count, eq, inArray, sql } from "drizzle-orm";
 import { unionAll } from "drizzle-orm/pg-core";
 import { pgSchema } from "drizzle-orm/pg-core";
 import type { CliOptions } from "../ponder.js";
@@ -26,7 +25,7 @@ const emptySchemaBuild = {
   },
 };
 
-export async function list({ cliOptions }: { cliOptions: CliOptions }) {
+export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
 
   const logger = createLogger({
@@ -70,9 +69,18 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
   }));
 
   const ponderSchemas = await database.qb.drizzle
-    .select({ schema: TABLES.table_schema })
+    .select({ schema: TABLES.table_schema, tableCount: count() })
     .from(TABLES)
-    .where(eq(TABLES.table_name, "_ponder_meta"));
+    .where(
+      inArray(
+        TABLES.table_schema,
+        database.qb.drizzle
+          .select({ schema: TABLES.table_schema })
+          .from(TABLES)
+          .where(eq(TABLES.table_name, "_ponder_meta")),
+      ),
+    )
+    .groupBy(TABLES.table_schema);
 
   const queries = ponderSchemas.map((row) =>
     database.qb.drizzle
@@ -86,8 +94,8 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
 
   if (queries.length === 0) {
     logger.warn({
-      service: "list",
-      msg: "No 'ponder start' apps found in this database.",
+      service: "prune",
+      msg: "No inactive Ponder apps found in this database.",
     });
     await exit({ reason: "Success", code: 0 });
     return;
@@ -102,42 +110,73 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
     result = await unionAll(...queries);
   }
 
-  const columns = [
-    { title: "Schema", key: "table_schema", align: "left" },
-    { title: "Active", key: "active", align: "right" },
-    { title: "Last active", key: "last_active", align: "right" },
-    { title: "Table count", key: "table_count", align: "right" },
-  ];
+  const tablesToDrop: string[] = [];
+  const schemasToDrop: string[] = [];
+  const functionsToDrop: string[] = [];
 
-  const rows = result
-    .filter((row) => row.value.is_dev === 0)
-    .map((row) => ({
-      table_schema: row.schema,
-      active:
-        row.value.is_locked === 1 &&
-        row.value.heartbeat_at + common.options.databaseHeartbeatTimeout >
-          Date.now()
-          ? "yes"
-          : "no",
-      last_active:
-        row.value.is_locked === 1
-          ? "---"
-          : `${formatEta(Date.now() - row.value.heartbeat_at)} ago`,
-      table_count: row.value.table_names.length,
-    }));
+  for (const { value, schema } of result) {
+    if (value.is_dev === 1) continue;
+    if (
+      value.is_locked === 1 &&
+      value.heartbeat_at + common.options.databaseHeartbeatTimeout > Date.now()
+    ) {
+      continue;
+    }
 
-  if (rows.length === 0) {
+    for (const table of value.table_names) {
+      tablesToDrop.push(`"${schema}"."${table}"`);
+      tablesToDrop.push(`"${schema}"."${sqlToReorgTableName(table)}"`);
+      functionsToDrop.push(`"${schema}"."operation_reorg__${table}"`);
+    }
+    tablesToDrop.push(`"${schema}"."_ponder_meta"`);
+    tablesToDrop.push(`"${schema}"."_ponder_status"`);
+
+    const tableCount = ponderSchemas.find(
+      (s) => s.schema === schema,
+    )!.tableCount;
+
+    if (schema !== "public" && tableCount <= 2 + value.table_names.length * 2) {
+      schemasToDrop.push(schema);
+    }
+  }
+
+  if (tablesToDrop.length === 0) {
     logger.warn({
-      service: "list",
-      msg: "No 'ponder start' apps found in this database.",
+      service: "prune",
+      msg: "No inactive Ponder apps found in this database.",
     });
     await exit({ reason: "Success", code: 0 });
     return;
   }
 
-  const lines = buildTable(rows, columns);
-  const text = [...lines, ""].join("\n");
-  console.log(text);
+  await database.qb.drizzle.execute(
+    sql.raw(`DROP TABLE IF EXISTS ${tablesToDrop.join(", ")} CASCADE`),
+  );
+
+  logger.warn({
+    service: "prune",
+    msg: `Dropped ${tablesToDrop.length} tables`,
+  });
+
+  await database.qb.drizzle.execute(
+    sql.raw(`DROP FUNCTION IF EXISTS ${functionsToDrop.join(", ")} CASCADE`),
+  );
+
+  logger.warn({
+    service: "prune",
+    msg: `Dropped ${functionsToDrop.length} functions`,
+  });
+
+  if (schemasToDrop.length > 0) {
+    await database.qb.drizzle.execute(
+      sql.raw(`DROP SCHEMA IF EXISTS ${schemasToDrop.join(", ")} CASCADE`),
+    );
+
+    logger.warn({
+      service: "prune",
+      msg: `Dropped ${schemasToDrop.length} schemas`,
+    });
+  }
 
   await exit({ reason: "Success", code: 0 });
 }

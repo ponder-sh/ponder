@@ -668,7 +668,7 @@ export const createSyncStore = ({
           ])
           .limit(limit);
 
-        const endClock = startClock();
+        let endClock = startClock();
 
         const [
           blocksRows,
@@ -751,6 +751,8 @@ export const createSyncStore = ({
             ? Number.POSITIVE_INFINITY
             : Number(tracesRows[tracesRows.length - 1]!.blockNumber),
         );
+
+        endClock = startClock();
 
         const blockData: {
           block: InternalBlock;
@@ -983,6 +985,13 @@ export const createSyncStore = ({
             transactionReceipts,
           });
         }
+
+        common.metrics.ponder_historical_extract_duration.inc(
+          { step: "format" },
+          endClock(),
+        );
+
+        await new Promise(setImmediate);
 
         let cursor: number;
         if (

@@ -5,7 +5,7 @@ import type { LevelWithSilent } from "pino";
 import { type SemVer, parse } from "semver";
 
 export type Options = {
-  command: "dev" | "start" | "serve" | "codegen" | "list";
+  command: "dev" | "start" | "serve" | "codegen" | "list" | "prune";
   version: SemVer | null;
   configFile: string;
   schemaFile: string;
@@ -67,8 +67,6 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
   } else {
     logLevel = "info";
   }
-
-  if (["list", "codegen"].includes(cliOptions.command)) logLevel = "error";
 
   const port =
     process.env.PORT !== undefined
