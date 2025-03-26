@@ -1,26 +1,15 @@
 import type {
-  DbBlock,
-  DbLog,
-  DbTrace,
-  DbTransaction,
-  DbTransactionReceipt,
   Factory,
   FragmentId,
-  InternalBlock,
-  InternalLog,
-  InternalTrace,
-  InternalTransaction,
-  InternalTransactionReceipt,
   SyncBlock,
   SyncLog,
   SyncTrace,
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/internal/types.js";
-import type { Trace } from "@/types/eth.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { ColumnType, Insertable } from "kysely";
-import type { Address, Hash, Hex, TransactionReceipt } from "viem";
+import type { Address, Hash, Hex } from "viem";
 import { hexToBigInt, hexToNumber } from "viem";
 
 type PgNumeric = ColumnType<string, string | bigint, string | bigint>;
@@ -79,30 +68,6 @@ export const encodeBlock = ({
   extra_data: block.extraData,
 });
 
-export const decodeBlock = ({ block }: { block: DbBlock }): InternalBlock => ({
-  number: BigInt(block.number),
-  timestamp: BigInt(block.timestamp),
-  hash: block.hash,
-  parentHash: block.parent_hash,
-  logsBloom: block.logs_bloom,
-  miner: block.miner,
-  gasUsed: BigInt(block.gas_used),
-  gasLimit: BigInt(block.gas_limit),
-  baseFeePerGas: block.base_fee_per_gas ? BigInt(block.base_fee_per_gas) : null,
-  nonce: block.nonce,
-  mixHash: block.mix_hash,
-  stateRoot: block.state_root,
-  receiptsRoot: block.receipts_root,
-  transactionsRoot: block.transactions_root,
-  sha3Uncles: block.sha3_uncles,
-  size: BigInt(block.size),
-  difficulty: BigInt(block.difficulty),
-  totalDifficulty: block.total_difficulty
-    ? BigInt(block.total_difficulty)
-    : null,
-  extraData: block.extra_data,
-});
-
 type LogsTable = {
   chain_id: PgInt8;
   block_number: PgInt8;
@@ -134,22 +99,6 @@ export const encodeLog = ({
   topic2: log.topics[2] ? log.topics[2] : null,
   topic3: log.topics[3] ? log.topics[3] : null,
   data: log.data,
-});
-
-export const decodeLog = ({ log }: { log: DbLog }): InternalLog => ({
-  address: log.address,
-  topics: [
-    // @ts-ignore
-    log.topic0,
-    log.topic1,
-    log.topic2,
-    log.topic3,
-  ],
-  data: log.data,
-  logIndex: log.log_index,
-  removed: false,
-  blockNumber: Number(log.block_number),
-  transactionIndex: log.transaction_index,
 });
 
 type TransactionsTable = {
@@ -208,55 +157,6 @@ export const encodeTransaction = ({
     : null,
 });
 
-export const decodeTransaction = ({
-  transaction,
-}: { transaction: DbTransaction }): InternalTransaction => ({
-  blockNumber: Number(transaction.block_number),
-  transactionIndex: transaction.transaction_index,
-  hash: transaction.hash,
-  from: transaction.from,
-  to: transaction.to,
-  input: transaction.input,
-  value: BigInt(transaction.value),
-  nonce: transaction.nonce,
-  r: transaction.r,
-  s: transaction.s,
-  v: transaction.v ? BigInt(transaction.v) : null,
-  gas: BigInt(transaction.gas),
-  ...(transaction.type === "0x0"
-    ? {
-        type: "legacy",
-        gasPrice: BigInt(transaction.gas_price!),
-      }
-    : transaction.type === "0x1"
-      ? {
-          type: "eip2930",
-          gasPrice: BigInt(transaction.gas_price!),
-          accessList: JSON.parse(transaction.access_list!),
-        }
-      : transaction.type === "0x2"
-        ? {
-            type: "eip1559",
-            maxFeePerGas: BigInt(transaction.max_fee_per_gas!),
-            maxPriorityFeePerGas: BigInt(transaction.max_priority_fee_per_gas!),
-          }
-        : transaction.type === "0x7e"
-          ? {
-              type: "deposit",
-              maxFeePerGas:
-                transaction.max_fee_per_gas !== null
-                  ? BigInt(transaction.max_fee_per_gas)
-                  : undefined,
-              maxPriorityFeePerGas:
-                transaction.max_priority_fee_per_gas !== null
-                  ? BigInt(transaction.max_priority_fee_per_gas)
-                  : undefined,
-            }
-          : {
-              type: transaction.type,
-            }),
-});
-
 type TransactionReceiptsTable = {
   chain_id: PgInt8;
   block_number: PgInt8;
@@ -297,38 +197,6 @@ export const encodeTransactionReceipt = ({
   effective_gas_price: hexToBigInt(transactionReceipt.effectiveGasPrice),
   status: transactionReceipt.status,
   type: transactionReceipt.type as Hex,
-});
-
-export const decodeTransactionReceipt = ({
-  transactionReceipt,
-}: {
-  transactionReceipt: DbTransactionReceipt;
-}): InternalTransactionReceipt => ({
-  blockNumber: Number(transactionReceipt.block_number),
-  transactionIndex: transactionReceipt.transaction_index,
-  from: transactionReceipt.from,
-  to: transactionReceipt.to,
-  contractAddress: transactionReceipt.contract_address,
-  logsBloom: transactionReceipt.logs_bloom,
-  gasUsed: BigInt(transactionReceipt.gas_used),
-  cumulativeGasUsed: BigInt(transactionReceipt.cumulative_gas_used),
-  effectiveGasPrice: BigInt(transactionReceipt.effective_gas_price),
-  status:
-    transactionReceipt.status === "0x1"
-      ? "success"
-      : transactionReceipt.status === "0x0"
-        ? "reverted"
-        : (transactionReceipt.status as TransactionReceipt["status"]),
-  type:
-    transactionReceipt.type === "0x0"
-      ? "legacy"
-      : transactionReceipt.type === "0x1"
-        ? "eip2930"
-        : transactionReceipt.type === "0x2"
-          ? "eip1559"
-          : transactionReceipt.type === "0x7e"
-            ? "deposit"
-            : transactionReceipt.type,
 });
 
 type TracesTable = {
@@ -377,23 +245,6 @@ export const encodeTrace = ({
     ? trace.trace.revertReason.replace(/\0/g, "")
     : null,
   subcalls: trace.trace.subcalls,
-});
-
-export const decodeTrace = ({ trace }: { trace: DbTrace }): InternalTrace => ({
-  blockNumber: Number(trace.block_number),
-  traceIndex: trace.trace_index,
-  transactionIndex: trace.transaction_index,
-  from: trace.from,
-  to: trace.to,
-  input: trace.input,
-  output: trace.output ?? undefined,
-  value: trace.value ? BigInt(trace.value) : null,
-  type: trace.type as Trace["type"],
-  gas: BigInt(trace.gas),
-  gasUsed: BigInt(trace.gas_used),
-  error: trace.error ?? undefined,
-  revertReason: trace.revert_reason ?? undefined,
-  subcalls: trace.subcalls,
 });
 
 type IntervalTable = {

@@ -1,3 +1,4 @@
+import { ALICE } from "@/_test/constants.js";
 import {
   setupCleanup,
   setupCommon,
@@ -5,8 +6,10 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { setupAnvil } from "@/_test/setup.js";
+import { deployErc20, mintErc20 } from "@/_test/simulate.js";
 import {
   getBlocksConfigAndIndexingFunctions,
+  getErc20ConfigAndIndexingFunctions,
   getNetwork,
   testClient,
 } from "@/_test/utils.js";
@@ -22,8 +25,14 @@ import { drainAsyncGenerator } from "@/utils/generators.js";
 import type { Interval } from "@/utils/interval.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
-import { _eth_getBlockByNumber } from "@/utils/rpc.js";
+import { _eth_getBlockByNumber, _eth_getLogs } from "@/utils/rpc.js";
+import { parseEther } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
+import {
+  syncBlockToInternal,
+  syncLogToInternal,
+  syncTransactionToInternal,
+} from "./events.js";
 import { getFragments } from "./fragments.js";
 import {
   createSync,
@@ -1564,4 +1573,113 @@ test("onEvent() handles errors", async (context) => {
   await sync.startRealtime();
 
   await promise.promise;
+});
+
+test("historical events match realtime events", async (context) => {
+  const { syncStore } = await setupDatabaseServices(context);
+
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+    address,
+    includeTransactionReceipts: true,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
+
+  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+    blockNumber: 2,
+  });
+  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
+
+  await syncStore.insertTransactions({
+    transactions: [rpcBlock.transactions[0]!],
+    chainId: 1,
+  });
+
+  const rpcLogs = await _eth_getLogs(requestQueue, {
+    fromBlock: 2,
+    toBlock: 2,
+  });
+  await syncStore.insertLogs({
+    logs: [rpcLogs[0]!],
+    chainId: 1,
+  });
+
+  const { blockData: historicalBlockData } = await syncStore.getEventBlockData({
+    filters: [sources[0]!.filter],
+    fromBlock: 0,
+    toBlock: 10,
+    chainId: 1,
+    limit: 3,
+  });
+
+  const realtimeBlockData = [
+    {
+      block: syncBlockToInternal({ block: rpcBlock }),
+      logs: rpcLogs.map((log) => syncLogToInternal({ log })),
+      transactions: rpcBlock.transactions.map((transaction) =>
+        syncTransactionToInternal({ transaction }),
+      ),
+      transactionReceipts: [],
+      traces: [],
+    },
+  ];
+
+  // Note: blocks and transactions are not asserted because they are non deterministic
+
+  expect(historicalBlockData[0]!.logs).toMatchInlineSnapshot(`
+    [
+      {
+        "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        "blockNumber": 2,
+        "data": "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000",
+        "logIndex": 0,
+        "removed": false,
+        "topic0": undefined,
+        "topic1": undefined,
+        "topic2": undefined,
+        "topic3": undefined,
+        "topics": [
+          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          null,
+        ],
+        "transactionIndex": 0,
+      },
+    ]
+  `);
+
+  expect(realtimeBlockData[0]!.logs).toMatchInlineSnapshot(`
+    [
+      {
+        "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        "blockNumber": 2,
+        "data": "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000",
+        "logIndex": 0,
+        "removed": false,
+        "topics": [
+          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        ],
+        "transactionIndex": 0,
+      },
+    ]
+  `);
 });
