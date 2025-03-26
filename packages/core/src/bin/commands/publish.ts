@@ -113,5 +113,37 @@ export async function publish({
     msg: `Created ${meta[0]!.app.table_names.length} views in schema "${cliOptions.publishSchema}"`,
   });
 
+  await database.qb.drizzle.execute(
+    sql.raw(
+      `CREATE VIEW "${cliOptions.publishSchema}"."_ponder_status" AS SELECT * FROM "${cliOptions.schema}"."_ponder_status"`,
+    ),
+  );
+
+  const trigger = "status_publish_trigger";
+  const notification = "status_publish_notify()";
+  const channel = `${cliOptions.publishSchema}_status_channel`;
+
+  await database.qb.drizzle.execute(
+    sql.raw(`
+CREATE OR REPLACE FUNCTION "${cliOptions.schema}".${notification}
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+NOTIFY "${channel}";
+RETURN NULL;
+END;
+$$;`),
+  );
+
+  await database.qb.drizzle.execute(
+    sql.raw(`
+CREATE OR REPLACE TRIGGER "${trigger}"
+AFTER INSERT OR UPDATE OR DELETE
+ON "${cliOptions.schema}"._ponder_status
+FOR EACH STATEMENT
+EXECUTE PROCEDURE "${cliOptions.schema}".${notification};`),
+  );
+
   await exit({ reason: "Success", code: 0 });
 }
