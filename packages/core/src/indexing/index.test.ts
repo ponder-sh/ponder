@@ -14,9 +14,9 @@ import {
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import { onchainTable } from "@/drizzle/onchain.js";
+import { cachedTransport } from "@/indexing/client.js";
 import type { RawEvent } from "@/internal/types.js";
 import { decodeEvents } from "@/sync/events.js";
-import { cachedTransport } from "@/sync/transport.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import {

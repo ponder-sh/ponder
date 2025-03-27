@@ -25,7 +25,7 @@ import {
 } from "viem";
 import { toHex } from "viem";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
-import { cachedTransport } from "./transport.js";
+import { cachedTransport } from "./client.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
