@@ -33,14 +33,7 @@ import type { Interval } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
 import { startClock } from "@/utils/timer.js";
-import {
-  type ExpressionBuilder,
-  type OperandExpression,
-  type SelectQueryBuilder,
-  type SqlBool,
-  sql,
-} from "kysely";
-import type { InsertObject } from "kysely";
+import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import {
   type Address,
   type EIP1193Parameters,
@@ -55,6 +48,7 @@ import {
   encodeTransaction,
   encodeTransactionReceipt,
 } from "./encoding.js";
+import ponderSyncSchema from "./schema.js";
 
 export type SyncStore = {
   insertIntervals(args: {
@@ -375,14 +369,18 @@ export const createSyncStore = ({
 
         for (let i = 0; i < blocks.length; i += batchSize) {
           await database.qb.sync
-            .insertInto("blocks")
+            .insert(ponderSyncSchema.blocks)
             .values(
               blocks
                 .slice(i, i + batchSize)
                 .map((block) => encodeBlock({ block, chainId })),
             )
-            .onConflict((oc) => oc.columns(["chain_id", "number"]).doNothing())
-            .execute();
+            .onConflictDoNothing({
+              target: [
+                ponderSyncSchema.blocks.chainId,
+                ponderSyncSchema.blocks.number,
+              ],
+            });
         }
       },
     );
@@ -410,7 +408,7 @@ export const createSyncStore = ({
 
         for (let i = 0; i < transactions.length; i += batchSize) {
           await database.qb.sync
-            .insertInto("transactions")
+            .insert(ponderSyncSchema.transactions)
             .values(
               transactions
                 .slice(i, i + batchSize)
@@ -418,12 +416,13 @@ export const createSyncStore = ({
                   encodeTransaction({ transaction, chainId }),
                 ),
             )
-            .onConflict((oc) =>
-              oc
-                .columns(["chain_id", "block_number", "transaction_index"])
-                .doNothing(),
-            )
-            .execute();
+            .onConflictDoNothing({
+              target: [
+                ponderSyncSchema.transactions.chainId,
+                ponderSyncSchema.transactions.blockNumber,
+                ponderSyncSchema.transactions.transactionIndex,
+              ],
+            });
         }
       },
     );
@@ -447,7 +446,7 @@ export const createSyncStore = ({
 
         for (let i = 0; i < transactionReceipts.length; i += batchSize) {
           await database.qb.sync
-            .insertInto("transaction_receipts")
+            .insert(ponderSyncSchema.transactionReceipts)
             .values(
               transactionReceipts
                 .slice(i, i + batchSize)
@@ -458,12 +457,13 @@ export const createSyncStore = ({
                   }),
                 ),
             )
-            .onConflict((oc) =>
-              oc
-                .columns(["chain_id", "block_number", "transaction_index"])
-                .doNothing(),
-            )
-            .execute();
+            .onConflictDoNothing({
+              target: [
+                ponderSyncSchema.transactionReceipts.chainId,
+                ponderSyncSchema.transactionReceipts.blockNumber,
+                ponderSyncSchema.transactionReceipts.transactionIndex,
+              ],
+            });
         }
       },
     );
@@ -489,7 +489,7 @@ export const createSyncStore = ({
 
         for (let i = 0; i < traces.length; i += batchSize) {
           await database.qb.sync
-            .insertInto("traces")
+            .insert(ponderSyncSchema.traces)
             .values(
               traces
                 .slice(i, i + batchSize)
@@ -497,17 +497,14 @@ export const createSyncStore = ({
                   encodeTrace({ trace, block, transaction, chainId }),
                 ),
             )
-            .onConflict((oc) =>
-              oc
-                .columns([
-                  "chain_id",
-                  "block_number",
-                  "transaction_index",
-                  "trace_index",
-                ])
-                .doNothing(),
-            )
-            .execute();
+            .onConflictDoNothing({
+              target: [
+                ponderSyncSchema.traces.chainId,
+                ponderSyncSchema.traces.blockNumber,
+                ponderSyncSchema.traces.transactionIndex,
+                ponderSyncSchema.traces.traceIndex,
+              ],
+            });
         }
       },
     );
@@ -540,136 +537,94 @@ export const createSyncStore = ({
         );
 
         const blocksQuery = database.qb.sync
-          .selectFrom("blocks")
-          .where("blocks.chain_id", "=", String(chainId))
-          .where("blocks.number", ">=", String(fromBlock))
-          .where("blocks.number", "<=", String(toBlock))
-          .orderBy("blocks.number", "asc")
-          .select([
-            "number",
-            "timestamp",
-            "hash",
-            sql<string>`parent_hash`.as("parentHash"),
-            sql<string>`logs_bloom`.as("logsBloom"),
-            "miner",
-            sql<string>`gas_used`.as("gasUsed"),
-            sql<string>`gas_limit`.as("gasLimit"),
-            sql<string>`base_fee_per_gas`.as("baseFeePerGas"),
-            "nonce",
-            sql<string>`mix_hash`.as("mixHash"),
-            sql<string>`state_root`.as("stateRoot"),
-            sql<string>`receipts_root`.as("receiptsRoot"),
-            sql<string>`transactions_root`.as("transactionsRoot"),
-            sql<string>`sha3_uncles`.as("sha3Uncles"),
-            "size",
-            "difficulty",
-            sql<string>`total_difficulty`.as("totalDifficulty"),
-            sql<string>`extra_data`.as("extraData"),
-          ])
+          .select()
+          .from(ponderSyncSchema.blocks)
+          .where(
+            and(
+              eq(ponderSyncSchema.blocks.chainId, BigInt(chainId)),
+              gte(ponderSyncSchema.blocks.number, BigInt(fromBlock)),
+              lte(ponderSyncSchema.blocks.number, BigInt(toBlock)),
+            ),
+          )
+          .orderBy(asc(ponderSyncSchema.blocks.number))
           .limit(limit);
 
         const transactionsQuery = database.qb.sync
-          .selectFrom("transactions")
-          .where("chain_id", "=", String(chainId))
-          .where("block_number", ">=", String(fromBlock))
-          .where("block_number", "<=", String(toBlock))
-          .orderBy("block_number", "asc")
-          .orderBy("transaction_index", "asc")
-          .select([
-            sql<string>`block_number`.as("blockNumber"),
-            sql<number>`transaction_index`.as("transactionIndex"),
-            "hash",
-            "from",
-            "to",
-            "input",
-            "value",
-            "nonce",
-            "r",
-            "s",
-            "v",
-            "type",
-            "gas",
-            sql<string | null>`gas_price`.as("gasPrice"),
-            sql<string | null>`max_fee_per_gas`.as("maxFeePerGas"),
-            sql<string | null>`max_priority_fee_per_gas`.as(
-              "maxPriorityFeePerGas",
+          .select()
+          .from(ponderSyncSchema.transactions)
+          .where(
+            and(
+              eq(ponderSyncSchema.transactions.chainId, BigInt(chainId)),
+              gte(ponderSyncSchema.transactions.blockNumber, BigInt(fromBlock)),
+              lte(ponderSyncSchema.transactions.blockNumber, BigInt(toBlock)),
             ),
-            sql<string | null>`access_list`.as("accessList"),
-          ])
+          )
+          .orderBy(
+            asc(ponderSyncSchema.transactions.blockNumber),
+            asc(ponderSyncSchema.transactions.transactionIndex),
+          )
           .limit(limit);
 
         const transactionReceiptsQuery = database.qb.sync
-          .selectFrom("transaction_receipts")
-          .where("chain_id", "=", String(chainId))
-          .where("block_number", ">=", String(fromBlock))
-          .where("block_number", "<=", String(toBlock))
-          .orderBy("block_number", "asc")
-          .orderBy("transaction_index", "asc")
-          .select([
-            sql<string>`block_number`.as("blockNumber"),
-            sql<number>`transaction_index`.as("transactionIndex"),
-            "from",
-            "to",
-            sql<Address | null>`contract_address`.as("contractAddress"),
-            sql<string>`logs_bloom`.as("logsBloom"),
-            sql<string>`gas_used`.as("gasUsed"),
-            sql<string>`cumulative_gas_used`.as("cumulativeGasUsed"),
-            sql<string>`effective_gas_price`.as("effectiveGasPrice"),
-            "status",
-            "type",
-          ])
+          .select()
+          .from(ponderSyncSchema.transactionReceipts)
+          .where(
+            and(
+              eq(ponderSyncSchema.transactionReceipts.chainId, BigInt(chainId)),
+              gte(
+                ponderSyncSchema.transactionReceipts.blockNumber,
+                BigInt(fromBlock),
+              ),
+              lte(
+                ponderSyncSchema.transactionReceipts.blockNumber,
+                BigInt(toBlock),
+              ),
+            ),
+          )
+          .orderBy(
+            asc(ponderSyncSchema.transactionReceipts.blockNumber),
+            asc(ponderSyncSchema.transactionReceipts.transactionIndex),
+          )
           .limit(limit);
 
         const logsQuery = database.qb.sync
-          .selectFrom("logs")
-          .where("logs.chain_id", "=", String(chainId))
-          .where("logs.block_number", ">=", String(fromBlock))
-          .where("logs.block_number", "<=", String(toBlock))
-          .where((eb) => eb.or(logFilters.map((f) => logFilter(eb, f))))
-          .orderBy("logs.block_number", "asc")
-          .orderBy("logs.log_index", "asc")
-          .select([
-            sql<string>`block_number`.as("blockNumber"),
-            sql<number>`log_index`.as("logIndex"),
-            sql<number>`transaction_index`.as("transactionIndex"),
-            "address",
-            "topic0",
-            "topic1",
-            "topic2",
-            "topic3",
-            "data",
-          ])
+          .select()
+          .from(ponderSyncSchema.logs)
+          .where(
+            and(
+              eq(ponderSyncSchema.logs.chainId, BigInt(chainId)),
+              gte(ponderSyncSchema.logs.blockNumber, BigInt(fromBlock)),
+              lte(ponderSyncSchema.logs.blockNumber, BigInt(toBlock)),
+            ),
+          )
+          // .where((eb) => eb.or(logFilters.map((f) => logFilter(eb, f))))
+          .orderBy(
+            asc(ponderSyncSchema.logs.blockNumber),
+            asc(ponderSyncSchema.logs.logIndex),
+          )
+
           .limit(limit);
 
         const tracesQuery = database.qb.sync
-          .selectFrom("traces")
-          .where("chain_id", "=", String(chainId))
-          .where("block_number", ">=", String(fromBlock))
-          .where("block_number", "<=", String(toBlock))
-          .where((eb) =>
-            eb.or([
-              ...traceFilters.map((f) => traceFilter(eb, f)),
-              ...transferFilters.map((f) => transferFilter(eb, f)),
-            ]),
+          .select()
+          .from(ponderSyncSchema.traces)
+          .where(
+            and(
+              eq(ponderSyncSchema.traces.chainId, BigInt(chainId)),
+              gte(ponderSyncSchema.traces.blockNumber, BigInt(fromBlock)),
+              lte(ponderSyncSchema.traces.blockNumber, BigInt(toBlock)),
+            ),
           )
-          .orderBy("block_number", "asc")
-          .orderBy("trace_index", "asc")
-          .select([
-            sql<string>`block_number`.as("blockNumber"),
-            sql<number>`transaction_index`.as("transactionIndex"),
-            sql<number>`trace_index`.as("traceIndex"),
-            "from",
-            "to",
-            "input",
-            "output",
-            "value",
-            "type",
-            "gas",
-            sql<string>`gas_used`.as("gasUsed"),
-            "error",
-            sql<string | null>`revert_reason`.as("revertReason"),
-            "subcalls",
-          ])
+          // .where((eb) =>
+          //   eb.or([
+          //     ...traceFilters.map((f) => traceFilter(eb, f)),
+          //     ...transferFilters.map((f) => transferFilter(eb, f)),
+          //   ]),
+          // )
+          .orderBy(
+            asc(ponderSyncSchema.traces.blockNumber),
+            asc(ponderSyncSchema.traces.traceIndex),
+          )
           .limit(limit);
 
         let endClock = startClock();
@@ -682,7 +637,7 @@ export const createSyncStore = ({
           tracesRows,
         ] = await Promise.all([
           shouldQueryBlocks
-            ? blocksQuery.execute().then((res) => {
+            ? blocksQuery.then((res) => {
                 common.metrics.ponder_database_method_duration.observe(
                   { method: "getEventBlockData_blocks" },
                   endClock(),
@@ -692,7 +647,7 @@ export const createSyncStore = ({
               })
             : [],
           shouldQueryTransactions
-            ? transactionsQuery.execute().then((res) => {
+            ? transactionsQuery.then((res) => {
                 common.metrics.ponder_database_method_duration.observe(
                   { method: "getEventBlockData_transactions" },
                   endClock(),
@@ -702,7 +657,7 @@ export const createSyncStore = ({
               })
             : [],
           shouldQueryTransactionReceipts
-            ? transactionReceiptsQuery.execute().then((res) => {
+            ? transactionReceiptsQuery.then((res) => {
                 common.metrics.ponder_database_method_duration.observe(
                   { method: "getEventBlockData_transaction_receipts" },
                   endClock(),
@@ -712,7 +667,7 @@ export const createSyncStore = ({
               })
             : [],
           shouldQueryLogs
-            ? logsQuery.execute().then((res) => {
+            ? logsQuery.then((res) => {
                 common.metrics.ponder_database_method_duration.observe(
                   { method: "getEventBlockData_logs" },
                   endClock(),
@@ -722,7 +677,7 @@ export const createSyncStore = ({
               })
             : [],
           shouldQueryTraces
-            ? tracesQuery.execute().then((res) => {
+            ? tracesQuery.then((res) => {
                 common.metrics.ponder_database_method_duration.observe(
                   { method: "getEventBlockData_traces" },
                   endClock(),
@@ -792,21 +747,14 @@ export const createSyncStore = ({
             if (transaction.to !== null) {
               internalTransaction.to = checksumAddress(transaction.to);
             }
-            internalTransaction.value = BigInt(transaction.value);
-            if (transaction.v !== null) {
-              internalTransaction.v = BigInt(transaction.v);
-            }
-            internalTransaction.gas = BigInt(transaction.gas);
 
             if (transaction.type === "0x0") {
               internalTransaction.type = "legacy";
-              internalTransaction.gasPrice = BigInt(transaction.gasPrice!);
               internalTransaction.accessList = undefined;
               internalTransaction.maxFeePerGas = undefined;
               internalTransaction.maxPriorityFeePerGas = undefined;
             } else if (transaction.type === "0x1") {
               internalTransaction.type = "eip2930";
-              internalTransaction.gasPrice = BigInt(transaction.gasPrice!);
               internalTransaction.accessList = JSON.parse(
                 transaction.accessList!,
               );
@@ -814,26 +762,10 @@ export const createSyncStore = ({
               internalTransaction.maxPriorityFeePerGas = undefined;
             } else if (transaction.type === "0x2") {
               internalTransaction.type = "eip1559";
-              internalTransaction.maxFeePerGas = BigInt(
-                transaction.maxFeePerGas!,
-              );
-              internalTransaction.maxPriorityFeePerGas = BigInt(
-                transaction.maxPriorityFeePerGas!,
-              );
               internalTransaction.gasPrice = undefined;
               internalTransaction.accessList = undefined;
             } else if (transaction.type === "0x7e") {
               internalTransaction.type = "deposit";
-              if (transaction.maxFeePerGas !== null) {
-                internalTransaction.maxFeePerGas = BigInt(
-                  transaction.maxFeePerGas!,
-                );
-              }
-              if (transaction.maxPriorityFeePerGas !== null) {
-                internalTransaction.maxPriorityFeePerGas = BigInt(
-                  transaction.maxPriorityFeePerGas!,
-                );
-              }
               internalTransaction.gasPrice = undefined;
               internalTransaction.accessList = undefined;
             }
@@ -869,15 +801,6 @@ export const createSyncStore = ({
                 transactionReceipt.to,
               );
             }
-            internalTransactionReceipt.gasUsed = BigInt(
-              transactionReceipt.gasUsed,
-            );
-            internalTransactionReceipt.cumulativeGasUsed = BigInt(
-              transactionReceipt.cumulativeGasUsed,
-            );
-            internalTransactionReceipt.effectiveGasPrice = BigInt(
-              transactionReceipt.effectiveGasPrice,
-            );
             internalTransactionReceipt.status =
               transactionReceipt.status === "0x1"
                 ? "success"
@@ -925,7 +848,6 @@ export const createSyncStore = ({
             // @ts-ignore
             log.topic3 = undefined;
 
-            logs.push(internalLog);
             logIndex++;
           }
 
@@ -947,12 +869,6 @@ export const createSyncStore = ({
               internalTrace.output = undefined;
             }
 
-            if (trace.value !== null) {
-              internalTrace.value = BigInt(trace.value);
-            }
-            internalTrace.gas = BigInt(trace.gas);
-            internalTrace.gasUsed = BigInt(trace.gasUsed);
-
             if (trace.error === null) {
               internalTrace.error = undefined;
             }
@@ -965,24 +881,10 @@ export const createSyncStore = ({
             traceIndex++;
           }
 
-          const internalBlock = block as unknown as InternalBlock;
-
-          internalBlock.number = BigInt(block.number);
-          internalBlock.timestamp = BigInt(block.timestamp);
-          internalBlock.gasUsed = BigInt(block.gasUsed);
-          internalBlock.miner = checksumAddress(block.miner);
-          internalBlock.gasLimit = BigInt(block.gasLimit);
-          if (block.baseFeePerGas !== null) {
-            internalBlock.baseFeePerGas = BigInt(block.baseFeePerGas);
-          }
-          internalBlock.size = BigInt(block.size);
-          internalBlock.difficulty = BigInt(block.difficulty);
-          if (block.totalDifficulty !== null) {
-            internalBlock.totalDifficulty = BigInt(block.totalDifficulty);
-          }
+          block.miner = checksumAddress(block.miner);
 
           blockData.push({
-            block: internalBlock,
+            block,
             logs,
             transactions,
             traces,
@@ -1034,24 +936,27 @@ export const createSyncStore = ({
       { method: "insertRpcRequestResults", includeTraceLogs: true },
       async () => {
         const values = requests.map(({ request, blockNumber, result }) => ({
-          request_hash: crypto
+          requestHash: crypto
             .createHash("md5")
             .update(toLowerCase(JSON.stringify(orderObject(request))))
             .digest("hex"),
-          chain_id: chainId,
-          block_number: blockNumber,
+          chainId: BigInt(chainId),
+          blockNumber: blockNumber ? BigInt(blockNumber) : undefined,
           result,
         }));
 
         await database.qb.sync
-          .insertInto("rpc_request_results")
+          .insert(ponderSyncSchema.rpcRequestResults)
           .values(values)
-          .onConflict((oc) =>
-            oc
-              .columns(["request_hash", "chain_id"])
-              .doUpdateSet({ result: sql`EXCLUDED.result` }),
-          )
-          .execute();
+          .onConflictDoUpdate({
+            target: [
+              ponderSyncSchema.rpcRequestResults.requestHash,
+              ponderSyncSchema.rpcRequestResults.chainId,
+            ],
+            set: {
+              result: sql`EXCLUDED.result`,
+            },
+          });
       },
     );
   },
@@ -1068,10 +973,20 @@ export const createSyncStore = ({
         );
 
         const result = await database.qb.sync
-          .selectFrom("rpc_request_results")
-          .select(["request_hash", "result"])
-          .where("request_hash", "in", requestHashes)
-          .where("chain_id", "=", String(chainId))
+          .select({
+            request_hash: ponderSyncSchema.rpcRequestResults.requestHash,
+            result: ponderSyncSchema.rpcRequestResults.result,
+          })
+          .from(ponderSyncSchema.rpcRequestResults)
+          .where(
+            and(
+              eq(ponderSyncSchema.rpcRequestResults.chainId, BigInt(chainId)),
+              inArray(
+                ponderSyncSchema.rpcRequestResults.requestHash,
+                requestHashes,
+              ),
+            ),
+          )
           .execute();
 
         const results = new Map<string, string | undefined>();
@@ -1088,12 +1003,16 @@ export const createSyncStore = ({
     return database.wrap(
       { method: "pruneRpcRequestResults", includeTraceLogs: true },
       async () => {
-        const numbers = blocks.map(({ number }) => String(hexToNumber(number)));
+        const numbers = blocks.map(({ number }) => BigInt(hexToNumber(number)));
 
         await database.qb.sync
-          .deleteFrom("rpc_request_results")
-          .where("chain_id", "=", String(chainId))
-          .where("block_number", "in", numbers)
+          .delete(ponderSyncSchema.rpcRequestResults)
+          .where(
+            and(
+              eq(ponderSyncSchema.rpcRequestResults.chainId, BigInt(chainId)),
+              inArray(ponderSyncSchema.rpcRequestResults.blockNumber, numbers),
+            ),
+          )
           .execute();
       },
     );
