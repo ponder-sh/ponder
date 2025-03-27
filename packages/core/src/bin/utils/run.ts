@@ -76,12 +76,7 @@ export async function run({
     ordering: preBuild.ordering,
   });
 
-  const indexing = createIndexing({
-    common,
-    indexingBuild,
-    requestQueues,
-    syncStore,
-  });
+  const indexing = createIndexing({ common, indexingBuild });
 
   const indexingCache = createIndexingCache({
     common,
