@@ -1,8 +1,6 @@
 import type { IndexingBuild, Network, SetupEvent } from "@/internal/types.js";
 import type { Event } from "@/internal/types.js";
 import type { SyncStore } from "@/sync-store/index.js";
-import { toLowerCase } from "@/utils/lowercase.js";
-import { orderObject } from "@/utils/order.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
   type Abi,
@@ -39,11 +37,16 @@ import {
   publicActions,
   toFunctionSelector,
 } from "viem";
+import {
+  getProfilePatternKey,
+  recordProfilePattern,
+  recoverProfilePattern,
+} from "./profile.js";
 
 // TODO(kyle) better name
 export type IndexingClient = {
   getClient: (network: Network) => ReadonlyClient;
-  load: () => Promise<void>;
+  load: ({ events }: { events: Event[] }) => Promise<void>;
   clear: () => void;
   event: Event | SetupEvent | undefined;
 };
@@ -217,7 +220,10 @@ export type ReadonlyClient<
   >
 >;
 
-type Request = Parameters<RequestQueue["request"]>[0];
+export type Request = Pick<
+  ReadContractParameters,
+  "abi" | "address" | "functionName" | "args"
+>;
 /**
  * Serialized RPC request for uniquely identifying a request.
  *
@@ -239,11 +245,58 @@ type CacheKey = string;
  * }
  */
 type Response = Awaited<ReturnType<RequestQueue["request"]>>;
+/**
+ * Recorded RPC request pattern.
+ *
+ * @example
+ * {
+ *   "address": "args.from",
+ *   "abi": [...],
+ *   "functionName": "balanceOf",
+ *   "args": ["log.address"],
+ * }
+ */
+export type ProfilePattern = Pick<
+  ReadContractParameters,
+  "abi" | "functionName"
+> & {
+  address: string;
+  // TODO(kyle) array and struct args
+  args?: string[];
+};
+/**
+ * Serialized {@link ProfileEntry} for unique identification.
+ *
+ * @example
+ * "args.from_balanceOf_log.address"
+ */
+type ProfileKey = string;
+/**
+ * Event name.
+ *
+ * @example
+ * "Erc20:Transfer"
+ *
+ * @example
+ * "Erc20.mint()"
+ */
+type EventName = string;
+/**
+ * Metadata about RPC request patterns for each event.
+ *
+ * TODO(kyle) jsdoc tag for devs
+ * Only profile "eth_call" requests.
+ */
+// TODO(kyle) add numerator and denominator
+type Profile = Map<EventName, Map<ProfileKey, ProfilePattern>>;
+/**
+ * Cache of RPC responses.
+ */
 type Cache = Map<CacheKey, Response>;
 
-export const getCacheKey = (request: Request) => {
-  return toLowerCase(JSON.stringify(orderObject(request)));
-};
+//  const getCacheKey = (request: Request) => {
+//   return toLowerCase(JSON.stringify(orderObject(request)));
+// };
 
 export const createIndexingClient = ({
   indexingBuild,
@@ -256,31 +309,9 @@ export const createIndexingClient = ({
 }): IndexingClient => {
   let event: Event | SetupEvent | undefined;
   const cache: Cache = new Map();
+  const profile: Profile = new Map();
 
-  return {
-    getClient(network) {
-      const requestQueue =
-        requestQueues[indexingBuild.networks.findIndex((n) => n === network)]!;
-
-      const blockNumber =
-        event!.type === "setup" ? event!.block : event!.event.block.number;
-
-      return createClient({
-        transport: cachedTransport({ network, requestQueue, syncStore, cache }),
-        chain: network.chain,
-        // @ts-expect-error overriding `readContract` is not supported by viem
-      }).extend(ponderActions(() => blockNumber));
-    },
-    async load() {},
-    clear() {},
-    set event(_event: Event | undefined) {
-      event = _event;
-    },
-  };
-};
-
-export const ponderActions = (getBlockNumber: () => bigint) => {
-  return <
+  const ponderActions = <
     TTransport extends Transport = Transport,
     TChain extends Chain | undefined = Chain | undefined,
     TAccount extends Account | undefined = Account | undefined,
@@ -303,14 +334,40 @@ export const ponderActions = (getBlockNumber: () => bigint) => {
         cache,
         blockNumber: userBlockNumber,
         ...args
-      }: Parameters<PonderActions[action]>[0]) =>
-        // @ts-ignore
-        _publicActions[action]({
+      }: Parameters<PonderActions[action]>[0]) => {
+        // profile "readContract" action
+
+        // TODO(kyle) args with blocknumber mismatch not recorded
+
+        if (action === "readContract" && event && event?.type !== "setup") {
+          if (profile.has(event.name) === false) {
+            profile.set(event.name, new Map());
+          }
+
+          const profilePattern = recordProfilePattern({
+            event,
+            args: args as Omit<
+              Parameters<PonderActions["readContract"]>[0],
+              "blockNumber" | "cache"
+            >,
+          });
+          if (profilePattern) {
+            const profilePatternKey = getProfilePatternKey(profilePattern);
+            profile.get(event.name)!.set(profilePatternKey, profilePattern);
+          }
+        }
+
+        const blockNumber =
+          event!.type === "setup" ? event!.block : event!.event.block.number;
+
+        // @ts-expect-error
+        return _publicActions[action]({
           ...args,
           ...(cache === "immutable"
             ? { blockTag: "latest" }
-            : { blockNumber: userBlockNumber ?? getBlockNumber() }),
+            : { blockNumber: userBlockNumber ?? blockNumber }),
         } as Parameters<ReturnType<typeof publicActions>[action]>[0]);
+      };
     };
 
     const getRetryAction = (action: PonderActions[keyof PonderActions]) => {
@@ -364,6 +421,42 @@ export const ponderActions = (getBlockNumber: () => bigint) => {
 
     return actions;
   };
+
+  return {
+    getClient(network) {
+      const requestQueue =
+        requestQueues[indexingBuild.networks.findIndex((n) => n === network)]!;
+
+      return createClient({
+        transport: cachedTransport({ network, requestQueue, syncStore, cache }),
+        chain: network.chain,
+        // @ts-expect-error overriding `readContract` is not supported by viem
+      }).extend(ponderActions);
+    },
+    async load({ events }) {
+      // Use profiling metadata + next event batch to determine which
+      // rpc requests are going to be made, and preload them into the cache.
+
+      const prediction = new Map<CacheKey, Request>();
+
+      for (const event of events) {
+        if (profile.has(event.name)) {
+          for (const [key, pattern] of profile.get(event.name)!) {
+            prediction.set(key, recoverProfilePattern(pattern, event));
+          }
+        }
+      }
+
+      // fetch requests
+      // cache responses
+    },
+    clear() {
+      cache.clear();
+    },
+    set event(_event: Event | undefined) {
+      event = _event;
+    },
+  };
 };
 
 export const cachedTransport =
@@ -371,7 +464,7 @@ export const cachedTransport =
     network,
     requestQueue,
     syncStore,
-    cache,
+    // cache,
   }: {
     network: Network;
     requestQueue: RequestQueue;
@@ -538,11 +631,11 @@ export const cachedTransport =
               break;
           }
 
-          const cacheKey = getCacheKey(body);
+          // const cacheKey = getCacheKey(body);
 
-          if (cache.has(cacheKey)) {
-            return cache.get(cacheKey)!;
-          }
+          // if (cache.has(cacheKey)) {
+          //   return cache.get(cacheKey)!;
+          // }
 
           const [cachedResult] = await syncStore.getRpcRequestResults({
             requests: [body],
