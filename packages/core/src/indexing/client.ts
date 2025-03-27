@@ -1,4 +1,5 @@
-import type { Network } from "@/internal/types.js";
+import type { IndexingBuild, Network, SetupEvent } from "@/internal/types.js";
+import type { Event } from "@/internal/types.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
@@ -40,11 +41,11 @@ import {
 } from "viem";
 
 // TODO(kyle) better name
-type IndexingClient = {
+export type IndexingClient = {
   getClient: (network: Network) => ReadonlyClient;
   load: () => Promise<void>;
   clear: () => void;
-  event: Event | undefined;
+  event: Event | SetupEvent | undefined;
 };
 
 const MULTICALL_SELECTOR = toFunctionSelector(
@@ -245,29 +246,30 @@ export const getCacheKey = (request: Request) => {
 };
 
 export const createIndexingClient = ({
-  networks,
+  indexingBuild,
   requestQueues,
   syncStore,
 }: {
-  networks: Network[];
+  indexingBuild: Pick<IndexingBuild, "networks">;
   requestQueues: RequestQueue[];
   syncStore: SyncStore;
 }): IndexingClient => {
-  // @ts-expect-error
-  let event: Event | undefined;
+  let event: Event | SetupEvent | undefined;
   const cache: Cache = new Map();
 
   return {
     getClient(network) {
       const requestQueue =
-        requestQueues[networks.findIndex((n) => n === network)]!;
+        requestQueues[indexingBuild.networks.findIndex((n) => n === network)]!;
+
+      const blockNumber =
+        event!.type === "setup" ? event!.block : event!.event.block.number;
 
       return createClient({
         transport: cachedTransport({ network, requestQueue, syncStore, cache }),
         chain: network.chain,
-        // @ts-ignore
-        // TODO(kyle) use event from block.number ??
-      }).extend(ponderActions(() => blockNumber!));
+        // @ts-expect-error overriding `readContract` is not supported by viem
+      }).extend(ponderActions(() => blockNumber));
     },
     async load() {},
     clear() {},
