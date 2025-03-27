@@ -856,8 +856,6 @@ export const createIndexingCache = ({
       for (const tableBuffer of updateBuffer.values()) {
         tableBuffer.clear();
       }
-
-      profile.clear();
     },
     set event(_event: Event | undefined) {
       event = _event;
