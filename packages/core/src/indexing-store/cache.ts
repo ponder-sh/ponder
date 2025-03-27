@@ -245,7 +245,7 @@ export const createIndexingCache = ({
   /**
    * Estimated size of the cache in bytes.
    *
-   * Note: this stops getting updated once the cache is incomplete.
+   * Note: this stops getting updated once `isCacheComplete = false`.
    */
   let cacheBytes = 0;
   let event: Event | undefined;
