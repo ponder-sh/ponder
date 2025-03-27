@@ -11,11 +11,12 @@ import type {
   SchemaBuild,
   Status,
 } from "@/internal/types.js";
-import type { PonderSyncSchema } from "@/sync-store/encoding.js";
+// import type { PonderSyncSchema } from "@/sync-store/encoding.js";
 import {
   moveLegacyTables,
   migrationProvider as postgresMigrationProvider,
 } from "@/sync-store/migrations.js";
+import ponderSyncSchema from "@/sync-store/schema.js";
 import type { Drizzle } from "@/types/db.js";
 import {
   MAX_CHECKPOINT_STRING,
@@ -103,9 +104,7 @@ export type PonderApp = {
 
 const VERSION = "1";
 
-type PGliteDriver = {
-  instance: PGlite;
-};
+type PGliteDriver = { instance: PGlite };
 
 type PostgresDriver = {
   internal: Pool;
@@ -118,8 +117,8 @@ type PostgresDriver = {
 type QueryBuilder = {
   /** For migrating the user schema */
   migrate: Kysely<any>;
-  /** Used to interact with the sync-store */
-  sync: Kysely<PonderSyncSchema>;
+  /** For interacting with the sync schema (extract) */
+  sync: Drizzle<typeof ponderSyncSchema>;
   /** For interacting with the user schema (transform) */
   drizzle: Drizzle<Schema>;
   /** For interacting with the user schema (load) */
@@ -228,16 +227,9 @@ export const createDatabase = async ({
         },
         plugins: [new WithSchemaPlugin(namespace)],
       }),
-      sync: new Kysely<PonderSyncSchema>({
-        dialect: kyselyDialect,
-        log(event) {
-          if (event.level === "query") {
-            common.metrics.ponder_postgres_query_total.inc({
-              pool: "sync",
-            });
-          }
-        },
-        plugins: [new WithSchemaPlugin("ponder_sync")],
+      sync: drizzlePglite((driver as PGliteDriver).instance, {
+        casing: "snake_case",
+        schema: ponderSyncSchema,
       }),
       drizzle: drizzlePglite((driver as PGliteDriver).instance, {
         casing: "snake_case",
@@ -310,16 +302,9 @@ export const createDatabase = async ({
         },
         plugins: [new WithSchemaPlugin(namespace)],
       }),
-      sync: new Kysely<PonderSyncSchema>({
-        dialect: new PostgresDialect({ pool: driver.sync }),
-        log(event) {
-          if (event.level === "query") {
-            common.metrics.ponder_postgres_query_total.inc({
-              pool: "sync",
-            });
-          }
-        },
-        plugins: [new WithSchemaPlugin("ponder_sync")],
+      sync: drizzleNodePg(driver.sync, {
+        casing: "snake_case",
+        schema: ponderSyncSchema,
       }),
       drizzle: drizzleNodePg(driver.user, {
         casing: "snake_case",
