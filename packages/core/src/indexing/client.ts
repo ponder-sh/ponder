@@ -1,5 +1,7 @@
 import type { Network } from "@/internal/types.js";
 import type { SyncStore } from "@/sync-store/index.js";
+import { toLowerCase } from "@/utils/lowercase.js";
+import { orderObject } from "@/utils/order.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
   type Abi,
@@ -214,9 +216,33 @@ export type ReadonlyClient<
   >
 >;
 
+type Request = Parameters<RequestQueue["request"]>[0];
+/**
+ * Serialized RPC request for uniquely identifying a request.
+ *
+ * @example
+ * TODO(kyle)
+ */
 type CacheKey = string;
+/**
+ * Response of an RPC request.
+ *
+ * @example
+ * "0x123"
+ *
+ * @example
+ * {
+ *   "number": "0x69",
+ *   "timestamp": "0x6969",
+ *   // ... more block properties
+ * }
+ */
 type Response = Awaited<ReturnType<RequestQueue["request"]>>;
 type Cache = Map<CacheKey, Response>;
+
+export const getCacheKey = (request: Request) => {
+  return toLowerCase(JSON.stringify(orderObject(request)));
+};
 
 export const createIndexingClient = ({
   networks,
@@ -227,6 +253,7 @@ export const createIndexingClient = ({
   requestQueues: RequestQueue[];
   syncStore: SyncStore;
 }): IndexingClient => {
+  // @ts-expect-error
   let event: Event | undefined;
   const cache: Cache = new Map();
 
@@ -236,7 +263,7 @@ export const createIndexingClient = ({
         requestQueues[networks.findIndex((n) => n === network)]!;
 
       return createClient({
-        transport: cachedTransport({ network, requestQueue, syncStore }),
+        transport: cachedTransport({ network, requestQueue, syncStore, cache }),
         chain: network.chain,
         // @ts-ignore
         // TODO(kyle) use event from block.number ??
@@ -342,10 +369,12 @@ export const cachedTransport =
     network,
     requestQueue,
     syncStore,
+    cache,
   }: {
     network: Network;
     requestQueue: RequestQueue;
     syncStore: SyncStore;
+    cache: Cache;
   }): Transport =>
   ({ chain }) =>
     custom({
@@ -507,6 +536,12 @@ export const cachedTransport =
               break;
           }
 
+          const cacheKey = getCacheKey(body);
+
+          if (cache.has(cacheKey)) {
+            return cache.get(cacheKey)!;
+          }
+
           const [cachedResult] = await syncStore.getRpcRequestResults({
             requests: [body],
             chainId: chain!.id,
@@ -518,33 +553,34 @@ export const cachedTransport =
             } catch {
               return cachedResult;
             }
-          } else {
-            const response = await requestQueue.request(body);
-            // Note: "0x" is a valid response for some requests, but is sometimes erroneously returned by the RPC.
-            // Because the frequency of these valid requests with no return data is very low, we don't cache it.
-            if (response !== "0x") {
-              // Note: insertRpcRequestResults errors can be ignored and not awaited, since
-              // the response is already fetched.
-              syncStore
-                .insertRpcRequestResults({
-                  requests: [
-                    {
-                      request: body,
-                      blockNumber:
-                        blockNumber === undefined
-                          ? undefined
-                          : blockNumber === "latest"
-                            ? 0
-                            : hexToNumber(blockNumber),
-                      result: JSON.stringify(response),
-                    },
-                  ],
-                  chainId: network.chainId,
-                })
-                .catch(() => {});
-            }
-            return response;
           }
+
+          const response = await requestQueue.request(body);
+          // Note: "0x" is a valid response for some requests, but is sometimes erroneously returned by the RPC.
+          // Because the frequency of these valid requests with no return data is very low, we don't cache it.
+          if (response !== "0x") {
+            // Note: insertRpcRequestResults errors can be ignored and not awaited, since
+            // the response is already fetched.
+            syncStore
+              .insertRpcRequestResults({
+                requests: [
+                  {
+                    request: body,
+                    blockNumber:
+                      blockNumber === undefined
+                        ? undefined
+                        : blockNumber === "latest"
+                          ? 0
+                          : hexToNumber(blockNumber),
+                    result: JSON.stringify(response),
+                  },
+                ],
+                // TODO(kyle) this may cause some cache misses for misconfigured chains
+                chainId: network.chainId,
+              })
+              .catch(() => {});
+          }
+          return response;
         } else {
           return requestQueue.request(body);
         }
