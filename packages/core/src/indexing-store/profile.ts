@@ -489,5 +489,5 @@ export const recoverProfileAccess = <T extends object>(
   if (access.length === 0) return base;
   const a = access.splice(0, 1);
   // @ts-ignore
-  return recoverAccess(base[a]!, access);
+  return recoverProfileAccess(base[a]!, access);
 };
