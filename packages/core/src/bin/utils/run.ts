@@ -3,6 +3,7 @@ import type { Database } from "@/database/index.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
+import { createIndexingClient } from "@/indexing/client.js";
 import { createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import { FlushError } from "@/internal/errors.js";
@@ -76,7 +77,17 @@ export async function run({
     ordering: preBuild.ordering,
   });
 
-  const indexing = createIndexing({ common, indexingBuild });
+  const indexingClient = createIndexingClient({
+    indexingBuild,
+    requestQueues,
+    syncStore,
+  });
+
+  const indexing = createIndexing({
+    common,
+    indexingBuild,
+    client: indexingClient,
+  });
 
   const indexingCache = createIndexingCache({
     common,
@@ -384,6 +395,8 @@ export async function run({
               service: "app",
               msg: `Decoded ${events.length} '${network.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
             });
+
+            // TODO(kyle) no rpc request prediction in realtime
 
             const result = await indexing.processEvents({
               events,
