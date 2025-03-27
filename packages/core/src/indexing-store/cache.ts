@@ -725,6 +725,7 @@ export const createIndexingCache = ({
 
             for (const { access } of sortedTableAccess) {
               if (isPredictionFull) break;
+              // TODO(kyle) bug
               for (const event of events) {
                 const prediction: Row = {};
                 for (const [key, value] of Object.entries(access)) {

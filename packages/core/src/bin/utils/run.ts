@@ -168,6 +168,7 @@ export async function run({
     },
   )) {
     await indexingCache.load({ events, db: database.qb.drizzle });
+    await indexingClient.load({ events });
     if (events.length > 0) {
       let endClock = startClock();
       await database.retry(async () => {
