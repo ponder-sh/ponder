@@ -1,5 +1,6 @@
 import type { IndexingCache } from "@/indexing-store/cache.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
+import type { IndexingClient } from "@/indexing/client.js";
 import type { Common } from "@/internal/common.js";
 import { ShutdownError } from "@/internal/errors.js";
 import type {
@@ -44,14 +45,10 @@ export type Context = {
 export type Indexing = {
   processSetupEvents: (params: {
     db: IndexingStore;
-    // TODO(kyle) chain specific client
-    client: ReadonlyClient;
   }) => Promise<{ status: "error"; error: Error } | { status: "success" }>;
   processEvents: (params: {
     events: Event[];
     db: IndexingStore;
-    // TODO(kyle) chain specific client
-    client: ReadonlyClient;
     cache?: IndexingCache;
   }) => Promise<{ status: "error"; error: Error } | { status: "success" }>;
 };
@@ -59,12 +56,14 @@ export type Indexing = {
 export const createIndexing = ({
   common,
   indexingBuild: { sources, networks, indexingFunctions },
+  client,
 }: {
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
     "sources" | "networks" | "indexingFunctions"
   >;
+  client: IndexingClient;
 }): Indexing => {
   const context: Context = {
     network: { name: undefined!, chainId: undefined! },
@@ -246,9 +245,8 @@ export const createIndexing = ({
   };
 
   return {
-    async processSetupEvents({ db, client }) {
+    async processSetupEvents({ db }) {
       context.db = db;
-      context.client = client;
       for (const eventName of Object.keys(indexingFunctions)) {
         if (!eventName.endsWith(":setup")) continue;
 
@@ -264,23 +262,26 @@ export const createIndexing = ({
 
           if (source === undefined) continue;
 
+          const event = {
+            type: "setup",
+            chainId: network.chainId,
+            checkpoint: encodeCheckpoint({
+              ...ZERO_CHECKPOINT,
+              chainId: BigInt(network.chainId),
+              blockNumber: BigInt(source.filter.fromBlock ?? 0),
+            }),
+
+            name: eventName,
+
+            block: BigInt(source.filter.fromBlock ?? 0),
+          } satisfies SetupEvent;
+
+          client.event = event;
+          context.client = client.getClient(network);
+
           eventCount[eventName]!++;
 
-          const result = await executeSetup({
-            event: {
-              type: "setup",
-              chainId: network.chainId,
-              checkpoint: encodeCheckpoint({
-                ...ZERO_CHECKPOINT,
-                chainId: BigInt(network.chainId),
-                blockNumber: BigInt(source.filter.fromBlock ?? 0),
-              }),
-
-              name: eventName,
-
-              block: BigInt(source.filter.fromBlock ?? 0),
-            },
-          });
+          const result = await executeSetup({ event });
 
           if (result.status !== "success") {
             return result;
@@ -290,11 +291,14 @@ export const createIndexing = ({
 
       return { status: "success" };
     },
-    async processEvents({ events, db, client, cache }) {
+    async processEvents({ events, db, cache }) {
       context.db = db;
-      context.client = client;
       for (let i = 0; i < events.length; i++) {
         const event = events[i]!;
+
+        client.event = event;
+        context.client = client.getClient(networkByChainId[event.chainId]!);
+
         if (cache) {
           cache.event = event;
         }
