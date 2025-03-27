@@ -745,7 +745,7 @@ export const createIndexingCache = ({
                     prediction,
                   );
 
-                if (cachePrediction.get(table)!.size > 20 * events.length) {
+                if (cachePrediction.get(table)!.size > 10 * events.length) {
                   isPredictionFull = true;
                   break;
                 }
