@@ -129,15 +129,18 @@ export const recordProfilePattern = (
       }
 
       case "log": {
+        let hasMatch = false;
         for (const argKey of Object.keys(event.event.args)) {
           const argValue = event.event.args[argKey];
 
           if (typeof argValue !== "object" && eq(argValue, value)) {
             result[js] = `args.${argKey}`;
+            hasMatch = true;
+            break;
           }
         }
 
-        if (result[js]) continue;
+        if (hasMatch) continue;
 
         if (eq(event.event.log.address, value)) {
           result[js] = "log.address";
@@ -204,22 +207,33 @@ export const recordProfilePattern = (
       }
 
       case "trace": {
+        let hasMatch = false;
         for (const argKey of Object.keys(event.event.args)) {
           const argValue = event.event.args[argKey];
 
           if (typeof argValue !== "object" && eq(argValue, value)) {
             result[js] = `args.${argKey}`;
+            hasMatch = true;
+            break;
           }
         }
 
-        if (result[js]) continue;
+        if (hasMatch) continue;
 
         if (eq(event.event.trace.from, value)) {
           result[js] = "trace.from";
           continue;
         }
 
-        if (eq(event.event.block.hash, value)) {
+        if ("trace.to" in result === false && eq(event.event.trace.to, value)) {
+          result[js] = "trace.to";
+          continue;
+        }
+
+        if (
+          "block.hash" in result === false &&
+          eq(event.event.block.hash, value)
+        ) {
           result[js] = "block.hash";
           continue;
         }
@@ -289,7 +303,15 @@ export const recordProfilePattern = (
           continue;
         }
 
-        if (eq(event.event.block.hash, value)) {
+        if ("trace.to" in result === false && eq(event.event.trace.to, value)) {
+          result[js] = "trace.to";
+          continue;
+        }
+
+        if (
+          "block.hash" in result === false &&
+          eq(event.event.block.hash, value)
+        ) {
           result[js] = "block.hash";
           continue;
         }
