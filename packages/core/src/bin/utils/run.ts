@@ -168,15 +168,18 @@ export async function run({
     },
   )) {
     let endClock = startClock();
+
     await indexingCache.prefetch({
       events,
       db: database.qb.drizzle,
       eventCount: indexing.getEventCount(),
     });
+    await indexingClient.load({ events });
     common.metrics.ponder_historical_transform_duration.inc(
       { step: "prefetch" },
       endClock(),
     );
+
     if (events.length > 0) {
       endClock = startClock();
       await database.retry(async () => {

@@ -5,6 +5,7 @@ import {
   approvalEvent,
   transferEvent,
 } from "ponder:schema";
+import { erc20ABI } from "../abis/erc20ABI";
 
 ponder.on("ERC20:Transfer", async ({ event, context }) => {
   await context.db
@@ -29,6 +30,15 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
     from: event.args.from,
     to: event.args.to,
   });
+
+  await context.client
+    .readContract({
+      abi: erc20ABI,
+      address: event.log.address,
+      functionName: "balanceOf",
+      args: [event.args.from],
+    })
+    .then((result) => console.log({ balance: result }));
 });
 
 ponder.on("ERC20:Approval", async ({ event, context }) => {
