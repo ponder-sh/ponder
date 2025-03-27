@@ -36,6 +36,52 @@ import {
 } from "./profile.js";
 import { getCacheKey, getWhereCondition, normalizeRow } from "./utils.js";
 
+/**
+ * Database row.
+ *
+ * @example
+ * {
+ *   "owner": "0x123",
+ *   "spender": "0x456",
+ *   "amount": 100n,
+ * }
+ */
+type Row = { [key: string]: unknown };
+/**
+ * Serialized primary key values for uniquely identifying a database row.
+ *
+ * @example
+ * "0x123_0x456"
+ */
+type CacheKey = string;
+/**
+ * Event name.
+ *
+ * @example
+ * "Erc20:Transfer"
+ *
+ * @example
+ * "Erc20.mint()"
+ */
+type EventName = string;
+/**
+ * Recorded database access pattern.
+ *
+ * @example
+ * {
+ *   "owner": "args.from",
+ *   "spender": "log.address",
+ * }
+ */
+type ProfileAccess = { [key: string]: string };
+/**
+ * Serialized for uniquely identifying a {@link ProfileAccess}.
+ *
+ * @example
+ * "args.from_spender_log.address"
+ */
+type ProfileKey = string;
+
 export type IndexingCache = {
   /**
    * Returns true if the cache has an entry for `table` with `key`.
@@ -48,19 +94,16 @@ export type IndexingCache = {
     table: Table;
     key: object;
     db: Drizzle<Schema>;
-  }) =>
-    | { [key: string]: unknown }
-    | null
-    | Promise<{ [key: string]: unknown } | null>;
+  }) => Row | null | Promise<Row | null>;
   /**
    * Sets the entry for `table` with `key` to `row`.
    */
   set: (params: {
     table: Table;
     key: object;
-    row: { [key: string]: unknown };
+    row: Row;
     isUpdate: boolean;
-  }) => { [key: string]: unknown };
+  }) => Row;
   /**
    * Deletes the entry for `table` with `key`.
    */
@@ -92,33 +135,31 @@ export type IndexingCache = {
   event: Event | undefined;
 };
 
-type Cache = Map<Table, Map<string, { [key: string]: unknown } | null>>;
+/**
+ * Cache of database rows.
+ */
+type Cache = Map<Table, Map<CacheKey, Row | null>>;
 
+/**
+ * Buffer of database rows that will be flushed to the database.
+ */
 type Buffer = Map<
   Table,
   Map<
-    string,
+    CacheKey,
     {
-      row: { [key: string]: unknown };
+      row: Row;
       metadata: { event: Event | undefined };
     }
   >
 >;
 
+/**
+ * Metadata about database access patterns for each event.
+ */
 type Profile = Map<
-  // event name
-  string,
-  Map<
-    Table,
-    Map<
-      // profile access key
-      string,
-      {
-        access: { [key: string]: string };
-        count: number;
-      }
-    >
-  >
+  EventName,
+  Map<Table, Map<ProfileKey, { access: ProfileAccess; count: number }>>
 >;
 
 const getBytes = (value: unknown) => {
@@ -149,10 +190,7 @@ const getBytes = (value: unknown) => {
 
 const ESCAPE_REGEX = /([\\\b\f\n\r\t\v])/g;
 
-export const getCopyText = (
-  table: Table,
-  rows: { [key: string]: unknown }[],
-) => {
+export const getCopyText = (table: Table, rows: Row[]) => {
   const columns = Object.entries(getTableColumns(table));
   const results = new Array(rows.length);
   for (let i = 0; i < rows.length; i++) {
@@ -659,16 +697,13 @@ export const createIndexingCache = ({
       // Use historical accesses + next event batch to determine which
       // rows are going to be accessed, and preload them into the cache.
 
-      const cachePrediction = new Map<
-        Table,
-        Map<string, { [key: string]: unknown }>
-      >();
+      const cachePrediction = new Map<Table, Map<CacheKey, Row>>();
 
       for (const table of tables) {
         cachePrediction.set(table, new Map());
       }
 
-      const eventsPerName = new Map<string, Event[]>();
+      const eventsPerName = new Map<EventName, Event[]>();
       for (const event of events) {
         if (eventsPerName.has(event.name)) {
           eventsPerName.get(event.name)!.push(event);
@@ -691,7 +726,7 @@ export const createIndexingCache = ({
             for (const { access } of sortedTableAccess) {
               if (isPredictionFull) break;
               for (const event of events) {
-                const prediction: { [key: string]: unknown } = {};
+                const prediction: Row = {};
                 for (const [key, value] of Object.entries(access)) {
                   if (value === "chainId") {
                     prediction[key] = event.chainId;
@@ -759,10 +794,7 @@ export const createIndexingCache = ({
                   service: "indexing",
                   msg: `Loaded ${results.length} '${getTableName(table)}' rows`,
                 });
-                const resultsPerKey = new Map<
-                  string,
-                  { [key: string]: unknown }
-                >();
+                const resultsPerKey = new Map<CacheKey, Row>();
                 for (const result of results) {
                   const ck = getCacheKey(table, result, primaryKeyCache);
                   resultsPerKey.set(ck, result);

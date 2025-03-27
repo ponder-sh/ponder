@@ -83,7 +83,6 @@ test("flush() update", async (context) => {
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -103,13 +102,14 @@ test("flush() update", async (context) => {
       balance: 10n,
     });
 
+    // first flush takes "insert" path
     await indexingCache.flush({ client });
-    await indexingCache.load({ events: [], db: tx });
 
     await indexingStore.update(schema.account, { address: zeroAddress }).set({
       balance: 12n,
     });
 
+    // second flush takes "update" path
     await indexingCache.flush({ client });
 
     let result = await indexingStore.find(schema.account, {
@@ -373,6 +373,7 @@ test("load() evicts rows", async (context) => {
     });
 
     await indexingCache.flush({ client });
+    // load() should evict rows from the cache to free memory
     await indexingCache.load({ events: [], db: tx });
 
     const result = indexingCache.has({
