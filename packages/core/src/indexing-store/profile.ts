@@ -181,15 +181,18 @@ export const recordProfile = (
       }
 
       case "log": {
+        let hasMatch = false;
         for (const argKey of Object.keys(event.event.args)) {
           const argValue = event.event.args[argKey];
 
           if (`args.${argKey}` in result === false && eq(argValue, value)) {
             result[js] = `args.${argKey}`;
+            hasMatch = true;
+            break;
           }
         }
 
-        if (result[js]) continue;
+        if (hasMatch) continue;
 
         if (
           "log.address" in result === false &&
@@ -283,21 +286,29 @@ export const recordProfile = (
       }
 
       case "trace": {
+        let hasMatch = false;
         for (const argKey of Object.keys(event.event.args)) {
           const argValue = event.event.args[argKey];
 
           if (`args.${argKey}` in result === false && eq(argValue, value)) {
             result[js] = `args.${argKey}`;
+            hasMatch = true;
+            break;
           }
         }
 
-        if (result[js]) continue;
+        if (hasMatch) continue;
 
         if (
           "trace.from" in result === false &&
           eq(event.event.trace.from, value)
         ) {
           result[js] = "trace.from";
+          continue;
+        }
+
+        if ("trace.to" in result === false && eq(event.event.trace.to, value)) {
+          result[js] = "trace.to";
           continue;
         }
 
@@ -398,6 +409,11 @@ export const recordProfile = (
           eq(event.event.trace.from, value)
         ) {
           result[js] = "trace.from";
+          continue;
+        }
+
+        if ("trace.to" in result === false && eq(event.event.trace.to, value)) {
+          result[js] = "trace.to";
           continue;
         }
 
