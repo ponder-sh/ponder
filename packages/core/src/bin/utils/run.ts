@@ -3,7 +3,7 @@ import type { Database } from "@/database/index.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
-import { createIndexingClient } from "@/indexing/client.js";
+import { createCachedViemClient } from "@/indexing/client.js";
 import { createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import { FlushError } from "@/internal/errors.js";
@@ -77,7 +77,8 @@ export async function run({
     ordering: preBuild.ordering,
   });
 
-  const indexingClient = createIndexingClient({
+  const cachedViemClient = createCachedViemClient({
+    common,
     indexingBuild,
     requestQueues,
     syncStore,
@@ -86,7 +87,7 @@ export async function run({
   const indexing = createIndexing({
     common,
     indexingBuild,
-    client: indexingClient,
+    client: cachedViemClient,
   });
 
   const indexingCache = createIndexingCache({
@@ -174,7 +175,7 @@ export async function run({
       db: database.qb.drizzle,
       eventCount: indexing.getEventCount(),
     });
-    await indexingClient.load({ events });
+    await cachedViemClient.load({ events });
     common.metrics.ponder_historical_transform_duration.inc(
       { step: "prefetch" },
       endClock(),

@@ -529,5 +529,7 @@ export const recoverProfilePattern = (
     abi: pattern.abi,
     functionName: pattern.functionName,
     args: pattern.args?.map((arg) => recover(event.event, arg.split("."))),
+    blockNumber: event.event.block.number,
+    chainId: event.chainId,
   };
 };

@@ -1,6 +1,6 @@
 import type { IndexingCache } from "@/indexing-store/cache.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
-import type { IndexingClient } from "@/indexing/client.js";
+import type { CachedViemClient } from "@/indexing/client.js";
 import type { Common } from "@/internal/common.js";
 import { ShutdownError } from "@/internal/errors.js";
 import type {
@@ -64,7 +64,7 @@ export const createIndexing = ({
     IndexingBuild,
     "sources" | "networks" | "indexingFunctions"
   >;
-  client: IndexingClient;
+  client: CachedViemClient;
 }): Indexing => {
   const context: Context = {
     network: { name: undefined!, chainId: undefined! },
