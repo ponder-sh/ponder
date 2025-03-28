@@ -30,57 +30,11 @@ import type { PoolClient } from "pg";
 import copy from "pg-copy-streams";
 import { parseSqlError } from "./index.js";
 import {
-  getProfileAccessKey,
-  recordProfile,
-  recoverProfileAccess,
+  getProfilePatternKey,
+  recordProfilePattern,
+  recoverProfilePattern,
 } from "./profile.js";
 import { getCacheKey, getWhereCondition, normalizeRow } from "./utils.js";
-
-/**
- * Database row.
- *
- * @example
- * {
- *   "owner": "0x123",
- *   "spender": "0x456",
- *   "amount": 100n,
- * }
- */
-type Row = { [key: string]: unknown };
-/**
- * Serialized primary key values for uniquely identifying a database row.
- *
- * @example
- * "0x123_0x456"
- */
-type CacheKey = string;
-/**
- * Event name.
- *
- * @example
- * "Erc20:Transfer"
- *
- * @example
- * "Erc20.mint()"
- */
-type EventName = string;
-/**
- * Recorded database access pattern.
- *
- * @example
- * {
- *   "owner": "args.from",
- *   "spender": "log.address",
- * }
- */
-type ProfileAccess = { [key: string]: string };
-/**
- * Serialized for uniquely identifying a {@link ProfileAccess}.
- *
- * @example
- * "args.from_spender_log.address"
- */
-type ProfileKey = string;
 
 export type IndexingCache = {
   /**
@@ -119,7 +73,11 @@ export type IndexingCache = {
   /**
    * Predict and load rows that will be accessed in the next event batch.
    */
-  load: (params: { events: Event[]; db: Drizzle<Schema> }) => Promise<void>;
+  prefetch: (params: {
+    events: Event[];
+    db: Drizzle<Schema>;
+    eventCount: { [key: string]: number };
+  }) => Promise<void>;
   /**
    * Remove spillover and buffer entries.
    */
@@ -136,10 +94,54 @@ export type IndexingCache = {
 };
 
 /**
+ * Database row.
+ *
+ * @example
+ * {
+ *   "owner": "0x123",
+ *   "spender": "0x456",
+ *   "amount": 100n,
+ * }
+ */
+export type Row = { [key: string]: unknown };
+/**
+ * Serialized primary key values for uniquely identifying a database row.
+ *
+ * @example
+ * "0x123_0x456"
+ */
+type CacheKey = string;
+/**
+ * Event name.
+ *
+ * @example
+ * "Erc20:Transfer"
+ *
+ * @example
+ * "Erc20.mint()"
+ */
+type EventName = string;
+/**
+ * Recorded database access pattern.
+ *
+ * @example
+ * {
+ *   "owner": "args.from",
+ *   "spender": "log.address",
+ * }
+ */
+export type ProfilePattern = { [key: string]: string };
+/**
+ * Serialized for uniquely identifying a {@link ProfilePattern}.
+ *
+ * @example
+ * "args.from_spender_log.address"
+ */
+type ProfileKey = string;
+/**
  * Cache of database rows.
  */
 type Cache = Map<Table, Map<CacheKey, Row | null>>;
-
 /**
  * Buffer of database rows that will be flushed to the database.
  */
@@ -153,13 +155,12 @@ type Buffer = Map<
     }
   >
 >;
-
 /**
  * Metadata about database access patterns for each event.
  */
 type Profile = Map<
   EventName,
-  Map<Table, Map<ProfileKey, { access: ProfileAccess; count: number }>>
+  Map<Table, Map<ProfileKey, { pattern: ProfilePattern; count: number }>>
 >;
 
 const getBytes = (value: unknown) => {
@@ -334,22 +335,25 @@ export const createIndexingCache = ({
           }
         }
 
-        const profileAccess = recordProfile(
+        const pattern = recordProfilePattern(
           event,
           table,
           key,
           Array.from(profile.get(event.name)!.get(table)!.values()).map(
-            ({ access }) => access,
+            ({ pattern }) => pattern,
           ),
           primaryKeyCache,
         );
-        if (profileAccess) {
-          const tableAccess = profile.get(event.name)!.get(table)!;
-          const ak = getProfileAccessKey(profileAccess);
-          tableAccess.set(ak, {
-            access: profileAccess,
-            count: (tableAccess.get(ak)?.count ?? 0) + 1,
-          });
+        if (pattern) {
+          const key = getProfilePatternKey(pattern);
+          if (profile.get(event.name)!.get(table)!.has(key)) {
+            profile.get(event.name)!.get(table)!.get(key)!.count++;
+          } else {
+            profile
+              .get(event.name)!
+              .get(table)!
+              .set(key, { pattern, count: 1 });
+          }
         }
       }
 
@@ -680,7 +684,7 @@ export const createIndexingCache = ({
         }
       }
     },
-    async load({ events, db }) {
+    async prefetch({ events, db, eventCount }) {
       if (isCacheComplete) {
         if (cacheBytes < common.options.indexingCacheMaxBytes) {
           return;
@@ -697,58 +701,24 @@ export const createIndexingCache = ({
       // Use historical accesses + next event batch to determine which
       // rows are going to be accessed, and preload them into the cache.
 
-      const cachePrediction = new Map<Table, Map<CacheKey, Row>>();
+      const prediction = new Map<Table, Map<CacheKey, Row>>();
 
       for (const table of tables) {
-        cachePrediction.set(table, new Map());
+        prediction.set(table, new Map());
       }
 
-      const eventsPerName = new Map<EventName, Event[]>();
       for (const event of events) {
-        if (eventsPerName.has(event.name)) {
-          eventsPerName.get(event.name)!.push(event);
-        } else {
-          eventsPerName.set(event.name, [event]);
-        }
-      }
-
-      for (const [eventName, events] of eventsPerName) {
-        for (const table of tables) {
-          const tableProfile = profile.get(eventName)?.get(table);
-
-          if (tableProfile) {
-            const sortedTableAccess = Array.from(tableProfile.values()).sort(
-              (a, b) => b.count - a.count,
-            );
-
-            let isPredictionFull = false;
-
-            for (const { access } of sortedTableAccess) {
-              if (isPredictionFull) break;
-              for (const event of events) {
-                const prediction: Row = {};
-                for (const [key, value] of Object.entries(access)) {
-                  if (value === "chainId") {
-                    prediction[key] = event.chainId;
-                  } else {
-                    prediction[key] = recoverProfileAccess(
-                      event.event,
-                      value.split("."),
-                    );
-                  }
-                }
-
-                cachePrediction
+        if (profile.has(event.name)) {
+          for (const table of tables) {
+            for (const [key, { count, pattern }] of profile
+              .get(event.name)!
+              .get(table)!) {
+              // Expected value of times the prediction will be used.
+              const ev = count / eventCount[event.name]!;
+              if (ev > 0.25) {
+                prediction
                   .get(table)!
-                  .set(
-                    getCacheKey(table, prediction, primaryKeyCache),
-                    prediction,
-                  );
-
-                if (cachePrediction.get(table)!.size > 10 * events.length) {
-                  isPredictionFull = true;
-                  break;
-                }
+                  .set(key, recoverProfilePattern(pattern, event));
               }
             }
           }
@@ -759,9 +729,9 @@ export const createIndexingCache = ({
         for (const key of tableCache.keys()) {
           if (
             spillover.get(table)!.has(key) ||
-            cachePrediction.get(table)!.has(key)
+            prediction.get(table)!.has(key)
           ) {
-            cachePrediction.get(table)!.delete(key);
+            prediction.get(table)!.delete(key);
           } else {
             tableCache.delete(key);
             isCacheComplete = false;
@@ -774,7 +744,7 @@ export const createIndexingCache = ({
       }
 
       await Promise.all(
-        Array.from(cachePrediction.entries())
+        Array.from(prediction.entries())
           .filter(([, tablePredictions]) => tablePredictions.size > 0)
           .map(async ([table, tablePredictions]) => {
             const conditions = dedupe(

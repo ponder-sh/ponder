@@ -326,7 +326,11 @@ test("load() loads predicted rows", async (context) => {
     event.event.args.to = BOB;
 
     await indexingCache.flush({ client });
-    await indexingCache.load({ events: [event], db: tx });
+    await indexingCache.prefetch({
+      events: [event],
+      db: tx,
+      eventCount: { "": 1 },
+    });
 
     const result = indexingCache.has({
       table: schema.account,
@@ -337,7 +341,7 @@ test("load() loads predicted rows", async (context) => {
   });
 });
 
-test("load() evicts rows", async (context) => {
+test("prefetch() evicts rows", async (context) => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -373,8 +377,8 @@ test("load() evicts rows", async (context) => {
     });
 
     await indexingCache.flush({ client });
-    // load() should evict rows from the cache to free memory
-    await indexingCache.load({ events: [], db: tx });
+    // prefetch() should evict rows from the cache to free memory
+    await indexingCache.prefetch({ events: [], db: tx, eventCount: {} });
 
     const result = indexingCache.has({
       table: schema.account,

@@ -161,9 +161,18 @@ export async function run({
       );
     },
   )) {
-    await indexingCache.load({ events, db: database.qb.drizzle });
+    let endClock = startClock();
+    await indexingCache.prefetch({
+      events,
+      db: database.qb.drizzle,
+      eventCount: indexing.getEventCount(),
+    });
+    common.metrics.ponder_historical_transform_duration.inc(
+      { step: "prefetch" },
+      endClock(),
+    );
     if (events.length > 0) {
-      let endClock = startClock();
+      endClock = startClock();
       await database.retry(async () => {
         await database
           .transaction(async (client, tx) => {

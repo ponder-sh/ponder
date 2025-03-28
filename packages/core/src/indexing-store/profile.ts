@@ -1,10 +1,10 @@
 import type { Event } from "@/internal/types.js";
 import type { Column, Table } from "drizzle-orm";
+import type { ProfilePattern, Row } from "./cache.js";
+import { getCacheKey } from "./utils.js";
 
-export const getProfileAccessKey = (access: {
-  [key: string]: string;
-}): string => {
-  return Object.values(access).join("_");
+export const getProfilePatternKey = (pattern: ProfilePattern): string => {
+  return Object.values(pattern).join("_");
 };
 
 const eq = (
@@ -17,7 +17,7 @@ const eq = (
   return false;
 };
 
-export const recordProfile = (
+export const recordProfilePattern = (
   event: Event,
   table: Table,
   key: object,
@@ -25,30 +25,12 @@ export const recordProfile = (
   cache: Map<Table, [string, Column][]>,
 ): { [key: string]: string } | undefined => {
   for (const hint of hints) {
-    let isMatch = true;
-    for (const js of Object.keys(hint)) {
-      if (js in key === false) {
-        isMatch = false;
-        break;
-      }
-
-      if (hint[js] === "chainId") {
-        // @ts-ignore
-        if (eq(event.chainId, key[js]!) === false) {
-          isMatch = false;
-          break;
-        }
-      } else {
-        const value = recoverProfileAccess(event.event, hint[js]!.split("."));
-        // @ts-ignore
-        if (eq(value, key[js]!) === false) {
-          isMatch = false;
-          break;
-        }
-      }
+    if (
+      getCacheKey(table, key, cache) ===
+      getCacheKey(table, recoverProfilePattern(hint, event), cache)
+    ) {
+      return hint;
     }
-
-    if (isMatch) return hint;
   }
 
   const result: { [key: string]: string } = {};
@@ -482,12 +464,26 @@ export const recordProfile = (
   return result;
 };
 
-export const recoverProfileAccess = <T extends object>(
-  base: T,
-  access: (keyof T | unknown)[],
-): unknown => {
-  if (access.length === 0) return base;
-  const a = access.splice(0, 1);
-  // @ts-ignore
-  return recoverProfileAccess(base[a[0]]!, access);
+export const recoverProfilePattern = (
+  pattern: ProfilePattern,
+  event: Event,
+): Row => {
+  const recover = (obj: object, path: string[]): unknown => {
+    if (path.length === 0) return obj;
+    const p = path.splice(0, 1);
+    // @ts-ignore
+    return recover(obj[p[0]], path);
+  };
+
+  const result: Row = {};
+
+  for (const [key, value] of Object.entries(pattern)) {
+    if (key === "chainId") {
+      result[key] = event.chainId;
+    } else {
+      result[key] = recover(event.event, value.split("."));
+    }
+  }
+
+  return result;
 };
