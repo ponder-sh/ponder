@@ -119,7 +119,7 @@ export type IndexingCache = {
   /**
    * Predict and load rows that will be accessed in the next event batch.
    */
-  load: (params: { events: Event[]; db: Drizzle<Schema> }) => Promise<void>;
+  prefetch: (params: { events: Event[]; db: Drizzle<Schema> }) => Promise<void>;
   /**
    * Remove spillover and buffer entries.
    */
@@ -680,7 +680,7 @@ export const createIndexingCache = ({
         }
       }
     },
-    async load({ events, db }) {
+    async prefetch({ events, db }) {
       if (isCacheComplete) {
         if (cacheBytes < common.options.indexingCacheMaxBytes) {
           return;

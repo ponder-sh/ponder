@@ -168,12 +168,20 @@ export async function run({
       );
     },
   )) {
+    let endClock = startClock();
     await Promise.all([
-      indexingCache.load({ events, db: database.qb.drizzle }),
-      cachedViemClient.load({ events, eventCount: indexing.getEventCount() }),
+      indexingCache.prefetch({ events, db: database.qb.drizzle }),
+      cachedViemClient.prefetch({
+        events,
+        eventCount: indexing.getEventCount(),
+      }),
     ]);
+    common.metrics.ponder_historical_transform_duration.inc(
+      { step: "prefetch" },
+      endClock(),
+    );
     if (events.length > 0) {
-      let endClock = startClock();
+      endClock = startClock();
       await database.retry(async () => {
         await database
           .transaction(async (client, tx) => {
