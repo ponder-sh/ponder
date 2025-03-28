@@ -170,7 +170,7 @@ export async function run({
   )) {
     await Promise.all([
       indexingCache.load({ events, db: database.qb.drizzle }),
-      cachedViemClient.load({ events }),
+      cachedViemClient.load({ events, eventCount: indexing.getEventCount() }),
     ]);
     if (events.length > 0) {
       let endClock = startClock();

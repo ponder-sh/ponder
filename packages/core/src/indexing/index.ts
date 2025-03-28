@@ -51,6 +51,7 @@ export type Indexing = {
     db: IndexingStore;
     cache?: IndexingCache;
   }) => Promise<{ status: "error"; error: Error } | { status: "success" }>;
+  getEventCount: () => { [eventName: string]: number };
 };
 
 export const createIndexing = ({
@@ -325,6 +326,9 @@ export const createIndexing = ({
       updateCompletedEvents();
 
       return { status: "success" };
+    },
+    getEventCount() {
+      return eventCount;
     },
   };
 };
