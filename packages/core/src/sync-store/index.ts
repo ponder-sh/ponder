@@ -1051,8 +1051,9 @@ export const createSyncStore = ({
       },
     );
   },
-  getRpcRequestResults: async ({ requests, chainId }) =>
-    database.wrap(
+  getRpcRequestResults: async ({ requests, chainId }) => {
+    if (requests.length === 0) return [];
+    return database.wrap(
       { method: "getRpcRequestResults", includeTraceLogs: true },
       async () => {
         const requestHashes = requests.map((request) =>
@@ -1076,7 +1077,8 @@ export const createSyncStore = ({
 
         return requestHashes.map((requestHash) => results.get(requestHash));
       },
-    ),
+    );
+  },
   pruneRpcRequestResults: async ({ blocks, chainId }) => {
     if (blocks.length === 0) return;
     return database.wrap(
