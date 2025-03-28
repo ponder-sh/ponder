@@ -50,7 +50,7 @@ import {
 
 export type CachedViemClient = {
   getClient: (network: Network) => ReadonlyClient;
-  load: (params: {
+  prefetch: (params: {
     events: Event[];
     eventCount: { [eventName: string]: number };
   }) => Promise<void>;
@@ -468,7 +468,7 @@ export const createCachedViemClient = ({
         // @ts-expect-error overriding `readContract` is not supported by viem
       }).extend(ponderActions);
     },
-    async load({ events, eventCount }) {
+    async prefetch({ events, eventCount }) {
       // Use profiling metadata + next event batch to determine which
       // rpc requests are going to be made, and preload them into the cache.
 
@@ -545,6 +545,8 @@ export const createCachedViemClient = ({
             const resultPromise = requestQueue
               .request(request.request as EIP1193Parameters<PublicRpcSchema>)
               .then((result) => JSON.stringify(result));
+
+            // Note: Unawaited request added to cache
             cache
               .get(chainId)!
               .set(getCacheKey(request.request), resultPromise);
