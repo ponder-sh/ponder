@@ -1,6 +1,9 @@
+import type { Common } from "@/internal/common.js";
 import type { IndexingBuild, Network, SetupEvent } from "@/internal/types.js";
 import type { Event } from "@/internal/types.js";
 import type { SyncStore } from "@/sync-store/index.js";
+import { toLowerCase } from "@/utils/lowercase.js";
+import { orderObject } from "@/utils/order.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
   type Abi,
@@ -10,6 +13,7 @@ import {
   type Client,
   type ContractFunctionArgs,
   type ContractFunctionName,
+  type EIP1193Parameters,
   type GetBlockReturnType,
   type GetBlockTransactionCountReturnType,
   type GetTransactionCountReturnType,
@@ -36,6 +40,7 @@ import {
   multicall3Abi,
   publicActions,
   toFunctionSelector,
+  toHex,
 } from "viem";
 import {
   getProfilePatternKey,
@@ -43,8 +48,7 @@ import {
   recoverProfilePattern,
 } from "./profile.js";
 
-// TODO(kyle) better name
-export type IndexingClient = {
+export type CachedViemClient = {
   getClient: (network: Network) => ReadonlyClient;
   load: ({ events }: { events: Event[] }) => Promise<void>;
   clear: () => void;
@@ -220,15 +224,23 @@ export type ReadonlyClient<
   >
 >;
 
+/**
+ * RPC request.
+ */
 export type Request = Pick<
   ReadContractParameters,
   "abi" | "address" | "functionName" | "args"
->;
+> & { blockNumber: bigint; chainId: number };
 /**
  * Serialized RPC request for uniquely identifying a request.
  *
+ * @dev Encoded from {@link Request} using `abi`.
+ *
  * @example
- * TODO(kyle)
+ * "{
+ *   "method": "eth_call",
+ *   "params": [{"data": "0x123", "to": "0x456"}, "0x789"]
+ * }"
  */
 type CacheKey = string;
 /**
@@ -238,13 +250,9 @@ type CacheKey = string;
  * "0x123"
  *
  * @example
- * {
- *   "number": "0x69",
- *   "timestamp": "0x6969",
- *   // ... more block properties
- * }
+ * ""0x123456789""
  */
-type Response = Awaited<ReturnType<RequestQueue["request"]>>;
+type Response = string;
 /**
  * Recorded RPC request pattern.
  *
@@ -284,32 +292,37 @@ type EventName = string;
 /**
  * Metadata about RPC request patterns for each event.
  *
- * TODO(kyle) jsdoc tag for devs
- * Only profile "eth_call" requests.
+ * @dev Only profile "eth_call" requests.
  */
 // TODO(kyle) add numerator and denominator
 type Profile = Map<EventName, Map<ProfileKey, ProfilePattern>>;
 /**
  * Cache of RPC responses.
  */
-type Cache = Map<CacheKey, Response>;
+type Cache = Map<number, Map<CacheKey, Promise<Response>>>;
 
-//  const getCacheKey = (request: Request) => {
-//   return toLowerCase(JSON.stringify(orderObject(request)));
-// };
+const getCacheKey = (request: EIP1193Parameters) => {
+  return toLowerCase(JSON.stringify(orderObject(request)));
+};
 
-export const createIndexingClient = ({
+export const createCachedViemClient = ({
+  common,
   indexingBuild,
   requestQueues,
   syncStore,
 }: {
+  common: Common;
   indexingBuild: Pick<IndexingBuild, "networks">;
   requestQueues: RequestQueue[];
   syncStore: SyncStore;
-}): IndexingClient => {
+}): CachedViemClient => {
   let event: Event | SetupEvent | undefined;
   const cache: Cache = new Map();
   const profile: Profile = new Map();
+
+  for (const network of indexingBuild.networks) {
+    cache.set(network.chainId, new Map());
+  }
 
   const ponderActions = <
     TTransport extends Transport = Transport,
@@ -437,18 +450,82 @@ export const createIndexingClient = ({
       // Use profiling metadata + next event batch to determine which
       // rpc requests are going to be made, and preload them into the cache.
 
-      const prediction = new Map<CacheKey, Request>();
+      // TODO(kyle) weight + dedupe predictions
+      const prediction: Request[] = [];
 
       for (const event of events) {
         if (profile.has(event.name)) {
-          for (const [key, pattern] of profile.get(event.name)!) {
-            prediction.set(key, recoverProfilePattern(pattern, event));
+          for (const [, pattern] of profile.get(event.name)!) {
+            prediction.push(recoverProfilePattern(pattern, event));
           }
         }
       }
 
-      // fetch requests
-      // cache responses
+      const chainRequests: Map<number, EIP1193Parameters[]> = new Map();
+      for (const network of indexingBuild.networks) {
+        chainRequests.set(network.chainId, []);
+      }
+
+      for (const request of prediction.values()) {
+        chainRequests.get(request.chainId)!.push({
+          method: "eth_call",
+          params: [
+            {
+              to: request.address,
+              data: encodeFunctionData({
+                abi: request.abi,
+                functionName: request.functionName,
+                args: request.args,
+              }),
+            },
+            toHex(request.blockNumber),
+          ],
+        });
+      }
+
+      let fetchCount = 0;
+
+      for (const [chainId, requests] of chainRequests.entries()) {
+        const requestQueue =
+          requestQueues[
+            indexingBuild.networks.findIndex((n) => n.chainId === chainId)
+          ]!;
+
+        const cachedResults = await syncStore.getRpcRequestResults({
+          requests,
+          chainId,
+        });
+
+        const resultPromises = requests.map((request, index) => {
+          if (cachedResults[index] !== undefined) {
+            return Promise.resolve(cachedResults[index]!);
+          }
+
+          // TODO(kyle) handle errors
+
+          fetchCount++;
+
+          return requestQueue
+            .request(request as EIP1193Parameters<PublicRpcSchema>)
+            .then((result) => JSON.stringify(result));
+        });
+
+        for (let i = 0; i < requests.length; i++) {
+          const request = requests[i]!;
+          const resultPromise = resultPromises[i]!;
+
+          const cacheKey = getCacheKey(request);
+
+          cache.get(chainId)!.set(cacheKey, resultPromise);
+        }
+      }
+
+      if (fetchCount > 0) {
+        common.logger.debug({
+          service: "rpc",
+          msg: `Pre-fetched ${fetchCount} RPC requests`,
+        });
+      }
     },
     clear() {
       cache.clear();
@@ -464,7 +541,7 @@ export const cachedTransport =
     network,
     requestQueue,
     syncStore,
-    // cache,
+    cache,
   }: {
     network: Network;
     requestQueue: RequestQueue;
@@ -492,8 +569,8 @@ export const cachedTransport =
             method: "eth_call",
             params: [
               {
-                data: call.callData,
                 to: call.target,
+                data: call.callData,
               },
               blockNumber,
             ],
@@ -631,11 +708,37 @@ export const cachedTransport =
               break;
           }
 
-          // const cacheKey = getCacheKey(body);
+          const cacheKey = getCacheKey(body);
 
-          // if (cache.has(cacheKey)) {
-          //   return cache.get(cacheKey)!;
-          // }
+          if (cache.get(network.chainId)!.has(cacheKey)) {
+            const cachedResult = await cache
+              .get(network.chainId)!
+              .get(cacheKey)!;
+
+            syncStore
+              .insertRpcRequestResults({
+                requests: [
+                  {
+                    request: body,
+                    blockNumber:
+                      blockNumber === undefined
+                        ? undefined
+                        : blockNumber === "latest"
+                          ? 0
+                          : hexToNumber(blockNumber),
+                    result: cachedResult,
+                  },
+                ],
+                chainId: network.chainId,
+              })
+              .catch(() => {});
+
+            try {
+              return JSON.parse(cachedResult);
+            } catch {
+              return cachedResult;
+            }
+          }
 
           const [cachedResult] = await syncStore.getRpcRequestResults({
             requests: [body],
