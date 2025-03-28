@@ -50,7 +50,10 @@ import {
 
 export type CachedViemClient = {
   getClient: (network: Network) => ReadonlyClient;
-  load: ({ events }: { events: Event[] }) => Promise<void>;
+  load: (params: {
+    events: Event[];
+    eventCount: { [eventName: string]: number };
+  }) => Promise<void>;
   clear: () => void;
   event: Event | SetupEvent | undefined;
 };
@@ -294,8 +297,10 @@ type EventName = string;
  *
  * @dev Only profile "eth_call" requests.
  */
-// TODO(kyle) add numerator and denominator
-type Profile = Map<EventName, Map<ProfileKey, ProfilePattern>>;
+type Profile = Map<
+  EventName,
+  Map<ProfileKey, { pattern: ProfilePattern; count: number }>
+>;
 /**
  * Cache of RPC responses.
  */
@@ -370,7 +375,14 @@ export const createCachedViemClient = ({
           });
           if (profilePattern) {
             const profilePatternKey = getProfilePatternKey(profilePattern);
-            profile.get(event!.name)!.set(profilePatternKey, profilePattern);
+
+            if (profile.get(event!.name)!.has(profilePatternKey)) {
+              profile.get(event!.name)!.get(profilePatternKey)!.count++;
+            } else {
+              profile
+                .get(event!.name)!
+                .set(profilePatternKey, { pattern: profilePattern, count: 1 });
+            }
           }
         }
 
@@ -456,81 +468,94 @@ export const createCachedViemClient = ({
         // @ts-expect-error overriding `readContract` is not supported by viem
       }).extend(ponderActions);
     },
-    async load({ events }) {
+    async load({ events, eventCount }) {
       // Use profiling metadata + next event batch to determine which
       // rpc requests are going to be made, and preload them into the cache.
 
-      // TODO(kyle) weight + dedupe predictions
-      const prediction: Request[] = [];
+      const prediction: { ev: number; request: Request }[] = [];
 
       for (const event of events) {
         if (profile.has(event.name)) {
-          for (const [, pattern] of profile.get(event.name)!) {
-            prediction.push(recoverProfilePattern(pattern, event));
+          for (const [, { pattern, count }] of profile.get(event.name)!) {
+            // Expected value of times the prediction will be used.
+            const ev = count / eventCount[event.name]!;
+            prediction.push({
+              ev,
+              request: recoverProfilePattern(pattern, event),
+            });
           }
         }
       }
 
-      const chainRequests: Map<number, EIP1193Parameters[]> = new Map();
+      const encodeRequest = (request: Request) => ({
+        method: "eth_call",
+        params: [
+          {
+            to: request.address,
+            data: encodeFunctionData({
+              abi: request.abi,
+              functionName: request.functionName,
+              args: request.args,
+            }),
+          },
+          toHex(request.blockNumber),
+        ],
+      });
+
+      // TODO(kyle) dedupe predictions
+
+      const chainRequests: Map<
+        number,
+        { ev: number; request: EIP1193Parameters }[]
+      > = new Map();
       for (const network of indexingBuild.networks) {
         chainRequests.set(network.chainId, []);
       }
 
-      for (const request of prediction.values()) {
+      for (const { ev, request } of prediction.values()) {
         chainRequests.get(request.chainId)!.push({
-          method: "eth_call",
-          params: [
-            {
-              to: request.address,
-              data: encodeFunctionData({
-                abi: request.abi,
-                functionName: request.functionName,
-                args: request.args,
-              }),
-            },
-            toHex(request.blockNumber),
-          ],
+          ev,
+          request: encodeRequest(request),
         });
       }
 
       for (const [chainId, requests] of chainRequests.entries()) {
-        const index = indexingBuild.networks.findIndex(
+        const ni = indexingBuild.networks.findIndex(
           (n) => n.chainId === chainId,
         );
-        const network = indexingBuild.networks[index]!;
-        const requestQueue = requestQueues[index]!;
+        const network = indexingBuild.networks[ni]!;
+        const requestQueue = requestQueues[ni]!;
+
+        const dbRequests = requests.filter(({ ev }) => ev > 0.5);
 
         const cachedResults = await syncStore.getRpcRequestResults({
-          requests,
+          requests: dbRequests.map(({ request }) => request),
           chainId,
         });
 
-        const resultPromises = requests.map((request, index) => {
-          if (cachedResults[index] !== undefined) {
-            return Promise.resolve(cachedResults[index]!);
+        for (let i = 0; i < dbRequests.length; i++) {
+          const request = dbRequests[i]!;
+          const cachedResult = cachedResults[i]!;
+
+          if (cachedResult !== undefined) {
+            cache
+              .get(chainId)!
+              .set(getCacheKey(request.request), Promise.resolve(cachedResult));
+          } else if (request.ev > 0.8) {
+            const resultPromise = requestQueue
+              .request(request.request as EIP1193Parameters<PublicRpcSchema>)
+              .then((result) => JSON.stringify(result));
+            cache
+              .get(chainId)!
+              .set(getCacheKey(request.request), resultPromise);
           }
-
-          // TODO(kyle) handle errors
-
-          return requestQueue
-            .request(request as EIP1193Parameters<PublicRpcSchema>)
-            .then((result) => JSON.stringify(result));
-        });
-
-        if (requests.length > 0) {
-          common.logger.debug({
-            service: "rpc",
-            msg: `Pre-fetched ${requests.length} ${network.name} RPC requests`,
-          });
         }
 
-        for (let i = 0; i < requests.length; i++) {
-          const request = requests[i]!;
-          const resultPromise = resultPromises[i]!;
-
-          const cacheKey = getCacheKey(request);
-
-          cache.get(chainId)!.set(cacheKey, resultPromise);
+        if (dbRequests.length > 0) {
+          common.logger.debug({
+            service: "rpc",
+            msg: `Pre-fetched ${dbRequests.length} ${network.name} RPC requests`,
+          });
         }
       }
     },
@@ -799,7 +824,6 @@ export const cachedTransport =
                     result: JSON.stringify(response),
                   },
                 ],
-                // TODO(kyle) this may cause some cache misses for misconfigured chains
                 chainId: network.chainId,
               })
               .catch(() => {});

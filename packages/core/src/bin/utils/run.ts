@@ -170,12 +170,17 @@ export async function run({
   )) {
     let endClock = startClock();
 
-    await indexingCache.prefetch({
-      events,
-      db: database.qb.drizzle,
-      eventCount: indexing.getEventCount(),
-    });
-    await cachedViemClient.load({ events });
+    await Promise.all([
+      indexingCache.prefetch({
+        events,
+        db: database.qb.drizzle,
+        eventCount: indexing.getEventCount(),
+      }),
+      cachedViemClient.load({
+        events,
+        eventCount: indexing.getEventCount(),
+      }),
+    ]);
     common.metrics.ponder_historical_transform_duration.inc(
       { step: "prefetch" },
       endClock(),
