@@ -176,7 +176,7 @@ export async function run({
         db: database.qb.drizzle,
         eventCount: indexing.getEventCount(),
       }),
-      cachedViemClient.load({
+      cachedViemClient.prefetch({
         events,
         eventCount: indexing.getEventCount(),
       }),
@@ -185,7 +185,6 @@ export async function run({
       { step: "prefetch" },
       endClock(),
     );
-
     if (events.length > 0) {
       endClock = startClock();
       await database.retry(async () => {
