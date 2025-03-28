@@ -3,7 +3,7 @@ import type { Database } from "@/database/index.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
-import { createIndexingClient } from "@/indexing/client.js";
+import { createCachedViemClient } from "@/indexing/client.js";
 import { createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import { FlushError } from "@/internal/errors.js";
@@ -77,7 +77,8 @@ export async function run({
     ordering: preBuild.ordering,
   });
 
-  const indexingClient = createIndexingClient({
+  const cachedViemClient = createCachedViemClient({
+    common,
     indexingBuild,
     requestQueues,
     syncStore,
@@ -86,7 +87,7 @@ export async function run({
   const indexing = createIndexing({
     common,
     indexingBuild,
-    client: indexingClient,
+    client: cachedViemClient,
   });
 
   const indexingCache = createIndexingCache({
@@ -167,8 +168,10 @@ export async function run({
       );
     },
   )) {
-    await indexingCache.load({ events, db: database.qb.drizzle });
-    await indexingClient.load({ events });
+    await Promise.all([
+      indexingCache.load({ events, db: database.qb.drizzle }),
+      cachedViemClient.load({ events }),
+    ]);
     if (events.length > 0) {
       let endClock = startClock();
       await database.retry(async () => {
