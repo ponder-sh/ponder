@@ -296,6 +296,7 @@ export async function run({
             throw error;
           });
       });
+      cachedViemClient.clear();
       common.metrics.ponder_historical_transform_duration.inc(
         { step: "commit" },
         endClock(),
@@ -399,8 +400,6 @@ export async function run({
               service: "app",
               msg: `Decoded ${events.length} '${network.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
             });
-
-            // TODO(kyle) no rpc request prediction in realtime
 
             const result = await indexing.processEvents({
               events,

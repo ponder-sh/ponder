@@ -522,8 +522,6 @@ export const recoverProfilePattern = (
     return recover(obj[p[0]], path);
   };
 
-  // TODO(kyle) chainId
-
   return {
     address: recover(event.event, pattern.address.split(".")) as `0x${string}`,
     abi: pattern.abi,

@@ -350,15 +350,19 @@ export const createCachedViemClient = ({
       }: Parameters<PonderActions[action]>[0]) => {
         // profile "readContract" action
 
-        // TODO(kyle) args with blocknumber mismatch not recorded
+        // Note: prediction only possible when block number is managed by Ponder.
 
-        if (action === "readContract" && event && event?.type !== "setup") {
-          if (profile.has(event.name) === false) {
-            profile.set(event.name, new Map());
+        if (
+          action === "readContract" &&
+          event!.type !== "setup" &&
+          userBlockNumber === undefined
+        ) {
+          if (profile.has(event!.name) === false) {
+            profile.set(event!.name, new Map());
           }
 
           const profilePattern = recordProfilePattern({
-            event,
+            event: event!,
             args: args as Omit<
               Parameters<PonderActions["readContract"]>[0],
               "blockNumber" | "cache"
@@ -366,7 +370,7 @@ export const createCachedViemClient = ({
           });
           if (profilePattern) {
             const profilePatternKey = getProfilePatternKey(profilePattern);
-            profile.get(event.name)!.set(profilePatternKey, profilePattern);
+            profile.get(event!.name)!.set(profilePatternKey, profilePattern);
           }
         }
 
@@ -441,7 +445,13 @@ export const createCachedViemClient = ({
         requestQueues[indexingBuild.networks.findIndex((n) => n === network)]!;
 
       return createClient({
-        transport: cachedTransport({ network, requestQueue, syncStore, cache }),
+        transport: cachedTransport({
+          common,
+          network,
+          requestQueue,
+          syncStore,
+          cache,
+        }),
         chain: network.chain,
         // @ts-expect-error overriding `readContract` is not supported by viem
       }).extend(ponderActions);
@@ -483,13 +493,12 @@ export const createCachedViemClient = ({
         });
       }
 
-      let fetchCount = 0;
-
       for (const [chainId, requests] of chainRequests.entries()) {
-        const requestQueue =
-          requestQueues[
-            indexingBuild.networks.findIndex((n) => n.chainId === chainId)
-          ]!;
+        const index = indexingBuild.networks.findIndex(
+          (n) => n.chainId === chainId,
+        );
+        const network = indexingBuild.networks[index]!;
+        const requestQueue = requestQueues[index]!;
 
         const cachedResults = await syncStore.getRpcRequestResults({
           requests,
@@ -503,12 +512,17 @@ export const createCachedViemClient = ({
 
           // TODO(kyle) handle errors
 
-          fetchCount++;
-
           return requestQueue
             .request(request as EIP1193Parameters<PublicRpcSchema>)
             .then((result) => JSON.stringify(result));
         });
+
+        if (requests.length > 0) {
+          common.logger.debug({
+            service: "rpc",
+            msg: `Pre-fetched ${requests.length} ${network.name} RPC requests`,
+          });
+        }
 
         for (let i = 0; i < requests.length; i++) {
           const request = requests[i]!;
@@ -519,16 +533,11 @@ export const createCachedViemClient = ({
           cache.get(chainId)!.set(cacheKey, resultPromise);
         }
       }
-
-      if (fetchCount > 0) {
-        common.logger.debug({
-          service: "rpc",
-          msg: `Pre-fetched ${fetchCount} RPC requests`,
-        });
-      }
     },
     clear() {
-      cache.clear();
+      for (const network of indexingBuild.networks) {
+        cache.get(network.chainId)!.clear();
+      }
     },
     set event(_event: Event | undefined) {
       event = _event;
@@ -538,11 +547,13 @@ export const createCachedViemClient = ({
 
 export const cachedTransport =
   ({
+    common,
     network,
     requestQueue,
     syncStore,
     cache,
   }: {
+    common: Common;
     network: Network;
     requestQueue: RequestQueue;
     syncStore: SyncStore;
@@ -711,6 +722,11 @@ export const cachedTransport =
           const cacheKey = getCacheKey(body);
 
           if (cache.get(network.chainId)!.has(cacheKey)) {
+            common.metrics.ponder_indexing_rpc_requests_total.inc({
+              method,
+              type: "hit_memory",
+            });
+
             const cachedResult = await cache
               .get(network.chainId)!
               .get(cacheKey)!;
@@ -746,12 +762,22 @@ export const cachedTransport =
           });
 
           if (cachedResult !== undefined) {
+            common.metrics.ponder_indexing_rpc_requests_total.inc({
+              method,
+              type: "hit_db",
+            });
+
             try {
               return JSON.parse(cachedResult);
             } catch {
               return cachedResult;
             }
           }
+
+          common.metrics.ponder_indexing_rpc_requests_total.inc({
+            method,
+            type: "miss",
+          });
 
           const response = await requestQueue.request(body);
           // Note: "0x" is a valid response for some requests, but is sometimes erroneously returned by the RPC.
