@@ -689,3 +689,70 @@ test("buildConfigAndIndexingFunctions() block source", async () => {
   expect(sources[0]?.filter.fromBlock).toBe(16370000);
   expect(sources[0]?.filter.toBlock).toBe(16370020);
 });
+
+test("buildConfigAndIndexingFunctions() coerces undefined factory interval to source interval", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    },
+    contracts: {
+      a: {
+        network: { mainnet: {} },
+        address: factory({
+          address: address2,
+          event: eventFactory,
+          parameter: "child",
+        }),
+        abi: [event0, event1],
+        startBlock: 16370000,
+        endBlock: 16370100,
+      },
+    },
+  });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+  });
+
+  expect(
+    ((sources[0]!.filter as LogFilter).address as LogFactory).fromBlock ===
+      16370000,
+  );
+  expect(
+    ((sources[0]!.filter as LogFilter).address as LogFactory).toBlock ===
+      16370100,
+  );
+});
+
+test("buildConfigAndIndexingFunctions() validates factory interval", async () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    },
+    contracts: {
+      a: {
+        network: { mainnet: {} },
+        address: factory({
+          address: address2,
+          event: eventFactory,
+          parameter: "child",
+          startBlock: 16370050,
+        }),
+        abi: [event0, event1],
+        startBlock: 16370000,
+        endBlock: 16370100,
+      },
+    },
+  });
+
+  const result = await safeBuildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+  });
+
+  expect(result.status).toBe("error");
+  expect(result.error?.message).toBe(
+    "Validation failed: Start block for 'a' is before start block of factory address (16370050 > 16370000).",
+  );
+});
