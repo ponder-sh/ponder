@@ -459,8 +459,31 @@ export const createHistoricalSync = async (
   const syncAddressFactory = async (
     factory: Factory,
     interval: Interval,
+    filterFromBlock: number | undefined,
   ): Promise<Map<Address, number>> => {
-    await syncLogFactory(factory, interval);
+    /**
+     * We sync the factory if:
+     *  - factory is in the interval (factory.toblock >= interval[0] || factory.toBlock === undefined)
+     *  - this is the first interval for the filter (filterFromBlock === interval[0]) -> sync factory even before the filter block range
+     */
+    if (
+      factory.toBlock === undefined ||
+      factory.toBlock >= interval[0] ||
+      filterFromBlock === interval[0]
+    ) {
+      // Workaround: when filter's first interval is syncing, catch up on the sync factory in front of the filter.
+      const resolvedFactoryInterval: Interval = [
+        filterFromBlock !== undefined && filterFromBlock === interval[0]
+          ? factory.fromBlock ?? 0
+          : interval[0],
+        factory.toBlock !== undefined && factory.toBlock < interval[1]
+          ? factory.toBlock
+          : interval[1],
+      ];
+
+      await syncLogFactory(factory, resolvedFactoryInterval);
+    }
+
     // Note: `factory` must refer to the same original `factory` in `filter`
     // and not be a recovered factory from `recoverFilter`.
     return args.syncStore.getChildAddresses({ factory });
@@ -473,7 +496,11 @@ export const createHistoricalSync = async (
   const syncLogFilter = async (filter: LogFilter, interval: Interval) => {
     // Resolve `filter.address`
     const address = isAddressFactory(filter.address)
-      ? await syncAddressFactory(filter.address, interval).then((result) =>
+      ? await syncAddressFactory(
+          filter.address,
+          interval,
+          filter.fromBlock,
+        ).then((result) =>
           result.size >= args.common.options.factoryAddressCountThreshold
             ? undefined
             : Array.from(result.keys()),
@@ -567,11 +594,11 @@ export const createHistoricalSync = async (
     interval: Interval,
   ) => {
     const fromChildAddresses = isAddressFactory(filter.fromAddress)
-      ? await syncAddressFactory(filter.fromAddress, interval)
+      ? await syncAddressFactory(filter.fromAddress, interval, filter.fromBlock)
       : undefined;
 
     const toChildAddresses = isAddressFactory(filter.toAddress)
-      ? await syncAddressFactory(filter.toAddress, interval)
+      ? await syncAddressFactory(filter.toAddress, interval, filter.fromBlock)
       : undefined;
 
     const blocks = await Promise.all(
@@ -640,11 +667,11 @@ export const createHistoricalSync = async (
     interval: Interval,
   ) => {
     const fromChildAddresses = isAddressFactory(filter.fromAddress)
-      ? await syncAddressFactory(filter.fromAddress, interval)
+      ? await syncAddressFactory(filter.fromAddress, interval, filter.fromBlock)
       : undefined;
 
     const toChildAddresses = isAddressFactory(filter.toAddress)
-      ? await syncAddressFactory(filter.toAddress, interval)
+      ? await syncAddressFactory(filter.toAddress, interval, filter.fromBlock)
       : undefined;
 
     const requiredBlocks: Set<Hash> = new Set();
