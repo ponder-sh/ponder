@@ -2,6 +2,7 @@ import type { Common } from "@/internal/common.js";
 import type { IndexingBuild, Network, SetupEvent } from "@/internal/types.js";
 import type { Event } from "@/internal/types.js";
 import type { SyncStore } from "@/sync-store/index.js";
+import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
@@ -502,8 +503,6 @@ export const createCachedViemClient = ({
         ],
       });
 
-      // TODO(kyle) dedupe predictions
-
       const chainRequests: Map<
         number,
         { ev: number; request: EIP1193Parameters }[]
@@ -512,7 +511,9 @@ export const createCachedViemClient = ({
         chainRequests.set(network.chainId, []);
       }
 
-      for (const { ev, request } of prediction.values()) {
+      for (const { ev, request } of dedupe(prediction, ({ request }) =>
+        getCacheKey(encodeRequest(request)),
+      )) {
         chainRequests.get(request.chainId)!.push({
           ev,
           request: encodeRequest(request),
