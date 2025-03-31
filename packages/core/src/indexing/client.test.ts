@@ -8,57 +8,26 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { deployErc20, deployMulticall, mintErc20 } from "@/_test/simulate.js";
-import { anvil, getNetwork, publicClient } from "@/_test/utils.js";
+import { getNetwork, publicClient } from "@/_test/utils.js";
+import type { Event, LogEvent } from "@/internal/types.js";
+import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import {
   type Hex,
-  type Transport,
   decodeFunctionResult,
   encodeFunctionData,
   multicall3Abi,
   parseEther,
+  zeroAddress,
 } from "viem";
 import { toHex } from "viem";
-import { assertType, beforeEach, expect, test, vi } from "vitest";
-import { cachedTransport } from "./client.js";
+import { beforeEach, expect, test, vi } from "vitest";
+import { createCachedViemClient } from "./client.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
-
-test("default", async (context) => {
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
-    common: context.common,
-  });
-
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const transport = cachedTransport({
-    requestQueue,
-    syncStore,
-  });
-
-  assertType<Transport>(transport);
-
-  expect(transport({})).toMatchInlineSnapshot(`
-    {
-      "config": {
-        "key": "custom",
-        "name": "Custom Provider",
-        "request": [Function],
-        "retryCount": 0,
-        "retryDelay": 150,
-        "timeout": undefined,
-        "type": "custom",
-      },
-      "request": [Function],
-      "value": undefined,
-    }
-  `);
-});
 
 test("request() block dependent method", async (context) => {
   const network = getNetwork();
@@ -70,14 +39,16 @@ test("request() block dependent method", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
-  const transport = cachedTransport({
-    requestQueue,
+  const cachedViemClient = createCachedViemClient({
+    common: context.common,
+    indexingBuild: { networks: [network] },
+    requestQueues: [requestQueue],
     syncStore,
-  })({
-    chain: anvil,
   });
 
-  const response1 = await transport.request({
+  const request = cachedViemClient.getClient(network).request;
+
+  const response1 = await request({
     method: "eth_getBlockByNumber",
     params: [toHex(blockNumber), false],
   });
@@ -87,7 +58,7 @@ test("request() block dependent method", async (context) => {
   const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResults");
   const getSpy = vi.spyOn(syncStore, "getRpcRequestResults");
 
-  const response2 = await transport.request({
+  const response2 = await request({
     method: "eth_getBlockByNumber",
     params: [toHex(blockNumber), false],
   });
@@ -117,14 +88,16 @@ test("request() non-block dependent method", async (context) => {
   const blockNumber = await publicClient.getBlockNumber();
   const block = await publicClient.getBlock({ blockNumber: blockNumber });
 
-  const transport = cachedTransport({
-    requestQueue,
+  const cachedViemClient = createCachedViemClient({
+    common: context.common,
+    indexingBuild: { networks: [network] },
+    requestQueues: [requestQueue],
     syncStore,
-  })({
-    chain: anvil,
   });
 
-  const response1 = await transport.request({
+  const request = cachedViemClient.getClient(network).request;
+
+  const response1 = await request({
     method: "eth_getTransactionByHash",
     params: [block.transactions[0]!],
   });
@@ -134,7 +107,7 @@ test("request() non-block dependent method", async (context) => {
   const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResults");
   const getSpy = vi.spyOn(syncStore, "getRpcRequestResults");
 
-  const response2 = await transport.request({
+  const response2 = await request({
     method: "eth_getTransactionByHash",
     params: [block.transactions[0]!],
   });
@@ -153,17 +126,19 @@ test("request() non-cached method", async (context) => {
   });
 
   const { syncStore } = await setupDatabaseServices(context);
-  const transport = cachedTransport({
-    requestQueue,
+  const cachedViemClient = createCachedViemClient({
+    common: context.common,
+    indexingBuild: { networks: [network] },
+    requestQueues: [requestQueue],
     syncStore,
-  })({
-    chain: anvil,
   });
+
+  const request = cachedViemClient.getClient(network).request;
 
   const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResults");
   const getSpy = vi.spyOn(syncStore, "getRpcRequestResults");
 
-  expect(await transport.request({ method: "eth_blockNumber" })).toBeDefined();
+  expect(await request({ method: "eth_blockNumber" })).toBeDefined();
 
   expect(insertSpy).toHaveBeenCalledTimes(0);
   expect(getSpy).toHaveBeenCalledTimes(0);
@@ -178,12 +153,14 @@ test("request() multicall", async (context) => {
 
   const { syncStore } = await setupDatabaseServices(context);
 
-  const transport = cachedTransport({
-    requestQueue,
+  const cachedViemClient = createCachedViemClient({
+    common: context.common,
+    indexingBuild: { networks: [network] },
+    requestQueues: [requestQueue],
     syncStore,
-  })({
-    chain: anvil,
   });
+
+  const request = cachedViemClient.getClient(network).request;
 
   const { address: multicall } = await deployMulticall({ sender: ALICE });
   const { address } = await deployErc20({ sender: ALICE });
@@ -194,7 +171,7 @@ test("request() multicall", async (context) => {
     sender: ALICE,
   });
 
-  const response1 = await transport.request({
+  const response1 = await request({
     method: "eth_call",
     params: [
       {
@@ -241,7 +218,7 @@ test("request() multicall", async (context) => {
     ]
   `);
 
-  const response2 = await transport.request({
+  const response2 = await request({
     method: "eth_call",
     params: [
       {
@@ -308,16 +285,18 @@ test("request() multicall empty", async (context) => {
 
   const { syncStore } = await setupDatabaseServices(context);
 
-  const transport = cachedTransport({
-    requestQueue,
+  const cachedViemClient = createCachedViemClient({
+    common: context.common,
+    indexingBuild: { networks: [network] },
+    requestQueues: [requestQueue],
     syncStore,
-  })({
-    chain: anvil,
   });
+
+  const request = cachedViemClient.getClient(network).request;
 
   const { address: multicall } = await deployMulticall({ sender: ALICE });
 
-  const response = await transport.request({
+  const response = await request({
     method: "eth_call",
     params: [
       {
@@ -341,4 +320,80 @@ test("request() multicall empty", async (context) => {
   });
 
   expect(result).toMatchInlineSnapshot("[]");
+});
+
+test("prefetch() uses profile metadata", async (context) => {
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { syncStore } = await setupDatabaseServices(context);
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const event = {
+    type: "log",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: {
+        from: zeroAddress,
+        to: ALICE,
+        amount: parseEther("1"),
+      },
+      log: {
+        address,
+      } as LogEvent["event"]["log"],
+      block: { number: 1n } as LogEvent["event"]["block"],
+      transaction: {} as LogEvent["event"]["transaction"],
+    },
+  } satisfies LogEvent;
+
+  const cachedViemClient = createCachedViemClient({
+    common: context.common,
+    indexingBuild: { networks: [network] },
+    requestQueues: [requestQueue],
+    syncStore,
+  });
+  cachedViemClient.event = event;
+
+  let totalSupply = await cachedViemClient.getClient(network).readContract({
+    abi: erc20ABI,
+    functionName: "totalSupply",
+    address,
+  });
+
+  expect(totalSupply).toBe(parseEther("0"));
+
+  event.event.block.number = 2n;
+  cachedViemClient.event = event;
+
+  await cachedViemClient.prefetch({
+    events: [event],
+    eventCount: { "": 1 },
+  });
+
+  const requestSpy = vi.spyOn(requestQueue, "request");
+  const getSpy = vi.spyOn(syncStore, "getRpcRequestResults");
+
+  totalSupply = await cachedViemClient.getClient(network).readContract({
+    abi: erc20ABI,
+    functionName: "totalSupply",
+    address,
+  });
+
+  expect(totalSupply).toBe(parseEther("1"));
+
+  expect(requestSpy).toHaveBeenCalledTimes(0);
+  expect(getSpy).toHaveBeenCalledTimes(0);
 });
