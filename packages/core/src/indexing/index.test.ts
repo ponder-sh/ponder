@@ -14,24 +14,16 @@ import {
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import { onchainTable } from "@/drizzle/onchain.js";
-import { cachedTransport } from "@/indexing/client.js";
-import type { RawEvent } from "@/internal/types.js";
+import { createCachedViemClient } from "@/indexing/client.js";
+import type { Event, LogEvent, RawEvent } from "@/internal/types.js";
 import { decodeEvents } from "@/sync/events.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
-import {
-  checksumAddress,
-  createClient,
-  padHex,
-  parseEther,
-  toHex,
-  zeroAddress,
-} from "viem";
+import { checksumAddress, padHex, parseEther, toHex, zeroAddress } from "viem";
 import { ContractFunctionZeroDataError } from "viem";
 import { encodeEventTopics } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 import { type Context, createIndexing } from "./index.js";
-import { type ReadOnlyClient, getPonderActions } from "./ponderActions.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
@@ -59,6 +51,13 @@ test("createIndexing()", async (context) => {
     schemaBuild: { schema },
   });
 
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    syncStore,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -66,13 +65,7 @@ test("createIndexing()", async (context) => {
       networks,
       indexingFunctions: {},
     },
-    requestQueues: [
-      createRequestQueue({
-        network: networks[0]!,
-        common,
-      }),
-    ],
-    syncStore,
+    client: cachedViemClient,
   });
 
   expect(indexing).toBeDefined();
@@ -84,6 +77,13 @@ test("processSetupEvents() empty", async (context) => {
     schemaBuild: { schema },
   });
 
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    syncStore,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -91,13 +91,7 @@ test("processSetupEvents() empty", async (context) => {
       networks,
       indexingFunctions: {},
     },
-    requestQueues: [
-      createRequestQueue({
-        network: networks[0]!,
-        common,
-      }),
-    ],
-    syncStore,
+    client: cachedViemClient,
   });
 
   const result = await indexing.processSetupEvents({ db: indexingStore });
@@ -115,6 +109,13 @@ test("processSetupEvents()", async (context) => {
     "Erc20:setup": vi.fn(),
   };
 
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    syncStore,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -122,13 +123,7 @@ test("processSetupEvents()", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [
-      createRequestQueue({
-        network: networks[0]!,
-        common,
-      }),
-    ],
-    syncStore,
+    client: cachedViemClient,
   });
 
   const result = await indexing.processSetupEvents({ db: indexingStore });
@@ -166,6 +161,13 @@ test("processEvent()", async (context) => {
     "Pair:Swap": vi.fn(),
   };
 
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    syncStore,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -173,13 +175,7 @@ test("processEvent()", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [
-      createRequestQueue({
-        network: networks[0]!,
-        common,
-      }),
-    ],
-    syncStore,
+    client: cachedViemClient,
   });
 
   const topics = encodeEventTopics({
@@ -252,6 +248,13 @@ test("processEvents eventCount", async (context) => {
       vi.fn(),
   };
 
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    syncStore,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -259,13 +262,7 @@ test("processEvents eventCount", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [
-      createRequestQueue({
-        network: networks[0]!,
-        common,
-      }),
-    ],
-    syncStore,
+    client: cachedViemClient,
   });
 
   const topics = encodeEventTopics({
@@ -321,6 +318,13 @@ test("executeSetup() context.client", async (context) => {
     common,
   });
 
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [requestQueue],
+    syncStore,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -328,8 +332,7 @@ test("executeSetup() context.client", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [requestQueue],
-    syncStore,
+    client: cachedViemClient,
   });
 
   const getBalanceSpy = vi.spyOn(requestQueue, "request");
@@ -359,6 +362,13 @@ test("executeSetup() context.db", async (context) => {
     },
   };
 
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    syncStore,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -366,13 +376,7 @@ test("executeSetup() context.db", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [
-      createRequestQueue({
-        network: networks[0]!,
-        common,
-      }),
-    ],
-    syncStore,
+    client: cachedViemClient,
   });
 
   const insertSpy = vi.spyOn(indexingStore, "insert");
@@ -396,6 +400,13 @@ test("executeSetup() metrics", async (context) => {
     schemaBuild: { schema },
   });
 
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    syncStore,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -405,13 +416,7 @@ test("executeSetup() metrics", async (context) => {
       sources,
       networks,
     },
-    requestQueues: [
-      createRequestQueue({
-        network: networks[0]!,
-        common,
-      }),
-    ],
-    syncStore,
+    client: cachedViemClient,
   });
 
   const result = await indexing.processSetupEvents({ db: indexingStore });
@@ -431,6 +436,13 @@ test("executeSetup() error", async (context) => {
     "Erc20:setup": vi.fn(),
   };
 
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    syncStore,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -438,13 +450,7 @@ test("executeSetup() error", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [
-      createRequestQueue({
-        network: networks[0]!,
-        common,
-      }),
-    ],
-    syncStore,
+    client: cachedViemClient,
   });
 
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
@@ -472,6 +478,13 @@ test("processEvents() context.client", async (context) => {
     common,
   });
 
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [requestQueue],
+    syncStore,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -482,8 +495,7 @@ test("processEvents() context.client", async (context) => {
       sources,
       networks,
     },
-    requestQueues: [requestQueue],
-    syncStore,
+    client: cachedViemClient,
   });
 
   const getBalanceSpy = vi.spyOn(requestQueue, "request");
@@ -534,6 +546,13 @@ test("processEvents() context.db", async (context) => {
     });
   };
 
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    syncStore,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -544,13 +563,7 @@ test("processEvents() context.db", async (context) => {
       sources,
       networks,
     },
-    requestQueues: [
-      createRequestQueue({
-        network: networks[0]!,
-        common,
-      }),
-    ],
-    syncStore,
+    client: cachedViemClient,
   });
 
   const insertSpy = vi.spyOn(indexingStore, "insert");
@@ -592,6 +605,13 @@ test("processEvents() metrics", async (context) => {
     schemaBuild: { schema },
   });
 
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    syncStore,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -602,13 +622,7 @@ test("processEvents() metrics", async (context) => {
       sources,
       networks,
     },
-    requestQueues: [
-      createRequestQueue({
-        network: networks[0]!,
-        common,
-      }),
-    ],
-    syncStore,
+    client: cachedViemClient,
   });
 
   const topics = encodeEventTopics({
@@ -652,6 +666,13 @@ test("processEvents() error", async (context) => {
       vi.fn(),
   };
 
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [createRequestQueue({ network: networks[0]!, common })],
+    syncStore,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -659,13 +680,7 @@ test("processEvents() error", async (context) => {
       networks,
       indexingFunctions,
     },
-    requestQueues: [
-      createRequestQueue({
-        network: networks[0]!,
-        common,
-      }),
-    ],
-    syncStore,
+    client: cachedViemClient,
   });
 
   indexingFunctions[
@@ -725,6 +740,13 @@ test("processEvents() error with missing event object properties", async (contex
       throwError,
   };
 
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks: [network] },
+    requestQueues: [createRequestQueue({ network, common })],
+    syncStore,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -732,13 +754,7 @@ test("processEvents() error with missing event object properties", async (contex
       sources,
       networks,
     },
-    requestQueues: [
-      createRequestQueue({
-        network,
-        common: context.common,
-      }),
-    ],
-    syncStore,
+    client: cachedViemClient,
   });
 
   const topics = encodeEventTopics({
@@ -783,15 +799,20 @@ test("ponderActions getBalance()", async (context) => {
     common,
   });
 
-  const client = createClient({
-    transport: cachedTransport({ requestQueue, syncStore }),
-    chain: networks[0]!.chain,
-    // @ts-ignore
-  }).extend(getPonderActions(() => 0n!)) as ReadOnlyClient;
-
-  const balance = await client.getBalance({
-    address: BOB,
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [requestQueue],
+    syncStore,
   });
+  cachedViemClient.event = {
+    type: "log",
+    event: { block: { number: 0n } },
+  } as Event;
+
+  const client = cachedViemClient.getClient(networks[0]!);
+
+  const balance = await client.getBalance({ address: BOB });
 
   expect(balance).toBe(parseEther("10000"));
 });
@@ -809,11 +830,18 @@ test("ponderActions getCode()", async (context) => {
     common,
   });
 
-  const client = createClient({
-    transport: cachedTransport({ requestQueue, syncStore }),
-    chain: networks[0]!.chain,
-    // @ts-ignore
-  }).extend(getPonderActions(() => 1n!)) as ReadOnlyClient;
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [requestQueue],
+    syncStore,
+  });
+  cachedViemClient.event = {
+    type: "log",
+    event: { block: { number: 1n } },
+  } as Event;
+
+  const client = cachedViemClient.getClient(networks[0]!);
 
   const bytecode = await client.getCode({
     address,
@@ -841,11 +869,18 @@ test("ponderActions getStorageAt()", async (context) => {
     common,
   });
 
-  const client = createClient({
-    transport: cachedTransport({ requestQueue, syncStore }),
-    chain: networks[0]!.chain,
-    // @ts-ignore
-  }).extend(getPonderActions(() => 2n!)) as ReadOnlyClient;
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [requestQueue],
+    syncStore,
+  });
+  cachedViemClient.event = {
+    type: "log",
+    event: { block: { number: 2n } },
+  } as Event;
+
+  const client = cachedViemClient.getClient(networks[0]!);
 
   const storage = await client.getStorageAt({
     address,
@@ -875,11 +910,23 @@ test("ponderActions readContract()", async (context) => {
     common,
   });
 
-  const client = createClient({
-    transport: cachedTransport({ requestQueue, syncStore }),
-    chain: networks[0]!.chain,
-    // @ts-ignore
-  }).extend(getPonderActions(() => 2n!)) as ReadOnlyClient;
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [requestQueue],
+    syncStore,
+  });
+  cachedViemClient.event = {
+    type: "log",
+    event: {
+      args: {},
+      log: {} as LogEvent["event"]["log"],
+      block: { number: 2n } as LogEvent["event"]["block"],
+      transaction: {} as LogEvent["event"]["transaction"],
+    },
+  } as Event;
+
+  const client = cachedViemClient.getClient(networks[0]!);
 
   const totalSupply = await client.readContract({
     abi: erc20ABI,
@@ -909,11 +956,18 @@ test("ponderActions readContract() blockNumber", async (context) => {
     common,
   });
 
-  const client = createClient({
-    transport: cachedTransport({ requestQueue, syncStore }),
-    chain: networks[0]!.chain,
-    // @ts-ignore
-  }).extend(getPonderActions(() => 2n!)) as ReadOnlyClient;
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [requestQueue],
+    syncStore,
+  });
+  cachedViemClient.event = {
+    type: "log",
+    event: { block: { number: 2n } },
+  } as Event;
+
+  const client = cachedViemClient.getClient(networks[0]!);
 
   const totalSupply = await client.readContract({
     abi: erc20ABI,
@@ -952,11 +1006,18 @@ test("ponderActions readContract() ContractFunctionZeroDataError", async (contex
     }),
   );
 
-  const client = createClient({
-    transport: cachedTransport({ requestQueue, syncStore }),
-    chain: networks[0]!.chain,
-    // @ts-ignore
-  }).extend(getPonderActions(() => 2n!)) as ReadOnlyClient;
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [requestQueue],
+    syncStore,
+  });
+  cachedViemClient.event = {
+    type: "log",
+    event: { block: { number: 2n } },
+  } as Event;
+
+  const client = cachedViemClient.getClient(networks[0]!);
 
   const totalSupply = await client.readContract({
     abi: erc20ABI,
@@ -988,11 +1049,18 @@ test("ponderActions multicall()", async (context) => {
     common,
   });
 
-  const client = createClient({
-    transport: cachedTransport({ requestQueue, syncStore }),
-    chain: networks[0]!.chain,
-    // @ts-ignore
-  }).extend(getPonderActions(() => 3n!)) as ReadOnlyClient;
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [requestQueue],
+    syncStore,
+  });
+  cachedViemClient.event = {
+    type: "log",
+    event: { block: { number: 3n } },
+  } as Event;
+
+  const client = cachedViemClient.getClient(networks[0]!);
 
   const [totalSupply] = await client.multicall({
     allowFailure: false,
