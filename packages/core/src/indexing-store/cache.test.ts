@@ -267,7 +267,7 @@ test("flush() encoding escape", async (context) => {
   });
 });
 
-test("prefetch() queries predicted rows", async (context) => {
+test("prefetch() uses profile metadata", async (context) => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
