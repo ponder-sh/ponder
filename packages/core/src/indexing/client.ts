@@ -305,7 +305,7 @@ type Profile = Map<
 /**
  * Cache of RPC responses.
  */
-type Cache = Map<number, Map<CacheKey, Promise<Response>>>;
+type Cache = Map<number, Map<CacheKey, Promise<Response> | Response>>;
 
 const getCacheKey = (request: EIP1193Parameters) => {
   return toLowerCase(JSON.stringify(orderObject(request)));
@@ -539,9 +539,7 @@ export const createCachedViemClient = ({
           const cachedResult = cachedResults[i]!;
 
           if (cachedResult !== undefined) {
-            cache
-              .get(chainId)!
-              .set(getCacheKey(request.request), Promise.resolve(cachedResult));
+            cache.get(chainId)!.set(getCacheKey(request.request), cachedResult);
           } else if (request.ev > 0.8) {
             const resultPromise = requestQueue
               .request(request.request as EIP1193Parameters<PublicRpcSchema>)
@@ -755,27 +753,36 @@ export const cachedTransport =
               type: "hit_memory",
             });
 
-            const cachedResult = await cache
-              .get(network.chainId)!
-              .get(cacheKey)!;
+            const cachedResult = cache.get(network.chainId)!.get(cacheKey)!;
 
-            syncStore
-              .insertRpcRequestResults({
-                requests: [
-                  {
-                    request: body,
-                    blockNumber:
-                      blockNumber === undefined
-                        ? undefined
-                        : blockNumber === "latest"
-                          ? 0
-                          : hexToNumber(blockNumber),
-                    result: cachedResult,
-                  },
-                ],
-                chainId: network.chainId,
-              })
-              .catch(() => {});
+            // `cachedResult` is a Promise if the request had to be fetched from the RPC.
+            if (cachedResult instanceof Promise) {
+              const result = await cachedResult;
+
+              syncStore
+                .insertRpcRequestResults({
+                  requests: [
+                    {
+                      request: body,
+                      blockNumber:
+                        blockNumber === undefined
+                          ? undefined
+                          : blockNumber === "latest"
+                            ? 0
+                            : hexToNumber(blockNumber),
+                      result,
+                    },
+                  ],
+                  chainId: network.chainId,
+                })
+                .catch(() => {});
+
+              try {
+                return JSON.parse(result);
+              } catch {
+                return result;
+              }
+            }
 
             try {
               return JSON.parse(cachedResult);
