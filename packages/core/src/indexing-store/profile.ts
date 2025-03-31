@@ -39,46 +39,34 @@ export const recordProfilePattern = (
     // @ts-ignore
     const value = key[js]!;
 
-    if ("chainId" in result === false && eq(event.chainId, value)) {
+    if (eq(event.chainId, value)) {
       result[js] = "chainId";
       continue;
     }
 
-    if ("id" in result === false && eq(event.event.id, value)) {
+    if (eq(event.event.id, value)) {
       result[js] = "id";
       continue;
     }
 
     switch (event.type) {
       case "block": {
-        if (
-          "block.hash" in result === false &&
-          eq(event.event.block.hash, value)
-        ) {
+        if (eq(event.event.block.hash, value)) {
           result[js] = "block.hash";
           continue;
         }
 
-        if (
-          "block.number" in result === false &&
-          eq(event.event.block.number, value)
-        ) {
+        if (eq(event.event.block.number, value)) {
           result[js] = "block.number";
           continue;
         }
 
-        if (
-          "block.timestamp" in result === false &&
-          eq(event.event.block.timestamp, value)
-        ) {
+        if (eq(event.event.block.timestamp, value)) {
           result[js] = "block.timestamp";
           continue;
         }
 
-        if (
-          "block.miner" in result === false &&
-          eq(event.event.block.miner, value)
-        ) {
+        if (eq(event.event.block.miner, value)) {
           result[js] = "block.miner";
           continue;
         }
@@ -87,74 +75,47 @@ export const recordProfilePattern = (
       }
 
       case "transaction": {
-        if (
-          "block.hash" in result === false &&
-          eq(event.event.block.hash, value)
-        ) {
+        if (eq(event.event.block.hash, value)) {
           result[js] = "block.hash";
           continue;
         }
 
-        if (
-          "block.number" in result === false &&
-          eq(event.event.block.number, value)
-        ) {
+        if (eq(event.event.block.number, value)) {
           result[js] = "block.number";
           continue;
         }
 
-        if (
-          "block.timestamp" in result === false &&
-          eq(event.event.block.timestamp, value)
-        ) {
+        if (eq(event.event.block.timestamp, value)) {
           result[js] = "block.timestamp";
           continue;
         }
 
-        if (
-          "block.miner" in result === false &&
-          eq(event.event.block.miner, value)
-        ) {
+        if (eq(event.event.block.miner, value)) {
           result[js] = "block.miner";
           continue;
         }
 
-        if (
-          "transaction.hash" in result === false &&
-          eq(event.event.transaction.hash, value)
-        ) {
+        if (eq(event.event.transaction.hash, value)) {
           result[js] = "transaction.hash";
           continue;
         }
 
-        if (
-          "transaction.from" in result === false &&
-          eq(event.event.transaction.from, value)
-        ) {
+        if (eq(event.event.transaction.from, value)) {
           result[js] = "transaction.from";
           continue;
         }
 
-        if (
-          "transaction.to" in result === false &&
-          eq(event.event.transaction.to, value)
-        ) {
+        if (eq(event.event.transaction.to, value)) {
           result[js] = "transaction.to";
           continue;
         }
 
-        if (
-          "transaction.transactionIndex" in result === false &&
-          eq(event.event.transaction.transactionIndex, value)
-        ) {
+        if (eq(event.event.transaction.transactionIndex, value)) {
           result[js] = "transaction.transactionIndex";
           continue;
         }
 
-        if (
-          "transactionReceipt.contractAddress" in result === false &&
-          eq(event.event.transactionReceipt?.contractAddress, value)
-        ) {
+        if (eq(event.event.transactionReceipt?.contractAddress, value)) {
           result[js] = "transactionReceipt.contractAddress";
           continue;
         }
@@ -166,97 +127,64 @@ export const recordProfilePattern = (
         for (const argKey of Object.keys(event.event.args)) {
           const argValue = event.event.args[argKey];
 
-          if (`args.${argKey}` in result === false && eq(argValue, value)) {
+          if (eq(argValue, value)) {
             result[js] = `args.${argKey}`;
           }
         }
 
         if (result[js]) continue;
 
-        if (
-          "log.address" in result === false &&
-          eq(event.event.log.address, value)
-        ) {
+        if (eq(event.event.log.address, value)) {
           result[js] = "log.address";
           continue;
         }
 
-        if (
-          "log.logIndex" in result === false &&
-          eq(event.event.log.logIndex, value)
-        ) {
+        if (eq(event.event.log.logIndex, value)) {
           result[js] = "log.logIndex";
           continue;
         }
 
-        if (
-          "block.hash" in result === false &&
-          eq(event.event.block.hash, value)
-        ) {
+        if (eq(event.event.block.hash, value)) {
           result[js] = "block.hash";
           continue;
         }
 
-        if (
-          "block.number" in result === false &&
-          eq(event.event.block.number, value)
-        ) {
+        if (eq(event.event.block.number, value)) {
           result[js] = "block.number";
           continue;
         }
 
-        if (
-          "block.timestamp" in result === false &&
-          eq(event.event.block.timestamp, value)
-        ) {
+        if (eq(event.event.block.timestamp, value)) {
           result[js] = "block.timestamp";
           continue;
         }
 
-        if (
-          "block.miner" in result === false &&
-          eq(event.event.block.miner, value)
-        ) {
+        if (eq(event.event.block.miner, value)) {
           result[js] = "block.miner";
           continue;
         }
 
-        if (
-          "transaction.hash" in result === false &&
-          eq(event.event.transaction.hash, value)
-        ) {
+        if (eq(event.event.transaction.hash, value)) {
           result[js] = "transaction.hash";
           continue;
         }
 
-        if (
-          "transaction.from" in result === false &&
-          eq(event.event.transaction.from, value)
-        ) {
+        if (eq(event.event.transaction.from, value)) {
           result[js] = "transaction.from";
           continue;
         }
 
-        if (
-          "transaction.to" in result === false &&
-          eq(event.event.transaction.to, value)
-        ) {
+        if (eq(event.event.transaction.to, value)) {
           result[js] = "transaction.to";
           continue;
         }
 
-        if (
-          "transaction.transactionIndex" in result === false &&
-          eq(event.event.transaction.transactionIndex, value)
-        ) {
+        if (eq(event.event.transaction.transactionIndex, value)) {
           result[js] = "transaction.transactionIndex";
           continue;
         }
 
-        if (
-          "transactionReceipt.contractAddress" in result === false &&
-          eq(event.event.transactionReceipt?.contractAddress, value)
-        ) {
+        if (eq(event.event.transactionReceipt?.contractAddress, value)) {
           result[js] = "transactionReceipt.contractAddress";
           continue;
         }
@@ -268,89 +196,59 @@ export const recordProfilePattern = (
         for (const argKey of Object.keys(event.event.args)) {
           const argValue = event.event.args[argKey];
 
-          if (`args.${argKey}` in result === false && eq(argValue, value)) {
+          if (eq(argValue, value)) {
             result[js] = `args.${argKey}`;
           }
         }
 
         if (result[js]) continue;
 
-        if (
-          "trace.from" in result === false &&
-          eq(event.event.trace.from, value)
-        ) {
+        if (eq(event.event.trace.from, value)) {
           result[js] = "trace.from";
           continue;
         }
 
-        if (
-          "block.hash" in result === false &&
-          eq(event.event.block.hash, value)
-        ) {
+        if (eq(event.event.block.hash, value)) {
           result[js] = "block.hash";
           continue;
         }
 
-        if (
-          "block.number" in result === false &&
-          eq(event.event.block.number, value)
-        ) {
+        if (eq(event.event.block.number, value)) {
           result[js] = "block.number";
           continue;
         }
 
-        if (
-          "block.timestamp" in result === false &&
-          eq(event.event.block.timestamp, value)
-        ) {
+        if (eq(event.event.block.timestamp, value)) {
           result[js] = "block.timestamp";
           continue;
         }
 
-        if (
-          "block.miner" in result === false &&
-          eq(event.event.block.miner, value)
-        ) {
+        if (eq(event.event.block.miner, value)) {
           result[js] = "block.miner";
           continue;
         }
 
-        if (
-          "transaction.hash" in result === false &&
-          eq(event.event.transaction.hash, value)
-        ) {
+        if (eq(event.event.transaction.hash, value)) {
           result[js] = "transaction.hash";
           continue;
         }
 
-        if (
-          "transaction.from" in result === false &&
-          eq(event.event.transaction.from, value)
-        ) {
+        if (eq(event.event.transaction.from, value)) {
           result[js] = "transaction.from";
           continue;
         }
 
-        if (
-          "transaction.to" in result === false &&
-          eq(event.event.transaction.to, value)
-        ) {
+        if (eq(event.event.transaction.to, value)) {
           result[js] = "transaction.to";
           continue;
         }
 
-        if (
-          "transaction.transactionIndex" in result === false &&
-          eq(event.event.transaction.transactionIndex, value)
-        ) {
+        if (eq(event.event.transaction.transactionIndex, value)) {
           result[js] = "transaction.transactionIndex";
           continue;
         }
 
-        if (
-          "transactionReceipt.contractAddress" in result === false &&
-          eq(event.event.transactionReceipt?.contractAddress, value)
-        ) {
+        if (eq(event.event.transactionReceipt?.contractAddress, value)) {
           result[js] = "transactionReceipt.contractAddress";
           continue;
         }
@@ -359,98 +257,62 @@ export const recordProfilePattern = (
       }
 
       case "transfer": {
-        if (
-          "transfer.from" in result === false &&
-          eq(event.event.transfer.from, value)
-        ) {
+        if (eq(event.event.transfer.from, value)) {
           result[js] = "transfer.from";
           continue;
         }
 
-        if (
-          "transfer.to" in result === false &&
-          eq(event.event.transfer.to, value)
-        ) {
+        if (eq(event.event.transfer.to, value)) {
           result[js] = "transfer.to";
           continue;
         }
 
-        if (
-          "trace.from" in result === false &&
-          eq(event.event.trace.from, value)
-        ) {
+        if (eq(event.event.trace.from, value)) {
           result[js] = "trace.from";
           continue;
         }
 
-        if (
-          "block.hash" in result === false &&
-          eq(event.event.block.hash, value)
-        ) {
+        if (eq(event.event.block.hash, value)) {
           result[js] = "block.hash";
           continue;
         }
 
-        if (
-          "block.number" in result === false &&
-          eq(event.event.block.number, value)
-        ) {
+        if (eq(event.event.block.number, value)) {
           result[js] = "block.number";
           continue;
         }
 
-        if (
-          "block.timestamp" in result === false &&
-          eq(event.event.block.timestamp, value)
-        ) {
+        if (eq(event.event.block.timestamp, value)) {
           result[js] = "block.timestamp";
           continue;
         }
 
-        if (
-          "block.miner" in result === false &&
-          eq(event.event.block.miner, value)
-        ) {
+        if (eq(event.event.block.miner, value)) {
           result[js] = "block.miner";
           continue;
         }
 
-        if (
-          "transaction.hash" in result === false &&
-          eq(event.event.transaction.hash, value)
-        ) {
+        if (eq(event.event.transaction.hash, value)) {
           result[js] = "transaction.hash";
           continue;
         }
 
-        if (
-          "transaction.from" in result === false &&
-          eq(event.event.transaction.from, value)
-        ) {
+        if (eq(event.event.transaction.from, value)) {
           result[js] = "transaction.from";
           continue;
         }
 
-        if (
-          "transaction.to" in result === false &&
-          eq(event.event.transaction.to, value)
-        ) {
+        if (eq(event.event.transaction.to, value)) {
           result[js] = "transaction.to";
           continue;
         }
 
-        if (
-          "transaction.transactionIndex" in result === false &&
-          eq(event.event.transaction.transactionIndex, value)
-        ) {
+        if (eq(event.event.transaction.transactionIndex, value)) {
           result[js] = "transaction.transactionIndex";
           continue;
         }
 
-        if (
-          "transactionReceipt.contractAddress" in result === false &&
-          eq(event.event.transactionReceipt?.contractAddress, value)
-        ) {
+        if (eq(event.event.transactionReceipt?.contractAddress, value)) {
           result[js] = "transactionReceipt.contractAddress";
           continue;
         }
