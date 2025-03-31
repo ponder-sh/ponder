@@ -9,7 +9,7 @@ import {
 } from "@/_test/setup.js";
 import { deployErc20, deployMulticall, mintErc20 } from "@/_test/simulate.js";
 import { getNetwork, publicClient } from "@/_test/utils.js";
-import type { Event, LogEvent } from "@/internal/types.js";
+import type { LogEvent } from "@/internal/types.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import {
