@@ -303,7 +303,7 @@ export const createHistoricalIndexingStore = ({
         let safeQuery = false;
 
         try {
-          await validateQuery(_sql);
+          await validateQuery(_sql, true);
           safeQuery = true;
         } catch {}
 
