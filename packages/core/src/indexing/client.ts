@@ -308,6 +308,12 @@ type Profile = Map<
   Map<ProfileKey, { pattern: ProfilePattern; count: number }>
 >;
 /**
+ * LRU cache of {@link ProfilePattern} in {@link Profile} with constant args.
+ *
+ * @dev Used to determine which {@link ProfilePattern} should be evicted.
+ */
+type ProfileConstantLRU = Map<EventName, Set<ProfileKey>>;
+/**
  * Cache of RPC responses.
  */
 type Cache = Map<number, Map<CacheKey, Promise<Response> | Response>>;
@@ -330,6 +336,7 @@ export const createCachedViemClient = ({
   let event: Event | SetupEvent | undefined;
   const cache: Cache = new Map();
   const profile: Profile = new Map();
+  const profileConstantLRU: ProfileConstantLRU = new Map();
 
   for (const network of indexingBuild.networks) {
     cache.set(network.chainId, new Map());
@@ -370,24 +377,46 @@ export const createCachedViemClient = ({
         ) {
           if (profile.has(event!.name) === false) {
             profile.set(event!.name, new Map());
+            profileConstantLRU.set(event!.name, new Set());
           }
 
-          const profilePattern = recordProfilePattern({
-            event: event!,
-            args: args as Omit<
-              Parameters<PonderActions["readContract"]>[0],
-              "blockNumber" | "cache"
-            >,
-          });
+          const { pattern: profilePattern, hasConstant } = recordProfilePattern(
+            {
+              event: event!,
+              args: args as Omit<
+                Parameters<PonderActions["readContract"]>[0],
+                "blockNumber" | "cache"
+              >,
+            },
+          );
           if (profilePattern) {
             const profilePatternKey = getProfilePatternKey(profilePattern);
 
             if (profile.get(event!.name)!.has(profilePatternKey)) {
               profile.get(event!.name)!.get(profilePatternKey)!.count++;
+
+              if (hasConstant) {
+                profileConstantLRU.get(event!.name)!.delete(profilePatternKey);
+                profileConstantLRU.get(event!.name)!.add(profilePatternKey);
+              }
             } else {
               profile
                 .get(event!.name)!
                 .set(profilePatternKey, { pattern: profilePattern, count: 1 });
+
+              if (hasConstant) {
+                profileConstantLRU.get(event!.name)!.add(profilePatternKey);
+                if (profileConstantLRU.get(event!.name)!.size > 100) {
+                  const firstKey = profileConstantLRU
+                    .get(event!.name)!
+                    .keys()
+                    .next().value;
+                  if (firstKey) {
+                    profile.get(event!.name)!.delete(firstKey);
+                    profileConstantLRU.get(event!.name)!.delete(firstKey);
+                  }
+                }
+              }
             }
           }
         }
