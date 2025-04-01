@@ -22,7 +22,7 @@ test("recordProfilePattern() address", () => {
     },
   } satisfies LogEvent;
 
-  const pattern = recordProfilePattern({
+  const { pattern } = recordProfilePattern({
     event,
     args: {
       address: zeroAddress,
@@ -72,7 +72,7 @@ test("recordProfilePattern() args", () => {
     },
   } satisfies LogEvent;
 
-  const pattern = recordProfilePattern({
+  const { pattern } = recordProfilePattern({
     event,
     args: {
       address: zeroAddress,
@@ -128,7 +128,7 @@ test("recordProfilePattern() constants", () => {
     },
   } satisfies LogEvent;
 
-  const pattern = recordProfilePattern({
+  const { pattern } = recordProfilePattern({
     event,
     args: {
       address: zeroAddress,

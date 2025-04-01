@@ -29,8 +29,9 @@ export const recordProfilePattern = ({
     Parameters<PonderActions["readContract"]>[0],
     "blockNumber" | "cache"
   >;
-}): ProfilePattern => {
+}): { pattern: ProfilePattern; hasConstant: boolean } => {
   let resultAddress: ProfilePattern["address"] | undefined;
+  let hasConstant = false;
 
   // address
 
@@ -216,14 +217,18 @@ export const recordProfilePattern = ({
 
   if (resultAddress === undefined) {
     resultAddress = { type: "constant", value: args.address };
+    hasConstant = true;
   }
 
   if (args.args === undefined || args.args.length === 0) {
     return {
-      address: resultAddress,
-      abi: args.abi as Abi,
-      functionName: args.functionName,
-      args: undefined,
+      pattern: {
+        address: resultAddress,
+        abi: args.abi as Abi,
+        functionName: args.functionName,
+        args: undefined,
+      },
+      hasConstant,
     };
   }
 
@@ -545,13 +550,17 @@ export const recordProfilePattern = ({
     }
 
     resultArgs.push({ type: "constant", value: arg });
+    hasConstant = true;
   }
 
   return {
-    address: resultAddress!,
-    abi: args.abi as Abi,
-    functionName: args.functionName,
-    args: resultArgs,
+    pattern: {
+      address: resultAddress!,
+      abi: args.abi as Abi,
+      functionName: args.functionName,
+      args: resultArgs,
+    },
+    hasConstant,
   };
 };
 
