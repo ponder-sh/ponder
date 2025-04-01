@@ -1,5 +1,13 @@
 # ponder
 
+## 0.10.7
+
+### Patch Changes
+
+- [#1631](https://github.com/ponder-sh/ponder/pull/1631) [`4045aea473eb68b304357851fa47c9a165a00e49`](https://github.com/ponder-sh/ponder/commit/4045aea473eb68b304357851fa47c9a165a00e49) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved raw SQL performance.
+
+- [#1634](https://github.com/ponder-sh/ponder/pull/1634) [`faac60dbb9b201639a91e3b5ddcd50ea83c21860`](https://github.com/ponder-sh/ponder/commit/faac60dbb9b201639a91e3b5ddcd50ea83c21860) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved performance for factories during the historical sync.
+
 ## 0.10.6
 
 ### Patch Changes
