@@ -14,6 +14,7 @@ import {
   type Client,
   type ContractFunctionArgs,
   type ContractFunctionName,
+  type ContractFunctionParameters,
   type EIP1193Parameters,
   type GetBlockReturnType,
   type GetBlockTransactionCountReturnType,
@@ -316,7 +317,7 @@ type ProfileConstantLRU = Map<EventName, Set<ProfileKey>>;
 /**
  * Cache of RPC responses.
  */
-type Cache = Map<number, Map<CacheKey, Promise<Response> | Response>>;
+type Cache = Map<number, Map<CacheKey, Promise<Response | Error> | Response>>;
 
 const getCacheKey = (request: EIP1193Parameters) => {
   return toLowerCase(JSON.stringify(orderObject(request)));
@@ -352,6 +353,38 @@ export const createCachedViemClient = ({
     const actions = {} as PonderActions;
     const _publicActions = publicActions(client);
 
+    const addProfilePattern = ({
+      pattern,
+      hasConstant,
+    }: { pattern: ProfilePattern; hasConstant: boolean }) => {
+      const profilePatternKey = getProfilePatternKey(pattern);
+
+      if (profile.get(event!.name)!.has(profilePatternKey)) {
+        profile.get(event!.name)!.get(profilePatternKey)!.count++;
+
+        if (hasConstant) {
+          profileConstantLRU.get(event!.name)!.delete(profilePatternKey);
+          profileConstantLRU.get(event!.name)!.add(profilePatternKey);
+        }
+      } else {
+        profile.get(event!.name)!.set(profilePatternKey, { pattern, count: 1 });
+
+        if (hasConstant) {
+          profileConstantLRU.get(event!.name)!.add(profilePatternKey);
+          if (profileConstantLRU.get(event!.name)!.size > 100) {
+            const firstKey = profileConstantLRU
+              .get(event!.name)!
+              .keys()
+              .next().value;
+            if (firstKey) {
+              profile.get(event!.name)!.delete(firstKey);
+              profileConstantLRU.get(event!.name)!.delete(firstKey);
+            }
+          }
+        }
+      }
+    };
+
     const getPonderAction = <
       action extends
         | (typeof blockDependentActions)[number]
@@ -380,44 +413,39 @@ export const createCachedViemClient = ({
             profileConstantLRU.set(event!.name, new Set());
           }
 
-          const { pattern: profilePattern, hasConstant } = recordProfilePattern(
-            {
+          addProfilePattern(
+            recordProfilePattern({
               event: event!,
               args: args as Omit<
                 Parameters<PonderActions["readContract"]>[0],
                 "blockNumber" | "cache"
               >,
-            },
+            }),
           );
-          if (profilePattern) {
-            const profilePatternKey = getProfilePatternKey(profilePattern);
+        } else if (
+          action === "multicall" &&
+          event!.type !== "setup" &&
+          userBlockNumber === undefined
+        ) {
+          if (profile.has(event!.name) === false) {
+            profile.set(event!.name, new Map());
+            profileConstantLRU.set(event!.name, new Set());
+          }
 
-            if (profile.get(event!.name)!.has(profilePatternKey)) {
-              profile.get(event!.name)!.get(profilePatternKey)!.count++;
+          const contracts = (
+            args as Omit<
+              Parameters<PonderActions["multicall"]>[0],
+              "blockNumber" | "cache"
+            >
+          ).contracts as ContractFunctionParameters[];
 
-              if (hasConstant) {
-                profileConstantLRU.get(event!.name)!.delete(profilePatternKey);
-                profileConstantLRU.get(event!.name)!.add(profilePatternKey);
-              }
-            } else {
-              profile
-                .get(event!.name)!
-                .set(profilePatternKey, { pattern: profilePattern, count: 1 });
-
-              if (hasConstant) {
-                profileConstantLRU.get(event!.name)!.add(profilePatternKey);
-                if (profileConstantLRU.get(event!.name)!.size > 100) {
-                  const firstKey = profileConstantLRU
-                    .get(event!.name)!
-                    .keys()
-                    .next().value;
-                  if (firstKey) {
-                    profile.get(event!.name)!.delete(firstKey);
-                    profileConstantLRU.get(event!.name)!.delete(firstKey);
-                  }
-                }
-              }
-            }
+          for (const contract of contracts) {
+            addProfilePattern(
+              recordProfilePattern({
+                event: event!,
+                args: contract,
+              }),
+            );
           }
         }
 
@@ -577,7 +605,8 @@ export const createCachedViemClient = ({
           } else if (request.ev > 0.8) {
             const resultPromise = requestQueue
               .request(request.request as EIP1193Parameters<PublicRpcSchema>)
-              .then((result) => JSON.stringify(result));
+              .then((result) => JSON.stringify(result))
+              .catch((error) => error as Error);
 
             // Note: Unawaited request added to cache
             cache
@@ -636,110 +665,180 @@ export const cachedTransport =
             abi: multicall3Abi,
             data: params[0]!.data,
           });
-          const requests = multicallData.args[0]!.map((call) => ({
-            method: "eth_call",
-            params: [
-              {
-                to: call.target,
-                data: call.callData,
-              },
-              blockNumber,
-            ],
-          }));
+          const requests = multicallData.args[0]!.map(
+            (call) =>
+              ({
+                method: "eth_call",
+                params: [
+                  {
+                    to: call.target,
+                    data: call.callData,
+                  },
+                  blockNumber,
+                ],
+              }) as const satisfies EIP1193Parameters,
+          );
 
           if (requests.length === 0) {
             // empty multicall result
             return "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000";
           }
 
-          const cachedResults = await syncStore.getRpcRequestResults({
-            requests,
-            chainId: chain!.id,
+          const results = new Map<
+            EIP1193Parameters,
+            {
+              success: boolean;
+              returnData: `0x${string}`;
+            }
+          >();
+          const requestsToInsert = new Set<EIP1193Parameters>();
+
+          for (const request of requests) {
+            const cacheKey = getCacheKey(request);
+
+            if (cache.get(network.chainId)!.has(cacheKey)) {
+              const cachedResult = cache.get(network.chainId)!.get(cacheKey)!;
+
+              common.metrics.ponder_indexing_rpc_requests_total.inc({
+                method,
+                type: "hit_memory",
+              });
+
+              if (cachedResult instanceof Promise) {
+                const result = await cachedResult;
+                if (result instanceof Error) throw Error;
+
+                if (result !== "0x") {
+                  requestsToInsert.add(request);
+                }
+
+                // TODO(kyle) try catch parse
+
+                results.set(request, {
+                  success: true,
+                  returnData: JSON.parse(result),
+                });
+              } else {
+                results.set(request, {
+                  success: true,
+                  returnData: JSON.parse(cachedResult),
+                });
+              }
+            }
+          }
+
+          const dbRequests = requests.filter(
+            (request) => results.has(request) === false,
+          );
+
+          const dbResults = await syncStore.getRpcRequestResults({
+            requests: dbRequests,
+            chainId: network.chainId,
           });
 
-          const multicallResult = cachedResults.every(
-            (result) => result !== undefined,
-          )
-            ? []
-            : await requestQueue
-                .request({
-                  method: "eth_call",
-                  params: [
-                    {
-                      to: params[0]!.to,
-                      data: encodeFunctionData({
-                        abi: multicall3Abi,
-                        functionName: "aggregate3",
-                        args: [
-                          multicallData.args[0]!.filter(
-                            (_, index) => cachedResults[index] === undefined,
-                          ),
-                        ],
-                      }),
-                    },
-                    blockNumber!,
-                  ],
-                })
-                .then((result) =>
-                  decodeFunctionResult({
-                    abi: multicall3Abi,
-                    functionName: "aggregate3",
-                    data: result,
-                  }),
-                );
+          for (let i = 0; i < dbRequests.length; i++) {
+            const request = dbRequests[i]!;
+            const result = dbResults[i]!;
+
+            if (result !== undefined) {
+              common.metrics.ponder_indexing_rpc_requests_total.inc({
+                method,
+                type: "hit_db",
+              });
+
+              // TODO(kyle) try catch parse
+
+              results.set(request, {
+                success: true,
+                returnData: JSON.parse(result),
+              });
+            }
+          }
+
+          if (results.size < requests.length) {
+            const _requests = requests.filter(
+              (request) => results.has(request) === false,
+            );
+            const multicallRequests = multicallData.args[0]!.filter(
+              (_, i) => results.has(requests[i]!) === false,
+            );
+
+            const multicallResult = await requestQueue
+              .request({
+                method: "eth_call",
+                params: [
+                  {
+                    to: params[0]!.to,
+                    data: encodeFunctionData({
+                      abi: multicall3Abi,
+                      functionName: "aggregate3",
+                      args: [multicallRequests],
+                    }),
+                  },
+                  blockNumber!,
+                ],
+              })
+              .then((result) =>
+                decodeFunctionResult({
+                  abi: multicall3Abi,
+                  functionName: "aggregate3",
+                  data: result,
+                }),
+              );
+
+            for (let i = 0; i < _requests.length; i++) {
+              const request = _requests[i]!;
+              const result = multicallResult[i]!;
+
+              if (result.success && result.returnData !== "0x") {
+                requestsToInsert.add(request);
+              }
+
+              common.metrics.ponder_indexing_rpc_requests_total.inc({
+                method,
+                type: "miss",
+              });
+
+              // TODO(kyle) handle errors
+
+              results.set(request, result);
+            }
+          }
 
           // Note: insertRpcRequestResults errors can be ignored and not awaited, since
           // the response is already fetched.
           syncStore
             .insertRpcRequestResults({
-              requests: requests
-                .filter((_, index) => cachedResults[index] === undefined)
-                .map((request, index) => ({
-                  request,
-                  result: multicallResult[index]!,
-                }))
-                // Note: we don't cache request that failed or returned "0x". See more about "0x" below.
-                .filter(
-                  ({ result }) => result?.success && result.returnData !== "0x",
-                )
-                .map(({ request, result }) => ({
-                  request,
-                  blockNumber:
-                    blockNumber === undefined
-                      ? undefined
-                      : blockNumber === "latest"
-                        ? 0
-                        : hexToNumber(blockNumber),
-                  result: JSON.stringify(result.returnData),
-                })),
-              chainId: chain!.id,
+              requests: Array.from(requestsToInsert).map((request) => ({
+                request,
+                blockNumber:
+                  blockNumber === undefined
+                    ? undefined
+                    : blockNumber === "latest"
+                      ? 0
+                      : hexToNumber(blockNumber),
+                result: JSON.stringify(results.get(request)!.returnData),
+              })),
+              chainId: network.chainId,
             })
             .catch(() => {});
 
           // Note: at this point, it is an invariant that either `allowFailure` is true or
           // there are no failed requests.
 
-          let multicallIndex = 0;
-
           // Note: viem <= 2.23.6 had a bug with `encodeFunctionResult` which can be worked around by adding
           // another layer of array nesting.
           // Fixed by this commit https://github.com/wevm/viem/commit/9c442de0ff38ac1f654b5c751d292e9a9f8d574c
 
-          const resultToEncode = cachedResults.map((result) => {
-            if (result === undefined) {
-              return multicallResult[multicallIndex++]!;
-            }
-            return {
-              success: true,
-              returnData: JSON.parse(result) as Hex,
-            };
-          });
+          const resultsToEncode = requests.map(
+            (request) => results.get(request)!,
+          );
 
           try {
             return encodeFunctionResult({
               abi: multicall3Abi,
               functionName: "aggregate3",
-              result: resultToEncode,
+              result: resultsToEncode,
             });
           } catch (e) {
             return encodeFunctionResult({
@@ -747,7 +846,7 @@ export const cachedTransport =
               functionName: "aggregate3",
               result: [
                 // @ts-expect-error known issue in viem <= 2.23.6
-                resultToEncode,
+                resultsToEncode,
               ],
             });
           }
@@ -793,23 +892,27 @@ export const cachedTransport =
             if (cachedResult instanceof Promise) {
               const result = await cachedResult;
 
-              syncStore
-                .insertRpcRequestResults({
-                  requests: [
-                    {
-                      request: body,
-                      blockNumber:
-                        blockNumber === undefined
-                          ? undefined
-                          : blockNumber === "latest"
-                            ? 0
-                            : hexToNumber(blockNumber),
-                      result,
-                    },
-                  ],
-                  chainId: network.chainId,
-                })
-                .catch(() => {});
+              if (result instanceof Error) throw result;
+
+              if (result !== "0x") {
+                syncStore
+                  .insertRpcRequestResults({
+                    requests: [
+                      {
+                        request: body,
+                        blockNumber:
+                          blockNumber === undefined
+                            ? undefined
+                            : blockNumber === "latest"
+                              ? 0
+                              : hexToNumber(blockNumber),
+                        result,
+                      },
+                    ],
+                    chainId: network.chainId,
+                  })
+                  .catch(() => {});
+              }
 
               try {
                 return JSON.parse(result);
@@ -827,7 +930,7 @@ export const cachedTransport =
 
           const [cachedResult] = await syncStore.getRpcRequestResults({
             requests: [body],
-            chainId: chain!.id,
+            chainId: network.chainId,
           });
 
           if (cachedResult !== undefined) {
