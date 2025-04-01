@@ -589,7 +589,7 @@ export const createCachedViemClient = ({
         const network = indexingBuild.networks[ni]!;
         const requestQueue = requestQueues[ni]!;
 
-        const dbRequests = requests.filter(({ ev }) => ev > 0.5);
+        const dbRequests = requests.filter(({ ev }) => ev > 0.2);
 
         const cachedResults = await syncStore.getRpcRequestResults({
           requests: dbRequests.map(({ request }) => request),
@@ -602,7 +602,7 @@ export const createCachedViemClient = ({
 
           if (cachedResult !== undefined) {
             cache.get(chainId)!.set(getCacheKey(request.request), cachedResult);
-          } else if (request.ev > 0.8) {
+          } else if (request.ev > 0.6) {
             const resultPromise = requestQueue
               .request(request.request as EIP1193Parameters<PublicRpcSchema>)
               .then((result) => JSON.stringify(result))
