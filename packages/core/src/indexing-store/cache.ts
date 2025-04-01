@@ -294,7 +294,7 @@ export const createIndexingCache = ({
   const cache: Cache = new Map();
   const insertBuffer: Buffer = new Map();
   const updateBuffer: Buffer = new Map();
-  /** Metadata about which entries in `cache` were the result of a prediction miss. */
+  /** Metadata about which entries in cache were not prefetched but were accessed anyway. */
   const spillover: Map<Table, Set<string>> = new Map();
   /** Profiling data about access patterns for each event. */
   const profile: Profile = new Map();
@@ -762,7 +762,7 @@ export const createIndexingCache = ({
               .then((results) => {
                 common.logger.debug({
                   service: "indexing",
-                  msg: `Loaded ${results.length} '${getTableName(table)}' rows`,
+                  msg: `Pre-queried ${results.length} '${getTableName(table)}' rows`,
                 });
                 const resultsPerKey = new Map<CacheKey, Row>();
                 for (const result of results) {

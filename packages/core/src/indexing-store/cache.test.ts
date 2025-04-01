@@ -267,7 +267,7 @@ test("flush() encoding escape", async (context) => {
   });
 });
 
-test("load() loads predicted rows", async (context) => {
+test("prefetch() queries predicted rows", async (context) => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -283,7 +283,7 @@ test("load() loads predicted rows", async (context) => {
     type: "log",
     chainId: 1,
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
+    name: "Contract:Event",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: {
@@ -329,7 +329,7 @@ test("load() loads predicted rows", async (context) => {
     await indexingCache.prefetch({
       events: [event],
       db: tx,
-      eventCount: { "": 1 },
+      eventCount: { "Contract:Event": 1 },
     });
 
     const result = indexingCache.has({

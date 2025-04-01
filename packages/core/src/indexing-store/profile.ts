@@ -8,10 +8,9 @@ export const getProfilePatternKey = (pattern: ProfilePattern): string => {
 };
 
 const eq = (
-  target: bigint | string | number | boolean | null | undefined,
+  target: bigint | string | number | boolean,
   value: bigint | string | number | boolean | null | undefined,
 ) => {
-  if (!target) return false;
   if (target === value) return true;
   if (target && value && target.toString() === value.toString()) return true;
   return false;
@@ -105,7 +104,10 @@ export const recordProfilePattern = (
           continue;
         }
 
-        if (eq(event.event.transaction.to, value)) {
+        if (
+          event.event.transaction.to &&
+          eq(event.event.transaction.to, value)
+        ) {
           result[js] = "transaction.to";
           continue;
         }
@@ -115,7 +117,10 @@ export const recordProfilePattern = (
           continue;
         }
 
-        if (eq(event.event.transactionReceipt?.contractAddress, value)) {
+        if (
+          event.event.transactionReceipt?.contractAddress &&
+          eq(event.event.transactionReceipt.contractAddress, value)
+        ) {
           result[js] = "transactionReceipt.contractAddress";
           continue;
         }
@@ -174,7 +179,10 @@ export const recordProfilePattern = (
           continue;
         }
 
-        if (eq(event.event.transaction.to, value)) {
+        if (
+          event.event.transaction.to &&
+          eq(event.event.transaction.to, value)
+        ) {
           result[js] = "transaction.to";
           continue;
         }
@@ -184,7 +192,10 @@ export const recordProfilePattern = (
           continue;
         }
 
-        if (eq(event.event.transactionReceipt?.contractAddress, value)) {
+        if (
+          event.event.transactionReceipt?.contractAddress &&
+          eq(event.event.transactionReceipt.contractAddress, value)
+        ) {
           result[js] = "transactionReceipt.contractAddress";
           continue;
         }
@@ -238,7 +249,10 @@ export const recordProfilePattern = (
           continue;
         }
 
-        if (eq(event.event.transaction.to, value)) {
+        if (
+          event.event.transaction.to &&
+          eq(event.event.transaction.to, value)
+        ) {
           result[js] = "transaction.to";
           continue;
         }
@@ -248,7 +262,10 @@ export const recordProfilePattern = (
           continue;
         }
 
-        if (eq(event.event.transactionReceipt?.contractAddress, value)) {
+        if (
+          event.event.transactionReceipt?.contractAddress &&
+          eq(event.event.transactionReceipt.contractAddress, value)
+        ) {
           result[js] = "transactionReceipt.contractAddress";
           continue;
         }
@@ -302,7 +319,10 @@ export const recordProfilePattern = (
           continue;
         }
 
-        if (eq(event.event.transaction.to, value)) {
+        if (
+          event.event.transaction.to &&
+          eq(event.event.transaction.to, value)
+        ) {
           result[js] = "transaction.to";
           continue;
         }
@@ -312,7 +332,10 @@ export const recordProfilePattern = (
           continue;
         }
 
-        if (eq(event.event.transactionReceipt?.contractAddress, value)) {
+        if (
+          event.event.transactionReceipt?.contractAddress &&
+          eq(event.event.transactionReceipt.contractAddress, value)
+        ) {
           result[js] = "transactionReceipt.contractAddress";
           continue;
         }
