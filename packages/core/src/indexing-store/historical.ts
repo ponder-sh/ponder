@@ -1,3 +1,4 @@
+import { validateQuery } from "@/client/validate.js";
 import type { Common } from "@/internal/common.js";
 import { RecordNotFoundError } from "@/internal/errors.js";
 import type { Event, Schema, SchemaBuild } from "@/internal/types.js";
@@ -298,8 +299,18 @@ export const createHistoricalIndexingStore = ({
     sql: drizzle(
       async (_sql, params, method, typings) => {
         await indexingCache.flush({ client });
-        indexingCache.invalidate();
-        indexingCache.clear();
+
+        let safeQuery = false;
+
+        try {
+          await validateQuery(_sql, false);
+          safeQuery = true;
+        } catch {}
+
+        if (safeQuery === false) {
+          indexingCache.invalidate();
+          indexingCache.clear();
+        }
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
         const endClock = startClock();
