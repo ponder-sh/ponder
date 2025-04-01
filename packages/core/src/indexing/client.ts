@@ -272,9 +272,14 @@ export type ProfilePattern = Pick<
   ReadContractParameters,
   "abi" | "functionName"
 > & {
-  address: string;
+  address:
+    | { type: "constant"; value: unknown }
+    | { type: "derived"; value: string };
   // TODO(kyle) array and struct args
-  args?: string[];
+  args?: (
+    | { type: "constant"; value: unknown }
+    | { type: "derived"; value: string }
+  )[];
 };
 /**
  * Serialized {@link ProfileEntry} for unique identification.
