@@ -366,7 +366,7 @@ export const createIndexingCache = ({
       if (bufferEntry) {
         common.metrics.ponder_indexing_cache_requests_total.inc({
           table: getTableName(table),
-          type: "hit",
+          type: isCacheComplete ? "complete" : "hit",
         });
         return structuredClone(bufferEntry.row);
       }
@@ -376,7 +376,7 @@ export const createIndexingCache = ({
       if (entry !== undefined) {
         common.metrics.ponder_indexing_cache_requests_total.inc({
           table: getTableName(table),
-          type: "hit",
+          type: isCacheComplete ? "complete" : "hit",
         });
         return structuredClone(entry);
       }
@@ -384,7 +384,7 @@ export const createIndexingCache = ({
       if (isCacheComplete) {
         common.metrics.ponder_indexing_cache_requests_total.inc({
           table: getTableName(table),
-          type: "hit",
+          type: "complete",
         });
         return null;
       }
@@ -741,6 +741,16 @@ export const createIndexingCache = ({
 
       for (const [table] of spillover) {
         spillover.get(table)!.clear();
+      }
+
+      for (const [table, tablePredictions] of prediction) {
+        common.metrics.ponder_indexing_cache_requests_total.inc(
+          {
+            table: getTableName(table),
+            type: "prefetch",
+          },
+          tablePredictions.size,
+        );
       }
 
       await Promise.all(
