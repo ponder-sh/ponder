@@ -13,8 +13,7 @@ export const getProfilePatternKey = (pattern: ProfilePattern): string => {
   });
 };
 
-const eq = (target: unknown, value: unknown) => {
-  if (!target) return false;
+const eq = (target: bigint | string | number | boolean, value: any) => {
   if (target === value) return true;
   if (target && value && target.toString() === value.toString()) return true;
   return false;
@@ -56,12 +55,18 @@ export const recordProfilePattern = ({
         break;
       }
 
-      if (eq(event.event.transaction.to, args.address)) {
+      if (
+        event.event.transaction.to &&
+        eq(event.event.transaction.to, args.address)
+      ) {
         resultAddress = { type: "derived", value: "transaction.to" };
         break;
       }
 
-      if (eq(event.event.transactionReceipt?.contractAddress, args.address)) {
+      if (
+        event.event.transactionReceipt?.contractAddress &&
+        eq(event.event.transactionReceipt.contractAddress, args.address)
+      ) {
         resultAddress = {
           type: "derived",
           value: "transactionReceipt.contractAddress",
@@ -101,12 +106,18 @@ export const recordProfilePattern = ({
         break;
       }
 
-      if (eq(event.event.transaction.to, args.address)) {
+      if (
+        event.event.transaction.to &&
+        eq(event.event.transaction.to, args.address)
+      ) {
         resultAddress = { type: "derived", value: "transaction.to" };
         break;
       }
 
-      if (eq(event.event.transactionReceipt?.contractAddress, args.address)) {
+      if (
+        event.event.transactionReceipt?.contractAddress &&
+        eq(event.event.transactionReceipt.contractAddress, args.address)
+      ) {
         resultAddress = {
           type: "derived",
           value: "transactionReceipt.contractAddress",
@@ -136,7 +147,7 @@ export const recordProfilePattern = ({
         break;
       }
 
-      if (eq(event.event.trace.to, args.address)) {
+      if (event.event.trace.to && eq(event.event.trace.to, args.address)) {
         resultAddress = { type: "derived", value: "trace.to" };
         break;
       }
@@ -151,12 +162,18 @@ export const recordProfilePattern = ({
         break;
       }
 
-      if (eq(event.event.transaction.to, args.address)) {
+      if (
+        event.event.transaction.to &&
+        eq(event.event.transaction.to, args.address)
+      ) {
         resultAddress = { type: "derived", value: "transaction.to" };
         break;
       }
 
-      if (eq(event.event.transactionReceipt?.contractAddress, args.address)) {
+      if (
+        event.event.transactionReceipt?.contractAddress &&
+        eq(event.event.transactionReceipt.contractAddress, args.address)
+      ) {
         resultAddress = {
           type: "derived",
           value: "transactionReceipt.contractAddress",
@@ -183,7 +200,7 @@ export const recordProfilePattern = ({
         break;
       }
 
-      if (eq(event.event.trace.to, args.address)) {
+      if (event.event.trace.to && eq(event.event.trace.to, args.address)) {
         resultAddress = { type: "derived", value: "trace.to" };
         break;
       }
@@ -198,12 +215,18 @@ export const recordProfilePattern = ({
         break;
       }
 
-      if (eq(event.event.transaction.to, args.address)) {
+      if (
+        event.event.transaction.to &&
+        eq(event.event.transaction.to, args.address)
+      ) {
         resultAddress = { type: "derived", value: "transaction.to" };
         break;
       }
 
-      if (eq(event.event.transactionReceipt?.contractAddress, args.address)) {
+      if (
+        event.event.transactionReceipt?.contractAddress &&
+        eq(event.event.transactionReceipt.contractAddress, args.address)
+      ) {
         resultAddress = {
           type: "derived",
           value: "transactionReceipt.contractAddress",
@@ -293,7 +316,7 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.transaction.to, arg)) {
+        if (event.event.transaction.to && eq(event.event.transaction.to, arg)) {
           resultArgs.push({ type: "derived", value: "transaction.to" });
           continue;
         }
@@ -306,7 +329,10 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.transactionReceipt?.contractAddress, arg)) {
+        if (
+          event.event.transactionReceipt?.contractAddress &&
+          eq(event.event.transactionReceipt.contractAddress, arg)
+        ) {
           resultArgs.push({
             type: "derived",
             value: "transactionReceipt.contractAddress",
@@ -371,7 +397,7 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.transaction.to, arg)) {
+        if (event.event.transaction.to && eq(event.event.transaction.to, arg)) {
           resultArgs.push({ type: "derived", value: "transaction.to" });
           continue;
         }
@@ -384,7 +410,10 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.transactionReceipt?.contractAddress, arg)) {
+        if (
+          event.event.transactionReceipt?.contractAddress &&
+          eq(event.event.transactionReceipt.contractAddress, arg)
+        ) {
           resultArgs.push({
             type: "derived",
             value: "transactionReceipt.contractAddress",
@@ -414,7 +443,7 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.trace.to, arg)) {
+        if (event.event.trace.to && eq(event.event.trace.to, arg)) {
           resultArgs.push({ type: "derived", value: "trace.to" });
           continue;
         }
@@ -449,7 +478,7 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.transaction.to, arg)) {
+        if (event.event.transaction.to && eq(event.event.transaction.to, arg)) {
           resultArgs.push({ type: "derived", value: "transaction.to" });
           continue;
         }
@@ -462,7 +491,10 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.transactionReceipt?.contractAddress, arg)) {
+        if (
+          event.event.transactionReceipt?.contractAddress &&
+          eq(event.event.transactionReceipt.contractAddress, arg)
+        ) {
           resultArgs.push({
             type: "derived",
             value: "transactionReceipt.contractAddress",
@@ -489,7 +521,7 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.trace.to, arg)) {
+        if (event.event.trace.to && eq(event.event.trace.to, arg)) {
           resultArgs.push({ type: "derived", value: "trace.to" });
           continue;
         }
@@ -524,7 +556,7 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.transaction.to, arg)) {
+        if (event.event.transaction.to && eq(event.event.transaction.to, arg)) {
           resultArgs.push({ type: "derived", value: "transaction.to" });
           continue;
         }
@@ -537,7 +569,10 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.transactionReceipt?.contractAddress, arg)) {
+        if (
+          event.event.transactionReceipt?.contractAddress &&
+          eq(event.event.transactionReceipt.contractAddress, arg)
+        ) {
           resultArgs.push({
             type: "derived",
             value: "transactionReceipt.contractAddress",
