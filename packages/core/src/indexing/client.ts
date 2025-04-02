@@ -6,6 +6,7 @@ import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
+import { startClock } from "@/utils/timer.js";
 import {
   type Abi,
   type Account,
@@ -399,7 +400,7 @@ export const createCachedViemClient = ({
         blockNumber: userBlockNumber,
         ...args
       }: Parameters<PonderActions[action]>[0]) => {
-        // profile "readContract" action
+        // profile "readContract" and "multicall" actions
 
         // Note: prediction only possible when block number is managed by Ponder.
 
@@ -506,12 +507,32 @@ export const createCachedViemClient = ({
       "getBlock",
       "getBlockTransactionCount",
       "getTransactionCount",
-    ]) {
+    ] as const) {
       // @ts-ignore
       actions[action] = _publicActions[action];
     }
 
-    return actions;
+    const actionsWithMetrics = {} as PonderActions;
+
+    for (const [action, actionFn] of Object.entries(actions)) {
+      // @ts-ignore
+      actionsWithMetrics[action] = async (
+        ...args: Parameters<PonderActions[keyof PonderActions]>
+      ) => {
+        const endClock = startClock();
+        try {
+          // @ts-ignore
+          return await actionFn(...args);
+        } finally {
+          common.metrics.ponder_indexing_rpc_action_duration.observe(
+            { action },
+            endClock(),
+          );
+        }
+      };
+    }
+
+    return actionsWithMetrics;
   };
 
   return {
