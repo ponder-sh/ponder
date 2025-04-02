@@ -7,10 +7,7 @@ export const getProfilePatternKey = (pattern: ProfilePattern): string => {
   return Object.values(pattern).join("_");
 };
 
-const eq = (
-  target: bigint | string | number | boolean,
-  value: bigint | string | number | boolean | null | undefined,
-) => {
+const eq = (target: bigint | string | number | boolean, value: any) => {
   if (target === value) return true;
   if (target && value && target.toString() === value.toString()) return true;
   return false;
@@ -225,15 +222,12 @@ export const recordProfilePattern = (
           continue;
         }
 
-        if ("trace.to" in result === false && eq(event.event.trace.to, value)) {
+        if (event.event.trace.to && eq(event.event.trace.to, value)) {
           result[js] = "trace.to";
           continue;
         }
 
-        if (
-          "block.hash" in result === false &&
-          eq(event.event.block.hash, value)
-        ) {
+        if (eq(event.event.block.hash, value)) {
           result[js] = "block.hash";
           continue;
         }
@@ -303,15 +297,12 @@ export const recordProfilePattern = (
           continue;
         }
 
-        if ("trace.to" in result === false && eq(event.event.trace.to, value)) {
+        if (event.event.trace.to && eq(event.event.trace.to, value)) {
           result[js] = "trace.to";
           continue;
         }
 
-        if (
-          "block.hash" in result === false &&
-          eq(event.event.block.hash, value)
-        ) {
+        if (eq(event.event.block.hash, value)) {
           result[js] = "block.hash";
           continue;
         }
