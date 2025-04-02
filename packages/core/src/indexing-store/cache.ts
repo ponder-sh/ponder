@@ -8,6 +8,7 @@ import { FlushError } from "@/internal/errors.js";
 import type { Event, Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
+import { dedupe } from "@/utils/dedupe.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import { PGlite } from "@electric-sql/pglite";
@@ -18,6 +19,7 @@ import {
   getTableColumns,
   getTableName,
   is,
+  or,
 } from "drizzle-orm";
 import {
   PgTable,
@@ -27,6 +29,11 @@ import {
 import type { PoolClient } from "pg";
 import copy from "pg-copy-streams";
 import { parseSqlError } from "./index.js";
+import {
+  getProfilePatternKey,
+  recordProfilePattern,
+  recoverProfilePattern,
+} from "./profile.js";
 import { getCacheKey, getWhereCondition, normalizeRow } from "./utils.js";
 
 export type IndexingCache = {
@@ -41,22 +48,16 @@ export type IndexingCache = {
     table: Table;
     key: object;
     db: Drizzle<Schema>;
-  }) =>
-    | { [key: string]: unknown }
-    | null
-    | Promise<{ [key: string]: unknown } | null>;
+  }) => Row | null | Promise<Row | null>;
   /**
    * Sets the entry for `table` with `key` to `row`.
    */
   set: (params: {
     table: Table;
     key: object;
-    row: { [key: string]: unknown };
+    row: Row;
     isUpdate: boolean;
-    metadata: {
-      event: Event | undefined;
-    };
-  }) => { [key: string]: unknown };
+  }) => Row;
   /**
    * Deletes the entry for `table` with `key`.
    */
@@ -70,13 +71,13 @@ export type IndexingCache = {
    */
   flush: (params: { client: PoolClient | PGlite }) => Promise<void>;
   /**
-   * Make all temporary data permanent and prepare the cache for
-   * the next iteration.
-   *
-   * Note: It is assumed this is called after `flush`
-   * because it clears the buffers.
+   * Predict and load rows that will be accessed in the next event batch.
    */
-  commit: () => void;
+  prefetch: (params: {
+    events: Event[];
+    db: Drizzle<Schema>;
+    eventCount: { [key: string]: number };
+  }) => Promise<void>;
   /**
    * Remove spillover and buffer entries.
    */
@@ -89,36 +90,81 @@ export type IndexingCache = {
    * Deletes all entries from the cache.
    */
   clear: () => void;
+  event: Event | undefined;
 };
 
-type Cache = Map<
-  Table,
-  Map<
-    string,
-    {
-      bytes: number;
-      operationIndex: number;
-      row: { [key: string]: unknown } | null;
-    }
-  >
->;
-
+/**
+ * Database row.
+ *
+ * @example
+ * {
+ *   "owner": "0x123",
+ *   "spender": "0x456",
+ *   "amount": 100n,
+ * }
+ */
+export type Row = { [key: string]: unknown };
+/**
+ * Serialized primary key values for uniquely identifying a database row.
+ *
+ * @example
+ * "0x123_0x456"
+ */
+type CacheKey = string;
+/**
+ * Event name.
+ *
+ * @example
+ * "Erc20:Transfer"
+ *
+ * @example
+ * "Erc20.mint()"
+ */
+type EventName = string;
+/**
+ * Recorded database access pattern.
+ *
+ * @example
+ * {
+ *   "owner": "args.from",
+ *   "spender": "log.address",
+ * }
+ */
+export type ProfilePattern = { [key: string]: string };
+/**
+ * Serialized for uniquely identifying a {@link ProfilePattern}.
+ *
+ * @example
+ * "args.from_spender_log.address"
+ */
+type ProfileKey = string;
+/**
+ * Cache of database rows.
+ */
+type Cache = Map<Table, Map<CacheKey, Row | null>>;
+/**
+ * Buffer of database rows that will be flushed to the database.
+ */
 type Buffer = Map<
   Table,
   Map<
-    string,
+    CacheKey,
     {
-      row: { [key: string]: unknown };
-      metadata: {
-        event: Event | undefined;
-      };
+      row: Row;
+      metadata: { event: Event | undefined };
     }
   >
 >;
+/**
+ * Metadata about database access patterns for each event.
+ */
+type Profile = Map<
+  EventName,
+  Map<Table, Map<ProfileKey, { pattern: ProfilePattern; count: number }>>
+>;
 
 const getBytes = (value: unknown) => {
-  // size of metadata
-  let size = 13;
+  let size = 0;
 
   if (typeof value === "number") {
     size += 8;
@@ -145,10 +191,7 @@ const getBytes = (value: unknown) => {
 
 const ESCAPE_REGEX = /([\\\b\f\n\r\t\v])/g;
 
-export const getCopyText = (
-  table: Table,
-  rows: { [key: string]: unknown }[],
-) => {
+export const getCopyText = (table: Table, rows: Row[]) => {
   const columns = Object.entries(getTableColumns(table));
   const results = new Array(rows.length);
   for (let i = 0; i < rows.length; i++) {
@@ -232,39 +275,37 @@ export const recoverBatchError = async <T>(
 export const createIndexingCache = ({
   common,
   schemaBuild: { schema },
-  checkpoint,
+  crashRecoveryCheckpoint,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
-  checkpoint: string;
+  crashRecoveryCheckpoint: string;
 }): IndexingCache => {
-  const cache: Cache = new Map();
-  const spillover: Cache = new Map();
-  const insertBuffer: Buffer = new Map();
-  const updateBuffer: Buffer = new Map();
-
+  /**
+   * Estimated size of the cache in bytes.
+   *
+   * Note: this stops getting updated once `isCacheComplete = false`.
+   */
+  let cacheBytes = 0;
+  let event: Event | undefined;
+  let isCacheComplete = crashRecoveryCheckpoint === ZERO_CHECKPOINT_STRING;
   const primaryKeyCache = new Map<Table, [string, Column][]>();
 
-  let isCacheComplete = checkpoint === ZERO_CHECKPOINT_STRING;
+  const cache: Cache = new Map();
+  const insertBuffer: Buffer = new Map();
+  const updateBuffer: Buffer = new Map();
+  /** Metadata about which entries in cache were not prefetched but were accessed anyway. */
+  const spillover: Map<Table, Set<string>> = new Map();
+  /** Profiling data about access patterns for each event. */
+  const profile: Profile = new Map();
 
-  let cacheBytes = 0;
-  let spilloverBytes = 0;
-
-  // LRU counter
-  let totalCacheOps = 0;
-
-  common.logger.debug({
-    service: "indexing",
-    msg: `Using a ${Math.round(
-      common.options.indexingCacheMaxBytes / (1024 * 1024),
-    )} MB indexing cache`,
-  });
-
-  for (const table of Object.values(schema).filter(
+  const tables = Object.values(schema).filter(
     (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
-  )) {
+  );
+
+  for (const table of tables) {
     cache.set(table, new Map());
-    spillover.set(table, new Map());
+    spillover.set(table, new Set());
     insertBuffer.set(table, new Map());
     updateBuffer.set(table, new Map());
 
@@ -281,12 +322,41 @@ export const createIndexingCache = ({
 
       return (
         cache.get(table)!.has(ck) ??
-        spillover.get(table)!.has(ck) ??
         insertBuffer.get(table)!.has(ck) ??
         updateBuffer.get(table)!.has(ck)
       );
     },
     async get({ table, key, db }) {
+      if (event) {
+        if (profile.has(event.name) === false) {
+          profile.set(event.name, new Map());
+          for (const table of tables) {
+            profile.get(event.name)!.set(table, new Map());
+          }
+        }
+
+        const pattern = recordProfilePattern(
+          event,
+          table,
+          key,
+          Array.from(profile.get(event.name)!.get(table)!.values()).map(
+            ({ pattern }) => pattern,
+          ),
+          primaryKeyCache,
+        );
+        if (pattern) {
+          const key = getProfilePatternKey(pattern);
+          if (profile.get(event.name)!.get(table)!.has(key)) {
+            profile.get(event.name)!.get(table)!.get(key)!.count++;
+          } else {
+            profile
+              .get(event.name)!
+              .get(table)!
+              .set(key, { pattern, count: 1 });
+          }
+        }
+      }
+
       const ck = getCacheKey(table, key, primaryKeyCache);
       // Note: order is important, it is an invariant that update entries
       // are prioritized over insert entries
@@ -296,32 +366,30 @@ export const createIndexingCache = ({
       if (bufferEntry) {
         common.metrics.ponder_indexing_cache_requests_total.inc({
           table: getTableName(table),
-          type: "hit",
+          type: isCacheComplete ? "complete" : "hit",
         });
         return structuredClone(bufferEntry.row);
       }
 
-      const entry = spillover.get(table)!.get(ck) ?? cache.get(table)!.get(ck);
+      const entry = cache.get(table)!.get(ck);
 
-      if (entry) {
-        entry.operationIndex = totalCacheOps++;
-
-        if (entry.row) {
-          common.metrics.ponder_indexing_cache_requests_total.inc({
-            table: getTableName(table),
-            type: "hit",
-          });
-          return structuredClone(entry.row);
-        }
+      if (entry !== undefined) {
+        common.metrics.ponder_indexing_cache_requests_total.inc({
+          table: getTableName(table),
+          type: isCacheComplete ? "complete" : "hit",
+        });
+        return structuredClone(entry);
       }
 
       if (isCacheComplete) {
         common.metrics.ponder_indexing_cache_requests_total.inc({
           table: getTableName(table),
-          type: "hit",
+          type: "complete",
         });
         return null;
       }
+
+      spillover.get(table)!.add(ck);
 
       common.metrics.ponder_indexing_cache_requests_total.inc({
         table: getTableName(table),
@@ -336,14 +404,11 @@ export const createIndexingCache = ({
         .where(getWhereCondition(table, key))
         .then((res) => (res.length === 0 ? null : res[0]!))
         .then((row) => {
-          const bytes = getBytes(row);
-          spilloverBytes += bytes;
+          cache.get(table)!.set(ck, structuredClone(row));
 
-          spillover.get(table)!.set(ck, {
-            bytes,
-            operationIndex: totalCacheOps++,
-            row: structuredClone(row),
-          });
+          // Note: the size is not recorded because it is not possible
+          // to miss the cache when in the "full in-memory" mode
+
           return row;
         });
 
@@ -354,22 +419,21 @@ export const createIndexingCache = ({
         },
         endClock(),
       );
-
       return result;
     },
-    set({ table, key, row: _row, isUpdate, metadata }) {
+    set({ table, key, row: _row, isUpdate }) {
       const row = normalizeRow(table, _row, isUpdate);
       const ck = getCacheKey(table, key, primaryKeyCache);
 
       if (isUpdate) {
         updateBuffer.get(table)!.set(ck, {
           row: structuredClone(row),
-          metadata,
+          metadata: { event },
         });
       } else {
         insertBuffer.get(table)!.set(ck, {
           row: structuredClone(row),
-          metadata,
+          metadata: { event },
         });
       }
 
@@ -382,7 +446,6 @@ export const createIndexingCache = ({
       const inUpdateBuffer = updateBuffer.get(table)!.delete(ck);
 
       cache.get(table)!.delete(ck);
-      spillover.get(table)!.delete(ck);
 
       const inDb = await db
         .delete(table)
@@ -395,8 +458,10 @@ export const createIndexingCache = ({
     async flush({ client }) {
       const copy = getCopyHelper({ client });
 
+      const shouldRecordBytes = isCacheComplete;
+
       for (const table of cache.keys()) {
-        const tableSpillover = spillover.get(table)!;
+        const tableCache = cache.get(table)!;
 
         const insertValues = Array.from(insertBuffer.get(table)!.values());
         const updateValues = Array.from(updateBuffer.get(table)!.values());
@@ -470,14 +535,10 @@ export const createIndexingCache = ({
           }
 
           for (const [key, entry] of insertBuffer.get(table)!) {
-            const bytes = getBytes(entry.row);
-            cacheBytes += bytes;
-            totalCacheOps++;
-            tableSpillover.set(key, {
-              bytes,
-              operationIndex: 0,
-              row: entry.row,
-            });
+            if (shouldRecordBytes && tableCache.has(key) === false) {
+              cacheBytes += getBytes(entry.row);
+            }
+            tableCache.set(key, entry.row);
           }
           insertBuffer.get(table)!.clear();
 
@@ -602,13 +663,10 @@ export const createIndexingCache = ({
           );
 
           for (const [key, entry] of updateBuffer.get(table)!) {
-            const bytes = getBytes(entry.row);
-            cacheBytes += bytes;
-            tableSpillover.set(key, {
-              bytes,
-              operationIndex: totalCacheOps++,
-              row: entry.row,
-            });
+            if (shouldRecordBytes && tableCache.has(key) === false) {
+              cacheBytes += getBytes(entry.row);
+            }
+            tableCache.set(key, entry.row);
           }
           updateBuffer.get(table)!.clear();
 
@@ -626,50 +684,130 @@ export const createIndexingCache = ({
         }
       }
     },
-    commit() {
-      for (const [table, tableSpillover] of spillover) {
-        const tableCache = cache.get(table)!;
-        for (const [key, entry] of tableSpillover) {
-          tableCache.set(key, entry);
+    async prefetch({ events, db, eventCount }) {
+      if (isCacheComplete) {
+        if (cacheBytes < common.options.indexingCacheMaxBytes) {
+          return;
         }
-        tableSpillover.clear();
+
+        isCacheComplete = false;
+        for (const table of cache.keys()) {
+          cache.get(table)!.clear();
+          // Note: spillover is not cleared because it is an invariant
+          // it is empty
+        }
       }
 
-      cacheBytes += spilloverBytes;
-      spilloverBytes = 0;
+      // Use historical accesses + next event batch to determine which
+      // rows are going to be accessed, and preload them into the cache.
 
-      let cacheSize = 0;
-      for (const { size } of cache.values()) cacheSize += size;
+      const prediction = new Map<Table, Map<CacheKey, Row>>();
 
-      const flushIndex =
-        totalCacheOps -
-        cacheSize * (1 - common.options.indexingCacheEvictRatio);
+      for (const table of tables) {
+        prediction.set(table, new Map());
+      }
 
-      if (cacheBytes + spilloverBytes > common.options.indexingCacheMaxBytes) {
-        isCacheComplete = false;
-
-        let rowCount = 0;
-
-        for (const tableCache of cache.values()) {
-          for (const [key, entry] of tableCache) {
-            if (entry.operationIndex <= flushIndex) {
-              tableCache.delete(key);
-              cacheBytes -= entry.bytes;
-              rowCount += 1;
+      for (const event of events) {
+        if (profile.has(event.name)) {
+          for (const table of tables) {
+            for (const [, { count, pattern }] of profile
+              .get(event.name)!
+              .get(table)!) {
+              // Expected value of times the prediction will be used.
+              const ev = count / eventCount[event.name]!;
+              if (ev > 0.25) {
+                const row = recoverProfilePattern(pattern, event);
+                const key = getCacheKey(table, row);
+                prediction.get(table)!.set(key, row);
+              }
             }
           }
         }
-
-        common.logger.debug({
-          service: "indexing",
-          msg: `Evicted ${rowCount} rows from the cache`,
-        });
       }
+
+      for (const [table, tableCache] of cache) {
+        for (const key of tableCache.keys()) {
+          if (
+            spillover.get(table)!.has(key) ||
+            prediction.get(table)!.has(key)
+          ) {
+            prediction.get(table)!.delete(key);
+          } else {
+            tableCache.delete(key);
+            isCacheComplete = false;
+          }
+        }
+      }
+
+      for (const [table] of spillover) {
+        spillover.get(table)!.clear();
+      }
+
+      for (const [table, tablePredictions] of prediction) {
+        common.metrics.ponder_indexing_cache_requests_total.inc(
+          {
+            table: getTableName(table),
+            type: "prefetch",
+          },
+          tablePredictions.size,
+        );
+      }
+
+      await Promise.all(
+        Array.from(prediction.entries())
+          .filter(([, tablePredictions]) => tablePredictions.size > 0)
+          .map(async ([table, tablePredictions]) => {
+            const conditions = dedupe(
+              Array.from(tablePredictions),
+              ([key]) => key,
+            ).map(([, prediction]) => getWhereCondition(table, prediction));
+
+            if (conditions.length === 0) return;
+            const endClock = startClock();
+
+            await db
+              .select()
+              .from(table)
+              .where(or(...conditions))
+              .then((results) => {
+                common.logger.debug({
+                  service: "indexing",
+                  msg: `Pre-queried ${results.length} '${getTableName(table)}' rows`,
+                });
+                const resultsPerKey = new Map<CacheKey, Row>();
+                for (const result of results) {
+                  const ck = getCacheKey(table, result, primaryKeyCache);
+                  resultsPerKey.set(ck, result);
+                }
+
+                const tableCache = cache.get(table)!;
+                for (const key of tablePredictions.keys()) {
+                  if (resultsPerKey.has(key)) {
+                    tableCache.set(key, resultsPerKey.get(key)!);
+                  } else {
+                    tableCache.set(key, null);
+                  }
+                }
+              });
+
+            common.metrics.ponder_indexing_cache_query_duration.observe(
+              {
+                table: getTableName(table),
+                method: "load",
+              },
+              endClock(),
+            );
+          }),
+      );
     },
     invalidate() {
       isCacheComplete = false;
     },
     rollback() {
+      for (const tableCache of cache.values()) {
+        tableCache.clear();
+      }
+
       for (const tableSpillover of spillover.values()) {
         tableSpillover.clear();
       }
@@ -681,8 +819,6 @@ export const createIndexingCache = ({
       for (const tableBuffer of updateBuffer.values()) {
         tableBuffer.clear();
       }
-
-      spilloverBytes = 0;
     },
     clear() {
       for (const tableCache of cache.values()) {
@@ -700,9 +836,9 @@ export const createIndexingCache = ({
       for (const tableBuffer of updateBuffer.values()) {
         tableBuffer.clear();
       }
-
-      cacheBytes = 0;
-      spilloverBytes = 0;
+    },
+    set event(_event: Event | undefined) {
+      event = _event;
     },
   };
 };
