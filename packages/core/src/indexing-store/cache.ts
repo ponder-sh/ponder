@@ -710,15 +710,15 @@ export const createIndexingCache = ({
       for (const event of events) {
         if (profile.has(event.name)) {
           for (const table of tables) {
-            for (const [key, { count, pattern }] of profile
+            for (const [, { count, pattern }] of profile
               .get(event.name)!
               .get(table)!) {
               // Expected value of times the prediction will be used.
               const ev = count / eventCount[event.name]!;
               if (ev > 0.25) {
-                prediction
-                  .get(table)!
-                  .set(key, recoverProfilePattern(pattern, event));
+                const row = recoverProfilePattern(pattern, event);
+                const key = getCacheKey(table, row);
+                prediction.get(table)!.set(key, row);
               }
             }
           }
