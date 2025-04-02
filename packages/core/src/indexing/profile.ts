@@ -1,6 +1,12 @@
 import type { Event } from "@/internal/types.js";
 import type { Abi } from "viem";
-import type { PonderActions, ProfilePattern, Request } from "./client.js";
+import {
+  type PonderActions,
+  type ProfilePattern,
+  type Request,
+  encodeRequest,
+  getCacheKey,
+} from "./client.js";
 
 export const getProfilePatternKey = (pattern: ProfilePattern): string => {
   return JSON.stringify(pattern, (key, value) => {
@@ -22,13 +28,24 @@ const eq = (target: bigint | string | number | boolean, value: any) => {
 export const recordProfilePattern = ({
   event,
   args,
+  hints,
 }: {
   event: Event;
   args: Omit<
     Parameters<PonderActions["readContract"]>[0],
     "blockNumber" | "cache"
   >;
+  hints: { pattern: ProfilePattern; hasConstant: boolean }[];
 }): { pattern: ProfilePattern; hasConstant: boolean } => {
+  for (const hint of hints) {
+    if (
+      getCacheKey(encodeRequest(args as Request)) ===
+      getCacheKey(encodeRequest(recoverProfilePattern(hint.pattern, event)))
+    ) {
+      return hint;
+    }
+  }
+
   let resultAddress: ProfilePattern["address"] | undefined;
   let hasConstant = false;
 

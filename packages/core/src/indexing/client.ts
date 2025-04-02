@@ -307,7 +307,10 @@ type EventName = string;
  */
 type Profile = Map<
   EventName,
-  Map<ProfileKey, { pattern: ProfilePattern; count: number }>
+  Map<
+    ProfileKey,
+    { pattern: ProfilePattern; hasConstant: boolean; count: number }
+  >
 >;
 /**
  * LRU cache of {@link ProfilePattern} in {@link Profile} with constant args.
@@ -320,9 +323,24 @@ type ProfileConstantLRU = Map<EventName, Set<ProfileKey>>;
  */
 type Cache = Map<number, Map<CacheKey, Promise<Response | Error> | Response>>;
 
-const getCacheKey = (request: EIP1193Parameters) => {
+export const getCacheKey = (request: EIP1193Parameters) => {
   return toLowerCase(JSON.stringify(orderObject(request)));
 };
+
+export const encodeRequest = (request: Request) => ({
+  method: "eth_call",
+  params: [
+    {
+      to: request.address,
+      data: encodeFunctionData({
+        abi: request.abi,
+        functionName: request.functionName,
+        args: request.args,
+      }),
+    },
+    toHex(request.blockNumber),
+  ],
+});
 
 export const createCachedViemClient = ({
   common,
@@ -368,7 +386,9 @@ export const createCachedViemClient = ({
           profileConstantLRU.get(event!.name)!.add(profilePatternKey);
         }
       } else {
-        profile.get(event!.name)!.set(profilePatternKey, { pattern, count: 1 });
+        profile
+          .get(event!.name)!
+          .set(profilePatternKey, { pattern, hasConstant, count: 1 });
 
         if (hasConstant) {
           profileConstantLRU.get(event!.name)!.add(profilePatternKey);
@@ -414,6 +434,8 @@ export const createCachedViemClient = ({
             profileConstantLRU.set(event!.name, new Set());
           }
 
+          profile.get(event!.name);
+
           addProfilePattern(
             recordProfilePattern({
               event: event!,
@@ -421,6 +443,7 @@ export const createCachedViemClient = ({
                 Parameters<PonderActions["readContract"]>[0],
                 "blockNumber" | "cache"
               >,
+              hints: Array.from(profile.get(event!.name)!.values()),
             }),
           );
         } else if (
@@ -445,6 +468,7 @@ export const createCachedViemClient = ({
               recordProfilePattern({
                 event: event!,
                 args: contract,
+                hints: Array.from(profile.get(event!.name)!.values()),
               }),
             );
           }
@@ -570,21 +594,6 @@ export const createCachedViemClient = ({
           }
         }
       }
-
-      const encodeRequest = (request: Request) => ({
-        method: "eth_call",
-        params: [
-          {
-            to: request.address,
-            data: encodeFunctionData({
-              abi: request.abi,
-              functionName: request.functionName,
-              args: request.args,
-            }),
-          },
-          toHex(request.blockNumber),
-        ],
-      });
 
       const chainRequests: Map<
         number,
