@@ -39,7 +39,16 @@ export const recordProfilePattern = ({
 }): { pattern: ProfilePattern; hasConstant: boolean } => {
   for (const hint of hints) {
     if (
-      getCacheKey(encodeRequest(args as Request)) ===
+      getCacheKey(
+        encodeRequest({
+          address: args.address,
+          abi: args.abi as Abi,
+          functionName: args.functionName,
+          args: args.args,
+          blockNumber: event.event.block.number,
+          chainId: event.chainId,
+        }),
+      ) ===
       getCacheKey(encodeRequest(recoverProfilePattern(hint.pattern, event)))
     ) {
       return hint;
