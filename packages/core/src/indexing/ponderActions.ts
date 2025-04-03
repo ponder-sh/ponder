@@ -7,7 +7,6 @@ import {
   type Client,
   type ContractFunctionArgs,
   type ContractFunctionName,
-  ContractFunctionZeroDataError,
   type GetBlockReturnType,
   type GetBlockTransactionCountReturnType,
   type GetTransactionCountReturnType,
@@ -205,7 +204,8 @@ export const getPonderActions = (getBlockNumber: () => bigint) => {
             return await action(...args);
           } catch (error) {
             if (
-              error instanceof ContractFunctionZeroDataError === false ||
+              (error as Error)?.message.includes("returned no data") ===
+                false ||
               i === RETRY_COUNT
             ) {
               throw error;
