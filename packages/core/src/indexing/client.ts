@@ -342,6 +342,15 @@ export const encodeRequest = (request: Request) => ({
   ],
 });
 
+export const decodeResponse = (response: Response) => {
+  // Note: I don't actually remember why we had to add the try catch.
+  try {
+    return JSON.parse(response);
+  } catch (error) {
+    return response;
+  }
+};
+
 export const createCachedViemClient = ({
   common,
   indexingBuild,
@@ -420,57 +429,43 @@ export const createCachedViemClient = ({
         blockNumber: userBlockNumber,
         ...args
       }: Parameters<PonderActions[action]>[0]) => {
-        // profile "readContract" and "multicall" actions
-
         // Note: prediction only possible when block number is managed by Ponder.
 
-        if (
-          action === "readContract" &&
-          event!.type !== "setup" &&
-          userBlockNumber === undefined
-        ) {
+        if (event!.type !== "setup" && userBlockNumber === undefined) {
           if (profile.has(event!.name) === false) {
             profile.set(event!.name, new Map());
             profileConstantLRU.set(event!.name, new Set());
           }
 
-          profile.get(event!.name);
-
-          addProfilePattern(
-            recordProfilePattern({
-              event: event!,
-              args: args as Omit<
-                Parameters<PonderActions["readContract"]>[0],
-                "blockNumber" | "cache"
-              >,
-              hints: Array.from(profile.get(event!.name)!.values()),
-            }),
-          );
-        } else if (
-          action === "multicall" &&
-          event!.type !== "setup" &&
-          userBlockNumber === undefined
-        ) {
-          if (profile.has(event!.name) === false) {
-            profile.set(event!.name, new Map());
-            profileConstantLRU.set(event!.name, new Set());
-          }
-
-          const contracts = (
-            args as Omit<
-              Parameters<PonderActions["multicall"]>[0],
-              "blockNumber" | "cache"
-            >
-          ).contracts as ContractFunctionParameters[];
-
-          for (const contract of contracts) {
+          // profile "readContract" and "multicall" actions
+          if (action === "readContract") {
             addProfilePattern(
               recordProfilePattern({
                 event: event!,
-                args: contract,
+                args: args as Omit<
+                  Parameters<PonderActions["readContract"]>[0],
+                  "blockNumber" | "cache"
+                >,
                 hints: Array.from(profile.get(event!.name)!.values()),
               }),
             );
+          } else if (action === "multicall") {
+            const contracts = (
+              args as Omit<
+                Parameters<PonderActions["multicall"]>[0],
+                "blockNumber" | "cache"
+              >
+            ).contracts as ContractFunctionParameters[];
+
+            for (const contract of contracts) {
+              addProfilePattern(
+                recordProfilePattern({
+                  event: event!,
+                  args: contract,
+                  hints: Array.from(profile.get(event!.name)!.values()),
+                }),
+              );
+            }
           }
         }
 
@@ -658,7 +653,7 @@ export const createCachedViemClient = ({
         cache.get(network.chainId)!.clear();
       }
     },
-    set event(_event: Event | undefined) {
+    set event(_event: Event | SetupEvent | undefined) {
       event = _event;
     },
   };
@@ -691,11 +686,17 @@ export const cachedTransport =
           let blockNumber: Hex | "latest" | undefined = undefined;
           [, blockNumber] = params;
 
-          const multicallData = decodeFunctionData({
+          const multicallRequests = decodeFunctionData({
             abi: multicall3Abi,
             data: params[0]!.data,
-          });
-          const requests = multicallData.args[0]!.map(
+          }).args[0];
+
+          if (multicallRequests.length === 0) {
+            // empty multicall result
+            return "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000";
+          }
+
+          const requests = multicallRequests.map(
             (call) =>
               ({
                 method: "eth_call",
@@ -708,12 +709,6 @@ export const cachedTransport =
                 ],
               }) as const satisfies EIP1193Parameters,
           );
-
-          if (requests.length === 0) {
-            // empty multicall result
-            return "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000";
-          }
-
           const results = new Map<
             EIP1193Parameters,
             {
@@ -736,22 +731,23 @@ export const cachedTransport =
 
               if (cachedResult instanceof Promise) {
                 const result = await cachedResult;
-                if (result instanceof Error) throw Error;
+
+                // Note: we don't attempt to cache or prefetch errors, instead relying on the eventual RPC request.
+
+                if (result instanceof Error) continue;
 
                 if (result !== "0x") {
                   requestsToInsert.add(request);
                 }
 
-                // TODO(kyle) try catch parse
-
                 results.set(request, {
                   success: true,
-                  returnData: JSON.parse(result),
+                  returnData: decodeResponse(result),
                 });
               } else {
                 results.set(request, {
                   success: true,
-                  returnData: JSON.parse(cachedResult),
+                  returnData: decodeResponse(cachedResult),
                 });
               }
             }
@@ -776,11 +772,9 @@ export const cachedTransport =
                 type: "hit_db",
               });
 
-              // TODO(kyle) try catch parse
-
               results.set(request, {
                 success: true,
-                returnData: JSON.parse(result),
+                returnData: decodeResponse(result),
               });
             }
           }
@@ -788,9 +782,6 @@ export const cachedTransport =
           if (results.size < requests.length) {
             const _requests = requests.filter(
               (request) => results.has(request) === false,
-            );
-            const multicallRequests = multicallData.args[0]!.filter(
-              (_, i) => results.has(requests[i]!) === false,
             );
 
             const multicallResult = await requestQueue
@@ -802,7 +793,11 @@ export const cachedTransport =
                     data: encodeFunctionData({
                       abi: multicall3Abi,
                       functionName: "aggregate3",
-                      args: [multicallRequests],
+                      args: [
+                        multicallRequests.filter(
+                          (_, i) => results.has(requests[i]!) === false,
+                        ),
+                      ],
                     }),
                   },
                   blockNumber!,
@@ -829,11 +824,16 @@ export const cachedTransport =
                 type: "miss",
               });
 
-              // TODO(kyle) handle errors
-
               results.set(request, result);
             }
           }
+
+          const encodedBlockNumber =
+            blockNumber === undefined
+              ? undefined
+              : blockNumber === "latest"
+                ? 0
+                : hexToNumber(blockNumber);
 
           // Note: insertRpcRequestResults errors can be ignored and not awaited, since
           // the response is already fetched.
@@ -841,12 +841,7 @@ export const cachedTransport =
             .insertRpcRequestResults({
               requests: Array.from(requestsToInsert).map((request) => ({
                 request,
-                blockNumber:
-                  blockNumber === undefined
-                    ? undefined
-                    : blockNumber === "latest"
-                      ? 0
-                      : hexToNumber(blockNumber),
+                blockNumber: encodedBlockNumber,
                 result: JSON.stringify(results.get(request)!.returnData),
               })),
               chainId: network.chainId,
@@ -908,6 +903,13 @@ export const cachedTransport =
               break;
           }
 
+          const encodedBlockNumber =
+            blockNumber === undefined
+              ? undefined
+              : blockNumber === "latest"
+                ? 0
+                : hexToNumber(blockNumber);
+
           const cacheKey = getCacheKey(body);
 
           if (cache.get(network.chainId)!.has(cacheKey)) {
@@ -924,18 +926,17 @@ export const cachedTransport =
 
               if (result instanceof Error) throw result;
 
+              // Note: "0x" is a valid response for some requests, but is sometimes erroneously returned by the RPC.
+              // Because the frequency of these valid requests with no return data is very low, we don't cache it.
               if (result !== "0x") {
+                // Note: insertRpcRequestResults errors can be ignored and not awaited, since
+                // the response is already fetched.
                 syncStore
                   .insertRpcRequestResults({
                     requests: [
                       {
                         request: body,
-                        blockNumber:
-                          blockNumber === undefined
-                            ? undefined
-                            : blockNumber === "latest"
-                              ? 0
-                              : hexToNumber(blockNumber),
+                        blockNumber: encodedBlockNumber,
                         result,
                       },
                     ],
@@ -944,18 +945,10 @@ export const cachedTransport =
                   .catch(() => {});
               }
 
-              try {
-                return JSON.parse(result);
-              } catch {
-                return result;
-              }
+              return decodeResponse(result);
             }
 
-            try {
-              return JSON.parse(cachedResult);
-            } catch {
-              return cachedResult;
-            }
+            return decodeResponse(cachedResult);
           }
 
           const [cachedResult] = await syncStore.getRpcRequestResults({
@@ -969,11 +962,7 @@ export const cachedTransport =
               type: "hit_db",
             });
 
-            try {
-              return JSON.parse(cachedResult);
-            } catch {
-              return cachedResult;
-            }
+            return decodeResponse(cachedResult);
           }
 
           common.metrics.ponder_indexing_rpc_requests_total.inc({
@@ -982,6 +971,7 @@ export const cachedTransport =
           });
 
           const response = await requestQueue.request(body);
+
           // Note: "0x" is a valid response for some requests, but is sometimes erroneously returned by the RPC.
           // Because the frequency of these valid requests with no return data is very low, we don't cache it.
           if (response !== "0x") {
@@ -992,12 +982,7 @@ export const cachedTransport =
                 requests: [
                   {
                     request: body,
-                    blockNumber:
-                      blockNumber === undefined
-                        ? undefined
-                        : blockNumber === "latest"
-                          ? 0
-                          : hexToNumber(blockNumber),
+                    blockNumber: encodedBlockNumber,
                     result: JSON.stringify(response),
                   },
                 ],
