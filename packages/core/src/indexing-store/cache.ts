@@ -47,7 +47,6 @@ export type IndexingCache = {
   get: (params: {
     table: Table;
     key: object;
-    db: Drizzle<Schema>;
   }) => Row | null | Promise<Row | null>;
   /**
    * Sets the entry for `table` with `key` to `row`.
@@ -64,18 +63,16 @@ export type IndexingCache = {
   delete: (params: {
     table: Table;
     key: object;
-    db: Drizzle<Schema>;
   }) => boolean | Promise<boolean>;
   /**
    * Writes all temporary data to the database.
    */
-  flush: (params: { client: PoolClient | PGlite }) => Promise<void>;
+  flush: () => Promise<void>;
   /**
    * Predict and load rows that will be accessed in the next event batch.
    */
   prefetch: (params: {
     events: Event[];
-    db: Drizzle<Schema>;
     eventCount: { [key: string]: number };
   }) => Promise<void>;
   /**
@@ -91,6 +88,8 @@ export type IndexingCache = {
    */
   clear: () => void;
   event: Event | undefined;
+  db: Drizzle<Schema>;
+  client: PoolClient | PGlite;
 };
 
 /**
@@ -288,6 +287,8 @@ export const createIndexingCache = ({
    */
   let cacheBytes = 0;
   let event: Event | undefined;
+  let db: Drizzle<Schema>;
+  let client: PoolClient | PGlite;
   let isCacheComplete = crashRecoveryCheckpoint === ZERO_CHECKPOINT_STRING;
   const primaryKeyCache = new Map<Table, [string, Column][]>();
 
@@ -326,7 +327,7 @@ export const createIndexingCache = ({
         updateBuffer.get(table)!.has(ck)
       );
     },
-    async get({ table, key, db }) {
+    async get({ table, key }) {
       if (event) {
         if (profile.has(event.name) === false) {
           profile.set(event.name, new Map());
@@ -439,7 +440,7 @@ export const createIndexingCache = ({
 
       return row;
     },
-    async delete({ table, key, db }) {
+    async delete({ table, key }) {
       const ck = getCacheKey(table, key);
 
       const inInsertBuffer = insertBuffer.get(table)!.delete(ck);
@@ -455,7 +456,7 @@ export const createIndexingCache = ({
 
       return inInsertBuffer || inUpdateBuffer || inDb;
     },
-    async flush({ client }) {
+    async flush() {
       const copy = getCopyHelper({ client });
 
       const shouldRecordBytes = isCacheComplete;
@@ -684,7 +685,7 @@ export const createIndexingCache = ({
         }
       }
     },
-    async prefetch({ events, db, eventCount }) {
+    async prefetch({ events, eventCount }) {
       if (isCacheComplete) {
         if (cacheBytes < common.options.indexingCacheMaxBytes) {
           return;
@@ -839,6 +840,12 @@ export const createIndexingCache = ({
     },
     set event(_event: Event | undefined) {
       event = _event;
+    },
+    set db(_db: Drizzle<Schema>) {
+      db = _db;
+    },
+    set client(_client: PoolClient | PGlite) {
+      client = _client;
     },
   };
 };

@@ -89,6 +89,12 @@ export async function run({
     crashRecoveryCheckpoint,
   });
 
+  const historicalIndexingStore = createHistoricalIndexingStore({
+    common,
+    schemaBuild,
+    indexingCache,
+  });
+
   await database.setStatus(sync.getStatus());
 
   for (const network of indexingBuild.networks) {
@@ -128,13 +134,10 @@ export async function run({
   if (crashRecoveryCheckpoint === ZERO_CHECKPOINT_STRING) {
     await database.retry(async () => {
       await database.transaction(async (client, tx) => {
-        const historicalIndexingStore = createHistoricalIndexingStore({
-          common,
-          schemaBuild,
-          indexingCache,
-          db: tx,
-          client,
-        });
+        indexingCache.db = tx;
+        indexingCache.client = client;
+        historicalIndexingStore.db = tx;
+
         const result = await indexing.processSetupEvents({
           db: historicalIndexingStore,
         });
@@ -162,9 +165,9 @@ export async function run({
     },
   )) {
     let endClock = startClock();
+    indexingCache.db = database.qb.drizzle;
     await indexingCache.prefetch({
       events,
-      db: database.qb.drizzle,
       eventCount: indexing.getEventCount(),
     });
     common.metrics.ponder_historical_transform_duration.inc(
@@ -176,19 +179,16 @@ export async function run({
       await database.retry(async () => {
         await database
           .transaction(async (client, tx) => {
+            indexingCache.db = tx;
+            indexingCache.client = client;
+            historicalIndexingStore.db = tx;
+
             common.metrics.ponder_historical_transform_duration.inc(
               { step: "begin" },
               endClock(),
             );
 
             endClock = startClock();
-            const historicalIndexingStore = createHistoricalIndexingStore({
-              common,
-              schemaBuild,
-              indexingCache,
-              db: tx,
-              client,
-            });
 
             const eventChunks = chunk(events, 93);
             for (const eventChunk of eventChunks) {
@@ -255,7 +255,7 @@ export async function run({
             // the "flush" + "finalize" is complete.
 
             try {
-              await indexingCache.flush({ client });
+              await indexingCache.flush();
             } catch (error) {
               if (error instanceof FlushError) {
                 onReloadableError(error as Error);
@@ -309,8 +309,10 @@ export async function run({
 
   await database.retry(async () => {
     await database.transaction(async (client, tx) => {
+      indexingCache.db = tx;
+      indexingCache.client = client;
       try {
-        await indexingCache.flush({ client });
+        await indexingCache.flush();
       } catch (error) {
         if (error instanceof FlushError) {
           onReloadableError(error as Error);

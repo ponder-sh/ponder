@@ -5,10 +5,8 @@ import type { Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
-import type { PGlite } from "@electric-sql/pglite";
 import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
-import type { PoolClient } from "pg";
 import type { IndexingCache } from "./cache.js";
 import {
   type IndexingStore,
@@ -20,15 +18,15 @@ export const createHistoricalIndexingStore = ({
   common,
   schemaBuild: { schema },
   indexingCache,
-  db,
-  client,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   indexingCache: IndexingCache;
+}): IndexingStore & {
   db: Drizzle<Schema>;
-  client: PoolClient | PGlite;
-}): IndexingStore => {
+} => {
+  let db: Drizzle<Schema>;
+
   return {
     // @ts-ignore
     find: (table: Table, key) => {
@@ -37,9 +35,8 @@ export const createHistoricalIndexingStore = ({
         method: "find",
       });
       checkOnchainTable(table, "find");
-      return indexingCache.get({ table, key, db });
+      return indexingCache.get({ table, key });
     },
-
     // @ts-ignore
     insert(table: Table) {
       return {
@@ -59,7 +56,6 @@ export const createHistoricalIndexingStore = ({
                   const row = await indexingCache.get({
                     table,
                     key: value,
-                    db,
                   });
 
                   if (row) {
@@ -80,7 +76,6 @@ export const createHistoricalIndexingStore = ({
                 const row = await indexingCache.get({
                   table,
                   key: values,
-                  db,
                 });
 
                 if (row) {
@@ -108,7 +103,6 @@ export const createHistoricalIndexingStore = ({
                   const row = await indexingCache.get({
                     table,
                     key: value,
-                    db,
                   });
 
                   if (row) {
@@ -147,7 +141,6 @@ export const createHistoricalIndexingStore = ({
                 const row = await indexingCache.get({
                   table,
                   key: values,
-                  db,
                 });
 
                 if (row) {
@@ -244,7 +237,7 @@ export const createHistoricalIndexingStore = ({
           });
           checkOnchainTable(table, "update");
 
-          const row = await indexingCache.get({ table, key, db });
+          const row = await indexingCache.get({ table, key });
 
           if (row === null) {
             const error = new RecordNotFoundError(
@@ -282,12 +275,12 @@ export const createHistoricalIndexingStore = ({
         method: "delete",
       });
       checkOnchainTable(table, "delete");
-      return indexingCache.delete({ table, key, db });
+      return indexingCache.delete({ table, key });
     },
     // @ts-ignore
     sql: drizzle(
       async (_sql, params, method, typings) => {
-        await indexingCache.flush({ client });
+        await indexingCache.flush();
 
         let safeQuery = false;
 
@@ -321,5 +314,8 @@ export const createHistoricalIndexingStore = ({
       },
       { schema, casing: "snake_case" },
     ),
+    set db(_db: Drizzle<Schema>) {
+      db = _db;
+    },
   };
 };

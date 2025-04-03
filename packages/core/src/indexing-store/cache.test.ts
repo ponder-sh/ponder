@@ -35,21 +35,23 @@ test("flush() insert", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
       balance: 10n,
     });
 
-    await indexingCache.flush({ client });
+    await indexingCache.flush();
 
     const result = await indexingStore.find(schema.account, {
       address: zeroAddress,
@@ -80,14 +82,16 @@ test("flush() update", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     // mutate the cache to skip hot loops
 
@@ -103,14 +107,14 @@ test("flush() update", async (context) => {
     });
 
     // first flush takes "insert" path
-    await indexingCache.flush({ client });
+    await indexingCache.flush();
 
     await indexingStore.update(schema.account, { address: zeroAddress }).set({
       balance: 12n,
     });
 
     // second flush takes "update" path
-    await indexingCache.flush({ client });
+    await indexingCache.flush();
 
     let result = await indexingStore.find(schema.account, {
       address: zeroAddress,
@@ -127,7 +131,7 @@ test("flush() update", async (context) => {
       balance: 12n,
     });
 
-    await indexingCache.flush({ client });
+    await indexingCache.flush();
 
     result = await indexingStore.find(schema.account, {
       address: zeroAddress,
@@ -164,14 +168,16 @@ test("flush() encoding", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await indexingStore.insert(schema.test).values({
       hex: zeroAddress,
@@ -182,7 +188,7 @@ test("flush() encoding", async (context) => {
       null: null,
     });
 
-    await indexingCache.flush({ client });
+    await indexingCache.flush();
 
     indexingCache.clear();
     const result = await indexingStore.sql.select().from(schema.test);
@@ -226,14 +232,16 @@ test("flush() encoding escape", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     const values = [
       { backslash: "\\\\" },
@@ -258,7 +266,7 @@ test("flush() encoding escape", async (context) => {
 
     await indexingStore.insert(schema.test).values(values);
 
-    await indexingCache.flush({ client });
+    await indexingCache.flush();
 
     indexingCache.clear();
     const result = await indexingStore.sql.select().from(schema.test);
@@ -303,16 +311,18 @@ test("prefetch() queries predicted rows", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   indexingCache.event = event;
 
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await indexingStore
       .insert(schema.account)
@@ -325,10 +335,9 @@ test("prefetch() queries predicted rows", async (context) => {
     // @ts-ignore
     event.event.args.to = BOB;
 
-    await indexingCache.flush({ client });
+    await indexingCache.flush();
     await indexingCache.prefetch({
       events: [event],
-      db: tx,
       eventCount: { "Contract:Event": 1 },
     });
 
@@ -359,26 +368,28 @@ test("prefetch() evicts rows", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   // skip hot loop
   indexingCache.invalidate();
 
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
       balance: 10n,
     });
 
-    await indexingCache.flush({ client });
+    await indexingCache.flush();
     // prefetch() should evict rows from the cache to free memory
-    await indexingCache.prefetch({ events: [], db: tx, eventCount: {} });
+    await indexingCache.prefetch({ events: [], eventCount: {} });
 
     const result = indexingCache.has({
       table: schema.account,

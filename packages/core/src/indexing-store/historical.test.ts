@@ -40,14 +40,16 @@ test("find", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     // empty
 
@@ -98,14 +100,16 @@ test("insert", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     // single
 
@@ -252,14 +256,16 @@ test("update", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     // setup
 
@@ -346,14 +352,16 @@ test("delete", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     // no entry
 
@@ -403,15 +411,16 @@ test("sql", async (context) => {
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
 
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     // setup
 
@@ -482,14 +491,16 @@ test("sql followed by find", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await indexingStore.sql
       .insert(schema.account)
@@ -522,14 +533,16 @@ test("onchain table", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     // check error
 
@@ -557,14 +570,16 @@ test("missing rows", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     // error
 
@@ -594,14 +609,16 @@ test("notNull", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  let indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    let indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     // insert
 
@@ -647,9 +664,11 @@ test("notNull", async (context) => {
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
     });
+
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await expect(
       async () =>
@@ -683,15 +702,16 @@ test("default", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
 
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  await database.transaction(async (client, tx) => {
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await indexingStore.insert(schema.account).values({ address: zeroAddress });
 
@@ -719,15 +739,16 @@ test("$default", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
 
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  await database.transaction(async (client, tx) => {
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await indexingStore.insert(schema.account).values({ address: zeroAddress });
 
@@ -758,15 +779,16 @@ test("$onUpdateFn", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
 
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  await database.transaction(async (client, tx) => {
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     // insert
 
@@ -800,15 +822,16 @@ test("array", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
 
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  await database.transaction(async (client, tx) => {
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -844,14 +867,16 @@ test("text array", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     const STRING_ARRAY_VALUE = "//U_W_U\\\\";
 
@@ -893,14 +918,16 @@ test("enum", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -936,14 +963,16 @@ test("json bigint", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await expect(
       async () =>
@@ -970,14 +999,16 @@ test("bytes", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -1011,14 +1042,16 @@ test("text with null bytes", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -1052,14 +1085,16 @@ test.skip("time", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -1093,14 +1128,16 @@ test("timestamp", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -1134,14 +1171,16 @@ test.skip("date", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -1175,14 +1214,16 @@ test.skip("interval", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -1216,14 +1257,16 @@ test("point", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -1257,14 +1300,16 @@ test("line", async (context) => {
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
   await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+    indexingCache.db = tx;
+    indexingCache.client = client;
+    indexingStore.db = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
