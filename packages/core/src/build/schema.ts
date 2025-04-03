@@ -1,7 +1,7 @@
 import { getSql } from "@/drizzle/kit/index.js";
 import { BuildError } from "@/internal/errors.js";
 import type { Schema } from "@/internal/types.js";
-import { SQL, getTableColumns, is } from "drizzle-orm";
+import { SQL, getTableColumns, getTableName, is } from "drizzle-orm";
 import {
   PgBigSerial53,
   PgBigSerial64,
@@ -15,6 +15,8 @@ import {
 
 export const buildSchema = ({ schema }: { schema: Schema }) => {
   const statements = getSql(schema);
+
+  const tableNames = new Set<string>();
 
   for (const [name, s] of Object.entries(schema)) {
     if (is(s, PgTable)) {
@@ -79,6 +81,14 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
             );
           }
         }
+      }
+
+      if (tableNames.has(getTableName(s))) {
+        throw new Error(
+          `Schema validation failed: table name '${getTableName(s)}' is used multiple times.`,
+        );
+      } else {
+        tableNames.add(getTableName(s));
       }
 
       if (getTableConfig(s).primaryKeys.length > 1) {
