@@ -909,21 +909,32 @@ test("ponderActions readContract()", async (context) => {
     common,
   });
 
+  const event = {
+    type: "log",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "Contract:Event",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: {
+        from: zeroAddress,
+        to: ALICE,
+        amount: parseEther("1"),
+      },
+      log: {} as LogEvent["event"]["log"],
+      block: { number: 2n } as LogEvent["event"]["block"],
+      transaction: {} as LogEvent["event"]["transaction"],
+    },
+  } satisfies LogEvent;
+
   const cachedViemClient = createCachedViemClient({
     common,
     indexingBuild: { networks },
     requestQueues: [requestQueue],
     syncStore,
   });
-  cachedViemClient.event = {
-    type: "log",
-    event: {
-      args: {},
-      log: {} as LogEvent["event"]["log"],
-      block: { number: 2n } as LogEvent["event"]["block"],
-      transaction: {} as LogEvent["event"]["transaction"],
-    },
-  } as Event;
+
+  cachedViemClient.event = event;
 
   const client = cachedViemClient.getClient(networks[0]!);
 
@@ -933,7 +944,7 @@ test("ponderActions readContract()", async (context) => {
     address,
   });
 
-  expect(totalSupply).toBe(parseEther("1"));
+  expect(totalSupply).toMatchInlineSnapshot("1000000000000000000n");
 });
 
 test("ponderActions readContract() blockNumber", async (context) => {
@@ -955,16 +966,31 @@ test("ponderActions readContract() blockNumber", async (context) => {
     common,
   });
 
+  const event = {
+    type: "log",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "Contract:Event",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: {
+        from: zeroAddress,
+        to: ALICE,
+        amount: parseEther("1"),
+      },
+      log: {} as LogEvent["event"]["log"],
+      block: { number: 2n } as LogEvent["event"]["block"],
+      transaction: {} as LogEvent["event"]["transaction"],
+    },
+  } satisfies LogEvent;
+
   const cachedViemClient = createCachedViemClient({
     common,
     indexingBuild: { networks },
     requestQueues: [requestQueue],
     syncStore,
   });
-  cachedViemClient.event = {
-    type: "log",
-    event: { block: { number: 2n } },
-  } as Event;
+  cachedViemClient.event = event;
 
   const client = cachedViemClient.getClient(networks[0]!);
 
@@ -975,7 +1001,7 @@ test("ponderActions readContract() blockNumber", async (context) => {
     blockNumber: 1n,
   });
 
-  expect(totalSupply).toBe(parseEther("0"));
+  expect(totalSupply).toMatchInlineSnapshot("0n");
 });
 
 test("ponderActions readContract() ContractFunctionZeroDataError", async (context) => {
@@ -1044,16 +1070,31 @@ test("ponderActions multicall()", async (context) => {
     common,
   });
 
+  const event = {
+    type: "log",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "Contract:Event",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: {
+        from: zeroAddress,
+        to: ALICE,
+        amount: parseEther("1"),
+      },
+      log: {} as LogEvent["event"]["log"],
+      block: { number: 3n } as LogEvent["event"]["block"],
+      transaction: {} as LogEvent["event"]["transaction"],
+    },
+  } satisfies LogEvent;
+
   const cachedViemClient = createCachedViemClient({
     common,
     indexingBuild: { networks },
     requestQueues: [requestQueue],
     syncStore,
   });
-  cachedViemClient.event = {
-    type: "log",
-    event: { block: { number: 3n } },
-  } as Event;
+  cachedViemClient.event = event;
 
   const client = cachedViemClient.getClient(networks[0]!);
 
@@ -1074,5 +1115,84 @@ test("ponderActions multicall()", async (context) => {
     ],
   });
 
-  expect(totalSupply).toBe(parseEther("1"));
+  expect(totalSupply).toMatchInlineSnapshot("1000000000000000000n");
+});
+
+test("ponderActions multicall() allowFailure", async (context) => {
+  const { common } = context;
+  const { syncStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const { address: multicall } = await deployMulticall({ sender: ALICE });
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const requestQueue = createRequestQueue({
+    network: networks[0]!,
+    common,
+  });
+
+  const event = {
+    type: "log",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "Contract:Event",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: {
+        from: zeroAddress,
+        to: ALICE,
+        amount: parseEther("1"),
+      },
+      log: {} as LogEvent["event"]["log"],
+      block: { number: 3n } as LogEvent["event"]["block"],
+      transaction: {} as LogEvent["event"]["transaction"],
+    },
+  } satisfies LogEvent;
+
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { networks },
+    requestQueues: [requestQueue],
+    syncStore,
+  });
+  cachedViemClient.event = event;
+
+  const client = cachedViemClient.getClient(networks[0]!);
+
+  const result = await client.multicall({
+    allowFailure: true,
+    multicallAddress: multicall,
+    contracts: [
+      {
+        abi: erc20ABI,
+        functionName: "totalSupply",
+        address,
+      },
+      {
+        abi: erc20ABI,
+        functionName: "totalSupply",
+        address,
+      },
+    ],
+  });
+
+  expect(result).toMatchInlineSnapshot(`
+    [
+      {
+        "result": 1000000000000000000n,
+        "status": "success",
+      },
+      {
+        "result": 1000000000000000000n,
+        "status": "success",
+      },
+    ]
+  `);
 });
