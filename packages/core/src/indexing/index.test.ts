@@ -27,7 +27,6 @@ import {
   toHex,
   zeroAddress,
 } from "viem";
-import { ContractFunctionZeroDataError } from "viem";
 import { encodeEventTopics } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 import { type Context, createIndexing } from "./index.js";
@@ -946,11 +945,7 @@ test("ponderActions readContract() ContractFunctionZeroDataError", async (contex
 
   // Mock requestQueue.request to throw ContractFunctionZeroDataError
   const requestSpy = vi.spyOn(requestQueue, "request");
-  requestSpy.mockRejectedValueOnce(
-    new ContractFunctionZeroDataError({
-      functionName: "totalSupply",
-    }),
-  );
+  requestSpy.mockResolvedValueOnce("0x");
 
   const client = createClient({
     transport: cachedTransport({ requestQueue, syncStore }),
