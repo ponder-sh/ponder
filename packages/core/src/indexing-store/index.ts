@@ -22,7 +22,7 @@ export const parseSqlError = (e: any): Error => {
     error = new NotNullConstraintError(error.message);
   } else if (error?.message?.includes("violates unique constraint")) {
     error = new UniqueConstraintError(error.message);
-  } else if (error?.message.includes("violates check constraint")) {
+  } else if (error?.message?.includes("violates check constraint")) {
     error = new CheckConstraintError(error.message);
   } else if (
     error?.message?.includes("Do not know how to serialize a BigInt")

@@ -171,7 +171,7 @@ export const getPonderActions = (getBlockNumber: () => bigint) => {
     const actions = {} as PonderActions;
     const _publicActions = publicActions(client);
 
-    const addAction = <
+    const getPonderAction = <
       action extends
         | (typeof blockDependentActions)[number]
         | "multicall"
@@ -181,7 +181,7 @@ export const getPonderActions = (getBlockNumber: () => bigint) => {
       action: action,
     ) => {
       // @ts-ignore
-      actions[action] = ({
+      return ({
         cache,
         blockNumber: userBlockNumber,
         ...args
@@ -195,13 +195,38 @@ export const getPonderActions = (getBlockNumber: () => bigint) => {
         } as Parameters<ReturnType<typeof publicActions>[action]>[0]);
     };
 
+    const getRetryAction = (action: PonderActions[keyof PonderActions]) => {
+      return async (...args: Parameters<typeof action>) => {
+        const RETRY_COUNT = 3;
+        for (let i = 0; i <= RETRY_COUNT; i++) {
+          try {
+            // @ts-ignore
+            return await action(...args);
+          } catch (error) {
+            if (
+              (error as Error)?.message?.includes("returned no data") ===
+                false ||
+              i === RETRY_COUNT
+            ) {
+              throw error;
+            }
+          }
+        }
+      };
+    };
+
     for (const action of blockDependentActions) {
-      addAction(action);
+      actions[action] = getPonderAction(action);
     }
 
-    addAction("multicall");
-    addAction("readContract");
-    addAction("simulateContract");
+    // @ts-ignore
+    actions.multicall = getRetryAction(getPonderAction("multicall"));
+    // @ts-ignore
+    actions.readContract = getRetryAction(getPonderAction("readContract"));
+    actions.simulateContract = getRetryAction(
+      // @ts-ignore
+      getPonderAction("simulateContract"),
+    );
 
     for (const action of nonBlockDependentActions) {
       // @ts-ignore
