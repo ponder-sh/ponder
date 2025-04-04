@@ -7,10 +7,7 @@ export const getProfilePatternKey = (pattern: ProfilePattern): string => {
   return Object.values(pattern).join("_");
 };
 
-const eq = (
-  target: bigint | string | number | boolean,
-  value: bigint | string | number | boolean | null | undefined,
-) => {
+const eq = (target: bigint | string | number | boolean, value: any) => {
   if (target === value) return true;
   if (target && value && target.toString() === value.toString()) return true;
   return false;
@@ -129,15 +126,18 @@ export const recordProfilePattern = (
       }
 
       case "log": {
+        let hasMatch = false;
         for (const argKey of Object.keys(event.event.args)) {
           const argValue = event.event.args[argKey];
 
           if (eq(argValue, value)) {
             result[js] = `args.${argKey}`;
+            hasMatch = true;
+            break;
           }
         }
 
-        if (result[js]) continue;
+        if (hasMatch) continue;
 
         if (eq(event.event.log.address, value)) {
           result[js] = "log.address";
@@ -204,18 +204,26 @@ export const recordProfilePattern = (
       }
 
       case "trace": {
+        let hasMatch = false;
         for (const argKey of Object.keys(event.event.args)) {
           const argValue = event.event.args[argKey];
 
           if (eq(argValue, value)) {
             result[js] = `args.${argKey}`;
+            hasMatch = true;
+            break;
           }
         }
 
-        if (result[js]) continue;
+        if (hasMatch) continue;
 
         if (eq(event.event.trace.from, value)) {
           result[js] = "trace.from";
+          continue;
+        }
+
+        if (event.event.trace.to && eq(event.event.trace.to, value)) {
+          result[js] = "trace.to";
           continue;
         }
 
@@ -286,6 +294,11 @@ export const recordProfilePattern = (
 
         if (eq(event.event.trace.from, value)) {
           result[js] = "trace.from";
+          continue;
+        }
+
+        if (event.event.trace.to && eq(event.event.trace.to, value)) {
+          result[js] = "trace.to";
           continue;
         }
 

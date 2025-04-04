@@ -3,6 +3,7 @@ import type { Database } from "@/database/index.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
+import { createCachedViemClient } from "@/indexing/client.js";
 import { createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import { FlushError } from "@/internal/errors.js";
@@ -76,11 +77,17 @@ export async function run({
     ordering: preBuild.ordering,
   });
 
-  const indexing = createIndexing({
+  const cachedViemClient = createCachedViemClient({
     common,
     indexingBuild,
     requestQueues,
     syncStore,
+  });
+
+  const indexing = createIndexing({
+    common,
+    indexingBuild,
+    client: cachedViemClient,
   });
 
   const indexingCache = createIndexingCache({
@@ -162,11 +169,18 @@ export async function run({
     },
   )) {
     let endClock = startClock();
-    await indexingCache.prefetch({
-      events,
-      db: database.qb.drizzle,
-      eventCount: indexing.getEventCount(),
-    });
+
+    await Promise.all([
+      indexingCache.prefetch({
+        events,
+        db: database.qb.drizzle,
+        eventCount: indexing.getEventCount(),
+      }),
+      cachedViemClient.prefetch({
+        events,
+        eventCount: indexing.getEventCount(),
+      }),
+    ]);
     common.metrics.ponder_historical_transform_duration.inc(
       { step: "prefetch" },
       endClock(),
@@ -286,6 +300,7 @@ export async function run({
             throw error;
           });
       });
+      cachedViemClient.clear();
       common.metrics.ponder_historical_transform_duration.inc(
         { step: "commit" },
         endClock(),
