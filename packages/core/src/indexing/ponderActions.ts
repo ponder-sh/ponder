@@ -204,7 +204,7 @@ export const getPonderActions = (getBlockNumber: () => bigint) => {
             return await action(...args);
           } catch (error) {
             if (
-              (error as Error)?.message.includes("returned no data") ===
+              (error as Error)?.message?.includes("returned no data") ===
                 false ||
               i === RETRY_COUNT
             ) {
