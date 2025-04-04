@@ -1,5 +1,13 @@
 # ponder
 
+## 0.10.9
+
+### Patch Changes
+
+- [#1640](https://github.com/ponder-sh/ponder/pull/1640) [`22b4593e53b93569d95fd45a89532040f1f98ac2`](https://github.com/ponder-sh/ponder/commit/22b4593e53b93569d95fd45a89532040f1f98ac2) Thanks [@kyscott18](https://github.com/kyscott18)! - Added retry logic for "ContractFunctionZeroDataError" when a rpc incorrectly returns "0x".
+
+- [#1639](https://github.com/ponder-sh/ponder/pull/1639) [`37dff4a356c644464f8e9a8a7767696994981f04`](https://github.com/ponder-sh/ponder/commit/37dff4a356c644464f8e9a8a7767696994981f04) Thanks [@kyscott18](https://github.com/kyscott18)! - Added validation for schemas with duplicate table names.
+
 ## 0.10.8
 
 ### Patch Changes
