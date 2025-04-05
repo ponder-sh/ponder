@@ -598,9 +598,7 @@ export const createDatabase = async ({
     },
     async transaction(fn) {
       if (dialect === "postgres") {
-        const client = await (
-          database.driver as { internal: Pool }
-        ).internal.connect();
+        const client = await (database.driver as { user: Pool }).user.connect();
         try {
           await client.query("BEGIN");
           const tx = drizzleNodePg(client, {

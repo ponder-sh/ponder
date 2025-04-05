@@ -924,6 +924,45 @@ test("ponderActions readContract() blockNumber", async (context) => {
   expect(totalSupply).toBe(parseEther("0"));
 });
 
+test("ponderActions readContract() ContractFunctionZeroDataError", async (context) => {
+  const { common } = context;
+  const { syncStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const requestQueue = createRequestQueue({
+    network: networks[0]!,
+    common,
+  });
+
+  // Mock requestQueue.request to throw ContractFunctionZeroDataError
+  const requestSpy = vi.spyOn(requestQueue, "request");
+  requestSpy.mockResolvedValueOnce("0x");
+
+  const client = createClient({
+    transport: cachedTransport({ requestQueue, syncStore }),
+    chain: networks[0]!.chain,
+    // @ts-ignore
+  }).extend(getPonderActions(() => 2n!)) as ReadOnlyClient;
+
+  const totalSupply = await client.readContract({
+    abi: erc20ABI,
+    functionName: "totalSupply",
+    address,
+  });
+
+  expect(totalSupply).toBe(parseEther("1"));
+  expect(requestSpy).toHaveBeenCalledTimes(2);
+});
+
 test("ponderActions multicall()", async (context) => {
   const { common } = context;
   const { syncStore } = await setupDatabaseServices(context, {

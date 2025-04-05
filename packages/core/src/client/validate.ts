@@ -12,7 +12,16 @@ const getNodeType = (node: Node) => Object.keys(node)[0]!;
 
 const ALLOW_CACHE = new Map<string, boolean>();
 
-export const validateQuery = async (sql: string) => {
+/**
+ * Validate a SQL query.
+ *
+ * @param sql - SQL query
+ * @param shouldValidateInnerNode - `true` if the properties of each ast node should be validated, else only the allow list is checked
+ */
+export const validateQuery = async (
+  sql: string,
+  shouldValidateInnerNode = true,
+) => {
   // @ts-ignore
   const Parser = await import(/* webpackIgnore: true */ "pg-query-emscripten");
   const crypto = await import(/* webpackIgnore: true */ "node:crypto");
@@ -64,8 +73,10 @@ export const validateQuery = async (sql: string) => {
       throw new Error(`${getNodeType(node)} not supported`);
     }
 
-    // @ts-ignore
-    ALLOW_LIST.get(getNodeType(node))!.validate?.(node[getNodeType(node)]);
+    if (shouldValidateInnerNode) {
+      // @ts-ignore
+      ALLOW_LIST.get(getNodeType(node))!.validate?.(node[getNodeType(node)]);
+    }
 
     for (const child of ALLOW_LIST.get(getNodeType(node))!.children(
       // @ts-ignore

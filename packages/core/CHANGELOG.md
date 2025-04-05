@@ -1,5 +1,27 @@
 # ponder
 
+## 0.10.9
+
+### Patch Changes
+
+- [#1640](https://github.com/ponder-sh/ponder/pull/1640) [`22b4593e53b93569d95fd45a89532040f1f98ac2`](https://github.com/ponder-sh/ponder/commit/22b4593e53b93569d95fd45a89532040f1f98ac2) Thanks [@kyscott18](https://github.com/kyscott18)! - Added retry logic for "ContractFunctionZeroDataError" when a rpc incorrectly returns "0x".
+
+- [#1639](https://github.com/ponder-sh/ponder/pull/1639) [`37dff4a356c644464f8e9a8a7767696994981f04`](https://github.com/ponder-sh/ponder/commit/37dff4a356c644464f8e9a8a7767696994981f04) Thanks [@kyscott18](https://github.com/kyscott18)! - Added validation for schemas with duplicate table names.
+
+## 0.10.8
+
+### Patch Changes
+
+- [#1596](https://github.com/ponder-sh/ponder/pull/1596) [`559226b33cb8cf6b6d939a2a2d611230a193ddc6`](https://github.com/ponder-sh/ponder/commit/559226b33cb8cf6b6d939a2a2d611230a193ddc6) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved historical indexing performance.
+
+## 0.10.7
+
+### Patch Changes
+
+- [#1631](https://github.com/ponder-sh/ponder/pull/1631) [`4045aea473eb68b304357851fa47c9a165a00e49`](https://github.com/ponder-sh/ponder/commit/4045aea473eb68b304357851fa47c9a165a00e49) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved raw SQL performance.
+
+- [#1634](https://github.com/ponder-sh/ponder/pull/1634) [`faac60dbb9b201639a91e3b5ddcd50ea83c21860`](https://github.com/ponder-sh/ponder/commit/faac60dbb9b201639a91e3b5ddcd50ea83c21860) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved performance for factories during the historical sync.
+
 ## 0.10.6
 
 ### Patch Changes
