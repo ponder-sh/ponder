@@ -12,10 +12,6 @@ import type {
   Status,
 } from "@/internal/types.js";
 import type { PonderSyncSchema } from "@/sync-store/encoding.js";
-import {
-  moveLegacyTables,
-  migrationProvider as postgresMigrationProvider,
-} from "@/sync-store/migrations.js";
 import type { Drizzle } from "@/types/db.js";
 import {
   MAX_CHECKPOINT_STRING,
@@ -47,13 +43,6 @@ import {
   pgTable,
 } from "drizzle-orm/pg-core";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
-import {
-  Kysely,
-  Migrator,
-  PostgresDialect,
-  WithSchemaPlugin,
-  sql as ksql,
-} from "kysely";
 import type { Pool, PoolClient } from "pg";
 import prometheus from "prom-client";
 
@@ -91,15 +80,15 @@ export type Database = {
   complete(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
 };
 
-export type PonderApp = {
-  is_locked: 0 | 1;
-  is_dev: 0 | 1;
-  heartbeat_at: number;
-  build_id: string;
-  checkpoint: string;
-  table_names: string[];
-  version: string;
-};
+// export type PonderApp = {
+//   is_locked: 0 | 1;
+//   is_dev: 0 | 1;
+//   heartbeat_at: number;
+//   build_id: string;
+//   checkpoint: string;
+//   table_names: string[];
+//   version: string;
+// };
 
 const VERSION = "1";
 
@@ -116,8 +105,6 @@ type PostgresDriver = {
 };
 
 type QueryBuilder = {
-  /** For migrating the user schema */
-  migrate: Kysely<any>;
   /** Used to interact with the sync-store */
   sync: Kysely<PonderSyncSchema>;
   /** For interacting with the user schema (transform) */
@@ -129,34 +116,46 @@ type QueryBuilder = {
 export const getPonderMeta = (namespace: NamespaceBuild) => {
   if (namespace === "public") {
     return pgTable("_ponder_meta", (t) => ({
-      key: t.text().primaryKey().$type<"app">(),
-      value: t.jsonb().$type<PonderApp>().notNull(),
+      version: t.text().notNull(),
+      buildId: t.text().notNull(),
+      schema: t.text().notNull(),
+      config: t.text().notNull(),
+      isDev: t.boolean().notNull(),
+      isLocked: t.boolean().notNull(),
+      isReady: t.boolean().notNull(),
+      heartbeatAt: t.bigint({ mode: "number" }).notNull(),
     }));
   }
 
   return pgSchema(namespace).table("_ponder_meta", (t) => ({
-    key: t.text().primaryKey().$type<"app">(),
-    value: t.jsonb().$type<PonderApp>().notNull(),
+    version: t.text().notNull(),
+    buildId: t.text().notNull(),
+    schema: t.text().notNull(),
+    config: t.text().notNull(),
+    isDev: t.boolean().notNull(),
+    isLocked: t.boolean().notNull(),
+    isReady: t.boolean().notNull(),
+    heartbeatAt: t.bigint({ mode: "number" }).notNull(),
   }));
 };
 
-export const getPonderStatus = (namespace: NamespaceBuild) => {
-  if (namespace === "public") {
-    return pgTable("_ponder_status", (t) => ({
-      network_name: t.text().primaryKey(),
-      block_number: t.bigint({ mode: "number" }),
-      block_timestamp: t.bigint({ mode: "number" }),
-      ready: t.boolean().notNull(),
-    }));
-  }
+// export const getPonderStatus = (namespace: NamespaceBuild) => {
+//   if (namespace === "public") {
+//     return pgTable("_ponder_status", (t) => ({
+//       network_name: t.text().primaryKey(),
+//       block_number: t.bigint({ mode: "number" }),
+//       block_timestamp: t.bigint({ mode: "number" }),
+//       ready: t.boolean().notNull(),
+//     }));
+//   }
 
-  return pgSchema(namespace).table("_ponder_status", (t) => ({
-    network_name: t.text().primaryKey(),
-    block_number: t.bigint({ mode: "number" }),
-    block_timestamp: t.bigint({ mode: "number" }),
-    ready: t.boolean().notNull(),
-  }));
-};
+//   return pgSchema(namespace).table("_ponder_status", (t) => ({
+//     network_name: t.text().primaryKey(),
+//     block_number: t.bigint({ mode: "number" }),
+//     block_timestamp: t.bigint({ mode: "number" }),
+//     ready: t.boolean().notNull(),
+//   }));
+// };
 
 export const createDatabase = async ({
   common,
@@ -172,7 +171,7 @@ export const createDatabase = async ({
   let heartbeatInterval: NodeJS.Timeout | undefined;
 
   const PONDER_META = getPonderMeta(namespace);
-  const PONDER_STATUS = getPonderStatus(namespace);
+  // const PONDER_STATUS = getPonderStatus(namespace);
 
   ////////
   // Create schema, drivers, roles, and query builders
@@ -634,219 +633,12 @@ export const createDatabase = async ({
     async migrateSync() {
       await this.wrap(
         { method: "migrateSyncStore", includeTraceLogs: true },
-        async () => {
-          // TODO: Probably remove this at 1.0 to speed up startup time.
-          await moveLegacyTables({
-            common: common,
-            db: qb.migrate,
-            newSchemaName: "ponder_sync",
-          });
-
-          const migrator = new Migrator({
-            db: qb.sync as any,
-            provider: postgresMigrationProvider,
-            migrationTableSchema: "ponder_sync",
-          });
-
-          const { error } = await migrator.migrateToLatest();
-          if (error) throw error;
-        },
+        async () => {},
       );
     },
     async migrate({ buildId }) {
-      ////////
-      // Migrate
-      ////////
-
-      // v0.4 migration
-
-      // v0.6 migration
-
-      const hasPonderSchema = await qb.migrate
-        // @ts-ignore
-        .selectFrom("information_schema.schemata")
-        // @ts-ignore
-        .select("schema_name")
-        // @ts-ignore
-        .where("schema_name", "=", "ponder")
-        .executeTakeFirst()
-        .then((schema) => schema?.schema_name === "ponder");
-
-      if (hasPonderSchema) {
-        const hasNamespaceLockTable = await qb.migrate
-          // @ts-ignore
-          .selectFrom("information_schema.tables")
-          // @ts-ignore
-          .select(["table_name", "table_schema"])
-          // @ts-ignore
-          .where("table_name", "=", "namespace_lock")
-          // @ts-ignore
-          .where("table_schema", "=", "ponder")
-          .executeTakeFirst()
-          .then((table) => table !== undefined);
-
-        if (hasNamespaceLockTable) {
-          await this.wrap(
-            { method: "migrate", includeTraceLogs: true },
-            async () => {
-              const namespaceCount = await qb.migrate
-                .withSchema("ponder")
-                // @ts-ignore
-                .selectFrom("namespace_lock")
-                .select(ksql`count(*)`.as("count"))
-                .executeTakeFirst();
-
-              const tableNames = await qb.migrate
-                .withSchema("ponder")
-                // @ts-ignore
-                .selectFrom("namespace_lock")
-                // @ts-ignore
-                .select("schema")
-                // @ts-ignore
-                .where("namespace", "=", preBuild.namespace)
-                .executeTakeFirst()
-                .then((schema: any | undefined) =>
-                  schema === undefined
-                    ? undefined
-                    : Object.keys(schema.schema.tables),
-                );
-              if (tableNames) {
-                for (const tableName of tableNames) {
-                  await qb.migrate.schema
-                    .dropTable(tableName)
-                    .ifExists()
-                    .cascade()
-                    .execute();
-                }
-
-                await qb.migrate
-                  .withSchema("ponder")
-                  // @ts-ignore
-                  .deleteFrom("namespace_lock")
-                  // @ts-ignore
-                  .where("namespace", "=", preBuild.namespace)
-                  .execute();
-
-                if (namespaceCount!.count === 1) {
-                  await qb.migrate.schema
-                    .dropSchema("ponder")
-                    .cascade()
-                    .execute();
-
-                  common.logger.debug({
-                    service: "database",
-                    msg: `Removed 'ponder' schema`,
-                  });
-                }
-              }
-            },
-          );
-        }
-      }
-
-      // v0.8 migration
-
-      // If the schema previously ran with a 0.7 app, remove
-      // all unlocked "dev" apps. Then, copy a _ponder_meta entry
-      // to the new format if there is one remaining.
-
-      const hasPonderMetaTable = await qb.migrate
-        // @ts-ignore
-        .selectFrom("information_schema.tables")
-        // @ts-ignore
-        .select(["table_name", "table_schema"])
-        // @ts-ignore
-        .where("table_name", "=", "_ponder_meta")
-        // @ts-ignore
-        .where("table_schema", "=", namespace)
-        .executeTakeFirst()
-        .then((table) => table !== undefined);
-
-      if (hasPonderMetaTable) {
-        await this.wrap({ method: "migrate", includeTraceLogs: true }, () =>
-          qb.migrate.transaction().execute(async (tx) => {
-            const previousApps = await tx
-              .selectFrom("_ponder_meta")
-              // @ts-ignore
-              .where("key", "like", "app_%")
-              .select("value")
-              .execute()
-              .then((rows) => rows.map(({ value }) => value as PonderApp));
-
-            if (
-              previousApps.some(
-                (app) =>
-                  app.is_locked === 1 &&
-                  app.heartbeat_at + common.options.databaseHeartbeatTimeout >
-                    Date.now(),
-              )
-            ) {
-              throw new NonRetryableError(
-                `Migration failed: Schema '${namespace}' has an active app`,
-              );
-            }
-
-            for (const app of previousApps) {
-              for (const table of app.table_names) {
-                await tx.schema
-                  // @ts-ignore
-                  .dropTable(`${app.instance_id}__${table}`)
-                  .cascade()
-                  .ifExists()
-                  .execute();
-                await tx.schema
-                  // @ts-ignore
-                  .dropTable(`${app.instance_id}_reorg__${table}`)
-                  .cascade()
-                  .ifExists()
-                  .execute();
-              }
-              await tx
-                .deleteFrom("_ponder_meta")
-                // @ts-ignore
-                .where("key", "=", `status_${app.instance_id}`)
-                .execute();
-              await tx
-                .deleteFrom("_ponder_meta")
-                // @ts-ignore
-                .where("key", "=", `app_${app.instance_id}`)
-                .execute();
-            }
-
-            if (previousApps.length > 0) {
-              common.logger.debug({
-                service: "database",
-                msg: "Migrated previous app to v0.8",
-              });
-            }
-          }),
-        );
-      }
-
-      // 0.9 migration
-
-      if (hasPonderMetaTable) {
-        await qb.migrate
-          .deleteFrom("_ponder_meta")
-          // @ts-ignore
-          .where("key", "=", "status")
-          .execute();
-
-        const version: string | undefined = await qb.migrate
-          .selectFrom("_ponder_meta")
-          .select("value")
-          .where("key", "=", "app")
-          .executeTakeFirst()
-          .then((row) => row?.value.version);
-
-        if (version === undefined || Number(version) < Number(VERSION)) {
-          await qb.migrate.schema
-            .dropTable("_ponder_status")
-            .ifExists()
-            .cascade()
-            .execute();
-        }
-      }
+      // if version not match, throw error
+      // create tables if not exists
 
       await this.wrap(
         { method: "migrate", includeTraceLogs: true },
@@ -859,15 +651,15 @@ CREATE TABLE IF NOT EXISTS "${namespace}"."_ponder_meta" (
 )`),
           );
 
-          await qb.drizzle.execute(
-            sql.raw(`
-CREATE TABLE IF NOT EXISTS "${namespace}"."_ponder_status" (
-  "network_name" TEXT PRIMARY KEY,
-  "block_number" BIGINT,
-  "block_timestamp" BIGINT,
-  "ready" BOOLEAN NOT NULL
-)`),
-          );
+          //           await qb.drizzle.execute(
+          //             sql.raw(`
+          // CREATE TABLE IF NOT EXISTS "${namespace}"."_ponder_status" (
+          //   "network_name" TEXT PRIMARY KEY,
+          //   "block_number" BIGINT,
+          //   "block_timestamp" BIGINT,
+          //   "ready" BOOLEAN NOT NULL
+          // )`),
+          //           );
 
           const trigger = "status_trigger";
           const notification = "status_notify()";
@@ -941,10 +733,9 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
             };
 
             const previousApp = await tx
-              .select({ value: PONDER_META.value })
+              .select()
               .from(PONDER_META)
-              .where(eq(PONDER_META.key, "app"))
-              .then((result) => result[0]?.value);
+              .then((result) => result[0]);
 
             createdTables = false;
 
@@ -953,11 +744,9 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
               await createTables();
               createdTables = true;
             } else if (
-              previousApp.is_dev === 1 ||
+              previousApp.isDev ||
               (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
-                previousApp.build_id !== buildId) ||
-              (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
-                previousApp.checkpoint === ZERO_CHECKPOINT_STRING)
+                previousApp.buildId !== buildId)
             ) {
               for (const table of tables) {
                 await tx.execute(
@@ -998,29 +787,22 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
 
               // write metadata
 
-              const newApp = {
-                is_locked: 1,
-                is_dev: common.options.command === "dev" ? 1 : 0,
-                heartbeat_at: Date.now(),
-                build_id: buildId,
-                checkpoint: ZERO_CHECKPOINT_STRING,
-                table_names: tables.map(getTableName),
+              await tx.insert(PONDER_META).values({
                 version: VERSION,
-              } satisfies PonderApp;
-
-              await tx
-                .insert(PONDER_META)
-                .values({ key: "app", value: newApp })
-                .onConflictDoUpdate({
-                  target: PONDER_META.key,
-                  set: { value: newApp },
-                });
+                buildId,
+                schema: "",
+                config: "",
+                isDev: common.options.command === "dev",
+                isLocked: true,
+                isReady: false,
+                heartbeatAt: Date.now(),
+              });
             } else {
               // schema one of: crash recovery, locked, error
 
               if (
                 common.options.command === "dev" ||
-                previousApp!.build_id !== buildId
+                previousApp!.buildId !== buildId
               ) {
                 const error = new NonRetryableError(
                   `Schema '${namespace}' was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/getting-started/database#database-schema`,
@@ -1032,8 +814,8 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
               // locked
 
               const isAppUnlocked =
-                previousApp!.is_locked === 0 ||
-                previousApp!.heartbeat_at +
+                previousApp!.isLocked === false ||
+                previousApp!.heartbeatAt +
                   common.options.databaseHeartbeatTimeout <=
                   Date.now();
 
@@ -1041,7 +823,7 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
                 return {
                   status: "locked",
                   expiry:
-                    previousApp!.heartbeat_at +
+                    previousApp!.heartbeatAt +
                     common.options.databaseHeartbeatTimeout,
                 } as const;
               }
@@ -1050,7 +832,7 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
 
               common.logger.info({
                 service: "database",
-                msg: `Detected crash recovery for build '${buildId}' in schema '${namespace}' last active ${formatEta(Date.now() - previousApp!.heartbeat_at)} ago`,
+                msg: `Detected crash recovery for build '${buildId}' in schema '${namespace}' last active ${formatEta(Date.now() - previousApp!.heartbeatAt)} ago`,
               });
             }
 
@@ -1090,12 +872,9 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
         try {
           const heartbeat = Date.now();
 
-          await qb.drizzle
-            .update(PONDER_META)
-            .set({
-              value: sql`jsonb_set(value, '{heartbeat_at}', ${heartbeat})`,
-            })
-            .where(eq(PONDER_META.key, "app"));
+          await qb.drizzle.update(PONDER_META).set({
+            heartbeatAt: heartbeat,
+          });
 
           common.logger.trace({
             service: "database",
