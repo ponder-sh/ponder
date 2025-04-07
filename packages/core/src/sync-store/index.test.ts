@@ -21,6 +21,7 @@ import {
   testClient,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
+import { TABLES } from "@/database/index.js";
 import type {
   BlockFilter,
   Factory,
@@ -36,7 +37,6 @@ import {
   _eth_getTransactionReceipt,
 } from "@/utils/rpc.js";
 import { eq, sql } from "drizzle-orm";
-import { pgSchema } from "drizzle-orm/pg-core";
 import {
   encodeFunctionData,
   encodeFunctionResult,
@@ -52,11 +52,6 @@ beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
 test("setup creates tables", async (context) => {
-  const TABLES = pgSchema("information_schema").table("tables", (t) => ({
-    table_name: t.text().notNull(),
-    table_schema: t.text().notNull(),
-  }));
-
   const { database } = await setupDatabaseServices(context);
   const tables = await database.qb.sync
     .select()
