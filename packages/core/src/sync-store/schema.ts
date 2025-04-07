@@ -38,28 +38,37 @@ export const PONDER_SYNC_SCHEMA =
 
 export const PONDER_SYNC = pgSchema(PONDER_SYNC_SCHEMA);
 
-export const blocks = PONDER_SYNC.table("blocks", (t) => ({
-  chainId: t.bigint({ mode: "bigint" }).notNull(),
-  number: t.bigint({ mode: "bigint" }).notNull(),
-  timestamp: t.bigint({ mode: "bigint" }).notNull(),
-  hash: t.varchar({ length: 66 }).notNull().$type<Hash>(),
-  parentHash: t.varchar({ length: 66 }).notNull().$type<Hash>(),
-  logsBloom: t.varchar({ length: 514 }).notNull().$type<Hex>(),
-  miner: t.varchar({ length: 42 }).notNull().$type<Address>(),
-  gasUsed: numeric78().notNull(),
-  gasLimit: numeric78().notNull(),
-  baseFeePerGas: numeric78(),
-  nonce: t.varchar({ length: 18 }).$type<Hex>(),
-  mixHash: t.varchar({ length: 66 }).$type<Hash>(),
-  stateRoot: t.varchar({ length: 66 }).notNull().$type<Hash>(),
-  receiptsRoot: t.varchar({ length: 66 }).notNull().$type<Hash>(),
-  transactionsRoot: t.varchar({ length: 66 }).notNull().$type<Hash>(),
-  sha3Uncles: t.varchar({ length: 66 }).$type<Hash>(),
-  size: numeric78().notNull(),
-  difficulty: numeric78().notNull(),
-  totalDifficulty: numeric78(),
-  extraData: t.text().notNull().$type<Hex>(),
-}));
+export const blocks = PONDER_SYNC.table(
+  "blocks",
+  (t) => ({
+    chainId: t.bigint({ mode: "bigint" }).notNull(),
+    number: t.bigint({ mode: "bigint" }).notNull(),
+    timestamp: t.bigint({ mode: "bigint" }).notNull(),
+    hash: t.varchar({ length: 66 }).notNull().$type<Hash>(),
+    parentHash: t.varchar({ length: 66 }).notNull().$type<Hash>(),
+    logsBloom: t.varchar({ length: 514 }).notNull().$type<Hex>(),
+    miner: t.varchar({ length: 42 }).notNull().$type<Address>(),
+    gasUsed: numeric78().notNull(),
+    gasLimit: numeric78().notNull(),
+    baseFeePerGas: numeric78(),
+    nonce: t.varchar({ length: 18 }).$type<Hex>(),
+    mixHash: t.varchar({ length: 66 }).$type<Hash>(),
+    stateRoot: t.varchar({ length: 66 }).notNull().$type<Hash>(),
+    receiptsRoot: t.varchar({ length: 66 }).notNull().$type<Hash>(),
+    transactionsRoot: t.varchar({ length: 66 }).notNull().$type<Hash>(),
+    sha3Uncles: t.varchar({ length: 66 }).$type<Hash>(),
+    size: numeric78().notNull(),
+    difficulty: numeric78().notNull(),
+    totalDifficulty: numeric78(),
+    extraData: t.text().notNull().$type<Hex>(),
+  }),
+  (table) => [
+    primaryKey({
+      name: "blocks_pkey",
+      columns: [table.chainId, table.number],
+    }),
+  ],
+);
 
 export const transactions = PONDER_SYNC.table(
   "transactions",
