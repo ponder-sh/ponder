@@ -16,6 +16,7 @@ import {
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { BlockFilter, Event, Filter, Fragment } from "@/internal/types.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
+import * as ponderSyncSchema from "@/sync-store/schema.js";
 import {
   MAX_CHECKPOINT_STRING,
   ZERO_CHECKPOINT_STRING,
@@ -248,15 +249,15 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
   expect(event.type).toBe("finalize");
 
   const blocks = await database.qb.sync
-    .selectFrom("blocks")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.blocks)
     .execute();
 
   expect(blocks).toHaveLength(1);
 
   const intervals = await database.qb.sync
-    .selectFrom("intervals")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.intervals)
     .execute();
 
   expect(intervals).toHaveLength(1);
@@ -507,8 +508,8 @@ test("getLocalSyncGenerator()", async (context) => {
   await drainAsyncGenerator(syncGenerator);
 
   const intervals = await database.qb.sync
-    .selectFrom("intervals")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.intervals)
     .execute();
 
   expect(intervals).toHaveLength(1);
@@ -599,8 +600,8 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
   await drainAsyncGenerator(syncGenerator);
 
   const intervals = await database.qb.sync
-    .selectFrom("intervals")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.intervals)
     .execute();
 
   expect(intervals).toHaveLength(1);

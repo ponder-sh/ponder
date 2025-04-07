@@ -2,7 +2,7 @@ import type { Factory, FragmentId } from "@/internal/types.js";
 import {
   customType,
   index,
-  pgTable,
+  pgSchema,
   primaryKey,
   unique,
 } from "drizzle-orm/pg-core";
@@ -16,14 +16,16 @@ const nummultirange = customType<{ data: string }>({
 
 const numeric78 = customType<{ data: bigint; driverData: string }>({
   dataType() {
-    return "numeric78";
+    return "numeric(78,0)";
   },
   fromDriver(value: string) {
     return BigInt(value);
   },
 });
 
-const blocks = pgTable("blocks", (t) => ({
+export const PONDER_SYNC = pgSchema("ponder_sync");
+
+export const blocks = PONDER_SYNC.table("blocks", (t) => ({
   chainId: t.bigint({ mode: "bigint" }).notNull(),
   number: t.bigint({ mode: "bigint" }).notNull(),
   timestamp: t.bigint({ mode: "bigint" }).notNull(),
@@ -46,7 +48,7 @@ const blocks = pgTable("blocks", (t) => ({
   extraData: t.text().notNull().$type<Hex>(),
 }));
 
-const transactions = pgTable(
+export const transactions = PONDER_SYNC.table(
   "transactions",
   (t) => ({
     chainId: t.bigint({ mode: "bigint" }).notNull(),
@@ -77,7 +79,7 @@ const transactions = pgTable(
   ],
 );
 
-const transactionReceipts = pgTable(
+export const transactionReceipts = PONDER_SYNC.table(
   "transaction_receipts",
   (t) => ({
     chainId: t.bigint({ mode: "bigint" }).notNull(),
@@ -103,7 +105,7 @@ const transactionReceipts = pgTable(
   ],
 );
 
-const logs = pgTable(
+export const logs = PONDER_SYNC.table(
   "logs",
   (t) => ({
     chainId: t.bigint({ mode: "bigint" }).notNull(),
@@ -127,7 +129,7 @@ const logs = pgTable(
   ],
 );
 
-const traces = pgTable(
+export const traces = PONDER_SYNC.table(
   "traces",
   (t) => ({
     chainId: t.bigint({ mode: "bigint" }).notNull(),
@@ -159,7 +161,7 @@ const traces = pgTable(
   ],
 );
 
-const rpcRequestResults = pgTable(
+export const rpcRequestResults = PONDER_SYNC.table(
   "rpc_request_results",
   (t) => ({
     requestHash: t.text().notNull(),
@@ -179,13 +181,13 @@ const rpcRequestResults = pgTable(
   ],
 );
 
-const intervals = pgTable("intervals", (t) => ({
+export const intervals = PONDER_SYNC.table("intervals", (t) => ({
   fragmentId: t.text().notNull().$type<FragmentId>().primaryKey(),
   chainId: t.bigint({ mode: "bigint" }).notNull(),
   blocks: nummultirange().notNull(),
 }));
 
-const factories = pgTable(
+export const factories = PONDER_SYNC.table(
   "factories",
   (t) => ({
     id: t.integer().primaryKey().generatedAlwaysAsIdentity(),
@@ -197,7 +199,7 @@ const factories = pgTable(
   ],
 );
 
-const factoryAddresses = pgTable(
+export const factoryAddresses = PONDER_SYNC.table(
   "factory_addresses",
   (t) => ({
     id: t.integer().primaryKey().generatedAlwaysAsIdentity(),
@@ -208,15 +210,3 @@ const factoryAddresses = pgTable(
   }),
   (table) => [index("factory_addresses_factory_id_index").on(table.factoryId)],
 );
-
-export default {
-  blocks,
-  transactions,
-  transactionReceipts,
-  logs,
-  traces,
-  rpcRequestResults,
-  intervals,
-  factories,
-  factoryAddresses,
-};
