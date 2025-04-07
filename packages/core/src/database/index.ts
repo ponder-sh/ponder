@@ -90,21 +90,23 @@ export type Database = {
   complete(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
 };
 
-const SCHEMATA = pgSchema("information_schema").table("schemata", (t) => ({
-  schemaName: t.text().primaryKey(),
-}));
+export const SCHEMATA = pgSchema("information_schema").table(
+  "schemata",
+  (t) => ({
+    schemaName: t.text().primaryKey(),
+  }),
+);
 
-const TABLES = pgSchema("information_schema").table("tables", (t) => ({
+export const TABLES = pgSchema("information_schema").table("tables", (t) => ({
   table_name: t.text().notNull(),
   table_schema: t.text().notNull(),
+  table_type: t.text().notNull(),
 }));
 
 const LEGACY_MIGRATIONS = pgSchema("ponder_sync").table(
   "kysely_migration",
   (t) => ({ name: t.text().primaryKey() }),
 );
-
-// const LEGACY_MIGRATIONS
 
 export type PonderApp = {
   is_locked: 0 | 1;

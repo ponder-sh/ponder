@@ -15,7 +15,12 @@ import { and, eq, sql } from "drizzle-orm";
 import { index } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
-import { type Database, createDatabase, getPonderMeta } from "./index.js";
+import {
+  type Database,
+  TABLES,
+  createDatabase,
+  getPonderMeta,
+} from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -883,10 +888,13 @@ test("setStatus()", async (context) => {
 
 async function getUserTableNames(database: Database, namespace: string) {
   const rows = await database.qb.drizzle
-    .select({ name: sql<string>`table_name`.as("name") })
-    .from(sql`information_schema.tables`)
+    .select({ name: TABLES.table_name })
+    .from(TABLES)
     .where(
-      and(eq(sql`table_schema`, namespace), eq(sql`table_type`, "BASE TABLE")),
+      and(
+        eq(TABLES.table_schema, namespace),
+        eq(TABLES.table_type, "BASE TABLE"),
+      ),
     );
 
   return rows.map(({ name }) => name);
