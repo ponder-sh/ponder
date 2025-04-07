@@ -136,7 +136,7 @@ export const cats = onchainTable("cats", (t) => ({
 
 ## Primary key
 
-Every table **must** have a primary key. To define a primary key, use the `.primaryKey(){:ts}` modifier.
+Every table **must** have a primary key. To define a primary key on a single column, use the `.primaryKey(){:ts}` modifier.
 
 ```ts [ponder.schema.ts]
 import { onchainTable } from "ponder";

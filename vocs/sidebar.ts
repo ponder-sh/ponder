@@ -29,19 +29,25 @@ export const sidebar = {
     {
       text: "Indexing",
       items: [
-        { text: "Overview", link: "/docs/indexing" },
+        { text: "Overview", link: "/docs/indexing/overview" },
         { text: "Write to the database", link: "/docs/indexing/write" },
-        { text: "Fetch RPC data", link: "/docs/indexing/fetch" },
+        { text: "Read contract data", link: "/docs/indexing/read-contracts" },
       ],
     },
     {
       text: "Query",
       items: [
-        { text: "Overview", link: "/docs/query" },
-        { text: "API functions", link: "/docs/query/api-functions" },
+        { text: "Overview", link: "/docs/query/overview" },
         { text: "SQL client", link: "/docs/query/sql-client" },
         { text: "GraphQL", link: "/docs/query/graphql" },
         { text: "Direct SQL", link: "/docs/query/direct-sql" },
+      ],
+    },
+    {
+      text: "HTTP API",
+      items: [
+        { text: "API functions", link: "/docs/http/api-functions" },
+        // { text: "`/metrics`, `/ready`", link: "/docs/http/builtin" },
       ],
     },
     {
