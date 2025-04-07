@@ -1,4 +1,5 @@
-import { randomUUID } from "node:crypto";
+import crypto from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
 import {
@@ -17,6 +18,7 @@ import type {
   Status,
 } from "@/internal/types.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
+import { PONDER_SYNC_SCHEMAS } from "@/sync-store/schema.js";
 import type { Drizzle } from "@/types/db.js";
 import {
   MAX_CHECKPOINT_STRING,
@@ -34,12 +36,12 @@ import {
   eq,
   getTableColumns,
   getTableName,
+  inArray,
   is,
   lte,
   sql,
 } from "drizzle-orm";
 import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
 import {
   type PgQueryResultHKT,
   PgTable,
@@ -86,6 +88,10 @@ export type Database = {
   finalize(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
   complete(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
 };
+
+const SCHEMATA = pgSchema("information_schema").table("schemata", (t) => ({
+  schemaName: t.text().primaryKey(),
+}));
 
 export type PonderApp = {
   is_locked: 0 | 1;
@@ -428,7 +434,7 @@ export const createDatabase = async ({
     async record(options, fn) {
       const endClock = startClock();
 
-      const id = randomUUID().slice(0, 8);
+      const id = crypto.randomUUID().slice(0, 8);
       if (options.includeTraceLogs) {
         common.logger.trace({
           service: "database",
@@ -493,7 +499,7 @@ export const createDatabase = async ({
       for (let i = 0; i <= RETRY_COUNT; i++) {
         const endClock = startClock();
 
-        const id = randomUUID().slice(0, 8);
+        const id = crypto.randomUUID().slice(0, 8);
         if (options.includeTraceLogs) {
           common.logger.trace({
             service: "database",
@@ -518,7 +524,6 @@ export const createDatabase = async ({
           return result;
         } catch (_error) {
           const error = _error as Error;
-          console.log(error);
 
           if (common.shutdown.isKilled) {
             throw new ShutdownError();
@@ -613,10 +618,40 @@ export const createDatabase = async ({
       await this.wrap(
         { method: "migrateSyncStore", includeTraceLogs: true },
         async () => {
-          // @ts-expect-error drizzle type bug
-          await migrate(database.qb.sync, {
-            migrationsFolder: path.join(__dirname, "..", "..", "migrations"),
-          });
+          const dbSchemas = await qb.sync
+            .select()
+            .from(SCHEMATA)
+            // @ts-expect-error drizzle type error
+            .where(inArray(SCHEMATA.schemaName, PONDER_SYNC_SCHEMAS))
+            .then((result) => result.map((r) => r.schemaName));
+
+          for (const schema of PONDER_SYNC_SCHEMAS) {
+            const migration = `${schema}.sql`;
+
+            const hasSchema = dbSchemas.includes(schema);
+
+            if (hasSchema) continue;
+
+            const query = fs.readFileSync(
+              path.join(__dirname, "..", "sync-store", "sql", migration),
+              "utf-8",
+            );
+            const statements = query.split("--> statement-breakpoint");
+
+            await qb.sync.transaction(
+              async (tx) => {
+                for (const statement of statements) {
+                  await tx.execute(sql.raw(statement));
+                }
+              },
+              // https://www.postgresql.org/docs/current/transaction-iso.html#XACT-REPEATABLE-READ
+              { isolationLevel: "repeatable read" },
+            );
+            common.logger.info({
+              service: "database",
+              msg: `Migrated '${schema}' schema`,
+            });
+          }
         },
       );
     },
