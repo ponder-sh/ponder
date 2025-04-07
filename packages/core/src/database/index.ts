@@ -33,6 +33,7 @@ import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
 import {
   type TableConfig,
+  and,
   eq,
   getTableColumns,
   getTableName,
@@ -92,6 +93,18 @@ export type Database = {
 const SCHEMATA = pgSchema("information_schema").table("schemata", (t) => ({
   schemaName: t.text().primaryKey(),
 }));
+
+const TABLES = pgSchema("information_schema").table("tables", (t) => ({
+  table_name: t.text().notNull(),
+  table_schema: t.text().notNull(),
+}));
+
+const LEGACY_MIGRATIONS = pgSchema("ponder_sync").table(
+  "kysely_migration",
+  (t) => ({ name: t.text().primaryKey() }),
+);
+
+// const LEGACY_MIGRATIONS
 
 export type PonderApp = {
   is_locked: 0 | 1;
@@ -624,6 +637,37 @@ export const createDatabase = async ({
             // @ts-expect-error drizzle type error
             .where(inArray(SCHEMATA.schemaName, PONDER_SYNC_SCHEMAS))
             .then((result) => result.map((r) => r.schemaName));
+
+          // legacy migrations
+
+          if (dbSchemas.includes("ponder_sync")) {
+            const hasKyselyMigrationTable = await qb.sync
+              .select()
+              .from(TABLES)
+              .where(
+                and(
+                  eq(TABLES.table_schema, "ponder_sync"),
+                  eq(TABLES.table_name, "kysely_migration"),
+                ),
+              )
+              .then((result) => result.length > 0);
+
+            if (hasKyselyMigrationTable) {
+              const kyselyMigrations = await qb.sync
+                .select()
+                .from(LEGACY_MIGRATIONS)
+                .then((result) => result.map((r) => r.name));
+              if (
+                kyselyMigrations.includes(
+                  "2025_02_26_1_rpc_request_results",
+                ) === false
+              ) {
+                throw new NonRetryableError(
+                  '"ponder_sync" migration failed. Please first update to v0.10.',
+                );
+              }
+            }
+          }
 
           for (const schema of PONDER_SYNC_SCHEMAS) {
             const migration = `${schema}.sql`;
