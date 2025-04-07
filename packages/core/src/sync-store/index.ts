@@ -612,12 +612,10 @@ export const createSyncStore = ({
               lte(ponderSyncSchema.logs.blockNumber, BigInt(toBlock)),
             ),
           )
-          // .where((eb) => eb.or(logFilters.map((f) => logFilter(eb, f))))
           .orderBy(
             asc(ponderSyncSchema.logs.blockNumber),
             asc(ponderSyncSchema.logs.logIndex),
           )
-
           .limit(limit);
 
         const tracesQuery = database.qb.sync
@@ -630,12 +628,6 @@ export const createSyncStore = ({
               lte(ponderSyncSchema.traces.blockNumber, BigInt(toBlock)),
             ),
           )
-          // .where((eb) =>
-          //   eb.or([
-          //     ...traceFilters.map((f) => traceFilter(eb, f)),
-          //     ...transferFilters.map((f) => transferFilter(eb, f)),
-          //   ]),
-          // )
           .orderBy(
             asc(ponderSyncSchema.traces.blockNumber),
             asc(ponderSyncSchema.traces.traceIndex),
@@ -863,6 +855,7 @@ export const createSyncStore = ({
             // @ts-ignore
             log.topic3 = undefined;
 
+            logs.push(internalLog);
             logIndex++;
           }
 
