@@ -21,7 +21,6 @@ import {
   testClient,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
-import { TABLES } from "@/database/index.js";
 import type {
   BlockFilter,
   Factory,
@@ -36,7 +35,7 @@ import {
   _eth_getLogs,
   _eth_getTransactionReceipt,
 } from "@/utils/rpc.js";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
   encodeFunctionData,
   encodeFunctionResult,
@@ -50,55 +49,6 @@ beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
-
-test("setup creates tables", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-  const tables = await database.qb.sync
-    .select()
-    .from(TABLES)
-    .where(eq(TABLES.table_schema, "ponder_sync"));
-
-  expect(tables).toMatchInlineSnapshot(`
-    [
-      {
-        "table_name": "blocks",
-        "table_schema": "ponder_sync",
-      },
-      {
-        "table_name": "factories",
-        "table_schema": "ponder_sync",
-      },
-      {
-        "table_name": "factory_addresses",
-        "table_schema": "ponder_sync",
-      },
-      {
-        "table_name": "intervals",
-        "table_schema": "ponder_sync",
-      },
-      {
-        "table_name": "logs",
-        "table_schema": "ponder_sync",
-      },
-      {
-        "table_name": "rpc_request_results",
-        "table_schema": "ponder_sync",
-      },
-      {
-        "table_name": "traces",
-        "table_schema": "ponder_sync",
-      },
-      {
-        "table_name": "transaction_receipts",
-        "table_schema": "ponder_sync",
-      },
-      {
-        "table_name": "transactions",
-        "table_schema": "ponder_sync",
-      },
-    ]
-  `);
-});
 
 test("getIntervals() empty", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);

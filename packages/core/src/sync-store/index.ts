@@ -152,8 +152,8 @@ export const createSyncStore = ({
             .join(", ");
 
           values.push({
-            fragment_id: fragmentId,
-            chain_id: chainId,
+            fragmentId: fragmentId,
+            chainId: BigInt(chainId),
             // @ts-expect-error
             blocks: sql.raw(`nummultirange(${numranges})`),
           });
@@ -183,12 +183,12 @@ export const createSyncStore = ({
                 mergedBlocks: sql<string>`range_agg(unnested.blocks)`.as(
                   "merged_blocks",
                 ),
-                filter: sql<string>`'${i}'`.inlineParams().as("filter"),
-                fragment: sql<string>`'${j}'`.inlineParams().as("fragment"),
+                filter: sql.raw(`'${i}'`).as("filter"),
+                fragment: sql.raw(`'${j}'`).as("fragment"),
               })
               .from(
                 database.qb.sync
-                  .select({ blocks: sql`unnest(blocks)` })
+                  .select({ blocks: sql.raw("unnest(blocks)").as("blocks") })
                   .from(ponderSyncSchema.intervals)
                   .where(
                     inArray(
@@ -272,12 +272,10 @@ export const createSyncStore = ({
         for (const [address, blockNumber] of childAddresses) {
           values.push({
             // @ts-expect-error
-            factoryId: database.qb.sync
-              .select({ id: factoryInsert.id })
-              .from(factoryInsert),
+            factoryId: sql`(SELECT id FROM factory_insert)`,
             chainId: BigInt(chainId),
             blockNumber: BigInt(blockNumber),
-            address: address,
+            address,
           });
         }
 

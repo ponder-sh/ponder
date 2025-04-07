@@ -20,7 +20,8 @@ CREATE TABLE "ponder_sync"."blocks" (
 	"size" numeric(78,0) NOT NULL,
 	"difficulty" numeric(78,0) NOT NULL,
 	"total_difficulty" numeric(78,0),
-	"extra_data" text NOT NULL
+	"extra_data" text NOT NULL,
+	CONSTRAINT "blocks_pkey" PRIMARY KEY("chain_id","number")
 );
 --> statement-breakpoint
 CREATE TABLE "ponder_sync"."factories" (
