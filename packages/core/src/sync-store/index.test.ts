@@ -35,7 +35,8 @@ import {
   _eth_getLogs,
   _eth_getTransactionReceipt,
 } from "@/utils/rpc.js";
-import { sql } from "kysely";
+import { eq, sql } from "drizzle-orm";
+import { pgSchema } from "drizzle-orm/pg-core";
 import {
   encodeFunctionData,
   encodeFunctionResult,
@@ -43,6 +44,7 @@ import {
   zeroAddress,
 } from "viem";
 import { beforeEach, expect, test } from "vitest";
+import * as ponderSyncSchema from "./schema.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
@@ -50,17 +52,57 @@ beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
 test("setup creates tables", async (context) => {
+  const TABLES = pgSchema("information_schema").table("tables", (t) => ({
+    table_name: t.text().notNull(),
+    table_schema: t.text().notNull(),
+  }));
+
   const { database } = await setupDatabaseServices(context);
-  const tables = await database.qb.sync.introspection.getTables();
-  const tableNames = tables.map((t) => t.name);
+  const tables = await database.qb.sync
+    .select()
+    .from(TABLES)
+    .where(eq(TABLES.table_schema, "ponder_sync"));
 
-  expect(tableNames).toContain("blocks");
-  expect(tableNames).toContain("logs");
-  expect(tableNames).toContain("transactions");
-  expect(tableNames).toContain("traces");
-  expect(tableNames).toContain("transaction_receipts");
-
-  expect(tableNames).toContain("rpc_request_results");
+  expect(tables).toMatchInlineSnapshot(`
+    [
+      {
+        "table_name": "blocks",
+        "table_schema": "ponder_sync",
+      },
+      {
+        "table_name": "factories",
+        "table_schema": "ponder_sync",
+      },
+      {
+        "table_name": "factory_addresses",
+        "table_schema": "ponder_sync",
+      },
+      {
+        "table_name": "intervals",
+        "table_schema": "ponder_sync",
+      },
+      {
+        "table_name": "logs",
+        "table_schema": "ponder_sync",
+      },
+      {
+        "table_name": "rpc_request_results",
+        "table_schema": "ponder_sync",
+      },
+      {
+        "table_name": "traces",
+        "table_schema": "ponder_sync",
+      },
+      {
+        "table_name": "transaction_receipts",
+        "table_schema": "ponder_sync",
+      },
+      {
+        "table_name": "transactions",
+        "table_schema": "ponder_sync",
+      },
+    ]
+  `);
 });
 
 test("getIntervals() empty", async (context) => {
@@ -588,12 +630,12 @@ test("insertChildAddresses()", async (context) => {
   });
 
   const factories = await database.qb.sync
-    .selectFrom("factories")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.factories)
     .execute();
   const factoryAddresses = await database.qb.sync
-    .selectFrom("factory_addresses")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.factoryAddresses)
     .execute();
 
   expect(factories).toHaveLength(1);
@@ -623,7 +665,7 @@ test("insertLogs()", async (context) => {
 
   await syncStore.insertLogs({ logs: [rpcLogs[0]!], chainId: 1 });
 
-  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
+  const logs = await database.qb.sync.select().from(ponderSyncSchema.logs);
   expect(logs).toHaveLength(1);
 });
 
@@ -652,7 +694,7 @@ test("insertLogs() with duplicates", async (context) => {
 
   await syncStore.insertLogs({ logs: [rpcLogs[0]!], chainId: 1 });
 
-  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
+  const logs = await database.qb.sync.select().from(ponderSyncSchema.logs);
   expect(logs).toHaveLength(1);
 });
 
@@ -673,8 +715,8 @@ test("insertBlocks()", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
   const blocks = await database.qb.sync
-    .selectFrom("blocks")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.blocks)
     .execute();
   expect(blocks).toHaveLength(1);
 });
@@ -697,8 +739,8 @@ test("insertBlocks() with duplicates", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
   const blocks = await database.qb.sync
-    .selectFrom("blocks")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.blocks)
     .execute();
   expect(blocks).toHaveLength(1);
 });
@@ -729,8 +771,8 @@ test("insertTransactions()", async (context) => {
   });
 
   const transactions = await database.qb.sync
-    .selectFrom("transactions")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.transactions)
     .execute();
   expect(transactions).toHaveLength(1);
 });
@@ -765,8 +807,8 @@ test("insertTransactions() with duplicates", async (context) => {
   });
 
   const transactions = await database.qb.sync
-    .selectFrom("transactions")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.transactions)
     .execute();
   expect(transactions).toHaveLength(1);
 });
@@ -798,8 +840,8 @@ test("insertTransactionReceipts()", async (context) => {
   });
 
   const transactionReceipts = await database.qb.sync
-    .selectFrom("transaction_receipts")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.transactionReceipts)
     .execute();
   expect(transactionReceipts).toHaveLength(1);
 });
@@ -835,8 +877,8 @@ test("insertTransactionReceipts() with duplicates", async (context) => {
   });
 
   const transactionReceipts = await database.qb.sync
-    .selectFrom("transaction_receipts")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.transactionReceipts)
     .execute();
   expect(transactionReceipts).toHaveLength(1);
 });
@@ -898,8 +940,8 @@ test("insertTraces()", async (context) => {
   });
 
   const traces = await database.qb.sync
-    .selectFrom("traces")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.traces)
     .execute();
   expect(traces).toHaveLength(1);
 });
@@ -971,8 +1013,8 @@ test("insertTraces() with duplicates", async (context) => {
   });
 
   const traces = await database.qb.sync
-    .selectFrom("traces")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.traces)
     .execute();
   expect(traces).toHaveLength(1);
 });
@@ -1101,12 +1143,12 @@ test("insertRpcRequestResults() ", async (context) => {
   });
 
   const result = await database.qb.sync
-    .selectFrom("rpc_request_results")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.rpcRequestResults)
     .execute();
 
   expect(result).toHaveLength(1);
-  expect(result[0]!.request_hash).toBe("39d5ace8093d42c1bd00ce7781a7891a");
+  expect(result[0]!.requestHash).toBe("39d5ace8093d42c1bd00ce7781a7891a");
   expect(result[0]!.result).toBe("0x1");
 });
 
@@ -1125,21 +1167,16 @@ test("inserttRpcRequestResults() hash matches postgres", async (context) => {
   });
 
   const jsHash = await database.qb.sync
-    .selectFrom("rpc_request_results")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.rpcRequestResults)
     .execute()
-    .then((result) => result[0]!.request_hash);
+    .then((result) => result[0]!.requestHash);
 
-  const psqlHash = await database.qb.sync
-    .selectNoFrom(
-      sql`MD5(${JSON.stringify(orderObject({ method: "eth_call", params: ["0x1"] }))})`.as(
-        "request_hash",
-      ),
-    )
-    .execute()
-    .then((result) => result[0]!.request_hash);
+  const psqlHash = await database.qb.sync.execute(
+    sql`SELECT MD5(${JSON.stringify(orderObject({ method: "eth_call", params: ["0x1"] }))}) as request_hash`,
+  );
 
-  expect(jsHash).toBe(psqlHash);
+  expect(jsHash).toBe(psqlHash.rows[0]!.request_hash);
 });
 
 test("getRpcRequestResults()", async (context) => {
@@ -1273,8 +1310,8 @@ test("pruneRpcRequestResult", async (context) => {
   });
 
   const requestResults = await database.qb.sync
-    .selectFrom("rpc_request_results")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.rpcRequestResults)
     .execute();
 
   expect(requestResults).toHaveLength(2);
@@ -1413,22 +1450,25 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
 
   await syncStore.pruneByChain({ chainId: 1 });
 
-  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
+  const logs = await database.qb.sync
+    .select()
+    .from(ponderSyncSchema.logs)
+    .execute();
   const blocks = await database.qb.sync
-    .selectFrom("blocks")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.blocks)
     .execute();
   const traces = await database.qb.sync
-    .selectFrom("traces")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.traces)
     .execute();
   const transactions = await database.qb.sync
-    .selectFrom("transactions")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.transactions)
     .execute();
   const transactionReceipts = await database.qb.sync
-    .selectFrom("transaction_receipts")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.transactionReceipts)
     .execute();
 
   expect(logs).toHaveLength(0);
