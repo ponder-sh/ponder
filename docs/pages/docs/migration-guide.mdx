@@ -33,7 +33,7 @@ import { transferEvent } from "ponder:registry";
 ponder.on("ERC20:Transfer", ({ event, context }) => {
   await context.db
     .insert(transferEvent)
-    .values({ id: event.log.id });
+    .values({ id: event.id });
 });
 ```
 
