@@ -23,7 +23,16 @@ const numeric78 = customType<{ data: bigint; driverData: string }>({
   },
 });
 
-export const PONDER_SYNC = pgSchema("ponder_sync");
+/**
+ * Database schemas for the sync.
+ *
+ * @dev The order of the schemas represents the order of the migrations.
+ */
+export const PONDER_SYNC_SCHEMAS = ["ponder_sync", "ponder_sync_0_11"] as const;
+export const PONDER_SYNC_SCHEMA =
+  PONDER_SYNC_SCHEMAS[PONDER_SYNC_SCHEMAS.length - 1]!;
+
+export const PONDER_SYNC = pgSchema(PONDER_SYNC_SCHEMA);
 
 export const blocks = PONDER_SYNC.table("blocks", (t) => ({
   chainId: t.bigint({ mode: "bigint" }).notNull(),
