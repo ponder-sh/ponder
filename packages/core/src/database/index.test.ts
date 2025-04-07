@@ -278,6 +278,27 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
   await context.common.shutdown.kill();
 });
 
+test("migrateSync()", async (context) => {
+  const database = await createDatabase({
+    common: context.common,
+    namespace: "public",
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({ schema: { account } }).statements,
+    },
+  });
+
+  await database.migrateSync();
+
+  // Note: this is a hack to avoid trying to update the metadata table on shutdown
+  context.common.options.command = "list";
+
+  await context.common.shutdown.kill();
+});
+
 test("migrate() with crash recovery reverts rows", async (context) => {
   const database = await createDatabase({
     common: context.common,
