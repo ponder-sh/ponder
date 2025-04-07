@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
 import {
   getColumnCasing,
@@ -15,12 +16,7 @@ import type {
   SchemaBuild,
   Status,
 } from "@/internal/types.js";
-// import type { PonderSyncSchema } from "@/sync-store/encoding.js";
-import {
-  moveLegacyTables,
-  migrationProvider as postgresMigrationProvider,
-} from "@/sync-store/migrations.js";
-import ponderSyncSchema from "@/sync-store/schema.js";
+import * as ponderSyncSchema from "@/sync-store/schema.js";
 import type { Drizzle } from "@/types/db.js";
 import {
   MAX_CHECKPOINT_STRING,
@@ -43,6 +39,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import {
   type PgQueryResultHKT,
   PgTable,
@@ -52,7 +49,7 @@ import {
   pgTable,
 } from "drizzle-orm/pg-core";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
-import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
+import { Kysely, PostgresDialect, WithSchemaPlugin } from "kysely";
 import type { Pool, PoolClient } from "pg";
 import prometheus from "prom-client";
 
@@ -521,6 +518,7 @@ export const createDatabase = async ({
           return result;
         } catch (_error) {
           const error = _error as Error;
+          console.log(error);
 
           if (common.shutdown.isKilled) {
             throw new ShutdownError();
@@ -615,21 +613,10 @@ export const createDatabase = async ({
       await this.wrap(
         { method: "migrateSyncStore", includeTraceLogs: true },
         async () => {
-          // TODO: Probably remove this at 1.0 to speed up startup time.
-          await moveLegacyTables({
-            common: common,
-            db: qb.migrate,
-            newSchemaName: "ponder_sync",
+          // @ts-expect-error drizzle type bug
+          await migrate(database.qb.sync, {
+            migrationsFolder: path.join(__dirname, "..", "..", "migrations"),
           });
-
-          const migrator = new Migrator({
-            db: qb.sync as any,
-            provider: postgresMigrationProvider,
-            migrationTableSchema: "ponder_sync",
-          });
-
-          const { error } = await migrator.migrateToLatest();
-          if (error) throw error;
         },
       );
     },

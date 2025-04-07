@@ -2,7 +2,6 @@ import crypto from "node:crypto";
 import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
-  BlockFilter,
   Factory,
   Filter,
   FilterWithoutBlocks,
@@ -24,16 +23,14 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
-import {
-  isAddressFactory,
-  shouldGetTransactionReceipt,
-} from "@/sync/filter.js";
+import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import { encodeFragment, getFragments } from "@/sync/fragments.js";
 import type { Interval } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
 import { startClock } from "@/utils/timer.js";
 import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { unionAll } from "drizzle-orm/pg-core";
 import {
   type Address,
   type EIP1193Parameters,
@@ -41,14 +38,13 @@ import {
   hexToNumber,
 } from "viem";
 import {
-  type PonderSyncSchema,
   encodeBlock,
   encodeLog,
   encodeTrace,
   encodeTransaction,
   encodeTransactionReceipt,
-} from "./encoding.js";
-import ponderSyncSchema from "./schema.js";
+} from "./encode.js";
+import * as ponderSyncSchema from "./schema.js";
 
 export type SyncStore = {
   insertIntervals(args: {
@@ -128,7 +124,7 @@ export const createSyncStore = ({
       { method: "insertIntervals", includeTraceLogs: true },
       async () => {
         const perFragmentIntervals = new Map<FragmentId, Interval[]>();
-        const values: InsertObject<PonderSyncSchema, "intervals">[] = [];
+        const values: (typeof ponderSyncSchema.intervals.$inferInsert)[] = [];
 
         // dedupe and merge matching fragments
 
@@ -158,19 +154,20 @@ export const createSyncStore = ({
           values.push({
             fragment_id: fragmentId,
             chain_id: chainId,
+            // @ts-expect-error
             blocks: sql.raw(`nummultirange(${numranges})`),
           });
         }
 
         await database.qb.sync
-          .insertInto("intervals")
+          .insert(ponderSyncSchema.intervals)
           .values(values)
-          .onConflict((oc) =>
-            oc.column("fragment_id").doUpdateSet({
+          .onConflictDoUpdate({
+            target: ponderSyncSchema.intervals.fragmentId,
+            set: {
               blocks: sql`intervals.blocks + excluded.blocks`,
-            }),
-          )
-          .execute();
+            },
+          });
       },
     );
   },
@@ -178,38 +175,40 @@ export const createSyncStore = ({
     database.wrap(
       { method: "getIntervals", includeTraceLogs: true },
       async () => {
-        let query:
-          | SelectQueryBuilder<
-              PonderSyncSchema,
-              "intervals",
-              { merged_blocks: string | null; filter: string; fragment: string }
-            >
-          | undefined;
-
-        for (let i = 0; i < filters.length; i++) {
-          const filter = filters[i]!;
+        const queries = filters.flatMap((filter, i) => {
           const fragments = getFragments(filter);
-          for (let j = 0; j < fragments.length; j++) {
-            const fragment = fragments[j]!;
-            const _query = database.qb.sync
-              .selectFrom(
+          return fragments.map((fragment, j) =>
+            database.qb.sync
+              .select({
+                mergedBlocks: sql<string>`range_agg(unnested.blocks)`.as(
+                  "merged_blocks",
+                ),
+                filter: sql<string>`'${i}'`.inlineParams().as("filter"),
+                fragment: sql<string>`'${j}'`.inlineParams().as("fragment"),
+              })
+              .from(
                 database.qb.sync
-                  .selectFrom("intervals")
-                  .select(sql`unnest(blocks)`.as("blocks"))
-                  .where("fragment_id", "in", fragment.adjacentIds)
+                  .select({ blocks: sql`unnest(blocks)` })
+                  .from(ponderSyncSchema.intervals)
+                  .where(
+                    inArray(
+                      ponderSyncSchema.intervals.fragmentId,
+                      fragment.adjacentIds,
+                    ),
+                  )
                   .as("unnested"),
-              )
-              .select([
-                sql<string>`range_agg(unnested.blocks)`.as("merged_blocks"),
-                sql.raw(`'${i}'`).as("filter"),
-                sql.raw(`'${j}'`).as("fragment"),
-              ]);
-            // @ts-ignore
-            query = query === undefined ? _query : query.unionAll(_query);
-          }
-        }
+              ),
+          );
+        });
 
-        const rows = await query!.execute();
+        let rows: Awaited<(typeof queries)[number]>;
+
+        if (queries.length > 1) {
+          // @ts-expect-error
+          rows = await unionAll(...queries);
+        } else {
+          rows = await queries[0]!.execute();
+        }
 
         const result = new Map<
           Filter,
@@ -229,9 +228,9 @@ export const createSyncStore = ({
               .filter((row) => row.filter === `${i}`)
               .filter((row) => row.fragment === `${j}`)
               .map((row) =>
-                (row.merged_blocks
+                (row.mergedBlocks
                   ? (JSON.parse(
-                      `[${row.merged_blocks.slice(1, -1)}]`,
+                      `[${row.mergedBlocks.slice(1, -1)}]`,
                     ) as Interval[])
                   : []
                 ).map((interval) => [interval[0], interval[1] - 1] as Interval),
@@ -255,71 +254,86 @@ export const createSyncStore = ({
           common.options.databaseMaxQueryParameters / 3,
         );
 
-        const values: InsertObject<PonderSyncSchema, "factory_addresses">[] =
+        const values: (typeof ponderSyncSchema.factoryAddresses.$inferInsert)[] =
           [];
+
+        const factoryInsert = database.qb.sync.$with("factory_insert").as(
+          database.qb.sync
+            .insert(ponderSyncSchema.factories)
+            .values({ factory })
+            // @ts-expect-error bug with drizzle-orm
+            .returning({ id: ponderSyncSchema.factories.id })
+            .onConflictDoUpdate({
+              target: ponderSyncSchema.factories.factory,
+              set: { factory: sql`excluded.factory` },
+            }),
+        );
+
         for (const [address, blockNumber] of childAddresses) {
           values.push({
-            factory_id: sql`(SELECT id FROM factory_insert)`,
-            chain_id: chainId,
-            block_number: blockNumber,
+            // @ts-expect-error
+            factoryId: database.qb.sync
+              .select({ id: factoryInsert.id })
+              .from(factoryInsert),
+            chainId: BigInt(chainId),
+            blockNumber: BigInt(blockNumber),
             address: address,
           });
         }
 
         for (let i = 0; i < values.length; i += batchSize) {
           await database.qb.sync
-            .with("factory_insert", (qb) =>
-              qb
-                .insertInto("factories")
-                .values({ factory })
-                .returning("id")
-                .onConflict((oc) =>
-                  oc
-                    .column("factory")
-                    .doUpdateSet({ factory: sql`excluded.factory` }),
-                ),
-            )
-            .insertInto("factory_addresses")
-            .values(values.slice(i, i + batchSize))
-            .execute();
+            .with(factoryInsert)
+            .insert(ponderSyncSchema.factoryAddresses)
+            .values(values.slice(i, i + batchSize));
         }
       },
     );
   },
   getChildAddresses: ({ factory }) =>
-    database.wrap({ method: "getChildAddresses", includeTraceLogs: true }, () =>
-      database.qb.sync
-        .with("factory_insert", (qb) =>
-          qb
-            .insertInto("factories")
+    database.wrap(
+      { method: "getChildAddresses", includeTraceLogs: true },
+      () => {
+        const factoryInsert = database.qb.sync.$with("factory_insert").as(
+          database.qb.sync
+            .insert(ponderSyncSchema.factories)
             .values({ factory })
-            .returning("id")
-            .onConflict((oc) =>
-              oc
-                .column("factory")
-                .doUpdateSet({ factory: sql`excluded.factory` }),
+            // @ts-expect-error bug with drizzle-orm
+            .returning({ id: ponderSyncSchema.factories.id })
+            .onConflictDoUpdate({
+              target: ponderSyncSchema.factories.factory,
+              set: { factory: sql`excluded.factory` },
+            }),
+        );
+
+        return database.qb.sync
+          .with(factoryInsert)
+          .select({
+            address: ponderSyncSchema.factoryAddresses.address,
+            blockNumber: ponderSyncSchema.factoryAddresses.blockNumber,
+          })
+          .from(ponderSyncSchema.factoryAddresses)
+          .where(
+            eq(
+              ponderSyncSchema.factoryAddresses.factoryId,
+              database.qb.sync
+                .select({ id: factoryInsert.id })
+                .from(factoryInsert),
             ),
-        )
-        .selectFrom("factory_addresses")
-        .select(["factory_addresses.address", "factory_addresses.block_number"])
-        .where(
-          "factory_addresses.factory_id",
-          "=",
-          sql`(SELECT id FROM factory_insert)`,
-        )
-        .execute()
-        .then((rows) => {
-          const result = new Map<Address, number>();
-          for (const { address, block_number } of rows) {
-            if (
-              result.has(address) === false ||
-              result.get(address)! > Number(block_number)
-            ) {
-              result.set(address, Number(block_number));
+          )
+          .then((rows) => {
+            const result = new Map<Address, number>();
+            for (const { address, blockNumber } of rows) {
+              if (
+                result.has(address) === false ||
+                result.get(address)! > Number(blockNumber)
+              ) {
+                result.set(address, Number(blockNumber));
+              }
             }
-          }
-          return result;
-        }),
+            return result;
+          });
+      },
     ),
   insertLogs: async ({ logs, chainId }) => {
     if (logs.length === 0) return;
@@ -341,16 +355,19 @@ export const createSyncStore = ({
 
         for (let i = 0; i < logs.length; i += batchSize) {
           await database.qb.sync
-            .insertInto("logs")
+            .insert(ponderSyncSchema.logs)
             .values(
               logs
                 .slice(i, i + batchSize)
                 .map((log) => encodeLog({ log, chainId })),
             )
-            .onConflict((oc) =>
-              oc.columns(["chain_id", "block_number", "log_index"]).doNothing(),
-            )
-            .execute();
+            .onConflictDoNothing({
+              target: [
+                ponderSyncSchema.logs.chainId,
+                ponderSyncSchema.logs.blockNumber,
+                ponderSyncSchema.logs.logIndex,
+              ],
+            });
         }
       },
     );
@@ -1019,197 +1036,34 @@ export const createSyncStore = ({
   },
   pruneByChain: async ({ chainId }) =>
     database.wrap({ method: "pruneByChain", includeTraceLogs: true }, () =>
-      database.qb.sync.transaction().execute(async (tx) => {
+      database.qb.sync.transaction(async (tx) => {
         await tx
-          .deleteFrom("logs")
-          .where("chain_id", "=", String(chainId))
+          .delete(ponderSyncSchema.logs)
+          .where(eq(ponderSyncSchema.logs.chainId, BigInt(chainId)))
           .execute();
         await tx
-          .deleteFrom("blocks")
-          .where("chain_id", "=", String(chainId))
+          .delete(ponderSyncSchema.blocks)
+          .where(eq(ponderSyncSchema.blocks.chainId, BigInt(chainId)))
           .execute();
 
         await tx
-          .deleteFrom("traces")
-          .where("chain_id", "=", String(chainId))
+          .delete(ponderSyncSchema.traces)
+          .where(eq(ponderSyncSchema.traces.chainId, BigInt(chainId)))
           .execute();
         await tx
-          .deleteFrom("transactions")
-          .where("chain_id", "=", String(chainId))
+          .delete(ponderSyncSchema.transactions)
+          .where(eq(ponderSyncSchema.transactions.chainId, BigInt(chainId)))
           .execute();
         await tx
-          .deleteFrom("transaction_receipts")
-          .where("chain_id", "=", String(chainId))
+          .delete(ponderSyncSchema.transactionReceipts)
+          .where(
+            eq(ponderSyncSchema.transactionReceipts.chainId, BigInt(chainId)),
+          )
           .execute();
         await tx
-          .deleteFrom("factory_addresses")
-          .where("chain_id", "=", String(chainId))
+          .delete(ponderSyncSchema.factoryAddresses)
+          .where(eq(ponderSyncSchema.factoryAddresses.chainId, BigInt(chainId)))
           .execute();
       }),
     ),
 });
-
-const addressFilter = (
-  eb:
-    | ExpressionBuilder<PonderSyncSchema, "logs">
-    | ExpressionBuilder<PonderSyncSchema, "transactions">
-    | ExpressionBuilder<PonderSyncSchema, "traces">,
-  address:
-    | LogFilter["address"]
-    | TransactionFilter["fromAddress"]
-    | TransactionFilter["toAddress"],
-  column: "address" | "from" | "to",
-): OperandExpression<SqlBool> => {
-  // `factory` filtering is handled in-memory
-  if (isAddressFactory(address)) return eb.val(true);
-  // @ts-ignore
-  if (Array.isArray(address)) return eb(column, "in", address);
-  // @ts-ignore
-  if (typeof address === "string") return eb(column, "=", address);
-  return eb.val(true);
-};
-
-const logFilter = (
-  eb: ExpressionBuilder<PonderSyncSchema, "logs">,
-  filter: LogFilter,
-): OperandExpression<SqlBool> => {
-  const conditions: OperandExpression<SqlBool>[] = [];
-
-  for (const idx of [0, 1, 2, 3] as const) {
-    // If it's an array of length 1, collapse it.
-    const raw = filter[`topic${idx}`] ?? null;
-    if (raw === null) continue;
-    const topic = Array.isArray(raw) && raw.length === 1 ? raw[0]! : raw;
-    if (Array.isArray(topic)) {
-      conditions.push(eb.or(topic.map((t) => eb(`logs.topic${idx}`, "=", t))));
-    } else {
-      conditions.push(eb(`logs.topic${idx}`, "=", topic));
-    }
-  }
-
-  conditions.push(addressFilter(eb, filter.address, "address"));
-
-  if (filter.fromBlock !== undefined) {
-    conditions.push(eb("logs.block_number", ">=", String(filter.fromBlock!)));
-  }
-  if (filter.toBlock !== undefined) {
-    conditions.push(eb("logs.block_number", "<=", String(filter.toBlock!)));
-  }
-
-  return eb.and(conditions);
-};
-
-// @ts-expect-error
-const blockFilter = (
-  eb: ExpressionBuilder<PonderSyncSchema, "blocks">,
-  filter: BlockFilter,
-) => {
-  const conditions: OperandExpression<SqlBool>[] = [];
-
-  conditions.push(
-    sql`(blocks.number - ${filter.offset}) % ${filter.interval} = 0`,
-  );
-
-  if (filter.fromBlock !== undefined) {
-    conditions.push(eb("blocks.number", ">=", String(filter.fromBlock!)));
-  }
-  if (filter.toBlock !== undefined) {
-    conditions.push(eb("blocks.number", "<=", String(filter.toBlock!)));
-  }
-
-  return eb.and(conditions);
-};
-
-// @ts-expect-error
-const transactionFilter = (
-  eb: ExpressionBuilder<PonderSyncSchema, "transactions">,
-  filter: TransactionFilter,
-) => {
-  const conditions: OperandExpression<SqlBool>[] = [];
-
-  conditions.push(addressFilter(eb, filter.fromAddress, "from"));
-  conditions.push(addressFilter(eb, filter.toAddress, "to"));
-
-  if (filter.fromBlock !== undefined) {
-    conditions.push(
-      eb("transactions.block_number", ">=", String(filter.fromBlock!)),
-    );
-  }
-  if (filter.toBlock !== undefined) {
-    conditions.push(
-      eb("transactions.block_number", "<=", String(filter.toBlock!)),
-    );
-  }
-
-  return eb.and(conditions);
-};
-
-const transferFilter = (
-  eb: ExpressionBuilder<PonderSyncSchema, "traces">,
-  filter: TransferFilter,
-) => {
-  const conditions: OperandExpression<SqlBool>[] = [];
-
-  conditions.push(addressFilter(eb, filter.fromAddress, "from"));
-  conditions.push(addressFilter(eb, filter.toAddress, "to"));
-
-  if (filter.includeReverted === false) {
-    conditions.push(eb("traces.error", "=", null));
-  }
-
-  if (filter.fromBlock !== undefined) {
-    conditions.push(eb("traces.block_number", ">=", String(filter.fromBlock!)));
-  }
-  if (filter.toBlock !== undefined) {
-    conditions.push(eb("traces.block_number", "<=", String(filter.toBlock!)));
-  }
-
-  return eb.and(conditions);
-};
-
-const traceFilter = (
-  eb: ExpressionBuilder<PonderSyncSchema, "traces">,
-  filter: TraceFilter,
-) => {
-  const conditions: OperandExpression<SqlBool>[] = [];
-
-  conditions.push(addressFilter(eb, filter.fromAddress, "from"));
-  conditions.push(addressFilter(eb, filter.toAddress, "to"));
-
-  if (filter.includeReverted === false) {
-    conditions.push(eb("traces.error", "=", null));
-  }
-
-  if (filter.callType !== undefined) {
-    conditions.push(eb("traces.type", "=", filter.callType));
-  }
-
-  if (filter.functionSelector !== undefined) {
-    if (Array.isArray(filter.functionSelector)) {
-      conditions.push(
-        eb(
-          sql`substring(traces.input from 1 for 10)`,
-          "in",
-          filter.functionSelector,
-        ),
-      );
-    } else {
-      conditions.push(
-        eb(
-          sql`substring(traces.input from 1 for 10)`,
-          "=",
-          filter.functionSelector,
-        ),
-      );
-    }
-  }
-
-  if (filter.fromBlock !== undefined) {
-    conditions.push(eb("traces.block_number", ">=", String(filter.fromBlock!)));
-  }
-  if (filter.toBlock !== undefined) {
-    conditions.push(eb("traces.block_number", "<=", String(filter.toBlock!)));
-  }
-
-  return eb.and(conditions);
-};
