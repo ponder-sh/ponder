@@ -124,7 +124,11 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
       functionsToDrop.push(`"${schema}"."operation_reorg__${table}"`);
     }
     tablesToDrop.push(`"${schema}"."_ponder_meta"`);
-    tablesToDrop.push(`"${schema}"."_ponder_status"`);
+    if (value.version === "2") {
+      tablesToDrop.push(`"${schema}"."_ponder_checkpoint"`);
+    } else {
+      tablesToDrop.push(`"${schema}"."_ponder_status"`);
+    }
 
     const tableCount = ponderSchemas.find(
       (s) => s.schema === schema,
