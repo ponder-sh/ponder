@@ -354,6 +354,16 @@ export const createSync = async (params: {
           historicalSync,
         });
 
+        let limit: number;
+        if (params.ordering === "omnichain") {
+          limit = Math.round(
+            params.common.options.syncEventsQuerySize /
+              (params.indexingBuild.networks.length + 1),
+          );
+        } else {
+          limit = params.common.options.syncEventsQuerySize / 2;
+        }
+
         const localEventGenerator = getLocalEventGenerator({
           common: params.common,
           network,
@@ -365,10 +375,7 @@ export const createSync = async (params: {
             getMultichainCheckpoint({ tag: "finalized", network })!,
             getMultichainCheckpoint({ tag: "end", network })!,
           ),
-          limit: Math.round(
-            params.common.options.syncEventsQuerySize /
-              (params.indexingBuild.networks.length + 1),
-          ),
+          limit,
         });
 
         return sortCompletedAndPendingEvents(
@@ -377,10 +384,15 @@ export const createSync = async (params: {
       },
     );
 
-    for await (const {
-      events,
-      checkpoints,
-    } of mergeAsyncGeneratorsWithEventOrder(eventGenerators)) {
+    const eventGenerator =
+      params.ordering === "omnichain"
+        ? mergeAsyncGeneratorsWithEventOrder(eventGenerators)
+        : bufferAsyncGenerator(
+            mergeAsyncGeneratorsRoundRobin(eventGenerators),
+            1,
+          );
+
+    for await (const { events, checkpoints } of eventGenerator) {
       params.common.logger.debug({
         service: "sync",
         msg: `Sequenced ${events.length} events`,
@@ -1626,5 +1638,42 @@ export async function* mergeAsyncGeneratorsWithEventOrder(
       yield { events, checkpoints };
     }
     results[index] = await resultPromise;
+  }
+}
+
+/**
+ * Merges multiple async generators into a single async generator with round-robin
+ * ordering.
+ *
+ * @param generators - The generators to merge.
+ * @returns A single async generator that yields results from all input generators.
+ */
+export async function* mergeAsyncGeneratorsRoundRobin(
+  generators: AsyncGenerator<{ events: Event[]; checkpoint: string }>[],
+): EventGenerator {
+  if (generators.length === 0) return;
+
+  let index = 0;
+  while (generators.length > 0) {
+    const result = await generators[index]!.next();
+
+    if (result.done) {
+      generators.splice(index, 1);
+    } else {
+      yield {
+        events: result.value.events,
+        checkpoints: [
+          {
+            chainId: Number(decodeCheckpoint(result.value.checkpoint).chainId),
+            checkpoint: result.value.checkpoint,
+          },
+        ],
+      };
+
+      index = index + 1;
+      if (index >= generators.length) {
+        index = 0;
+      }
+    }
   }
 }
