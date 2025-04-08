@@ -351,6 +351,15 @@ export type ApiBuild = {
   app: Hono;
 };
 
+// Crash recovery
+
+export type CrashRecoveryCheckpoint =
+  | {
+      chainId: number;
+      checkpoint: string;
+    }[]
+  | undefined;
+
 // Status
 
 export type Status = {

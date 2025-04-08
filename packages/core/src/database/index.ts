@@ -8,6 +8,7 @@ import {
 import type { Common } from "@/internal/common.js";
 import { NonRetryableError, ShutdownError } from "@/internal/errors.js";
 import type {
+  CrashRecoveryCheckpoint,
   IndexingBuild,
   NamespaceBuild,
   PreBuild,
@@ -69,13 +70,9 @@ export type Database = {
   /** Migrate the `ponder_sync` schema. */
   migrateSync(): Promise<void>;
   /** Migrate the user schema. */
-  migrate({ buildId }: Pick<IndexingBuild, "buildId">): Promise<
-    | {
-        chainId: number;
-        checkpoint: string;
-      }[]
-    | undefined
-  >;
+  migrate({
+    buildId,
+  }: Pick<IndexingBuild, "buildId">): Promise<CrashRecoveryCheckpoint>;
   createIndexes(): Promise<void>;
   createTriggers(): Promise<void>;
   removeTriggers(): Promise<void>;
@@ -1020,24 +1017,40 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
     setSafeCheckpoint(checkpoints) {
       return this.wrap({ method: "setSafeCheckpoint" }, async () => {
         // Note: it is an invariant that `setSafeCheckpoint` is called after `setLatestCheckpoint`
-        await qb.drizzle.insert(PONDER_CHECKPOINT).values(
-          checkpoints.map(({ chainId, checkpoint }) => ({
-            chainId,
-            safeCheckpoint: checkpoint,
-            latestCheckpoint: checkpoint,
-          })),
-        );
+        await qb.drizzle
+          .insert(PONDER_CHECKPOINT)
+          .values(
+            checkpoints.map(({ chainId, checkpoint }) => ({
+              chainId,
+              safeCheckpoint: checkpoint,
+              latestCheckpoint: checkpoint,
+            })),
+          )
+          .onConflictDoUpdate({
+            target: PONDER_CHECKPOINT.chainId,
+            set: {
+              safeCheckpoint: sql`excluded.safe_checkpoint`,
+            },
+          });
       });
     },
     setLatestCheckpoint(checkpoints) {
       return this.wrap({ method: "setLatestCheckpoint" }, async () => {
-        await qb.drizzle.insert(PONDER_CHECKPOINT).values(
-          checkpoints.map(({ chainId, checkpoint }) => ({
-            chainId,
-            safeCheckpoint: checkpoint,
-            latestCheckpoint: checkpoint,
-          })),
-        );
+        await qb.drizzle
+          .insert(PONDER_CHECKPOINT)
+          .values(
+            checkpoints.map(({ chainId, checkpoint }) => ({
+              chainId,
+              safeCheckpoint: checkpoint,
+              latestCheckpoint: checkpoint,
+            })),
+          )
+          .onConflictDoUpdate({
+            target: PONDER_CHECKPOINT.chainId,
+            set: {
+              latestCheckpoint: sql`excluded.latest_checkpoint`,
+            },
+          });
       });
     },
     getCheckpoints() {

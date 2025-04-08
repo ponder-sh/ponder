@@ -7,7 +7,10 @@ import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
-import type { IndexingBuild } from "@/internal/types.js";
+import type {
+  CrashRecoveryCheckpoint,
+  IndexingBuild,
+} from "@/internal/types.js";
 import { createUi } from "@/ui/index.js";
 import { createQueue } from "@/utils/queue.js";
 import { type Result, mergeResults } from "@/utils/result.js";
@@ -291,7 +294,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   let indexingBuild: IndexingBuild | undefined;
   let database: Database | undefined;
-  let crashRecoveryCheckpoint: string | undefined;
+  let crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
 
   const namespace =
     cliOptions.schema ?? process.env.DATABASE_SCHEMA ?? "public";
