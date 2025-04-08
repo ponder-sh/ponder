@@ -7,7 +7,6 @@ import type { Common } from "@/internal/common.js";
 import { FlushError } from "@/internal/errors.js";
 import type { Event, Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
-import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
@@ -279,7 +278,7 @@ export const createIndexingCache = ({
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
-  crashRecoveryCheckpoint: string;
+  crashRecoveryCheckpoint: string | undefined;
 }): IndexingCache => {
   /**
    * Estimated size of the cache in bytes.
@@ -288,7 +287,7 @@ export const createIndexingCache = ({
    */
   let cacheBytes = 0;
   let event: Event | undefined;
-  let isCacheComplete = crashRecoveryCheckpoint === ZERO_CHECKPOINT_STRING;
+  let isCacheComplete = crashRecoveryCheckpoint === undefined;
   const primaryKeyCache = new Map<Table, [string, Column][]>();
 
   const cache: Cache = new Map();

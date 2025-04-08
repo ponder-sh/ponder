@@ -223,7 +223,7 @@ export const createSync = async (params: {
   syncStore: SyncStore;
   onRealtimeEvent(event: RealtimeEvent): Promise<void>;
   onFatalError(error: Error): void;
-  crashRecoveryCheckpoint: string;
+  crashRecoveryCheckpoint: string | undefined;
   ordering: "omnichain" | "multichain";
 }): Promise<Sync> => {
   const perNetworkSync = new Map<
@@ -350,12 +350,13 @@ export const createSync = async (params: {
           for await (const { events, checkpoint } of eventGenerator) {
             // Sort out any events before the crash recovery checkpoint
             if (
+              params.crashRecoveryCheckpoint &&
               events.length > 0 &&
               events[0]!.checkpoint < params.crashRecoveryCheckpoint
             ) {
               const [, right] = partition(
                 events,
-                (event) => event.checkpoint <= params.crashRecoveryCheckpoint,
+                (event) => event.checkpoint <= params.crashRecoveryCheckpoint!,
               );
               yield { events: right, checkpoint };
               // Sort out any events between the omnichain finalized checkpoint and the single-chain
