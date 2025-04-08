@@ -9,7 +9,6 @@ import type {
   RawEvent,
   Seconds,
   Source,
-  Status,
   SyncBlock,
 } from "@/internal/types.js";
 import {
@@ -64,7 +63,7 @@ import { isAddressFactory } from "./filter.js";
 export type Sync = {
   getEvents(): AsyncGenerator<Event[]>;
   startRealtime(): Promise<void>;
-  getStatus(): Status;
+  // getStatus(): Status;
   seconds: Seconds;
   getFinalizedCheckpoint(): string;
 };

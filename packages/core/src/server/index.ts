@@ -2,6 +2,7 @@ import http from "node:http";
 import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import type { ApiBuild } from "@/internal/types.js";
+import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { startClock } from "@/utils/timer.js";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
@@ -82,21 +83,24 @@ export async function createServer({
       return c.text("", 200);
     })
     .get("/ready", async (c) => {
-      const status = await database.getStatus();
+      const isReady = await database.getReady();
 
-      if (
-        status !== null &&
-        Object.values(status).every(({ ready }) => ready === true)
-      ) {
+      if (isReady) {
         return c.text("", 200);
       }
 
       return c.text("Historical indexing is not complete.", 503);
     })
     .get("/status", async (c) => {
-      const status = await database.getStatus();
-
-      return c.json(status);
+      const checkpoints = await globalThis.PONDER_DATABASE.getCheckpoints();
+      const statusResult = checkpoints.map(({ chainId, latestCheckpoint }) => ({
+        chainId,
+        block: {
+          number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
+          timestamp: Number(decodeCheckpoint(latestCheckpoint).blockTimestamp),
+        },
+      }));
+      return c.json(statusResult);
     })
     .route("/", apiBuild.app)
     .onError((error, c) => onError(error, c, common));
