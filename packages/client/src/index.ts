@@ -11,11 +11,9 @@ type Prettify<T> = {
 } & {};
 
 export type Status = {
-  [network: string]: {
-    block: { number: number; timestamp: number } | null;
-    ready: boolean;
-  };
-};
+  chainId: number;
+  block: { number: number; timestamp: number };
+}[];
 
 type ClientDb<schema extends Schema = Schema> = Prettify<
   Omit<
