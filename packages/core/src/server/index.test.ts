@@ -81,15 +81,7 @@ test("ready", async (context) => {
     database,
   });
 
-  await database.setStatus({
-    1: {
-      ready: true,
-      block: {
-        number: 1,
-        timestamp: 1,
-      },
-    },
-  });
+  await database.setReady();
 
   const response = await server.hono.request("/ready");
 
