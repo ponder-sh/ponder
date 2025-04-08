@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
-import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
+import {
+  getColumnCasing,
+  getReorgTable,
+  sqlToReorgTableName,
+} from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
 import { NonRetryableError, ShutdownError } from "@/internal/errors.js";
 import type {
@@ -47,13 +51,7 @@ import {
   pgTable,
 } from "drizzle-orm/pg-core";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
-import {
-  Kysely,
-  Migrator,
-  PostgresDialect,
-  WithSchemaPlugin,
-  sql as ksql,
-} from "kysely";
+import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
 import type { Pool, PoolClient } from "pg";
 import prometheus from "prom-client";
 
@@ -75,9 +73,9 @@ export type Database = {
   /** Migrate the `ponder_sync` schema. */
   migrateSync(): Promise<void>;
   /** Migrate the user schema. */
-  migrate({ buildId }: Pick<IndexingBuild, "buildId">): Promise<void>;
-  /** Determine the app checkpoint, possibly reverting unfinalized rows. */
-  recoverCheckpoint(): Promise<string>;
+  migrate({
+    buildId,
+  }: Pick<IndexingBuild, "buildId">): Promise<string | undefined>;
   createIndexes(): Promise<void>;
   createTriggers(): Promise<void>;
   removeTriggers(): Promise<void>;
@@ -390,9 +388,6 @@ export const createDatabase = async ({
     });
   }
 
-  /** 'true' if `migrate` created new tables. */
-  let createdTables: boolean;
-
   const tables = Object.values(schemaBuild.schema).filter(
     (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
   );
@@ -654,202 +649,8 @@ export const createDatabase = async ({
       );
     },
     async migrate({ buildId }) {
-      ////////
-      // Migrate
-      ////////
-
-      // v0.4 migration
-
-      // v0.6 migration
-
-      const hasPonderSchema = await qb.migrate
-        // @ts-ignore
-        .selectFrom("information_schema.schemata")
-        // @ts-ignore
-        .select("schema_name")
-        // @ts-ignore
-        .where("schema_name", "=", "ponder")
-        .executeTakeFirst()
-        .then((schema) => schema?.schema_name === "ponder");
-
-      if (hasPonderSchema) {
-        const hasNamespaceLockTable = await qb.migrate
-          // @ts-ignore
-          .selectFrom("information_schema.tables")
-          // @ts-ignore
-          .select(["table_name", "table_schema"])
-          // @ts-ignore
-          .where("table_name", "=", "namespace_lock")
-          // @ts-ignore
-          .where("table_schema", "=", "ponder")
-          .executeTakeFirst()
-          .then((table) => table !== undefined);
-
-        if (hasNamespaceLockTable) {
-          await this.wrap(
-            { method: "migrate", includeTraceLogs: true },
-            async () => {
-              const namespaceCount = await qb.migrate
-                .withSchema("ponder")
-                // @ts-ignore
-                .selectFrom("namespace_lock")
-                .select(ksql`count(*)`.as("count"))
-                .executeTakeFirst();
-
-              const tableNames = await qb.migrate
-                .withSchema("ponder")
-                // @ts-ignore
-                .selectFrom("namespace_lock")
-                // @ts-ignore
-                .select("schema")
-                // @ts-ignore
-                .where("namespace", "=", preBuild.namespace)
-                .executeTakeFirst()
-                .then((schema: any | undefined) =>
-                  schema === undefined
-                    ? undefined
-                    : Object.keys(schema.schema.tables),
-                );
-              if (tableNames) {
-                for (const tableName of tableNames) {
-                  await qb.migrate.schema
-                    .dropTable(tableName)
-                    .ifExists()
-                    .cascade()
-                    .execute();
-                }
-
-                await qb.migrate
-                  .withSchema("ponder")
-                  // @ts-ignore
-                  .deleteFrom("namespace_lock")
-                  // @ts-ignore
-                  .where("namespace", "=", preBuild.namespace)
-                  .execute();
-
-                if (namespaceCount!.count === 1) {
-                  await qb.migrate.schema
-                    .dropSchema("ponder")
-                    .cascade()
-                    .execute();
-
-                  common.logger.debug({
-                    service: "database",
-                    msg: `Removed 'ponder' schema`,
-                  });
-                }
-              }
-            },
-          );
-        }
-      }
-
-      // v0.8 migration
-
-      // If the schema previously ran with a 0.7 app, remove
-      // all unlocked "dev" apps. Then, copy a _ponder_meta entry
-      // to the new format if there is one remaining.
-
-      const hasPonderMetaTable = await qb.migrate
-        // @ts-ignore
-        .selectFrom("information_schema.tables")
-        // @ts-ignore
-        .select(["table_name", "table_schema"])
-        // @ts-ignore
-        .where("table_name", "=", "_ponder_meta")
-        // @ts-ignore
-        .where("table_schema", "=", namespace)
-        .executeTakeFirst()
-        .then((table) => table !== undefined);
-
-      if (hasPonderMetaTable) {
-        await this.wrap({ method: "migrate", includeTraceLogs: true }, () =>
-          qb.migrate.transaction().execute(async (tx) => {
-            const previousApps = await tx
-              .selectFrom("_ponder_meta")
-              // @ts-ignore
-              .where("key", "like", "app_%")
-              .select("value")
-              .execute()
-              .then((rows) => rows.map(({ value }) => value as PonderApp));
-
-            if (
-              previousApps.some(
-                (app) =>
-                  app.is_locked === 1 &&
-                  app.heartbeat_at + common.options.databaseHeartbeatTimeout >
-                    Date.now(),
-              )
-            ) {
-              throw new NonRetryableError(
-                `Migration failed: Schema '${namespace}' has an active app`,
-              );
-            }
-
-            for (const app of previousApps) {
-              for (const table of app.table_names) {
-                await tx.schema
-                  // @ts-ignore
-                  .dropTable(`${app.instance_id}__${table}`)
-                  .cascade()
-                  .ifExists()
-                  .execute();
-                await tx.schema
-                  // @ts-ignore
-                  .dropTable(`${app.instance_id}_reorg__${table}`)
-                  .cascade()
-                  .ifExists()
-                  .execute();
-              }
-              await tx
-                .deleteFrom("_ponder_meta")
-                // @ts-ignore
-                .where("key", "=", `status_${app.instance_id}`)
-                .execute();
-              await tx
-                .deleteFrom("_ponder_meta")
-                // @ts-ignore
-                .where("key", "=", `app_${app.instance_id}`)
-                .execute();
-            }
-
-            if (previousApps.length > 0) {
-              common.logger.debug({
-                service: "database",
-                msg: "Migrated previous app to v0.8",
-              });
-            }
-          }),
-        );
-      }
-
-      // 0.9 migration
-
-      if (hasPonderMetaTable) {
-        await qb.migrate
-          .deleteFrom("_ponder_meta")
-          // @ts-ignore
-          .where("key", "=", "status")
-          .execute();
-
-        const version: string | undefined = await qb.migrate
-          .selectFrom("_ponder_meta")
-          .select("value")
-          .where("key", "=", "app")
-          .executeTakeFirst()
-          .then((row) => row?.value.version);
-
-        if (version === undefined || Number(version) < Number(VERSION)) {
-          await qb.migrate.schema
-            .dropTable("_ponder_status")
-            .ifExists()
-            .cascade()
-            .execute();
-        }
-      }
-
       await this.wrap(
-        { method: "migrate", includeTraceLogs: true },
+        { method: "createPonderSystemTables", includeTraceLogs: true },
         async () => {
           await qb.drizzle.execute(
             sql.raw(`
@@ -897,48 +698,42 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
         },
       );
 
-      const attempt = () =>
+      const createTables = async (tx: Drizzle<Schema>) => {
+        for (let i = 0; i < schemaBuild.statements.tables.sql.length; i++) {
+          await tx
+            .execute(sql.raw(schemaBuild.statements.tables.sql[i]!))
+            .catch((_error) => {
+              const error = _error as Error;
+              if (!error.message.includes("already exists")) throw error;
+              const e = new NonRetryableError(
+                `Unable to create table '${namespace}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+              );
+              e.stack = undefined;
+              throw e;
+            });
+        }
+      };
+
+      const createEnums = async (tx: Drizzle<Schema>) => {
+        for (let i = 0; i < schemaBuild.statements.enums.sql.length; i++) {
+          await tx
+            .execute(sql.raw(schemaBuild.statements.enums.sql[i]!))
+            .catch((_error) => {
+              const error = _error as Error;
+              if (!error.message.includes("already exists")) throw error;
+              const e = new NonRetryableError(
+                `Unable to create enum '${namespace}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
+              );
+              e.stack = undefined;
+              throw e;
+            });
+        }
+      };
+
+      const tryAcquireLockAndMigrate = () =>
         this.wrap({ method: "migrate", includeTraceLogs: true }, () =>
           qb.drizzle.transaction(async (tx) => {
-            const createTables = async () => {
-              for (
-                let i = 0;
-                i < schemaBuild.statements.tables.sql.length;
-                i++
-              ) {
-                await tx
-                  .execute(sql.raw(schemaBuild.statements.tables.sql[i]!))
-                  .catch((_error) => {
-                    const error = _error as Error;
-                    if (!error.message.includes("already exists")) throw error;
-                    const e = new NonRetryableError(
-                      `Unable to create table '${namespace}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
-                    );
-                    e.stack = undefined;
-                    throw e;
-                  });
-              }
-            };
-
-            const createEnums = async () => {
-              for (
-                let i = 0;
-                i < schemaBuild.statements.enums.sql.length;
-                i++
-              ) {
-                await tx
-                  .execute(sql.raw(schemaBuild.statements.enums.sql[i]!))
-                  .catch((_error) => {
-                    const error = _error as Error;
-                    if (!error.message.includes("already exists")) throw error;
-                    const e = new NonRetryableError(
-                      `Unable to create enum '${namespace}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
-                    );
-                    e.stack = undefined;
-                    throw e;
-                  });
-              }
-            };
+            // Note: All ponder versions are compatible with the next query (every version of the "_ponder_meta" table have the same columns)
 
             const previousApp = await tx
               .select({ value: PONDER_META.value })
@@ -946,28 +741,58 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
               .where(eq(PONDER_META.key, "app"))
               .then((result) => result[0]?.value);
 
-            createdTables = false;
+            const metadata = {
+              version: VERSION,
+              build_id: buildId,
+              is_dev: common.options.command === "dev" ? 1 : 0,
+              is_locked: 1,
+              heartbeat_at: Date.now(),
+              checkpoint: ZERO_CHECKPOINT_STRING,
+              table_names: tables.map(getTableName),
+            } satisfies PonderApp;
 
             if (previousApp === undefined) {
-              await createEnums();
-              await createTables();
-              createdTables = true;
-            } else if (
+              await createEnums(tx);
+              await createTables(tx);
+
+              common.logger.info({
+                service: "database",
+                msg: `Created tables [${tables.map(getTableName).join(", ")}]`,
+              });
+
+              await tx
+                .insert(PONDER_META)
+                .values({ key: "app", value: metadata });
+              return {
+                status: "success",
+                crashRecoveryCheckpoint: undefined,
+              } as const;
+            }
+
+            if (previousApp.version !== VERSION) {
+              const error = new NonRetryableError(
+                `Schema '${namespace}' was previously used by a Ponder app with a different minor version. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/getting-started/database#database-schema`,
+              );
+              error.stack = undefined;
+              throw error;
+            }
+
+            if (
               previousApp.is_dev === 1 ||
               (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
                 previousApp.build_id !== buildId) ||
               (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
                 previousApp.checkpoint === ZERO_CHECKPOINT_STRING)
             ) {
-              for (const table of tables) {
+              for (const table of previousApp.table_names) {
                 await tx.execute(
                   sql.raw(
-                    `DROP TABLE IF EXISTS "${namespace}"."${getTableName(table)}" CASCADE`,
+                    `DROP TABLE IF EXISTS "${namespace}"."${table}" CASCADE`,
                   ),
                 );
                 await tx.execute(
                   sql.raw(
-                    `DROP TABLE IF EXISTS "${namespace}"."${getTableName(getReorgTable(table))}" CASCADE`,
+                    `DROP TABLE IF EXISTS "${namespace}"."${sqlToReorgTableName(table)}" CASCADE`,
                   ),
                 );
               }
@@ -985,84 +810,88 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
                 ),
               );
 
-              await createEnums();
-              await createTables();
-              createdTables = true;
-            }
+              await createEnums(tx);
+              await createTables(tx);
 
-            if (createdTables) {
               common.logger.info({
                 service: "database",
                 msg: `Created tables [${tables.map(getTableName).join(", ")}]`,
               });
 
-              // write metadata
+              await tx.update(PONDER_META).set({ value: metadata });
+              return {
+                status: "success",
+                crashRecoveryCheckpoint: undefined,
+              } as const;
+            }
 
-              const newApp = {
-                is_locked: 1,
-                is_dev: common.options.command === "dev" ? 1 : 0,
-                heartbeat_at: Date.now(),
-                build_id: buildId,
-                checkpoint: ZERO_CHECKPOINT_STRING,
-                table_names: tables.map(getTableName),
-                version: VERSION,
-              } satisfies PonderApp;
+            if (
+              common.options.command === "dev" ||
+              previousApp.build_id !== buildId
+            ) {
+              const error = new NonRetryableError(
+                `Schema '${namespace}' was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/getting-started/database#database-schema`,
+              );
+              error.stack = undefined;
+              throw error;
+            }
 
-              await tx
-                .insert(PONDER_META)
-                .values({ key: "app", value: newApp })
-                .onConflictDoUpdate({
-                  target: PONDER_META.key,
-                  set: { value: newApp },
-                });
-            } else {
-              // schema one of: crash recovery, locked, error
+            const expiry =
+              previousApp.heartbeat_at +
+              common.options.databaseHeartbeatTimeout;
 
-              if (
-                common.options.command === "dev" ||
-                previousApp!.build_id !== buildId
-              ) {
-                const error = new NonRetryableError(
-                  `Schema '${namespace}' was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/getting-started/database#database-schema`,
-                );
-                error.stack = undefined;
-                throw error;
-              }
+            const isAppUnlocked =
+              previousApp.is_locked === 0 || expiry <= Date.now();
 
-              // locked
+            if (isAppUnlocked === false) {
+              return { status: "locked", expiry } as const;
+            }
 
-              const isAppUnlocked =
-                previousApp!.is_locked === 0 ||
-                previousApp!.heartbeat_at +
-                  common.options.databaseHeartbeatTimeout <=
-                  Date.now();
+            common.logger.info({
+              service: "database",
+              msg: `Detected crash recovery for build '${buildId}' in schema '${namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
+            });
 
-              if (isAppUnlocked === false) {
-                return {
-                  status: "locked",
-                  expiry:
-                    previousApp!.heartbeat_at +
-                    common.options.databaseHeartbeatTimeout,
-                } as const;
-              }
+            // Remove triggers
 
-              // crash recovery
+            for (const table of tables) {
+              await tx.execute(
+                sql.raw(
+                  `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace}"."${getTableName(table)}"`,
+                ),
+              );
+            }
 
+            // Remove indexes
+
+            for (const indexStatement of schemaBuild.statements.indexes.json) {
+              await tx.execute(
+                sql.raw(
+                  `DROP INDEX IF EXISTS "${namespace}"."${indexStatement.data.name}"`,
+                ),
+              );
               common.logger.info({
                 service: "database",
-                msg: `Detected crash recovery for build '${buildId}' in schema '${namespace}' last active ${formatEta(Date.now() - previousApp!.heartbeat_at)} ago`,
+                msg: `Dropped index '${indexStatement.data.name}' in schema '${namespace}'`,
               });
             }
 
+            await this.revert({ checkpoint: previousApp.checkpoint, tx });
+
+            // TODO(kyle) eventually improve this using checkpoint for each chain
             await tx
               .update(PONDER_STATUS)
               .set({ block_number: null, block_timestamp: null, ready: false });
 
-            return { status: "success" } as const;
+            await tx.update(PONDER_META).set({ value: metadata });
+            return {
+              status: "success",
+              crashRecoveryCheckpoint: previousApp.checkpoint,
+            } as const;
           }),
         );
 
-      let result = await attempt();
+      let result = await tryAcquireLockAndMigrate();
       if (result.status === "locked") {
         const duration = result.expiry - Date.now();
         common.logger.warn({
@@ -1076,7 +905,7 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
 
         await wait(duration);
 
-        result = await attempt();
+        result = await tryAcquireLockAndMigrate();
         if (result.status === "locked") {
           const error = new NonRetryableError(
             `Failed to acquire lock on schema '${namespace}'. A different Ponder app is actively using this schema.`,
@@ -1112,73 +941,8 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
           });
         }
       }, common.options.databaseHeartbeatInterval);
-    },
-    async recoverCheckpoint() {
-      // new tables are empty
-      if (createdTables) return ZERO_CHECKPOINT_STRING;
 
-      return this.wrap(
-        { method: "recoverCheckpoint", includeTraceLogs: true },
-        () =>
-          qb.drizzle.transaction(async (tx) => {
-            const app = await tx
-              .select({ value: PONDER_META.value })
-              .from(PONDER_META)
-              .where(eq(PONDER_META.key, "app"))
-              .then((result) => result[0]!.value);
-
-            if (app.checkpoint === ZERO_CHECKPOINT_STRING) {
-              for (const table of tables) {
-                await tx.execute(
-                  sql.raw(
-                    `TRUNCATE TABLE "${namespace}"."${getTableName(table)}", "${namespace}"."${getTableName(getReorgTable(table))}" CASCADE`,
-                  ),
-                );
-              }
-            } else {
-              // Update metadata
-
-              app.is_locked = 1;
-              app.is_dev = common.options.command === "dev" ? 1 : 0;
-
-              await tx
-                .update(PONDER_META)
-                .set({ value: app })
-                .where(eq(PONDER_META.key, "app"));
-
-              // Remove triggers
-
-              for (const table of tables) {
-                await tx.execute(
-                  sql.raw(
-                    `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace}"."${getTableName(table)}"`,
-                  ),
-                );
-              }
-
-              // Remove indexes
-
-              for (const indexStatement of schemaBuild.statements.indexes
-                .json) {
-                await tx.execute(
-                  sql.raw(
-                    `DROP INDEX IF EXISTS "${namespace}"."${indexStatement.data.name}"`,
-                  ),
-                );
-                common.logger.info({
-                  service: "database",
-                  msg: `Dropped index '${indexStatement.data.name}' in schema '${namespace}'`,
-                });
-              }
-
-              // Revert unfinalized data
-
-              await this.revert({ checkpoint: app.checkpoint, tx });
-            }
-
-            return app.checkpoint;
-          }),
-      );
+      return result.crashRecoveryCheckpoint;
     },
     async createIndexes() {
       for (const statement of schemaBuild.statements.indexes.sql) {

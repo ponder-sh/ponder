@@ -32,7 +32,7 @@ test("flush() insert", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: undefined,
   });
 
   await database.transaction(async (client, tx) => {
@@ -77,7 +77,7 @@ test("flush() update", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: undefined,
   });
 
   await database.transaction(async (client, tx) => {
@@ -161,7 +161,7 @@ test("flush() encoding", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: undefined,
   });
 
   await database.transaction(async (client, tx) => {
@@ -223,7 +223,7 @@ test("flush() encoding escape", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: undefined,
   });
 
   await database.transaction(async (client, tx) => {
@@ -300,7 +300,7 @@ test("prefetch() queries predicted rows", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: undefined,
   });
 
   indexingCache.event = event;
@@ -356,7 +356,7 @@ test("prefetch() evicts rows", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: undefined,
   });
 
   // skip hot loop
