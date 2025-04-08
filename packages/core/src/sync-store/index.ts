@@ -552,7 +552,27 @@ export const createSyncStore = ({
         );
 
         const blocksQuery = database.qb.sync
-          .select()
+          .select({
+            number: ponderSyncSchema.blocks.number,
+            timestamp: ponderSyncSchema.blocks.timestamp,
+            hash: ponderSyncSchema.blocks.hash,
+            parentHash: ponderSyncSchema.blocks.parentHash,
+            logsBloom: ponderSyncSchema.blocks.logsBloom,
+            miner: ponderSyncSchema.blocks.miner,
+            gasUsed: ponderSyncSchema.blocks.gasUsed,
+            gasLimit: ponderSyncSchema.blocks.gasLimit,
+            baseFeePerGas: ponderSyncSchema.blocks.baseFeePerGas,
+            nonce: ponderSyncSchema.blocks.nonce,
+            mixHash: ponderSyncSchema.blocks.mixHash,
+            stateRoot: ponderSyncSchema.blocks.stateRoot,
+            receiptsRoot: ponderSyncSchema.blocks.receiptsRoot,
+            transactionsRoot: ponderSyncSchema.blocks.transactionsRoot,
+            sha3Uncles: ponderSyncSchema.blocks.sha3Uncles,
+            size: ponderSyncSchema.blocks.size,
+            difficulty: ponderSyncSchema.blocks.difficulty,
+            totalDifficulty: ponderSyncSchema.blocks.totalDifficulty,
+            extraData: ponderSyncSchema.blocks.extraData,
+          })
           .from(ponderSyncSchema.blocks)
           .where(
             and(
@@ -565,7 +585,26 @@ export const createSyncStore = ({
           .limit(limit);
 
         const transactionsQuery = database.qb.sync
-          .select()
+          .select({
+            blockNumber: ponderSyncSchema.transactions.blockNumber,
+            transactionIndex: ponderSyncSchema.transactions.transactionIndex,
+            hash: ponderSyncSchema.transactions.hash,
+            from: ponderSyncSchema.transactions.from,
+            to: ponderSyncSchema.transactions.to,
+            input: ponderSyncSchema.transactions.input,
+            value: ponderSyncSchema.transactions.value,
+            nonce: ponderSyncSchema.transactions.nonce,
+            r: ponderSyncSchema.transactions.r,
+            s: ponderSyncSchema.transactions.s,
+            v: ponderSyncSchema.transactions.v,
+            type: ponderSyncSchema.transactions.type,
+            gas: ponderSyncSchema.transactions.gas,
+            gasPrice: ponderSyncSchema.transactions.gasPrice,
+            maxFeePerGas: ponderSyncSchema.transactions.maxFeePerGas,
+            maxPriorityFeePerGas:
+              ponderSyncSchema.transactions.maxPriorityFeePerGas,
+            accessList: ponderSyncSchema.transactions.accessList,
+          })
           .from(ponderSyncSchema.transactions)
           .where(
             and(
@@ -581,7 +620,23 @@ export const createSyncStore = ({
           .limit(limit);
 
         const transactionReceiptsQuery = database.qb.sync
-          .select()
+          .select({
+            blockNumber: ponderSyncSchema.transactionReceipts.blockNumber,
+            transactionIndex:
+              ponderSyncSchema.transactionReceipts.transactionIndex,
+            from: ponderSyncSchema.transactionReceipts.from,
+            to: ponderSyncSchema.transactionReceipts.to,
+            contractAddress:
+              ponderSyncSchema.transactionReceipts.contractAddress,
+            logsBloom: ponderSyncSchema.transactionReceipts.logsBloom,
+            gasUsed: ponderSyncSchema.transactionReceipts.gasUsed,
+            cumulativeGasUsed:
+              ponderSyncSchema.transactionReceipts.cumulativeGasUsed,
+            effectiveGasPrice:
+              ponderSyncSchema.transactionReceipts.effectiveGasPrice,
+            status: ponderSyncSchema.transactionReceipts.status,
+            type: ponderSyncSchema.transactionReceipts.type,
+          })
           .from(ponderSyncSchema.transactionReceipts)
           .where(
             and(
@@ -603,7 +658,17 @@ export const createSyncStore = ({
           .limit(limit);
 
         const logsQuery = database.qb.sync
-          .select()
+          .select({
+            blockNumber: ponderSyncSchema.logs.blockNumber,
+            logIndex: ponderSyncSchema.logs.logIndex,
+            transactionIndex: ponderSyncSchema.logs.transactionIndex,
+            address: ponderSyncSchema.logs.address,
+            topic0: ponderSyncSchema.logs.topic0,
+            topic1: ponderSyncSchema.logs.topic1,
+            topic2: ponderSyncSchema.logs.topic2,
+            topic3: ponderSyncSchema.logs.topic3,
+            data: ponderSyncSchema.logs.data,
+          })
           .from(ponderSyncSchema.logs)
           .where(
             and(
@@ -619,7 +684,22 @@ export const createSyncStore = ({
           .limit(limit);
 
         const tracesQuery = database.qb.sync
-          .select()
+          .select({
+            blockNumber: ponderSyncSchema.traces.blockNumber,
+            transactionIndex: ponderSyncSchema.traces.transactionIndex,
+            traceIndex: ponderSyncSchema.traces.traceIndex,
+            from: ponderSyncSchema.traces.from,
+            to: ponderSyncSchema.traces.to,
+            input: ponderSyncSchema.traces.input,
+            output: ponderSyncSchema.traces.output,
+            value: ponderSyncSchema.traces.value,
+            type: ponderSyncSchema.traces.type,
+            gas: ponderSyncSchema.traces.gas,
+            gasUsed: ponderSyncSchema.traces.gasUsed,
+            error: ponderSyncSchema.traces.error,
+            revertReason: ponderSyncSchema.traces.revertReason,
+            subcalls: ponderSyncSchema.traces.subcalls,
+          })
           .from(ponderSyncSchema.traces)
           .where(
             and(
