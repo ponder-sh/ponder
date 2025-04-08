@@ -12,6 +12,7 @@ import {
   type PgTableWithColumns,
   PgView,
   getTableConfig,
+  index,
   integer,
   isPgEnum,
   isPgSequence,
@@ -45,18 +46,26 @@ export const getReorgTable = <config extends TableConfig>(
   const schema = getTableConfig(table).schema;
 
   if (schema && schema !== "public") {
-    return pgSchema(schema).table(sqlToReorgTableName(getTableName(table)), {
+    return pgSchema(schema).table(
+      sqlToReorgTableName(getTableName(table)),
+      {
+        operation_id: serial().notNull().primaryKey(),
+        operation: integer().notNull().$type<0 | 1 | 2>(),
+        checkpoint: varchar({ length: 75 }).notNull(),
+      },
+      (table) => [index().on(table.checkpoint)],
+    );
+  }
+
+  return pgTable(
+    sqlToReorgTableName(getTableName(table)),
+    {
       operation_id: serial().notNull().primaryKey(),
       operation: integer().notNull().$type<0 | 1 | 2>(),
       checkpoint: varchar({ length: 75 }).notNull(),
-    });
-  }
-
-  return pgTable(sqlToReorgTableName(getTableName(table)), {
-    operation_id: serial().notNull().primaryKey(),
-    operation: integer().notNull().$type<0 | 1 | 2>(),
-    checkpoint: varchar({ length: 75 }).notNull(),
-  });
+    },
+    (table) => [index().on(table.checkpoint)],
+  );
 };
 
 export const getSql = (schema: { [name: string]: unknown }): SqlStatements => {
