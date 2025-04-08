@@ -16,11 +16,7 @@ import {
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type { BlockFilter, Event, Filter, Fragment } from "@/internal/types.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
-import {
-  MAX_CHECKPOINT_STRING,
-  ZERO_CHECKPOINT_STRING,
-  decodeCheckpoint,
-} from "@/utils/checkpoint.js";
+import { MAX_CHECKPOINT_STRING, decodeCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
 import type { Interval } from "@/utils/interval.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
@@ -1056,7 +1052,7 @@ test("createSync()", async (context) => {
     syncStore,
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
 
@@ -1093,7 +1089,7 @@ test("getEvents() multichain", async (context) => {
     ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
 
@@ -1135,7 +1131,7 @@ test("getEvents() omnichain", async (context) => {
     ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: undefined,
     ordering: "omnichain",
   });
 
@@ -1178,7 +1174,7 @@ test("getEvents() mulitchain updates status", async (context) => {
     ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
 
@@ -1221,7 +1217,7 @@ test("getEvents() omnichain updates status", async (context) => {
     ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
 
@@ -1306,7 +1302,7 @@ test.skip("startRealtime()", async (context) => {
     ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
 
@@ -1356,7 +1352,7 @@ test("onEvent() multichain handles block", async (context) => {
       }
     },
     onFatalError: () => {},
-    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
 
@@ -1403,7 +1399,7 @@ test("onEvent() omnichain handles block", async (context) => {
       }
     },
     onFatalError: () => {},
-    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: undefined,
     ordering: "omnichain",
   });
 
@@ -1454,7 +1450,7 @@ test("onEvent() handles finalize", async (context) => {
       }
     },
     onFatalError: () => {},
-    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
 
@@ -1510,7 +1506,7 @@ test("onEvent() kills realtime when finalized", async (context) => {
       }
     },
     onFatalError: () => {},
-    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
 
@@ -1559,7 +1555,7 @@ test("onEvent() handles errors", async (context) => {
     onFatalError: () => {
       promise.resolve();
     },
-    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
 

@@ -278,7 +278,7 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
   await context.common.shutdown.kill();
 });
 
-test("recoverCheckpoint() with crash recovery reverts rows", async (context) => {
+test("migrate() with crash recovery reverts rows", async (context) => {
   const database = await createDatabase({
     common: context.common,
     namespace: "public",
@@ -342,8 +342,7 @@ test("recoverCheckpoint() with crash recovery reverts rows", async (context) => 
     },
   });
 
-  await databaseTwo.migrate({ buildId: "abc" });
-  const checkpoint = await databaseTwo.recoverCheckpoint();
+  const checkpoint = await databaseTwo.migrate({ buildId: "abc" });
 
   expect(checkpoint).toStrictEqual(
     createCheckpoint({ chainId: 1n, blockNumber: 10n }),
@@ -365,7 +364,7 @@ test("recoverCheckpoint() with crash recovery reverts rows", async (context) => 
   await context.common.shutdown.kill();
 });
 
-test("recoverCheckpoint() with crash recovery drops indexes and triggers", async (context) => {
+test("migrate() with crash recovery drops indexes and triggers", async (context) => {
   const account = onchainTable(
     "account",
     (p) => ({
@@ -415,7 +414,6 @@ test("recoverCheckpoint() with crash recovery drops indexes and triggers", async
   });
 
   await databaseTwo.migrate({ buildId: "abc" });
-  await databaseTwo.recoverCheckpoint();
 
   const indexNames = await getUserIndexNames(databaseTwo, "public", "account");
 
