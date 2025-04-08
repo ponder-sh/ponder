@@ -30,6 +30,7 @@ export async function run({
   schemaBuild,
   indexingBuild,
   database,
+  crashRecoveryCheckpoint,
   onFatalError,
   onReloadableError,
 }: {
@@ -38,10 +39,10 @@ export async function run({
   schemaBuild: SchemaBuild;
   indexingBuild: IndexingBuild;
   database: Database;
+  crashRecoveryCheckpoint: string | undefined;
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
 }) {
-  const crashRecoveryCheckpoint = await database.recoverCheckpoint();
   await database.migrateSync();
 
   runCodegen({ common });
