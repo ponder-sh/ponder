@@ -353,13 +353,10 @@ export type ApiBuild = {
 
 // Status
 
-/** Closest-to-tip indexed block per network. */
 export type Status = {
-  [network: string]: {
-    block: { number: number; timestamp: number } | null;
-    ready: boolean;
-  };
-};
+  chainId: number;
+  block: { number: number; timestamp: number };
+}[];
 
 // Seconds
 

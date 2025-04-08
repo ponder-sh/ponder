@@ -90,8 +90,6 @@ export async function run({
     crashRecoveryCheckpoint,
   });
 
-  await database.setStatus(sync.getStatus());
-
   for (const network of indexingBuild.networks) {
     const label = { network: network.name };
     common.metrics.ponder_historical_total_indexing_seconds.set(
@@ -271,10 +269,7 @@ export async function run({
             );
             endClock = startClock();
 
-            await database.finalize({
-              checkpoint: events[events.length - 1]!.checkpoint,
-              db: tx,
-            });
+            // TODO(kyle) database.setsafecheckpoint
 
             common.metrics.ponder_historical_transform_duration.inc(
               { step: "finalize" },
@@ -294,40 +289,16 @@ export async function run({
 
       await new Promise(setImmediate);
     }
-
-    await database.setStatus(sync.getStatus());
   }
-
-  // Persist the indexing store to the db. The `finalized`
-  // checkpoint is used as a mutex. Any rows in the reorg table that may
-  // have been written because of raw sql access are deleted. Also must truncate
-  // the reorg tables that may have been written because of raw sql access.
 
   common.logger.debug({
     service: "indexing",
     msg: "Completed all historical events, starting final flush",
   });
 
-  await database.retry(async () => {
-    await database.transaction(async (client, tx) => {
-      try {
-        await indexingCache.flush({ client });
-      } catch (error) {
-        if (error instanceof FlushError) {
-          onReloadableError(error as Error);
-          return;
-        }
-        throw error;
-      }
-
-      await database.finalize({
-        checkpoint: sync.getFinalizedCheckpoint(),
-        db: tx,
-      });
-    });
-  });
-
   indexingCache.clear();
+
+  await database.setReady();
 
   // Manually update metrics to fix a UI bug that occurs when the end
   // checkpoint is between the last processed event and the finalized
@@ -404,7 +375,7 @@ export async function run({
             if (result.status === "error") onReloadableError(result.error);
 
             // Set reorg table `checkpoint` column for newly inserted rows.
-            await database.complete({ checkpoint, db: database.qb.drizzle });
+            await database.commitBlock({ checkpoint, db: database.qb.drizzle });
 
             if (preBuild.ordering === "multichain") {
               const network = indexingBuild.networks.find(
@@ -428,11 +399,11 @@ export async function run({
           }
         }
 
-        await database.setStatus(event.status);
-
+        // TODO(kyle) database.setLatestCheckpoint
         break;
       }
       case "reorg":
+        // TODO(kyle) database.setLatestCheckpoint
         await database.removeTriggers();
         await database.retry(async () => {
           await database.qb.drizzle.transaction(async (tx) => {
@@ -444,6 +415,7 @@ export async function run({
         break;
 
       case "finalize":
+        // TODO(kyle) database.setSafeCheckpoint
         await database.finalize({
           checkpoint: event.checkpoint,
           db: database.qb.drizzle,
@@ -459,8 +431,6 @@ export async function run({
   await database.createTriggers();
 
   await sync.startRealtime();
-
-  await database.setStatus(sync.getStatus());
 
   common.logger.info({
     service: "server",
