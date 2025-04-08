@@ -14,7 +14,7 @@ import { wait } from "@/utils/wait.js";
 import { and, eq, sql } from "drizzle-orm";
 import { index } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
-import { beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import {
   type Database,
   TABLES,
@@ -297,6 +297,35 @@ test("migrateSync()", async (context) => {
   });
 
   await database.migrateSync();
+
+  // Note: this is a hack to avoid trying to update the metadata table on shutdown
+  context.common.options.command = "list";
+
+  await context.common.shutdown.kill();
+});
+
+test("migrateSync() handles concurrent migrations", async (context) => {
+  if (context.databaseConfig.kind !== "postgres") return;
+
+  const database = await createDatabase({
+    common: context.common,
+    namespace: "public",
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({ schema: { account } }).statements,
+    },
+  });
+
+  // The second migration should error, then retry and succeed
+  const spy = vi.spyOn(database.qb.sync, "transaction");
+
+  await Promise.all([database.migrateSync(), database.migrateSync()]);
+
+  // transaction gets called when perfoming a migration
+  expect(spy).toHaveBeenCalledTimes(3);
 
   // Note: this is a hack to avoid trying to update the metadata table on shutdown
   context.common.options.command = "list";
