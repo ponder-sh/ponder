@@ -11,7 +11,7 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "drizzle-orm": "0.39.3",
+    "drizzle-orm": "0.41.0",
     "hono": "^4.5.0",
     "pg": "^8.11.3",
     "ponder": "workspace:*",
