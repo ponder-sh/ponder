@@ -3,4 +3,4 @@
 "ponder": patch
 ---
 
-Updated drizzle-orm to v0.41.0.
+Updated drizzle-orm from v0.39.3 to v0.41.0.
