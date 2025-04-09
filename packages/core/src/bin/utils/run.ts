@@ -24,6 +24,7 @@ import { createMutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import { startClock } from "@/utils/timer.js";
+import { eq } from "drizzle-orm";
 
 /** Starts the sync and indexing services for the specified build. */
 export async function run({
@@ -141,7 +142,6 @@ export async function run({
 
   // If the initial checkpoint is zero, we need to run setup events.
   if (crashRecoveryCheckpoint === undefined) {
-    // TODO(kyle) how to mark setup as complete?
     await database.retry(async () => {
       await database.transaction(async (client, tx) => {
         const historicalIndexingStore = createHistoricalIndexingStore({
@@ -162,6 +162,15 @@ export async function run({
       });
     });
   }
+
+  await database.setCheckpoints({
+    checkpoints: indexingBuild.networks.map((network) => ({
+      chainId: network.chainId,
+      latestCheckpoint: sync.getStartCheckpoint(network),
+      safeCheckpoint: sync.getStartCheckpoint(network),
+    })),
+    db: database.qb.drizzle,
+  });
 
   // Run historical indexing until complete.
   for await (const events of recordAsyncGenerator(
@@ -292,7 +301,16 @@ export async function run({
             );
             endClock = startClock();
 
-            await database.setLatestCheckpoint(events.checkpoints);
+            await database.setCheckpoints({
+              checkpoints: events.checkpoints.map(
+                ({ chainId, checkpoint }) => ({
+                  chainId,
+                  latestCheckpoint: checkpoint,
+                  safeCheckpoint: checkpoint,
+                }),
+              ),
+              db: tx,
+            });
 
             common.metrics.ponder_historical_transform_duration.inc(
               { step: "finalize" },
@@ -344,6 +362,15 @@ export async function run({
   common.logger.info({
     service: "indexing",
     msg: "Completed historical indexing",
+  });
+
+  await database.setCheckpoints({
+    checkpoints: indexingBuild.networks.map((network) => ({
+      chainId: network.chainId,
+      latestCheckpoint: sync.getFinalizedCheckpoint(network),
+      safeCheckpoint: sync.getFinalizedCheckpoint(network),
+    })),
+    db: database.qb.drizzle,
   });
 
   await database.setReady();
@@ -408,14 +435,19 @@ export async function run({
           // }
         }
 
-        await database.setLatestCheckpoint([
-          { chainId: event.chainId, checkpoint: event.checkpoint },
-        ]);
+        await database.qb.drizzle
+          .update(database.PONDER_CHECKPOINT)
+          .set({
+            latestCheckpoint: event.checkpoint,
+          })
+          .where(eq(database.PONDER_CHECKPOINT.chainId, event.chainId));
 
         break;
       }
       case "reorg":
-        // TODO(kyle) database.setLatestCheckpoint
+        // Note: `setLatestCheckpoint` is not called here, instead it is called
+        // in the `block` case.
+
         await database.removeTriggers();
         await database.retry(async () => {
           await database.qb.drizzle.transaction(async (tx) => {
@@ -427,10 +459,10 @@ export async function run({
         break;
 
       case "finalize":
-        // TODO(kyle) database.setSafeCheckpoint
-        // await database.setSafeCheckpoint([
-        //   { chainId: event.chainId, checkpoint: event.checkpoint },
-        // ]);
+        await database.qb.drizzle.update(database.PONDER_CHECKPOINT).set({
+          safeCheckpoint: event.checkpoint,
+        });
+
         await database.finalize({
           checkpoint: event.checkpoint,
           db: database.qb.drizzle,

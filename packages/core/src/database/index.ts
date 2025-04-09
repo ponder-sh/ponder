@@ -55,6 +55,8 @@ import prometheus from "prom-client";
 export type Database = {
   driver: PostgresDriver | PGliteDriver;
   qb: QueryBuilder;
+  PONDER_META: ReturnType<typeof getPonderMeta>;
+  PONDER_CHECKPOINT: ReturnType<typeof getPonderCheckpoint>;
   retry: <T>(fn: () => Promise<T>) => Promise<T>;
   record: <T>(
     options: { method: string; includeTraceLogs?: boolean },
@@ -76,18 +78,23 @@ export type Database = {
   createIndexes(): Promise<void>;
   createTriggers(): Promise<void>;
   removeTriggers(): Promise<void>;
-  setLatestCheckpoint: (
+  /**
+   * - "safe" checkpoint: The closest-to-tip finalized and completed checkpoint.
+   * - "latest" checkpoint: The closest-to-tip completed checkpoint.
+   *
+   * @dev It is an invariant that every "latest" checkpoint is specific to that chain.
+   * In other words, `chainId === latestCheckpoint.chainId`.
+   */
+  setCheckpoints: ({
+    checkpoints,
+  }: {
     checkpoints: {
       chainId: number;
-      checkpoint: string;
-    }[],
-  ) => Promise<void>;
-  setSafeCheckpoint: (
-    checkpoints: {
-      chainId: number;
-      checkpoint: string;
-    }[],
-  ) => Promise<void>;
+      safeCheckpoint: string;
+      latestCheckpoint: string;
+    }[];
+    db: Drizzle<Schema>;
+  }) => Promise<void>;
   getCheckpoints: () => Promise<
     {
       chainId: number;
@@ -378,6 +385,8 @@ export const createDatabase = async ({
   const database = {
     driver,
     qb,
+    PONDER_META,
+    PONDER_CHECKPOINT,
     async retry(fn) {
       const RETRY_COUNT = 9;
       const BASE_DURATION = 125;
@@ -1014,40 +1023,15 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
         },
       );
     },
-    setSafeCheckpoint(checkpoints) {
-      return this.wrap({ method: "setSafeCheckpoint" }, async () => {
-        // Note: it is an invariant that `setSafeCheckpoint` is called after `setLatestCheckpoint`
-        await qb.drizzle
+    setCheckpoints({ checkpoints, db }) {
+      return this.wrap({ method: "setCheckpoints" }, async () => {
+        await db
           .insert(PONDER_CHECKPOINT)
-          .values(
-            checkpoints.map(({ chainId, checkpoint }) => ({
-              chainId,
-              safeCheckpoint: checkpoint,
-              latestCheckpoint: checkpoint,
-            })),
-          )
+          .values(checkpoints)
           .onConflictDoUpdate({
             target: PONDER_CHECKPOINT.chainId,
             set: {
               safeCheckpoint: sql`excluded.safe_checkpoint`,
-            },
-          });
-      });
-    },
-    setLatestCheckpoint(checkpoints) {
-      return this.wrap({ method: "setLatestCheckpoint" }, async () => {
-        await qb.drizzle
-          .insert(PONDER_CHECKPOINT)
-          .values(
-            checkpoints.map(({ chainId, checkpoint }) => ({
-              chainId,
-              safeCheckpoint: checkpoint,
-              latestCheckpoint: checkpoint,
-            })),
-          )
-          .onConflictDoUpdate({
-            target: PONDER_CHECKPOINT.chainId,
-            set: {
               latestCheckpoint: sql`excluded.latest_checkpoint`,
             },
           });
@@ -1055,7 +1039,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
     },
     getCheckpoints() {
       return this.wrap({ method: "getCheckpoints" }, () =>
-        this.qb.drizzle.select().from(PONDER_CHECKPOINT),
+        qb.drizzle.select().from(PONDER_CHECKPOINT),
       );
     },
     setReady() {
