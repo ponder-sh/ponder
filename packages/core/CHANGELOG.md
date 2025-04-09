@@ -1,5 +1,11 @@
 # ponder
 
+## 0.10.11
+
+### Patch Changes
+
+- [#1653](https://github.com/ponder-sh/ponder/pull/1653) [`4447771a45dc81887586845801becf83cfdb6387`](https://github.com/ponder-sh/ponder/commit/4447771a45dc81887586845801becf83cfdb6387) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated drizzle-orm from v0.39.3 to v0.41.0.
+
 ## 0.10.10
 
 ### Patch Changes
