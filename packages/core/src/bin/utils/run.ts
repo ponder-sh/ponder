@@ -237,8 +237,10 @@ export async function run({
                 eventChunk[eventChunk.length - 1]!.checkpoint,
               );
 
-              // TODO(kyle) this seems bad
-              for (const network of indexingBuild.networks) {
+              if (preBuild.ordering === "multichain") {
+                const network = indexingBuild.networks.find(
+                  (network) => network.chainId === Number(checkpoint.chainId),
+                )!;
                 common.metrics.ponder_historical_completed_indexing_seconds.set(
                   { network: network.name },
                   Math.max(
@@ -252,6 +254,22 @@ export async function run({
                   { network: network.name },
                   Number(checkpoint.blockTimestamp),
                 );
+              } else {
+                for (const network of indexingBuild.networks) {
+                  common.metrics.ponder_historical_completed_indexing_seconds.set(
+                    { network: network.name },
+                    Math.max(
+                      Number(checkpoint.blockTimestamp) -
+                        sync.seconds[network.name]!.start -
+                        sync.seconds[network.name]!.cached,
+                      0,
+                    ),
+                  );
+                  common.metrics.ponder_indexing_timestamp.set(
+                    { network: network.name },
+                    Number(checkpoint.blockTimestamp),
+                  );
+                }
               }
 
               // Note: allows for terminal and logs to be updated
@@ -384,14 +402,11 @@ export async function run({
   const onRealtimeEvent = realtimeMutex(async (event: RealtimeEvent) => {
     switch (event.type) {
       case "block": {
+        const network = indexingBuild.networks.find(
+          (network) => network.chainId === event.chainId,
+        )!;
+
         if (event.events.length > 0) {
-          // Events must be run block-by-block, so that `database.complete` can accurately
-          // update the temporary `checkpoint` value set in the trigger.
-
-          const network = indexingBuild.networks.find(
-            (network) => network.chainId === event.chainId,
-          )!;
-
           common.logger.debug({
             service: "app",
             msg: `Decoded ${event.events.length} '${network.name}' events for block ${Number(decodeCheckpoint(event.checkpoint).blockNumber)}`,
@@ -414,26 +429,12 @@ export async function run({
             checkpoint: event.checkpoint,
             db: database.qb.drizzle,
           });
-
-          common.metrics.ponder_indexing_timestamp.set(
-            { network: network.name },
-            Number(decodeCheckpoint(event.checkpoint).blockTimestamp),
-          );
-
-          // if (preBuild.ordering === "multichain") {
-          //   common.metrics.ponder_indexing_timestamp.set(
-          //     { network: network.name },
-          //     Number(decodeCheckpoint(checkpoint).blockTimestamp),
-          //   );
-          // } else {
-          //   for (const network of indexingBuild.networks) {
-          //     common.metrics.ponder_indexing_timestamp.set(
-          //       { network: network.name },
-          //       Number(decodeCheckpoint(checkpoint).blockTimestamp),
-          //     );
-          //   }
-          // }
         }
+
+        common.metrics.ponder_indexing_timestamp.set(
+          { network: network.name },
+          Number(decodeCheckpoint(event.checkpoint).blockTimestamp),
+        );
 
         await database.qb.drizzle
           .update(database.PONDER_CHECKPOINT)
