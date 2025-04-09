@@ -1,4 +1,6 @@
-import { randomUUID } from "node:crypto";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
@@ -11,11 +13,8 @@ import type {
   SchemaBuild,
   Status,
 } from "@/internal/types.js";
-import type { PonderSyncSchema } from "@/sync-store/encoding.js";
-import {
-  moveLegacyTables,
-  migrationProvider as postgresMigrationProvider,
-} from "@/sync-store/migrations.js";
+import * as ponderSyncSchema from "@/sync-store/schema.js";
+import { PONDER_SYNC_SCHEMAS } from "@/sync-store/schema.js";
 import type { Drizzle } from "@/types/db.js";
 import {
   MAX_CHECKPOINT_STRING,
@@ -30,9 +29,11 @@ import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
 import {
   type TableConfig,
+  and,
   eq,
   getTableColumns,
   getTableName,
+  inArray,
   is,
   lte,
   sql,
@@ -47,13 +48,7 @@ import {
   pgTable,
 } from "drizzle-orm/pg-core";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
-import {
-  Kysely,
-  Migrator,
-  PostgresDialect,
-  WithSchemaPlugin,
-  sql as ksql,
-} from "kysely";
+import { Kysely, PostgresDialect, WithSchemaPlugin, sql as ksql } from "kysely";
 import type { Pool, PoolClient } from "pg";
 import prometheus from "prom-client";
 
@@ -91,6 +86,24 @@ export type Database = {
   complete(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
 };
 
+export const SCHEMATA = pgSchema("information_schema").table(
+  "schemata",
+  (t) => ({
+    schemaName: t.text().primaryKey(),
+  }),
+);
+
+export const TABLES = pgSchema("information_schema").table("tables", (t) => ({
+  table_name: t.text().notNull(),
+  table_schema: t.text().notNull(),
+  table_type: t.text().notNull(),
+}));
+
+const LEGACY_MIGRATIONS = pgSchema("ponder_sync").table(
+  "kysely_migration",
+  (t) => ({ name: t.text().primaryKey() }),
+);
+
 export type PonderApp = {
   is_locked: 0 | 1;
   is_dev: 0 | 1;
@@ -103,9 +116,7 @@ export type PonderApp = {
 
 const VERSION = "1";
 
-type PGliteDriver = {
-  instance: PGlite;
-};
+type PGliteDriver = { instance: PGlite };
 
 type PostgresDriver = {
   internal: Pool;
@@ -118,8 +129,8 @@ type PostgresDriver = {
 type QueryBuilder = {
   /** For migrating the user schema */
   migrate: Kysely<any>;
-  /** Used to interact with the sync-store */
-  sync: Kysely<PonderSyncSchema>;
+  /** For interacting with the sync schema (extract) */
+  sync: Drizzle<typeof ponderSyncSchema>;
   /** For interacting with the user schema (transform) */
   drizzle: Drizzle<Schema>;
   /** For interacting with the user schema (load) */
@@ -228,16 +239,9 @@ export const createDatabase = async ({
         },
         plugins: [new WithSchemaPlugin(namespace)],
       }),
-      sync: new Kysely<PonderSyncSchema>({
-        dialect: kyselyDialect,
-        log(event) {
-          if (event.level === "query") {
-            common.metrics.ponder_postgres_query_total.inc({
-              pool: "sync",
-            });
-          }
-        },
-        plugins: [new WithSchemaPlugin("ponder_sync")],
+      sync: drizzlePglite((driver as PGliteDriver).instance, {
+        casing: "snake_case",
+        schema: ponderSyncSchema,
       }),
       drizzle: drizzlePglite((driver as PGliteDriver).instance, {
         casing: "snake_case",
@@ -310,16 +314,9 @@ export const createDatabase = async ({
         },
         plugins: [new WithSchemaPlugin(namespace)],
       }),
-      sync: new Kysely<PonderSyncSchema>({
-        dialect: new PostgresDialect({ pool: driver.sync }),
-        log(event) {
-          if (event.level === "query") {
-            common.metrics.ponder_postgres_query_total.inc({
-              pool: "sync",
-            });
-          }
-        },
-        plugins: [new WithSchemaPlugin("ponder_sync")],
+      sync: drizzleNodePg(driver.sync, {
+        casing: "snake_case",
+        schema: ponderSyncSchema,
       }),
       drizzle: drizzleNodePg(driver.user, {
         casing: "snake_case",
@@ -451,7 +448,7 @@ export const createDatabase = async ({
     async record(options, fn) {
       const endClock = startClock();
 
-      const id = randomUUID().slice(0, 8);
+      const id = crypto.randomUUID().slice(0, 8);
       if (options.includeTraceLogs) {
         common.logger.trace({
           service: "database",
@@ -516,7 +513,7 @@ export const createDatabase = async ({
       for (let i = 0; i <= RETRY_COUNT; i++) {
         const endClock = startClock();
 
-        const id = randomUUID().slice(0, 8);
+        const id = crypto.randomUUID().slice(0, 8);
         if (options.includeTraceLogs) {
           common.logger.trace({
             service: "database",
@@ -635,21 +632,71 @@ export const createDatabase = async ({
       await this.wrap(
         { method: "migrateSyncStore", includeTraceLogs: true },
         async () => {
-          // TODO: Probably remove this at 1.0 to speed up startup time.
-          await moveLegacyTables({
-            common: common,
-            db: qb.migrate,
-            newSchemaName: "ponder_sync",
-          });
+          const dbSchemas = await qb.sync
+            .select()
+            .from(SCHEMATA)
+            // @ts-expect-error drizzle type error
+            .where(inArray(SCHEMATA.schemaName, PONDER_SYNC_SCHEMAS))
+            .then((result) => result.map((r) => r.schemaName));
 
-          const migrator = new Migrator({
-            db: qb.sync as any,
-            provider: postgresMigrationProvider,
-            migrationTableSchema: "ponder_sync",
-          });
+          // legacy migrations
 
-          const { error } = await migrator.migrateToLatest();
-          if (error) throw error;
+          if (dbSchemas.includes("ponder_sync")) {
+            const hasKyselyMigrationTable = await qb.sync
+              .select()
+              .from(TABLES)
+              .where(
+                and(
+                  eq(TABLES.table_schema, "ponder_sync"),
+                  eq(TABLES.table_name, "kysely_migration"),
+                ),
+              )
+              .then((result) => result.length > 0);
+
+            if (hasKyselyMigrationTable) {
+              const kyselyMigrations = await qb.sync
+                .select()
+                .from(LEGACY_MIGRATIONS)
+                .then((result) => result.map((r) => r.name));
+              if (
+                kyselyMigrations.includes(
+                  "2025_02_26_1_rpc_request_results",
+                ) === false
+              ) {
+                throw new NonRetryableError(
+                  '"ponder_sync" migration failed. Please first update to v0.10.',
+                );
+              }
+            }
+          }
+
+          for (const schema of PONDER_SYNC_SCHEMAS) {
+            const migration = `${schema}.sql`;
+
+            const hasSchema = dbSchemas.includes(schema);
+
+            if (hasSchema) continue;
+
+            const query = fs.readFileSync(
+              path.join(__dirname, "..", "sync-store", "sql", migration),
+              "utf-8",
+            );
+            const statements = query.split("--> statement-breakpoint");
+
+            await qb.sync.transaction(
+              async (tx) => {
+                for (const statement of statements) {
+                  await tx.execute(sql.raw(statement));
+                }
+              },
+              // https://www.postgresql.org/docs/current/transaction-iso.html#XACT-REPEATABLE-READ
+              { isolationLevel: "repeatable read" },
+            );
+            common.logger.info({
+              service: "database",
+              msg: `Migrated '${schema}' schema`,
+            });
+          }
         },
       );
     },
