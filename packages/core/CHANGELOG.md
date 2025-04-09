@@ -1,5 +1,11 @@
 # ponder
 
+## 0.10.10
+
+### Patch Changes
+
+- [#1654](https://github.com/ponder-sh/ponder/pull/1654) [`3dde8fdbf40a14ae04f491943062122cb2dea107`](https://github.com/ponder-sh/ponder/commit/3dde8fdbf40a14ae04f491943062122cb2dea107) Thanks [@kyscott18](https://github.com/kyscott18)! - Increased statement timeout for ponder_sync migrations to 60 minutes.
+
 ## 0.10.9
 
 ### Patch Changes
