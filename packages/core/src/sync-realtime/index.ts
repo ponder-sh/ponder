@@ -117,7 +117,8 @@ export const createRealtimeSync = (
    * `parentHash` => `hash`.
    */
   let unfinalizedBlocks: LightBlock[] = [];
-  let consecutiveErrors = 0;
+  let consecutiveSync1Errors = 0;
+  let consecutiveSync2Errors = 0;
   let interval: NodeJS.Timeout | undefined;
 
   const factories: Factory[] = [];
@@ -682,10 +683,9 @@ export const createRealtimeSync = (
 
         const msg = `Encountered unrecoverable '${args.network.name}' reorg beyond finalized block ${hexToNumber(finalizedBlock.number)}`;
 
-        const error = new Error(msg);
-        args.common.logger.error({ service: "realtime", msg });
-        args.onFatalError(error);
-        return;
+        args.common.logger.warn({ service: "realtime", msg });
+
+        throw new Error(msg);
       } else {
         remoteBlock = await _eth_getBlockByHash(args.requestQueue, {
           hash: remoteBlock.parentHash,
@@ -757,7 +757,7 @@ export const createRealtimeSync = (
 
           const blockWithEventData = await fetchBlockEventData(block);
 
-          consecutiveErrors = 0;
+          consecutiveSync1Errors = 0;
 
           return sync2({ ...blockWithEventData, endClock });
         } catch (_error) {
@@ -774,7 +774,7 @@ export const createRealtimeSync = (
           });
 
           // After a certain number of attempts, emit a fatal error.
-          if (++consecutiveErrors === ERROR_TIMEOUT.length) {
+          if (++consecutiveSync1Errors === ERROR_TIMEOUT.length) {
             args.common.logger.error({
               service: "realtime",
               msg: `Fatal error: Unable to fetch latest '${args.network.name}' block after ${ERROR_TIMEOUT.length} attempts.`,
@@ -994,7 +994,7 @@ export const createRealtimeSync = (
             }
 
             // Reset the error state after successfully completing the happy path.
-            consecutiveErrors = 0;
+            consecutiveSync2Errors = 0;
 
             return;
           } catch (_error) {
@@ -1010,7 +1010,7 @@ export const createRealtimeSync = (
               error,
             });
 
-            const duration = ERROR_TIMEOUT[consecutiveErrors]!;
+            const duration = ERROR_TIMEOUT[consecutiveSync2Errors]!;
 
             args.common.logger.warn({
               service: "realtime",
@@ -1026,7 +1026,7 @@ export const createRealtimeSync = (
             sync2.clear();
 
             // After a certain number of attempts, emit a fatal error.
-            if (++consecutiveErrors === ERROR_TIMEOUT.length) {
+            if (++consecutiveSync2Errors === ERROR_TIMEOUT.length) {
               args.common.logger.error({
                 service: "realtime",
                 msg: `Fatal error: Unable to process '${args.network.name}' block ${hexToNumber(block.number)} after ${ERROR_TIMEOUT.length} attempts.`,
