@@ -64,8 +64,9 @@ import { isAddressFactory } from "./filter.js";
 export type Sync = {
   getEvents(): EventGenerator;
   startRealtime(): Promise<void>;
+  getStartCheckpoint(network: Network): string;
+  getFinalizedCheckpoint(network: Network): string;
   seconds: Seconds;
-  getFinalizedCheckpoint(): string;
 };
 
 export type RealtimeEvent =
@@ -866,11 +867,6 @@ export const createSync = async (params: {
           ({ filter }) => filter.chainId === network.chainId,
         );
         const filters = sources.map(({ filter }) => filter);
-        // status[network.name]!.block = {
-        //   number: hexToNumber(syncProgress.current!.number),
-        //   timestamp: hexToNumber(syncProgress.current!.timestamp),
-        // };
-        // status[network.name]!.ready = true;
 
         if (isSyncEnd(syncProgress)) {
           params.common.metrics.ponder_sync_is_complete.set(
@@ -936,8 +932,11 @@ export const createSync = async (params: {
       }
     },
     seconds,
-    getFinalizedCheckpoint() {
-      return getOmnichainCheckpoint({ tag: "finalized" })!;
+    getStartCheckpoint(network) {
+      return getMultichainCheckpoint({ tag: "start", network })!;
+    },
+    getFinalizedCheckpoint(network) {
+      return getMultichainCheckpoint({ tag: "finalized", network })!;
     },
   };
 };
