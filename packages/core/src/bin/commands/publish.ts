@@ -103,7 +103,7 @@ export async function publish({
   for (const table of meta[0]!.app.table_names) {
     await database.qb.drizzle.execute(
       sql.raw(
-        `CREATE VIEW "${cliOptions.publishSchema}"."${table}" AS SELECT * FROM "${cliOptions.schema}"."${table}"`,
+        `CREATE OR REPLACE VIEW "${cliOptions.publishSchema}"."${table}" AS SELECT * FROM "${cliOptions.schema}"."${table}"`,
       ),
     );
   }
@@ -115,7 +115,7 @@ export async function publish({
 
   await database.qb.drizzle.execute(
     sql.raw(
-      `CREATE VIEW "${cliOptions.publishSchema}"."_ponder_status" AS SELECT * FROM "${cliOptions.schema}"."_ponder_status"`,
+      `CREATE OR REPLACE VIEW "${cliOptions.publishSchema}"."_ponder_status" AS SELECT * FROM "${cliOptions.schema}"."_ponder_status"`,
     ),
   );
 
