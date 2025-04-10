@@ -1,4 +1,5 @@
 import type { Event } from "@/internal/types.js";
+import { orderObject } from "@/utils/order.js";
 import type { Abi } from "viem";
 import {
   type PonderActions,
@@ -9,7 +10,7 @@ import {
 } from "./client.js";
 
 export const getProfilePatternKey = (pattern: ProfilePattern): string => {
-  return JSON.stringify(pattern, (key, value) => {
+  return JSON.stringify(orderObject(pattern), (key, value) => {
     if (key === "abi") return undefined;
 
     if (typeof value === "bigint") {
@@ -36,7 +37,7 @@ export const recordProfilePattern = ({
     "blockNumber" | "cache"
   >;
   hints: { pattern: ProfilePattern; hasConstant: boolean }[];
-}): { pattern: ProfilePattern; hasConstant: boolean } => {
+}): { pattern: ProfilePattern; hasConstant: boolean } | undefined => {
   for (const hint of hints) {
     if (
       getCacheKey(
@@ -286,6 +287,10 @@ export const recordProfilePattern = ({
   // args
 
   for (const arg of args.args) {
+    if (typeof arg === "object") {
+      return undefined;
+    }
+
     switch (event.type) {
       case "block": {
         if (eq(event.event.block.hash, arg)) {
