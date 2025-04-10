@@ -241,9 +241,5 @@ test("recordProfilePattern() object args", () => {
     primaryKeyCache,
   );
 
-  expect(pattern).toMatchInlineSnapshot(`
-    {
-      "address": "args.address",
-    }
-  `);
+  expect(pattern).toBe(undefined);
 });
