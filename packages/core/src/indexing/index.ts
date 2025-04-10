@@ -75,6 +75,7 @@ export const createIndexing = ({
 
   const eventCount: { [eventName: string]: number } = {};
   const networkByChainId: { [chainId: number]: Network } = {};
+  const clientByChainId: { [chainId: number]: ReadonlyClient } = {};
   const contractsByChainId: {
     [chainId: number]: Record<
       string,
@@ -95,6 +96,11 @@ export const createIndexing = ({
   // build networkByChainId
   for (const network of networks) {
     networkByChainId[network.chainId] = network;
+  }
+
+  // build clientByChainId
+  for (const network of networks) {
+    clientByChainId[network.chainId] = client.getClient(network);
   }
 
   // build contractsByChainId
@@ -157,7 +163,6 @@ export const createIndexing = ({
     const metricLabel = { event: event.name };
 
     try {
-      // blockNumber = event.block;
       context.network.chainId = event.chainId;
       context.network.name = networkByChainId[event.chainId]!.name;
       context.contracts = contractsByChainId[event.chainId]!;
@@ -205,7 +210,6 @@ export const createIndexing = ({
     const metricLabel = { event: event.name };
 
     try {
-      // blockNumber = event.event.block.number;
       context.network.chainId = event.chainId;
       context.network.name = networkByChainId[event.chainId]!.name;
       context.contracts = contractsByChainId[event.chainId]!;
@@ -278,7 +282,7 @@ export const createIndexing = ({
           } satisfies SetupEvent;
 
           client.event = event;
-          context.client = client.getClient(network);
+          context.client = clientByChainId[network.chainId]!;
 
           eventCount[eventName]!++;
 
@@ -298,7 +302,7 @@ export const createIndexing = ({
         const event = events[i]!;
 
         client.event = event;
-        context.client = client.getClient(networkByChainId[event.chainId]!);
+        context.client = clientByChainId[event.chainId]!;
 
         if (cache) {
           cache.event = event;
