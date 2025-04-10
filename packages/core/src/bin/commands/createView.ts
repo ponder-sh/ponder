@@ -18,7 +18,7 @@ const emptySchemaBuild = {
   },
 };
 
-export async function publish({
+export async function createView({
   cliOptions,
 }: {
   cliOptions: CliOptions & {
@@ -44,18 +44,18 @@ export async function publish({
 
   if (cliOptions.schema === undefined) {
     logger.warn({
-      service: "publish",
+      service: "create-views",
       msg: "Required CLI option '--schema' not provided.",
     });
-    await exit({ reason: "Publish failed", code: 1 });
+    await exit({ reason: "Create views failed", code: 1 });
     return;
   }
   if (cliOptions.publishSchema === undefined) {
     logger.warn({
-      service: "publish",
+      service: "create-views",
       msg: "Required CLI option '--publish-schema' not provided.",
     });
-    await exit({ reason: "Publish failed", code: 1 });
+    await exit({ reason: "Create views failed", code: 1 });
     return;
   }
 
@@ -89,10 +89,10 @@ export async function publish({
 
   if (meta.length === 0) {
     logger.warn({
-      service: "publish",
+      service: "create-views",
       msg: `No Ponder app found in schema ${cliOptions.schema}.`,
     });
-    await exit({ reason: "Publish failed", code: 0 });
+    await exit({ reason: "Create views failed", code: 0 });
     return;
   }
 
@@ -109,7 +109,7 @@ export async function publish({
   }
 
   logger.warn({
-    service: "publish",
+    service: "create-views",
     msg: `Created ${meta[0]!.app.table_names.length} views in schema "${cliOptions.publishSchema}"`,
   });
 
