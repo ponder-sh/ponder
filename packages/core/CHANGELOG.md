@@ -1,5 +1,11 @@
 # ponder
 
+## 0.10.12
+
+### Patch Changes
+
+- [#1658](https://github.com/ponder-sh/ponder/pull/1658) [`7e4fe861fb4a6788d7d272da2434409d1979ac51`](https://github.com/ponder-sh/ponder/commit/7e4fe861fb4a6788d7d272da2434409d1979ac51) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that would cause errors similar to `error: invalid input syntax for type numeric: "{"1"}"`.
+
 ## 0.10.11
 
 ### Patch Changes
