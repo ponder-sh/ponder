@@ -204,3 +204,42 @@ test("recordProfilePattern() hint", () => {
       }
     `);
 });
+
+test("recordProfilePattern() object args", () => {
+  const event = {
+    type: "log",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: {
+        address: [zeroAddress],
+      },
+      log: {} as LogEvent["event"]["log"],
+      transaction: {} as LogEvent["event"]["transaction"],
+      block: {} as BlockEvent["event"]["block"],
+    },
+  } satisfies LogEvent;
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const primaryKeyCache = new Map<Table, [string, Column][]>();
+
+  primaryKeyCache.set(schema.account, [["address", schema.account.address]]);
+
+  const pattern = recordProfilePattern(
+    event,
+    schema.account,
+    { address: zeroAddress },
+    [],
+    primaryKeyCache,
+  );
+
+  expect(pattern).toBe(undefined);
+});
