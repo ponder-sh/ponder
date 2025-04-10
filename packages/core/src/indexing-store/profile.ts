@@ -132,7 +132,7 @@ export const recordProfilePattern = (
         for (const argKey of Object.keys(event.event.args)) {
           const argValue = event.event.args[argKey];
 
-          if (eq(argValue, value)) {
+          if (typeof argValue !== "object" && eq(argValue, value)) {
             result[js] = `args.${argKey}`;
           }
         }
@@ -207,7 +207,7 @@ export const recordProfilePattern = (
         for (const argKey of Object.keys(event.event.args)) {
           const argValue = event.event.args[argKey];
 
-          if (eq(argValue, value)) {
+          if (typeof argValue !== "object" && eq(argValue, value)) {
             result[js] = `args.${argKey}`;
           }
         }
