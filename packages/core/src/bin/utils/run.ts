@@ -428,7 +428,7 @@ export async function run({
 
             common.logger.info({
               service: "app",
-              msg: `Indexed ${event.events.length} '${event.network.name}' events for block ${Number(decodeCheckpoint(event.checkpoint).blockNumber)}`,
+              msg: `Indexed ${events.length} '${network.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
             });
 
             if (result.status === "error") onReloadableError(result.error);
@@ -451,6 +451,7 @@ export async function run({
           }
         }
 
+        // TODO(kyle) wrap
         await database.qb.drizzle
           .insert(database.PONDER_CHECKPOINT)
           .values(
