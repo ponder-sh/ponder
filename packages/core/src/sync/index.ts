@@ -72,18 +72,19 @@ export type Sync = {
 export type RealtimeEvent =
   | {
       type: "block";
-      chainId: number;
+      network: Network;
       checkpoint: string;
       events: Event[];
+      checkpoints: { chainId: number; checkpoint: string }[];
     }
   | {
       type: "reorg";
-      chainId: number;
+      network: Network;
       checkpoint: string;
     }
   | {
       type: "finalize";
-      chainId: number;
+      network: Network;
       checkpoint: string;
     };
 
@@ -478,11 +479,12 @@ export const createSync = async (params: {
           params
             .onRealtimeEvent({
               type: "block",
-              chainId: network.chainId,
+              network,
               checkpoint,
               events: readyEvents.sort((a, b) =>
                 a.checkpoint < b.checkpoint ? -1 : 1,
               ),
+              checkpoints: [{ chainId: network.chainId, checkpoint }],
             })
             .then(() => {
               // update `ponder_realtime_latency` metric
@@ -523,19 +525,7 @@ export const createSync = async (params: {
               msg: `Sequenced ${readyEvents.length} events`,
             });
 
-            const eventsByBlock = splitEvents(
-              readyEvents.sort((a, b) =>
-                a.checkpoint < b.checkpoint ? -1 : 1,
-              ),
-            );
-
-            params.common.logger.debug({
-              service: "app",
-              msg: `Partitioned events into ${eventsByBlock.length} blocks`,
-            });
-
-            // Add an empty block for the "latest" block of each chain
-            // if it doesn't already exist.
+            const checkpoints: { chainId: number; checkpoint: string }[] = [];
             for (const network of params.indexingBuild.networks) {
               const localBlock = perNetworkSync
                 .get(network)!
@@ -551,43 +541,37 @@ export const createSync = async (params: {
                   blockToCheckpoint(localBlock, network.chainId, "up"),
                 );
 
-                if (
-                  eventsByBlock.some((b) => b.checkpoint === checkpoint) ===
-                  false
-                ) {
-                  eventsByBlock.push({
-                    chainId: network.chainId,
-                    checkpoint,
-                    events: [],
-                  });
-                }
+                checkpoints.push({ chainId: network.chainId, checkpoint });
               }
             }
 
-            Promise.all(
-              eventsByBlock.map((block) =>
-                params.onRealtimeEvent({
-                  type: "block",
-                  chainId: block.chainId,
-                  checkpoint: block.checkpoint,
-                  events: block.events,
-                }),
-              ),
-            ).then(() => {
-              // update `ponder_realtime_latency` metric
-              for (const [checkpoint, timer] of latencyTimers) {
-                if (checkpoint > from && checkpoint <= to) {
-                  const chainId = Number(decodeCheckpoint(checkpoint).chainId);
-                  const network = params.indexingBuild.networks.find(
-                    (network) => network.chainId === chainId,
-                  )!;
-                  params.common.metrics.ponder_realtime_latency.observe(
-                    { network: network.name },
-                    timer(),
-                  );
+            params
+              .onRealtimeEvent({
+                type: "block",
+                checkpoint: to,
+                events: readyEvents.sort((a, b) =>
+                  a.checkpoint < b.checkpoint ? -1 : 1,
+                ),
+                network,
+                checkpoints,
+              })
+              .then(() => {
+                // update `ponder_realtime_latency` metric
+                for (const [checkpoint, timer] of latencyTimers) {
+                  if (checkpoint > from && checkpoint <= to) {
+                    const chainId = Number(
+                      decodeCheckpoint(checkpoint).chainId,
+                    );
+                    const network = params.indexingBuild.networks.find(
+                      (network) => network.chainId === chainId,
+                    )!;
+                    params.common.metrics.ponder_realtime_latency.observe(
+                      { network: network.name },
+                      timer(),
+                    );
+                  }
                 }
-              }
-            });
+              });
           } else {
             pendingEvents = pendingEvents.concat(decodedEvents);
           }
@@ -620,9 +604,8 @@ export const createSync = async (params: {
         if (to > from) {
           params.onRealtimeEvent({
             type: "finalize",
-            chainId: network.chainId,
+            network,
             checkpoint: to,
-            // network,
           });
         }
 
@@ -681,7 +664,7 @@ export const createSync = async (params: {
 
           params.onRealtimeEvent({
             type: "reorg",
-            chainId: network.chainId,
+            network,
             checkpoint,
           });
         } else {
@@ -703,7 +686,7 @@ export const createSync = async (params: {
           if (to < from) {
             params.onRealtimeEvent({
               type: "reorg",
-              chainId: network.chainId,
+              network,
               checkpoint: to,
             });
           }
