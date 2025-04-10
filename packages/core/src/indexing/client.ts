@@ -617,6 +617,15 @@ export const createCachedViemClient = ({
 
           const dbRequests = requests.filter(({ ev }) => ev > 0.2);
 
+          common.metrics.ponder_indexing_rpc_prefetch_total.inc(
+            {
+              network: network.name,
+              method: "eth_call",
+              type: "database",
+            },
+            dbRequests.length,
+          );
+
           const cachedResults = await syncStore.getRpcRequestResults({
             requests: dbRequests.map(({ request }) => request),
             chainId,
@@ -635,6 +644,12 @@ export const createCachedViemClient = ({
                 .request(request.request as EIP1193Parameters<PublicRpcSchema>)
                 .then((result) => JSON.stringify(result))
                 .catch((error) => error as Error);
+
+              common.metrics.ponder_indexing_rpc_prefetch_total.inc({
+                network: network.name,
+                method: "eth_call",
+                type: "rpc",
+              });
 
               // Note: Unawaited request added to cache
               cache
@@ -728,12 +743,12 @@ export const cachedTransport =
             if (cache.get(network.chainId)!.has(cacheKey)) {
               const cachedResult = cache.get(network.chainId)!.get(cacheKey)!;
 
-              common.metrics.ponder_indexing_rpc_requests_total.inc({
-                method,
-                type: "hit_memory",
-              });
-
               if (cachedResult instanceof Promise) {
+                common.metrics.ponder_indexing_rpc_requests_total.inc({
+                  network: network.name,
+                  method,
+                  type: "prefetch_rpc",
+                });
                 const result = await cachedResult;
 
                 // Note: we don't attempt to cache or prefetch errors, instead relying on the eventual RPC request.
@@ -749,6 +764,11 @@ export const cachedTransport =
                   returnData: decodeResponse(result),
                 });
               } else {
+                common.metrics.ponder_indexing_rpc_requests_total.inc({
+                  network: network.name,
+                  method,
+                  type: "prefetch_database",
+                });
                 results.set(request, {
                   success: true,
                   returnData: decodeResponse(cachedResult),
@@ -772,8 +792,9 @@ export const cachedTransport =
 
             if (result !== undefined) {
               common.metrics.ponder_indexing_rpc_requests_total.inc({
+                network: network.name,
                 method,
-                type: "hit_db",
+                type: "database",
               });
 
               results.set(request, {
@@ -824,8 +845,9 @@ export const cachedTransport =
               }
 
               common.metrics.ponder_indexing_rpc_requests_total.inc({
+                network: network.name,
                 method,
-                type: "miss",
+                type: "rpc",
               });
 
               results.set(request, result);
@@ -917,15 +939,15 @@ export const cachedTransport =
           const cacheKey = getCacheKey(body);
 
           if (cache.get(network.chainId)!.has(cacheKey)) {
-            common.metrics.ponder_indexing_rpc_requests_total.inc({
-              method,
-              type: "hit_memory",
-            });
-
             const cachedResult = cache.get(network.chainId)!.get(cacheKey)!;
 
             // `cachedResult` is a Promise if the request had to be fetched from the RPC.
             if (cachedResult instanceof Promise) {
+              common.metrics.ponder_indexing_rpc_requests_total.inc({
+                network: network.name,
+                method,
+                type: "prefetch_rpc",
+              });
               const result = await cachedResult;
 
               if (result instanceof Error) throw result;
@@ -950,6 +972,12 @@ export const cachedTransport =
               }
 
               return decodeResponse(result);
+            } else {
+              common.metrics.ponder_indexing_rpc_requests_total.inc({
+                network: network.name,
+                method,
+                type: "prefetch_database",
+              });
             }
 
             return decodeResponse(cachedResult);
@@ -962,16 +990,18 @@ export const cachedTransport =
 
           if (cachedResult !== undefined) {
             common.metrics.ponder_indexing_rpc_requests_total.inc({
+              network: network.name,
               method,
-              type: "hit_db",
+              type: "database",
             });
 
             return decodeResponse(cachedResult);
           }
 
           common.metrics.ponder_indexing_rpc_requests_total.inc({
+            network: network.name,
             method,
-            type: "miss",
+            type: "rpc",
           });
 
           const response = await requestQueue.request(body);
