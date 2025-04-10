@@ -277,7 +277,6 @@ export type ProfilePattern = Pick<
   address:
     | { type: "constant"; value: unknown }
     | { type: "derived"; value: string };
-  // TODO(kyle) array and struct args
   args?: (
     | { type: "constant"; value: unknown }
     | { type: "derived"; value: string }
@@ -287,7 +286,11 @@ export type ProfilePattern = Pick<
  * Serialized {@link ProfilePattern} for unique identification.
  *
  * @example
- * "args.from_balanceOf_log.address"
+ * "{
+ *   "address": "args.from",
+ *   "args": ["log.address"],
+ *   "functionName": "balanceOf",
+ * }"
  */
 type ProfileKey = string;
 /**
@@ -439,16 +442,17 @@ export const createCachedViemClient = ({
 
           // profile "readContract" and "multicall" actions
           if (action === "readContract") {
-            addProfilePattern(
-              recordProfilePattern({
-                event: event,
-                args: args as Omit<
-                  Parameters<PonderActions["readContract"]>[0],
-                  "blockNumber" | "cache"
-                >,
-                hints: Array.from(profile.get(event.name)!.values()),
-              }),
-            );
+            const recordPatternResult = recordProfilePattern({
+              event: event,
+              args: args as Omit<
+                Parameters<PonderActions["readContract"]>[0],
+                "blockNumber" | "cache"
+              >,
+              hints: Array.from(profile.get(event.name)!.values()),
+            });
+            if (recordPatternResult) {
+              addProfilePattern(recordPatternResult);
+            }
           } else if (action === "multicall") {
             const contracts = (
               args as Omit<
@@ -458,13 +462,14 @@ export const createCachedViemClient = ({
             ).contracts as ContractFunctionParameters[];
 
             for (const contract of contracts) {
-              addProfilePattern(
-                recordProfilePattern({
-                  event: event,
-                  args: contract,
-                  hints: Array.from(profile.get(event.name)!.values()),
-                }),
-              );
+              const recordPatternResult = recordProfilePattern({
+                event: event,
+                args: contract,
+                hints: Array.from(profile.get(event.name)!.values()),
+              });
+              if (recordPatternResult) {
+                addProfilePattern(recordPatternResult);
+              }
             }
           }
         }
