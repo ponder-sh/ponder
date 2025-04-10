@@ -1023,6 +1023,24 @@ test("ponderActions readContract() ContractFunctionZeroDataError", async (contex
     common,
   });
 
+  const event = {
+    type: "log",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "Contract:Event",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: {
+        from: zeroAddress,
+        to: ALICE,
+        amount: parseEther("1"),
+      },
+      log: {} as LogEvent["event"]["log"],
+      block: { number: 2n } as LogEvent["event"]["block"],
+      transaction: {} as LogEvent["event"]["transaction"],
+    },
+  } satisfies LogEvent;
+
   // Mock requestQueue.request to throw ContractFunctionZeroDataError
   const requestSpy = vi.spyOn(requestQueue, "request");
   requestSpy.mockResolvedValueOnce("0x");
@@ -1033,10 +1051,7 @@ test("ponderActions readContract() ContractFunctionZeroDataError", async (contex
     requestQueues: [requestQueue],
     syncStore,
   });
-  cachedViemClient.event = {
-    type: "log",
-    event: { block: { number: 2n } },
-  } as Event;
+  cachedViemClient.event = event;
 
   const client = cachedViemClient.getClient(networks[0]!);
 
