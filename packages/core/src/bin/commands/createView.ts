@@ -115,17 +115,23 @@ export async function createView({
 
   await database.qb.drizzle.execute(
     sql.raw(
+      `CREATE OR REPLACE VIEW "${cliOptions.publishSchema}"."_ponder_meta" AS SELECT * FROM "${cliOptions.schema}"."_ponder_meta"`,
+    ),
+  );
+
+  await database.qb.drizzle.execute(
+    sql.raw(
       `CREATE OR REPLACE VIEW "${cliOptions.publishSchema}"."_ponder_status" AS SELECT * FROM "${cliOptions.schema}"."_ponder_status"`,
     ),
   );
 
-  const trigger = "status_publish_trigger";
-  const notification = "status_publish_notify()";
+  const trigger = `status_${cliOptions.publishSchema}_trigger`;
+  const notification = "status_notify()";
   const channel = `${cliOptions.publishSchema}_status_channel`;
 
   await database.qb.drizzle.execute(
     sql.raw(`
-CREATE OR REPLACE FUNCTION "${cliOptions.schema}".${notification}
+CREATE OR REPLACE FUNCTION "${cliOptions.publishSchema}".${notification}
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
@@ -142,7 +148,7 @@ CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
 ON "${cliOptions.schema}"._ponder_status
 FOR EACH STATEMENT
-EXECUTE PROCEDURE "${cliOptions.schema}".${notification};`),
+EXECUTE PROCEDURE "${cliOptions.publishSchema}".${notification};`),
   );
 
   await exit({ reason: "Success", code: 0 });
