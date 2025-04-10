@@ -1,5 +1,7 @@
 # @ponder/client
 
+## 0.10.12
+
 ## 0.10.11
 
 ### Patch Changes
