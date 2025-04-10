@@ -32,7 +32,11 @@ import {
   min,
 } from "@/utils/checkpoint.js";
 import { formatPercentage } from "@/utils/format.js";
-import { bufferAsyncGenerator } from "@/utils/generators.js";
+import {
+  bufferAsyncGenerator,
+  mapAsyncGenerator,
+  mergeAsyncGenerators,
+} from "@/utils/generators.js";
 import {
   type Interval,
   intervalDifference,
@@ -366,10 +370,11 @@ export const createSync = async (params: {
             getMultichainCheckpoint({ tag: "finalized", network })!,
             getMultichainCheckpoint({ tag: "end", network })!,
           ),
-          limit: Math.round(
-            params.common.options.syncEventsQuerySize /
-              (params.indexingBuild.networks.length + 1),
-          ),
+          limit:
+            Math.round(
+              params.common.options.syncEventsQuerySize /
+                (params.indexingBuild.networks.length + 1),
+            ) + 6,
         });
 
         return sortCompletedAndPendingEvents(
@@ -378,10 +383,27 @@ export const createSync = async (params: {
       },
     );
 
-    for await (const {
-      events,
-      checkpoints,
-    } of mergeAsyncGeneratorsWithEventOrder(eventGenerators)) {
+    let eventGenerator: EventGenerator;
+    if (params.ordering === "multichain") {
+      eventGenerator = mapAsyncGenerator(
+        mergeAsyncGenerators(eventGenerators),
+        ({ events, checkpoint }) => {
+          return {
+            events,
+            checkpoints: [
+              {
+                chainId: Number(decodeCheckpoint(checkpoint).chainId),
+                checkpoint,
+              },
+            ],
+          };
+        },
+      );
+    } else {
+      eventGenerator = mergeAsyncGeneratorsWithEventOrder(eventGenerators);
+    }
+
+    for await (const { events, checkpoints } of eventGenerator) {
       params.common.logger.debug({
         service: "sync",
         msg: `Sequenced ${events.length} events`,
