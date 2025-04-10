@@ -850,7 +850,7 @@ export const createSync = async (params: {
           min(
             getOmnichainCheckpoint({ tag: "end" }),
             getOmnichainCheckpoint({ tag: "finalized" }),
-            crashRecoveryCheckpoint,
+            crashRecoveryCheckpoint ?? ZERO_CHECKPOINT_STRING,
           ),
         ).blockTimestamp,
       ),
