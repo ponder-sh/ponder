@@ -108,7 +108,7 @@ export const recordProfilePattern = ({
       for (const argKey of Object.keys(event.event.args)) {
         const argValue = event.event.args[argKey];
 
-        if (eq(argValue, args.address)) {
+        if (typeof argValue !== "object" && eq(argValue, args.address)) {
           resultAddress = { type: "derived", value: `args.${argKey}` };
           hasMatch = true;
           break;
@@ -159,7 +159,7 @@ export const recordProfilePattern = ({
       for (const argKey of Object.keys(event.event.args)) {
         const argValue = event.event.args[argKey];
 
-        if (eq(argValue, args.address)) {
+        if (typeof argValue !== "object" && eq(argValue, args.address)) {
           resultAddress = { type: "derived", value: `args.${argKey}` };
           hasMatch = true;
           break;
@@ -374,7 +374,7 @@ export const recordProfilePattern = ({
         for (const argKey of Object.keys(event.event.args)) {
           const argValue = event.event.args[argKey];
 
-          if (eq(argValue, arg)) {
+          if (typeof argValue !== "object" && eq(argValue, arg)) {
             resultArgs.push({ type: "derived", value: `args.${argKey}` });
             hasMatch = true;
             break;
@@ -455,7 +455,7 @@ export const recordProfilePattern = ({
         for (const argKey of Object.keys(event.event.args)) {
           const argValue = event.event.args[argKey];
 
-          if (eq(argValue, arg)) {
+          if (typeof argValue !== "object" && eq(argValue, arg)) {
             resultArgs.push({ type: "derived", value: `args.${argKey}` });
             hasMatch = true;
             break;
