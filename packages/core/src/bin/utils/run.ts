@@ -15,7 +15,7 @@ import type {
   SchemaBuild,
 } from "@/internal/types.js";
 import { createSyncStore } from "@/sync-store/index.js";
-import { type RealtimeEvent, createSync } from "@/sync/index.js";
+import { type RealtimeEvent, createSync, splitEvents } from "@/sync/index.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
@@ -24,7 +24,7 @@ import { createMutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import { startClock } from "@/utils/timer.js";
-import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 /** Starts the sync and indexing services for the specified build. */
 export async function run({
@@ -403,46 +403,69 @@ export async function run({
   const onRealtimeEvent = realtimeMutex(async (event: RealtimeEvent) => {
     switch (event.type) {
       case "block": {
-        const network = indexingBuild.networks.find(
-          (network) => network.chainId === event.chainId,
-        )!;
-
         if (event.events.length > 0) {
+          // Events must be run block-by-block, so that `database.commitBlock` can accurately
+          // update the temporary `checkpoint` value set in the trigger.
+
+          const perBlockEvents = splitEvents(event.events);
+
           common.logger.debug({
             service: "app",
-            msg: `Decoded ${event.events.length} '${network.name}' events for block ${Number(decodeCheckpoint(event.checkpoint).blockNumber)}`,
+            msg: `Partitioned events into ${perBlockEvents.length} blocks`,
           });
 
-          const result = await indexing.processEvents({
-            events: event.events,
-            db: realtimeIndexingStore,
-          });
+          for (const { checkpoint, events } of perBlockEvents) {
+            const network = indexingBuild.networks.find(
+              (network) =>
+                network.chainId ===
+                Number(decodeCheckpoint(checkpoint).chainId),
+            )!;
 
-          common.logger.info({
-            service: "app",
-            msg: `Indexed ${event.events.length} '${network.name}' events for block ${Number(decodeCheckpoint(event.checkpoint).blockNumber)}`,
-          });
+            const result = await indexing.processEvents({
+              events,
+              db: realtimeIndexingStore,
+            });
 
-          if (result.status === "error") onReloadableError(result.error);
+            common.logger.info({
+              service: "app",
+              msg: `Indexed ${event.events.length} '${event.network.name}' events for block ${Number(decodeCheckpoint(event.checkpoint).blockNumber)}`,
+            });
 
-          // Set reorg table `checkpoint` column for newly inserted rows.
-          await database.commitBlock({
-            checkpoint: event.checkpoint,
-            db: database.qb.drizzle,
-          });
+            if (result.status === "error") onReloadableError(result.error);
+
+            await database.commitBlock({ checkpoint, db: database.qb.drizzle });
+
+            if (preBuild.ordering === "multichain") {
+              common.metrics.ponder_indexing_timestamp.set(
+                { network: network.name },
+                Number(decodeCheckpoint(checkpoint).blockTimestamp),
+              );
+            } else {
+              for (const network of indexingBuild.networks) {
+                common.metrics.ponder_indexing_timestamp.set(
+                  { network: network.name },
+                  Number(decodeCheckpoint(checkpoint).blockTimestamp),
+                );
+              }
+            }
+          }
         }
 
-        common.metrics.ponder_indexing_timestamp.set(
-          { network: network.name },
-          Number(decodeCheckpoint(event.checkpoint).blockTimestamp),
-        );
-
         await database.qb.drizzle
-          .update(database.PONDER_CHECKPOINT)
-          .set({
-            latestCheckpoint: event.checkpoint,
-          })
-          .where(eq(database.PONDER_CHECKPOINT.chainId, event.chainId));
+          .insert(database.PONDER_CHECKPOINT)
+          .values(
+            event.checkpoints.map(({ chainId, checkpoint }) => ({
+              chainId,
+              safeCheckpoint: checkpoint,
+              latestCheckpoint: checkpoint,
+            })),
+          )
+          .onConflictDoUpdate({
+            target: database.PONDER_CHECKPOINT.chainId,
+            set: {
+              latestCheckpoint: sql`excluded.latest_checkpoint`,
+            },
+          });
 
         break;
       }
