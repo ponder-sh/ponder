@@ -255,6 +255,7 @@ export async function run({
                   Number(checkpoint.blockTimestamp),
                 );
               } else {
+                // TODO(kyle) does this handle networks with end blocks?
                 for (const network of indexingBuild.networks) {
                   common.metrics.ponder_historical_completed_indexing_seconds.set(
                     { network: network.name },
