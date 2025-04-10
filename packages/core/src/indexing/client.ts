@@ -284,7 +284,7 @@ export type ProfilePattern = Pick<
   )[];
 };
 /**
- * Serialized {@link ProfileEntry} for unique identification.
+ * Serialized {@link ProfilePattern} for unique identification.
  *
  * @example
  * "args.from_balanceOf_log.address"
@@ -362,7 +362,7 @@ export const createCachedViemClient = ({
   requestQueues: RequestQueue[];
   syncStore: SyncStore;
 }): CachedViemClient => {
-  let event: Event | SetupEvent | undefined;
+  let event: Event | SetupEvent = undefined!;
   const cache: Cache = new Map();
   const profile: Profile = new Map();
   const profileConstantLRU: ProfileConstantLRU = new Map();
@@ -387,28 +387,28 @@ export const createCachedViemClient = ({
     }: { pattern: ProfilePattern; hasConstant: boolean }) => {
       const profilePatternKey = getProfilePatternKey(pattern);
 
-      if (profile.get(event!.name)!.has(profilePatternKey)) {
-        profile.get(event!.name)!.get(profilePatternKey)!.count++;
+      if (profile.get(event.name)!.has(profilePatternKey)) {
+        profile.get(event.name)!.get(profilePatternKey)!.count++;
 
         if (hasConstant) {
-          profileConstantLRU.get(event!.name)!.delete(profilePatternKey);
-          profileConstantLRU.get(event!.name)!.add(profilePatternKey);
+          profileConstantLRU.get(event.name)!.delete(profilePatternKey);
+          profileConstantLRU.get(event.name)!.add(profilePatternKey);
         }
       } else {
         profile
-          .get(event!.name)!
+          .get(event.name)!
           .set(profilePatternKey, { pattern, hasConstant, count: 1 });
 
         if (hasConstant) {
-          profileConstantLRU.get(event!.name)!.add(profilePatternKey);
-          if (profileConstantLRU.get(event!.name)!.size > 100) {
+          profileConstantLRU.get(event.name)!.add(profilePatternKey);
+          if (profileConstantLRU.get(event.name)!.size > 100) {
             const firstKey = profileConstantLRU
-              .get(event!.name)!
+              .get(event.name)!
               .keys()
               .next().value;
             if (firstKey) {
-              profile.get(event!.name)!.delete(firstKey);
-              profileConstantLRU.get(event!.name)!.delete(firstKey);
+              profile.get(event.name)!.delete(firstKey);
+              profileConstantLRU.get(event.name)!.delete(firstKey);
             }
           }
         }
@@ -431,22 +431,22 @@ export const createCachedViemClient = ({
       }: Parameters<PonderActions[action]>[0]) => {
         // Note: prediction only possible when block number is managed by Ponder.
 
-        if (event!.type !== "setup" && userBlockNumber === undefined) {
-          if (profile.has(event!.name) === false) {
-            profile.set(event!.name, new Map());
-            profileConstantLRU.set(event!.name, new Set());
+        if (event.type !== "setup" && userBlockNumber === undefined) {
+          if (profile.has(event.name) === false) {
+            profile.set(event.name, new Map());
+            profileConstantLRU.set(event.name, new Set());
           }
 
           // profile "readContract" and "multicall" actions
           if (action === "readContract") {
             addProfilePattern(
               recordProfilePattern({
-                event: event!,
+                event: event,
                 args: args as Omit<
                   Parameters<PonderActions["readContract"]>[0],
                   "blockNumber" | "cache"
                 >,
-                hints: Array.from(profile.get(event!.name)!.values()),
+                hints: Array.from(profile.get(event.name)!.values()),
               }),
             );
           } else if (action === "multicall") {
@@ -460,9 +460,9 @@ export const createCachedViemClient = ({
             for (const contract of contracts) {
               addProfilePattern(
                 recordProfilePattern({
-                  event: event!,
+                  event: event,
                   args: contract,
-                  hints: Array.from(profile.get(event!.name)!.values()),
+                  hints: Array.from(profile.get(event.name)!.values()),
                 }),
               );
             }
@@ -470,7 +470,7 @@ export const createCachedViemClient = ({
         }
 
         const blockNumber =
-          event!.type === "setup" ? event!.block : event!.event.block.number;
+          event.type === "setup" ? event.block : event.event.block.number;
 
         // @ts-expect-error
         return _publicActions[action]({
@@ -607,53 +607,57 @@ export const createCachedViemClient = ({
         });
       }
 
-      for (const [chainId, requests] of chainRequests.entries()) {
-        const ni = indexingBuild.networks.findIndex(
-          (n) => n.chainId === chainId,
-        );
-        const network = indexingBuild.networks[ni]!;
-        const requestQueue = requestQueues[ni]!;
+      await Promise.all(
+        Array.from(chainRequests.entries()).map(async ([chainId, requests]) => {
+          const ni = indexingBuild.networks.findIndex(
+            (n) => n.chainId === chainId,
+          );
+          const network = indexingBuild.networks[ni]!;
+          const requestQueue = requestQueues[ni]!;
 
-        const dbRequests = requests.filter(({ ev }) => ev > 0.2);
+          const dbRequests = requests.filter(({ ev }) => ev > 0.2);
 
-        const cachedResults = await syncStore.getRpcRequestResults({
-          requests: dbRequests.map(({ request }) => request),
-          chainId,
-        });
-
-        for (let i = 0; i < dbRequests.length; i++) {
-          const request = dbRequests[i]!;
-          const cachedResult = cachedResults[i]!;
-
-          if (cachedResult !== undefined) {
-            cache.get(chainId)!.set(getCacheKey(request.request), cachedResult);
-          } else if (request.ev > 0.6) {
-            const resultPromise = requestQueue
-              .request(request.request as EIP1193Parameters<PublicRpcSchema>)
-              .then((result) => JSON.stringify(result))
-              .catch((error) => error as Error);
-
-            // Note: Unawaited request added to cache
-            cache
-              .get(chainId)!
-              .set(getCacheKey(request.request), resultPromise);
-          }
-        }
-
-        if (dbRequests.length > 0) {
-          common.logger.debug({
-            service: "rpc",
-            msg: `Pre-fetched ${dbRequests.length} ${network.name} RPC requests`,
+          const cachedResults = await syncStore.getRpcRequestResults({
+            requests: dbRequests.map(({ request }) => request),
+            chainId,
           });
-        }
-      }
+
+          for (let i = 0; i < dbRequests.length; i++) {
+            const request = dbRequests[i]!;
+            const cachedResult = cachedResults[i]!;
+
+            if (cachedResult !== undefined) {
+              cache
+                .get(chainId)!
+                .set(getCacheKey(request.request), cachedResult);
+            } else if (request.ev > 0.6) {
+              const resultPromise = requestQueue
+                .request(request.request as EIP1193Parameters<PublicRpcSchema>)
+                .then((result) => JSON.stringify(result))
+                .catch((error) => error as Error);
+
+              // Note: Unawaited request added to cache
+              cache
+                .get(chainId)!
+                .set(getCacheKey(request.request), resultPromise);
+            }
+          }
+
+          if (dbRequests.length > 0) {
+            common.logger.debug({
+              service: "rpc",
+              msg: `Pre-fetched ${dbRequests.length} ${network.name} RPC requests`,
+            });
+          }
+        }),
+      );
     },
     clear() {
       for (const network of indexingBuild.networks) {
         cache.get(network.chainId)!.clear();
       }
     },
-    set event(_event: Event | SetupEvent | undefined) {
+    set event(_event: Event | SetupEvent) {
       event = _event;
     },
   };
