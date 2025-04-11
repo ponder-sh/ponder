@@ -334,26 +334,33 @@ export const createIndexingCache = ({
             profile.get(event.name)!.set(table, new Map());
           }
         }
-
-        const pattern = recordProfilePattern(
-          event,
-          table,
-          key,
-          Array.from(profile.get(event.name)!.get(table)!.values()).map(
-            ({ pattern }) => pattern,
-          ),
-          primaryKeyCache,
-        );
-        if (pattern) {
-          const key = getProfilePatternKey(pattern);
-          if (profile.get(event.name)!.get(table)!.has(key)) {
-            profile.get(event.name)!.get(table)!.get(key)!.count++;
-          } else {
-            profile
-              .get(event.name)!
-              .get(table)!
-              .set(key, { pattern, count: 1 });
+        try {
+          const pattern = recordProfilePattern(
+            event,
+            table,
+            key,
+            Array.from(profile.get(event.name)!.get(table)!.values()).map(
+              ({ pattern }) => pattern,
+            ),
+            primaryKeyCache,
+          );
+          if (pattern) {
+            const key = getProfilePatternKey(pattern);
+            if (profile.get(event.name)!.get(table)!.has(key)) {
+              profile.get(event.name)!.get(table)!.get(key)!.count++;
+            } else {
+              profile
+                .get(event.name)!
+                .get(table)!
+                .set(key, { pattern, count: 1 });
+            }
           }
+        } catch (error) {
+          common.logger.warn({
+            service: "indexing",
+            msg: `Error while recording profile pattern. event: ${event.name}, table: ${getTableName(table)}, key: ${key}`,
+            error: error as Error,
+          });
         }
       }
 
