@@ -69,10 +69,20 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
     table_schema: t.text().notNull(),
   }));
 
+  const VIEWS = pgSchema("information_schema").table("views", (t) => ({
+    table_name: t.text().notNull(),
+    table_schema: t.text().notNull(),
+  }));
+
   const ponderSchemas = await database.qb.drizzle
     .select({ schema: TABLES.table_schema })
     .from(TABLES)
     .where(eq(TABLES.table_name, "_ponder_meta"));
+
+  const ponderViewSchemas = await database.qb.drizzle
+    .select({ schema: VIEWS.table_schema })
+    .from(VIEWS)
+    .where(eq(VIEWS.table_name, "_ponder_meta"));
 
   const queries = ponderSchemas.map((row) =>
     database.qb.drizzle
@@ -107,6 +117,7 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
     { title: "Active", key: "active", align: "right" },
     { title: "Last active", key: "last_active", align: "right" },
     { title: "Table count", key: "table_count", align: "right" },
+    { title: "Is view", key: "is_view", align: "right" },
   ];
 
   const rows = result
@@ -124,6 +135,9 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
           ? "---"
           : `${formatEta(Date.now() - row.value.heartbeat_at)} ago`,
       table_count: row.value.table_names.length,
+      is_view: ponderViewSchemas.some((schema) => schema.schema === row.schema)
+        ? "yes"
+        : "no",
     }));
 
   if (rows.length === 0) {

@@ -6,6 +6,7 @@ import type { Prettify } from "@/types/utils.js";
 import { Command } from "@commander-js/extra-typings";
 import dotenv from "dotenv";
 import { codegen } from "./commands/codegen.js";
+import { createView } from "./commands/createView.js";
 import { dev } from "./commands/dev.js";
 import { list } from "./commands/list.js";
 import { prune } from "./commands/prune.js";
@@ -120,6 +121,20 @@ const serveCommand = new Command("serve")
     await serve({ cliOptions });
   });
 
+const createViewCommand = new Command("create-views")
+  .description("Create database views")
+  .option("--schema <SCHEMA>", "Source database schema", String)
+  .option("--publish-schema <SCHEMA>", "Target database schema", String)
+  .showHelpAfterError()
+  .action(async (_, command) => {
+    const cliOptions = {
+      ...command.optsWithGlobals(),
+      command: command.name(),
+      version: packageJson.version,
+    } as GlobalOptions & ReturnType<typeof command.opts>;
+    await createView({ cliOptions });
+  });
+
 const dbCommand = new Command("db").description("Database management commands");
 
 const listCommand = new Command("list")
@@ -182,6 +197,7 @@ const codegenCommand = new Command("codegen")
 
 dbCommand.addCommand(listCommand);
 dbCommand.addCommand(pruneCommand);
+dbCommand.addCommand(createViewCommand);
 
 ponder.addCommand(devCommand);
 ponder.addCommand(startCommand);
