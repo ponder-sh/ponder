@@ -68,6 +68,11 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     table_schema: t.text().notNull(),
   }));
 
+  const VIEWS = pgSchema("information_schema").table("views", (t) => ({
+    table_name: t.text().notNull(),
+    table_schema: t.text().notNull(),
+  }));
+
   const ponderSchemas = await database.qb.drizzle
     .select({ schema: TABLES.table_schema, tableCount: count() })
     .from(TABLES)
@@ -81,6 +86,11 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
       ),
     )
     .groupBy(TABLES.table_schema);
+
+  const ponderViewSchemas = await database.qb.drizzle
+    .select({ schema: VIEWS.table_schema })
+    .from(VIEWS)
+    .where(eq(VIEWS.table_name, "_ponder_meta"));
 
   const queries = ponderSchemas.map((row) =>
     database.qb.drizzle
@@ -111,6 +121,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   const tablesToDrop: string[] = [];
+  const viewsToDrop: string[] = [];
   const schemasToDrop: string[] = [];
   const functionsToDrop: string[] = [];
 
@@ -123,24 +134,43 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
       continue;
     }
 
-    for (const table of value.table_names) {
-      tablesToDrop.push(`"${schema}"."${table}"`);
-      tablesToDrop.push(`"${schema}"."${sqlToReorgTableName(table)}"`);
-      functionsToDrop.push(`"${schema}"."operation_reorg__${table}"`);
-    }
-    tablesToDrop.push(`"${schema}"."_ponder_meta"`);
-    tablesToDrop.push(`"${schema}"."_ponder_status"`);
+    if (ponderViewSchemas.some((vs) => vs.schema === schema)) {
+      for (const table of value.table_names) {
+        viewsToDrop.push(`"${schema}"."${table}"`);
+      }
+      viewsToDrop.push(`"${schema}"."_ponder_meta"`);
+      viewsToDrop.push(`"${schema}"."_ponder_status"`);
 
-    const tableCount = ponderSchemas.find(
-      (s) => s.schema === schema,
-    )!.tableCount;
+      const tableCount = ponderSchemas.find(
+        (s) => s.schema === schema,
+      )!.tableCount;
 
-    if (schema !== "public" && tableCount <= 2 + value.table_names.length * 2) {
-      schemasToDrop.push(schema);
+      if (schema !== "public" && tableCount <= 2 + value.table_names.length) {
+        schemasToDrop.push(schema);
+      }
+    } else {
+      for (const table of value.table_names) {
+        tablesToDrop.push(`"${schema}"."${table}"`);
+        tablesToDrop.push(`"${schema}"."${sqlToReorgTableName(table)}"`);
+        functionsToDrop.push(`"${schema}"."operation_reorg__${table}"`);
+      }
+      tablesToDrop.push(`"${schema}"."_ponder_meta"`);
+      tablesToDrop.push(`"${schema}"."_ponder_status"`);
+
+      const tableCount = ponderSchemas.find(
+        (s) => s.schema === schema,
+      )!.tableCount;
+
+      if (
+        schema !== "public" &&
+        tableCount <= 2 + value.table_names.length * 2
+      ) {
+        schemasToDrop.push(schema);
+      }
     }
   }
 
-  if (tablesToDrop.length === 0) {
+  if (tablesToDrop.length === 0 && viewsToDrop.length === 0) {
     logger.warn({
       service: "prune",
       msg: "No inactive Ponder apps found in this database.",
@@ -149,23 +179,38 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  await database.qb.drizzle.execute(
-    sql.raw(`DROP TABLE IF EXISTS ${tablesToDrop.join(", ")} CASCADE`),
-  );
+  if (tablesToDrop.length > 0) {
+    await database.qb.drizzle.execute(
+      sql.raw(`DROP TABLE IF EXISTS ${tablesToDrop.join(", ")} CASCADE`),
+    );
 
-  logger.warn({
-    service: "prune",
-    msg: `Dropped ${tablesToDrop.length} tables`,
-  });
+    logger.warn({
+      service: "prune",
+      msg: `Dropped ${tablesToDrop.length} tables`,
+    });
+  }
 
-  await database.qb.drizzle.execute(
-    sql.raw(`DROP FUNCTION IF EXISTS ${functionsToDrop.join(", ")} CASCADE`),
-  );
+  if (viewsToDrop.length > 0) {
+    await database.qb.drizzle.execute(
+      sql.raw(`DROP VIEW IF EXISTS ${viewsToDrop.join(", ")} CASCADE`),
+    );
 
-  logger.warn({
-    service: "prune",
-    msg: `Dropped ${functionsToDrop.length} functions`,
-  });
+    logger.warn({
+      service: "prune",
+      msg: `Dropped ${viewsToDrop.length} views`,
+    });
+  }
+
+  if (functionsToDrop.length > 0) {
+    await database.qb.drizzle.execute(
+      sql.raw(`DROP FUNCTION IF EXISTS ${functionsToDrop.join(", ")} CASCADE`),
+    );
+
+    logger.warn({
+      service: "prune",
+      msg: `Dropped ${functionsToDrop.length} functions`,
+    });
+  }
 
   if (schemasToDrop.length > 0) {
     await database.qb.drizzle.execute(
