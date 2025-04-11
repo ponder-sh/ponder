@@ -644,7 +644,7 @@ export const createCachedViemClient = ({
               cache
                 .get(chainId)!
                 .set(getCacheKey(request.request), cachedResult);
-            } else if (request.ev > 0.6) {
+            } else if (request.ev > 0.8) {
               const resultPromise = requestQueue
                 .request(request.request as EIP1193Parameters<PublicRpcSchema>)
                 .then((result) => JSON.stringify(result))
