@@ -131,6 +131,11 @@ export const TABLES = pgSchema("information_schema").table("tables", (t) => ({
   table_type: t.text().notNull(),
 }));
 
+export const VIEWS = pgSchema("information_schema").table("views", (t) => ({
+  table_name: t.text().notNull(),
+  table_schema: t.text().notNull(),
+}));
+
 export type PonderApp = {
   version: string;
   build_id: string;
