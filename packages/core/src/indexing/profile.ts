@@ -64,7 +64,7 @@ export const recordProfilePattern = ({
   switch (event.type) {
     case "block": {
       if (eq(event.event.block.miner, args.address)) {
-        resultAddress = { type: "derived", value: "block.miner" };
+        resultAddress = { type: "derived", value: ["block", "miner"] };
         break;
       }
 
@@ -73,12 +73,12 @@ export const recordProfilePattern = ({
 
     case "transaction": {
       if (eq(event.event.block.miner, args.address)) {
-        resultAddress = { type: "derived", value: "block.miner" };
+        resultAddress = { type: "derived", value: ["block", "miner"] };
         break;
       }
 
       if (eq(event.event.transaction.from, args.address)) {
-        resultAddress = { type: "derived", value: "transaction.from" };
+        resultAddress = { type: "derived", value: ["transaction", "from"] };
         break;
       }
 
@@ -86,7 +86,7 @@ export const recordProfilePattern = ({
         event.event.transaction.to &&
         eq(event.event.transaction.to, args.address)
       ) {
-        resultAddress = { type: "derived", value: "transaction.to" };
+        resultAddress = { type: "derived", value: ["transaction", "to"] };
         break;
       }
 
@@ -96,7 +96,7 @@ export const recordProfilePattern = ({
       ) {
         resultAddress = {
           type: "derived",
-          value: "transactionReceipt.contractAddress",
+          value: ["transactionReceipt", "contractAddress"],
         };
         break;
       }
@@ -110,7 +110,7 @@ export const recordProfilePattern = ({
         const argValue = event.event.args[argKey];
 
         if (typeof argValue !== "object" && eq(argValue, args.address)) {
-          resultAddress = { type: "derived", value: `args.${argKey}` };
+          resultAddress = { type: "derived", value: ["args", argKey] };
           hasMatch = true;
           break;
         }
@@ -119,17 +119,17 @@ export const recordProfilePattern = ({
       if (hasMatch) break;
 
       if (eq(event.event.log.address, args.address)) {
-        resultAddress = { type: "derived", value: "log.address" };
+        resultAddress = { type: "derived", value: ["log", "address"] };
         break;
       }
 
       if (eq(event.event.block.miner, args.address)) {
-        resultAddress = { type: "derived", value: "block.miner" };
+        resultAddress = { type: "derived", value: ["block", "miner"] };
         break;
       }
 
       if (eq(event.event.transaction.from, args.address)) {
-        resultAddress = { type: "derived", value: "transaction.from" };
+        resultAddress = { type: "derived", value: ["transaction", "from"] };
         break;
       }
 
@@ -137,7 +137,7 @@ export const recordProfilePattern = ({
         event.event.transaction.to &&
         eq(event.event.transaction.to, args.address)
       ) {
-        resultAddress = { type: "derived", value: "transaction.to" };
+        resultAddress = { type: "derived", value: ["transaction", "to"] };
         break;
       }
 
@@ -147,7 +147,7 @@ export const recordProfilePattern = ({
       ) {
         resultAddress = {
           type: "derived",
-          value: "transactionReceipt.contractAddress",
+          value: ["transactionReceipt", "contractAddress"],
         };
         break;
       }
@@ -161,7 +161,7 @@ export const recordProfilePattern = ({
         const argValue = event.event.args[argKey];
 
         if (typeof argValue !== "object" && eq(argValue, args.address)) {
-          resultAddress = { type: "derived", value: `args.${argKey}` };
+          resultAddress = { type: "derived", value: ["args", argKey] };
           hasMatch = true;
           break;
         }
@@ -170,22 +170,22 @@ export const recordProfilePattern = ({
       if (hasMatch) break;
 
       if (eq(event.event.trace.from, args.address)) {
-        resultAddress = { type: "derived", value: "trace.from" };
+        resultAddress = { type: "derived", value: ["trace", "from"] };
         break;
       }
 
       if (event.event.trace.to && eq(event.event.trace.to, args.address)) {
-        resultAddress = { type: "derived", value: "trace.to" };
+        resultAddress = { type: "derived", value: ["trace", "to"] };
         break;
       }
 
       if (eq(event.event.block.miner, args.address)) {
-        resultAddress = { type: "derived", value: "block.miner" };
+        resultAddress = { type: "derived", value: ["block", "miner"] };
         break;
       }
 
       if (eq(event.event.transaction.from, args.address)) {
-        resultAddress = { type: "derived", value: "transaction.from" };
+        resultAddress = { type: "derived", value: ["transaction", "from"] };
         break;
       }
 
@@ -193,7 +193,7 @@ export const recordProfilePattern = ({
         event.event.transaction.to &&
         eq(event.event.transaction.to, args.address)
       ) {
-        resultAddress = { type: "derived", value: "transaction.to" };
+        resultAddress = { type: "derived", value: ["transaction", "to"] };
         break;
       }
 
@@ -203,7 +203,7 @@ export const recordProfilePattern = ({
       ) {
         resultAddress = {
           type: "derived",
-          value: "transactionReceipt.contractAddress",
+          value: ["transactionReceipt", "contractAddress"],
         };
         break;
       }
@@ -213,32 +213,32 @@ export const recordProfilePattern = ({
 
     case "transfer": {
       if (eq(event.event.transfer.from, args.address)) {
-        resultAddress = { type: "derived", value: "transfer.from" };
+        resultAddress = { type: "derived", value: ["transfer", "from"] };
         break;
       }
 
       if (eq(event.event.transfer.to, args.address)) {
-        resultAddress = { type: "derived", value: "transfer.to" };
+        resultAddress = { type: "derived", value: ["transfer", "to"] };
         break;
       }
 
       if (eq(event.event.trace.from, args.address)) {
-        resultAddress = { type: "derived", value: "trace.from" };
+        resultAddress = { type: "derived", value: ["trace", "from"] };
         break;
       }
 
       if (event.event.trace.to && eq(event.event.trace.to, args.address)) {
-        resultAddress = { type: "derived", value: "trace.to" };
+        resultAddress = { type: "derived", value: ["trace", "to"] };
         break;
       }
 
       if (eq(event.event.block.miner, args.address)) {
-        resultAddress = { type: "derived", value: "block.miner" };
+        resultAddress = { type: "derived", value: ["block", "miner"] };
         break;
       }
 
       if (eq(event.event.transaction.from, args.address)) {
-        resultAddress = { type: "derived", value: "transaction.from" };
+        resultAddress = { type: "derived", value: ["transaction", "from"] };
         break;
       }
 
@@ -246,7 +246,7 @@ export const recordProfilePattern = ({
         event.event.transaction.to &&
         eq(event.event.transaction.to, args.address)
       ) {
-        resultAddress = { type: "derived", value: "transaction.to" };
+        resultAddress = { type: "derived", value: ["transaction", "to"] };
         break;
       }
 
@@ -256,7 +256,7 @@ export const recordProfilePattern = ({
       ) {
         resultAddress = {
           type: "derived",
-          value: "transactionReceipt.contractAddress",
+          value: ["transactionReceipt", "contractAddress"],
         };
         break;
       }
@@ -294,22 +294,22 @@ export const recordProfilePattern = ({
     switch (event.type) {
       case "block": {
         if (eq(event.event.block.hash, arg)) {
-          resultArgs.push({ type: "derived", value: "block.hash" });
+          resultArgs.push({ type: "derived", value: ["block", "hash"] });
           continue;
         }
 
         if (eq(event.event.block.number, arg)) {
-          resultArgs.push({ type: "derived", value: "block.number" });
+          resultArgs.push({ type: "derived", value: ["block", "number"] });
           continue;
         }
 
         if (eq(event.event.block.timestamp, arg)) {
-          resultArgs.push({ type: "derived", value: "block.timestamp" });
+          resultArgs.push({ type: "derived", value: ["block", "timestamp"] });
           continue;
         }
 
         if (eq(event.event.block.miner, arg)) {
-          resultArgs.push({ type: "derived", value: "block.miner" });
+          resultArgs.push({ type: "derived", value: ["block", "miner"] });
           continue;
         }
 
@@ -318,44 +318,44 @@ export const recordProfilePattern = ({
 
       case "transaction": {
         if (eq(event.event.block.hash, arg)) {
-          resultArgs.push({ type: "derived", value: "block.hash" });
+          resultArgs.push({ type: "derived", value: ["block", "hash"] });
           continue;
         }
 
         if (eq(event.event.block.number, arg)) {
-          resultArgs.push({ type: "derived", value: "block.number" });
+          resultArgs.push({ type: "derived", value: ["block", "number"] });
           continue;
         }
 
         if (eq(event.event.block.timestamp, arg)) {
-          resultArgs.push({ type: "derived", value: "block.timestamp" });
+          resultArgs.push({ type: "derived", value: ["block", "timestamp"] });
           continue;
         }
 
         if (eq(event.event.block.miner, arg)) {
-          resultArgs.push({ type: "derived", value: "block.miner" });
+          resultArgs.push({ type: "derived", value: ["block", "miner"] });
           continue;
         }
 
         if (eq(event.event.transaction.hash, arg)) {
-          resultArgs.push({ type: "derived", value: "transaction.hash" });
+          resultArgs.push({ type: "derived", value: ["transaction", "hash"] });
           continue;
         }
 
         if (eq(event.event.transaction.from, arg)) {
-          resultArgs.push({ type: "derived", value: "transaction.from" });
+          resultArgs.push({ type: "derived", value: ["transaction", "from"] });
           continue;
         }
 
         if (event.event.transaction.to && eq(event.event.transaction.to, arg)) {
-          resultArgs.push({ type: "derived", value: "transaction.to" });
+          resultArgs.push({ type: "derived", value: ["transaction", "to"] });
           continue;
         }
 
         if (eq(event.event.transaction.transactionIndex, arg)) {
           resultArgs.push({
             type: "derived",
-            value: "transaction.transactionIndex",
+            value: ["transaction", "transactionIndex"],
           });
           continue;
         }
@@ -366,7 +366,7 @@ export const recordProfilePattern = ({
         ) {
           resultArgs.push({
             type: "derived",
-            value: "transactionReceipt.contractAddress",
+            value: ["transactionReceipt", "contractAddress"],
           });
           continue;
         }
@@ -380,7 +380,7 @@ export const recordProfilePattern = ({
           const argValue = event.event.args[argKey];
 
           if (typeof argValue !== "object" && eq(argValue, arg)) {
-            resultArgs.push({ type: "derived", value: `args.${argKey}` });
+            resultArgs.push({ type: "derived", value: ["args", argKey] });
             hasMatch = true;
             break;
           }
@@ -389,54 +389,54 @@ export const recordProfilePattern = ({
         if (hasMatch) continue;
 
         if (eq(event.event.log.address, arg)) {
-          resultArgs.push({ type: "derived", value: "log.address" });
+          resultArgs.push({ type: "derived", value: ["log", "address"] });
           continue;
         }
 
         if (eq(event.event.log.logIndex, arg)) {
-          resultArgs.push({ type: "derived", value: "log.logIndex" });
+          resultArgs.push({ type: "derived", value: ["log", "logIndex"] });
           continue;
         }
 
         if (eq(event.event.block.hash, arg)) {
-          resultArgs.push({ type: "derived", value: "block.hash" });
+          resultArgs.push({ type: "derived", value: ["block", "hash"] });
           continue;
         }
 
         if (eq(event.event.block.number, arg)) {
-          resultArgs.push({ type: "derived", value: "block.number" });
+          resultArgs.push({ type: "derived", value: ["block", "number"] });
           continue;
         }
 
         if (eq(event.event.block.timestamp, arg)) {
-          resultArgs.push({ type: "derived", value: "block.timestamp" });
+          resultArgs.push({ type: "derived", value: ["block", "timestamp"] });
           continue;
         }
 
         if (eq(event.event.block.miner, arg)) {
-          resultArgs.push({ type: "derived", value: "block.miner" });
+          resultArgs.push({ type: "derived", value: ["block", "miner"] });
           continue;
         }
 
         if (eq(event.event.transaction.hash, arg)) {
-          resultArgs.push({ type: "derived", value: "transaction.hash" });
+          resultArgs.push({ type: "derived", value: ["transaction", "hash"] });
           continue;
         }
 
         if (eq(event.event.transaction.from, arg)) {
-          resultArgs.push({ type: "derived", value: "transaction.from" });
+          resultArgs.push({ type: "derived", value: ["transaction", "from"] });
           continue;
         }
 
         if (event.event.transaction.to && eq(event.event.transaction.to, arg)) {
-          resultArgs.push({ type: "derived", value: "transaction.to" });
+          resultArgs.push({ type: "derived", value: ["transaction", "to"] });
           continue;
         }
 
         if (eq(event.event.transaction.transactionIndex, arg)) {
           resultArgs.push({
             type: "derived",
-            value: "transaction.transactionIndex",
+            value: ["transaction", "transactionIndex"],
           });
           continue;
         }
@@ -447,7 +447,7 @@ export const recordProfilePattern = ({
         ) {
           resultArgs.push({
             type: "derived",
-            value: "transactionReceipt.contractAddress",
+            value: ["transactionReceipt", "contractAddress"],
           });
           continue;
         }
@@ -461,7 +461,7 @@ export const recordProfilePattern = ({
           const argValue = event.event.args[argKey];
 
           if (typeof argValue !== "object" && eq(argValue, arg)) {
-            resultArgs.push({ type: "derived", value: `args.${argKey}` });
+            resultArgs.push({ type: "derived", value: ["args", argKey] });
             hasMatch = true;
             break;
           }
@@ -470,54 +470,54 @@ export const recordProfilePattern = ({
         if (hasMatch) continue;
 
         if (eq(event.event.trace.from, arg)) {
-          resultArgs.push({ type: "derived", value: "trace.from" });
+          resultArgs.push({ type: "derived", value: ["trace", "from"] });
           continue;
         }
 
         if (event.event.trace.to && eq(event.event.trace.to, arg)) {
-          resultArgs.push({ type: "derived", value: "trace.to" });
+          resultArgs.push({ type: "derived", value: ["trace", "to"] });
           continue;
         }
 
         if (eq(event.event.block.hash, arg)) {
-          resultArgs.push({ type: "derived", value: "block.hash" });
+          resultArgs.push({ type: "derived", value: ["block", "hash"] });
           continue;
         }
 
         if (eq(event.event.block.number, arg)) {
-          resultArgs.push({ type: "derived", value: "block.number" });
+          resultArgs.push({ type: "derived", value: ["block", "number"] });
           continue;
         }
 
         if (eq(event.event.block.timestamp, arg)) {
-          resultArgs.push({ type: "derived", value: "block.timestamp" });
+          resultArgs.push({ type: "derived", value: ["block", "timestamp"] });
           continue;
         }
 
         if (eq(event.event.block.miner, arg)) {
-          resultArgs.push({ type: "derived", value: "block.miner" });
+          resultArgs.push({ type: "derived", value: ["block", "miner"] });
           continue;
         }
 
         if (eq(event.event.transaction.hash, arg)) {
-          resultArgs.push({ type: "derived", value: "transaction.hash" });
+          resultArgs.push({ type: "derived", value: ["transaction", "hash"] });
           continue;
         }
 
         if (eq(event.event.transaction.from, arg)) {
-          resultArgs.push({ type: "derived", value: "transaction.from" });
+          resultArgs.push({ type: "derived", value: ["transaction", "from"] });
           continue;
         }
 
         if (event.event.transaction.to && eq(event.event.transaction.to, arg)) {
-          resultArgs.push({ type: "derived", value: "transaction.to" });
+          resultArgs.push({ type: "derived", value: ["transaction", "to"] });
           continue;
         }
 
         if (eq(event.event.transaction.transactionIndex, arg)) {
           resultArgs.push({
             type: "derived",
-            value: "transaction.transactionIndex",
+            value: ["transaction", "transactionIndex"],
           });
           continue;
         }
@@ -528,7 +528,7 @@ export const recordProfilePattern = ({
         ) {
           resultArgs.push({
             type: "derived",
-            value: "transactionReceipt.contractAddress",
+            value: ["transactionReceipt", "contractAddress"],
           });
           continue;
         }
@@ -538,64 +538,64 @@ export const recordProfilePattern = ({
 
       case "transfer": {
         if (eq(event.event.transfer.from, arg)) {
-          resultArgs.push({ type: "derived", value: "transfer.from" });
+          resultArgs.push({ type: "derived", value: ["transfer", "from"] });
           continue;
         }
 
         if (eq(event.event.transfer.to, arg)) {
-          resultArgs.push({ type: "derived", value: "transfer.to" });
+          resultArgs.push({ type: "derived", value: ["transfer", "to"] });
           continue;
         }
 
         if (eq(event.event.trace.from, arg)) {
-          resultArgs.push({ type: "derived", value: "trace.from" });
+          resultArgs.push({ type: "derived", value: ["trace", "from"] });
           continue;
         }
 
         if (event.event.trace.to && eq(event.event.trace.to, arg)) {
-          resultArgs.push({ type: "derived", value: "trace.to" });
+          resultArgs.push({ type: "derived", value: ["trace", "to"] });
           continue;
         }
 
         if (eq(event.event.block.hash, arg)) {
-          resultArgs.push({ type: "derived", value: "block.hash" });
+          resultArgs.push({ type: "derived", value: ["block", "hash"] });
           continue;
         }
 
         if (eq(event.event.block.number, arg)) {
-          resultArgs.push({ type: "derived", value: "block.number" });
+          resultArgs.push({ type: "derived", value: ["block", "number"] });
           continue;
         }
 
         if (eq(event.event.block.timestamp, arg)) {
-          resultArgs.push({ type: "derived", value: "block.timestamp" });
+          resultArgs.push({ type: "derived", value: ["block", "timestamp"] });
           continue;
         }
 
         if (eq(event.event.block.miner, arg)) {
-          resultArgs.push({ type: "derived", value: "block.miner" });
+          resultArgs.push({ type: "derived", value: ["block", "miner"] });
           continue;
         }
 
         if (eq(event.event.transaction.hash, arg)) {
-          resultArgs.push({ type: "derived", value: "transaction.hash" });
+          resultArgs.push({ type: "derived", value: ["transaction", "hash"] });
           continue;
         }
 
         if (eq(event.event.transaction.from, arg)) {
-          resultArgs.push({ type: "derived", value: "transaction.from" });
+          resultArgs.push({ type: "derived", value: ["transaction", "from"] });
           continue;
         }
 
         if (event.event.transaction.to && eq(event.event.transaction.to, arg)) {
-          resultArgs.push({ type: "derived", value: "transaction.to" });
+          resultArgs.push({ type: "derived", value: ["transaction", "to"] });
           continue;
         }
 
         if (eq(event.event.transaction.transactionIndex, arg)) {
           resultArgs.push({
             type: "derived",
-            value: "transaction.transactionIndex",
+            value: ["transaction", "transactionIndex"],
           });
           continue;
         }
@@ -606,7 +606,7 @@ export const recordProfilePattern = ({
         ) {
           resultArgs.push({
             type: "derived",
-            value: "transactionReceipt.contractAddress",
+            value: ["transactionReceipt", "contractAddress"],
           });
           continue;
         }
@@ -636,9 +636,8 @@ export const recoverProfilePattern = (
 ): Request => {
   const recover = (obj: object, path: string[]): unknown => {
     if (path.length === 0) return obj;
-    const p = path.splice(0, 1);
     // @ts-ignore
-    return recover(obj[p[0]], path);
+    return recover(obj[path[0]], path.slice(1));
   };
 
   let address: `0x${string}`;
@@ -646,10 +645,7 @@ export const recoverProfilePattern = (
   if (pattern.address.type === "constant") {
     address = pattern.address.value as `0x${string}`;
   } else {
-    address = recover(
-      event.event,
-      pattern.address.value.split("."),
-    ) as `0x${string}`;
+    address = recover(event.event, pattern.address.value) as `0x${string}`;
   }
 
   let args: unknown[] | undefined;
@@ -659,7 +655,7 @@ export const recoverProfilePattern = (
       if (arg.type === "constant") {
         args.push(arg.value);
       } else {
-        args.push(recover(event.event, arg.value.split(".")));
+        args.push(recover(event.event, arg.value));
       }
     }
   }

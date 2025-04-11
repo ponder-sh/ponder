@@ -126,16 +126,19 @@ type EventName = string;
  *
  * @example
  * {
- *   "owner": "args.from",
- *   "spender": "log.address",
+ *   "owner": ["args", "from"],
+ *   "spender": ["log", "address"],
  * }
  */
-export type ProfilePattern = { [key: string]: string };
+export type ProfilePattern = { [key: string]: string[] };
 /**
  * Serialized for uniquely identifying a {@link ProfilePattern}.
  *
  * @example
- * "args.from_spender_log.address"
+ * "{
+ *   "owner": ["args", "from"],
+ *   "spender": ["log", "address"],
+ * }"
  */
 type ProfileKey = string;
 /**

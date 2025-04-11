@@ -73,7 +73,9 @@ test("recordProfilePattern() chainId", () => {
 
   expect(pattern).toMatchInlineSnapshot(`
     {
-      "address": "chainId",
+      "address": [
+        "chainId",
+      ],
     }
   `);
 });
@@ -116,7 +118,10 @@ test("recordProfilePattern() log args", () => {
 
   expect(pattern).toMatchInlineSnapshot(`
     {
-      "address": "args.address",
+      "address": [
+        "args",
+        "address",
+      ],
     }
   `);
 });
@@ -154,7 +159,10 @@ test("recordProfilePattern() block", () => {
 
   expect(pattern).toMatchInlineSnapshot(`
     {
-      "address": "block.number",
+      "address": [
+        "block",
+        "number",
+      ],
     }
   `);
 });
@@ -199,10 +207,13 @@ test("recordProfilePattern() hint", () => {
   );
 
   expect(pattern).toMatchInlineSnapshot(`
-      {
-        "address": "block.number",
-      }
-    `);
+    {
+      "address": [
+        "block",
+        "number",
+      ],
+    }
+  `);
 });
 
 test("recordProfilePattern() object args", () => {
