@@ -264,10 +264,10 @@ type Response = string;
  *
  * @example
  * {
- *   "address": "args.from",
+ *   "address": ["args", "from"],
  *   "abi": [...],
  *   "functionName": "balanceOf",
- *   "args": ["log.address"],
+ *   "args": ["log", "address"],
  * }
  */
 export type ProfilePattern = Pick<
@@ -276,10 +276,10 @@ export type ProfilePattern = Pick<
 > & {
   address:
     | { type: "constant"; value: unknown }
-    | { type: "derived"; value: string };
+    | { type: "derived"; value: string[] };
   args?: (
     | { type: "constant"; value: unknown }
-    | { type: "derived"; value: string }
+    | { type: "derived"; value: string[] }
   )[];
 };
 /**
@@ -287,8 +287,8 @@ export type ProfilePattern = Pick<
  *
  * @example
  * "{
- *   "address": "args.from",
- *   "args": ["log.address"],
+ *   "address": ["args", "from"],
+ *   "args": ["log", "address"],
  *   "functionName": "balanceOf",
  * }"
  */

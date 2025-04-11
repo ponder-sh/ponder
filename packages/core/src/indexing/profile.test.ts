@@ -60,7 +60,10 @@ test("recordProfilePattern() address", () => {
         ],
         "address": {
           "type": "derived",
-          "value": "args.address",
+          "value": [
+            "args",
+            "address",
+          ],
         },
         "args": undefined,
         "functionName": "totalSupply",
@@ -68,7 +71,7 @@ test("recordProfilePattern() address", () => {
     }
   `);
 
-  expect(recoverProfilePattern(pattern.pattern, event)).toMatchInlineSnapshot(`
+  expect(recoverProfilePattern(pattern!.pattern, event)).toMatchInlineSnapshot(`
     {
       "abi": [
         {
@@ -155,12 +158,18 @@ test("recordProfilePattern() args", () => {
         ],
         "address": {
           "type": "derived",
-          "value": "args.address",
+          "value": [
+            "args",
+            "address",
+          ],
         },
         "args": [
           {
             "type": "derived",
-            "value": "log.address",
+            "value": [
+              "log",
+              "address",
+            ],
           },
         ],
         "functionName": "balanceOf",
@@ -168,7 +177,7 @@ test("recordProfilePattern() args", () => {
     }
   `);
 
-  expect(recoverProfilePattern(pattern.pattern, event)).toMatchInlineSnapshot(`
+  expect(recoverProfilePattern(pattern!.pattern, event)).toMatchInlineSnapshot(`
     {
       "abi": [
         {
@@ -255,7 +264,10 @@ test("recordProfilePattern() constants", () => {
         ],
         "address": {
           "type": "derived",
-          "value": "args.address",
+          "value": [
+            "args",
+            "address",
+          ],
         },
         "args": [
           {
@@ -336,7 +348,7 @@ test("recordProfilePattern() hint", () => {
       functionName: "balanceOf",
       args: [ALICE],
     },
-    hints: [pattern],
+    hints: [pattern!],
   });
 
   expect(pattern).toMatchInlineSnapshot(`
@@ -366,7 +378,10 @@ test("recordProfilePattern() hint", () => {
         ],
         "address": {
           "type": "derived",
-          "value": "args.address",
+          "value": [
+            "args",
+            "address",
+          ],
         },
         "args": [
           {
