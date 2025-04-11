@@ -872,7 +872,7 @@ export const createRealtimeSync = (
                 sync2(pendingBlock);
               }
 
-              sync2({ block, ...rest });
+              sync2({ block, endClock, ...rest });
 
               return;
             }
