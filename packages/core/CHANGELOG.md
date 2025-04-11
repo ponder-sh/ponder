@@ -1,5 +1,11 @@
 # ponder
 
+## 0.10.13
+
+### Patch Changes
+
+- [#1663](https://github.com/ponder-sh/ponder/pull/1663) [`c6c603fa7f0c07ddc307dfb199dd2ee92f36bb0e`](https://github.com/ponder-sh/ponder/commit/c6c603fa7f0c07ddc307dfb199dd2ee92f36bb0e) Thanks [@kyscott18](https://github.com/kyscott18)! - Increased `idle_in_transaction_session_timeout` to 1 hour.
+
 ## 0.10.12
 
 ### Patch Changes
