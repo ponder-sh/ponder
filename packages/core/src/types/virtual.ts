@@ -6,7 +6,7 @@ import type {
   SafeEventNames,
   SafeFunctionNames,
 } from "@/config/utilityTypes.js";
-import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
+import type { ReadonlyClient } from "@/indexing/client.js";
 import type { Schema } from "@/internal/types.js";
 import type {
   Block,
@@ -219,7 +219,7 @@ export namespace Virtual {
               keyof config["networks"]]["chainId"];
           };
         }[keyof sourceNetwork];
-    client: Prettify<ReadOnlyClient>;
+    client: Prettify<ReadonlyClient>;
     db: Db<schema>;
   };
 
