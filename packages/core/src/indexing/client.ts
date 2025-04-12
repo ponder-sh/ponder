@@ -404,7 +404,7 @@ export const createCachedViemClient = ({
 
         if (hasConstant) {
           profileConstantLRU.get(event.name)!.add(profilePatternKey);
-          if (profileConstantLRU.get(event.name)!.size > 100) {
+          if (profileConstantLRU.get(event.name)!.size > 10) {
             const firstKey = profileConstantLRU
               .get(event.name)!
               .keys()

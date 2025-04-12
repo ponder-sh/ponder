@@ -1,13 +1,7 @@
 import type { Event } from "@/internal/types.js";
 import { orderObject } from "@/utils/order.js";
 import type { Abi } from "viem";
-import {
-  type PonderActions,
-  type ProfilePattern,
-  type Request,
-  encodeRequest,
-  getCacheKey,
-} from "./client.js";
+import type { PonderActions, ProfilePattern, Request } from "./client.js";
 
 export const getProfilePatternKey = (pattern: ProfilePattern): string => {
   return JSON.stringify(orderObject(pattern), (key, value) => {
@@ -39,19 +33,17 @@ export const recordProfilePattern = ({
   hints: { pattern: ProfilePattern; hasConstant: boolean }[];
 }): { pattern: ProfilePattern; hasConstant: boolean } | undefined => {
   for (const hint of hints) {
+    const request = recoverProfilePattern(hint.pattern, event);
     if (
-      getCacheKey(
-        encodeRequest({
-          address: args.address,
-          abi: args.abi as Abi,
-          functionName: args.functionName,
-          args: args.args,
-          blockNumber: event.event.block.number,
-          chainId: event.chainId,
-        }),
-      ) ===
-      getCacheKey(encodeRequest(recoverProfilePattern(hint.pattern, event)))
+      request.functionName === args.functionName &&
+      request.address === args.address
     ) {
+      if (request.args === undefined && args.args === undefined) return hint;
+      if (request.args === undefined || args.args === undefined) continue;
+      for (let i = 0; i < request.args.length; i++) {
+        if (eq(request.args[i] as any, args.args[i]) === false) continue;
+      }
+
       return hint;
     }
   }
