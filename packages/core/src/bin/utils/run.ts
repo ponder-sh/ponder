@@ -77,23 +77,31 @@ export async function run({
     ordering: preBuild.ordering,
   });
 
+  const eventCount: { [eventName: string]: number } = {};
+  for (const eventName of Object.keys(indexingBuild.indexingFunctions)) {
+    eventCount[eventName] = 0;
+  }
+
   const cachedViemClient = createCachedViemClient({
     common,
     indexingBuild,
     requestQueues,
     syncStore,
+    eventCount,
   });
 
   const indexing = createIndexing({
     common,
     indexingBuild,
     client: cachedViemClient,
+    eventCount,
   });
 
   const indexingCache = createIndexingCache({
     common,
     schemaBuild,
     crashRecoveryCheckpoint,
+    eventCount,
   });
 
   await database.setStatus(sync.getStatus());
@@ -174,11 +182,9 @@ export async function run({
       indexingCache.prefetch({
         events,
         db: database.qb.drizzle,
-        eventCount: indexing.getEventCount(),
       }),
       cachedViemClient.prefetch({
         events,
-        eventCount: indexing.getEventCount(),
       }),
     ]);
     common.metrics.ponder_historical_transform_duration.inc(

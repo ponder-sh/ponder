@@ -51,13 +51,13 @@ export type Indexing = {
     db: IndexingStore;
     cache?: IndexingCache;
   }) => Promise<{ status: "error"; error: Error } | { status: "success" }>;
-  getEventCount: () => { [eventName: string]: number };
 };
 
 export const createIndexing = ({
   common,
   indexingBuild: { sources, networks, indexingFunctions },
   client,
+  eventCount,
 }: {
   common: Common;
   indexingBuild: Pick<
@@ -65,6 +65,7 @@ export const createIndexing = ({
     "sources" | "networks" | "indexingFunctions"
   >;
   client: CachedViemClient;
+  eventCount: { [eventName: string]: number };
 }): Indexing => {
   const context: Context = {
     network: { name: undefined!, chainId: undefined! },
@@ -73,7 +74,7 @@ export const createIndexing = ({
     db: undefined!,
   };
 
-  const eventCount: { [eventName: string]: number } = {};
+  // const eventCount: { [eventName: string]: number } = {};
   const networkByChainId: { [chainId: number]: Network } = {};
   const clientByChainId: { [chainId: number]: ReadonlyClient } = {};
   const contractsByChainId: {
@@ -88,10 +89,10 @@ export const createIndexing = ({
     >;
   } = {};
 
-  // build eventCount
-  for (const eventName of Object.keys(indexingFunctions)) {
-    eventCount[eventName] = 0;
-  }
+  // // build eventCount
+  // for (const eventName of Object.keys(indexingFunctions)) {
+  //   eventCount[eventName] = 0;
+  // }
 
   // build networkByChainId
   for (const network of networks) {
@@ -330,9 +331,6 @@ export const createIndexing = ({
       updateCompletedEvents();
 
       return { status: "success" };
-    },
-    getEventCount() {
-      return eventCount;
     },
   };
 };

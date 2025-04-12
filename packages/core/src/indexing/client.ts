@@ -55,7 +55,6 @@ export type CachedViemClient = {
   getClient: (network: Network) => ReadonlyClient;
   prefetch: (params: {
     events: Event[];
-    eventCount: { [eventName: string]: number };
   }) => Promise<void>;
   clear: () => void;
   event: Event | SetupEvent | undefined;
@@ -64,6 +63,11 @@ export type CachedViemClient = {
 const MULTICALL_SELECTOR = toFunctionSelector(
   getAbiItem({ abi: multicall3Abi, name: "aggregate3" }),
 );
+
+const SAMPLING_RATE = 10;
+const DB_PREDICTION_THRESHOLD = 0.2;
+const RPC_PREDICTION_THRESHOLD = 0.8;
+const MAX_CONSTANT_PATTERN_COUNT = 10;
 
 /** RPC methods that reference a block. */
 const blockDependentMethods = new Set([
@@ -359,11 +363,13 @@ export const createCachedViemClient = ({
   indexingBuild,
   requestQueues,
   syncStore,
+  eventCount,
 }: {
   common: Common;
   indexingBuild: Pick<IndexingBuild, "networks">;
   requestQueues: RequestQueue[];
   syncStore: SyncStore;
+  eventCount: { [eventName: string]: number };
 }): CachedViemClient => {
   let event: Event | SetupEvent = undefined!;
   const cache: Cache = new Map();
@@ -404,7 +410,10 @@ export const createCachedViemClient = ({
 
         if (hasConstant) {
           profileConstantLRU.get(event.name)!.add(profilePatternKey);
-          if (profileConstantLRU.get(event.name)!.size > 10) {
+          if (
+            profileConstantLRU.get(event.name)!.size >
+            MAX_CONSTANT_PATTERN_COUNT
+          ) {
             const firstKey = profileConstantLRU
               .get(event.name)!
               .keys()
@@ -434,7 +443,11 @@ export const createCachedViemClient = ({
       }: Parameters<PonderActions[action]>[0]) => {
         // Note: prediction only possible when block number is managed by Ponder.
 
-        if (event.type !== "setup" && userBlockNumber === undefined) {
+        if (
+          event.type !== "setup" &&
+          userBlockNumber === undefined &&
+          eventCount[event.name]! % SAMPLING_RATE === 1
+        ) {
           if (profile.has(event.name) === false) {
             profile.set(event.name, new Map());
             profileConstantLRU.set(event.name, new Set());
@@ -576,7 +589,7 @@ export const createCachedViemClient = ({
         // @ts-expect-error overriding `readContract` is not supported by viem
       }).extend(ponderActions);
     },
-    async prefetch({ events, eventCount }) {
+    async prefetch({ events }) {
       // Use profiling metadata + next event batch to determine which
       // rpc requests are going to be made, and preload them into the cache.
 
@@ -586,7 +599,7 @@ export const createCachedViemClient = ({
         if (profile.has(event.name)) {
           for (const [, { pattern, count }] of profile.get(event.name)!) {
             // Expected value of times the prediction will be used.
-            const ev = count / eventCount[event.name]!;
+            const ev = (count * SAMPLING_RATE) / eventCount[event.name]!;
             prediction.push({
               ev,
               request: recoverProfilePattern(pattern, event),
@@ -620,7 +633,9 @@ export const createCachedViemClient = ({
           const network = indexingBuild.networks[ni]!;
           const requestQueue = requestQueues[ni]!;
 
-          const dbRequests = requests.filter(({ ev }) => ev > 0.2);
+          const dbRequests = requests.filter(
+            ({ ev }) => ev > DB_PREDICTION_THRESHOLD,
+          );
 
           common.metrics.ponder_indexing_rpc_prefetch_total.inc(
             {
@@ -644,7 +659,7 @@ export const createCachedViemClient = ({
               cache
                 .get(chainId)!
                 .set(getCacheKey(request.request), cachedResult);
-            } else if (request.ev > 0.8) {
+            } else if (request.ev > RPC_PREDICTION_THRESHOLD) {
               const resultPromise = requestQueue
                 .request(request.request as EIP1193Parameters<PublicRpcSchema>)
                 .then((result) => JSON.stringify(result))

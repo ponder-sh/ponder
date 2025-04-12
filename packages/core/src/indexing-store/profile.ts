@@ -375,7 +375,7 @@ export const recoverProfilePattern = (
   const recover = (obj: object, path: string[]): unknown => {
     if (path.length === 0) return obj;
     // @ts-ignore
-    return recover(obj[path.shift()!], path.slice(1));
+    return recover(obj[path[0]], path.slice(1));
   };
 
   const result: Row = {};
