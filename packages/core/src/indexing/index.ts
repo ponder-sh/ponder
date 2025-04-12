@@ -74,7 +74,6 @@ export const createIndexing = ({
     db: undefined!,
   };
 
-  // const eventCount: { [eventName: string]: number } = {};
   const networkByChainId: { [chainId: number]: Network } = {};
   const clientByChainId: { [chainId: number]: ReadonlyClient } = {};
   const contractsByChainId: {
@@ -88,11 +87,6 @@ export const createIndexing = ({
       }
     >;
   } = {};
-
-  // // build eventCount
-  // for (const eventName of Object.keys(indexingFunctions)) {
-  //   eventCount[eventName] = 0;
-  // }
 
   // build networkByChainId
   for (const network of networks) {
