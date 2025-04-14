@@ -631,18 +631,17 @@ export const recoverProfilePattern = (
   pattern: ProfilePattern,
   event: Event,
 ): Request => {
-  const recover = (obj: object, path: string[]): unknown => {
-    if (path.length === 0) return obj;
-    // @ts-ignore
-    return recover(obj[path[0]], path.slice(1));
-  };
-
   let address: `0x${string}`;
 
   if (pattern.address.type === "constant") {
     address = pattern.address.value as `0x${string}`;
   } else {
-    address = recover(event.event, pattern.address.value) as `0x${string}`;
+    let _result: unknown = event.event;
+    for (const prop of pattern.address.value) {
+      // @ts-ignore
+      _result = _result[prop];
+    }
+    address = _result as `0x${string}`;
   }
 
   let args: unknown[] | undefined;
@@ -652,7 +651,12 @@ export const recoverProfilePattern = (
       if (arg.type === "constant") {
         args.push(arg.value);
       } else {
-        args.push(recover(event.event, arg.value));
+        let _result: unknown = event.event;
+        for (const prop of arg.value) {
+          // @ts-ignore
+          _result = _result[prop];
+        }
+        args.push(_result);
       }
     }
   }

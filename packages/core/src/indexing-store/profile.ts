@@ -372,19 +372,18 @@ export const recoverProfilePattern = (
   pattern: ProfilePattern,
   event: Event,
 ): Row => {
-  const recover = (obj: object, path: string[]): unknown => {
-    if (path.length === 0) return obj;
-    // @ts-ignore
-    return recover(obj[path[0]], path.slice(1));
-  };
-
   const result: Row = {};
 
   for (const [key, value] of Object.entries(pattern)) {
     if (value[0] === "chainId") {
       result[key] = event.chainId;
     } else {
-      result[key] = recover(event.event, value);
+      let _result: unknown = event.event;
+      for (const prop of value) {
+        // @ts-ignore
+        _result = _result[prop];
+      }
+      result[key] = _result;
     }
   }
 

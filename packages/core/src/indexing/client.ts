@@ -474,14 +474,16 @@ export const createCachedViemClient = ({
               >
             ).contracts as ContractFunctionParameters[];
 
-            for (const contract of contracts) {
-              const recordPatternResult = recordProfilePattern({
-                event: event,
-                args: contract,
-                hints: Array.from(profile.get(event.name)!.values()),
-              });
-              if (recordPatternResult) {
-                addProfilePattern(recordPatternResult);
+            if (contracts.length < 10) {
+              for (const contract of contracts) {
+                const recordPatternResult = recordProfilePattern({
+                  event: event,
+                  args: contract,
+                  hints: Array.from(profile.get(event.name)!.values()),
+                });
+                if (recordPatternResult) {
+                  addProfilePattern(recordPatternResult);
+                }
               }
             }
           }
