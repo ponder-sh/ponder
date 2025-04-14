@@ -4,14 +4,19 @@ import type { Abi } from "viem";
 import type { PonderActions, ProfilePattern, Request } from "./client.js";
 
 export const getProfilePatternKey = (pattern: ProfilePattern): string => {
-  return JSON.stringify(orderObject(pattern), (key, value) => {
-    if (key === "abi") return undefined;
-
-    if (typeof value === "bigint") {
-      return value.toString();
-    }
-    return value;
-  });
+  return JSON.stringify(
+    orderObject({
+      address: pattern.address,
+      functionName: pattern.functionName,
+      args: pattern.args,
+    }),
+    (_, value) => {
+      if (typeof value === "bigint") {
+        return value.toString();
+      }
+      return value;
+    },
+  );
 };
 
 const eq = (target: bigint | string | number | boolean, value: any) => {
