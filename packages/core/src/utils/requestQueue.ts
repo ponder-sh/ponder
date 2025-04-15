@@ -9,7 +9,6 @@ import {
 import {
   type EIP1193Parameters,
   HttpRequestError,
-  InternalRpcError,
   JsonRpcVersionUnsupportedError,
   MethodNotFoundRpcError,
   MethodNotSupportedRpcError,
