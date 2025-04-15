@@ -9,6 +9,7 @@ import {
 import {
   type EIP1193Parameters,
   HttpRequestError,
+  InternalRpcError,
   JsonRpcVersionUnsupportedError,
   MethodNotFoundRpcError,
   MethodNotSupportedRpcError,
@@ -177,6 +178,8 @@ function shouldRetry(error: Error) {
     if (error.code === MethodNotSupportedRpcError.code) return false;
     // Version of JSON-RPC protocol is not supported
     if (error.code === JsonRpcVersionUnsupportedError.code) return false;
+    // eth_call reverted
+    if (error.message.includes("revert")) return false;
   }
   if (error instanceof HttpRequestError && error.status) {
     // Method Not Allowed
