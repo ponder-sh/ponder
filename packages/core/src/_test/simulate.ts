@@ -8,7 +8,8 @@ import {
 } from "viem";
 import Erc20Bytecode from "./contracts/out/ERC20.sol/ERC20.json";
 import FactoryBytecode from "./contracts/out/Factory.sol/Factory.json";
-import { erc20ABI, factoryABI, pairABI } from "./generated.js";
+import RevertBytecode from "./contracts/out/Revert.sol/Revert.json";
+import { erc20ABI, factoryABI, pairABI, revertABI } from "./generated.js";
 import { anvil, publicClient, testClient } from "./utils.js";
 
 /** Deploy Erc20 contract and mine block. */
@@ -44,6 +45,27 @@ export const deployFactory = async (params: { sender: Address }) => {
   const hash = await walletClient.deployContract({
     abi: factoryABI,
     bytecode: FactoryBytecode.bytecode.object as Hex,
+  });
+
+  await testClient.mine({ blocks: 1 });
+  const { contractAddress } = await publicClient.waitForTransactionReceipt({
+    hash,
+  });
+
+  return { address: contractAddress!, hash };
+};
+
+/** Deploy Revert contract and mine block. */
+export const deployRevert = async (params: { sender: Address }) => {
+  const walletClient = createWalletClient({
+    chain: anvil,
+    transport: http(),
+    account: params.sender,
+  });
+
+  const hash = await walletClient.deployContract({
+    abi: revertABI,
+    bytecode: RevertBytecode.bytecode.object as Hex,
   });
 
   await testClient.mine({ blocks: 1 });
