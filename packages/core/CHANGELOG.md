@@ -1,5 +1,11 @@
 # ponder
 
+## 0.10.14
+
+### Patch Changes
+
+- [#1672](https://github.com/ponder-sh/ponder/pull/1672) [`7abdc96849ccbd4d72be731616d464cddfd03079`](https://github.com/ponder-sh/ponder/commit/7abdc96849ccbd4d72be731616d464cddfd03079) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with `insert().onConflictDoNothing()` that would cause an error "Cannot read properties of undefined".
+
 ## 0.10.13
 
 ### Patch Changes
