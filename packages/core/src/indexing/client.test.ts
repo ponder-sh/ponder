@@ -49,6 +49,7 @@ test("request() block dependent method", async (context) => {
     indexingBuild: { networks: [network] },
     requestQueues: [requestQueue],
     syncStore,
+    eventCount: {},
   });
 
   const request = cachedViemClient.getClient(network).request;
@@ -98,6 +99,7 @@ test("request() non-block dependent method", async (context) => {
     indexingBuild: { networks: [network] },
     requestQueues: [requestQueue],
     syncStore,
+    eventCount: {},
   });
 
   const request = cachedViemClient.getClient(network).request;
@@ -136,6 +138,7 @@ test("request() non-cached method", async (context) => {
     indexingBuild: { networks: [network] },
     requestQueues: [requestQueue],
     syncStore,
+    eventCount: {},
   });
 
   const request = cachedViemClient.getClient(network).request;
@@ -163,6 +166,7 @@ test("request() multicall", async (context) => {
     indexingBuild: { networks: [network] },
     requestQueues: [requestQueue],
     syncStore,
+    eventCount: {},
   });
 
   const request = cachedViemClient.getClient(network).request;
@@ -295,6 +299,7 @@ test("request() multicall empty", async (context) => {
     indexingBuild: { networks: [network] },
     requestQueues: [requestQueue],
     syncStore,
+    eventCount: {},
   });
 
   const request = cachedViemClient.getClient(network).request;
@@ -348,7 +353,7 @@ test("prefetch() uses profile metadata", async (context) => {
     type: "log",
     chainId: 1,
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
+    name: "Contract:Event",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: {
@@ -369,6 +374,7 @@ test("prefetch() uses profile metadata", async (context) => {
     indexingBuild: { networks: [network] },
     requestQueues: [requestQueue],
     syncStore,
+    eventCount: { "Contract:Event": 1 },
   });
   cachedViemClient.event = event;
 
@@ -385,7 +391,6 @@ test("prefetch() uses profile metadata", async (context) => {
 
   await cachedViemClient.prefetch({
     events: [event],
-    eventCount: { "": 1 },
   });
 
   const requestSpy = vi.spyOn(requestQueue, "request");
@@ -414,12 +419,34 @@ test("request() revert", async (context) => {
 
   const { syncStore } = await setupDatabaseServices(context);
 
+  const event = {
+    type: "log",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "Contract:Event",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: {
+        from: zeroAddress,
+        to: ALICE,
+        amount: parseEther("1"),
+      },
+      log: {
+        address,
+      } as LogEvent["event"]["log"],
+      block: { number: 1n } as LogEvent["event"]["block"],
+      transaction: {} as LogEvent["event"]["transaction"],
+    },
+  } satisfies LogEvent;
+
   const cachedViemClient = createCachedViemClient({
     common: context.common,
     indexingBuild: { networks: [network] },
     requestQueues: [requestQueue],
     syncStore,
+    eventCount: { "Contract:Event": 1 },
   });
+  cachedViemClient.event = event;
 
   const request = cachedViemClient.getClient(network).request;
 
