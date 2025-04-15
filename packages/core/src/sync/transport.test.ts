@@ -1,5 +1,5 @@
 import { ALICE } from "@/_test/constants.js";
-import { erc20ABI } from "@/_test/generated.js";
+import { erc20ABI, revertABI } from "@/_test/generated.js";
 import {
   setupAnvil,
   setupCleanup,
@@ -7,7 +7,12 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { deployErc20, deployMulticall, mintErc20 } from "@/_test/simulate.js";
+import {
+  deployErc20,
+  deployMulticall,
+  deployRevert,
+  mintErc20,
+} from "@/_test/simulate.js";
 import { anvil, getNetwork, publicClient } from "@/_test/utils.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
 import {
@@ -341,4 +346,42 @@ test("request() multicall empty", async (context) => {
   });
 
   expect(result).toMatchInlineSnapshot("[]");
+});
+
+test("request() revert", async (context) => {
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { address } = await deployRevert({ sender: ALICE });
+
+  const { syncStore } = await setupDatabaseServices(context);
+
+  const transport = cachedTransport({
+    requestQueue,
+    syncStore,
+  })({
+    chain: anvil,
+  });
+
+  const response1 = await transport
+    .request({
+      method: "eth_call",
+      params: [
+        {
+          to: address,
+          data: encodeFunctionData({
+            abi: revertABI,
+            functionName: "revert",
+            args: [true],
+          }),
+        },
+        "0x1",
+      ],
+    })
+    .catch((error) => error);
+
+  expect(response1).toBeInstanceOf(Error);
 });
