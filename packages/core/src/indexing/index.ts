@@ -1,5 +1,6 @@
 import type { IndexingCache } from "@/indexing-store/cache.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
+import type { CachedViemClient } from "@/indexing/client.js";
 import type { Common } from "@/internal/common.js";
 import { ShutdownError } from "@/internal/errors.js";
 import type {
@@ -10,9 +11,7 @@ import type {
   Schema,
   SetupEvent,
 } from "@/internal/types.js";
-import type { SyncStore } from "@/sync-store/index.js";
 import { isAddressFactory } from "@/sync/filter.js";
-import { cachedTransport } from "@/sync/transport.js";
 import type { Db } from "@/types/db.js";
 import type { Block, Log, Trace, Transaction } from "@/types/eth.js";
 import type { DeepPartial } from "@/types/utils.js";
@@ -22,17 +21,15 @@ import {
   encodeCheckpoint,
 } from "@/utils/checkpoint.js";
 import { prettyPrint } from "@/utils/print.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
 import { startClock } from "@/utils/timer.js";
-import { type Abi, type Address, createClient } from "viem";
+import type { Abi, Address } from "viem";
 import { checksumAddress } from "viem";
 import { addStackTrace } from "./addStackTrace.js";
-import type { ReadOnlyClient } from "./ponderActions.js";
-import { getPonderActions } from "./ponderActions.js";
+import type { ReadonlyClient } from "./client.js";
 
 export type Context = {
   network: { chainId: number; name: string };
-  client: ReadOnlyClient;
+  client: ReadonlyClient;
   db: Db<Schema>;
   contracts: Record<
     string,
@@ -46,36 +43,30 @@ export type Context = {
 };
 
 export type Indexing = {
-  processSetupEvents: ({
-    db,
-  }: { db: IndexingStore }) => Promise<
-    { status: "error"; error: Error } | { status: "success" }
-  >;
-  processEvents: ({
-    events,
-    db,
-    cache,
-  }: { events: Event[]; db: IndexingStore; cache?: IndexingCache }) => Promise<
-    { status: "error"; error: Error } | { status: "success" }
-  >;
-  getEventCount: () => { [eventName: string]: number };
+  processSetupEvents: (params: {
+    db: IndexingStore;
+  }) => Promise<{ status: "error"; error: Error } | { status: "success" }>;
+  processEvents: (params: {
+    events: Event[];
+    db: IndexingStore;
+    cache?: IndexingCache;
+  }) => Promise<{ status: "error"; error: Error } | { status: "success" }>;
 };
 
 export const createIndexing = ({
   common,
   indexingBuild: { sources, networks, indexingFunctions },
-  requestQueues,
-  syncStore,
+  client,
+  eventCount,
 }: {
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
     "sources" | "networks" | "indexingFunctions"
   >;
-  requestQueues: RequestQueue[];
-  syncStore: SyncStore;
+  client: CachedViemClient;
+  eventCount: { [eventName: string]: number };
 }): Indexing => {
-  let blockNumber: bigint = undefined!;
   const context: Context = {
     network: { name: undefined!, chainId: undefined! },
     contracts: undefined!,
@@ -83,9 +74,8 @@ export const createIndexing = ({
     db: undefined!,
   };
 
-  const eventCount: { [eventName: string]: number } = {};
   const networkByChainId: { [chainId: number]: Network } = {};
-  const clientByChainId: { [chainId: number]: ReadOnlyClient } = {};
+  const clientByChainId: { [chainId: number]: ReadonlyClient } = {};
   const contractsByChainId: {
     [chainId: number]: Record<
       string,
@@ -98,14 +88,14 @@ export const createIndexing = ({
     >;
   } = {};
 
-  // build eventCount
-  for (const eventName of Object.keys(indexingFunctions)) {
-    eventCount[eventName] = 0;
-  }
-
   // build networkByChainId
   for (const network of networks) {
     networkByChainId[network.chainId] = network;
+  }
+
+  // build clientByChainId
+  for (const network of networks) {
+    clientByChainId[network.chainId] = client.getClient(network);
   }
 
   // build contractsByChainId
@@ -147,17 +137,6 @@ export const createIndexing = ({
     };
   }
 
-  // build clientByChainId
-  for (let i = 0; i < networks.length; i++) {
-    const network = networks[i]!;
-    const requestQueue = requestQueues[i]!;
-    clientByChainId[network.chainId] = createClient({
-      transport: cachedTransport({ requestQueue, syncStore }),
-      chain: network.chain,
-      // @ts-ignore
-    }).extend(getPonderActions(() => blockNumber!));
-  }
-
   const updateCompletedEvents = () => {
     for (const event of Object.keys(eventCount)) {
       const metricLabel = {
@@ -179,10 +158,8 @@ export const createIndexing = ({
     const metricLabel = { event: event.name };
 
     try {
-      blockNumber = event.block;
       context.network.chainId = event.chainId;
       context.network.name = networkByChainId[event.chainId]!.name;
-      context.client = clientByChainId[event.chainId]!;
       context.contracts = contractsByChainId[event.chainId]!;
 
       const endClock = startClock();
@@ -228,10 +205,8 @@ export const createIndexing = ({
     const metricLabel = { event: event.name };
 
     try {
-      blockNumber = event.event.block.number;
       context.network.chainId = event.chainId;
       context.network.name = networkByChainId[event.chainId]!.name;
-      context.client = clientByChainId[event.chainId]!;
       context.contracts = contractsByChainId[event.chainId]!;
 
       const endClock = startClock();
@@ -287,23 +262,26 @@ export const createIndexing = ({
 
           if (source === undefined) continue;
 
+          const event = {
+            type: "setup",
+            chainId: network.chainId,
+            checkpoint: encodeCheckpoint({
+              ...ZERO_CHECKPOINT,
+              chainId: BigInt(network.chainId),
+              blockNumber: BigInt(source.filter.fromBlock ?? 0),
+            }),
+
+            name: eventName,
+
+            block: BigInt(source.filter.fromBlock ?? 0),
+          } satisfies SetupEvent;
+
+          client.event = event;
+          context.client = clientByChainId[network.chainId]!;
+
           eventCount[eventName]!++;
 
-          const result = await executeSetup({
-            event: {
-              type: "setup",
-              chainId: network.chainId,
-              checkpoint: encodeCheckpoint({
-                ...ZERO_CHECKPOINT,
-                chainId: BigInt(network.chainId),
-                blockNumber: BigInt(source.filter.fromBlock ?? 0),
-              }),
-
-              name: eventName,
-
-              block: BigInt(source.filter.fromBlock ?? 0),
-            },
-          });
+          const result = await executeSetup({ event });
 
           if (result.status !== "success") {
             return result;
@@ -317,6 +295,10 @@ export const createIndexing = ({
       context.db = db;
       for (let i = 0; i < events.length; i++) {
         const event = events[i]!;
+
+        client.event = event;
+        context.client = clientByChainId[event.chainId]!;
+
         if (cache) {
           cache.event = event;
         }
@@ -343,9 +325,6 @@ export const createIndexing = ({
       updateCompletedEvents();
 
       return { status: "success" };
-    },
-    getEventCount() {
-      return eventCount;
     },
   };
 };

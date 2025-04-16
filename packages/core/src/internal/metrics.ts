@@ -46,6 +46,13 @@ export class MetricsService {
   ponder_indexing_cache_query_duration: prometheus.Histogram<
     "table" | "method"
   >;
+  ponder_indexing_rpc_action_duration: prometheus.Histogram<"action">;
+  ponder_indexing_rpc_prefetch_total: prometheus.Counter<
+    "network" | "method" | "type"
+  >;
+  ponder_indexing_rpc_requests_total: prometheus.Counter<
+    "network" | "method" | "type"
+  >;
   ponder_indexing_store_queries_total: prometheus.Counter<"table" | "method">;
   ponder_indexing_store_raw_sql_duration: prometheus.Histogram;
 
@@ -178,6 +185,25 @@ export class MetricsService {
       help: "Duration of cache operations",
       labelNames: ["table", "method"] as const,
       buckets: databaseQueryDurationMs,
+      registers: [this.registry],
+    });
+    this.ponder_indexing_rpc_action_duration = new prometheus.Histogram({
+      name: "ponder_indexing_rpc_action_duration",
+      help: "Duration of RPC actions",
+      labelNames: ["action"] as const,
+      buckets: databaseQueryDurationMs,
+      registers: [this.registry],
+    });
+    this.ponder_indexing_rpc_prefetch_total = new prometheus.Counter({
+      name: "ponder_indexing_rpc_prefetch_total",
+      help: "Number of RPC prefetches",
+      labelNames: ["network", "method", "type"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_indexing_rpc_requests_total = new prometheus.Counter({
+      name: "ponder_indexing_rpc_requests_total",
+      help: "Number of RPC requests",
+      labelNames: ["network", "method", "type"] as const,
       registers: [this.registry],
     });
     this.ponder_indexing_cache_requests_total = new prometheus.Counter({

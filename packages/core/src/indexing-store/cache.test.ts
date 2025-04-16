@@ -33,6 +33,7 @@ test("flush() insert", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -78,6 +79,7 @@ test("flush() update", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -162,6 +164,7 @@ test("flush() encoding", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -224,6 +227,7 @@ test("flush() encoding escape", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -267,7 +271,7 @@ test("flush() encoding escape", async (context) => {
   });
 });
 
-test("prefetch() queries predicted rows", async (context) => {
+test("prefetch() uses profile metadata", async (context) => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -301,6 +305,7 @@ test("prefetch() queries predicted rows", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: { "Contract:Event": 0 },
   });
 
   indexingCache.event = event;
@@ -329,7 +334,6 @@ test("prefetch() queries predicted rows", async (context) => {
     await indexingCache.prefetch({
       events: [event],
       db: tx,
-      eventCount: { "Contract:Event": 1 },
     });
 
     const result = indexingCache.has({
@@ -357,6 +361,7 @@ test("prefetch() evicts rows", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   // skip hot loop
@@ -378,7 +383,7 @@ test("prefetch() evicts rows", async (context) => {
 
     await indexingCache.flush({ client });
     // prefetch() should evict rows from the cache to free memory
-    await indexingCache.prefetch({ events: [], db: tx, eventCount: {} });
+    await indexingCache.prefetch({ events: [], db: tx });
 
     const result = indexingCache.has({
       table: schema.account,

@@ -76,7 +76,6 @@ export type IndexingCache = {
   prefetch: (params: {
     events: Event[];
     db: Drizzle<Schema>;
-    eventCount: { [key: string]: number };
   }) => Promise<void>;
   /**
    * Remove spillover and buffer entries.
@@ -92,6 +91,9 @@ export type IndexingCache = {
   clear: () => void;
   event: Event | undefined;
 };
+
+const SAMPLING_RATE = 10;
+const PREDICTION_THRESHOLD = 0.25;
 
 /**
  * Database row.
@@ -126,16 +128,19 @@ type EventName = string;
  *
  * @example
  * {
- *   "owner": "args.from",
- *   "spender": "log.address",
+ *   "owner": ["args", "from"],
+ *   "spender": ["log", "address"],
  * }
  */
-export type ProfilePattern = { [key: string]: string };
+export type ProfilePattern = { [key: string]: string[] };
 /**
  * Serialized for uniquely identifying a {@link ProfilePattern}.
  *
  * @example
- * "args.from_spender_log.address"
+ * "{
+ *   "owner": ["args", "from"],
+ *   "spender": ["log", "address"],
+ * }"
  */
 type ProfileKey = string;
 /**
@@ -276,10 +281,12 @@ export const createIndexingCache = ({
   common,
   schemaBuild: { schema },
   crashRecoveryCheckpoint,
+  eventCount,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   crashRecoveryCheckpoint: string;
+  eventCount: { [eventName: string]: number };
 }): IndexingCache => {
   /**
    * Estimated size of the cache in bytes.
@@ -327,7 +334,7 @@ export const createIndexingCache = ({
       );
     },
     async get({ table, key, db }) {
-      if (event) {
+      if (event && eventCount[event.name]! % SAMPLING_RATE === 1) {
         if (profile.has(event.name) === false) {
           profile.set(event.name, new Map());
           for (const table of tables) {
@@ -684,7 +691,7 @@ export const createIndexingCache = ({
         }
       }
     },
-    async prefetch({ events, db, eventCount }) {
+    async prefetch({ events, db }) {
       if (isCacheComplete) {
         if (cacheBytes < common.options.indexingCacheMaxBytes) {
           return;
@@ -714,8 +721,8 @@ export const createIndexingCache = ({
               .get(event.name)!
               .get(table)!) {
               // Expected value of times the prediction will be used.
-              const ev = count / eventCount[event.name]!;
-              if (ev > 0.25) {
+              const ev = (count * SAMPLING_RATE) / eventCount[event.name]!;
+              if (ev > PREDICTION_THRESHOLD) {
                 const row = recoverProfilePattern(pattern, event);
                 const key = getCacheKey(table, row);
                 prediction.get(table)!.set(key, row);

@@ -38,6 +38,7 @@ test("find", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -96,6 +97,7 @@ test("insert", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -250,6 +252,7 @@ test("update", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -344,6 +347,7 @@ test("delete", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -402,6 +406,7 @@ test("sql", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -480,6 +485,7 @@ test("sql followed by find", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -520,6 +526,7 @@ test("onchain table", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -555,6 +562,7 @@ test("missing rows", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -592,6 +600,7 @@ test("notNull", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -641,6 +650,7 @@ test("notNull", async (context) => {
       common: context.common,
       schemaBuild: { schema },
       crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+      eventCount: {},
     });
 
     indexingStore = createHistoricalIndexingStore({
@@ -681,6 +691,7 @@ test("default", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -717,6 +728,7 @@ test("$default", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -756,6 +768,7 @@ test("$onUpdateFn", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -798,6 +811,7 @@ test("array", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -842,6 +856,7 @@ test("text array", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -891,6 +906,7 @@ test("enum", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -934,6 +950,7 @@ test("json bigint", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -968,6 +985,7 @@ test("bytes", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -1009,6 +1027,7 @@ test("text with null bytes", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -1050,6 +1069,7 @@ test.skip("time", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -1091,6 +1111,7 @@ test("timestamp", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -1132,6 +1153,7 @@ test.skip("date", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -1173,6 +1195,7 @@ test.skip("interval", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -1214,6 +1237,7 @@ test("point", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -1255,6 +1279,7 @@ test("line", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
