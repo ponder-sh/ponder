@@ -1,5 +1,11 @@
 # ponder
 
+## 0.10.16
+
+### Patch Changes
+
+- [`6b8cc2d5bdcbc0c7f2fe048cac4353eed79f180a`](https://github.com/ponder-sh/ponder/commit/6b8cc2d5bdcbc0c7f2fe048cac4353eed79f180a) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved realtime sync robustness against unrecoverable reorgs.
+
 ## 0.10.15
 
 ### Patch Changes
