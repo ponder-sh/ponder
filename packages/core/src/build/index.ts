@@ -194,6 +194,14 @@ export const createBuild = async ({
       } as const;
     },
     async executeSchema({ namespace }): Promise<SchemaResult> {
+      const schemaFile = toFilePath(
+        common.options.schemaFile,
+        common.options.rootDir,
+      ).path;
+
+      viteNodeRunner.moduleCache.invalidateDepTree([schemaFile]);
+      viteNodeRunner.moduleCache.deleteByModuleId("ponder:schema");
+
       globalThis.PONDER_NAMESPACE_BUILD = namespace;
       const executeResult = await executeFile({
         file: common.options.schemaFile,
@@ -224,6 +232,10 @@ export const createBuild = async ({
       const files = glob.sync(indexingPattern, {
         ignore: apiPattern,
       });
+
+      viteNodeRunner.moduleCache.invalidateDepTree(files);
+      viteNodeRunner.moduleCache.deleteByModuleId("ponder:registry");
+
       const executeResults = await Promise.all(
         files.map(async (file) => ({
           ...(await executeFile({ file })),
