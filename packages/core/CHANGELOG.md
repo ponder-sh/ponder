@@ -1,5 +1,17 @@
 # ponder
 
+## 0.10.15
+
+### Patch Changes
+
+- [#1628](https://github.com/ponder-sh/ponder/pull/1628) [`4bc64795ebf265cc75f7ba816fe96920fab4e7a1`](https://github.com/ponder-sh/ponder/commit/4bc64795ebf265cc75f7ba816fe96920fab4e7a1) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `ponder_indexing_rpc_action_duration`, `ponder_indexing_rpc_prefetch_total`, and `ponder_indexing_rpc_requests_total` metrics.
+
+- [#1676](https://github.com/ponder-sh/ponder/pull/1676) [`cfdf1423bc64829bfadbc6fa12e631a1047a03a7`](https://github.com/ponder-sh/ponder/commit/cfdf1423bc64829bfadbc6fa12e631a1047a03a7) Thanks [@kyscott18](https://github.com/kyscott18)! - Improve sql query validation.
+
+- [#1628](https://github.com/ponder-sh/ponder/pull/1628) [`4bc64795ebf265cc75f7ba816fe96920fab4e7a1`](https://github.com/ponder-sh/ponder/commit/4bc64795ebf265cc75f7ba816fe96920fab4e7a1) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved `context.client.readContract()` and `context.client.multicall()` performance.
+
+- [#1675](https://github.com/ponder-sh/ponder/pull/1675) [`e921162a2b16bc0415a80d381ce9df0bf13ac016`](https://github.com/ponder-sh/ponder/commit/e921162a2b16bc0415a80d381ce9df0bf13ac016) Thanks [@kyscott18](https://github.com/kyscott18)! - Improve rpc request performance by skipping retries for reverted requests.
+
 ## 0.10.14
 
 ### Patch Changes
