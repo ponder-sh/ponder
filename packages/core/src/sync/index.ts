@@ -1295,22 +1295,57 @@ export async function* getLocalSyncGenerator({
 
   const requiredIntervals = Array.from(
     historicalSync.intervalsCache.entries(),
-  ).flatMap(([filter, fragmentIntervals]) =>
-    intervalDifference(
+  ).flatMap(([filter, fragmentIntervals]) => {
+    const filterIntervals: Interval[] = [
       [
-        [
-          filter.fromBlock ?? 0,
-          Math.min(
-            filter.toBlock ?? Number.POSITIVE_INFINITY,
-            totalInterval[1],
-          ),
-        ],
+        filter.fromBlock ?? 0,
+        Math.min(filter.toBlock ?? Number.POSITIVE_INFINITY, totalInterval[1]),
       ],
+    ];
+
+    switch (filter.type) {
+      case "log":
+        if (isAddressFactory(filter.address)) {
+          filterIntervals.push([
+            filter.address.fromBlock ?? 0,
+            Math.min(
+              filter.address.toBlock ?? Number.POSITIVE_INFINITY,
+              totalInterval[1],
+            ),
+          ]);
+        }
+        break;
+      case "trace":
+      case "transaction":
+      case "transfer":
+        if (isAddressFactory(filter.fromAddress)) {
+          filterIntervals.push([
+            filter.fromAddress.fromBlock ?? 0,
+            Math.min(
+              filter.fromAddress.toBlock ?? Number.POSITIVE_INFINITY,
+              totalInterval[1],
+            ),
+          ]);
+        }
+
+        if (isAddressFactory(filter.toAddress)) {
+          filterIntervals.push([
+            filter.toAddress.fromBlock ?? 0,
+            Math.min(
+              filter.toAddress.toBlock ?? Number.POSITIVE_INFINITY,
+              totalInterval[1],
+            ),
+          ]);
+        }
+    }
+
+    return intervalDifference(
+      intervalUnion(filterIntervals),
       intervalIntersectionMany(
         fragmentIntervals.map(({ intervals }) => intervals),
       ),
-    ),
-  );
+    );
+  });
 
   const required = intervalSum(intervalUnion(requiredIntervals));
   const total = totalInterval[1] - totalInterval[0] + 1;
@@ -1448,7 +1483,31 @@ export const getLocalSyncProgress = async ({
   const filters = sources.map(({ filter }) => filter);
 
   // Earliest `fromBlock` among all `filters`
-  const start = Math.min(...filters.map((filter) => filter.fromBlock ?? 0));
+  const start = Math.min(
+    ...filters.flatMap((filter) => {
+      const fromBlocks: number[] = [filter.fromBlock ?? 0];
+      switch (filter.type) {
+        case "log":
+          if (isAddressFactory(filter.address)) {
+            fromBlocks.push(filter.address.fromBlock ?? 0);
+          }
+          break;
+        case "transaction":
+        case "trace":
+        case "transfer":
+          if (isAddressFactory(filter.fromAddress)) {
+            fromBlocks.push(filter.fromAddress.fromBlock ?? 0);
+          }
+
+          if (isAddressFactory(filter.toAddress)) {
+            fromBlocks.push(filter.toAddress.fromBlock ?? 0);
+          }
+      }
+
+      return fromBlocks;
+    }),
+  );
+
   const cached = getCachedBlock({ filters, intervalsCache });
 
   const diagnostics = await Promise.all(
