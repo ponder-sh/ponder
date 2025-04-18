@@ -18,16 +18,20 @@ export default schema;
 
 const apiModule = () => `import { createPublicClient } from "viem";
 
+if (globalThis.PONDER_INDEXING_BUILD === undefined || globalThis.PONDER_DATABASE === undefined) {
+  throw new Error('Invalid dependency graph. Please ensure that nothing is imported from "src/api/index.ts"')
+}
+
 const publicClients = {};
 
-for (const network of globalThis.PONDER_INDEXING_BUILD.networks ?? []) {
+for (const network of globalThis.PONDER_INDEXING_BUILD.networks) {
   publicClients[network.chainId] = createPublicClient({
     chain: network.chain,
     transport: () => network.transport
   })
 }
 
-export const db = globalThis.PONDER_DATABASE?.qb.drizzleReadonly;
+export const db = globalThis.PONDER_DATABASE.qb.drizzleReadonly;
 export { publicClients };
 `;
 

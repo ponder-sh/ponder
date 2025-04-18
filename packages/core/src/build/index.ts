@@ -51,9 +51,7 @@ type ApiResult = Result<{ app: Hono }>;
 
 export type Build = {
   executeConfig: () => Promise<ConfigResult>;
-  executeSchema: (params: {
-    namespace: NamespaceBuild;
-  }) => Promise<SchemaResult>;
+  executeSchema: () => Promise<SchemaResult>;
   executeIndexingFunctions: () => Promise<IndexingResult>;
   executeApi: (params: {
     indexingBuild: IndexingBuild;
@@ -193,16 +191,7 @@ export const createBuild = async ({
         result: { config, contentHash },
       } as const;
     },
-    async executeSchema({ namespace }): Promise<SchemaResult> {
-      const schemaFile = toFilePath(
-        common.options.schemaFile,
-        common.options.rootDir,
-      ).path;
-
-      viteNodeRunner.moduleCache.invalidateDepTree([schemaFile]);
-      viteNodeRunner.moduleCache.deleteByModuleId("ponder:schema");
-
-      globalThis.PONDER_NAMESPACE_BUILD = namespace;
+    async executeSchema(): Promise<SchemaResult> {
       const executeResult = await executeFile({
         file: common.options.schemaFile,
       });
@@ -232,9 +221,6 @@ export const createBuild = async ({
       const files = glob.sync(indexingPattern, {
         ignore: apiPattern,
       });
-
-      viteNodeRunner.moduleCache.invalidateDepTree(files);
-      viteNodeRunner.moduleCache.deleteByModuleId("ponder:registry");
 
       const executeResults = await Promise.all(
         files.map(async (file) => ({
@@ -303,9 +289,6 @@ export const createBuild = async ({
         return { status: "error", error };
       }
 
-      viteNodeRunner.moduleCache.invalidateDepTree(glob.sync(apiPattern));
-      viteNodeRunner.moduleCache.deleteByModuleId("ponder:api");
-
       const executeResult = await executeFile({
         file: common.options.apiFile,
       });
@@ -360,9 +343,14 @@ export const createBuild = async ({
         });
         return { status: "error", error } as const;
       }
+
+      const namespace = cliOptions.schema ?? process.env.DATABASE_SCHEMA!;
+
+      globalThis.PONDER_NAMESPACE_BUILD = namespace;
+
       return {
         status: "success",
-        result: cliOptions.schema ?? process.env.DATABASE_SCHEMA!,
+        result: namespace,
       } as const;
     },
     preCompile({ config }): Result<PreBuild> {
