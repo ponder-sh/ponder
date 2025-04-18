@@ -115,7 +115,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           return;
         }
 
-        const schemaResult = await build.executeSchema({ namespace });
+        const schemaResult = await build.executeSchema();
         if (schemaResult.status === "error") {
           buildQueue.add({
             status: "error",
@@ -291,6 +291,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   const namespace =
     cliOptions.schema ?? process.env.DATABASE_SCHEMA ?? "public";
+
+  globalThis.PONDER_NAMESPACE_BUILD = namespace;
 
   build.startDev({
     onReload: (kind) => {
