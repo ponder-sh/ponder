@@ -116,9 +116,7 @@ test("recordProfilePattern() with undefined trace event args", () => {
       id: ZERO_CHECKPOINT_STRING,
       args: undefined,
       result: undefined,
-      trace: {
-        address: ALICE,
-      } as unknown as TraceEvent["event"]["trace"],
+      trace: {} as TraceEvent["event"]["trace"],
       transaction: {} as TraceEvent["event"]["transaction"],
       block: { number: 5n } as BlockEvent["event"]["block"],
     },

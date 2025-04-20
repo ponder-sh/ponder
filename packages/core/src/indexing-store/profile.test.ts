@@ -88,7 +88,7 @@ test("recordProfilePattern() with undefined trace event args", () => {
       args: undefined,
       result: undefined,
       trace: {} as TraceEvent["event"]["trace"],
-      transaction: {} as LogEvent["event"]["transaction"],
+      transaction: {} as TraceEvent["event"]["transaction"],
       block: {} as BlockEvent["event"]["block"],
     },
   } satisfies TraceEvent;
