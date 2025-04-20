@@ -132,18 +132,20 @@ export const recordProfilePattern = (
       }
 
       case "log": {
-        let hasMatch = false;
-        for (const argKey of Object.keys(event.event.args)) {
-          const argValue = event.event.args[argKey];
+        if (event.event.args !== undefined) {
+          let hasMatch = false;
+          for (const argKey of Object.keys(event.event.args)) {
+            const argValue = event.event.args[argKey];
 
-          if (typeof argValue !== "object" && eq(argValue, value)) {
-            result[js] = ["args", argKey];
-            hasMatch = true;
-            break;
+            if (typeof argValue !== "object" && eq(argValue, value)) {
+              result[js] = ["args", argKey];
+              hasMatch = true;
+              break;
+            }
           }
-        }
 
-        if (hasMatch) continue;
+          if (hasMatch) continue;
+        }
 
         if (eq(event.event.log.address, value)) {
           result[js] = ["log", "address"];
@@ -211,13 +213,28 @@ export const recordProfilePattern = (
 
       case "trace": {
         let hasMatch = false;
-        for (const argKey of Object.keys(event.event.args)) {
-          const argValue = event.event.args[argKey];
 
-          if (typeof argValue !== "object" && eq(argValue, value)) {
-            result[js] = ["args", argKey];
-            hasMatch = true;
-            break;
+        if (event.event.args !== undefined) {
+          for (const argKey of Object.keys(event.event.args)) {
+            const argValue = event.event.args[argKey];
+
+            if (typeof argValue !== "object" && eq(argValue, value)) {
+              result[js] = ["args", argKey];
+              hasMatch = true;
+              break;
+            }
+          }
+        }
+
+        if (event.event.result !== undefined) {
+          for (const argKey of Object.keys(event.event.result)) {
+            const argValue = event.event.result[argKey];
+
+            if (typeof argValue !== "object" && eq(argValue, value)) {
+              result[js] = ["result", argKey];
+              hasMatch = true;
+              break;
+            }
           }
         }
 

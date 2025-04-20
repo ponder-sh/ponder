@@ -103,13 +103,15 @@ export const recordProfilePattern = ({
 
     case "log": {
       let hasMatch = false;
-      for (const argKey of Object.keys(event.event.args)) {
-        const argValue = event.event.args[argKey];
+      if (event.event.args !== undefined) {
+        for (const argKey of Object.keys(event.event.args)) {
+          const argValue = event.event.args[argKey];
 
-        if (typeof argValue !== "object" && eq(argValue, args.address)) {
-          resultAddress = { type: "derived", value: ["args", argKey] };
-          hasMatch = true;
-          break;
+          if (typeof argValue !== "object" && eq(argValue, args.address)) {
+            resultAddress = { type: "derived", value: ["args", argKey] };
+            hasMatch = true;
+            break;
+          }
         }
       }
 
@@ -154,13 +156,28 @@ export const recordProfilePattern = ({
 
     case "trace": {
       let hasMatch = false;
-      for (const argKey of Object.keys(event.event.args)) {
-        const argValue = event.event.args[argKey];
 
-        if (typeof argValue !== "object" && eq(argValue, args.address)) {
-          resultAddress = { type: "derived", value: ["args", argKey] };
-          hasMatch = true;
-          break;
+      if (event.event.args !== undefined) {
+        for (const argKey of Object.keys(event.event.args)) {
+          const argValue = event.event.args[argKey];
+
+          if (typeof argValue !== "object" && eq(argValue, args.address)) {
+            resultAddress = { type: "derived", value: ["args", argKey] };
+            hasMatch = true;
+            break;
+          }
+        }
+      }
+
+      if (event.event.result !== undefined) {
+        for (const argKey of Object.keys(event.event.result)) {
+          const argValue = event.event.result[argKey];
+
+          if (typeof argValue !== "object" && eq(argValue, args.address)) {
+            resultAddress = { type: "derived", value: ["result", argKey] };
+            hasMatch = true;
+            break;
+          }
         }
       }
 
@@ -373,13 +390,15 @@ export const recordProfilePattern = ({
 
       case "log": {
         let hasMatch = false;
-        for (const argKey of Object.keys(event.event.args)) {
-          const argValue = event.event.args[argKey];
+        if (event.event.args !== undefined) {
+          for (const argKey of Object.keys(event.event.args)) {
+            const argValue = event.event.args[argKey];
 
-          if (typeof argValue !== "object" && eq(argValue, arg)) {
-            resultArgs.push({ type: "derived", value: ["args", argKey] });
-            hasMatch = true;
-            break;
+            if (typeof argValue !== "object" && eq(argValue, arg)) {
+              resultArgs.push({ type: "derived", value: ["args", argKey] });
+              hasMatch = true;
+              break;
+            }
           }
         }
 
@@ -454,13 +473,28 @@ export const recordProfilePattern = ({
 
       case "trace": {
         let hasMatch = false;
-        for (const argKey of Object.keys(event.event.args)) {
-          const argValue = event.event.args[argKey];
 
-          if (typeof argValue !== "object" && eq(argValue, arg)) {
-            resultArgs.push({ type: "derived", value: ["args", argKey] });
-            hasMatch = true;
-            break;
+        if (event.event.args !== undefined) {
+          for (const argKey of Object.keys(event.event.args)) {
+            const argValue = event.event.args[argKey];
+
+            if (typeof argValue !== "object" && eq(argValue, arg)) {
+              resultArgs.push({ type: "derived", value: ["args", argKey] });
+              hasMatch = true;
+              break;
+            }
+          }
+        }
+
+        if (event.event.result !== undefined) {
+          for (const argKey of Object.keys(event.event.result)) {
+            const argValue = event.event.result[argKey];
+
+            if (typeof argValue !== "object" && eq(argValue, arg)) {
+              resultArgs.push({ type: "derived", value: ["result", argKey] });
+              hasMatch = true;
+              break;
+            }
           }
         }
 
