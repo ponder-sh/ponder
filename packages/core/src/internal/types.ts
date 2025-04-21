@@ -441,7 +441,7 @@ export type LogEvent = {
 
   event: {
     id: string;
-    args: any;
+    args: { [key: string]: unknown } | readonly unknown[] | undefined;
     log: Log;
     block: Block;
     transaction: Transaction;
@@ -507,8 +507,8 @@ export type TraceEvent = {
 
   event: {
     id: string;
-    args: any;
-    result: any;
+    args: { [key: string]: unknown } | readonly unknown[] | undefined;
+    result: { [key: string]: unknown } | readonly unknown[] | undefined;
     trace: Trace;
     block: Block;
     transaction: Transaction;

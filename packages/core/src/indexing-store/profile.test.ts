@@ -1,5 +1,5 @@
 import { onchainTable } from "@/drizzle/onchain.js";
-import type { BlockEvent, LogEvent } from "@/internal/types.js";
+import type { BlockEvent, LogEvent, TraceEvent } from "@/internal/types.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import type { Column, Table } from "drizzle-orm";
 import { zeroAddress } from "viem";
@@ -17,6 +17,156 @@ test("recordProfilePattern() no pattern", () => {
       block: {} as BlockEvent["event"]["block"],
     },
   } satisfies BlockEvent;
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const primaryKeyCache = new Map<Table, [string, Column][]>();
+
+  primaryKeyCache.set(schema.account, [["address", schema.account.address]]);
+
+  const pattern = recordProfilePattern(
+    event,
+    schema.account,
+    { address: zeroAddress },
+    [],
+    primaryKeyCache,
+  );
+
+  expect(pattern).toBeUndefined();
+});
+
+test("recordProfilePattern() with undefined log event args", () => {
+  const event = {
+    type: "log",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: undefined,
+      log: {} as LogEvent["event"]["log"],
+      transaction: {} as LogEvent["event"]["transaction"],
+      block: {} as BlockEvent["event"]["block"],
+    },
+  } satisfies LogEvent;
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const primaryKeyCache = new Map<Table, [string, Column][]>();
+
+  primaryKeyCache.set(schema.account, [["address", schema.account.address]]);
+
+  const pattern = recordProfilePattern(
+    event,
+    schema.account,
+    { address: zeroAddress },
+    [],
+    primaryKeyCache,
+  );
+
+  expect(pattern).toBeUndefined();
+});
+
+test("recordProfilePattern() with undefined trace event args", () => {
+  const event = {
+    type: "trace",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: undefined,
+      result: undefined,
+      trace: {} as TraceEvent["event"]["trace"],
+      transaction: {} as TraceEvent["event"]["transaction"],
+      block: {} as BlockEvent["event"]["block"],
+    },
+  } satisfies TraceEvent;
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const primaryKeyCache = new Map<Table, [string, Column][]>();
+
+  primaryKeyCache.set(schema.account, [["address", schema.account.address]]);
+
+  const pattern = recordProfilePattern(
+    event,
+    schema.account,
+    { address: zeroAddress },
+    [],
+    primaryKeyCache,
+  );
+
+  expect(pattern).toBeUndefined();
+});
+
+test("recordProfilePattern() with array log event args", () => {
+  const event = {
+    type: "log",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: [],
+      log: {} as LogEvent["event"]["log"],
+      transaction: {} as LogEvent["event"]["transaction"],
+      block: {} as BlockEvent["event"]["block"],
+    },
+  } satisfies LogEvent;
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const primaryKeyCache = new Map<Table, [string, Column][]>();
+
+  primaryKeyCache.set(schema.account, [["address", schema.account.address]]);
+
+  const pattern = recordProfilePattern(
+    event,
+    schema.account,
+    { address: zeroAddress },
+    [],
+    primaryKeyCache,
+  );
+
+  expect(pattern).toBeUndefined();
+});
+
+test("recordProfilePattern() with array trace event args", () => {
+  const event = {
+    type: "trace",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: [],
+      result: [],
+      trace: {} as TraceEvent["event"]["trace"],
+      transaction: {} as TraceEvent["event"]["transaction"],
+      block: {} as BlockEvent["event"]["block"],
+    },
+  } satisfies TraceEvent;
 
   const schema = {
     account: onchainTable("account", (p) => ({

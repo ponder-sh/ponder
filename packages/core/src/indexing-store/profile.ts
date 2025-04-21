@@ -132,18 +132,26 @@ export const recordProfilePattern = (
       }
 
       case "log": {
-        let hasMatch = false;
-        for (const argKey of Object.keys(event.event.args)) {
-          const argValue = event.event.args[argKey];
+        // Note: explicitly skip profiling args if they are an array
+        if (
+          event.event.args !== undefined &&
+          Array.isArray(event.event.args) === false
+        ) {
+          let hasMatch = false;
+          for (const argKey of Object.keys(event.event.args)) {
+            const argValue = (event.event.args as { [key: string]: unknown })[
+              argKey
+            ] as string | bigint | number | boolean;
 
-          if (typeof argValue !== "object" && eq(argValue, value)) {
-            result[js] = ["args", argKey];
-            hasMatch = true;
-            break;
+            if (typeof argValue !== "object" && eq(argValue, value)) {
+              result[js] = ["args", argKey];
+              hasMatch = true;
+              break;
+            }
           }
-        }
 
-        if (hasMatch) continue;
+          if (hasMatch) continue;
+        }
 
         if (eq(event.event.log.address, value)) {
           result[js] = ["log", "address"];
@@ -211,13 +219,40 @@ export const recordProfilePattern = (
 
       case "trace": {
         let hasMatch = false;
-        for (const argKey of Object.keys(event.event.args)) {
-          const argValue = event.event.args[argKey];
 
-          if (typeof argValue !== "object" && eq(argValue, value)) {
-            result[js] = ["args", argKey];
-            hasMatch = true;
-            break;
+        // Note: explicitly skip profiling args if they are an array
+        if (
+          event.event.args !== undefined &&
+          Array.isArray(event.event.args) === false
+        ) {
+          for (const argKey of Object.keys(event.event.args)) {
+            const argValue = (event.event.args as { [key: string]: unknown })[
+              argKey
+            ] as string | bigint | number | boolean;
+
+            if (typeof argValue !== "object" && eq(argValue, value)) {
+              result[js] = ["args", argKey];
+              hasMatch = true;
+              break;
+            }
+          }
+        }
+
+        // Note: explicitly skip profiling result if it is an array
+        if (
+          event.event.result !== undefined &&
+          Array.isArray(event.event.result) === false
+        ) {
+          for (const argKey of Object.keys(event.event.result)) {
+            const argValue = (event.event.result as { [key: string]: unknown })[
+              argKey
+            ] as string | bigint | number | boolean;
+
+            if (typeof argValue !== "object" && eq(argValue, value)) {
+              result[js] = ["result", argKey];
+              hasMatch = true;
+              break;
+            }
           }
         }
 

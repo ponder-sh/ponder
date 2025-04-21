@@ -341,7 +341,7 @@ export const toErrorMeta = (
 
     case "log": {
       return [
-        `Event arguments:\n${prettyPrint(event?.event?.args)}`,
+        `Event arguments:\n${prettyPrint(Array.isArray(event.event?.args) ? undefined : event.event?.args)}`,
         logText(event?.event?.log),
         transactionText(event?.event?.transaction),
         blockText(event?.event?.block),
@@ -350,7 +350,7 @@ export const toErrorMeta = (
 
     case "trace": {
       return [
-        `Call trace arguments:\n${prettyPrint(event?.event?.args)}`,
+        `Call trace arguments:\n${prettyPrint(Array.isArray(event.event?.args) ? undefined : event.event?.args)}`,
         traceText(event?.event?.trace),
         transactionText(event?.event?.transaction),
         blockText(event?.event?.block),
