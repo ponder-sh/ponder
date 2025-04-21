@@ -1,5 +1,13 @@
 # ponder
 
+## 0.10.18
+
+### Patch Changes
+
+- [#1685](https://github.com/ponder-sh/ponder/pull/1685) [`cb23aab8ff5337c98bdaeaad954319012c1a72fd`](https://github.com/ponder-sh/ponder/commit/cb23aab8ff5337c98bdaeaad954319012c1a72fd) Thanks [@typedarray](https://github.com/typedarray)! - Fixed `Cannot convert undefined to a BigInt` error by allowing `block.size` to be `undefined`. Fixes indexing on some chains including Somnia network.
+
+- [#1688](https://github.com/ponder-sh/ponder/pull/1688) [`26c818c337f6300eb5a186c827d37766d6e5c766`](https://github.com/ponder-sh/ponder/commit/26c818c337f6300eb5a186c827d37766d6e5c766) Thanks [@typedarray](https://github.com/typedarray)! - Increased statement timeout for `CREATE INDEX` statements from 2 minutes to 60 minutes.
+
 ## 0.10.17
 
 ### Patch Changes
