@@ -115,6 +115,81 @@ test("recordProfilePattern() with undefined trace event args", () => {
   expect(pattern).toBeUndefined();
 });
 
+test("recordProfilePattern() with array log event args", () => {
+  const event = {
+    type: "log",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: [],
+      log: {} as LogEvent["event"]["log"],
+      transaction: {} as LogEvent["event"]["transaction"],
+      block: {} as BlockEvent["event"]["block"],
+    },
+  } satisfies LogEvent;
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const primaryKeyCache = new Map<Table, [string, Column][]>();
+
+  primaryKeyCache.set(schema.account, [["address", schema.account.address]]);
+
+  const pattern = recordProfilePattern(
+    event,
+    schema.account,
+    { address: zeroAddress },
+    [],
+    primaryKeyCache,
+  );
+
+  expect(pattern).toBeUndefined();
+});
+
+test("recordProfilePattern() with array trace event args", () => {
+  const event = {
+    type: "trace",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: [],
+      result: [],
+      trace: {} as TraceEvent["event"]["trace"],
+      transaction: {} as TraceEvent["event"]["transaction"],
+      block: {} as BlockEvent["event"]["block"],
+    },
+  } satisfies TraceEvent;
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const primaryKeyCache = new Map<Table, [string, Column][]>();
+
+  primaryKeyCache.set(schema.account, [["address", schema.account.address]]);
+
+  const pattern = recordProfilePattern(
+    event,
+    schema.account,
+    { address: zeroAddress },
+    [],
+    primaryKeyCache,
+  );
+
+  expect(pattern).toBeUndefined();
+});
+
 test("recordProfilePattern() chainId", () => {
   const event = {
     type: "block",
