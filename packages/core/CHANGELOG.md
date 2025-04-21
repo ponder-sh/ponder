@@ -1,5 +1,13 @@
 # ponder
 
+## 0.10.17
+
+### Patch Changes
+
+- [#1680](https://github.com/ponder-sh/ponder/pull/1680) [`c1b6a4de54d33cb229f2248b7b41e37cbf57d449`](https://github.com/ponder-sh/ponder/commit/c1b6a4de54d33cb229f2248b7b41e37cbf57d449) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved import rules between config, schema, indexing functions, and api function files.
+
+- [#1684](https://github.com/ponder-sh/ponder/pull/1684) [`92e1358cbf8817aea425a8c5e683ddfb1a9bc02d`](https://github.com/ponder-sh/ponder/commit/92e1358cbf8817aea425a8c5e683ddfb1a9bc02d) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug affecting logs and traces with no args that would cause the error `TypeError: Cannot convert undefined or null to object`.
+
 ## 0.10.16
 
 ### Patch Changes
