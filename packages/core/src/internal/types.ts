@@ -8,7 +8,7 @@ import type {
   TransactionReceipt,
   Transfer,
 } from "@/types/eth.js";
-import type { Prettify } from "@/types/utils.js";
+import type { MakeOptional, Prettify } from "@/types/utils.js";
 import type { Trace as DebugTrace } from "@/utils/debug.js";
 import type { PGliteOptions } from "@/utils/pglite.js";
 import type { PGlite } from "@electric-sql/pglite";
@@ -369,7 +369,9 @@ export type Seconds = {
 
 // Blockchain data
 
-export type SyncBlock = RpcBlock<Exclude<BlockTag, "pending">, true>;
+export type SyncBlock = Prettify<
+  MakeOptional<RpcBlock<Exclude<BlockTag, "pending">, true>, "size">
+>;
 export type SyncLog = ViemLog<Hex, Hex, false>;
 export type SyncTransaction = RpcTransaction<false>;
 export type SyncTransactionReceipt = RpcTransactionReceipt;
