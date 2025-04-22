@@ -93,6 +93,7 @@ export type Database = {
     checkpoints,
   }: {
     checkpoints: {
+      chainName: string;
       chainId: number;
       safeCheckpoint: string;
       latestCheckpoint: string;
@@ -101,6 +102,7 @@ export type Database = {
   }) => Promise<void>;
   getCheckpoints: () => Promise<
     {
+      chainName: string;
       chainId: number;
       safeCheckpoint: string;
       latestCheckpoint: string;
@@ -166,14 +168,16 @@ export const getPonderMeta = (namespace: NamespaceBuild) => {
 export const getPonderCheckpoint = (namespace: NamespaceBuild) => {
   if (namespace === "public") {
     return pgTable("_ponder_checkpoint", (t) => ({
-      chainId: t.bigint({ mode: "number" }).primaryKey(),
+      chainName: t.text().primaryKey(),
+      chainId: t.bigint({ mode: "number" }).notNull(),
       safeCheckpoint: t.varchar({ length: 75 }).notNull(),
       latestCheckpoint: t.varchar({ length: 75 }).notNull(),
     }));
   }
 
   return pgSchema(namespace).table("_ponder_checkpoint", (t) => ({
-    chainId: t.bigint({ mode: "number" }).primaryKey(),
+    chainName: t.text().primaryKey(),
+    chainId: t.bigint({ mode: "number" }).notNull(),
     safeCheckpoint: t.varchar({ length: 75 }).notNull(),
     latestCheckpoint: t.varchar({ length: 75 }).notNull(),
   }));
@@ -1049,7 +1053,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
           .insert(PONDER_CHECKPOINT)
           .values(checkpoints)
           .onConflictDoUpdate({
-            target: PONDER_CHECKPOINT.chainId,
+            target: PONDER_CHECKPOINT.chainName,
             set: {
               safeCheckpoint: sql`excluded.safe_checkpoint`,
               latestCheckpoint: sql`excluded.latest_checkpoint`,
