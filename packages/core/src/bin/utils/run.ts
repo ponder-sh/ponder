@@ -165,6 +165,7 @@ export async function run({
 
   await database.setCheckpoints({
     checkpoints: indexingBuild.networks.map((network) => ({
+      chainName: network.name,
       chainId: network.chainId,
       latestCheckpoint: sync.getStartCheckpoint(network),
       safeCheckpoint: sync.getStartCheckpoint(network),
@@ -323,6 +324,9 @@ export async function run({
             await database.setCheckpoints({
               checkpoints: events.checkpoints.map(
                 ({ chainId, checkpoint }) => ({
+                  chainName: indexingBuild.networks.find(
+                    (network) => network.chainId === chainId,
+                  )!.name,
                   chainId,
                   latestCheckpoint: checkpoint,
                   safeCheckpoint: checkpoint,
@@ -385,6 +389,7 @@ export async function run({
 
   await database.setCheckpoints({
     checkpoints: indexingBuild.networks.map((network) => ({
+      chainName: network.name,
       chainId: network.chainId,
       latestCheckpoint: sync.getFinalizedCheckpoint(network),
       safeCheckpoint: sync.getFinalizedCheckpoint(network),
@@ -456,13 +461,16 @@ export async function run({
           .insert(database.PONDER_CHECKPOINT)
           .values(
             event.checkpoints.map(({ chainId, checkpoint }) => ({
+              chainName: indexingBuild.networks.find(
+                (network) => network.chainId === chainId,
+              )!.name,
               chainId,
               safeCheckpoint: checkpoint,
               latestCheckpoint: checkpoint,
             })),
           )
           .onConflictDoUpdate({
-            target: database.PONDER_CHECKPOINT.chainId,
+            target: database.PONDER_CHECKPOINT.chainName,
             set: {
               latestCheckpoint: sql`excluded.latest_checkpoint`,
             },
