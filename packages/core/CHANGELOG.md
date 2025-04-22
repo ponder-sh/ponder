@@ -1,5 +1,11 @@
 # ponder
 
+## 0.10.19
+
+### Patch Changes
+
+- [#1690](https://github.com/ponder-sh/ponder/pull/1690) [`943af33ee2d37bf32bfddca74d63229d0e5515fa`](https://github.com/ponder-sh/ponder/commit/943af33ee2d37bf32bfddca74d63229d0e5515fa) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Fixed "Invalid Query" error when using @ponder/client with the relational query builder.
+
 ## 0.10.18
 
 ### Patch Changes
