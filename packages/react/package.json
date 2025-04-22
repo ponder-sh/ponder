@@ -34,7 +34,7 @@
     }
   },
   "dependencies": {
-    "superjson": "^2.2.2"
+    "superjson": "2.2.2"
   },
   "peerDependencies": {
     "@ponder/client": ">=0.10.18",
@@ -49,14 +49,14 @@
   },
   "devDependencies": {
     "@ponder/client": "workspace:*",
-    "@tanstack/react-query": "^5.12.2",
-    "@types/node": "^22.10.6",
-    "@types/react": "^18.2.0",
-    "chokidar": "^4.0.3",
-    "execa": "^8.0.1",
-    "picocolors": "^1.0.0",
-    "react": "^18.2.0",
-    "rimraf": "^5.0.5",
-    "tsx": "^4.19.2"
+    "@tanstack/react-query": "5.12.2",
+    "@types/node": "22.10.6",
+    "@types/react": "18.2.0",
+    "chokidar": "4.0.3",
+    "execa": "8.0.1",
+    "picocolors": "1.0.0",
+    "react": "18.2.0",
+    "rimraf": "5.0.5",
+    "tsx": "4.19.2"
   }
 }

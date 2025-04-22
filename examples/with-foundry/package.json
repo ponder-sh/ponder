@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "devDependencies": {
-    "@wagmi/cli": "^1.5.2"
+    "@wagmi/cli": "1.5.2"
   },
   "engines": {
     "node": ">=18.14"
