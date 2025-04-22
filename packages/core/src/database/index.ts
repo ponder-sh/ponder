@@ -686,6 +686,7 @@ export const createDatabase = async ({
 
             await qb.sync.transaction(
               async (tx) => {
+                await tx.execute(sql.raw("SET statement_timeout = 3600000"));
                 for (const statement of statements) {
                   await tx.execute(sql.raw(statement));
                 }
