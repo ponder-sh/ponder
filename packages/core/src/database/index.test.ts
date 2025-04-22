@@ -364,7 +364,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
     db: database.qb.drizzle,
   });
@@ -373,7 +373,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     db: database.qb.drizzle,
   });
@@ -545,7 +545,7 @@ test("finalize()", async (context) => {
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
     db: database.qb.drizzle,
   });
@@ -558,7 +558,7 @@ test("finalize()", async (context) => {
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     db: database.qb.drizzle,
   });
@@ -684,7 +684,7 @@ test("createTriggers() duplicate", async (context) => {
   await context.common.shutdown.kill();
 });
 
-test("complete()", async (context) => {
+test("commitBlock()", async (context) => {
   const database = await createDatabase({
     common: context.common,
     namespace: "public",
@@ -710,7 +710,7 @@ test("complete()", async (context) => {
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     db: database.qb.drizzle,
   });
@@ -761,7 +761,7 @@ test("revert()", async (context) => {
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
     db: database.qb.drizzle,
   });
@@ -774,14 +774,14 @@ test("revert()", async (context) => {
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     db: database.qb.drizzle,
   });
 
   await indexingStore.delete(account, { address: zeroAddress });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     db: database.qb.drizzle,
   });
@@ -840,14 +840,14 @@ test("revert() with composite primary key", async (context) => {
 
   await indexingStore.insert(test).values({ a: 1, b: 1 });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     db: database.qb.drizzle,
   });
 
   await indexingStore.update(test, { a: 1, b: 1 }).set({ c: 1 });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 12n }),
     db: database.qb.drizzle,
   });
