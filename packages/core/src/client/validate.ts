@@ -543,7 +543,6 @@ const ALLOWED_FUNCTIONS = new Set([
   "json_array",
   "json_object_agg",
   "json_array_agg",
-  "json_build_array",
 ]);
 
 const FUNC_CALL_VALIDATOR: ValidatorNode<"FuncCall"> = {
