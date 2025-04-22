@@ -304,7 +304,7 @@ export const createHistoricalSync = async (
    *
    * @param number Block to be extracted
    *
-   * Note: This function could more accurately skip network requests by taking
+   * Note: This function could more accurately skip chain requests by taking
    * advantage of `syncStore.hasBlock` and `syncStore.hasTransaction`.
    */
   const syncBlock = async (number: number): Promise<SyncBlock> => {
@@ -523,7 +523,7 @@ export const createHistoricalSync = async (
         if (log.transactionHash === zeroHash) {
           args.common.logger.warn({
             service: "sync",
-            msg: `Detected log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
+            msg: `Detected log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some chains like ZKsync.`,
           });
         } else {
           throw new Error(
@@ -548,7 +548,7 @@ export const createHistoricalSync = async (
               if (log.transactionHash === zeroHash) {
                 args.common.logger.warn({
                   service: "sync",
-                  msg: `Detected log with empty transaction hash in block ${log.blockHash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
+                  msg: `Detected log with empty transaction hash in block ${log.blockHash} at log index ${hexToNumber(log.logIndex)}. This is expected for some chains like ZKsync.`,
                 });
               } else {
                 blockTransactionHashes.add(log.transactionHash);

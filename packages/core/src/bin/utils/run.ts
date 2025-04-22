@@ -255,7 +255,7 @@ export async function run({
                   Number(checkpoint.blockTimestamp),
                 );
               } else {
-                // TODO(kyle) does this handle networks with end blocks?
+                // TODO(kyle) does this handle chains with end blocks?
                 for (const chain of indexingBuild.chains) {
                   common.metrics.ponder_historical_completed_indexing_seconds.set(
                     { chain: chain.chain.name },

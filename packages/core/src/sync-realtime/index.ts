@@ -289,7 +289,7 @@ export const createRealtimeSync = (
           if (log.transactionHash === zeroHash) {
             args.common.logger.warn({
               service: "sync",
-              msg: `Detected '${args.chain.chain.name}' log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
+              msg: `Detected '${args.chain.chain.name}' log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some chains like ZKsync.`,
             });
           } else {
             throw new Error(
@@ -373,7 +373,7 @@ export const createRealtimeSync = (
           if (log.transactionHash === zeroHash) {
             args.common.logger.warn({
               service: "sync",
-              msg: `Detected '${args.chain.chain.name}' log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
+              msg: `Detected '${args.chain.chain.name}' log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some chains like ZKsync.`,
             });
           } else {
             requiredTransactions.add(log.transactionHash);

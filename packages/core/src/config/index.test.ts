@@ -169,7 +169,7 @@ test("createConfig with multiple filters", () => {
   });
 });
 
-test("createConfig network overrides", () => {
+test("createConfig chain overrides", () => {
   createConfig({
     chains: {
       mainnet: {
