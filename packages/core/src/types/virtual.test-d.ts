@@ -214,7 +214,7 @@ test("Context db", () => {
   assertType<Db<typeof schema>>({} as any as a);
 });
 
-test("Context single network", () => {
+test("Context single chain", () => {
   type a = Virtual.Context<typeof config, typeof schema, "c1:Event0">["chain"];
   //   ^?
 
@@ -224,7 +224,7 @@ test("Context single network", () => {
   assertType<expectedChain>({} as any as a);
 });
 
-test("Context multi network", () => {
+test("Context multi chain", () => {
   type a = Virtual.Context<
     typeof config,
     typeof schema,
@@ -240,7 +240,7 @@ test("Context multi network", () => {
   assertType<expectedChain>({} as any as a);
 });
 
-test("Context block network", () => {
+test("Context block chain", () => {
   type a = Virtual.Context<typeof config, typeof schema, "b1:block">["chain"];
   //   ^?
 
@@ -296,7 +296,7 @@ test("Context contracts", () => {
   assertType<expectedAddress>({} as any as a["address"]);
 });
 
-test("Context network without event", () => {
+test("Context chain without event", () => {
   type a = Virtual.Context<
     // ^?
     typeof config,

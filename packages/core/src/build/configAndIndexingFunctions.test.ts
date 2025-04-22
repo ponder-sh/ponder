@@ -128,7 +128,7 @@ test("buildConfigAndIndexingFunctions() handles multiple addresses", async () =>
   ]);
 });
 
-test("buildConfigAndIndexingFunctions() creates a source for each network for multi-network contracts", async () => {
+test("buildConfigAndIndexingFunctions() creates a source for each chain for multi-chain contracts", async () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -234,7 +234,7 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple event filters
   expect((sources[1]!.filter as LogFilter).topic1).toMatchObject(bytes1);
 });
 
-test("buildConfigAndIndexingFunctions() overrides default values with network-specific values", async () => {
+test("buildConfigAndIndexingFunctions() overrides default values with chain-specific values", async () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -262,7 +262,7 @@ test("buildConfigAndIndexingFunctions() overrides default values with network-sp
   expect((sources[0]!.filter as LogFilter).address).toBe(address2);
 });
 
-test("buildConfigAndIndexingFunctions() handles network name shortcut", async () => {
+test("buildConfigAndIndexingFunctions() handles chain name shortcut", async () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -286,7 +286,7 @@ test("buildConfigAndIndexingFunctions() handles network name shortcut", async ()
   expect(sources[0]!.chain.chain.name).toBe("mainnet");
 });
 
-test("buildConfigAndIndexingFunctions() validates network name", async () => {
+test("buildConfigAndIndexingFunctions() validates chain name", async () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -308,7 +308,7 @@ test("buildConfigAndIndexingFunctions() validates network name", async () => {
 
   expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
-    "Validation failed: Invalid network for 'a'. Got 'mainnetz', expected one of ['mainnet'].",
+    "Validation failed: Invalid chain for 'a'. Got 'mainnetz', expected one of ['mainnet'].",
   );
 });
 
@@ -335,7 +335,7 @@ test("buildConfigAndIndexingFunctions() warns for public RPC URL", async () => {
   expect(result.logs!.filter((l) => l.level === "warn")).toMatchObject([
     {
       level: "warn",
-      msg: "Network 'mainnet' is using a public RPC URL (https://cloudflare-eth.com). Most apps require an RPC URL with a higher rate limit.",
+      msg: "Chain 'mainnet' is using a public RPC URL (https://cloudflare-eth.com). Most apps require an RPC URL with a higher rate limit.",
     },
   ]);
 });
