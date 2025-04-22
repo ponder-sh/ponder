@@ -4,7 +4,6 @@ import { factory } from "@/config/address.js";
 import type { LogFactory, LogFilter, TraceFilter } from "@/internal/types.js";
 import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import {
-  http,
   type Address,
   parseAbiItem,
   toEventSelector,
@@ -38,12 +37,12 @@ beforeEach(setupAnvil);
 
 test("buildConfigAndIndexingFunctions() builds topics for multiple events", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "rpc.com" },
     },
     contracts: {
       a: {
-        network: { mainnet: {} },
+        chain: { mainnet: {} },
         abi: [event0, event1],
         address: address1,
         startBlock: 16370000,
@@ -68,12 +67,12 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple events", asyn
 
 test("buildConfigAndIndexingFunctions() handles overloaded event signatures and combines topics", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "rpc.com" },
     },
     contracts: {
       a: {
-        network: { mainnet: {} },
+        chain: { mainnet: {} },
         abi: [event1, event1Overloaded],
         address: address1,
         startBlock: 16370000,
@@ -98,12 +97,12 @@ test("buildConfigAndIndexingFunctions() handles overloaded event signatures and 
 
 test("buildConfigAndIndexingFunctions() handles multiple addresses", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "rpc.com" },
     },
     contracts: {
       a: {
-        network: {
+        chain: {
           mainnet: {
             address: [address1, address3],
             startBlock: 16370000,
@@ -131,13 +130,13 @@ test("buildConfigAndIndexingFunctions() handles multiple addresses", async () =>
 
 test("buildConfigAndIndexingFunctions() creates a source for each network for multi-network contracts", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
-      optimism: { chainId: 10, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "rpc.com" },
+      optimism: { id: 10, rpcUrl: "rpc.com" },
     },
     contracts: {
       a: {
-        network: { mainnet: {}, optimism: {} },
+        chain: { mainnet: {}, optimism: {} },
         abi: [event0],
       },
     },
@@ -153,12 +152,12 @@ test("buildConfigAndIndexingFunctions() creates a source for each network for mu
 
 test("buildConfigAndIndexingFunctions() builds topics for event filter", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "rpc.com" },
     },
     contracts: {
       a: {
-        network: { mainnet: {} },
+        chain: { mainnet: {} },
         abi: [event0],
         filter: {
           event: "Event0",
@@ -187,12 +186,12 @@ test("buildConfigAndIndexingFunctions() builds topics for event filter", async (
 
 test("buildConfigAndIndexingFunctions() builds topics for multiple event filters", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "rpc.com" },
     },
     contracts: {
       a: {
-        network: { mainnet: {} },
+        chain: { mainnet: {} },
         abi: [event0, event1Overloaded],
         filter: [
           {
@@ -237,8 +236,8 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple event filters
 
 test("buildConfigAndIndexingFunctions() overrides default values with network-specific values", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "rpc.com" },
     },
     contracts: {
       a: {
@@ -246,7 +245,7 @@ test("buildConfigAndIndexingFunctions() overrides default values with network-sp
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
-        network: {
+        chain: {
           mainnet: {
             address: address2,
           },
@@ -265,12 +264,12 @@ test("buildConfigAndIndexingFunctions() overrides default values with network-sp
 
 test("buildConfigAndIndexingFunctions() handles network name shortcut", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "rpc.com" },
     },
     contracts: {
       a: {
-        network: "mainnet",
+        chain: "mainnet",
         abi: [event0],
         address: address1,
         startBlock: 16370000,
@@ -284,18 +283,18 @@ test("buildConfigAndIndexingFunctions() handles network name shortcut", async ()
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
-  expect(sources[0]!.network.name).toBe("mainnet");
+  expect(sources[0]!.chain.chain.name).toBe("mainnet");
 });
 
 test("buildConfigAndIndexingFunctions() validates network name", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "rpc.com" },
     },
     contracts: {
       a: {
         // @ts-expect-error
-        network: "mainnetz",
+        chain: "mainnetz",
         abi: [event0],
         address: address1,
       },
@@ -315,12 +314,12 @@ test("buildConfigAndIndexingFunctions() validates network name", async () => {
 
 test("buildConfigAndIndexingFunctions() warns for public RPC URL", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "https://cloudflare-eth.com" },
     },
     contracts: {
       a: {
-        network: "mainnet",
+        chain: "mainnet",
         abi: [event0],
         address: address1,
       },
@@ -343,12 +342,12 @@ test("buildConfigAndIndexingFunctions() warns for public RPC URL", async () => {
 
 test("buildConfigAndIndexingFunctions() validates event filter event name must be present in ABI", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "https://cloudflare-eth.com" },
     },
     contracts: {
       a: {
-        network: "mainnet",
+        chain: "mainnet",
         abi: [event0],
         // @ts-expect-error
         filter: {
@@ -374,12 +373,12 @@ test("buildConfigAndIndexingFunctions() validates event filter event name must b
 
 test("buildConfigAndIndexingFunctions() validates address empty string", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "https://cloudflare-eth.com" },
     },
     contracts: {
       a: {
-        network: "mainnet",
+        chain: "mainnet",
         abi: [event0],
         address: "" as Address,
       },
@@ -399,12 +398,12 @@ test("buildConfigAndIndexingFunctions() validates address empty string", async (
 
 test("buildConfigAndIndexingFunctions() validates address prefix", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "https://cloudflare-eth.com" },
     },
     contracts: {
       a: {
-        network: "mainnet",
+        chain: "mainnet",
         abi: [event0],
 
         address: "0b0000000000000000000000000000000000000001" as Address,
@@ -425,12 +424,12 @@ test("buildConfigAndIndexingFunctions() validates address prefix", async () => {
 
 test("buildConfigAndIndexingFunctions() validates address length", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "https://cloudflare-eth.com" },
     },
     contracts: {
       a: {
-        network: "mainnet",
+        chain: "mainnet",
         abi: [event0],
         address: "0x000000000001",
       },
@@ -450,12 +449,12 @@ test("buildConfigAndIndexingFunctions() validates address length", async () => {
 
 test("buildConfigAndIndexingFunctions() coerces NaN startBlock to undefined", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "rpc.com" },
     },
     contracts: {
       a: {
-        network: { mainnet: {} },
+        chain: { mainnet: {} },
         abi: [event0, event1],
         startBlock: Number.NaN,
       },
@@ -472,15 +471,15 @@ test("buildConfigAndIndexingFunctions() coerces NaN startBlock to undefined", as
 
 test("buildConfigAndIndexingFunctions() coerces `latest` to number", async () => {
   const config = createConfig({
-    networks: {
+    chains: {
       mainnet: {
-        chainId: 1,
-        transport: http(`http://127.0.0.1:8545/${poolId}`),
+        id: 1,
+        rpcUrl: `http://127.0.0.1:8545/${poolId}`,
       },
     },
     contracts: {
       a: {
-        network: { mainnet: {} },
+        chain: { mainnet: {} },
         abi: [event0, event1],
         startBlock: "latest",
       },
@@ -497,14 +496,14 @@ test("buildConfigAndIndexingFunctions() coerces `latest` to number", async () =>
 
 test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
-      optimism: { chainId: 10, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "rpc.com" },
+      optimism: { id: 10, rpcUrl: "rpc.com" },
     },
     contracts: {
       a: {
         includeTransactionReceipts: true,
-        network: {
+        chain: {
           mainnet: {},
           optimism: { includeTransactionReceipts: false },
         },
@@ -523,14 +522,14 @@ test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () =>
 
 test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
-      optimism: { chainId: 10, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "rpc.com" },
+      optimism: { id: 10, rpcUrl: "rpc.com" },
     },
     contracts: {
       a: {
         includeCallTraces: true,
-        network: {
+        chain: {
           mainnet: {},
           optimism: { includeCallTraces: false },
         },
@@ -559,14 +558,14 @@ test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
 
 test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
-      optimism: { chainId: 10, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "rpc.com" },
+      optimism: { id: 10, rpcUrl: "rpc.com" },
     },
     contracts: {
       a: {
         includeCallTraces: true,
-        network: {
+        chain: {
           mainnet: {},
           optimism: { includeCallTraces: false },
         },
@@ -599,12 +598,12 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
 
 test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "rpc.com" },
     },
     contracts: {
       a: {
-        network: { mainnet: {} },
+        chain: { mainnet: {} },
         abi: [event0, event1],
         endBlock: Number.NaN,
       },
@@ -621,12 +620,12 @@ test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", asyn
 
 test("buildConfigAndIndexingFunctions() account source", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "rpc.com" },
     },
     accounts: {
       a: {
-        network: { mainnet: {} },
+        chain: { mainnet: {} },
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
@@ -644,8 +643,8 @@ test("buildConfigAndIndexingFunctions() account source", async () => {
 
   expect(sources).toHaveLength(2);
 
-  expect(sources[0]?.network.name).toBe("mainnet");
-  expect(sources[1]?.network.name).toBe("mainnet");
+  expect(sources[0]?.chain.chain.name).toBe("mainnet");
+  expect(sources[1]?.chain.chain.name).toBe("mainnet");
 
   expect(sources[0]?.name).toBe("a");
   expect(sources[1]?.name).toBe("a");
@@ -662,12 +661,12 @@ test("buildConfigAndIndexingFunctions() account source", async () => {
 
 test("buildConfigAndIndexingFunctions() block source", async () => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpcUrl: "rpc.com" },
     },
     blocks: {
       a: {
-        network: { mainnet: {} },
+        chain: { mainnet: {} },
         startBlock: 16370000,
         endBlock: 16370020,
       },
@@ -681,7 +680,7 @@ test("buildConfigAndIndexingFunctions() block source", async () => {
 
   expect(sources).toHaveLength(1);
 
-  expect(sources[0]?.network.name).toBe("mainnet");
+  expect(sources[0]?.chain.chain.name).toBe("mainnet");
   expect(sources[0]?.name).toBe("a");
   expect(sources[0]?.filter.type).toBe("block");
   // @ts-ignore

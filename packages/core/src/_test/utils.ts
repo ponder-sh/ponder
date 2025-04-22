@@ -171,7 +171,7 @@ export const getAccountsConfigAndIndexingFunctions = (params: {
   return { config, rawIndexingFunctions };
 };
 
-export const getNetwork = (params?: {
+export const getChain = (params?: {
   finalityBlockCount?: number;
 }) => {
   return {
