@@ -57,7 +57,7 @@ test(
     });
     await waitForIndexedBlock({
       port,
-      networkName: "mainnet",
+      chainId: 1,
       block: { number: 2 },
     });
     const result = await client.db.select().from(schema.account);
