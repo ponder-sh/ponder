@@ -18,13 +18,12 @@ import type {
   Abi,
   Address,
   BlockTag,
-  Chain,
   Hex,
   LogTopic,
   RpcBlock,
   RpcTransaction,
   RpcTransactionReceipt,
-  Transport,
+  Chain as ViemChain,
   Log as ViemLog,
 } from "viem";
 
@@ -281,26 +280,24 @@ export type ContractMetadata = {
   abiEvents: AbiEvents;
   abiFunctions: AbiFunctions;
   name: string;
-  network: Network;
+  chain: Chain;
 };
 export type AccountMetadata = {
   type: "account";
   name: string;
-  network: Network;
+  chain: Chain;
 };
 export type BlockMetadata = {
   type: "block";
   name: string;
-  network: Network;
+  chain: Chain;
 };
 
-// Network
+// Chain
 
-export type Network = {
-  name: string;
-  chainId: number;
-  transport: ReturnType<Transport>;
-  chain: Chain;
+export type Chain = {
+  chain: ViemChain;
+  rpcUrl: string;
   pollingInterval: number;
   maxRequestsPerSecond: number;
   finalityBlockCount: number;
@@ -336,8 +333,8 @@ export type IndexingBuild = {
   buildId: string;
   /** Sources to index. */
   sources: Source[];
-  /** Networks to index. */
-  networks: Network[];
+  /** Chains to index. */
+  chains: Chain[];
   /** Event callbacks for all `sources`.  */
   indexingFunctions: IndexingFunctions;
 };
@@ -372,7 +369,7 @@ export type Status = {
 // Seconds
 
 export type Seconds = {
-  [network: string]: { start: number; end: number; cached: number };
+  [chainName: string]: { start: number; end: number; cached: number };
 };
 
 // Blockchain data
