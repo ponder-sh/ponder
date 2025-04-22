@@ -1,7 +1,7 @@
 import http from "node:http";
 import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
-import type { ApiBuild } from "@/internal/types.js";
+import type { ApiBuild, Status } from "@/internal/types.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { startClock } from "@/utils/timer.js";
 import { serve } from "@hono/node-server";
@@ -93,14 +93,19 @@ export async function createServer({
     })
     .get("/status", async (c) => {
       const checkpoints = await globalThis.PONDER_DATABASE.getCheckpoints();
-      const statusResult = checkpoints.map(({ chainId, latestCheckpoint }) => ({
-        chainId,
-        block: {
-          number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
-          timestamp: Number(decodeCheckpoint(latestCheckpoint).blockTimestamp),
-        },
-      }));
-      return c.json(statusResult);
+      const status: Status = {};
+      for (const { chainName, chainId, latestCheckpoint } of checkpoints) {
+        status[chainName] = {
+          chainId,
+          block: {
+            number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
+            timestamp: Number(
+              decodeCheckpoint(latestCheckpoint).blockTimestamp,
+            ),
+          },
+        };
+      }
+      return c.json(status);
     })
     .route("/", apiBuild.app)
     .onError((error, c) => onError(error, c, common));

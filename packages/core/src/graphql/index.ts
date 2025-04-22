@@ -1,7 +1,7 @@
 import type { Database } from "@/database/index.js";
 import type { OnchainTable } from "@/drizzle/onchain.js";
 import { normalizeColumn } from "@/indexing-store/utils.js";
-import type { Schema } from "@/internal/types.js";
+import type { Schema, Status } from "@/internal/types.js";
 import type { Drizzle, ReadonlyDrizzle } from "@/types/db.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
@@ -419,13 +419,19 @@ export function buildGraphQLSchema({
     type: GraphQLMeta,
     resolve: async (_source, _args, context) => {
       const checkpoints = await context.getCheckpoints();
-      const status = checkpoints.map(({ chainId, latestCheckpoint }) => ({
-        chainId,
-        block: {
-          number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
-          timestamp: Number(decodeCheckpoint(latestCheckpoint).blockTimestamp),
-        },
-      }));
+      const status: Status = {};
+      for (const { chainName, chainId, latestCheckpoint } of checkpoints) {
+        status[chainName] = {
+          chainId,
+          block: {
+            number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
+            timestamp: Number(
+              decodeCheckpoint(latestCheckpoint).blockTimestamp,
+            ),
+          },
+        };
+      }
+
       return { status };
     },
   };
