@@ -1,4 +1,3 @@
-import type { Common } from "@/internal/common.js";
 import type {
   BlockFilter,
   Event,
@@ -8,8 +7,8 @@ import type {
   InternalTrace,
   InternalTransaction,
   InternalTransactionReceipt,
+  PerChainPonderApp,
   RawEvent,
-  Source,
   SyncBlock,
   SyncLog,
   SyncTrace,
@@ -25,6 +24,7 @@ import {
 import { never } from "@/utils/never.js";
 import type { AbiEvent, AbiParameter } from "abitype";
 import {
+  type AbiFunction,
   type Address,
   DecodeLogDataMismatch,
   DecodeLogTopicsMismatch,
@@ -49,23 +49,22 @@ import { isAddressFactory, shouldGetTransactionReceipt } from "./filter.js";
 /**
  * Create `RawEvent`s from raw data types
  */
-export const buildEvents = ({
-  sources,
-  blockData: { block, logs, transactions, transactionReceipts, traces },
-  childAddresses,
-  chainId,
-}: {
-  sources: Source[];
-  blockData: {
-    block: InternalBlock;
-    logs: InternalLog[];
-    transactions: InternalTransaction[];
-    transactionReceipts: InternalTransactionReceipt[];
-    traces: InternalTrace[];
-  };
-  childAddresses: Map<Factory, Map<Address, number>>;
-  chainId: number;
-}) => {
+export const buildEvents = (
+  app: Pick<PerChainPonderApp, "indexingBuild">,
+  {
+    blockData: { block, logs, transactions, transactionReceipts, traces },
+    childAddresses,
+  }: {
+    childAddresses: Map<Factory, Map<Address, number>>;
+    blockData: {
+      block: InternalBlock;
+      logs: InternalLog[];
+      transactions: InternalTransaction[];
+      transactionReceipts: InternalTransactionReceipt[];
+      traces: InternalTrace[];
+    };
+  },
+) => {
   const events: RawEvent[] = [];
 
   const transactionCache = new Map<number, InternalTransaction>();
@@ -80,36 +79,35 @@ export const buildEvents = ({
     );
   }
 
-  for (let i = 0; i < sources.length; i++) {
-    const source = sources[i]!;
-    const filter = source.filter;
-    if (chainId !== filter.chainId) continue;
-    switch (source.type) {
+  for (const eventCallback of app.indexingBuild.eventCallbacks) {
+    switch (eventCallback.type) {
       case "contract": {
-        switch (filter.type) {
+        switch (eventCallback.filter.type) {
           case "log": {
             for (const log of logs) {
               if (
-                isLogFilterMatched({ filter, log }) &&
-                (isAddressFactory(filter.address)
+                isLogFilterMatched({ filter: eventCallback.filter, log }) &&
+                (isAddressFactory(eventCallback.filter.address)
                   ? isAddressMatched({
                       address: log.address,
                       blockNumber: Number(block.number),
-                      childAddresses: childAddresses.get(filter.address)!,
+                      childAddresses: childAddresses.get(
+                        eventCallback.filter.address,
+                      )!,
                     })
                   : true)
               ) {
                 events.push({
-                  chainId: filter.chainId,
-                  sourceIndex: i,
                   checkpoint: encodeCheckpoint({
                     blockTimestamp: block.timestamp,
-                    chainId: BigInt(filter.chainId),
+                    chainId: BigInt(eventCallback.filter.chainId),
                     blockNumber: block.number,
                     transactionIndex: BigInt(log.transactionIndex),
                     eventType: EVENT_TYPES.logs,
                     eventIndex: BigInt(log.logIndex),
                   }),
+                  chain: app.indexingBuild.chain,
+                  eventCallback,
                   log,
                   block,
                   transaction: transactionCache.has(log.transactionIndex)
@@ -117,7 +115,7 @@ export const buildEvents = ({
                     : undefined,
                   transactionReceipt:
                     transactionReceiptCache.has(log.transactionIndex) &&
-                    shouldGetTransactionReceipt(filter)
+                    shouldGetTransactionReceipt(eventCallback.filter)
                       ? transactionReceiptCache.get(log.transactionIndex)!
                       : undefined,
                   trace: undefined,
@@ -131,28 +129,34 @@ export const buildEvents = ({
             for (const trace of traces) {
               if (
                 isTraceFilterMatched({
-                  filter,
+                  filter: eventCallback.filter,
                   trace,
                   block,
                 }) &&
-                (isAddressFactory(filter.fromAddress)
+                (isAddressFactory(eventCallback.filter.fromAddress)
                   ? isAddressMatched({
                       address: trace.from,
                       blockNumber: Number(block.number),
-                      childAddresses: childAddresses.get(filter.fromAddress)!,
+                      childAddresses: childAddresses.get(
+                        eventCallback.filter.fromAddress,
+                      )!,
                     })
                   : true) &&
-                (isAddressFactory(filter.toAddress)
+                (isAddressFactory(eventCallback.filter.toAddress)
                   ? isAddressMatched({
                       address: trace.to ?? undefined,
                       blockNumber: Number(block.number),
-                      childAddresses: childAddresses.get(filter.toAddress)!,
+                      childAddresses: childAddresses.get(
+                        eventCallback.filter.toAddress,
+                      )!,
                     })
                   : true) &&
-                (filter.callType === undefined
+                (eventCallback.filter.callType === undefined
                   ? true
-                  : filter.callType === trace.type) &&
-                (filter.includeReverted ? true : trace.error === undefined)
+                  : eventCallback.filter.callType === trace.type) &&
+                (eventCallback.filter.includeReverted
+                  ? true
+                  : trace.error === undefined)
               ) {
                 const transaction = transactionCache.get(
                   trace.transactionIndex,
@@ -161,21 +165,23 @@ export const buildEvents = ({
                   trace.transactionIndex,
                 )!;
                 events.push({
-                  chainId: filter.chainId,
-                  sourceIndex: i,
                   checkpoint: encodeCheckpoint({
                     blockTimestamp: block.timestamp,
-                    chainId: BigInt(filter.chainId),
+                    chainId: BigInt(eventCallback.filter.chainId),
                     blockNumber: block.number,
                     transactionIndex: BigInt(transaction.transactionIndex),
                     eventType: EVENT_TYPES.traces,
                     eventIndex: BigInt(trace.traceIndex),
                   }),
+                  chain: app.indexingBuild.chain,
+                  eventCallback,
                   log: undefined,
                   trace,
                   block,
                   transaction,
-                  transactionReceipt: shouldGetTransactionReceipt(filter)
+                  transactionReceipt: shouldGetTransactionReceipt(
+                    eventCallback.filter,
+                  )
                     ? transactionReceipt
                     : undefined,
                 });
@@ -188,44 +194,48 @@ export const buildEvents = ({
       }
 
       case "account": {
-        switch (filter.type) {
+        switch (eventCallback.filter.type) {
           case "transaction": {
             for (const transaction of transactions) {
               if (
                 isTransactionFilterMatched({
-                  filter,
+                  filter: eventCallback.filter,
                   transaction,
                 }) &&
-                (isAddressFactory(filter.fromAddress)
+                (isAddressFactory(eventCallback.filter.fromAddress)
                   ? isAddressMatched({
                       address: transaction.from,
                       blockNumber: Number(block.number),
-                      childAddresses: childAddresses.get(filter.fromAddress)!,
+                      childAddresses: childAddresses.get(
+                        eventCallback.filter.fromAddress,
+                      )!,
                     })
                   : true) &&
-                (isAddressFactory(filter.toAddress)
+                (isAddressFactory(eventCallback.filter.toAddress)
                   ? isAddressMatched({
                       address: transaction.to ?? undefined,
                       blockNumber: Number(block.number),
-                      childAddresses: childAddresses.get(filter.toAddress)!,
+                      childAddresses: childAddresses.get(
+                        eventCallback.filter.toAddress,
+                      )!,
                     })
                   : true) &&
-                (filter.includeReverted
+                (eventCallback.filter.includeReverted
                   ? true
                   : transactionReceiptCache.get(transaction.transactionIndex)!
                       .status === "success")
               ) {
                 events.push({
-                  chainId: filter.chainId,
-                  sourceIndex: i,
                   checkpoint: encodeCheckpoint({
                     blockTimestamp: block.timestamp,
-                    chainId: BigInt(filter.chainId),
+                    chainId: BigInt(eventCallback.filter.chainId),
                     blockNumber: block.number,
                     transactionIndex: BigInt(transaction.transactionIndex),
                     eventType: EVENT_TYPES.transactions,
                     eventIndex: 0n,
                   }),
+                  chain: app.indexingBuild.chain,
+                  eventCallback,
                   log: undefined,
                   trace: undefined,
                   block,
@@ -243,25 +253,31 @@ export const buildEvents = ({
             for (const trace of traces) {
               if (
                 isTransferFilterMatched({
-                  filter,
+                  filter: eventCallback.filter,
                   trace,
                   block,
                 }) &&
-                (isAddressFactory(filter.fromAddress)
+                (isAddressFactory(eventCallback.filter.fromAddress)
                   ? isAddressMatched({
                       address: trace.from,
                       blockNumber: Number(block.number),
-                      childAddresses: childAddresses.get(filter.fromAddress)!,
+                      childAddresses: childAddresses.get(
+                        eventCallback.filter.fromAddress,
+                      )!,
                     })
                   : true) &&
-                (isAddressFactory(filter.toAddress)
+                (isAddressFactory(eventCallback.filter.toAddress)
                   ? isAddressMatched({
                       address: trace.to ?? undefined,
                       blockNumber: Number(block.number),
-                      childAddresses: childAddresses.get(filter.toAddress)!,
+                      childAddresses: childAddresses.get(
+                        eventCallback.filter.toAddress,
+                      )!,
                     })
                   : true) &&
-                (filter.includeReverted ? true : trace.error === undefined)
+                (eventCallback.filter.includeReverted
+                  ? true
+                  : trace.error === undefined)
               ) {
                 const transaction = transactionCache.get(
                   trace.transactionIndex,
@@ -270,21 +286,23 @@ export const buildEvents = ({
                   trace.transactionIndex,
                 )!;
                 events.push({
-                  chainId: filter.chainId,
-                  sourceIndex: i,
                   checkpoint: encodeCheckpoint({
                     blockTimestamp: block.timestamp,
-                    chainId: BigInt(filter.chainId),
+                    chainId: BigInt(eventCallback.filter.chainId),
                     blockNumber: block.number,
                     transactionIndex: BigInt(transaction.transactionIndex),
                     eventType: EVENT_TYPES.traces,
                     eventIndex: BigInt(trace.traceIndex),
                   }),
+                  chain: app.indexingBuild.chain,
+                  eventCallback,
                   log: undefined,
                   trace,
                   block,
                   transaction,
-                  transactionReceipt: shouldGetTransactionReceipt(filter)
+                  transactionReceipt: shouldGetTransactionReceipt(
+                    eventCallback.filter,
+                  )
                     ? transactionReceipt
                     : undefined,
                 });
@@ -297,18 +315,23 @@ export const buildEvents = ({
       }
 
       case "block": {
-        if (isBlockFilterMatched({ filter: filter as BlockFilter, block })) {
+        if (
+          isBlockFilterMatched({
+            filter: eventCallback.filter as BlockFilter,
+            block,
+          })
+        ) {
           events.push({
-            chainId: filter.chainId,
-            sourceIndex: i,
             checkpoint: encodeCheckpoint({
               blockTimestamp: block.timestamp,
-              chainId: BigInt(filter.chainId),
+              chainId: BigInt(eventCallback.filter.chainId),
               blockNumber: block.number,
               transactionIndex: MAX_CHECKPOINT.transactionIndex,
               eventType: EVENT_TYPES.blocks,
               eventIndex: ZERO_CHECKPOINT.eventIndex,
             }),
+            chain: app.indexingBuild.chain,
+            eventCallback,
             block,
             log: undefined,
             trace: undefined,
@@ -319,7 +342,7 @@ export const buildEvents = ({
         break;
       }
       default:
-        never(source);
+        never(eventCallback);
     }
   }
 
@@ -327,42 +350,32 @@ export const buildEvents = ({
 };
 
 export const decodeEvents = (
-  common: Common,
-  sources: Source[],
-  rawEvents: RawEvent[],
+  app: Pick<PerChainPonderApp, "common" | "indexingBuild">,
+  { rawEvents }: { rawEvents: RawEvent[] },
 ): Event[] => {
   const events: Event[] = [];
 
   for (const event of rawEvents) {
-    const source = sources[event.sourceIndex]!;
-
-    switch (source.type) {
+    switch (event.eventCallback.type) {
       case "contract": {
-        switch (source.filter.type) {
+        switch (event.eventCallback.filter.type) {
           case "log": {
             try {
-              if (
-                event.log!.topics[0] === undefined ||
-                source.abiEvents.bySelector[event.log!.topics[0]] === undefined
-              ) {
+              if (event.log!.topics[0] === undefined) {
                 throw new Error();
               }
 
-              const { safeName, item } =
-                source.abiEvents.bySelector[event.log!.topics[0]]!;
-
               const args = decodeEventLog({
-                abiItem: item,
+                abiItem: event.eventCallback.abiItem as AbiEvent,
                 data: event.log!.data,
                 topics: event.log!.topics,
               });
 
               events.push({
                 type: "log",
-                chainId: event.chainId,
                 checkpoint: event.checkpoint,
-
-                name: `${source.name}:${safeName}`,
+                chain: event.chain,
+                eventCallback: event.eventCallback,
 
                 event: {
                   id: event.checkpoint,
@@ -374,13 +387,13 @@ export const decodeEvents = (
                 },
               });
             } catch (err) {
-              if (source.filter.address === undefined) {
-                common.logger.debug({
+              if (event.eventCallback.filter.address === undefined) {
+                app.common.logger.debug({
                   service: "app",
                   msg: `Unable to decode log, skipping it. blockNumber: ${event.log?.blockNumber}, logIndex: ${event.log?.logIndex}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
                 });
               } else {
-                common.logger.warn({
+                app.common.logger.warn({
                   service: "app",
                   msg: `Unable to decode log, skipping it. blockNumber: ${event.log?.blockNumber}, logIndex: ${event.log?.logIndex}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
                 });
@@ -391,35 +404,22 @@ export const decodeEvents = (
 
           case "trace": {
             try {
-              const selector = event
-                .trace!.input.slice(0, 10)
-                .toLowerCase() as Hex;
-
-              if (source.abiFunctions.bySelector[selector] === undefined) {
-                throw new Error();
-              }
-
-              const { item, safeName } =
-                source.abiFunctions.bySelector[selector]!;
-
               const { args, functionName } = decodeFunctionData({
-                abi: [item],
+                abi: [event.eventCallback.abiItem as AbiFunction],
                 data: event.trace!.input,
               });
 
               const result = decodeFunctionResult({
-                abi: [item],
+                abi: [event.eventCallback.abiItem as AbiFunction],
                 data: event.trace!.output!,
                 functionName,
               });
 
               events.push({
                 type: "trace",
-                chainId: event.chainId,
+                chain: event.chain,
+                eventCallback: event.eventCallback,
                 checkpoint: event.checkpoint,
-
-                // NOTE: `safename` includes ()
-                name: `${source.name}.${safeName}`,
 
                 event: {
                   id: event.checkpoint,
@@ -432,13 +432,13 @@ export const decodeEvents = (
                 },
               });
             } catch (err) {
-              if (source.filter.toAddress === undefined) {
-                common.logger.debug({
+              if (event.eventCallback.filter.toAddress === undefined) {
+                app.common.logger.debug({
                   service: "app",
                   msg: `Unable to decode trace, skipping it. blockNumber: ${event.trace?.blockNumber}, transactionIndex: ${event.trace?.transactionIndex}, traceIndex: ${event.trace?.traceIndex}, input: ${event.trace?.input}, output: ${event.trace?.output}`,
                 });
               } else {
-                common.logger.warn({
+                app.common.logger.warn({
                   service: "app",
                   msg: `Unable to decode trace, skipping it. blockNumber: ${event.trace?.blockNumber}, transactionIndex: ${event.trace?.transactionIndex}, traceIndex: ${event.trace?.traceIndex},  input: ${event.trace?.input}, output: ${event.trace?.output}`,
                 });
@@ -448,22 +448,19 @@ export const decodeEvents = (
           }
 
           default:
-            never(source.filter);
+            never(event.eventCallback.filter);
         }
         break;
       }
 
       case "account": {
-        switch (source.filter.type) {
+        switch (event.eventCallback.filter.type) {
           case "transaction": {
-            const isFrom = source.filter.toAddress === undefined;
-
             events.push({
               type: "transaction",
-              chainId: event.chainId,
+              chain: event.chain,
+              eventCallback: event.eventCallback,
               checkpoint: event.checkpoint,
-
-              name: `${source.name}:transaction:${isFrom ? "from" : "to"}`,
 
               event: {
                 id: event.checkpoint,
@@ -477,14 +474,11 @@ export const decodeEvents = (
           }
 
           case "transfer": {
-            const isFrom = source.filter.toAddress === undefined;
-
             events.push({
               type: "transfer",
-              chainId: event.chainId,
+              chain: event.chain,
+              eventCallback: event.eventCallback,
               checkpoint: event.checkpoint,
-
-              name: `${source.name}:transfer:${isFrom ? "from" : "to"}`,
 
               event: {
                 id: event.checkpoint,
@@ -509,9 +503,9 @@ export const decodeEvents = (
       case "block": {
         events.push({
           type: "block",
-          chainId: event.chainId,
           checkpoint: event.checkpoint,
-          name: `${source.name}:block`,
+          chain: event.chain,
+          eventCallback: event.eventCallback,
           event: {
             id: event.checkpoint,
             block: event.block,
@@ -521,7 +515,7 @@ export const decodeEvents = (
       }
 
       default:
-        never(source);
+        never(event.eventCallback);
     }
   }
 

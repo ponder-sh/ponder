@@ -1,8 +1,10 @@
-import type { Common } from "@/internal/common.js";
-import type { Chain, IndexingBuild, SetupEvent } from "@/internal/types.js";
+import type {
+  Chain,
+  PerChainPonderApp,
+  PonderApp,
+  SetupEvent,
+} from "@/internal/types.js";
 import type { Event } from "@/internal/types.js";
-import type { RPC } from "@/rpc/index.js";
-import type { SyncStore } from "@/sync-store/index.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
@@ -358,25 +360,16 @@ export const decodeResponse = (response: Response) => {
   }
 };
 
-export const createCachedViemClient = ({
-  common,
-  indexingBuild,
-  rpcs,
-  syncStore,
-  eventCount,
-}: {
-  common: Common;
-  indexingBuild: Pick<IndexingBuild, "chains">;
-  rpcs: RPC[];
-  syncStore: SyncStore;
-  eventCount: { [eventName: string]: number };
-}): CachedViemClient => {
+export const createCachedViemClient = (
+  app: PonderApp,
+  { eventCount }: { eventCount: { [eventName: string]: number } },
+): CachedViemClient => {
   let event: Event | SetupEvent = undefined!;
   const cache: Cache = new Map();
   const profile: Profile = new Map();
   const profileConstantLRU: ProfileConstantLRU = new Map();
 
-  for (const chain of indexingBuild.chains) {
+  for (const { chain } of app.indexingBuild) {
     cache.set(chain.chain.id, new Map());
   }
 
@@ -396,31 +389,39 @@ export const createCachedViemClient = ({
     }: { pattern: ProfilePattern; hasConstant: boolean }) => {
       const profilePatternKey = getProfilePatternKey(pattern);
 
-      if (profile.get(event.name)!.has(profilePatternKey)) {
-        profile.get(event.name)!.get(profilePatternKey)!.count++;
+      if (profile.get(event.eventCallback.name)!.has(profilePatternKey)) {
+        profile.get(event.eventCallback.name)!.get(profilePatternKey)!.count++;
 
         if (hasConstant) {
-          profileConstantLRU.get(event.name)!.delete(profilePatternKey);
-          profileConstantLRU.get(event.name)!.add(profilePatternKey);
+          profileConstantLRU
+            .get(event.eventCallback.name)!
+            .delete(profilePatternKey);
+          profileConstantLRU
+            .get(event.eventCallback.name)!
+            .add(profilePatternKey);
         }
       } else {
         profile
-          .get(event.name)!
+          .get(event.eventCallback.name)!
           .set(profilePatternKey, { pattern, hasConstant, count: 1 });
 
         if (hasConstant) {
-          profileConstantLRU.get(event.name)!.add(profilePatternKey);
+          profileConstantLRU
+            .get(event.eventCallback.name)!
+            .add(profilePatternKey);
           if (
-            profileConstantLRU.get(event.name)!.size >
+            profileConstantLRU.get(event.eventCallback.name)!.size >
             MAX_CONSTANT_PATTERN_COUNT
           ) {
             const firstKey = profileConstantLRU
-              .get(event.name)!
+              .get(event.eventCallback.name)!
               .keys()
               .next().value;
             if (firstKey) {
-              profile.get(event.name)!.delete(firstKey);
-              profileConstantLRU.get(event.name)!.delete(firstKey);
+              profile.get(event.eventCallback.name)!.delete(firstKey);
+              profileConstantLRU
+                .get(event.eventCallback.name)!
+                .delete(firstKey);
             }
           }
         }
@@ -446,11 +447,11 @@ export const createCachedViemClient = ({
         if (
           event.type !== "setup" &&
           userBlockNumber === undefined &&
-          eventCount[event.name]! % SAMPLING_RATE === 1
+          eventCount[event.eventCallback.name]! % SAMPLING_RATE === 1
         ) {
-          if (profile.has(event.name) === false) {
-            profile.set(event.name, new Map());
-            profileConstantLRU.set(event.name, new Set());
+          if (profile.has(event.eventCallback.name) === false) {
+            profile.set(event.eventCallback.name, new Map());
+            profileConstantLRU.set(event.eventCallback.name, new Set());
           }
 
           // profile "readContract" and "multicall" actions
@@ -461,7 +462,9 @@ export const createCachedViemClient = ({
                 Parameters<PonderActions["readContract"]>[0],
                 "blockNumber" | "cache"
               >,
-              hints: Array.from(profile.get(event.name)!.values()),
+              hints: Array.from(
+                profile.get(event.eventCallback.name)!.values(),
+              ),
             });
             if (recordPatternResult) {
               addProfilePattern(recordPatternResult);
@@ -479,7 +482,9 @@ export const createCachedViemClient = ({
                 const recordPatternResult = recordProfilePattern({
                   event: event,
                   args: contract,
-                  hints: Array.from(profile.get(event.name)!.values()),
+                  hints: Array.from(
+                    profile.get(event.eventCallback.name)!.values(),
+                  ),
                 });
                 if (recordPatternResult) {
                   addProfilePattern(recordPatternResult);
@@ -563,7 +568,7 @@ export const createCachedViemClient = ({
           // @ts-ignore
           return await actionFn(...args);
         } finally {
-          common.metrics.ponder_indexing_rpc_action_duration.observe(
+          app.common.metrics.ponder_indexing_rpc_action_duration.observe(
             { action },
             endClock(),
           );
@@ -576,16 +581,10 @@ export const createCachedViemClient = ({
 
   return {
     getClient(chain) {
-      const rpc = rpcs[indexingBuild.chains.findIndex((c) => c === chain)]!;
+      const indexingBuild = app.indexingBuild.find((b) => b.chain === chain)!;
 
       return createClient({
-        transport: cachedTransport({
-          common,
-          chain,
-          rpc,
-          syncStore,
-          cache,
-        }),
+        transport: cachedTransport({ ...app, indexingBuild }, { cache }),
         chain: chain.chain,
         // @ts-expect-error overriding `readContract` is not supported by viem
       }).extend(ponderActions);
@@ -597,10 +596,13 @@ export const createCachedViemClient = ({
       const prediction: { ev: number; request: Request }[] = [];
 
       for (const event of events) {
-        if (profile.has(event.name)) {
-          for (const [, { pattern, count }] of profile.get(event.name)!) {
+        if (profile.has(event.eventCallback.name)) {
+          for (const [, { pattern, count }] of profile.get(
+            event.eventCallback.name,
+          )!) {
             // Expected value of times the prediction will be used.
-            const ev = (count * SAMPLING_RATE) / eventCount[event.name]!;
+            const ev =
+              (count * SAMPLING_RATE) / eventCount[event.eventCallback.name]!;
             prediction.push({
               ev,
               request: recoverProfilePattern(pattern, event),
@@ -613,7 +615,7 @@ export const createCachedViemClient = ({
         number,
         { ev: number; request: EIP1193Parameters }[]
       > = new Map();
-      for (const chain of indexingBuild.chains) {
+      for (const { chain } of app.indexingBuild) {
         chainRequests.set(chain.chain.id, []);
       }
 
@@ -628,19 +630,17 @@ export const createCachedViemClient = ({
 
       await Promise.all(
         Array.from(chainRequests.entries()).map(async ([chainId, requests]) => {
-          const ni = indexingBuild.chains.findIndex(
-            (c) => c.chain.id === chainId,
-          );
-          const chain = indexingBuild.chains[ni]!;
-          const rpc = rpcs[ni]!;
+          const indexingBuild = app.indexingBuild.find(
+            (b) => b.chain.chain.id === chainId,
+          )!;
 
           const dbRequests = requests.filter(
             ({ ev }) => ev > DB_PREDICTION_THRESHOLD,
           );
 
-          common.metrics.ponder_indexing_rpc_prefetch_total.inc(
+          app.common.metrics.ponder_indexing_rpc_prefetch_total.inc(
             {
-              chain: chain.chain.name,
+              chain: indexingBuild.chain.chain.name,
               method: "eth_call",
               type: "database",
             },
@@ -661,13 +661,13 @@ export const createCachedViemClient = ({
                 .get(chainId)!
                 .set(getCacheKey(request.request), cachedResult);
             } else if (request.ev > RPC_PREDICTION_THRESHOLD) {
-              const resultPromise = rpc
+              const resultPromise = indexingBuild.rpc
                 .request(request.request as EIP1193Parameters<PublicRpcSchema>)
                 .then((result) => JSON.stringify(result))
                 .catch((error) => error as Error);
 
-              common.metrics.ponder_indexing_rpc_prefetch_total.inc({
-                chain: chain.chain.name,
+              app.common.metrics.ponder_indexing_rpc_prefetch_total.inc({
+                chain: indexingBuild.chain.chain.name,
                 method: "eth_call",
                 type: "rpc",
               });
@@ -680,7 +680,7 @@ export const createCachedViemClient = ({
           }
 
           if (dbRequests.length > 0) {
-            common.logger.debug({
+            app.common.logger.debug({
               service: "rpc",
               msg: `Pre-fetched ${dbRequests.length} ${chain.chain.name} RPC requests`,
             });
@@ -689,7 +689,7 @@ export const createCachedViemClient = ({
       );
     },
     clear() {
-      for (const chain of indexingBuild.chains) {
+      for (const { chain } of app.indexingBuild) {
         cache.get(chain.chain.id)!.clear();
       }
     },
@@ -700,19 +700,7 @@ export const createCachedViemClient = ({
 };
 
 export const cachedTransport =
-  ({
-    common,
-    chain,
-    rpc,
-    syncStore,
-    cache,
-  }: {
-    common: Common;
-    chain: Chain;
-    rpc: RPC;
-    syncStore: SyncStore;
-    cache: Cache;
-  }): Transport =>
+  (app: PerChainPonderApp, { cache }: { cache: Cache }): Transport =>
   ({ chain: _chain }) =>
     custom({
       async request({ method, params }) {
@@ -761,12 +749,14 @@ export const cachedTransport =
           for (const request of requests) {
             const cacheKey = getCacheKey(request);
 
-            if (cache.get(chain.chain.id)!.has(cacheKey)) {
-              const cachedResult = cache.get(chain.chain.id)!.get(cacheKey)!;
+            if (cache.get(app.indexingBuild.chain.chain.id)!.has(cacheKey)) {
+              const cachedResult = cache
+                .get(app.indexingBuild.chain.chain.id)!
+                .get(cacheKey)!;
 
               if (cachedResult instanceof Promise) {
-                common.metrics.ponder_indexing_rpc_requests_total.inc({
-                  chain: chain.chain.name,
+                app.common.metrics.ponder_indexing_rpc_requests_total.inc({
+                  chain: app.indexingBuild.chain.chain.name,
                   method,
                   type: "prefetch_rpc",
                 });
@@ -785,8 +775,8 @@ export const cachedTransport =
                   returnData: decodeResponse(result),
                 });
               } else {
-                common.metrics.ponder_indexing_rpc_requests_total.inc({
-                  chain: chain.chain.name,
+                app.common.metrics.ponder_indexing_rpc_requests_total.inc({
+                  chain: app.indexingBuild.chain.chain.name,
                   method,
                   type: "prefetch_database",
                 });
@@ -804,7 +794,7 @@ export const cachedTransport =
 
           const dbResults = await syncStore.getRpcRequestResults({
             requests: dbRequests,
-            chainId: chain.chain.id,
+            chainId: app.indexingBuild.chain.chain.id,
           });
 
           for (let i = 0; i < dbRequests.length; i++) {
@@ -812,8 +802,8 @@ export const cachedTransport =
             const result = dbResults[i]!;
 
             if (result !== undefined) {
-              common.metrics.ponder_indexing_rpc_requests_total.inc({
-                chain: chain.chain.name,
+              app.common.metrics.ponder_indexing_rpc_requests_total.inc({
+                chain: app.indexingBuild.chain.chain.name,
                 method,
                 type: "database",
               });
@@ -830,7 +820,7 @@ export const cachedTransport =
               (request) => results.has(request) === false,
             );
 
-            const multicallResult = await rpc
+            const multicallResult = await app.indexingBuild.rpc
               .request({
                 method: "eth_call",
                 params: [
@@ -865,8 +855,8 @@ export const cachedTransport =
                 requestsToInsert.add(request);
               }
 
-              common.metrics.ponder_indexing_rpc_requests_total.inc({
-                chain: chain.chain.name,
+              app.common.metrics.ponder_indexing_rpc_requests_total.inc({
+                chain: app.indexingBuild.chain.chain.name,
                 method,
                 type: "rpc",
               });
@@ -891,7 +881,7 @@ export const cachedTransport =
                 blockNumber: encodedBlockNumber,
                 result: JSON.stringify(results.get(request)!.returnData),
               })),
-              chainId: chain.chain.id,
+              chainId: app.indexingBuild.chain.chain.id,
             })
             .catch(() => {});
 
@@ -959,13 +949,15 @@ export const cachedTransport =
 
           const cacheKey = getCacheKey(body);
 
-          if (cache.get(chain.chain.id)!.has(cacheKey)) {
-            const cachedResult = cache.get(chain.chain.id)!.get(cacheKey)!;
+          if (cache.get(app.indexingBuild.chain.chain.id)!.has(cacheKey)) {
+            const cachedResult = cache
+              .get(app.indexingBuild.chain.chain.id)!
+              .get(cacheKey)!;
 
             // `cachedResult` is a Promise if the request had to be fetched from the RPC.
             if (cachedResult instanceof Promise) {
-              common.metrics.ponder_indexing_rpc_requests_total.inc({
-                chain: chain.chain.name,
+              app.common.metrics.ponder_indexing_rpc_requests_total.inc({
+                chain: app.indexingBuild.chain.chain.name,
                 method,
                 type: "prefetch_rpc",
               });
@@ -987,15 +979,15 @@ export const cachedTransport =
                         result,
                       },
                     ],
-                    chainId: chain.chain.id,
+                    chainId: app.indexingBuild.chain.chain.id,
                   })
                   .catch(() => {});
               }
 
               return decodeResponse(result);
             } else {
-              common.metrics.ponder_indexing_rpc_requests_total.inc({
-                chain: chain.chain.name,
+              app.common.metrics.ponder_indexing_rpc_requests_total.inc({
+                chain: app.indexingBuild.chain.chain.name,
                 method,
                 type: "prefetch_database",
               });
@@ -1006,12 +998,12 @@ export const cachedTransport =
 
           const [cachedResult] = await syncStore.getRpcRequestResults({
             requests: [body],
-            chainId: chain.chain.id,
+            chainId: app.indexingBuild.chain.chain.id,
           });
 
           if (cachedResult !== undefined) {
-            common.metrics.ponder_indexing_rpc_requests_total.inc({
-              chain: chain.chain.name,
+            app.common.metrics.ponder_indexing_rpc_requests_total.inc({
+              chain: app.indexingBuild.chain.chain.name,
               method,
               type: "database",
             });
@@ -1019,13 +1011,13 @@ export const cachedTransport =
             return decodeResponse(cachedResult);
           }
 
-          common.metrics.ponder_indexing_rpc_requests_total.inc({
-            chain: chain.chain.name,
+          app.common.metrics.ponder_indexing_rpc_requests_total.inc({
+            chain: app.indexingBuild.chain.chain.name,
             method,
             type: "rpc",
           });
 
-          const response = await rpc.request(body);
+          const response = await app.indexingBuild.rpc.request(body);
 
           // Note: "0x" is a valid response for some requests, but is sometimes erroneously returned by the RPC.
           // Because the frequency of these valid requests with no return data is very low, we don't cache it.
@@ -1041,13 +1033,13 @@ export const cachedTransport =
                     result: JSON.stringify(response),
                   },
                 ],
-                chainId: chain.chain.id,
+                chainId: app.indexingBuild.chain.chain.id,
               })
               .catch(() => {});
           }
           return response;
         } else {
-          return rpc.request(body);
+          return app.indexingBuild.rpc.request(body);
         }
       },
     })({ chain: _chain, retryCount: 0 });

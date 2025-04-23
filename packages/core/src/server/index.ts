@@ -1,7 +1,5 @@
 import http from "node:http";
-import type { Database } from "@/database/index.js";
-import type { Common } from "@/internal/common.js";
-import type { ApiBuild, Status } from "@/internal/types.js";
+import type { PonderApp, Status } from "@/internal/types.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { startClock } from "@/utils/timer.js";
 import { serve } from "@hono/node-server";
@@ -11,19 +9,11 @@ import { createMiddleware } from "hono/factory";
 import { createHttpTerminator } from "http-terminator";
 import { onError } from "./error.js";
 
-export type Server = {
-  hono: Hono;
-};
+export type Server = { hono: Hono };
 
-export async function createServer({
-  common,
-  database,
-  apiBuild,
-}: {
-  common: Common;
-  database: Database;
-  apiBuild: ApiBuild;
-}): Promise<Server> {
+export async function createServer(
+  app: Omit<PonderApp, "buildId" | "indexingBuild">,
+): Promise<Server> {
   const metricsMiddleware = createMiddleware(async (c, next) => {
     const matchedPathLabels = c.req.matchedRoutes
       // Filter out global middlewares
@@ -31,7 +21,7 @@ export async function createServer({
       .map((r) => ({ method: c.req.method, path: r.path }));
 
     for (const labels of matchedPathLabels) {
-      common.metrics.ponder_http_server_active_requests.inc(labels);
+      app.common.metrics.ponder_http_server_active_requests.inc(labels);
     }
     const endClock = startClock();
 
@@ -51,16 +41,16 @@ export async function createServer({
               : "5XX";
 
       for (const labels of matchedPathLabels) {
-        common.metrics.ponder_http_server_active_requests.dec(labels);
-        common.metrics.ponder_http_server_request_size_bytes.observe(
+        app.common.metrics.ponder_http_server_active_requests.dec(labels);
+        app.common.metrics.ponder_http_server_request_size_bytes.observe(
           { ...labels, status },
           requestSize,
         );
-        common.metrics.ponder_http_server_response_size_bytes.observe(
+        app.common.metrics.ponder_http_server_response_size_bytes.observe(
           { ...labels, status },
           responseSize,
         );
-        common.metrics.ponder_http_server_request_duration_ms.observe(
+        app.common.metrics.ponder_http_server_request_duration_ms.observe(
           { ...labels, status },
           responseDuration,
         );
@@ -73,7 +63,7 @@ export async function createServer({
     .use(cors({ origin: "*", maxAge: 86400 }))
     .get("/metrics", async (c) => {
       try {
-        const metrics = await common.metrics.getMetrics();
+        const metrics = await app.common.metrics.getMetrics();
         return c.text(metrics);
       } catch (error) {
         return c.json(error as Error, 500);
@@ -83,7 +73,7 @@ export async function createServer({
       return c.text("", 200);
     })
     .get("/ready", async (c) => {
-      const isReady = await database.getReady();
+      const isReady = await app.database.getReady();
 
       if (isReady) {
         return c.text("", 200);
@@ -92,7 +82,7 @@ export async function createServer({
       return c.text("Historical indexing is not complete.", 503);
     })
     .get("/status", async (c) => {
-      const checkpoints = await globalThis.PONDER_DATABASE.getCheckpoints();
+      const checkpoints = await app.database.getCheckpoints();
       const status: Status = {};
       for (const { chainName, chainId, latestCheckpoint } of checkpoints) {
         status[chainName] = {
@@ -107,8 +97,8 @@ export async function createServer({
       }
       return c.json(status);
     })
-    .route("/", apiBuild.app)
-    .onError((error, c) => onError(error, c, common));
+    .route("/", app.apiBuild.app)
+    .onError((error, c) => onError(error, c, app.common));
 
   // Create nodejs server
 
@@ -121,20 +111,20 @@ export async function createServer({
       {
         fetch: hono.fetch,
         createServer: http.createServer,
-        port: apiBuild.port,
+        port: app.apiBuild.port,
         // Note that common.options.hostname can be undefined if the user did not specify one.
         // In this case, Node.js uses `::` if IPv6 is available and `0.0.0.0` otherwise.
         // https://nodejs.org/api/net.html#serverlistenport-host-backlog-callback
-        hostname: apiBuild.hostname,
+        hostname: app.apiBuild.hostname,
       },
       () => {
         clearTimeout(timeout);
-        common.metrics.ponder_http_server_port.set(apiBuild.port);
-        common.logger.info({
+        app.common.metrics.ponder_http_server_port.set(app.apiBuild.port);
+        app.common.logger.info({
           service: "server",
-          msg: `Started listening on port ${apiBuild.port}`,
+          msg: `Started listening on port ${app.apiBuild.port}`,
         });
-        common.logger.info({
+        app.common.logger.info({
           service: "server",
           msg: "Started returning 200 responses from /health endpoint",
         });
@@ -148,7 +138,7 @@ export async function createServer({
     gracefulTerminationTimeout: 1000,
   });
 
-  common.shutdown.add(() => terminator.terminate());
+  app.common.shutdown.add(() => terminator.terminate());
 
   return { hono };
 }

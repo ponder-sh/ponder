@@ -158,8 +158,14 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   createServer({
     common,
+    namespace: namespaceResult.result,
     database,
+    preBuild,
+    schemaBuild,
     apiBuild,
+    onFatalError: () => {
+      exit({ reason: "Received fatal error", code: 1 });
+    },
   });
 
   return shutdown.kill;

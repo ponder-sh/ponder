@@ -1,21 +1,12 @@
 import { runCodegen } from "@/bin/utils/codegen.js";
-import type { Database } from "@/database/index.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import { createIndexing } from "@/indexing/index.js";
-import type { Common } from "@/internal/common.js";
 import { FlushError } from "@/internal/errors.js";
 import { getAppProgress } from "@/internal/metrics.js";
-import type {
-  CrashRecoveryCheckpoint,
-  IndexingBuild,
-  PreBuild,
-  SchemaBuild,
-} from "@/internal/types.js";
-import { createRpc } from "@/rpc/index.js";
-import { createSyncStore } from "@/sync-store/index.js";
+import type { CrashRecoveryCheckpoint, PonderApp } from "@/internal/types.js";
 import { type RealtimeEvent, createSync, splitEvents } from "@/sync/index.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";
@@ -27,86 +18,53 @@ import { startClock } from "@/utils/timer.js";
 import { sql } from "drizzle-orm";
 
 /** Starts the sync and indexing services for the specified build. */
-export async function run({
-  common,
-  preBuild,
-  schemaBuild,
-  indexingBuild,
-  database,
-  crashRecoveryCheckpoint,
-  onFatalError,
-  onReloadableError,
-}: {
-  common: Common;
-  preBuild: PreBuild;
-  schemaBuild: SchemaBuild;
-  indexingBuild: IndexingBuild;
-  database: Database;
-  crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
-  onFatalError: (error: Error) => void;
-  onReloadableError: (error: Error) => void;
-}) {
-  await database.migrateSync();
+export async function run(
+  app: PonderApp,
+  {
+    crashRecoveryCheckpoint,
+    onReloadableError,
+  }: {
+    crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
+    onReloadableError: (error: Error) => void;
+  },
+) {
+  await app.database.migrateSync();
+  runCodegen(app);
 
-  runCodegen({ common });
-
-  const rpcs = indexingBuild.chains.map((chain) =>
-    createRpc({
-      chain,
-      common,
-    }),
-  );
-
-  const syncStore = createSyncStore({ common, database });
+  // const syncStore = createSyncStore({ common, database });
 
   const realtimeMutex = createMutex();
 
-  const sync = await createSync({
-    common,
-    indexingBuild,
-    rpcs,
-    syncStore,
+  const sync = await createSync(app, {
     onRealtimeEvent: (realtimeEvent) => {
       if (realtimeEvent.type === "reorg") {
         realtimeMutex.clear();
       }
       return onRealtimeEvent(realtimeEvent);
     },
-    onFatalError,
     crashRecoveryCheckpoint,
-    ordering: preBuild.ordering,
   });
 
   const eventCount: { [eventName: string]: number } = {};
-  for (const eventName of Object.keys(indexingBuild.indexingFunctions)) {
-    eventCount[eventName] = 0;
-  }
+  // for (const eventName of Object.keys(app.indexingBuild)) {
+  //   eventCount[eventName] = 0;
+  // }
 
-  const cachedViemClient = createCachedViemClient({
-    common,
-    indexingBuild,
-    rpcs,
-    syncStore,
-    eventCount,
-  });
+  const cachedViemClient = createCachedViemClient(app, { eventCount });
 
-  const indexing = createIndexing({
-    common,
-    indexingBuild,
+  const indexing = createIndexing(app, {
     client: cachedViemClient,
     eventCount,
   });
 
-  const indexingCache = createIndexingCache({
-    common,
-    schemaBuild,
+  const indexingCache = createIndexingCache(app, {
     crashRecoveryCheckpoint,
     eventCount,
   });
 
-  for (const chain of indexingBuild.chains) {
+  for (const { chain } of app.indexingBuild) {
     const label = { chain: chain.chain.name };
-    common.metrics.ponder_historical_total_indexing_seconds.set(
+    app.common.metrics.ponder_historical_total_indexing_seconds.set(
       label,
       Math.max(
         sync.seconds[chain.chain.name]!.end -
@@ -114,7 +72,7 @@ export async function run({
         0,
       ),
     );
-    common.metrics.ponder_historical_cached_indexing_seconds.set(
+    app.common.metrics.ponder_historical_cached_indexing_seconds.set(
       label,
       Math.max(
         sync.seconds[chain.chain.name]!.cached -
@@ -122,8 +80,11 @@ export async function run({
         0,
       ),
     );
-    common.metrics.ponder_historical_completed_indexing_seconds.set(label, 0);
-    common.metrics.ponder_indexing_timestamp.set(
+    app.common.metrics.ponder_historical_completed_indexing_seconds.set(
+      label,
+      0,
+    );
+    app.common.metrics.ponder_indexing_timestamp.set(
       label,
       Math.max(
         sync.seconds[chain.chain.name]!.cached,
@@ -133,19 +94,19 @@ export async function run({
   }
 
   const startTimestamp = Math.round(Date.now() / 1000);
-  common.metrics.ponder_historical_start_timestamp_seconds.set(startTimestamp);
+  app.common.metrics.ponder_historical_start_timestamp_seconds.set(
+    startTimestamp,
+  );
 
   // Reset the start timestamp so the eta estimate doesn't include
   // the startup time.
-  common.metrics.start_timestamp = Date.now();
+  app.common.metrics.start_timestamp = Date.now();
 
   // If the initial checkpoint is zero, we need to run setup events.
   if (crashRecoveryCheckpoint === undefined) {
-    await database.retry(async () => {
-      await database.transaction(async (client, tx) => {
-        const historicalIndexingStore = createHistoricalIndexingStore({
-          common,
-          schemaBuild,
+    await app.database.retry(async () => {
+      await app.database.transaction(async (client, tx) => {
+        const historicalIndexingStore = createHistoricalIndexingStore(app, {
           indexingCache,
           db: tx,
           client,
@@ -162,25 +123,25 @@ export async function run({
     });
   }
 
-  await database.setCheckpoints({
-    checkpoints: indexingBuild.chains.map((chain) => ({
+  await app.database.setCheckpoints({
+    checkpoints: app.indexingBuild.map(({ chain }) => ({
       chainName: chain.chain.name,
       chainId: chain.chain.id,
       latestCheckpoint: sync.getStartCheckpoint(chain),
       safeCheckpoint: sync.getStartCheckpoint(chain),
     })),
-    db: database.qb.drizzle,
+    db: app.database.qb.drizzle,
   });
 
   // Run historical indexing until complete.
   for await (const events of recordAsyncGenerator(
     sync.getEvents(),
     (params) => {
-      common.metrics.ponder_historical_concurrency_group_duration.inc(
+      app.common.metrics.ponder_historical_concurrency_group_duration.inc(
         { group: "extract" },
         params.await,
       );
-      common.metrics.ponder_historical_concurrency_group_duration.inc(
+      app.common.metrics.ponder_historical_concurrency_group_duration.inc(
         { group: "transform" },
         params.yield,
       );
@@ -191,30 +152,28 @@ export async function run({
     await Promise.all([
       indexingCache.prefetch({
         events: events.events,
-        db: database.qb.drizzle,
+        db: app.database.qb.drizzle,
       }),
       cachedViemClient.prefetch({
         events: events.events,
       }),
     ]);
-    common.metrics.ponder_historical_transform_duration.inc(
+    app.common.metrics.ponder_historical_transform_duration.inc(
       { step: "prefetch" },
       endClock(),
     );
     if (events.events.length > 0) {
       endClock = startClock();
-      await database.retry(async () => {
-        await database
+      await app.database.retry(async () => {
+        await app.database
           .transaction(async (client, tx) => {
-            common.metrics.ponder_historical_transform_duration.inc(
+            app.common.metrics.ponder_historical_transform_duration.inc(
               { step: "begin" },
               endClock(),
             );
 
             endClock = startClock();
-            const historicalIndexingStore = createHistoricalIndexingStore({
-              common,
-              schemaBuild,
+            const historicalIndexingStore = createHistoricalIndexingStore(app, {
               indexingCache,
               db: tx,
               client,
@@ -237,11 +196,11 @@ export async function run({
                 eventChunk[eventChunk.length - 1]!.checkpoint,
               );
 
-              if (preBuild.ordering === "multichain") {
-                const chain = indexingBuild.chains.find(
-                  (chain) => chain.chain.id === Number(checkpoint.chainId),
+              if (app.preBuild.ordering === "multichain") {
+                const { chain } = app.indexingBuild.find(
+                  (b) => b.chain.chain.id === Number(checkpoint.chainId),
                 )!;
-                common.metrics.ponder_historical_completed_indexing_seconds.set(
+                app.common.metrics.ponder_historical_completed_indexing_seconds.set(
                   { chain: chain.chain.name },
                   Math.max(
                     Number(checkpoint.blockTimestamp) -
@@ -250,14 +209,14 @@ export async function run({
                     0,
                   ),
                 );
-                common.metrics.ponder_indexing_timestamp.set(
+                app.common.metrics.ponder_indexing_timestamp.set(
                   { chain: chain.chain.name },
                   Number(checkpoint.blockTimestamp),
                 );
               } else {
                 // TODO(kyle) does this handle chains with end blocks?
-                for (const chain of indexingBuild.chains) {
-                  common.metrics.ponder_historical_completed_indexing_seconds.set(
+                for (const { chain } of app.indexingBuild) {
+                  app.common.metrics.ponder_historical_completed_indexing_seconds.set(
                     { chain: chain.chain.name },
                     Math.max(
                       Number(checkpoint.blockTimestamp) -
@@ -266,7 +225,7 @@ export async function run({
                       0,
                     ),
                   );
-                  common.metrics.ponder_indexing_timestamp.set(
+                  app.common.metrics.ponder_indexing_timestamp.set(
                     { chain: chain.chain.name },
                     Number(checkpoint.blockTimestamp),
                   );
@@ -274,7 +233,7 @@ export async function run({
               }
 
               // Note: allows for terminal and logs to be updated
-              if (preBuild.databaseConfig.kind === "pglite") {
+              if (app.preBuild.databaseConfig.kind === "pglite") {
                 await new Promise(setImmediate);
               }
             }
@@ -282,20 +241,20 @@ export async function run({
 
             // underlying metrics collection is actually synchronous
             // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-            const { eta, progress } = await getAppProgress(common.metrics);
+            const { eta, progress } = await getAppProgress(app.common.metrics);
             if (eta === undefined || progress === undefined) {
-              common.logger.info({
+              app.common.logger.info({
                 service: "app",
                 msg: `Indexed ${events.events.length} events`,
               });
             } else {
-              common.logger.info({
+              app.common.logger.info({
                 service: "app",
                 msg: `Indexed ${events.events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
               });
             }
 
-            common.metrics.ponder_historical_transform_duration.inc(
+            app.common.metrics.ponder_historical_transform_duration.inc(
               { step: "index" },
               endClock(),
             );
@@ -314,18 +273,18 @@ export async function run({
               throw error;
             }
 
-            common.metrics.ponder_historical_transform_duration.inc(
+            app.common.metrics.ponder_historical_transform_duration.inc(
               { step: "load" },
               endClock(),
             );
             endClock = startClock();
 
-            await database.setCheckpoints({
+            await app.database.setCheckpoints({
               checkpoints: events.checkpoints.map(
                 ({ chainId, checkpoint }) => ({
-                  chainName: indexingBuild.chains.find(
-                    (chain) => chain.chain.id === chainId,
-                  )!.chain.name,
+                  chainName: app.indexingBuild.find(
+                    (b) => b.chain.chain.id === chainId,
+                  )!.chain.chain.name,
                   chainId,
                   latestCheckpoint: checkpoint,
                   safeCheckpoint: checkpoint,
@@ -334,7 +293,7 @@ export async function run({
               db: tx,
             });
 
-            common.metrics.ponder_historical_transform_duration.inc(
+            app.common.metrics.ponder_historical_transform_duration.inc(
               { step: "finalize" },
               endClock(),
             );
@@ -346,7 +305,7 @@ export async function run({
           });
       });
       cachedViemClient.clear();
-      common.metrics.ponder_historical_transform_duration.inc(
+      app.common.metrics.ponder_historical_transform_duration.inc(
         { step: "commit" },
         endClock(),
       );
@@ -361,9 +320,9 @@ export async function run({
   // checkpoint is between the last processed event and the finalized
   // checkpoint.
 
-  for (const chain of indexingBuild.chains) {
+  for (const { chain } of app.indexingBuild) {
     const label = { chain: chain.chain.name };
-    common.metrics.ponder_historical_completed_indexing_seconds.set(
+    app.common.metrics.ponder_historical_completed_indexing_seconds.set(
       label,
       Math.max(
         sync.seconds[chain.chain.name]!.end -
@@ -372,37 +331,33 @@ export async function run({
         0,
       ),
     );
-    common.metrics.ponder_indexing_timestamp.set(
+    app.common.metrics.ponder_indexing_timestamp.set(
       { chain: chain.chain.name },
       sync.seconds[chain.chain.name]!.end,
     );
   }
 
   const endTimestamp = Math.round(Date.now() / 1000);
-  common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
+  app.common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
 
-  common.logger.info({
+  app.common.logger.info({
     service: "indexing",
     msg: "Completed historical indexing",
   });
 
-  await database.setCheckpoints({
-    checkpoints: indexingBuild.chains.map((chain) => ({
+  await app.database.setCheckpoints({
+    checkpoints: app.indexingBuild.map(({ chain }) => ({
       chainName: chain.chain.name,
       chainId: chain.chain.id,
       latestCheckpoint: sync.getFinalizedCheckpoint(chain),
       safeCheckpoint: sync.getFinalizedCheckpoint(chain),
     })),
-    db: database.qb.drizzle,
+    db: app.database.qb.drizzle,
   });
 
-  await database.setReady();
+  await app.database.setReady();
 
-  const realtimeIndexingStore = createRealtimeIndexingStore({
-    common,
-    schemaBuild,
-    database,
-  });
+  const realtimeIndexingStore = createRealtimeIndexingStore(app);
 
   const onRealtimeEvent = realtimeMutex(async (event: RealtimeEvent) => {
     switch (event.type) {
@@ -413,15 +368,16 @@ export async function run({
 
           const perBlockEvents = splitEvents(event.events);
 
-          common.logger.debug({
+          app.common.logger.debug({
             service: "app",
             msg: `Partitioned events into ${perBlockEvents.length} blocks`,
           });
 
           for (const { checkpoint, events } of perBlockEvents) {
-            const chain = indexingBuild.chains.find(
-              (chain) =>
-                chain.chain.id === Number(decodeCheckpoint(checkpoint).chainId),
+            const { chain } = app.indexingBuild.find(
+              (b) =>
+                b.chain.chain.id ===
+                Number(decodeCheckpoint(checkpoint).chainId),
             )!;
 
             const result = await indexing.processEvents({
@@ -429,23 +385,26 @@ export async function run({
               db: realtimeIndexingStore,
             });
 
-            common.logger.info({
+            app.common.logger.info({
               service: "app",
               msg: `Indexed ${events.length} '${chain.chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
             });
 
             if (result.status === "error") onReloadableError(result.error);
 
-            await database.commitBlock({ checkpoint, db: database.qb.drizzle });
+            await app.database.commitBlock({
+              checkpoint,
+              db: app.database.qb.drizzle,
+            });
 
-            if (preBuild.ordering === "multichain") {
-              common.metrics.ponder_indexing_timestamp.set(
+            if (app.preBuild.ordering === "multichain") {
+              app.common.metrics.ponder_indexing_timestamp.set(
                 { chain: chain.chain.name },
                 Number(decodeCheckpoint(checkpoint).blockTimestamp),
               );
             } else {
-              for (const chain of indexingBuild.chains) {
-                common.metrics.ponder_indexing_timestamp.set(
+              for (const { chain } of app.indexingBuild) {
+                app.common.metrics.ponder_indexing_timestamp.set(
                   { chain: chain.chain.name },
                   Number(decodeCheckpoint(checkpoint).blockTimestamp),
                 );
@@ -455,20 +414,20 @@ export async function run({
         }
 
         // TODO(kyle) wrap
-        await database.qb.drizzle
-          .insert(database.PONDER_CHECKPOINT)
+        await app.database.qb.drizzle
+          .insert(app.database.PONDER_CHECKPOINT)
           .values(
             event.checkpoints.map(({ chainId, checkpoint }) => ({
-              chainName: indexingBuild.chains.find(
-                (chain) => chain.chain.id === chainId,
-              )!.chain.name,
+              chainName: app.indexingBuild.find(
+                (b) => b.chain.chain.id === chainId,
+              )!.chain.chain.name,
               chainId,
               safeCheckpoint: checkpoint,
               latestCheckpoint: checkpoint,
             })),
           )
           .onConflictDoUpdate({
-            target: database.PONDER_CHECKPOINT.chainName,
+            target: app.database.PONDER_CHECKPOINT.chainName,
             set: {
               latestCheckpoint: sql`excluded.latest_checkpoint`,
             },
@@ -480,24 +439,26 @@ export async function run({
         // Note: `setLatestCheckpoint` is not called here, instead it is called
         // in the `block` case.
 
-        await database.removeTriggers();
-        await database.retry(async () => {
-          await database.qb.drizzle.transaction(async (tx) => {
-            await database.revert({ checkpoint: event.checkpoint, tx });
+        await app.database.removeTriggers();
+        await app.database.retry(async () => {
+          await app.database.qb.drizzle.transaction(async (tx) => {
+            await app.database.revert({ checkpoint: event.checkpoint, tx });
           });
         });
-        await database.createTriggers();
+        await app.database.createTriggers();
 
         break;
 
       case "finalize":
-        await database.qb.drizzle.update(database.PONDER_CHECKPOINT).set({
-          safeCheckpoint: event.checkpoint,
-        });
+        await app.database.qb.drizzle
+          .update(app.database.PONDER_CHECKPOINT)
+          .set({
+            safeCheckpoint: event.checkpoint,
+          });
 
-        await database.finalize({
+        await app.database.finalize({
           checkpoint: event.checkpoint,
-          db: database.qb.drizzle,
+          db: app.database.qb.drizzle,
         });
         break;
 
@@ -506,12 +467,12 @@ export async function run({
     }
   });
 
-  await database.createIndexes();
-  await database.createTriggers();
+  await app.database.createIndexes();
+  await app.database.createTriggers();
 
   await sync.startRealtime();
 
-  common.logger.info({
+  app.common.logger.info({
     service: "server",
     msg: "Started returning 200 responses from /ready endpoint",
   });

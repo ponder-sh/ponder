@@ -6,12 +6,12 @@ import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
+import type { PonderApp } from "@/internal/types.js";
 import { mergeResults } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 import { run } from "../utils/run.js";
 import { runServer } from "../utils/runServer.js";
-
 export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
 
@@ -156,26 +156,28 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     1,
   );
 
-  run({
+  const app = {
     common,
+    buildId,
     database,
     preBuild,
+    namespace: namespaceResult.result,
     schemaBuild,
     indexingBuild: indexingBuildResult.result,
-    crashRecoveryCheckpoint,
+    apiBuild: apiBuildResult.result,
     onFatalError: () => {
       exit({ reason: "Received fatal error", code: 1 });
     },
+  } satisfies PonderApp;
+
+  run(app, {
+    crashRecoveryCheckpoint,
     onReloadableError: () => {
       exit({ reason: "Encountered indexing error", code: 1 });
     },
   });
 
-  runServer({
-    common,
-    database,
-    apiBuild: apiBuildResult.result,
-  });
+  runServer(app);
 
   return shutdown.kill;
 }
