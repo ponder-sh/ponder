@@ -144,7 +144,7 @@ const changeMappingFileDelim = (delim: string) => {
 };
 
 const bench = async () => {
-  // Reset handler delimeter
+  // Reset handler delimiter
   changeMappingFileDelim("-");
 
   const subgraphCold = await subgraph();
