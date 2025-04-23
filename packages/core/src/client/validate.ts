@@ -1,4 +1,6 @@
-import type { Node, RawStmt } from "@pgsql/types";
+// biome-ignore lint/suspicious/noShadowRestrictedNames: <explanation>
+import type { Node, RawStmt, String } from "@pgsql/types";
+import { parse } from "pgsql-parser";
 
 type ValidatorNode<
   node extends Node extends infer T ? (T extends T ? keyof T : never) : never,
@@ -22,13 +24,7 @@ export const validateQuery = async (
   sql: string,
   shouldValidateInnerNode = true,
 ) => {
-  // @ts-ignore
-  const Parser = await import(/* webpackIgnore: true */ "pg-query-emscripten");
   const crypto = await import(/* webpackIgnore: true */ "node:crypto");
-
-  if (sql.length > 5_000) {
-    throw new Error("Invalid query");
-  }
 
   const hash = crypto
     .createHash("sha256")
@@ -50,27 +46,23 @@ export const validateQuery = async (
     }
   }
 
-  const { parse } = await Parser.default();
-  const parseResult = parse(sql) as {
-    parse_tree: { stmts: RawStmt[] };
-    error: string | null;
-  };
+  const parseResult = parse(sql) as Node[];
 
-  if (parseResult.error !== null) {
-    throw new Error(parseResult.error);
-  }
-
-  if (parseResult.parse_tree.stmts.length === 0) {
+  if (parseResult.length === 0) {
     throw new Error("Invalid query");
   }
 
-  if (parseResult.parse_tree.stmts.length > 1) {
+  if (parseResult.length > 1) {
     throw new Error("Multiple statements not supported");
   }
 
-  const stmt = parseResult.parse_tree.stmts[0]!;
+  if ("RawStmt" in parseResult[0]! === false) {
+    throw new Error("Invalid query");
+  }
 
-  if (stmt.stmt === undefined) {
+  const stmt = (parseResult[0]! as { RawStmt: RawStmt }).RawStmt.stmt;
+
+  if (stmt === undefined) {
     throw new Error("Invalid query");
   }
 
@@ -92,7 +84,7 @@ export const validateQuery = async (
     }
   };
 
-  validate(stmt.stmt);
+  validate(stmt);
 
   if (shouldValidateInnerNode) {
     ALLOW_CACHE.set(hash, true);
@@ -559,12 +551,14 @@ const FUNC_CALL_VALIDATOR: ValidatorNode<"FuncCall"> = {
       node.funcname?.every(
         (name) =>
           getNodeType(name) === "String" &&
+          // Note: String diverges from the type definitions
           // @ts-ignore
-          ALLOWED_FUNCTIONS.has(name.String.sval),
+          ALLOWED_FUNCTIONS.has((name as { String: String }).String.str),
       )
     ) {
       return;
     }
+    console.log(node.funcname);
     throw new Error("Function call not supported");
   },
 };
