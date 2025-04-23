@@ -114,11 +114,11 @@ export async function buildConfigAndIndexingFunctions({
       );
 
       if (matchedChain === undefined) {
-        throw new Error("bad chain, update viem");
+        throw new Error(
+          `Chain with id ${chain.id} not found in viem. Please update viem to the latest version.`,
+        );
       }
-
       matchedChain.name = chainName;
-      // const chain = { ...defaultChain, name: networkName, id: chainId };
 
       // Note: This can throw.
       // const rpcUrls = await getRpcUrlsForClient({ transport, chain });
