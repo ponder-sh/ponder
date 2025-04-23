@@ -5,6 +5,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { beforeEach, expect, test, vi } from "vitest";
 import { createServer } from "./index.js";
 
@@ -19,7 +20,6 @@ test("listens on ipv4", async (context) => {
     common: context.common,
     apiBuild: {
       app: new Hono(),
-
       port: context.common.options.port,
     },
     database,
@@ -38,7 +38,6 @@ test("listens on ipv6", async (context) => {
     common: context.common,
     apiBuild: {
       app: new Hono(),
-
       port: context.common.options.port,
     },
     database,
@@ -57,7 +56,6 @@ test("not ready", async (context) => {
     common: context.common,
     apiBuild: {
       app: new Hono(),
-
       port: context.common.options.port,
     },
     database,
@@ -75,7 +73,6 @@ test("ready", async (context) => {
     common: context.common,
     apiBuild: {
       app: new Hono(),
-
       port: context.common.options.port,
     },
     database,
@@ -103,7 +100,6 @@ test("health", async (context) => {
     common: context.common,
     apiBuild: {
       app: new Hono(),
-
       port: context.common.options.port,
     },
     database,
@@ -121,7 +117,6 @@ test("healthy PUT", async (context) => {
     common: context.common,
     apiBuild: {
       app: new Hono(),
-
       port: context.common.options.port,
     },
     database,
@@ -141,7 +136,6 @@ test("metrics", async (context) => {
     common: context.common,
     apiBuild: {
       app: new Hono(),
-
       port: context.common.options.port,
     },
     database,
@@ -159,7 +153,6 @@ test("metrics error", async (context) => {
     common: context.common,
     apiBuild: {
       app: new Hono(),
-
       port: context.common.options.port,
     },
     database,
@@ -180,7 +173,6 @@ test("metrics PUT", async (context) => {
     common: context.common,
     apiBuild: {
       app: new Hono(),
-
       port: context.common.options.port,
     },
     database,
@@ -200,7 +192,6 @@ test("metrics unmatched route", async (context) => {
     common: context.common,
     apiBuild: {
       app: new Hono(),
-
       port: context.common.options.port,
     },
     database,
@@ -222,7 +213,6 @@ test("missing route", async (context) => {
     common: context.common,
     apiBuild: {
       app: new Hono(),
-
       port: context.common.options.port,
     },
     database,
@@ -266,6 +256,40 @@ test("custom hono route", async (context) => {
 
   expect(response.status).toBe(200);
   expect(await response.text()).toBe("hi");
+});
+
+test("custom cors response headers", async (context) => {
+  const { database } = await setupDatabaseServices(context);
+
+  const app = new Hono()
+    .get("/default", (c) => c.text("hi"))
+    .get("/custom-middleware", cors({ origin: "custom-middleware" }), (c) =>
+      c.text("hi"),
+    )
+    .get("/custom-inline", (c) => {
+      c.header("access-control-allow-origin", "custom-inline");
+      return c.text("hi");
+    });
+
+  const server = await createServer({
+    common: context.common,
+    apiBuild: { app, port: context.common.options.port },
+    database,
+  });
+
+  const default_ = (await server.hono.request("/default")).headers.get(
+    "access-control-allow-origin",
+  );
+  const customMiddleware = (
+    await server.hono.request("/custom-middleware")
+  ).headers.get("access-control-allow-origin");
+  const customInline = (
+    await server.hono.request("/custom-inline")
+  ).headers.get("access-control-allow-origin");
+
+  expect(default_).toBe("*");
+  expect(customMiddleware).toBe("custom-middleware");
+  expect(customInline).toBe("custom-inline");
 });
 
 // Note that this test doesn't work because the `hono.request` method doesn't actually

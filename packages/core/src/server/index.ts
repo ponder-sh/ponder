@@ -67,9 +67,25 @@ export async function createServer({
     }
   });
 
+  const defaultCorsMiddleware = cors({ origin: "*", maxAge: 86400 });
+
   const hono = new Hono()
     .use(metricsMiddleware)
-    .use(cors({ origin: "*", maxAge: 86400 }))
+    // Custom CORS middleware that respects user settings
+    .use(async (c, next) => {
+      // Call next() to let any user-defined CORS middleware run
+      await next();
+
+      const userDefinedOrigin = c.res.headers.get(
+        "Access-Control-Allow-Origin",
+      );
+
+      // If the user did not set CORS headers, apply our default
+      // settings using a no-op for `next` (we already ran it)
+      if (!userDefinedOrigin) {
+        return await defaultCorsMiddleware(c, () => Promise.resolve());
+      }
+    })
     .get("/metrics", async (c) => {
       try {
         const metrics = await common.metrics.getMetrics();
