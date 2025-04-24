@@ -1,3 +1,5 @@
+import { eq, onchainTable, relations } from "@/index.js";
+import { createClient } from "@ponder/client";
 import { expect, test } from "vitest";
 import { validateQuery } from "./validate.js";
 
@@ -55,6 +57,136 @@ test("validateQuery() recursive cte", () => {
 test("validateQuery() function call", () => {
   expect(() => validateQuery("SELECT count(*) from users;")).not.toThrow();
   expect(() => validateQuery("SELECT blow_up();")).rejects.toThrow();
+});
+
+test("validateQuery() relational query", () => {
+  const account = onchainTable("account", (p) => ({
+    id: p.hex().primaryKey(),
+    balance: p.bigint(),
+  }));
+
+  const position = onchainTable("position", (p) => ({
+    id: p.hex().primaryKey(),
+    accountId: p.hex().notNull(),
+  }));
+
+  const comment = onchainTable("comment", (p) => ({
+    id: p.hex().primaryKey(),
+    positionId: p.hex().notNull(),
+  }));
+
+  const positionRelations = relations(position, ({ one }) => ({
+    profile: one(account, {
+      fields: [position.accountId],
+      references: [account.id],
+    }),
+  }));
+
+  const accountProfileRelations = relations(account, ({ many }) => ({
+    positionList: many(position),
+  }));
+
+  const commentRelations = relations(comment, ({ one }) => ({
+    position: one(position, {
+      fields: [comment.positionId],
+      references: [position.id],
+    }),
+  }));
+
+  const positionCommentRelations = relations(position, ({ many }) => ({
+    commentList: many(comment),
+  }));
+
+  const client = createClient("http://.../sql", {
+    schema: {
+      account,
+      position,
+      comment,
+      positionRelations,
+      accountProfileRelations,
+      commentRelations,
+      positionCommentRelations,
+    },
+  });
+
+  let query = client.db.query.account
+    .findMany({
+      with: {
+        positionList: true,
+      },
+    })
+    .toSQL();
+  expect(() => validateQuery(query.sql)).not.toThrow();
+
+  query = client.db.query.account
+    .findFirst({
+      with: {
+        positionList: true,
+      },
+    })
+    .toSQL();
+  expect(() => validateQuery(query.sql)).not.toThrow();
+
+  query = client.db.query.account.findMany().toSQL();
+  expect(() => validateQuery(query.sql)).not.toThrow();
+
+  query = client.db.query.account.findFirst().toSQL();
+  expect(() => validateQuery(query.sql)).not.toThrow();
+
+  // nested relational query
+  query = client.db.query.account
+    .findMany({
+      with: {
+        positionList: {
+          with: {
+            commentList: true,
+          },
+        },
+      },
+    })
+    .toSQL();
+  expect(() => validateQuery(query.sql)).not.toThrow();
+
+  // nested relational query with where
+  query = client.db.query.account
+    .findMany({
+      with: {
+        positionList: {
+          where: eq(position.id, "0x0"),
+          with: {
+            commentList: true,
+          },
+        },
+      },
+    })
+    .toSQL();
+  expect(() => validateQuery(query.sql)).not.toThrow();
+
+  // nested relational query with limit
+  query = client.db.query.account
+    .findMany({
+      with: {
+        positionList: {
+          limit: 10,
+          with: {
+            commentList: true,
+          },
+        },
+      },
+    })
+    .toSQL();
+  expect(() => validateQuery(query.sql)).not.toThrow();
+
+  // relational query with offset
+  query = client.db.query.account
+    .findMany({
+      offset: 10,
+      with: {
+        positionList: true,
+      },
+    })
+    .toSQL();
+  expect(() => validateQuery(query.sql)).not.toThrow();
 });
 
 test("validateQuery() handles large query", async () => {
