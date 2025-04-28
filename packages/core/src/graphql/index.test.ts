@@ -57,6 +57,7 @@ test("metadata", async (context) => {
     checkpoints: [
       {
         chainId: 1,
+        chainName: "mainnet",
         latestCheckpoint: encodeCheckpoint({
           blockNumber: 10n,
           chainId: 1n,

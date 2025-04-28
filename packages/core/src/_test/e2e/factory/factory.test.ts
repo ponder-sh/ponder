@@ -63,7 +63,7 @@ test(
 
     await waitForIndexedBlock({
       port,
-      chainId: 1,
+      chainName: "mainnet",
       block: { number: 3 },
     });
 
@@ -87,7 +87,7 @@ test(
 
     await waitForIndexedBlock({
       port,
-      chainId: 1,
+      chainName: "mainnet",
       block: { number: 4 },
     });
 
