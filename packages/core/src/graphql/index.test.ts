@@ -6,11 +6,7 @@ import {
 } from "@/_test/setup.js";
 import type { Database } from "@/database/index.js";
 import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
-import {
-  EVENT_TYPES,
-  decodeCheckpoint,
-  encodeCheckpoint,
-} from "@/utils/checkpoint.js";
+import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { relations } from "drizzle-orm";
 import { type GraphQLType, execute, parse } from "graphql";
 import { toBytes } from "viem";
@@ -28,16 +24,7 @@ function buildContextValue(database: Database) {
   return {
     drizzle,
     getDataLoader,
-    getStatus: async () => {
-      const checkpoints = await database.getCheckpoints();
-      return checkpoints.map(({ chainId, latestCheckpoint }) => ({
-        chainId,
-        block: {
-          number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
-          timestamp: Number(decodeCheckpoint(latestCheckpoint).blockTimestamp),
-        },
-      }));
-    },
+    getCheckpoints: () => database.getCheckpoints(),
   };
 }
 
@@ -91,8 +78,8 @@ test("metadata", async (context) => {
   expect(result.data).toMatchObject({
     _meta: {
       status: {
-        1: {
-          ready: true,
+        mainnet: {
+          chainId: 1,
           block: {
             number: 10,
             timestamp: 20,
