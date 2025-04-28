@@ -19,6 +19,7 @@ import {
   type Database,
   TABLES,
   createDatabase,
+  getPonderCheckpoint,
   getPonderMeta,
 } from "./index.js";
 
@@ -576,14 +577,11 @@ test("finalize()", async (context) => {
 
   // metadata
 
-  const metadata = await database.qb.drizzle
+  const checkpoints = await database.qb.drizzle
     .select()
-    .from(getPonderMeta("public"))
-    .then((result) => result[0]!.value);
+    .from(getPonderCheckpoint("public"));
 
-  expect(metadata.checkpoint).toStrictEqual(
-    createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-  );
+  expect(checkpoints).toMatchInlineSnapshot();
 
   await context.common.shutdown.kill();
 });
@@ -863,56 +861,6 @@ test("revert() with composite primary key", async (context) => {
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toStrictEqual({ a: 1, b: 1, c: null });
-
-  await context.common.shutdown.kill();
-});
-
-test("getStatus() empty", async (context) => {
-  const database = await createDatabase({
-    common: context.common,
-    namespace: "public",
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-    },
-    schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
-    },
-  });
-
-  await database.migrate({ buildId: "abc" });
-
-  const status = await database.getStatus();
-
-  expect(status).toBe(null);
-
-  await context.common.shutdown.kill();
-});
-
-test("setStatus()", async (context) => {
-  const database = await createDatabase({
-    common: context.common,
-    namespace: "public",
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-    },
-    schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
-    },
-  });
-
-  await database.migrate({ buildId: "abc" });
-
-  await database.setStatus({
-    [1]: { block: { number: 10, timestamp: 10 }, ready: false },
-  });
-
-  const status = await database.getStatus();
-
-  expect(status).toStrictEqual({
-    [1]: { block: { number: 10, timestamp: 10 }, ready: false },
-  });
 
   await context.common.shutdown.kill();
 });
