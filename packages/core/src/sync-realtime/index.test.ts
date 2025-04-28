@@ -170,7 +170,7 @@ test("start() gets missing block", async (context) => {
   const { common } = context;
   await setupDatabaseServices(context);
 
-  const chain = getChain();
+  const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({
     chain,
     common,
@@ -304,7 +304,7 @@ test("handleBlock() block event with log", async (context) => {
   const { common } = context;
   await setupDatabaseServices(context);
 
-  const chain = getChain();
+  const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({
     chain,
     common,
@@ -377,7 +377,7 @@ test("handleBlock() block event with log factory", async (context) => {
   const { common } = context;
   await setupDatabaseServices(context);
 
-  const chain = getChain();
+  const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({
     chain,
     common,
@@ -494,7 +494,7 @@ test("handleBlock() block event with block", async (context) => {
   const { common } = context;
   await setupDatabaseServices(context);
 
-  const chain = getChain();
+  const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({
     chain,
     common,
@@ -561,7 +561,7 @@ test("handleBlock() block event with transaction", async (context) => {
   const { common } = context;
   await setupDatabaseServices(context);
 
-  const chain = getChain();
+  const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({
     chain,
     common,
@@ -634,7 +634,7 @@ test("handleBlock() block event with transfer", async (context) => {
   const { common } = context;
   await setupDatabaseServices(context);
 
-  const chain = getChain();
+  const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({
     chain,
     common,
@@ -732,7 +732,7 @@ test("handleBlock() block event with trace", async (context) => {
   const { common } = context;
   await setupDatabaseServices(context);
 
-  const chain = getChain();
+  const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({
     chain,
     common,
@@ -883,7 +883,7 @@ test("handleBlock() finalize event", async (context) => {
   const { common } = context;
   await setupDatabaseServices(context);
 
-  const chain = getChain();
+  const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({
     chain,
     common,
@@ -939,7 +939,7 @@ test("handleReorg() finds common ancestor", async (context) => {
   const { common } = context;
   await setupDatabaseServices(context);
 
-  const chain = getChain();
+  const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({
     chain,
     common,
@@ -995,7 +995,7 @@ test("handleReorg() throws error for deep reorg", async (context) => {
   const { common } = context;
   await setupDatabaseServices(context);
 
-  const chain = getChain();
+  const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({
     chain,
     common,

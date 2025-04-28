@@ -44,6 +44,7 @@ export const createRpc = ({
     Parameters<Rpc["request"]>[0]
   >({
     frequency: chain.maxRequestsPerSecond,
+    initialStart: true,
     // TODO(kyle) concurrency,
     // @ts-ignore
     worker: async (task) => {
