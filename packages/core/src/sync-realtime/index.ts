@@ -683,6 +683,9 @@ export const createRealtimeSync = (
       if (unfinalizedBlocks.length === 0) {
         // No compatible block was found in the local chain, must be a deep reorg.
 
+        // Note: reorgedBlocks aren't removed from `unfinalizedBlocks`
+        unfinalizedBlocks = reorgedBlocks;
+
         const msg = `Encountered unrecoverable '${args.network.name}' reorg beyond finalized block ${hexToNumber(finalizedBlock.number)}`;
 
         args.common.logger.warn({ service: "realtime", msg });

@@ -1032,5 +1032,6 @@ test("handleReorg() throws error for deep reorg", async (context) => {
     },
   });
 
-  expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
+  // block 4 is not added to `unfinalizedBlocks`
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(3);
 });
