@@ -79,6 +79,7 @@ test("splitEvents()", async () => {
   expect(result).toMatchInlineSnapshot(`
     [
       {
+        "chainId": 1,
         "checkpoint": "000000000100000000000000010000000000000001999999999999999999999999999999999",
         "events": [
           {
@@ -95,6 +96,7 @@ test("splitEvents()", async () => {
         ],
       },
       {
+        "chainId": 1,
         "checkpoint": "000000000200000000000000010000000000000002999999999999999999999999999999999",
         "events": [
           {
@@ -949,7 +951,10 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
     yield await p4.promise;
   }
 
-  const results: { events: Event[]; checkpoint: string }[] = [];
+  const results: {
+    events: Event[];
+    checkpoints: { chainId: number; checkpoint: string }[];
+  }[] = [];
   const generator = mergeAsyncGeneratorsWithEventOrder([
     generator1(),
     generator2(),
@@ -986,7 +991,16 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
   expect(results).toMatchInlineSnapshot(`
     [
       {
-        "checkpoint": "06",
+        "checkpoints": [
+          {
+            "chainId": undefined,
+            "checkpoint": "01",
+          },
+          {
+            "chainId": undefined,
+            "checkpoint": "05",
+          },
+        ],
         "events": [
           {
             "checkpoint": "01",
@@ -1000,7 +1014,16 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
         ],
       },
       {
-        "checkpoint": "10",
+        "checkpoints": [
+          {
+            "chainId": undefined,
+            "checkpoint": "07",
+          },
+          {
+            "chainId": undefined,
+            "checkpoint": "08",
+          },
+        ],
         "events": [
           {
             "checkpoint": "07",
@@ -1011,7 +1034,16 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
         ],
       },
       {
-        "checkpoint": "20",
+        "checkpoints": [
+          {
+            "chainId": undefined,
+            "checkpoint": "13",
+          },
+          {
+            "chainId": undefined,
+            "checkpoint": "11",
+          },
+        ],
         "events": [
           {
             "checkpoint": "08",
@@ -1094,12 +1126,9 @@ test("getEvents() multichain", async (context) => {
     ordering: "multichain",
   });
 
-  const events = await drainAsyncGenerator(sync.getEvents()).then((events) =>
-    events.flat(),
-  );
-
-  expect(events).toBeDefined();
-  expect(events).toHaveLength(2);
+  const events = await drainAsyncGenerator(sync.getEvents());
+  expect(events.flatMap(({ events }) => events)).toHaveLength(2);
+  expect(events.flatMap(({ checkpoints }) => checkpoints)).toHaveLength(1);
 });
 
 test("getEvents() omnichain", async (context) => {
@@ -1136,98 +1165,9 @@ test("getEvents() omnichain", async (context) => {
     ordering: "omnichain",
   });
 
-  const events = await drainAsyncGenerator(sync.getEvents()).then((events) =>
-    events.flat(),
-  );
-
-  expect(events).toBeDefined();
-  expect(events).toHaveLength(2);
-});
-
-test("getEvents() mulitchain updates status", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
-    interval: 1,
-  });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
-
-  await testClient.mine({ blocks: 2 });
-
-  // finalized block: 2
-  network.finalityBlockCount = 0;
-
-  const sync = await createSync({
-    syncStore,
-
-    common: context.common,
-    indexingBuild: { sources, networks: [network] },
-    requestQueues: [
-      createRequestQueue({
-        network,
-        common: context.common,
-      }),
-    ],
-    onRealtimeEvent: async () => {},
-    onFatalError: () => {},
-    crashRecoveryCheckpoint: undefined,
-    ordering: "multichain",
-  });
-
-  await drainAsyncGenerator(sync.getEvents());
-
-  const status = sync.getStatus();
-
-  expect(status[network.name]?.ready).toBe(false);
-  expect(status[network.name]?.block?.number).toBe(2);
-});
-
-test("getEvents() omnichain updates status", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const network = getNetwork();
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
-    interval: 1,
-  });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
-
-  await testClient.mine({ blocks: 2 });
-
-  // finalized block: 2
-  network.finalityBlockCount = 0;
-
-  const sync = await createSync({
-    syncStore,
-
-    common: context.common,
-    indexingBuild: { sources, networks: [network] },
-    requestQueues: [
-      createRequestQueue({
-        network,
-        common: context.common,
-      }),
-    ],
-    onRealtimeEvent: async () => {},
-    onFatalError: () => {},
-    crashRecoveryCheckpoint: undefined,
-    ordering: "multichain",
-  });
-
-  await drainAsyncGenerator(sync.getEvents());
-
-  const status = sync.getStatus();
-
-  expect(status[network.name]?.ready).toBe(false);
-  expect(status[network.name]?.block?.number).toBe(2);
+  const events = await drainAsyncGenerator(sync.getEvents());
+  expect(events.flatMap(({ events }) => events)).toHaveLength(2);
+  expect(events.flatMap(({ checkpoints }) => checkpoints)).toHaveLength(1);
 });
 
 test("getEvents() with initial checkpoint", async (context) => {
@@ -1261,16 +1201,14 @@ test("getEvents() with initial checkpoint", async (context) => {
     ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    crashRecoveryCheckpoint: MAX_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: [
+      { chainId: 1, checkpoint: MAX_CHECKPOINT_STRING },
+    ],
     ordering: "multichain",
   });
 
-  const events = await drainAsyncGenerator(sync.getEvents()).then((events) =>
-    events.flat(),
-  );
-
-  expect(events).toBeDefined();
-  expect(events).toHaveLength(0);
+  const events = await drainAsyncGenerator(sync.getEvents());
+  expect(events.flatMap(({ events }) => events)).toHaveLength(0);
 });
 
 // Note: this test is causing a flake on ci.
@@ -1310,11 +1248,6 @@ test.skip("startRealtime()", async (context) => {
   await drainAsyncGenerator(sync.getEvents());
 
   await sync.startRealtime();
-
-  const status = sync.getStatus();
-
-  expect(status[network.name]?.ready).toBe(true);
-  expect(status[network.name]?.block?.number).toBe(1);
 });
 
 test("onEvent() multichain handles block", async (context) => {

@@ -72,7 +72,11 @@ export type Database = {
   ) => Promise<T>;
   /** Migrate the `ponder_sync` schema. */
   migrateSync(): Promise<void>;
-  /** Migrate the user schema. */
+  /**
+   * Migrate the user schema.
+   *
+   * @returns The crash recovery checkpoint for each chain if there is a cache hit, else undefined.
+   */
   migrate({
     buildId,
   }: Pick<IndexingBuild, "buildId">): Promise<CrashRecoveryCheckpoint>;
