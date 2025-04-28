@@ -159,6 +159,7 @@ export async function buildConfigAndIndexingFunctions({
     createRpc({
       common,
       chain,
+      concurrency: Math.floor(common.options.rpcMaxConcurrency / chains.length),
     }),
   );
 

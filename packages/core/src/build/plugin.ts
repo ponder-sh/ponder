@@ -25,8 +25,9 @@ if (globalThis.PONDER_INDEXING_BUILD === undefined || globalThis.PONDER_DATABASE
 const publicClients = {};
     
 for (const chain of globalThis.PONDER_INDEXING_BUILD.chains) {
-  publicClients[chain.chainId] = createPublicClient({
+  publicClients[chain.chain.id] = createPublicClient({
     chain: chain.chain,
+    // TODO(kyle) build transport from chain
     transport: () => chain.transport
   })
 }

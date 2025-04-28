@@ -4,6 +4,10 @@ import { createQueue } from "@/utils/queue.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import {
+  type GetLogsRetryHelperParameters,
+  getLogsRetryHelper,
+} from "@ponder/utils";
+import {
   http,
   type EIP1193Parameters,
   HttpRequestError,
@@ -12,6 +16,8 @@ import {
   MethodNotSupportedRpcError,
   ParseRpcError,
   type PublicRpcSchema,
+  type RpcError,
+  isHex,
 } from "viem";
 import type { DebugRpcSchema } from "../utils/debug.js";
 
@@ -32,7 +38,8 @@ const BASE_DURATION = 125;
 export const createRpc = ({
   common,
   chain,
-}: { common: Common; chain: Chain }): Rpc => {
+  concurrency = 25,
+}: { common: Common; chain: Chain; concurrency?: number }): Rpc => {
   const request = http(chain.rpcUrl)({
     chain: chain.chain,
     retryCount: 0,
@@ -43,9 +50,9 @@ export const createRpc = ({
     Awaited<ReturnType<Rpc["request"]>>,
     Parameters<Rpc["request"]>[0]
   >({
-    frequency: chain.maxRequestsPerSecond,
     initialStart: true,
-    // TODO(kyle) concurrency,
+    frequency: chain.maxRequestsPerSecond,
+    concurrency,
     // @ts-ignore
     worker: async (task) => {
       for (let i = 0; i <= RETRY_COUNT; i++) {
@@ -72,7 +79,18 @@ export const createRpc = ({
         } catch (e) {
           const error = e as Error;
 
-          // TODO(kyle) log ranges
+          if (
+            task.method === "eth_getLogs" &&
+            isHex(task.params[0].fromBlock) &&
+            isHex(task.params[0].toBlock)
+          ) {
+            const getLogsErrorResponse = getLogsRetryHelper({
+              params: task.params as GetLogsRetryHelperParameters["params"],
+              error: error as RpcError,
+            });
+
+            if (getLogsErrorResponse.shouldRetry === true) throw error;
+          }
 
           if (shouldRetry(error) === false) {
             common.logger.warn({
