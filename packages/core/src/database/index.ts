@@ -769,6 +769,7 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
               } as const;
             }
 
+            // Note: ponder <=0.8 will evaluate this as true because the version is undefined
             if (previousApp.version !== VERSION) {
               const error = new NonRetryableError(
                 `Schema '${namespace}' was previously used by a Ponder app with a different minor version. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/getting-started/database#database-schema`,
