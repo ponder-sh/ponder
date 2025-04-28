@@ -694,6 +694,10 @@ export const createDatabase = async ({
               // https://www.postgresql.org/docs/current/transaction-iso.html#XACT-REPEATABLE-READ
               { isolationLevel: "repeatable read" },
             );
+            common.logger.info({
+              service: "database",
+              msg: `Migrated '${schema}' schema`,
+            });
           }
         },
       );
