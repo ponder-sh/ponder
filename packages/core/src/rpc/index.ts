@@ -20,7 +20,7 @@ type Schema = [...PublicRpcSchema, ...DebugRpcSchema];
 type RequestReturnType<method extends EIP1193Parameters<Schema>["method"]> =
   Extract<Schema[number], { Method: method }>["ReturnType"];
 
-export type RPC = {
+export type Rpc = {
   request: <TParameters extends EIP1193Parameters<Schema>>(
     parameters: TParameters,
   ) => Promise<RequestReturnType<TParameters["method"]>>;
@@ -32,7 +32,7 @@ const BASE_DURATION = 125;
 export const createRpc = ({
   common,
   chain,
-}: { common: Common; chain: Chain }): RPC => {
+}: { common: Common; chain: Chain }): Rpc => {
   const request = http(chain.rpcUrl)({
     chain: chain.chain,
     retryCount: 0,
@@ -40,8 +40,8 @@ export const createRpc = ({
   }).request;
 
   const queue = createQueue<
-    Awaited<ReturnType<RPC["request"]>>,
-    Parameters<RPC["request"]>[0]
+    Awaited<ReturnType<Rpc["request"]>>,
+    Parameters<Rpc["request"]>[0]
   >({
     frequency: chain.maxRequestsPerSecond,
     // TODO(kyle) concurrency,

@@ -1,4 +1,5 @@
 import type { SqlStatements } from "@/drizzle/kit/index.js";
+import type { Rpc } from "@/rpc/index.js";
 import type { AbiEvents, AbiFunctions } from "@/sync/abi.js";
 import type {
   Block,
@@ -335,6 +336,8 @@ export type IndexingBuild = {
   sources: Source[];
   /** Chains to index. */
   chains: Chain[];
+  /** RPCs for all `chains`. */
+  rpcs: Rpc[];
   /** Event callbacks for all `sources`.  */
   indexingFunctions: IndexingFunctions;
 };

@@ -477,6 +477,7 @@ test("getChildAddresses()", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -509,6 +510,7 @@ test("getChildAddresses() empty", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -533,6 +535,7 @@ test("getChildAddresses() distinct", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -571,6 +574,7 @@ test("insertChildAddresses()", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -1051,6 +1055,7 @@ test("getEventBlockData() pagination", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -1188,15 +1193,17 @@ test("getEventBlockData() pagination with multiple filters", async (context) => 
     sender: ALICE,
   });
 
-  const { sources: erc20Sources } = await buildConfigAndIndexingFunctions(
-    getErc20ConfigAndIndexingFunctions({ address }),
-  );
+  const { sources: erc20Sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
+    ...getErc20ConfigAndIndexingFunctions({ address }),
+  });
 
-  const { sources: blockSources } = await buildConfigAndIndexingFunctions(
-    getBlocksConfigAndIndexingFunctions({
+  const { sources: blockSources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
+    ...getBlocksConfigAndIndexingFunctions({
       interval: 1,
     }),
-  );
+  });
 
   let rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,

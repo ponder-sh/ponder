@@ -18,7 +18,7 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
-import type { RPC } from "@/rpc/index.js";
+import type { Rpc } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
   getChildAddress,
@@ -71,7 +71,7 @@ type CreateHistoricalSyncParameters = {
   sources: Source[];
   syncStore: SyncStore;
   chain: Chain;
-  rpc: RPC;
+  rpc: Rpc;
   onFatalError: (error: Error) => void;
 };
 

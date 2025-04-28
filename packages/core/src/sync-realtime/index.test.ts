@@ -56,6 +56,7 @@ test("createRealtimeSyncService()", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -86,6 +87,7 @@ test("start() handles block", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -128,6 +130,7 @@ test("start() no-op when receiving same block twice", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -177,6 +180,7 @@ test("start() gets missing block", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -220,6 +224,7 @@ test("start() retries on error", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -267,6 +272,7 @@ test("kill()", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -316,6 +322,7 @@ test("handleBlock() block event with log", async (context) => {
     address,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -394,6 +401,7 @@ test("handleBlock() block event with log factory", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -496,6 +504,7 @@ test("handleBlock() block event with block", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -569,6 +578,7 @@ test("handleBlock() block event with transaction", async (context) => {
       address: ALICE,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -641,6 +651,7 @@ test("handleBlock() block event with transfer", async (context) => {
       address: ALICE,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -754,6 +765,7 @@ test("handleBlock() block event with trace", async (context) => {
     includeCallTraces: true,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -881,6 +893,7 @@ test("handleBlock() finalize event", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -936,6 +949,7 @@ test("handleReorg() finds common ancestor", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -991,6 +1005,7 @@ test("handleReorg() throws error for deep reorg", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });

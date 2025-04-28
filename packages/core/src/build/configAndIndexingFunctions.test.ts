@@ -1,4 +1,4 @@
-import { setupAnvil } from "@/_test/setup.js";
+import { setupAnvil, setupCommon } from "@/_test/setup.js";
 import { poolId } from "@/_test/utils.js";
 import { factory } from "@/config/address.js";
 import type { LogFactory, LogFilter, TraceFilter } from "@/internal/types.js";
@@ -34,8 +34,9 @@ const bytes2 =
   "0x0000000000000000000000000000000000000000000000000000000000000002";
 
 beforeEach(setupAnvil);
+beforeEach(setupCommon);
 
-test("buildConfigAndIndexingFunctions() builds topics for multiple events", async () => {
+test("buildConfigAndIndexingFunctions() builds topics for multiple events", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -52,6 +53,7 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple events", asyn
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [
       { name: "a:Event0", fn: () => {} },
@@ -65,7 +67,7 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple events", asyn
   ]);
 });
 
-test("buildConfigAndIndexingFunctions() handles overloaded event signatures and combines topics", async () => {
+test("buildConfigAndIndexingFunctions() handles overloaded event signatures and combines topics", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -82,6 +84,7 @@ test("buildConfigAndIndexingFunctions() handles overloaded event signatures and 
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [
       { name: "a:Event1()", fn: () => {} },
@@ -95,7 +98,7 @@ test("buildConfigAndIndexingFunctions() handles overloaded event signatures and 
   ]);
 });
 
-test("buildConfigAndIndexingFunctions() handles multiple addresses", async () => {
+test("buildConfigAndIndexingFunctions() handles multiple addresses", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -115,6 +118,7 @@ test("buildConfigAndIndexingFunctions() handles multiple addresses", async () =>
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [
       { name: "a:Event1()", fn: () => {} },
@@ -128,7 +132,7 @@ test("buildConfigAndIndexingFunctions() handles multiple addresses", async () =>
   ]);
 });
 
-test("buildConfigAndIndexingFunctions() creates a source for each chain for multi-chain contracts", async () => {
+test("buildConfigAndIndexingFunctions() creates a source for each chain for multi-chain contracts", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -143,6 +147,7 @@ test("buildConfigAndIndexingFunctions() creates a source for each chain for mult
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -150,7 +155,7 @@ test("buildConfigAndIndexingFunctions() creates a source for each chain for mult
   expect(sources.length).toBe(2);
 });
 
-test("buildConfigAndIndexingFunctions() builds topics for event filter", async () => {
+test("buildConfigAndIndexingFunctions() builds topics for event filter", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -173,6 +178,7 @@ test("buildConfigAndIndexingFunctions() builds topics for event filter", async (
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -184,7 +190,7 @@ test("buildConfigAndIndexingFunctions() builds topics for event filter", async (
   expect((sources[0]!.filter as LogFilter).topic1).toMatchObject(bytes1);
 });
 
-test("buildConfigAndIndexingFunctions() builds topics for multiple event filters", async () => {
+test("buildConfigAndIndexingFunctions() builds topics for multiple event filters", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -213,6 +219,7 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple event filters
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [
       { name: "a:Event0", fn: () => {} },
@@ -234,7 +241,7 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple event filters
   expect((sources[1]!.filter as LogFilter).topic1).toMatchObject(bytes1);
 });
 
-test("buildConfigAndIndexingFunctions() overrides default values with chain-specific values", async () => {
+test("buildConfigAndIndexingFunctions() overrides default values with chain-specific values", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -255,6 +262,7 @@ test("buildConfigAndIndexingFunctions() overrides default values with chain-spec
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -262,7 +270,7 @@ test("buildConfigAndIndexingFunctions() overrides default values with chain-spec
   expect((sources[0]!.filter as LogFilter).address).toBe(address2);
 });
 
-test("buildConfigAndIndexingFunctions() handles chain name shortcut", async () => {
+test("buildConfigAndIndexingFunctions() handles chain name shortcut", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -279,6 +287,7 @@ test("buildConfigAndIndexingFunctions() handles chain name shortcut", async () =
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -286,7 +295,7 @@ test("buildConfigAndIndexingFunctions() handles chain name shortcut", async () =
   expect(sources[0]!.chain.chain.name).toBe("mainnet");
 });
 
-test("buildConfigAndIndexingFunctions() validates chain name", async () => {
+test("buildConfigAndIndexingFunctions() validates chain name", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -302,6 +311,7 @@ test("buildConfigAndIndexingFunctions() validates chain name", async () => {
   });
 
   const result = await safeBuildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -312,7 +322,7 @@ test("buildConfigAndIndexingFunctions() validates chain name", async () => {
   );
 });
 
-test("buildConfigAndIndexingFunctions() warns for public RPC URL", async () => {
+test("buildConfigAndIndexingFunctions() warns for public RPC URL", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "https://cloudflare-eth.com" },
@@ -327,6 +337,7 @@ test("buildConfigAndIndexingFunctions() warns for public RPC URL", async () => {
   });
 
   const result = await safeBuildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -340,7 +351,7 @@ test("buildConfigAndIndexingFunctions() warns for public RPC URL", async () => {
   ]);
 });
 
-test("buildConfigAndIndexingFunctions() validates event filter event name must be present in ABI", async () => {
+test("buildConfigAndIndexingFunctions() validates event filter event name must be present in ABI", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "https://cloudflare-eth.com" },
@@ -361,6 +372,7 @@ test("buildConfigAndIndexingFunctions() validates event filter event name must b
   });
 
   const result = await safeBuildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -371,7 +383,7 @@ test("buildConfigAndIndexingFunctions() validates event filter event name must b
   );
 });
 
-test("buildConfigAndIndexingFunctions() validates address empty string", async () => {
+test("buildConfigAndIndexingFunctions() validates address empty string", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "https://cloudflare-eth.com" },
@@ -386,6 +398,7 @@ test("buildConfigAndIndexingFunctions() validates address empty string", async (
   });
 
   const result = await safeBuildConfigAndIndexingFunctions({
+    common: context.common,
     config: config as unknown as Config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -396,7 +409,7 @@ test("buildConfigAndIndexingFunctions() validates address empty string", async (
   );
 });
 
-test("buildConfigAndIndexingFunctions() validates address prefix", async () => {
+test("buildConfigAndIndexingFunctions() validates address prefix", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "https://cloudflare-eth.com" },
@@ -412,6 +425,7 @@ test("buildConfigAndIndexingFunctions() validates address prefix", async () => {
   });
 
   const result = await safeBuildConfigAndIndexingFunctions({
+    common: context.common,
     config: config as unknown as Config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -422,7 +436,7 @@ test("buildConfigAndIndexingFunctions() validates address prefix", async () => {
   );
 });
 
-test("buildConfigAndIndexingFunctions() validates address length", async () => {
+test("buildConfigAndIndexingFunctions() validates address length", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "https://cloudflare-eth.com" },
@@ -437,6 +451,7 @@ test("buildConfigAndIndexingFunctions() validates address length", async () => {
   });
 
   const result = await safeBuildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -447,7 +462,7 @@ test("buildConfigAndIndexingFunctions() validates address length", async () => {
   );
 });
 
-test("buildConfigAndIndexingFunctions() coerces NaN startBlock to undefined", async () => {
+test("buildConfigAndIndexingFunctions() coerces NaN startBlock to undefined", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -462,6 +477,7 @@ test("buildConfigAndIndexingFunctions() coerces NaN startBlock to undefined", as
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -469,7 +485,7 @@ test("buildConfigAndIndexingFunctions() coerces NaN startBlock to undefined", as
   expect(sources[0]?.filter.fromBlock).toBe(undefined);
 });
 
-test("buildConfigAndIndexingFunctions() coerces `latest` to number", async () => {
+test("buildConfigAndIndexingFunctions() coerces `latest` to number", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: {
@@ -487,6 +503,7 @@ test("buildConfigAndIndexingFunctions() coerces `latest` to number", async () =>
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -494,7 +511,7 @@ test("buildConfigAndIndexingFunctions() coerces `latest` to number", async () =>
   expect(sources[0]?.filter.fromBlock).toBeTypeOf("number");
 });
 
-test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () => {
+test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -512,6 +529,7 @@ test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () =>
     },
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -520,7 +538,7 @@ test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () =>
   expect(shouldGetTransactionReceipt(sources[1]!.filter)).toBe(false);
 });
 
-test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
+test("buildConfigAndIndexingFunctions() includeCallTraces", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -540,6 +558,7 @@ test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a.func0()", fn: () => {} }],
   });
@@ -556,7 +575,7 @@ test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
   expect(shouldGetTransactionReceipt(sources[0]!.filter)).toBe(false);
 });
 
-test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async () => {
+test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -580,6 +599,7 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a.func0()", fn: () => {} }],
   });
@@ -596,7 +616,7 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
   expect(shouldGetTransactionReceipt(sources[0]!.filter)).toBe(false);
 });
 
-test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", async () => {
+test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -611,6 +631,7 @@ test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", asyn
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -618,7 +639,7 @@ test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", asyn
   expect(sources[0]!.filter.toBlock).toBe(undefined);
 });
 
-test("buildConfigAndIndexingFunctions() account source", async () => {
+test("buildConfigAndIndexingFunctions() account source", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -634,6 +655,7 @@ test("buildConfigAndIndexingFunctions() account source", async () => {
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [
       { name: "a:transfer:from", fn: () => {} },
@@ -659,7 +681,7 @@ test("buildConfigAndIndexingFunctions() account source", async () => {
   expect(sources[1]?.filter.toBlock).toBe(16370020);
 });
 
-test("buildConfigAndIndexingFunctions() block source", async () => {
+test("buildConfigAndIndexingFunctions() block source", async (context) => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpcUrl: "rpc.com" },
@@ -674,6 +696,7 @@ test("buildConfigAndIndexingFunctions() block source", async () => {
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:block", fn: () => {} }],
   });

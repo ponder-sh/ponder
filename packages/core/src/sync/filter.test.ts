@@ -101,6 +101,7 @@ test("isLogFactoryMatched()", async (context) => {
     });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -155,6 +156,7 @@ test("isLogFilterMatched()", async (context) => {
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -192,6 +194,7 @@ test("isBlockFilterMatched", async (context) => {
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -237,6 +240,7 @@ test("isTransactionFilterMatched()", async (context) => {
     });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -282,6 +286,7 @@ test("isTransferFilterMatched()", async (context) => {
     });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -353,6 +358,7 @@ test("isTraceFilterMatched()", async (context) => {
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });

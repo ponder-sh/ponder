@@ -1,7 +1,7 @@
 import type { Common } from "@/internal/common.js";
 import type { Chain, IndexingBuild, SetupEvent } from "@/internal/types.js";
 import type { Event } from "@/internal/types.js";
-import type { RPC } from "@/rpc/index.js";
+import type { Rpc } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
@@ -361,13 +361,11 @@ export const decodeResponse = (response: Response) => {
 export const createCachedViemClient = ({
   common,
   indexingBuild,
-  rpcs,
   syncStore,
   eventCount,
 }: {
   common: Common;
-  indexingBuild: Pick<IndexingBuild, "chains">;
-  rpcs: RPC[];
+  indexingBuild: Pick<IndexingBuild, "chains" | "rpcs">;
   syncStore: SyncStore;
   eventCount: { [eventName: string]: number };
 }): CachedViemClient => {
@@ -576,7 +574,8 @@ export const createCachedViemClient = ({
 
   return {
     getClient(chain) {
-      const rpc = rpcs[indexingBuild.chains.findIndex((c) => c === chain)]!;
+      const rpc =
+        indexingBuild.rpcs[indexingBuild.chains.findIndex((c) => c === chain)]!;
 
       return createClient({
         transport: cachedTransport({
@@ -632,7 +631,7 @@ export const createCachedViemClient = ({
             (c) => c.chain.id === chainId,
           );
           const chain = indexingBuild.chains[ni]!;
-          const rpc = rpcs[ni]!;
+          const rpc = indexingBuild.rpcs[ni]!;
 
           const dbRequests = requests.filter(
             ({ ev }) => ev > DB_PREDICTION_THRESHOLD,
@@ -709,7 +708,7 @@ export const cachedTransport =
   }: {
     common: Common;
     chain: Chain;
-    rpc: RPC;
+    rpc: Rpc;
     syncStore: SyncStore;
     cache: Cache;
   }): Transport =>

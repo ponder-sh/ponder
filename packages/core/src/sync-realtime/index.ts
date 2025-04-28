@@ -17,7 +17,7 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
-import type { RPC } from "@/rpc/index.js";
+import type { Rpc } from "@/rpc/index.js";
 import {
   getChildAddress,
   isAddressFactory,
@@ -60,7 +60,7 @@ export type RealtimeSync = {
 type CreateRealtimeSyncParameters = {
   common: Common;
   chain: Chain;
-  rpc: RPC;
+  rpc: Rpc;
   sources: Source[];
   onEvent: (event: RealtimeSyncEvent) => Promise<void>;
   onFatalError: (error: Error) => void;

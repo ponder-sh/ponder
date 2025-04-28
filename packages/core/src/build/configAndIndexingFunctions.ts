@@ -1,4 +1,5 @@
 import type { Config } from "@/config/index.js";
+import type { Common } from "@/internal/common.js";
 import { BuildError } from "@/internal/errors.js";
 import type {
   AccountSource,
@@ -10,6 +11,7 @@ import type {
   Source,
   SyncBlock,
 } from "@/internal/types.js";
+import { type Rpc, createRpc } from "@/rpc/index.js";
 import { buildAbiEvents, buildAbiFunctions, buildTopics } from "@/sync/abi.js";
 import {
   defaultBlockFilterInclude,
@@ -55,14 +57,17 @@ const flattenSources = <
 };
 
 export async function buildConfigAndIndexingFunctions({
+  common,
   config,
   rawIndexingFunctions,
 }: {
+  common: Common;
   config: Config;
   rawIndexingFunctions: RawIndexingFunctions;
 }): Promise<{
   sources: Source[];
   chains: Chain[];
+  rpcs: Rpc[];
   indexingFunctions: IndexingFunctions;
   logs: { level: "warn" | "info" | "debug"; msg: string }[];
 }> {
@@ -85,7 +90,9 @@ export async function buildConfigAndIndexingFunctions({
       if (perChainLatestBlockNumber.has(chain.chain.name)) {
         return perChainLatestBlockNumber.get(chain.chain.name)!;
       } else {
-        const blockPromise = chain.transport
+        const rpc =
+          rpcs[chains.findIndex((c) => c.chain.name === chain.chain.name)]!;
+        const blockPromise = rpc
           .request({
             method: "eth_getBlockByNumber",
             params: ["latest", false],
@@ -145,6 +152,13 @@ export async function buildConfigAndIndexingFunctions({
         finalityBlockCount: getFinalityBlockCount({ chain: matchedChain }),
         disableCache: chain.disableCache ?? false,
       } satisfies Chain;
+    }),
+  );
+
+  const rpcs = chains.map((chain) =>
+    createRpc({
+      common,
+      chain,
     }),
   );
 
@@ -870,6 +884,7 @@ export async function buildConfigAndIndexingFunctions({
 
   return {
     chains: chainsWithSources,
+    rpcs,
     sources,
     indexingFunctions,
     logs,
@@ -877,14 +892,17 @@ export async function buildConfigAndIndexingFunctions({
 }
 
 export async function safeBuildConfigAndIndexingFunctions({
+  common,
   config,
   rawIndexingFunctions,
 }: {
+  common: Common;
   config: Config;
   rawIndexingFunctions: RawIndexingFunctions;
 }) {
   try {
     const result = await buildConfigAndIndexingFunctions({
+      common,
       config,
       rawIndexingFunctions,
     });
@@ -893,6 +911,7 @@ export async function safeBuildConfigAndIndexingFunctions({
       status: "success",
       sources: result.sources,
       chains: result.chains,
+      rpcs: result.rpcs,
       indexingFunctions: result.indexingFunctions,
       logs: result.logs,
     } as const;

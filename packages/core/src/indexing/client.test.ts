@@ -36,14 +36,14 @@ beforeEach(setupCleanup);
 
 test("request() block dependent method", async (context) => {
   const chain = getChain();
+  const rpc = createRpc({ common: context.common, chain });
 
   const { syncStore } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
-    indexingBuild: { chains: [chain] },
-    rpcs: [createRpc({ common: context.common, chain })],
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: {},
   });
@@ -73,6 +73,7 @@ test("request() block dependent method", async (context) => {
 
 test("request() non-block dependent method", async (context) => {
   const chain = getChain();
+  const rpc = createRpc({ common: context.common, chain });
 
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
@@ -88,8 +89,7 @@ test("request() non-block dependent method", async (context) => {
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
-    indexingBuild: { chains: [chain] },
-    rpcs: [createRpc({ common: context.common, chain })],
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: {},
   });
@@ -119,12 +119,11 @@ test("request() non-block dependent method", async (context) => {
 
 test("request() non-cached method", async (context) => {
   const chain = getChain();
-
+  const rpc = createRpc({ common: context.common, chain });
   const { syncStore } = await setupDatabaseServices(context);
   const cachedViemClient = createCachedViemClient({
     common: context.common,
-    indexingBuild: { chains: [chain] },
-    rpcs: [createRpc({ common: context.common, chain })],
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: {},
   });
@@ -147,8 +146,7 @@ test("request() multicall", async (context) => {
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
-    indexingBuild: { chains: [chain] },
-    rpcs: [rpc],
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: {},
   });
@@ -277,8 +275,7 @@ test("request() multicall empty", async (context) => {
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
-    indexingBuild: { chains: [chain] },
-    rpcs: [rpc],
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: {},
   });
@@ -349,8 +346,7 @@ test("prefetch() uses profile metadata", async (context) => {
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
-    indexingBuild: { chains: [chain] },
-    rpcs: [rpc],
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: { "Contract:Event": 1 },
   });
@@ -416,8 +412,7 @@ test("request() revert", async (context) => {
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
-    indexingBuild: { chains: [chain] },
-    rpcs: [rpc],
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: { "Contract:Event": 1 },
   });

@@ -127,6 +127,7 @@ test("getPerChainOnRealtimeSyncEvent() handles block", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -189,6 +190,7 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -273,6 +275,7 @@ test("getPerChainOnRealtimeSyncEvent() handles reorg", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -339,6 +342,7 @@ test("getLocalEventGenerator()", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -401,6 +405,7 @@ test("getLocalEventGenerator() pagination", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -467,6 +472,7 @@ test("getLocalSyncGenerator()", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -523,6 +529,7 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -607,6 +614,7 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -687,6 +695,7 @@ test("getLocalSyncProgress()", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -730,6 +739,7 @@ test("getLocalSyncProgress() future end block", async (context) => {
   config.blocks.Blocks.endBlock = 12;
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -1043,24 +1053,18 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
 test("createSync()", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const chain = getChain();
-  const rpc = createRpc({
-    common: context.common,
-    chain,
-  });
-
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   const sync = await createSync({
     common: context.common,
-    indexingBuild: { sources, chains: [chain] },
-    rpcs: [rpc],
+    indexingBuild: { sources, chains, rpcs },
     syncStore,
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
@@ -1074,16 +1078,11 @@ test("createSync()", async (context) => {
 test("getEvents() multichain", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const chain = getChain();
-  const rpc = createRpc({
-    common: context.common,
-    chain,
-  });
-
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const { sources, rpcs, chains } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -1091,13 +1090,12 @@ test("getEvents() multichain", async (context) => {
   await testClient.mine({ blocks: 1 });
 
   // finalized block: 1
-  chain.finalityBlockCount = 0;
+  chains[0]!.finalityBlockCount = 0;
 
   const sync = await createSync({
     syncStore,
     common: context.common,
-    indexingBuild: { sources, chains: [chain] },
-    rpcs: [rpc],
+    indexingBuild: { sources, chains, rpcs },
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
@@ -1112,16 +1110,11 @@ test("getEvents() multichain", async (context) => {
 test("getEvents() omnichain", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const chain = getChain();
-  const rpc = createRpc({
-    common: context.common,
-    chain,
-  });
-
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -1129,13 +1122,12 @@ test("getEvents() omnichain", async (context) => {
   await testClient.mine({ blocks: 1 });
 
   // finalized block: 1
-  chain.finalityBlockCount = 0;
+  chains[0]!.finalityBlockCount = 0;
 
   const sync = await createSync({
     syncStore,
     common: context.common,
-    indexingBuild: { sources, chains: [chain] },
-    rpcs: [rpc],
+    indexingBuild: { sources, chains, rpcs },
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
@@ -1150,16 +1142,11 @@ test("getEvents() omnichain", async (context) => {
 test("getEvents() with initial checkpoint", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const chain = getChain();
-  const rpc = createRpc({
-    common: context.common,
-    chain,
-  });
-
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -1167,14 +1154,13 @@ test("getEvents() with initial checkpoint", async (context) => {
   await testClient.mine({ blocks: 2 });
 
   // finalized block: 2
-  chain.finalityBlockCount = 0;
+  chains[0]!.finalityBlockCount = 0;
 
   const sync = await createSync({
     syncStore,
 
     common: context.common,
-    indexingBuild: { sources, chains: [chain] },
-    rpcs: [rpc],
+    indexingBuild: { sources, chains, rpcs },
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     crashRecoveryCheckpoint: [
@@ -1193,16 +1179,11 @@ test("getEvents() with initial checkpoint", async (context) => {
 test.skip("startRealtime()", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const chain = getChain();
-  const rpc = createRpc({
-    common: context.common,
-    chain,
-  });
-
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -1212,8 +1193,7 @@ test.skip("startRealtime()", async (context) => {
   const sync = await createSync({
     syncStore,
     common: context.common,
-    indexingBuild: { sources, chains: [chain] },
-    rpcs: [rpc],
+    indexingBuild: { sources, chains, rpcs },
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
@@ -1228,16 +1208,11 @@ test.skip("startRealtime()", async (context) => {
 test("onEvent() multichain handles block", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const chain = getChain();
-  const rpc = createRpc({
-    common: context.common,
-    chain,
-  });
-
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -1251,8 +1226,7 @@ test("onEvent() multichain handles block", async (context) => {
     syncStore,
 
     common: context.common,
-    indexingBuild: { sources, chains: [chain] },
-    rpcs: [rpc],
+    indexingBuild: { sources, chains, rpcs },
     onRealtimeEvent: async (event) => {
       if (event.type === "block") {
         events.push(...event.events);
@@ -1279,7 +1253,8 @@ test("onEvent() omnichain handles block", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources, chains } = await buildConfigAndIndexingFunctions({
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -1290,16 +1265,7 @@ test("onEvent() omnichain handles block", async (context) => {
 
   const sync = await createSync({
     common: context.common,
-    indexingBuild: {
-      sources,
-      chains,
-    },
-    rpcs: [
-      createRpc({
-        chain: chains[0]!,
-        common: context.common,
-      }),
-    ],
+    indexingBuild: { sources, chains, rpcs },
     syncStore,
     onRealtimeEvent: async (event) => {
       if (event.type === "block") {
@@ -1323,12 +1289,11 @@ test("onEvent() omnichain handles block", async (context) => {
 test("onEvent() handles finalize", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const chain = getChain();
-
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -1338,19 +1303,13 @@ test("onEvent() handles finalize", async (context) => {
 
   // finalized block: 0
 
-  chain.finalityBlockCount = 2;
+  chains[0]!.finalityBlockCount = 2;
 
   const sync = await createSync({
     syncStore,
 
     common: context.common,
-    indexingBuild: { sources, chains: [chain] },
-    rpcs: [
-      createRpc({
-        chain,
-        common: context.common,
-      }),
-    ],
+    indexingBuild: { sources, chains, rpcs },
     onRealtimeEvent: async (event) => {
       if (event.type === "finalize") {
         checkpoint = event.checkpoint;
@@ -1376,8 +1335,6 @@ test("onEvent() handles finalize", async (context) => {
 test("onEvent() kills realtime when finalized", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const chain = getChain();
-
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
@@ -1385,7 +1342,8 @@ test("onEvent() kills realtime when finalized", async (context) => {
   // @ts-ignore
   config.blocks.Blocks.endBlock = 1;
 
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -1395,18 +1353,12 @@ test("onEvent() kills realtime when finalized", async (context) => {
 
   // finalized block: 0
 
-  chain.finalityBlockCount = 0;
+  chains[0]!.finalityBlockCount = 0;
 
   const sync = await createSync({
     syncStore,
     common: context.common,
-    indexingBuild: { sources, chains: [chain] },
-    rpcs: [
-      createRpc({
-        chain,
-        common: context.common,
-      }),
-    ],
+    indexingBuild: { sources, chains, rpcs },
     onRealtimeEvent: async (event) => {
       if (event.type === "finalize") {
         checkpoint = event.checkpoint;
@@ -1434,12 +1386,11 @@ test.todo("onEvent() handles reorg");
 test("onEvent() handles errors", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const chain = getChain();
-
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -1450,15 +1401,8 @@ test("onEvent() handles errors", async (context) => {
 
   const sync = await createSync({
     syncStore,
-
     common: context.common,
-    indexingBuild: { sources, chains: [chain] },
-    rpcs: [
-      createRpc({
-        chain,
-        common: context.common,
-      }),
-    ],
+    indexingBuild: { sources, chains, rpcs },
     onRealtimeEvent: async () => {},
     onFatalError: () => {
       promise.resolve();
@@ -1482,12 +1426,6 @@ test("onEvent() handles errors", async (context) => {
 test("historical events match realtime events", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const chain = getChain();
-  const rpc = createRpc({
-    common: context.common,
-    chain,
-  });
-
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
     erc20: address,
@@ -1500,12 +1438,13 @@ test("historical events match realtime events", async (context) => {
     address,
     includeTransactionReceipts: true,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const { sources, rpcs } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
-  const rpcBlock = await _eth_getBlockByNumber(rpc, {
+  const rpcBlock = await _eth_getBlockByNumber(rpcs[0]!, {
     blockNumber: 2,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
@@ -1515,7 +1454,7 @@ test("historical events match realtime events", async (context) => {
     chainId: 1,
   });
 
-  const rpcLogs = await _eth_getLogs(rpc, {
+  const rpcLogs = await _eth_getLogs(rpcs[0]!, {
     fromBlock: 2,
     toBlock: 2,
   });

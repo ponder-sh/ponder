@@ -14,7 +14,6 @@ import type {
   PreBuild,
   SchemaBuild,
 } from "@/internal/types.js";
-import { createRpc } from "@/rpc/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import { type RealtimeEvent, createSync, splitEvents } from "@/sync/index.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
@@ -50,13 +49,6 @@ export async function run({
 
   runCodegen({ common });
 
-  const rpcs = indexingBuild.chains.map((chain) =>
-    createRpc({
-      chain,
-      common,
-    }),
-  );
-
   const syncStore = createSyncStore({ common, database });
 
   const realtimeMutex = createMutex();
@@ -64,7 +56,6 @@ export async function run({
   const sync = await createSync({
     common,
     indexingBuild,
-    rpcs,
     syncStore,
     onRealtimeEvent: (realtimeEvent) => {
       if (realtimeEvent.type === "reorg") {
@@ -85,7 +76,6 @@ export async function run({
   const cachedViemClient = createCachedViemClient({
     common,
     indexingBuild,
-    rpcs,
     syncStore,
     eventCount,
   });

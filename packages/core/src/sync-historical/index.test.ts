@@ -54,6 +54,7 @@ test("createHistoricalSync()", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -91,6 +92,7 @@ test("sync() with log filter", async (context) => {
     address,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -140,6 +142,7 @@ test("sync() with log filter and transaction receipts", async (context) => {
     includeTransactionReceipts: true,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -183,6 +186,7 @@ test("sync() with block filter", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -239,6 +243,7 @@ test("sync() with log factory", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -299,6 +304,7 @@ test("sync() with trace filter", async (context) => {
     includeCallTraces: true,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -387,6 +393,7 @@ test("sync() with transaction filter", async (context) => {
     });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -446,6 +453,7 @@ test("sync() with transfer filter", async (context) => {
     });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -522,11 +530,13 @@ test("sync() with many filters", async (context) => {
   });
 
   const { sources: erc20Sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     ...getErc20ConfigAndIndexingFunctions({
       address,
     }),
   });
   const { sources: blockSources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     ...getBlocksConfigAndIndexingFunctions({
       interval: 1,
     }),
@@ -581,6 +591,7 @@ test("sync() with cache", async (context) => {
     address,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -634,6 +645,7 @@ test("sync() with partial cache", async (context) => {
     address,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -737,11 +749,13 @@ test("syncBlock() with cache", async (context) => {
   });
 
   const { sources: erc20Sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     ...getErc20ConfigAndIndexingFunctions({
       address,
     }),
   });
   const { sources: blockSources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     ...getBlocksConfigAndIndexingFunctions({
       interval: 1,
     }),
@@ -796,6 +810,7 @@ test("syncAddress() handles many addresses", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });

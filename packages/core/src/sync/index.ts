@@ -12,7 +12,7 @@ import type {
   Source,
   SyncBlock,
 } from "@/internal/types.js";
-import type { RPC } from "@/rpc/index.js";
+import type { Rpc } from "@/rpc/index.js";
 import {
   type HistoricalSync,
   createHistoricalSync,
@@ -228,8 +228,7 @@ export const getChainCheckpoint = ({
 
 export const createSync = async (params: {
   common: Common;
-  indexingBuild: Pick<IndexingBuild, "sources" | "chains">;
-  rpcs: RPC[];
+  indexingBuild: Pick<IndexingBuild, "sources" | "chains" | "rpcs">;
   syncStore: SyncStore;
   onRealtimeEvent(event: RealtimeEvent): Promise<void>;
   onFatalError(error: Error): void;
@@ -724,7 +723,7 @@ export const createSync = async (params: {
 
   await Promise.all(
     params.indexingBuild.chains.map(async (chain, index) => {
-      const rpc = params.rpcs[index]!;
+      const rpc = params.indexingBuild.rpcs[index]!;
 
       const sources = params.indexingBuild.sources.filter(
         ({ filter }) => filter.chainId === chain.chain.id,
@@ -1446,7 +1445,7 @@ export const getLocalSyncProgress = async ({
   common: Common;
   sources: Source[];
   chain: Chain;
-  rpc: RPC;
+  rpc: Rpc;
   intervalsCache: HistoricalSync["intervalsCache"];
 }): Promise<SyncProgress> => {
   const syncProgress = {} as SyncProgress;

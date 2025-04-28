@@ -8,12 +8,11 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { deployErc20, deployMulticall, mintErc20 } from "@/_test/simulate.js";
-import { getChain, getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
+import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import { onchainTable } from "@/drizzle/onchain.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import type { Event, LogEvent, RawEvent } from "@/internal/types.js";
-import { createRpc } from "@/rpc/index.js";
 import { decodeEvents } from "@/sync/events.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { checksumAddress, padHex, parseEther, toHex, zeroAddress } from "viem";
@@ -36,10 +35,6 @@ const schema = { account };
 const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
   address: zeroAddress,
 });
-const { sources, chains } = await buildConfigAndIndexingFunctions({
-  config,
-  rawIndexingFunctions,
-});
 
 test("createIndexing()", async (context) => {
   const { common } = context;
@@ -47,12 +42,17 @@ test("createIndexing()", async (context) => {
     schemaBuild: { schema },
   });
 
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common: context.common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const eventCount = {};
 
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -79,10 +79,15 @@ test("processSetupEvents() empty", async (context) => {
 
   const eventCount = {};
 
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -115,10 +120,15 @@ test("processSetupEvents()", async (context) => {
 
   const eventCount = { "Erc20:setup": 0 };
 
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -174,10 +184,15 @@ test("processEvent()", async (context) => {
     "Pair:Swap": 0,
   };
 
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -266,10 +281,15 @@ test("processEvents eventCount", async (context) => {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
 
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -333,14 +353,17 @@ test("executeSetup() context.client", async (context) => {
     },
   };
 
-  const rpc = createRpc({ common, chain: chains[0]! });
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
 
   const eventCount = {};
 
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [rpc],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -356,7 +379,7 @@ test("executeSetup() context.client", async (context) => {
     eventCount,
   });
 
-  const getBalanceSpy = vi.spyOn(rpc, "request");
+  const getBalanceSpy = vi.spyOn(rpcs[0]!, "request");
 
   const result = await indexing.processSetupEvents({ db: indexingStore });
 
@@ -384,10 +407,15 @@ test("executeSetup() context.db", async (context) => {
   };
   const eventCount = { "Erc20:setup": 0 };
 
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -426,10 +454,15 @@ test("executeSetup() metrics", async (context) => {
 
   const eventCount = { "Erc20:setup": 0 };
 
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -466,10 +499,15 @@ test("executeSetup() error", async (context) => {
 
   const eventCount = { "Erc20:setup": 0 };
 
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -505,16 +543,19 @@ test("processEvents() context.client", async (context) => {
     });
   };
 
-  const rpc = createRpc({ common, chain: chains[0]! });
-
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
 
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [rpc],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -533,7 +574,7 @@ test("processEvents() context.client", async (context) => {
     eventCount,
   });
 
-  const getBalanceSpy = vi.spyOn(rpc, "request");
+  const getBalanceSpy = vi.spyOn(rpcs[0]!, "request");
 
   const topics = encodeEventTopics({
     abi: erc20ABI,
@@ -585,10 +626,15 @@ test("processEvents() context.db", async (context) => {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
 
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -650,10 +696,15 @@ test("processEvents() metrics", async (context) => {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
 
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -717,10 +768,15 @@ test("processEvents() error", async (context) => {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
 
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -780,8 +836,6 @@ test("processEvents() error with missing event object properties", async (contex
     schemaBuild: { schema },
   });
 
-  const chain = getChain();
-
   const throwError = async ({ event }: { event: any; context: Context }) => {
     // biome-ignore lint/performance/noDelete: <explanation>
     delete event.transaction;
@@ -795,10 +849,15 @@ test("processEvents() error with missing event object properties", async (contex
 
   const eventCount = {};
 
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains: [chain] },
-    rpcs: [createRpc({ common, chain })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -853,10 +912,15 @@ test("ponderActions getBalance()", async (context) => {
 
   const eventCount = {};
 
+  const { chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -900,10 +964,15 @@ test("ponderActions getCode()", async (context) => {
     },
   } satisfies LogEvent;
 
+  const { chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -935,10 +1004,15 @@ test("ponderActions getStorageAt()", async (context) => {
 
   const eventCount = {};
 
+  const { chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -992,10 +1066,15 @@ test("ponderActions readContract()", async (context) => {
 
   const eventCount = { "Contract:Event": 0 };
 
+  const { chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -1047,10 +1126,15 @@ test("ponderActions readContract() blockNumber", async (context) => {
 
   const eventCount = { "Contract:Event": 0 };
 
+  const { chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -1082,7 +1166,11 @@ test("ponderActions readContract() ContractFunctionZeroDataError", async (contex
     sender: ALICE,
   });
 
-  const rpc = createRpc({ common, chain: chains[0]! });
+  const { chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
 
   const event = {
     type: "log",
@@ -1103,15 +1191,14 @@ test("ponderActions readContract() ContractFunctionZeroDataError", async (contex
   } satisfies LogEvent;
 
   // Mock requestQueue.request to throw ContractFunctionZeroDataError
-  const requestSpy = vi.spyOn(rpc, "request");
+  const requestSpy = vi.spyOn(rpcs[0]!, "request");
   requestSpy.mockResolvedValueOnce("0x");
 
   const eventCount = { "Contract:Event": 0 };
 
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [rpc],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -1164,10 +1251,15 @@ test("ponderActions multicall()", async (context) => {
 
   const eventCount = { "Contract:Event": 0 };
 
+  const { chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
@@ -1201,6 +1293,12 @@ test("ponderActions multicall() allowFailure", async (context) => {
     schemaBuild: { schema },
   });
 
+  const { chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
   const { address: multicall } = await deployMulticall({ sender: ALICE });
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
@@ -1232,8 +1330,7 @@ test("ponderActions multicall() allowFailure", async (context) => {
 
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
+    indexingBuild: { chains, rpcs },
     syncStore,
     eventCount,
   });
