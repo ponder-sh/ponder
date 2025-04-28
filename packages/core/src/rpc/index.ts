@@ -1,3 +1,4 @@
+import URL from "node:url";
 import type { Common } from "@/internal/common.js";
 import type { Chain } from "@/internal/types.js";
 import { createQueue } from "@/utils/queue.js";
@@ -6,10 +7,12 @@ import { wait } from "@/utils/wait.js";
 import {
   type GetLogsRetryHelperParameters,
   getLogsRetryHelper,
+  loadBalance,
 } from "@ponder/utils";
 import {
   http,
   type EIP1193Parameters,
+  type EIP1193RequestFn,
   HttpRequestError,
   JsonRpcVersionUnsupportedError,
   MethodNotFoundRpcError,
@@ -18,6 +21,7 @@ import {
   type PublicRpcSchema,
   type RpcError,
   isHex,
+  webSocket,
 } from "viem";
 import type { DebugRpcSchema } from "../utils/debug.js";
 
@@ -40,11 +44,48 @@ export const createRpc = ({
   chain,
   concurrency = 25,
 }: { common: Common; chain: Chain; concurrency?: number }): Rpc => {
-  const request = http(chain.rpcUrl)({
-    chain: chain.chain,
-    retryCount: 0,
-    timeout: 5_000,
-  }).request;
+  let request: EIP1193RequestFn;
+  if (typeof chain.rpcUrl === "string") {
+    const protocol = new URL.URL(chain.rpcUrl).protocol;
+    if (protocol === "https:" || protocol === "http:") {
+      request = http(chain.rpcUrl)({
+        chain: chain.chain,
+        retryCount: 0,
+        timeout: 5_000,
+      }).request;
+    } else if (protocol === "wss:" || protocol === "ws:") {
+      request = webSocket(chain.rpcUrl)({
+        chain: chain.chain,
+        retryCount: 0,
+        timeout: 5_000,
+      }).request;
+    } else {
+      throw new Error(`Unsupported RPC URL protocol: ${protocol}`);
+    }
+  } else if (Array.isArray(chain.rpcUrl)) {
+    request = loadBalance(
+      chain.rpcUrl.map((rpcUrl) => {
+        const protocol = new URL.URL(rpcUrl).protocol;
+        if (protocol === "https:" || protocol === "http:") {
+          return http(rpcUrl);
+        } else if (protocol === "wss:" || protocol === "ws:") {
+          return webSocket(rpcUrl);
+        } else {
+          throw new Error(`Unsupported RPC URL protocol: ${protocol}`);
+        }
+      }),
+    )({
+      chain: chain.chain,
+      retryCount: 0,
+      timeout: 5_000,
+    }).request;
+  } else {
+    request = chain.rpcUrl({
+      chain: chain.chain,
+      retryCount: 0,
+      timeout: 5_000,
+    }).request;
+  }
 
   const queue = createQueue<
     Awaited<ReturnType<Rpc["request"]>>,

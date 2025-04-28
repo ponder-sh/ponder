@@ -1,7 +1,7 @@
 import type { ConnectionOptions } from "node:tls";
 import type { Prettify } from "@/types/utils.js";
 import type { Abi } from "abitype";
-import type { Narrow } from "viem";
+import type { Narrow, Transport } from "viem";
 import type { AddressConfig } from "./address.js";
 import type { GetEventFilter } from "./eventFilter.js";
 
@@ -92,7 +92,7 @@ type ChainConfig<chain> = {
   /** ID of the chain. */
   id: chain extends { id: infer id extends number } ? id | number : number;
   /** RPC URL. */
-  rpcUrl: string;
+  rpcUrl: string | string[] | Transport;
   /** Polling interval (in ms). Default: `1_000`. */
   pollingInterval?: number;
   /** Maximum number of RPC requests per second. Default: `50`. */

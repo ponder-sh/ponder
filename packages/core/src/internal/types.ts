@@ -24,6 +24,7 @@ import type {
   RpcBlock,
   RpcTransaction,
   RpcTransactionReceipt,
+  Transport,
   Chain as ViemChain,
   Log as ViemLog,
 } from "viem";
@@ -298,7 +299,7 @@ export type BlockMetadata = {
 
 export type Chain = {
   chain: ViemChain;
-  rpcUrl: string;
+  rpcUrl: string | string[] | Transport;
   pollingInterval: number;
   maxRequestsPerSecond: number;
   finalityBlockCount: number;
