@@ -19,7 +19,6 @@ import {
   type Database,
   TABLES,
   createDatabase,
-  getPonderCheckpoint,
   getPonderMeta,
 } from "./index.js";
 
@@ -168,11 +167,6 @@ test("migrate() throws with schema used after waiting for lock", async (context)
   });
   await database.migrate({ buildId: "abc" });
 
-  await database.finalize({
-    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-    db: database.qb.drizzle,
-  });
-
   const databaseTwo = await createDatabase({
     common: context.common,
     namespace: "public",
@@ -208,12 +202,6 @@ test("migrate() succeeds with crash recovery", async (context) => {
   });
 
   await database.migrate({ buildId: "abc" });
-
-  await database.finalize({
-    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-    db: database.qb.drizzle,
-  });
-
   await context.common.shutdown.kill();
 
   context.common.shutdown = createShutdown();
@@ -355,6 +343,8 @@ test("migrate() with crash recovery reverts rows", async (context) => {
 
   await database.createTriggers();
 
+  await database.setReady();
+
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     schemaBuild: { schema: { account } },
@@ -379,8 +369,15 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     db: database.qb.drizzle,
   });
 
-  await database.finalize({
-    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+  await database.setCheckpoints({
+    checkpoints: [
+      {
+        chainId: 1,
+        chainName: "mainnet",
+        latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+        safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+      },
+    ],
     db: database.qb.drizzle,
   });
 
@@ -402,9 +399,14 @@ test("migrate() with crash recovery reverts rows", async (context) => {
 
   const checkpoint = await databaseTwo.migrate({ buildId: "abc" });
 
-  expect(checkpoint).toStrictEqual(
-    createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-  );
+  expect(checkpoint).toMatchInlineSnapshot(`
+    [
+      {
+        "chainId": 1,
+        "checkpoint": "000000000000000000000000010000000000000010000000000000000000000000000000000",
+      },
+    ]
+  `);
 
   const rows = await databaseTwo.qb.drizzle
     .execute(sql`SELECT * from "account"`)
@@ -448,12 +450,21 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
 
   await database.migrate({ buildId: "abc" });
 
-  await database.finalize({
-    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+  await database.createIndexes();
+
+  await database.setCheckpoints({
+    checkpoints: [
+      {
+        chainId: 1,
+        chainName: "mainnet",
+        latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+        safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+      },
+    ],
     db: database.qb.drizzle,
   });
 
-  await database.createIndexes();
+  await database.setReady();
 
   await context.common.shutdown.kill();
 
@@ -574,14 +585,6 @@ test("finalize()", async (context) => {
   const rows = await database.qb.drizzle.select().from(getReorgTable(account));
 
   expect(rows).toHaveLength(2);
-
-  // metadata
-
-  const checkpoints = await database.qb.drizzle
-    .select()
-    .from(getPonderCheckpoint("public"));
-
-  expect(checkpoints).toMatchInlineSnapshot();
 
   await context.common.shutdown.kill();
 });
