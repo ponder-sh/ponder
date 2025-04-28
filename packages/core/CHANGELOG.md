@@ -1,5 +1,11 @@
 # ponder
 
+## 0.10.19
+
+### Patch Changes
+
+- [#1702](https://github.com/ponder-sh/ponder/pull/1702) [`da5c3052f40799cd234f4917f62e032a0354d759`](https://github.com/ponder-sh/ponder/commit/da5c3052f40799cd234f4917f62e032a0354d759) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with reorg handling that would sometimes cause a duplicate event after the log `Error: Encountered unrecoverable 'arbitrum' reorg beyond finalized block 330098801`.
+
 ## 0.10.18
 
 ### Patch Changes
