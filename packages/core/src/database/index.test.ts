@@ -298,6 +298,37 @@ test("migrateSync()", async (context) => {
 
   await database.migrateSync();
 
+  const tableNames = await getUserTableNames(database, "ponder_sync");
+  const tableNamesv011 = await getUserTableNames(database, "ponder_sync_0_11");
+
+  expect(tableNames).toMatchInlineSnapshot(`
+    [
+      "intervals",
+      "blocks",
+      "factories",
+      "factory_addresses",
+      "logs",
+      "rpc_request_results",
+      "traces",
+      "transaction_receipts",
+      "transactions",
+    ]
+  `);
+
+  expect(tableNamesv011).toMatchInlineSnapshot(`
+    [
+      "blocks",
+      "factories",
+      "factory_addresses",
+      "intervals",
+      "logs",
+      "rpc_request_results",
+      "traces",
+      "transaction_receipts",
+      "transactions",
+    ]
+  `);
+
   // Note: this is a hack to avoid trying to update the metadata table on shutdown
   context.common.options.command = "list";
 
