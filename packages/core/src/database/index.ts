@@ -674,7 +674,8 @@ CREATE TABLE IF NOT EXISTS "${namespace}"."_ponder_meta" (
           await qb.drizzle.execute(
             sql.raw(`
 CREATE TABLE IF NOT EXISTS "${namespace}"."_ponder_checkpoint" (
-  "chain_id" integer PRIMARY KEY,
+  "chain_name" text PRIMARY KEY,
+  "chain_id" integer NOT NULL,
   "safe_checkpoint" varchar(75) NOT NULL,
   "latest_checkpoint" varchar(75) NOT NULL
 )`),
