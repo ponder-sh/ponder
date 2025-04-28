@@ -57,7 +57,7 @@ export const graphql = (
 
       return {
         getDataLoader,
-        getStatus: () => globalThis.PONDER_DATABASE.getCheckpoints(),
+        getCheckpoints: () => globalThis.PONDER_DATABASE.getCheckpoints(),
         drizzle: db,
       };
     },
