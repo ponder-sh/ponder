@@ -256,7 +256,6 @@ export async function run({
                   Number(checkpoint.blockTimestamp),
                 );
               } else {
-                // TODO(kyle) does this handle networks with end blocks?
                 for (const network of indexingBuild.networks) {
                   common.metrics.ponder_historical_completed_indexing_seconds.set(
                     { network: network.name },
@@ -264,12 +263,17 @@ export async function run({
                       Number(checkpoint.blockTimestamp) -
                         sync.seconds[network.name]!.start -
                         sync.seconds[network.name]!.cached,
+                      sync.seconds[network.name]!.end -
+                        sync.seconds[network.name]!.start,
                       0,
                     ),
                   );
                   common.metrics.ponder_indexing_timestamp.set(
                     { network: network.name },
-                    Number(checkpoint.blockTimestamp),
+                    Math.max(
+                      Number(checkpoint.blockTimestamp),
+                      sync.seconds[network.name]!.end,
+                    ),
                   );
                 }
               }
@@ -456,25 +460,26 @@ export async function run({
           }
         }
 
-        // TODO(kyle) wrap
-        await database.qb.drizzle
-          .insert(database.PONDER_CHECKPOINT)
-          .values(
-            event.checkpoints.map(({ chainId, checkpoint }) => ({
-              chainName: indexingBuild.networks.find(
-                (network) => network.chainId === chainId,
-              )!.name,
-              chainId,
-              safeCheckpoint: checkpoint,
-              latestCheckpoint: checkpoint,
-            })),
-          )
-          .onConflictDoUpdate({
-            target: database.PONDER_CHECKPOINT.chainName,
-            set: {
-              latestCheckpoint: sql`excluded.latest_checkpoint`,
-            },
-          });
+        await database.wrap({ method: "setCheckpoints" }, async () => {
+          await database.qb.drizzle
+            .insert(database.PONDER_CHECKPOINT)
+            .values(
+              event.checkpoints.map(({ chainId, checkpoint }) => ({
+                chainName: indexingBuild.networks.find(
+                  (network) => network.chainId === chainId,
+                )!.name,
+                chainId,
+                safeCheckpoint: checkpoint,
+                latestCheckpoint: checkpoint,
+              })),
+            )
+            .onConflictDoUpdate({
+              target: database.PONDER_CHECKPOINT.chainName,
+              set: {
+                latestCheckpoint: sql`excluded.latest_checkpoint`,
+              },
+            });
+        });
 
         break;
       }
