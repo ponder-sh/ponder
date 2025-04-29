@@ -56,7 +56,26 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
-  // infura, thirdweb, zksync
+  // thirdweb
+  match = sError.match(/Maximum allowed number of requested blocks is ([\d]+)/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range: BigInt(match[1]!),
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+      isSuggestedRange: true,
+    } as const;
+  }
+
+  // infura, zksync
   match = sError.match(
     /Try with this block range \[0x([0-9a-fA-F]+),\s*0x([0-9a-fA-F]+)\]/,
   )!;
