@@ -1,5 +1,14 @@
 # ponder
 
+## 0.10.20
+
+### Patch Changes
+
+- [#1701](https://github.com/ponder-sh/ponder/pull/1701) [`1f547d61d8821e10ae7f22cbd2b60d86ba4a727a`](https://github.com/ponder-sh/ponder/commit/1f547d61d8821e10ae7f22cbd2b60d86ba4a727a) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Fixed "Invalid Query" error when using `@ponder/client` queries using `findMany` or `findFirst` that include the `with` option (relational queries).
+
+- Updated dependencies [[`4157106917d81df2809616a19297c7e80a70f1f5`](https://github.com/ponder-sh/ponder/commit/4157106917d81df2809616a19297c7e80a70f1f5)]:
+  - @ponder/utils@0.2.4
+
 ## 0.10.19
 
 ### Patch Changes
