@@ -15,7 +15,7 @@ export default {
     type: "separator",
     title: "Config",
   },
-  "contracts-and-networks": "Contracts & networks",
+  "contracts-and-chains": "Contracts & chains",
   "accounts": "Accounts",
   "block-intervals": "Block intervals",
   "call-traces": "Call traces",
