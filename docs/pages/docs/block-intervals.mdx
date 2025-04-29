@@ -15,7 +15,7 @@ This guide describes how to configure block intervals, and suggests patterns for
 
 Every block interval must have a name, provided as a key to the `blocks` object. The name must be unique across `blocks` and `contracts`.
 
-```ts filename="ponder.config.ts" {9}
+```ts filename="ponder.config.ts" {8}
 import { createConfig } from "ponder";
 
 export default createConfig({
@@ -90,7 +90,7 @@ To find the block time of a specific chain, check the chain's documentation webs
 
 If you only need to index blocks from one chain, pass the chain name as a string to the `chain` field.
 
-```ts filename="ponder.config.ts" {10}
+```ts filename="ponder.config.ts" {9}
 import { createConfig } from "ponder";
 
 export default createConfig({
@@ -111,7 +111,7 @@ export default createConfig({
 
 If you'd like to run the same block indexing function across multiple chains, pass an object to the `chain` field containing chain-specific options.
 
-```ts filename="ponder.config.ts" {11-19}
+```ts filename="ponder.config.ts" {10-18}
 import { createConfig } from "ponder";
 
 export default createConfig({
@@ -174,7 +174,7 @@ The `"latest"{:ts}` option fetches the latest block during the build step and us
 
 When `endBlock` is `undefined{:ts}`, indexing will continue indefinitely in realtime. Set `endBlock` to index only a slice of history, or to enable faster feedback loops during development.
 
-```ts filename="ponder.config.ts" {9}
+```ts filename="ponder.config.ts" {11-12}
 import { createConfig } from "ponder";
 
 export default createConfig({

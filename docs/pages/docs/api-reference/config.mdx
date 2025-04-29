@@ -14,7 +14,7 @@ The `ponder.config.ts` file contains contract names, addresses, and ABIs; chain 
 The `ponder.config.ts` file must **default export** the object returned by `createConfig`.
 
 {/* prettier-ignore */}
-```ts filename="ponder.config.ts" {1,4}
+```ts filename="ponder.config.ts" {1,3}
 import { createConfig } from "ponder";
 
 export default createConfig({
@@ -75,7 +75,7 @@ The `chains` field is an object where each key is a chain name containing that c
 | **maxRequestsPerSecond** | `number \| undefined`                     | **Default: `50`**. Maximum number of RPC requests per second. Can be reduced to work around rate limits.                   |
 | **disableCache**         | `boolean \| undefined`                    | **Default: `false`**. Disables the RPC request cache. Use when indexing a [local node](/docs/advanced/foundry) like Anvil. |
 
-```ts filename="ponder.config.ts" {7-12,16}
+```ts filename="ponder.config.ts" {6-11,15}
 import { createConfig } from "ponder";
 
 import { BlitmapAbi } from "./abis/Blitmap";
