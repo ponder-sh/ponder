@@ -1,4 +1,4 @@
-import URL from "node:url";
+import url from "node:url";
 import type { Common } from "@/internal/common.js";
 import type { Chain } from "@/internal/types.js";
 import { createQueue } from "@/utils/queue.js";
@@ -46,7 +46,7 @@ export const createRpc = ({
 }: { common: Common; chain: Chain; concurrency?: number }): Rpc => {
   let request: EIP1193RequestFn;
   if (typeof chain.rpcUrl === "string") {
-    const protocol = new URL.URL(chain.rpcUrl).protocol;
+    const protocol = new url.URL(chain.rpcUrl).protocol;
     if (protocol === "https:" || protocol === "http:") {
       request = http(chain.rpcUrl)({
         chain: chain.chain,
@@ -65,7 +65,7 @@ export const createRpc = ({
   } else if (Array.isArray(chain.rpcUrl)) {
     request = loadBalance(
       chain.rpcUrl.map((rpcUrl) => {
-        const protocol = new URL.URL(rpcUrl).protocol;
+        const protocol = new url.URL(rpcUrl).protocol;
         if (protocol === "https:" || protocol === "http:") {
           return http(rpcUrl);
         } else if (protocol === "wss:" || protocol === "ws:") {
@@ -95,38 +95,38 @@ export const createRpc = ({
     frequency: chain.maxRequestsPerSecond,
     concurrency,
     // @ts-ignore
-    worker: async (task) => {
+    worker: async (body) => {
       for (let i = 0; i <= RETRY_COUNT; i++) {
         try {
           const stopClock = startClock();
           common.logger.trace({
             service: "rpc",
-            msg: `Sent ${task.method} request (params=${JSON.stringify(task.params)})`,
+            msg: `Sent ${body.method} request (params=${JSON.stringify(body.params)})`,
           });
 
-          const response = await request(task);
+          const response = await request(body);
           // TODO(kyle) can response be undefined
 
           common.logger.trace({
             service: "rpc",
-            msg: `Received ${task.method} response (duration=${stopClock()}, params=${JSON.stringify(task.params)})`,
+            msg: `Received ${body.method} response (duration=${stopClock()}, params=${JSON.stringify(body.params)})`,
           });
           common.metrics.ponder_rpc_request_duration.observe(
-            { method: task.method, chain: chain.chain.name },
+            { method: body.method, chain: chain.chain.name },
             stopClock(),
           );
 
-          return response as RequestReturnType<typeof task.method>;
+          return response as RequestReturnType<typeof body.method>;
         } catch (e) {
           const error = e as Error;
 
           if (
-            task.method === "eth_getLogs" &&
-            isHex(task.params[0].fromBlock) &&
-            isHex(task.params[0].toBlock)
+            body.method === "eth_getLogs" &&
+            isHex(body.params[0].fromBlock) &&
+            isHex(body.params[0].toBlock)
           ) {
             const getLogsErrorResponse = getLogsRetryHelper({
-              params: task.params as GetLogsRetryHelperParameters["params"],
+              params: body.params as GetLogsRetryHelperParameters["params"],
               error: error as RpcError,
             });
 
@@ -136,7 +136,7 @@ export const createRpc = ({
           if (shouldRetry(error) === false) {
             common.logger.warn({
               service: "rpc",
-              msg: `Failed ${task.method} request`,
+              msg: `Failed ${body.method} request`,
             });
             throw error;
           }
@@ -144,7 +144,7 @@ export const createRpc = ({
           if (i === RETRY_COUNT) {
             common.logger.warn({
               service: "rpc",
-              msg: `Failed ${task.method} request after ${i + 1} attempts`,
+              msg: `Failed ${body.method} request after ${i + 1} attempts`,
               error,
             });
             throw error;
@@ -153,7 +153,7 @@ export const createRpc = ({
           const duration = BASE_DURATION * 2 ** i;
           common.logger.debug({
             service: "rpc",
-            msg: `Failed ${task.method} request, retrying after ${duration} milliseconds`,
+            msg: `Failed ${body.method} request, retrying after ${duration} milliseconds`,
             error,
           });
           await wait(duration);

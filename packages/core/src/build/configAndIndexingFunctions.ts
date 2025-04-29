@@ -122,21 +122,60 @@ export async function buildConfigAndIndexingFunctions({
 
       if (matchedChain === undefined) {
         throw new Error(
-          `Chain with id ${chain.id} not found in viem. Please update viem to the latest version.`,
+          `Chain "${chainName}" with id ${chain.id} not found in viem. Please update viem to the latest version.`,
         );
       }
       matchedChain.name = chainName;
 
-      // Note: This can throw.
-      // const rpcUrls = await getRpcUrlsForClient({ transport, chain });
-      // rpcUrls.forEach((rpcUrl) => {
-      //   if (isRpcUrlPublic(rpcUrl)) {
-      //     logs.push({
-      //       level: "warn",
-      //       msg: `Network '${networkName}' is using a public RPC URL (${rpcUrl}). Most apps require an RPC URL with a higher rate limit.`,
-      //     });
-      //   }
-      // });
+      if (chain.rpcUrl === undefined) {
+        throw new Error(
+          `Chain "${chainName}" with id ${chain.id} has no RPC URL.`,
+        );
+      } else if (typeof chain.rpcUrl === "string") {
+        for (const http of matchedChain.rpcUrls.default.http) {
+          if (http === chain.rpcUrl) {
+            logs.push({
+              level: "warn",
+              msg: `Chain '${chainName}' is using a public RPC URL (${http}). Most apps require an RPC URL with a higher rate limit.`,
+            });
+          }
+        }
+        for (const ws of matchedChain.rpcUrls.default.webSocket ?? []) {
+          if (ws === chain.rpcUrl) {
+            logs.push({
+              level: "warn",
+              msg: `Chain '${chainName}' is using a public RPC URL (${ws}). Most apps require an RPC URL with a higher rate limit.`,
+            });
+          }
+        }
+      } else if (Array.isArray(chain.rpcUrl)) {
+        if (chain.rpcUrl.length === 0) {
+          throw new Error(
+            `Chain "${chainName}" with id ${chain.id} has no RPC URLs.`,
+          );
+        }
+
+        for (const rpcUrl of chain.rpcUrl) {
+          for (const http of matchedChain.rpcUrls.default.http) {
+            if (http === rpcUrl) {
+              logs.push({
+                level: "warn",
+                msg: `Chain '${chainName}' is using a public RPC URL (${http}). Most apps require an RPC URL with a higher rate limit.`,
+              });
+              break;
+            }
+          }
+          for (const ws of matchedChain.rpcUrls.default.webSocket ?? []) {
+            if (ws === rpcUrl) {
+              logs.push({
+                level: "warn",
+                msg: `Chain '${chainName}' is using a public RPC URL (${ws}). Most apps require an RPC URL with a higher rate limit.`,
+              });
+              break;
+            }
+          }
+        }
+      }
 
       if (chain.pollingInterval !== undefined && chain.pollingInterval! < 100) {
         throw new Error(
@@ -154,6 +193,16 @@ export async function buildConfigAndIndexingFunctions({
       } satisfies Chain;
     }),
   );
+
+  const chainIds = new Set<number>();
+  for (const chain of chains) {
+    if (chainIds.has(chain.chain.id)) {
+      throw new Error(
+        `Invalid id for chain "${chain.chain.name}". ${chain.chain.id} is already in use.`,
+      );
+    }
+    chainIds.add(chain.chain.id);
+  }
 
   const rpcs = chains.map((chain) =>
     createRpc({
