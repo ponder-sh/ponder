@@ -27,7 +27,7 @@ const publicClients = {};
 for (let i = 0; i < globalThis.PONDER_INDEXING_BUILD.chains.length; i++) {
   const chain = globalThis.PONDER_INDEXING_BUILD.chains[i];
   const rpc = globalThis.PONDER_INDEXING_BUILD.rpcs[i];
-  publicClients[chain.chain.id] = createPublicClient({
+  publicClients[chain.chain.name] = createPublicClient({
     chain: chain.chain,
     transport: custom({
       request(body) {
