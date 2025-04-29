@@ -288,6 +288,10 @@ export const createSync = async (params: {
           ({ filter }) => filter.chainId === network.chainId,
         );
 
+        const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
+          ({ chainId }) => chainId === network.chainId,
+        )?.checkpoint;
+
         async function* decodeEventGenerator(
           eventGenerator: AsyncGenerator<{
             events: RawEvent[];
@@ -312,7 +316,7 @@ export const createSync = async (params: {
           }
         }
 
-        async function* sortCompletedAndPendingEvents(
+        async function* sortCrashRecoveryEvents(
           eventGenerator: AsyncGenerator<{
             events: Event[];
             checkpoint: string;
@@ -320,10 +324,6 @@ export const createSync = async (params: {
         ) {
           for await (const { events, checkpoint } of eventGenerator) {
             // Sort out any events before the crash recovery checkpoint
-            const crashRecoveryCheckpoint =
-              params.crashRecoveryCheckpoint?.find(
-                ({ chainId }) => chainId === network.chainId,
-              )?.checkpoint;
 
             if (
               crashRecoveryCheckpoint &&
@@ -335,11 +335,24 @@ export const createSync = async (params: {
                 (event) => event.checkpoint <= crashRecoveryCheckpoint,
               );
               yield { events: right, checkpoint };
-              // Sort out any events between the omnichain finalized checkpoint and the single-chain
-              // finalized checkpoint and add them to pendingEvents. These events are synced during
-              // the historical phase, but must be indexed in the realtime phase because events
-              // synced in realtime on other chains might be ordered before them.
-            } else if (checkpoint > to) {
+            } else {
+              yield { events, checkpoint };
+            }
+          }
+        }
+
+        async function* sortCompletedAndPendingEvents(
+          eventGenerator: AsyncGenerator<{
+            events: Event[];
+            checkpoint: string;
+          }>,
+        ) {
+          for await (const { events, checkpoint } of eventGenerator) {
+            // Sort out any events between the omnichain finalized checkpoint and the single-chain
+            // finalized checkpoint and add them to pendingEvents. These events are synced during
+            // the historical phase, but must be indexed in the realtime phase because events
+            // synced in realtime on other chains might be ordered before them.
+            if (checkpoint > to) {
               const [left, right] = partition(
                 events,
                 (event) => event.checkpoint <= to,
@@ -359,13 +372,24 @@ export const createSync = async (params: {
           historicalSync,
         });
 
+        let from: string;
+        if (
+          crashRecoveryCheckpoint &&
+          Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) ===
+            network.chainId
+        ) {
+          from = crashRecoveryCheckpoint;
+        } else {
+          from = getMultichainCheckpoint({ tag: "start", network })!;
+        }
+
         const localEventGenerator = getLocalEventGenerator({
           common: params.common,
           network,
           syncStore: params.syncStore,
           sources,
           localSyncGenerator,
-          from: getMultichainCheckpoint({ tag: "start", network })!,
+          from,
           to: min(
             getMultichainCheckpoint({ tag: "finalized", network })!,
             getMultichainCheckpoint({ tag: "end", network })!,
@@ -378,7 +402,7 @@ export const createSync = async (params: {
         });
 
         return sortCompletedAndPendingEvents(
-          decodeEventGenerator(localEventGenerator),
+          sortCrashRecoveryEvents(decodeEventGenerator(localEventGenerator)),
         );
       },
     );
