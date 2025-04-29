@@ -29,7 +29,7 @@ const numeric78 = customType<{ data: bigint; driverData: string }>({
  * @dev The order of the schemas represents the order of the migrations.
  * @dev The schemas must match the files in "./sql".
  */
-export const PONDER_SYNC_SCHEMAS = ["ponder_sync", "ponder_sync_0_11"] as const;
+export const PONDER_SYNC_SCHEMAS = ["ponder_sync"] as const;
 /**
  * Latest database schema for the sync.
  */
