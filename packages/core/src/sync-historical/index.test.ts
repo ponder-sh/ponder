@@ -19,13 +19,13 @@ import {
 import {
   getAccountsConfigAndIndexingFunctions,
   getBlocksConfigAndIndexingFunctions,
+  getChain,
   getErc20ConfigAndIndexingFunctions,
-  getNetwork,
   getPairWithFactoryConfigAndIndexingFunctions,
   testClient,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
-import { createRequestQueue } from "@/utils/requestQueue.js";
+import { createRpc } from "@/rpc/index.js";
 import {
   encodeFunctionData,
   encodeFunctionResult,
@@ -44,9 +44,9 @@ beforeEach(setupCleanup);
 test("createHistoricalSync()", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -54,16 +54,17 @@ test("createHistoricalSync()", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
+    rpc,
     sources,
     syncStore,
-    requestQueue,
     onFatalError: () => {},
   });
 
@@ -73,9 +74,9 @@ test("createHistoricalSync()", async (context) => {
 test("sync() with log filter", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -91,16 +92,17 @@ test("sync() with log filter", async (context) => {
     address,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
+    rpc,
     sources,
     syncStore,
-    requestQueue,
     onFatalError: () => {},
   });
 
@@ -121,9 +123,9 @@ test("sync() with log filter", async (context) => {
 test("sync() with log filter and transaction receipts", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -140,16 +142,17 @@ test("sync() with log filter and transaction receipts", async (context) => {
     includeTransactionReceipts: true,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
+    rpc,
     sources,
     syncStore,
-    requestQueue,
     onFatalError: () => {},
   });
 
@@ -173,9 +176,9 @@ test("sync() with log filter and transaction receipts", async (context) => {
 test("sync() with block filter", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -183,6 +186,7 @@ test("sync() with block filter", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -191,10 +195,10 @@ test("sync() with block filter", async (context) => {
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
+    rpc,
     sources,
     syncStore,
-    requestQueue,
     onFatalError: () => {},
   });
 
@@ -218,9 +222,9 @@ test("sync() with block filter", async (context) => {
 test("sync() with log factory", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -239,16 +243,17 @@ test("sync() with log factory", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
+    rpc,
     sources,
     syncStore,
-    requestQueue,
     onFatalError: () => {},
   });
 
@@ -274,9 +279,9 @@ test("sync() with log factory", async (context) => {
 test("sync() with trace filter", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -299,6 +304,7 @@ test("sync() with trace filter", async (context) => {
     includeCallTraces: true,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -334,16 +340,15 @@ test("sync() with trace filter", async (context) => {
       }
     }
 
-    return requestQueue.request(request);
+    return rpc.request(request);
   };
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources: sources.filter(({ filter }) => filter.type === "trace"),
     syncStore,
-    requestQueue: {
-      ...requestQueue,
+    rpc: {
       // @ts-ignore
       request,
     },
@@ -370,9 +375,9 @@ test("sync() with trace filter", async (context) => {
 test("sync() with transaction filter", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -388,16 +393,17 @@ test("sync() with transaction filter", async (context) => {
     });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources: sources.filter(({ filter }) => filter.type === "transaction"),
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -429,9 +435,9 @@ test("sync() with transaction filter", async (context) => {
 test("sync() with transfer filter", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -447,6 +453,7 @@ test("sync() with transfer filter", async (context) => {
     });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -472,16 +479,15 @@ test("sync() with transfer filter", async (context) => {
       }
     }
 
-    return requestQueue.request(request);
+    return rpc.request(request);
   };
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources: sources.filter(({ filter }) => filter.type === "transfer"),
     syncStore,
-    requestQueue: {
-      ...requestQueue,
+    rpc: {
       // @ts-ignore
       request,
     },
@@ -509,9 +515,9 @@ test("sync() with transfer filter", async (context) => {
 test("sync() with many filters", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -524,11 +530,13 @@ test("sync() with many filters", async (context) => {
   });
 
   const { sources: erc20Sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     ...getErc20ConfigAndIndexingFunctions({
       address,
     }),
   });
   const { sources: blockSources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     ...getBlocksConfigAndIndexingFunctions({
       interval: 1,
     }),
@@ -536,10 +544,10 @@ test("sync() with many filters", async (context) => {
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources: [...erc20Sources, ...blockSources],
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -565,9 +573,9 @@ test("sync() with many filters", async (context) => {
 test("sync() with cache", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -583,16 +591,17 @@ test("sync() with cache", async (context) => {
     address,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   let historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -600,14 +609,14 @@ test("sync() with cache", async (context) => {
 
   // re-instantiate `historicalSync` to reset the cached intervals
 
-  const spy = vi.spyOn(requestQueue, "request");
+  const spy = vi.spyOn(rpc, "request");
 
   historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -618,9 +627,9 @@ test("sync() with cache", async (context) => {
 test("sync() with partial cache", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -636,16 +645,17 @@ test("sync() with partial cache", async (context) => {
     address,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   let historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -653,17 +663,17 @@ test("sync() with partial cache", async (context) => {
 
   // re-instantiate `historicalSync` to reset the cached intervals
 
-  let spy = vi.spyOn(requestQueue, "request");
+  let spy = vi.spyOn(rpc, "request");
 
   // @ts-ignore
   sources[0]!.filter.address = [sources[0]!.filter.address, zeroAddress];
 
   historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -688,14 +698,14 @@ test("sync() with partial cache", async (context) => {
 
   // re-instantiate `historicalSync` to reset the cached intervals
 
-  spy = vi.spyOn(requestQueue, "request");
+  spy = vi.spyOn(rpc, "request");
 
   historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -724,9 +734,9 @@ test("sync() with partial cache", async (context) => {
 test("syncBlock() with cache", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -739,11 +749,13 @@ test("syncBlock() with cache", async (context) => {
   });
 
   const { sources: erc20Sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     ...getErc20ConfigAndIndexingFunctions({
       address,
     }),
   });
   const { sources: blockSources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     ...getBlocksConfigAndIndexingFunctions({
       interval: 1,
     }),
@@ -751,14 +763,14 @@ test("syncBlock() with cache", async (context) => {
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources: [...erc20Sources, ...blockSources],
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
-  const spy = vi.spyOn(requestQueue, "request");
+  const spy = vi.spyOn(rpc, "request");
 
   await historicalSync.sync([1, 2]);
 
@@ -770,9 +782,9 @@ test("syncBlock() with cache", async (context) => {
 test("syncAddress() handles many addresses", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -798,16 +810,17 @@ test("syncAddress() handles many addresses", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 

@@ -1,17 +1,16 @@
 import type { Common } from "@/internal/common.js";
-import type { IndexingBuild, Network, SetupEvent } from "@/internal/types.js";
+import type { Chain, IndexingBuild, SetupEvent } from "@/internal/types.js";
 import type { Event } from "@/internal/types.js";
+import type { Rpc } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
 import { startClock } from "@/utils/timer.js";
 import {
   type Abi,
   type Account,
   type Address,
-  type Chain,
   type Client,
   type ContractFunctionArgs,
   type ContractFunctionName,
@@ -32,6 +31,7 @@ import {
   type SimulateContractParameters,
   type SimulateContractReturnType,
   type Transport,
+  type Chain as ViemChain,
   createClient,
   custom,
   decodeFunctionData,
@@ -52,7 +52,7 @@ import {
 } from "./profile.js";
 
 export type CachedViemClient = {
-  getClient: (network: Network) => ReadonlyClient;
+  getClient: (chain: Chain) => ReadonlyClient;
   prefetch: (params: {
     events: Event[];
   }) => Promise<void>;
@@ -201,7 +201,7 @@ export type PonderActions = {
       /** Whether or not to include transaction data in the response. */
       includeTransactions?: includeTransactions | undefined;
     } & RequiredBlockOptions,
-  ) => Promise<GetBlockReturnType<Chain | undefined, includeTransactions>>;
+  ) => Promise<GetBlockReturnType<ViemChain | undefined, includeTransactions>>;
   getTransactionCount: (
     args: {
       /** The account address. */
@@ -215,7 +215,7 @@ export type PonderActions = {
 
 export type ReadonlyClient<
   transport extends Transport = Transport,
-  chain extends Chain | undefined = Chain | undefined,
+  chain extends ViemChain | undefined = ViemChain | undefined,
 > = Prettify<
   Omit<
     Client<transport, chain, undefined, PublicRpcSchema, PonderActions>,
@@ -361,13 +361,11 @@ export const decodeResponse = (response: Response) => {
 export const createCachedViemClient = ({
   common,
   indexingBuild,
-  requestQueues,
   syncStore,
   eventCount,
 }: {
   common: Common;
-  indexingBuild: Pick<IndexingBuild, "networks">;
-  requestQueues: RequestQueue[];
+  indexingBuild: Pick<IndexingBuild, "chains" | "rpcs">;
   syncStore: SyncStore;
   eventCount: { [eventName: string]: number };
 }): CachedViemClient => {
@@ -376,13 +374,13 @@ export const createCachedViemClient = ({
   const profile: Profile = new Map();
   const profileConstantLRU: ProfileConstantLRU = new Map();
 
-  for (const network of indexingBuild.networks) {
-    cache.set(network.chainId, new Map());
+  for (const chain of indexingBuild.chains) {
+    cache.set(chain.chain.id, new Map());
   }
 
   const ponderActions = <
     TTransport extends Transport = Transport,
-    TChain extends Chain | undefined = Chain | undefined,
+    TChain extends ViemChain | undefined = ViemChain | undefined,
     TAccount extends Account | undefined = Account | undefined,
   >(
     client: Client<TTransport, TChain, TAccount>,
@@ -575,19 +573,19 @@ export const createCachedViemClient = ({
   };
 
   return {
-    getClient(network) {
-      const requestQueue =
-        requestQueues[indexingBuild.networks.findIndex((n) => n === network)]!;
+    getClient(chain) {
+      const rpc =
+        indexingBuild.rpcs[indexingBuild.chains.findIndex((c) => c === chain)]!;
 
       return createClient({
         transport: cachedTransport({
           common,
-          network,
-          requestQueue,
+          chain,
+          rpc,
           syncStore,
           cache,
         }),
-        chain: network.chain,
+        chain: chain.chain,
         // @ts-expect-error overriding `readContract` is not supported by viem
       }).extend(ponderActions);
     },
@@ -614,8 +612,8 @@ export const createCachedViemClient = ({
         number,
         { ev: number; request: EIP1193Parameters }[]
       > = new Map();
-      for (const network of indexingBuild.networks) {
-        chainRequests.set(network.chainId, []);
+      for (const chain of indexingBuild.chains) {
+        chainRequests.set(chain.chain.id, []);
       }
 
       for (const { ev, request } of dedupe(prediction, ({ request }) =>
@@ -629,11 +627,11 @@ export const createCachedViemClient = ({
 
       await Promise.all(
         Array.from(chainRequests.entries()).map(async ([chainId, requests]) => {
-          const ni = indexingBuild.networks.findIndex(
-            (n) => n.chainId === chainId,
+          const ni = indexingBuild.chains.findIndex(
+            (c) => c.chain.id === chainId,
           );
-          const network = indexingBuild.networks[ni]!;
-          const requestQueue = requestQueues[ni]!;
+          const chain = indexingBuild.chains[ni]!;
+          const rpc = indexingBuild.rpcs[ni]!;
 
           const dbRequests = requests.filter(
             ({ ev }) => ev > DB_PREDICTION_THRESHOLD,
@@ -641,7 +639,7 @@ export const createCachedViemClient = ({
 
           common.metrics.ponder_indexing_rpc_prefetch_total.inc(
             {
-              network: network.name,
+              chain: chain.chain.name,
               method: "eth_call",
               type: "database",
             },
@@ -662,13 +660,13 @@ export const createCachedViemClient = ({
                 .get(chainId)!
                 .set(getCacheKey(request.request), cachedResult);
             } else if (request.ev > RPC_PREDICTION_THRESHOLD) {
-              const resultPromise = requestQueue
+              const resultPromise = rpc
                 .request(request.request as EIP1193Parameters<PublicRpcSchema>)
                 .then((result) => JSON.stringify(result))
                 .catch((error) => error as Error);
 
               common.metrics.ponder_indexing_rpc_prefetch_total.inc({
-                network: network.name,
+                chain: chain.chain.name,
                 method: "eth_call",
                 type: "rpc",
               });
@@ -683,15 +681,15 @@ export const createCachedViemClient = ({
           if (dbRequests.length > 0) {
             common.logger.debug({
               service: "rpc",
-              msg: `Pre-fetched ${dbRequests.length} ${network.name} RPC requests`,
+              msg: `Pre-fetched ${dbRequests.length} ${chain.chain.name} RPC requests`,
             });
           }
         }),
       );
     },
     clear() {
-      for (const network of indexingBuild.networks) {
-        cache.get(network.chainId)!.clear();
+      for (const chain of indexingBuild.chains) {
+        cache.get(chain.chain.id)!.clear();
       }
     },
     set event(_event: Event | SetupEvent) {
@@ -703,18 +701,18 @@ export const createCachedViemClient = ({
 export const cachedTransport =
   ({
     common,
-    network,
-    requestQueue,
+    chain,
+    rpc,
     syncStore,
     cache,
   }: {
     common: Common;
-    network: Network;
-    requestQueue: RequestQueue;
+    chain: Chain;
+    rpc: Rpc;
     syncStore: SyncStore;
     cache: Cache;
   }): Transport =>
-  ({ chain }) =>
+  ({ chain: _chain }) =>
     custom({
       async request({ method, params }) {
         const body = { method, params };
@@ -762,12 +760,12 @@ export const cachedTransport =
           for (const request of requests) {
             const cacheKey = getCacheKey(request);
 
-            if (cache.get(network.chainId)!.has(cacheKey)) {
-              const cachedResult = cache.get(network.chainId)!.get(cacheKey)!;
+            if (cache.get(chain.chain.id)!.has(cacheKey)) {
+              const cachedResult = cache.get(chain.chain.id)!.get(cacheKey)!;
 
               if (cachedResult instanceof Promise) {
                 common.metrics.ponder_indexing_rpc_requests_total.inc({
-                  network: network.name,
+                  chain: chain.chain.name,
                   method,
                   type: "prefetch_rpc",
                 });
@@ -787,7 +785,7 @@ export const cachedTransport =
                 });
               } else {
                 common.metrics.ponder_indexing_rpc_requests_total.inc({
-                  network: network.name,
+                  chain: chain.chain.name,
                   method,
                   type: "prefetch_database",
                 });
@@ -805,7 +803,7 @@ export const cachedTransport =
 
           const dbResults = await syncStore.getRpcRequestResults({
             requests: dbRequests,
-            chainId: network.chainId,
+            chainId: chain.chain.id,
           });
 
           for (let i = 0; i < dbRequests.length; i++) {
@@ -814,7 +812,7 @@ export const cachedTransport =
 
             if (result !== undefined) {
               common.metrics.ponder_indexing_rpc_requests_total.inc({
-                network: network.name,
+                chain: chain.chain.name,
                 method,
                 type: "database",
               });
@@ -831,7 +829,7 @@ export const cachedTransport =
               (request) => results.has(request) === false,
             );
 
-            const multicallResult = await requestQueue
+            const multicallResult = await rpc
               .request({
                 method: "eth_call",
                 params: [
@@ -867,7 +865,7 @@ export const cachedTransport =
               }
 
               common.metrics.ponder_indexing_rpc_requests_total.inc({
-                network: network.name,
+                chain: chain.chain.name,
                 method,
                 type: "rpc",
               });
@@ -892,7 +890,7 @@ export const cachedTransport =
                 blockNumber: encodedBlockNumber,
                 result: JSON.stringify(results.get(request)!.returnData),
               })),
-              chainId: network.chainId,
+              chainId: chain.chain.id,
             })
             .catch(() => {});
 
@@ -960,13 +958,13 @@ export const cachedTransport =
 
           const cacheKey = getCacheKey(body);
 
-          if (cache.get(network.chainId)!.has(cacheKey)) {
-            const cachedResult = cache.get(network.chainId)!.get(cacheKey)!;
+          if (cache.get(chain.chain.id)!.has(cacheKey)) {
+            const cachedResult = cache.get(chain.chain.id)!.get(cacheKey)!;
 
             // `cachedResult` is a Promise if the request had to be fetched from the RPC.
             if (cachedResult instanceof Promise) {
               common.metrics.ponder_indexing_rpc_requests_total.inc({
-                network: network.name,
+                chain: chain.chain.name,
                 method,
                 type: "prefetch_rpc",
               });
@@ -988,7 +986,7 @@ export const cachedTransport =
                         result,
                       },
                     ],
-                    chainId: network.chainId,
+                    chainId: chain.chain.id,
                   })
                   .catch(() => {});
               }
@@ -996,7 +994,7 @@ export const cachedTransport =
               return decodeResponse(result);
             } else {
               common.metrics.ponder_indexing_rpc_requests_total.inc({
-                network: network.name,
+                chain: chain.chain.name,
                 method,
                 type: "prefetch_database",
               });
@@ -1007,12 +1005,12 @@ export const cachedTransport =
 
           const [cachedResult] = await syncStore.getRpcRequestResults({
             requests: [body],
-            chainId: network.chainId,
+            chainId: chain.chain.id,
           });
 
           if (cachedResult !== undefined) {
             common.metrics.ponder_indexing_rpc_requests_total.inc({
-              network: network.name,
+              chain: chain.chain.name,
               method,
               type: "database",
             });
@@ -1021,12 +1019,12 @@ export const cachedTransport =
           }
 
           common.metrics.ponder_indexing_rpc_requests_total.inc({
-            network: network.name,
+            chain: chain.chain.name,
             method,
             type: "rpc",
           });
 
-          const response = await requestQueue.request(body);
+          const response = await rpc.request(body);
 
           // Note: "0x" is a valid response for some requests, but is sometimes erroneously returned by the RPC.
           // Because the frequency of these valid requests with no return data is very low, we don't cache it.
@@ -1042,13 +1040,13 @@ export const cachedTransport =
                     result: JSON.stringify(response),
                   },
                 ],
-                chainId: network.chainId,
+                chainId: chain.chain.id,
               })
               .catch(() => {});
           }
           return response;
         } else {
-          return requestQueue.request(body);
+          return rpc.request(body);
         }
       },
-    })({ chain, retryCount: 0 });
+    })({ chain: _chain, retryCount: 0 });

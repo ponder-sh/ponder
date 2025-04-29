@@ -22,7 +22,6 @@ import { formatEta, formatPercentage } from "@/utils/format.js";
 import { recordAsyncGenerator } from "@/utils/generators.js";
 import { createMutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
-import { createRequestQueue } from "@/utils/requestQueue.js";
 import { startClock } from "@/utils/timer.js";
 import { sql } from "drizzle-orm";
 
@@ -50,16 +49,6 @@ export async function run({
 
   runCodegen({ common });
 
-  const requestQueues = indexingBuild.networks.map((network) =>
-    createRequestQueue({
-      network,
-      common,
-      concurrency: Math.floor(
-        common.options.rpcMaxConcurrency / indexingBuild.networks.length,
-      ),
-    }),
-  );
-
   const syncStore = createSyncStore({ common, database });
 
   const realtimeMutex = createMutex();
@@ -67,7 +56,6 @@ export async function run({
   const sync = await createSync({
     common,
     indexingBuild,
-    requestQueues,
     syncStore,
     onRealtimeEvent: (realtimeEvent) => {
       if (realtimeEvent.type === "reorg") {
@@ -88,7 +76,6 @@ export async function run({
   const cachedViemClient = createCachedViemClient({
     common,
     indexingBuild,
-    requestQueues,
     syncStore,
     eventCount,
   });
@@ -107,19 +94,21 @@ export async function run({
     eventCount,
   });
 
-  for (const network of indexingBuild.networks) {
-    const label = { network: network.name };
+  for (const chain of indexingBuild.chains) {
+    const label = { chain: chain.chain.name };
     common.metrics.ponder_historical_total_indexing_seconds.set(
       label,
       Math.max(
-        sync.seconds[network.name]!.end - sync.seconds[network.name]!.start,
+        sync.seconds[chain.chain.name]!.end -
+          sync.seconds[chain.chain.name]!.start,
         0,
       ),
     );
     common.metrics.ponder_historical_cached_indexing_seconds.set(
       label,
       Math.max(
-        sync.seconds[network.name]!.cached - sync.seconds[network.name]!.start,
+        sync.seconds[chain.chain.name]!.cached -
+          sync.seconds[chain.chain.name]!.start,
         0,
       ),
     );
@@ -127,8 +116,8 @@ export async function run({
     common.metrics.ponder_indexing_timestamp.set(
       label,
       Math.max(
-        sync.seconds[network.name]!.cached,
-        sync.seconds[network.name]!.start,
+        sync.seconds[chain.chain.name]!.cached,
+        sync.seconds[chain.chain.name]!.start,
       ),
     );
   }
@@ -164,11 +153,11 @@ export async function run({
   }
 
   await database.setCheckpoints({
-    checkpoints: indexingBuild.networks.map((network) => ({
-      chainName: network.name,
-      chainId: network.chainId,
-      latestCheckpoint: sync.getStartCheckpoint(network),
-      safeCheckpoint: sync.getStartCheckpoint(network),
+    checkpoints: indexingBuild.chains.map((chain) => ({
+      chainName: chain.chain.name,
+      chainId: chain.chain.id,
+      latestCheckpoint: sync.getStartCheckpoint(chain),
+      safeCheckpoint: sync.getStartCheckpoint(chain),
     })),
     db: database.qb.drizzle,
   });
@@ -239,36 +228,36 @@ export async function run({
               );
 
               if (preBuild.ordering === "multichain") {
-                const network = indexingBuild.networks.find(
-                  (network) => network.chainId === Number(checkpoint.chainId),
+                const chain = indexingBuild.chains.find(
+                  (chain) => chain.chain.id === Number(checkpoint.chainId),
                 )!;
                 common.metrics.ponder_historical_completed_indexing_seconds.set(
-                  { network: network.name },
+                  { chain: chain.chain.name },
                   Math.max(
                     Number(checkpoint.blockTimestamp) -
-                      sync.seconds[network.name]!.start -
-                      sync.seconds[network.name]!.cached,
+                      sync.seconds[chain.chain.name]!.start -
+                      sync.seconds[chain.chain.name]!.cached,
                     0,
                   ),
                 );
                 common.metrics.ponder_indexing_timestamp.set(
-                  { network: network.name },
+                  { chain: chain.chain.name },
                   Number(checkpoint.blockTimestamp),
                 );
               } else {
-                // TODO(kyle) does this handle networks with end blocks?
-                for (const network of indexingBuild.networks) {
+                // TODO(kyle) does this handle chains with end blocks?
+                for (const chain of indexingBuild.chains) {
                   common.metrics.ponder_historical_completed_indexing_seconds.set(
-                    { network: network.name },
+                    { chain: chain.chain.name },
                     Math.max(
                       Number(checkpoint.blockTimestamp) -
-                        sync.seconds[network.name]!.start -
-                        sync.seconds[network.name]!.cached,
+                        sync.seconds[chain.chain.name]!.start -
+                        sync.seconds[chain.chain.name]!.cached,
                       0,
                     ),
                   );
                   common.metrics.ponder_indexing_timestamp.set(
-                    { network: network.name },
+                    { chain: chain.chain.name },
                     Number(checkpoint.blockTimestamp),
                   );
                 }
@@ -324,9 +313,9 @@ export async function run({
             await database.setCheckpoints({
               checkpoints: events.checkpoints.map(
                 ({ chainId, checkpoint }) => ({
-                  chainName: indexingBuild.networks.find(
-                    (network) => network.chainId === chainId,
-                  )!.name,
+                  chainName: indexingBuild.chains.find(
+                    (chain) => chain.chain.id === chainId,
+                  )!.chain.name,
                   chainId,
                   latestCheckpoint: checkpoint,
                   safeCheckpoint: checkpoint,
@@ -362,20 +351,20 @@ export async function run({
   // checkpoint is between the last processed event and the finalized
   // checkpoint.
 
-  for (const network of indexingBuild.networks) {
-    const label = { network: network.name };
+  for (const chain of indexingBuild.chains) {
+    const label = { chain: chain.chain.name };
     common.metrics.ponder_historical_completed_indexing_seconds.set(
       label,
       Math.max(
-        sync.seconds[network.name]!.end -
-          sync.seconds[network.name]!.start -
-          sync.seconds[network.name]!.cached,
+        sync.seconds[chain.chain.name]!.end -
+          sync.seconds[chain.chain.name]!.start -
+          sync.seconds[chain.chain.name]!.cached,
         0,
       ),
     );
     common.metrics.ponder_indexing_timestamp.set(
-      { network: network.name },
-      sync.seconds[network.name]!.end,
+      { chain: chain.chain.name },
+      sync.seconds[chain.chain.name]!.end,
     );
   }
 
@@ -388,11 +377,11 @@ export async function run({
   });
 
   await database.setCheckpoints({
-    checkpoints: indexingBuild.networks.map((network) => ({
-      chainName: network.name,
-      chainId: network.chainId,
-      latestCheckpoint: sync.getFinalizedCheckpoint(network),
-      safeCheckpoint: sync.getFinalizedCheckpoint(network),
+    checkpoints: indexingBuild.chains.map((chain) => ({
+      chainName: chain.chain.name,
+      chainId: chain.chain.id,
+      latestCheckpoint: sync.getFinalizedCheckpoint(chain),
+      safeCheckpoint: sync.getFinalizedCheckpoint(chain),
     })),
     db: database.qb.drizzle,
   });
@@ -420,10 +409,9 @@ export async function run({
           });
 
           for (const { checkpoint, events } of perBlockEvents) {
-            const network = indexingBuild.networks.find(
-              (network) =>
-                network.chainId ===
-                Number(decodeCheckpoint(checkpoint).chainId),
+            const chain = indexingBuild.chains.find(
+              (chain) =>
+                chain.chain.id === Number(decodeCheckpoint(checkpoint).chainId),
             )!;
 
             const result = await indexing.processEvents({
@@ -433,7 +421,7 @@ export async function run({
 
             common.logger.info({
               service: "app",
-              msg: `Indexed ${events.length} '${network.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
+              msg: `Indexed ${events.length} '${chain.chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
             });
 
             if (result.status === "error") onReloadableError(result.error);
@@ -442,13 +430,13 @@ export async function run({
 
             if (preBuild.ordering === "multichain") {
               common.metrics.ponder_indexing_timestamp.set(
-                { network: network.name },
+                { chain: chain.chain.name },
                 Number(decodeCheckpoint(checkpoint).blockTimestamp),
               );
             } else {
-              for (const network of indexingBuild.networks) {
+              for (const chain of indexingBuild.chains) {
                 common.metrics.ponder_indexing_timestamp.set(
-                  { network: network.name },
+                  { chain: chain.chain.name },
                   Number(decodeCheckpoint(checkpoint).blockTimestamp),
                 );
               }
@@ -461,9 +449,9 @@ export async function run({
           .insert(database.PONDER_CHECKPOINT)
           .values(
             event.checkpoints.map(({ chainId, checkpoint }) => ({
-              chainName: indexingBuild.networks.find(
-                (network) => network.chainId === chainId,
-              )!.name,
+              chainName: indexingBuild.chains.find(
+                (chain) => chain.chain.id === chainId,
+              )!.chain.name,
               chainId,
               safeCheckpoint: checkpoint,
               latestCheckpoint: checkpoint,

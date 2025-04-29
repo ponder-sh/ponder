@@ -15,8 +15,8 @@ import {
 } from "@/_test/simulate.js";
 import {
   getBlocksConfigAndIndexingFunctions,
+  getChain,
   getErc20ConfigAndIndexingFunctions,
-  getNetwork,
   getPairWithFactoryConfigAndIndexingFunctions,
   testClient,
 } from "@/_test/utils.js";
@@ -28,8 +28,8 @@ import type {
   SyncTrace,
   SyncTransaction,
 } from "@/internal/types.js";
+import { createRpc } from "@/rpc/index.js";
 import { orderObject } from "@/utils/order.js";
-import { createRequestQueue } from "@/utils/requestQueue.js";
 import {
   _eth_getBlockByNumber,
   _eth_getLogs,
@@ -477,6 +477,7 @@ test("getChildAddresses()", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -509,6 +510,7 @@ test("getChildAddresses() empty", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -533,6 +535,7 @@ test("getChildAddresses() distinct", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -571,6 +574,7 @@ test("insertChildAddresses()", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -603,9 +607,9 @@ test("insertChildAddresses()", async (context) => {
 test("insertLogs()", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -616,7 +620,7 @@ test("insertLogs()", async (context) => {
     amount: parseEther("1"),
     sender: ALICE,
   });
-  const rpcLogs = await _eth_getLogs(requestQueue, {
+  const rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 2,
     toBlock: 2,
   });
@@ -630,9 +634,9 @@ test("insertLogs()", async (context) => {
 test("insertLogs() with duplicates", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -643,7 +647,7 @@ test("insertLogs() with duplicates", async (context) => {
     amount: parseEther("1"),
     sender: ALICE,
   });
-  const rpcLogs = await _eth_getLogs(requestQueue, {
+  const rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 2,
     toBlock: 2,
   });
@@ -659,14 +663,14 @@ test("insertLogs() with duplicates", async (context) => {
 test("insertBlocks()", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
   await testClient.mine({ blocks: 1 });
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
 
@@ -682,14 +686,14 @@ test("insertBlocks()", async (context) => {
 test("insertBlocks() with duplicates", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
   await testClient.mine({ blocks: 1 });
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
 
@@ -706,9 +710,9 @@ test("insertBlocks() with duplicates", async (context) => {
 test("insertTransactions()", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -720,7 +724,7 @@ test("insertTransactions()", async (context) => {
     sender: ALICE,
   });
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 2,
   });
   await syncStore.insertTransactions({
@@ -738,9 +742,9 @@ test("insertTransactions()", async (context) => {
 test("insertTransactions() with duplicates", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -752,7 +756,7 @@ test("insertTransactions() with duplicates", async (context) => {
     sender: ALICE,
   });
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 2,
   });
   await syncStore.insertTransactions({
@@ -774,9 +778,9 @@ test("insertTransactions() with duplicates", async (context) => {
 test("insertTransactionReceipts()", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -788,7 +792,7 @@ test("insertTransactionReceipts()", async (context) => {
     sender: ALICE,
   });
 
-  const rpcTransactionReceipt = await _eth_getTransactionReceipt(requestQueue, {
+  const rpcTransactionReceipt = await _eth_getTransactionReceipt(rpc, {
     hash,
   });
 
@@ -807,9 +811,9 @@ test("insertTransactionReceipts()", async (context) => {
 test("insertTransactionReceipts() with duplicates", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -821,7 +825,7 @@ test("insertTransactionReceipts() with duplicates", async (context) => {
     sender: ALICE,
   });
 
-  const rpcTransactionReceipt = await _eth_getTransactionReceipt(requestQueue, {
+  const rpcTransactionReceipt = await _eth_getTransactionReceipt(rpc, {
     hash,
   });
 
@@ -844,9 +848,9 @@ test("insertTransactionReceipts() with duplicates", async (context) => {
 test("insertTraces()", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -882,7 +886,7 @@ test("insertTraces()", async (context) => {
     transactionHash: hash,
   } satisfies SyncTrace;
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
 
@@ -907,9 +911,9 @@ test("insertTraces()", async (context) => {
 test("insertTraces() with duplicates", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -945,7 +949,7 @@ test("insertTraces() with duplicates", async (context) => {
     transactionHash: hash,
   } satisfies SyncTrace;
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
 
@@ -980,9 +984,9 @@ test("insertTraces() with duplicates", async (context) => {
 test("getEventBlockData() returns events", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -993,12 +997,12 @@ test("getEventBlockData() returns events", async (context) => {
     amount: parseEther("1"),
     sender: ALICE,
   });
-  const rpcLogs = await _eth_getLogs(requestQueue, {
+  const rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 2,
     toBlock: 2,
   });
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 2,
   });
 
@@ -1039,9 +1043,9 @@ test("getEventBlockData() returns events", async (context) => {
 test("getEventBlockData() pagination", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -1051,16 +1055,17 @@ test("getEventBlockData() pagination", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
-  let rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  let rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
-  rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 2,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
@@ -1174,9 +1179,9 @@ test("getRpcRequestResults()", async (context) => {
 test("getEventBlockData() pagination with multiple filters", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -1188,17 +1193,19 @@ test("getEventBlockData() pagination with multiple filters", async (context) => 
     sender: ALICE,
   });
 
-  const { sources: erc20Sources } = await buildConfigAndIndexingFunctions(
-    getErc20ConfigAndIndexingFunctions({ address }),
-  );
+  const { sources: erc20Sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
+    ...getErc20ConfigAndIndexingFunctions({ address }),
+  });
 
-  const { sources: blockSources } = await buildConfigAndIndexingFunctions(
-    getBlocksConfigAndIndexingFunctions({
+  const { sources: blockSources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
+    ...getBlocksConfigAndIndexingFunctions({
       interval: 1,
     }),
-  );
+  });
 
-  let rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  let rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
@@ -1208,7 +1215,7 @@ test("getEventBlockData() pagination with multiple filters", async (context) => 
     chainId: 1,
   });
 
-  rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 2,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
@@ -1218,7 +1225,7 @@ test("getEventBlockData() pagination with multiple filters", async (context) => 
     chainId: 1,
   });
 
-  const rpcLogs = await _eth_getLogs(requestQueue, {
+  const rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 2,
     toBlock: 2,
   });
@@ -1283,9 +1290,9 @@ test("pruneRpcRequestResult", async (context) => {
 test("pruneByChain deletes blocks, logs, traces, transactions", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -1305,7 +1312,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
 
   // block 2 (first mint)
 
-  let rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  let rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 2,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
@@ -1315,7 +1322,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
     chainId: 1,
   });
 
-  let rpcLogs = await _eth_getLogs(requestQueue, {
+  let rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 2,
     toBlock: 2,
   });
@@ -1324,7 +1331,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
     chainId: 1,
   });
 
-  let rpcTransactionReceipt = await _eth_getTransactionReceipt(requestQueue, {
+  let rpcTransactionReceipt = await _eth_getTransactionReceipt(rpc, {
     hash: hash1,
   });
 
@@ -1370,7 +1377,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
 
   // block 3 (second mint)
 
-  rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 3,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
@@ -1380,7 +1387,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
     chainId: 1,
   });
 
-  rpcLogs = await _eth_getLogs(requestQueue, {
+  rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 3,
     toBlock: 3,
   });
@@ -1389,7 +1396,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
     chainId: 1,
   });
 
-  rpcTransactionReceipt = await _eth_getTransactionReceipt(requestQueue, {
+  rpcTransactionReceipt = await _eth_getTransactionReceipt(rpc, {
     hash: hash1,
   });
 

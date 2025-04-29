@@ -33,6 +33,6 @@ declare module "ponder:api" {
 
   export const db: ReadonlyDrizzle<schema>;
   export const publicClients: {
-    [chainId in config["default"]["networks"][keyof config["default"]["networks"]]["chainId"]]: PublicClient;
+    [chainName in keyof config["default"]["chains"]]: PublicClient;
   };
 }

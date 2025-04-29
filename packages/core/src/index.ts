@@ -20,7 +20,7 @@ import type { Config } from "@/config/index.js";
 import type { Prettify } from "./types/utils.js";
 
 export type ContractConfig = Prettify<Config["contracts"][string]>;
-export type NetworkConfig = Prettify<Config["networks"][string]>;
+export type ChainConfig = Prettify<Config["chains"][string]>;
 export type BlockConfig = Prettify<Config["blocks"][string]>;
 export type DatabaseConfig = Prettify<Config["database"]>;
 
