@@ -30,8 +30,8 @@ for (let i = 0; i < globalThis.PONDER_INDEXING_BUILD.chains.length; i++) {
   publicClients[chain.chain.id] = createPublicClient({
     chain: chain.chain,
     transport: custom({
-      async request({ method, params }) {
-        return rpc.request({method, params});
+      request(body) {
+        return rpc.request(body);
       }
     }),
   })
