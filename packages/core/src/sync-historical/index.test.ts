@@ -4,8 +4,8 @@ import {
   setupAnvil,
   setupCleanup,
   setupCommon,
-  setupDatabaseServices,
-  setupIsolatedDatabase,
+  setupDatabase,
+  setupPonder,
 } from "@/_test/setup.js";
 import {
   createPair,
@@ -19,13 +19,10 @@ import {
 import {
   getAccountsConfigAndIndexingFunctions,
   getBlocksConfigAndIndexingFunctions,
-  getChain,
   getErc20ConfigAndIndexingFunctions,
   getPairWithFactoryConfigAndIndexingFunctions,
   testClient,
 } from "@/_test/utils.js";
-import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
-import { createRpc } from "@/rpc/index.js";
 import {
   encodeFunctionData,
   encodeFunctionResult,
@@ -38,32 +35,16 @@ import { createHistoricalSync } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
-beforeEach(setupIsolatedDatabase);
+beforeEach(setupDatabase);
 beforeEach(setupCleanup);
 
 test("createHistoricalSync()", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
-  const historicalSync = await createHistoricalSync({
-    common: context.common,
-    chain,
-    rpc,
-    sources,
-    syncStore,
+  const historicalSync = await createHistoricalSync(app, {
     onFatalError: () => {},
   });
 
@@ -71,14 +52,6 @@ test("createHistoricalSync()", async (context) => {
 });
 
 test("sync() with log filter", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
-
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
     erc20: address,
@@ -87,30 +60,25 @@ test("sync() with log filter", async (context) => {
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getErc20ConfigAndIndexingFunctions({
     address,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
-  const historicalSync = await createHistoricalSync({
-    common: context.common,
-    chain,
-    rpc,
-    sources,
-    syncStore,
+  const historicalSync = await createHistoricalSync(app, {
     onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
 
-  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
+  const logs = await app.database.qb.sync
+    .selectFrom("logs")
+    .selectAll()
+    .execute();
 
   expect(logs).toHaveLength(1);
 
-  const intervals = await database.qb.sync
+  const intervals = await app.database.qb.sync
     .selectFrom("intervals")
     .selectAll()
     .execute();
@@ -119,14 +87,6 @@ test("sync() with log filter", async (context) => {
 });
 
 test("sync() with log filter and transaction receipts", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
-
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
     erc20: address,
@@ -135,34 +95,27 @@ test("sync() with log filter and transaction receipts", async (context) => {
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getErc20ConfigAndIndexingFunctions({
     address,
     includeTransactionReceipts: true,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
 
-  const historicalSync = await createHistoricalSync({
-    common: context.common,
-    chain,
-    rpc,
-    sources,
-    syncStore,
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
+  const historicalSync = await createHistoricalSync(app, {
     onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
 
-  const transactionReceipts = await database.qb.sync
+  const transactionReceipts = await app.database.qb.sync
     .selectFrom("transaction_receipts")
     .selectAll()
     .execute();
 
   expect(transactionReceipts).toHaveLength(1);
 
-  const intervals = await database.qb.sync
+  const intervals = await app.database.qb.sync
     .selectFrom("intervals")
     .selectAll()
     .execute();
@@ -171,43 +124,27 @@ test("sync() with log filter and transaction receipts", async (context) => {
 });
 
 test("sync() with block filter", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
-
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
   await testClient.mine({ blocks: 3 });
 
-  const historicalSync = await createHistoricalSync({
-    common: context.common,
-    chain,
-    rpc,
-    sources,
-    syncStore,
+  const historicalSync = await createHistoricalSync(app, {
     onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 3]);
 
-  const blocks = await database.qb.sync
+  const blocks = await app.database.qb.sync
     .selectFrom("blocks")
     .selectAll()
     .execute();
 
   expect(blocks).toHaveLength(3);
 
-  const intervals = await database.qb.sync
+  const intervals = await app.database.qb.sync
     .selectFrom("intervals")
     .selectAll()
     .execute();
@@ -216,14 +153,6 @@ test("sync() with block filter", async (context) => {
 });
 
 test("sync() with log factory", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
-
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
   const { address } = await deployFactory({ sender: ALICE });
   const { result } = await createPair({ factory: address, sender: ALICE });
   await swapPair({
@@ -234,28 +163,23 @@ test("sync() with log factory", async (context) => {
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } =
+  const { config, indexingFunctions } =
     getPairWithFactoryConfigAndIndexingFunctions({
       address,
     });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
-  const historicalSync = await createHistoricalSync({
-    common: context.common,
-    chain,
-    rpc,
-    sources,
-    syncStore,
+  const historicalSync = await createHistoricalSync(app, {
     onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 3]);
 
-  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
-  const factories = await database.qb.sync
+  const logs = await app.database.qb.sync
+    .selectFrom("logs")
+    .selectAll()
+    .execute();
+  const factories = await app.database.qb.sync
     .selectFrom("factories")
     .selectAll()
     .execute();
@@ -263,7 +187,7 @@ test("sync() with log factory", async (context) => {
   expect(logs).toHaveLength(1);
   expect(factories).toHaveLength(1);
 
-  const intervals = await database.qb.sync
+  const intervals = await app.database.qb.sync
     .selectFrom("intervals")
     .selectAll()
     .execute();
@@ -272,14 +196,6 @@ test("sync() with log factory", async (context) => {
 });
 
 test("sync() with trace filter", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
-
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
     erc20: address,
@@ -294,15 +210,13 @@ test("sync() with trace filter", async (context) => {
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getErc20ConfigAndIndexingFunctions({
     address,
     includeCallTraces: true,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
+  const _request = app.indexingBuild.chain.rpc.request;
   const request = async (request: any) => {
     if (request.method === "debug_traceBlockByNumber") {
       if (request.params[0] === "0x1") return Promise.resolve([]);
@@ -334,122 +248,89 @@ test("sync() with trace filter", async (context) => {
       }
     }
 
-    return rpc.request(request);
+    return _request(request);
   };
 
-  const historicalSync = await createHistoricalSync({
-    common: context.common,
-    chain,
-    sources: sources.filter(({ filter }) => filter.type === "trace"),
-    syncStore,
-    rpc: {
-      // @ts-ignore
-      request,
-    },
+  // @ts-ignore
+  app.indexingBuild.chain.rpc.request = request;
+
+  const historicalSync = await createHistoricalSync(app, {
     onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 3]);
 
-  const traces = await database.qb.sync
+  const traces = await app.database.qb.sync
     .selectFrom("traces")
     .selectAll()
     .execute();
 
   expect(traces).toHaveLength(1);
 
-  const intervals = await database.qb.sync
+  const intervals = await app.database.qb.sync
     .selectFrom("intervals")
     .selectAll()
     .execute();
 
-  expect(intervals).toHaveLength(1);
+  expect(intervals).toHaveLength(2);
 });
 
 test("sync() with transaction filter", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
-
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
   await transferEth({
     to: BOB,
     amount: parseEther("1"),
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
+  const { config, indexingFunctions } = getAccountsConfigAndIndexingFunctions({
+    address: ALICE,
   });
 
-  const historicalSync = await createHistoricalSync({
-    common: context.common,
-    chain,
-    sources: sources.filter(({ filter }) => filter.type === "transaction"),
-    syncStore,
-    rpc,
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
+  const historicalSync = await createHistoricalSync(app, {
     onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 1]);
 
-  const transactions = await database.qb.sync
+  const transactions = await app.database.qb.sync
     .selectFrom("transactions")
     .selectAll()
     .execute();
 
   expect(transactions).toHaveLength(1);
 
-  const transactionReceipts = await database.qb.sync
+  const transactionReceipts = await app.database.qb.sync
     .selectFrom("transaction_receipts")
     .selectAll()
     .execute();
 
   expect(transactionReceipts).toHaveLength(1);
 
-  const intervals = await database.qb.sync
+  const intervals = await app.database.qb.sync
     .selectFrom("intervals")
     .selectAll()
     .execute();
 
   // transaction:from and transaction:to
-  expect(intervals).toHaveLength(2);
+  expect(intervals).toHaveLength(4);
 });
 
 test("sync() with transfer filter", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
-
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
   const { hash } = await transferEth({
     to: BOB,
     amount: parseEther("1"),
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
+  const { config, indexingFunctions } = getAccountsConfigAndIndexingFunctions({
+    address: ALICE,
   });
 
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
+  const _request = app.indexingBuild.chain.rpc.request;
   const request = async (request: any) => {
     if (request.method === "debug_traceBlockByNumber") {
       if (request.params[0] === "0x1") {
@@ -471,48 +352,35 @@ test("sync() with transfer filter", async (context) => {
       }
     }
 
-    return rpc.request(request);
+    return _request(request);
   };
 
-  const historicalSync = await createHistoricalSync({
-    common: context.common,
-    chain,
-    sources: sources.filter(({ filter }) => filter.type === "transfer"),
-    syncStore,
-    rpc: {
-      // @ts-ignore
-      request,
-    },
+  // @ts-ignore
+  app.indexingBuild.chain.rpc.request = request;
+
+  const historicalSync = await createHistoricalSync(app, {
     onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 1]);
 
-  const transactions = await database.qb.sync
+  const transactions = await app.database.qb.sync
     .selectFrom("transactions")
     .selectAll()
     .execute();
 
   expect(transactions).toHaveLength(1);
 
-  const intervals = await database.qb.sync
+  const intervals = await app.database.qb.sync
     .selectFrom("intervals")
     .selectAll()
     .execute();
 
   // transfer:from and transfer:to
-  expect(intervals).toHaveLength(2);
+  expect(intervals).toHaveLength(4);
 });
 
 test("sync() with many filters", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
-
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
     erc20: address,
@@ -521,38 +389,40 @@ test("sync() with many filters", async (context) => {
     sender: ALICE,
   });
 
-  const { sources: erc20Sources } = await buildConfigAndIndexingFunctions({
-    ...getErc20ConfigAndIndexingFunctions({
-      address,
-    }),
+  const blockSources = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
   });
-  const { sources: blockSources } = await buildConfigAndIndexingFunctions({
-    ...getBlocksConfigAndIndexingFunctions({
-      interval: 1,
-    }),
-  });
+  const erc20Sources = getErc20ConfigAndIndexingFunctions({ address });
 
-  const historicalSync = await createHistoricalSync({
-    common: context.common,
-    chain,
-    sources: [...erc20Sources, ...blockSources],
-    syncStore,
-    rpc,
+  const config = {
+    ...blockSources.config,
+    ...erc20Sources.config,
+  };
+  const indexingFunctions = [
+    ...blockSources.indexingFunctions,
+    ...erc20Sources.indexingFunctions,
+  ];
+
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+  const historicalSync = await createHistoricalSync(app, {
     onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
 
-  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
+  const logs = await app.database.qb.sync
+    .selectFrom("logs")
+    .selectAll()
+    .execute();
   expect(logs).toHaveLength(1);
 
-  const blocks = await database.qb.sync
+  const blocks = await app.database.qb.sync
     .selectFrom("blocks")
     .selectAll()
     .execute();
   expect(blocks).toHaveLength(2);
 
-  const intervals = await database.qb.sync
+  const intervals = await app.database.qb.sync
     .selectFrom("intervals")
     .selectAll()
     .execute();
@@ -561,14 +431,6 @@ test("sync() with many filters", async (context) => {
 });
 
 test("sync() with cache", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
     erc20: address,
@@ -577,20 +439,12 @@ test("sync() with cache", async (context) => {
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getErc20ConfigAndIndexingFunctions({
     address,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
-  let historicalSync = await createHistoricalSync({
-    common: context.common,
-    chain,
-    sources,
-    syncStore,
-    rpc,
+  let historicalSync = await createHistoricalSync(app, {
     onFatalError: () => {},
   });
 
@@ -598,14 +452,9 @@ test("sync() with cache", async (context) => {
 
   // re-instantiate `historicalSync` to reset the cached intervals
 
-  const spy = vi.spyOn(rpc, "request");
+  const spy = vi.spyOn(app.indexingBuild.chain.rpc, "request");
 
-  historicalSync = await createHistoricalSync({
-    common: context.common,
-    chain,
-    sources,
-    syncStore,
-    rpc,
+  historicalSync = await createHistoricalSync(app, {
     onFatalError: () => {},
   });
 
@@ -614,14 +463,6 @@ test("sync() with cache", async (context) => {
 });
 
 test("sync() with partial cache", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
     erc20: address,
@@ -630,20 +471,12 @@ test("sync() with partial cache", async (context) => {
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getErc20ConfigAndIndexingFunctions({
     address,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
-  let historicalSync = await createHistoricalSync({
-    common: context.common,
-    chain,
-    sources,
-    syncStore,
-    rpc,
+  let historicalSync = await createHistoricalSync(app, {
     onFatalError: () => {},
   });
 
@@ -651,17 +484,16 @@ test("sync() with partial cache", async (context) => {
 
   // re-instantiate `historicalSync` to reset the cached intervals
 
-  let spy = vi.spyOn(rpc, "request");
+  let spy = vi.spyOn(app.indexingBuild.chain.rpc, "request");
 
   // @ts-ignore
-  sources[0]!.filter.address = [sources[0]!.filter.address, zeroAddress];
+  app.indexingBuild.eventCallbacks[0]!.filter.address = [
+    // @ts-ignore
+    app.indexingBuild.eventCallbacks[0]!.filter.address,
+    zeroAddress,
+  ];
 
-  historicalSync = await createHistoricalSync({
-    common: context.common,
-    chain,
-    sources,
-    syncStore,
-    rpc,
+  historicalSync = await createHistoricalSync(app, {
     onFatalError: () => {},
   });
 
@@ -686,14 +518,9 @@ test("sync() with partial cache", async (context) => {
 
   // re-instantiate `historicalSync` to reset the cached intervals
 
-  spy = vi.spyOn(rpc, "request");
+  spy = vi.spyOn(app.indexingBuild.chain.rpc, "request");
 
-  historicalSync = await createHistoricalSync({
-    common: context.common,
-    chain,
-    sources,
-    syncStore,
-    rpc,
+  historicalSync = await createHistoricalSync(app, {
     onFatalError: () => {},
   });
 
@@ -720,14 +547,6 @@ test("sync() with partial cache", async (context) => {
 });
 
 test("syncBlock() with cache", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
     erc20: address,
@@ -736,27 +555,26 @@ test("syncBlock() with cache", async (context) => {
     sender: ALICE,
   });
 
-  const { sources: erc20Sources } = await buildConfigAndIndexingFunctions({
-    ...getErc20ConfigAndIndexingFunctions({
-      address,
-    }),
+  const blockSources = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
   });
-  const { sources: blockSources } = await buildConfigAndIndexingFunctions({
-    ...getBlocksConfigAndIndexingFunctions({
-      interval: 1,
-    }),
-  });
+  const erc20Sources = getErc20ConfigAndIndexingFunctions({ address });
 
-  const historicalSync = await createHistoricalSync({
-    common: context.common,
-    chain,
-    sources: [...erc20Sources, ...blockSources],
-    syncStore,
-    rpc,
+  const config = {
+    ...blockSources.config,
+    ...erc20Sources.config,
+  };
+  const indexingFunctions = [
+    ...blockSources.indexingFunctions,
+    ...erc20Sources.indexingFunctions,
+  ];
+
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+  const historicalSync = await createHistoricalSync(app, {
     onFatalError: () => {},
   });
 
-  const spy = vi.spyOn(rpc, "request");
+  const spy = vi.spyOn(app.indexingBuild.chain.rpc, "request");
 
   await historicalSync.sync([1, 2]);
 
@@ -766,14 +584,6 @@ test("syncBlock() with cache", async (context) => {
 });
 
 test("syncAddress() handles many addresses", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
-
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
   context.common.options.factoryAddressCountThreshold = 10;
 
   const { address } = await deployFactory({ sender: ALICE });
@@ -791,28 +601,23 @@ test("syncAddress() handles many addresses", async (context) => {
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } =
+  const { config, indexingFunctions } =
     getPairWithFactoryConfigAndIndexingFunctions({
       address,
     });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
-  const historicalSync = await createHistoricalSync({
-    common: context.common,
-    chain,
-    sources,
-    syncStore,
-    rpc,
+  const historicalSync = await createHistoricalSync(app, {
     onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 13]);
 
-  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
-  const factories = await database.qb.sync
+  const logs = await app.database.qb.sync
+    .selectFrom("logs")
+    .selectAll()
+    .execute();
+  const factories = await app.database.qb.sync
     .selectFrom("factory_addresses")
     .selectAll()
     .execute();

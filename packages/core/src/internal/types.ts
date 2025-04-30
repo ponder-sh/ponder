@@ -1,6 +1,6 @@
 import type { Database } from "@/database/index.js";
 import type { SqlStatements } from "@/drizzle/kit/index.js";
-import type { RPC } from "@/rpc/index.js";
+import type { Rpc } from "@/rpc/index.js";
 import type {
   Block,
   Log,
@@ -41,7 +41,6 @@ export type PonderApp = {
   indexingBuild: IndexingBuild[];
   apiBuild: ApiBuild;
   database: Database;
-  onFatalError: (error: Error) => void;
 };
 
 export type PerChainPonderApp = Omit<PonderApp, "indexingBuild"> & {
@@ -271,6 +270,7 @@ export type Chain = {
   maxRequestsPerSecond: number;
   finalityBlockCount: number;
   disableCache: boolean;
+  rpc: Rpc;
 };
 
 // Schema
@@ -297,25 +297,24 @@ export type SchemaBuild = {
   statements: SqlStatements;
 };
 
+type EventCallback = {
+  filter: Filter;
+  callback: (...args: any) => any;
+  name: string;
+} & (
+  | { type: "setup" }
+  | {
+      type: "contract";
+      abiItem: AbiEvent | AbiFunction;
+      metadata: { safeName: string; abi: Abi };
+    }
+  | { type: "account"; direction: "from" | "to" }
+  | { type: "block" }
+);
+
 export type IndexingBuild = {
   chain: Chain;
-  rpc: RPC;
-  filters: Filter[];
-  eventCallbacks: ({
-    filter: Filter;
-    callback: (...args: any) => any;
-    // TODO(kyle) name ??
-    name: string;
-  } & (
-    | { type: "setup" }
-    | {
-        type: "contract";
-        abiItem: AbiEvent | AbiFunction;
-        metadata: { safeName: string; abi: Abi };
-      }
-    | { type: "account"; direction: "from" | "to" }
-    | { type: "block" }
-  ))[];
+  eventCallbacks: EventCallback[];
 };
 
 export type ApiBuild = {
@@ -391,7 +390,7 @@ export type InternalTrace = Trace & {
 export type RawEvent = {
   checkpoint: string;
   chain: Chain;
-  eventCallback: IndexingBuild["eventCallbacks"][number];
+  eventCallback: EventCallback;
   log?: InternalLog;
   block: InternalBlock;
   transaction?: InternalTransaction;
@@ -410,7 +409,7 @@ export type SetupEvent = {
   type: "setup";
   checkpoint: string;
   chain: Chain;
-  eventCallback: IndexingBuild["eventCallbacks"][number];
+  eventCallback: EventCallback;
 
   block: bigint;
 };
@@ -419,7 +418,7 @@ export type LogEvent = {
   type: "log";
   checkpoint: string;
   chain: Chain;
-  eventCallback: IndexingBuild["eventCallbacks"][number];
+  eventCallback: EventCallback;
 
   event: {
     id: string;
@@ -434,7 +433,7 @@ export type LogEvent = {
 export type BlockEvent = {
   type: "block";
   chain: Chain;
-  eventCallback: IndexingBuild["eventCallbacks"][number];
+  eventCallback: EventCallback;
   checkpoint: string;
 
   event: {
@@ -446,7 +445,7 @@ export type BlockEvent = {
 export type TransactionEvent = {
   type: "transaction";
   chain: Chain;
-  eventCallback: IndexingBuild["eventCallbacks"][number];
+  eventCallback: EventCallback;
   checkpoint: string;
 
   event: {
@@ -460,7 +459,7 @@ export type TransactionEvent = {
 export type TransferEvent = {
   type: "transfer";
   chain: Chain;
-  eventCallback: IndexingBuild["eventCallbacks"][number];
+  eventCallback: EventCallback;
   checkpoint: string;
 
   event: {
@@ -476,7 +475,7 @@ export type TransferEvent = {
 export type TraceEvent = {
   type: "trace";
   chain: Chain;
-  eventCallback: IndexingBuild["eventCallbacks"][number];
+  eventCallback: EventCallback;
   checkpoint: string;
 
   event: {

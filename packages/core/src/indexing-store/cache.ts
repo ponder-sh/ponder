@@ -7,6 +7,7 @@ import { FlushError } from "@/internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
   Event,
+  PerChainPonderApp,
   PonderApp,
   Schema,
 } from "@/internal/types.js";
@@ -281,7 +282,7 @@ export const recoverBatchError = async <T>(
 };
 
 export const createIndexingCache = (
-  app: Omit<PonderApp, "indexingBuild" | "apiBuild">,
+  app: PonderApp | PerChainPonderApp,
   {
     crashRecoveryCheckpoint,
     eventCount,

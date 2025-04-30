@@ -1,10 +1,6 @@
 import path from "node:path";
 import { ALICE } from "@/_test/constants.js";
-import {
-  setupAnvil,
-  setupCommon,
-  setupIsolatedDatabase,
-} from "@/_test/setup.js";
+import { setupAnvil, setupCommon, setupDatabase } from "@/_test/setup.js";
 import { deployErc20, mintErc20 } from "@/_test/simulate.js";
 import { getFreePort, waitForIndexedBlock } from "@/_test/utils.js";
 import { start } from "@/bin/commands/start.js";
@@ -22,7 +18,7 @@ beforeEach(() => {
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
-beforeEach(setupIsolatedDatabase);
+beforeEach(setupDatabase);
 
 const cliOptions = {
   schema: "public",

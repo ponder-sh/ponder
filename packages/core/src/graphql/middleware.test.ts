@@ -1,16 +1,17 @@
 import {
   setupCleanup,
   setupCommon,
-  setupDatabaseServices,
-  setupIsolatedDatabase,
+  setupDatabase,
+  setupPonder,
 } from "@/_test/setup.js";
 import { onchainTable } from "@/drizzle/onchain.js";
+import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { Hono } from "hono";
 import { beforeEach, expect, test } from "vitest";
 import { graphql } from "./middleware.js";
 
 beforeEach(setupCommon);
-beforeEach(setupIsolatedDatabase);
+beforeEach(setupDatabase);
 beforeEach(setupCleanup);
 
 test("middleware serves request", async (context) => {
@@ -26,11 +27,10 @@ test("middleware serves request", async (context) => {
     })),
   };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
 
-  globalThis.PONDER_DATABASE = database;
+  globalThis.PONDER_DATABASE = app.database;
 
   await indexingStore.insert(schema.table).values({
     id: "0",
@@ -42,12 +42,12 @@ test("middleware serves request", async (context) => {
     bigint: 0n,
   });
 
-  const app = new Hono().use(
+  const hono = new Hono().use(
     "/graphql",
-    graphql({ schema, db: database.qb.drizzleReadonly }),
+    graphql({ schema, db: app.database.qb.drizzleReadonly }),
   );
 
-  const response = await app.request("/graphql", {
+  const response = await hono.request("/graphql", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -91,22 +91,21 @@ test("middleware supports path other than /graphql using hono routing", async (c
     table: onchainTable("table", (t) => ({ id: t.text().primaryKey() })),
   };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
 
-  globalThis.PONDER_DATABASE = database;
+  globalThis.PONDER_DATABASE = app.database;
 
   await indexingStore.insert(schema.table).values({
     id: "0",
   });
 
-  const app = new Hono().use(
+  const hono = new Hono().use(
     "/not-graphql/**",
-    graphql({ schema, db: database.qb.drizzleReadonly }),
+    graphql({ schema, db: app.database.qb.drizzleReadonly }),
   );
 
-  const response = await app.request("/not-graphql/at-all", {
+  const response = await hono.request("/not-graphql/at-all", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -136,18 +135,16 @@ test("middleware throws error when extra filter is applied", async (context) => 
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+  const app = await setupPonder(context, { schema });
 
-  globalThis.PONDER_DATABASE = database;
+  globalThis.PONDER_DATABASE = app.database;
 
-  const app = new Hono().use(
+  const hono = new Hono().use(
     "/graphql",
-    graphql({ schema, db: database.qb.drizzleReadonly }),
+    graphql({ schema, db: app.database.qb.drizzleReadonly }),
   );
 
-  const response = await app.request("/graphql", {
+  const response = await hono.request("/graphql", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -181,21 +178,19 @@ test("graphQLMiddleware throws error for token limit", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+  const app = await setupPonder(context, { schema });
 
-  globalThis.PONDER_DATABASE = database;
+  globalThis.PONDER_DATABASE = app.database;
 
-  const app = new Hono().use(
+  const hono = new Hono().use(
     "/graphql",
     graphql(
-      { schema, db: database.qb.drizzleReadonly },
+      { schema, db: app.database.qb.drizzleReadonly },
       { maxOperationTokens: 3 },
     ),
   );
 
-  const response = await app.request("/graphql", {
+  const response = await hono.request("/graphql", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -233,21 +228,19 @@ test("graphQLMiddleware throws error for depth limit", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+  const app = await setupPonder(context, { schema });
 
-  globalThis.PONDER_DATABASE = database;
+  globalThis.PONDER_DATABASE = app.database;
 
-  const app = new Hono().use(
+  const hono = new Hono().use(
     "/graphql",
     graphql(
-      { schema, db: database.qb.drizzleReadonly },
+      { schema, db: app.database.qb.drizzleReadonly },
       { maxOperationDepth: 5 },
     ),
   );
 
-  const response = await app.request("/graphql", {
+  const response = await hono.request("/graphql", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -285,21 +278,19 @@ test("graphQLMiddleware throws error for max aliases", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+  const app = await setupPonder(context, { schema });
 
-  globalThis.PONDER_DATABASE = database;
+  globalThis.PONDER_DATABASE = app.database;
 
-  const app = new Hono().use(
+  const hono = new Hono().use(
     "/graphql",
     graphql(
-      { schema, db: database.qb.drizzleReadonly },
+      { schema, db: app.database.qb.drizzleReadonly },
       { maxOperationAliases: 2 },
     ),
   );
 
-  const response = await app.request("/graphql", {
+  const response = await hono.request("/graphql", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -343,21 +334,19 @@ test("graphQLMiddleware throws error for max aliases", async (context) => {
 test("graphQLMiddleware interactive", async (context) => {
   const schema = {};
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+  const app = await setupPonder(context, { schema });
 
-  globalThis.PONDER_DATABASE = database;
+  globalThis.PONDER_DATABASE = app.database;
 
-  const app = new Hono().use(
+  const hono = new Hono().use(
     "/graphql",
     graphql(
-      { schema, db: database.qb.drizzleReadonly },
+      { schema, db: app.database.qb.drizzleReadonly },
       { maxOperationAliases: 2 },
     ),
   );
 
-  const response = await app.request("/graphql");
+  const response = await hono.request("/graphql");
 
   expect(response.status).toBe(200);
 });

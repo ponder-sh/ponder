@@ -53,10 +53,10 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     );
   }
 
-  const build = await createBuild({ common, cliOptions });
+  const build = await createBuild(common);
 
-  const exit = createExit({ common });
-  const namespaceResult = build.namespaceCompile();
+  const exit = createExit(common);
+  const namespaceResult = build.namespaceCompile({ cliOptions });
 
   if (namespaceResult.status === "error") {
     await exit({ reason: "Failed to initialize namespace", code: 1 });
@@ -103,7 +103,6 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   const indexingBuildResult = await build.compileIndexing({
     configResult: configResult.result,
-    schemaResult: schemaResult.result,
     indexingResult: indexingResult.result,
   });
 
@@ -112,8 +111,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const database = await createDatabase({
-    common,
+  const database = await createDatabase(common, {
     namespace: namespaceResult.result,
     preBuild,
     schemaBuild,
@@ -163,9 +161,6 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     preBuild,
     schemaBuild,
     apiBuild,
-    onFatalError: () => {
-      exit({ reason: "Received fatal error", code: 1 });
-    },
   });
 
   return shutdown.kill;

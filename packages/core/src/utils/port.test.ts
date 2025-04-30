@@ -5,6 +5,6 @@ import { getNextAvailablePort } from "./port.js";
 beforeEach(setupCommon);
 
 test("port", async (context) => {
-  const port = await getNextAvailablePort({ common: context.common });
+  const port = await getNextAvailablePort(context.common);
   expect(port).toBe(42069);
 });

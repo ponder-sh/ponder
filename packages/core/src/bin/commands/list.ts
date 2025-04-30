@@ -39,9 +39,9 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
   const telemetry = createTelemetry({ options, logger, shutdown });
   const common = { options, logger, metrics, telemetry, shutdown };
 
-  const build = await createBuild({ common, cliOptions });
+  const build = await createBuild(common);
 
-  const exit = createExit({ common });
+  const exit = createExit(common);
 
   const configResult = await build.executeConfig();
   if (configResult.status === "error") {
@@ -56,8 +56,7 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const database = await createDatabase({
-    common,
+  const database = await createDatabase(common, {
     // Note: `namespace` is not used in this command
     namespace: "public",
     preBuild: buildResult.result,

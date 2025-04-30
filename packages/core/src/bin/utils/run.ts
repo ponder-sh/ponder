@@ -7,7 +7,12 @@ import { createIndexing } from "@/indexing/index.js";
 import { FlushError } from "@/internal/errors.js";
 import { getAppProgress } from "@/internal/metrics.js";
 import type { CrashRecoveryCheckpoint, PonderApp } from "@/internal/types.js";
-import { type RealtimeEvent, createSync, splitEvents } from "@/sync/index.js";
+import {
+  type RealtimeEvent,
+  createSync,
+  findChain,
+  splitEvents,
+} from "@/sync/index.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
@@ -22,16 +27,16 @@ export async function run(
   app: PonderApp,
   {
     crashRecoveryCheckpoint,
+    onFatalError,
     onReloadableError,
   }: {
     crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
+    onFatalError: (error: Error) => void;
     onReloadableError: (error: Error) => void;
   },
 ) {
   await app.database.migrateSync();
-  runCodegen(app);
-
-  // const syncStore = createSyncStore({ common, database });
+  runCodegen(app.common);
 
   const realtimeMutex = createMutex();
 
@@ -43,6 +48,7 @@ export async function run(
       return onRealtimeEvent(realtimeEvent);
     },
     crashRecoveryCheckpoint,
+    onFatalError,
   });
 
   const eventCount: { [eventName: string]: number } = {};
@@ -197,9 +203,7 @@ export async function run(
               );
 
               if (app.preBuild.ordering === "multichain") {
-                const { chain } = app.indexingBuild.find(
-                  (b) => b.chain.chain.id === Number(checkpoint.chainId),
-                )!;
+                const chain = findChain(app, checkpoint);
                 app.common.metrics.ponder_historical_completed_indexing_seconds.set(
                   { chain: chain.chain.name },
                   Math.max(
@@ -282,9 +286,7 @@ export async function run(
             await app.database.setCheckpoints({
               checkpoints: events.checkpoints.map(
                 ({ chainId, checkpoint }) => ({
-                  chainName: app.indexingBuild.find(
-                    (b) => b.chain.chain.id === chainId,
-                  )!.chain.chain.name,
+                  chainName: findChain(app, checkpoint).chain.name,
                   chainId,
                   latestCheckpoint: checkpoint,
                   safeCheckpoint: checkpoint,
@@ -374,11 +376,7 @@ export async function run(
           });
 
           for (const { checkpoint, events } of perBlockEvents) {
-            const { chain } = app.indexingBuild.find(
-              (b) =>
-                b.chain.chain.id ===
-                Number(decodeCheckpoint(checkpoint).chainId),
-            )!;
+            const chain = findChain(app, checkpoint);
 
             const result = await indexing.processEvents({
               events,
@@ -418,9 +416,7 @@ export async function run(
           .insert(app.database.PONDER_CHECKPOINT)
           .values(
             event.checkpoints.map(({ chainId, checkpoint }) => ({
-              chainName: app.indexingBuild.find(
-                (b) => b.chain.chain.id === chainId,
-              )!.chain.chain.name,
+              chainName: findChain(app, checkpoint).chain.name,
               chainId,
               safeCheckpoint: checkpoint,
               latestCheckpoint: checkpoint,

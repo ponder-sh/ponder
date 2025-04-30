@@ -1,11 +1,12 @@
 import {
   setupCleanup,
   setupCommon,
-  setupDatabaseServices,
-  setupIsolatedDatabase,
+  setupDatabase,
+  setupPonder,
 } from "@/_test/setup.js";
 import type { Database } from "@/database/index.js";
 import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
+import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import {
   EVENT_TYPES,
   decodeCheckpoint,
@@ -19,7 +20,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
 beforeEach(setupCommon);
-beforeEach(setupIsolatedDatabase);
+beforeEach(setupDatabase);
 beforeEach(setupCleanup);
 
 function buildContextValue(database: Database) {
@@ -44,19 +45,18 @@ function buildContextValue(database: Database) {
 test("metadata", async (context) => {
   const schema = {};
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
   const graphqlSchema = buildGraphQLSchema({ schema });
 
-  await database.setCheckpoints({
+  await app.database.setCheckpoints({
     checkpoints: [
       {
         chainId: 1,
+        chainName: "mainnet",
         latestCheckpoint: encodeCheckpoint({
           blockNumber: 10n,
           chainId: 1n,
@@ -75,7 +75,7 @@ test("metadata", async (context) => {
         }),
       },
     ],
-    db: database.qb.drizzle,
+    db: app.database.qb.drizzle,
   });
 
   const result = await query(`
@@ -139,10 +139,10 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     })),
   };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -270,10 +270,10 @@ test("enum, enum not null, enum array, enum array not null", async (context) => 
   }));
   const schema = { testEnum, table };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -325,10 +325,10 @@ test("enum primary key", async (context) => {
   );
   const schema = { testEnum, table };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -366,10 +366,10 @@ test("json, json not null", async (context) => {
     })),
   };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -420,10 +420,10 @@ test("singular", async (context) => {
   );
   const schema = { transferEvents, allowances };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -518,10 +518,10 @@ test("singular with one relation", async (context) => {
 
   const schema = { person, pet, petRelations };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -582,10 +582,10 @@ test("singular with many relation", async (context) => {
 
   const schema = { person, personRelations, pet, petRelations };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -638,10 +638,10 @@ test("singular with many relation using filter", async (context) => {
   }));
   const schema = { person, personRelations, pet, petRelations };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -698,10 +698,10 @@ test("singular with many relation using order by", async (context) => {
   }));
   const schema = { person, personRelations, pet, petRelations };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -759,10 +759,10 @@ test("plural with one relation uses dataloader", async (context) => {
 
   const schema = { person, personRelations, pet, petRelations };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -817,7 +817,7 @@ test("plural with one relation uses dataloader", async (context) => {
   expect(petFindManySpy).toHaveBeenCalledTimes(1);
 });
 
-test("filter input type", async (context) => {
+test("filter input type", async () => {
   const simpleEnum = onchainEnum("SimpleEnum", ["VALUE", "ANOTHER_VALUE"]);
   const table = onchainTable("table", (t) => ({
     text: t.text().primaryKey(),
@@ -837,10 +837,6 @@ test("filter input type", async (context) => {
     enumArray: simpleEnum().array(),
   }));
   const schema = { simpleEnum, table };
-
-  await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
 
   const graphqlSchema = buildGraphQLSchema({ schema });
   const typeMap = graphqlSchema.getTypeMap();
@@ -968,10 +964,10 @@ test("filter universal", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1017,10 +1013,10 @@ test("filter null equality", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1074,10 +1070,10 @@ test("filter singular", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1125,10 +1121,10 @@ test("filter plural", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1232,10 +1228,10 @@ test("filter numeric", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1355,10 +1351,10 @@ test("filter string", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1423,10 +1419,10 @@ test("filter and/or", async (context) => {
   }));
   const schema = { pet };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1472,10 +1468,10 @@ test("order by", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1590,10 +1586,10 @@ test("limit", async (context) => {
   }));
   const schema = { person };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1655,10 +1651,10 @@ test("cursor pagination ascending", async (context) => {
   }));
   const schema = { pet };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1802,10 +1798,10 @@ test("cursor pagination descending", async (context) => {
   }));
   const schema = { pet };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -1938,10 +1934,10 @@ test("cursor pagination start and end cursors", async (context) => {
   }));
   const schema = { pet };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -2004,10 +2000,10 @@ test("cursor pagination has previous page", async (context) => {
   }));
   const schema = { pet };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -2093,10 +2089,10 @@ test("cursor pagination composite primary key", async (context) => {
 
   const schema = { allowance };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -2237,10 +2233,10 @@ test("column casing", async (context) => {
     })),
   };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -2288,10 +2284,10 @@ test("snake case table and column names with where clause", async (context) => {
     ),
   };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
@@ -2327,10 +2323,10 @@ test("singular with hex primary key uses case insensitive where", async (context
 
   const schema = { account };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
+  const app = await setupPonder(context, { schema });
+  const indexingStore = createRealtimeIndexingStore(app);
+
+  const contextValue = buildContextValue(app.database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 

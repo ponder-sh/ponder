@@ -9,7 +9,6 @@ import type { Common } from "@/internal/common.js";
 import { NonRetryableError, ShutdownError } from "@/internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
-  IndexingBuild,
   NamespaceBuild,
   PreBuild,
   Schema,
@@ -76,9 +75,7 @@ export type Database = {
   /** Migrate the `ponder_sync` schema. */
   migrateSync(): Promise<void>;
   /** Migrate the user schema. */
-  migrate({
-    buildId,
-  }: Pick<IndexingBuild, "buildId">): Promise<CrashRecoveryCheckpoint>;
+  migrate(params: { buildId: string }): Promise<CrashRecoveryCheckpoint>;
   createIndexes(): Promise<void>;
   createTriggers(): Promise<void>;
   removeTriggers(): Promise<void>;
@@ -89,9 +86,7 @@ export type Database = {
    * @dev It is an invariant that every "latest" checkpoint is specific to that chain.
    * In other words, `chainId === latestCheckpoint.chainId`.
    */
-  setCheckpoints: ({
-    checkpoints,
-  }: {
+  setCheckpoints: (params: {
     checkpoints: {
       chainName: string;
       chainId: number;
@@ -110,12 +105,15 @@ export type Database = {
   >;
   setReady(): Promise<void>;
   getReady(): Promise<boolean>;
-  revert(args: {
+  revert(params: {
     checkpoint: string;
     tx: PgTransaction<PgQueryResultHKT, Schema>;
   }): Promise<void>;
-  finalize(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
-  commitBlock(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
+  finalize(params: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
+  commitBlock(params: {
+    checkpoint: string;
+    db: Drizzle<Schema>;
+  }): Promise<void>;
 };
 
 export type PonderApp = {
@@ -183,17 +181,18 @@ export const getPonderCheckpoint = (namespace: NamespaceBuild) => {
   }));
 };
 
-export const createDatabase = async ({
-  common,
-  namespace,
-  preBuild,
-  schemaBuild,
-}: {
-  common: Common;
-  namespace: NamespaceBuild;
-  preBuild: Pick<PreBuild, "databaseConfig">;
-  schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
-}): Promise<Database> => {
+export const createDatabase = async (
+  common: Common,
+  {
+    namespace,
+    preBuild,
+    schemaBuild,
+  }: {
+    namespace: NamespaceBuild;
+    preBuild: Pick<PreBuild, "databaseConfig">;
+    schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
+  },
+): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
 
   const PONDER_META = getPonderMeta(namespace);

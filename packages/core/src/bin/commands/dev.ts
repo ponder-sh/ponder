@@ -1,16 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
-import { type Database, createDatabase } from "@/database/index.js";
+import { createDatabase } from "@/database/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
-import type {
-  CrashRecoveryCheckpoint,
-  IndexingBuild,
-} from "@/internal/types.js";
+import type { PonderApp } from "@/internal/types.js";
 import { createUi } from "@/ui/index.js";
 import { createQueue } from "@/utils/queue.js";
 import { type Result, mergeResults } from "@/utils/result.js";
@@ -70,10 +67,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     );
   }
 
-  const build = await createBuild({
-    common: { ...common, shutdown },
-    cliOptions,
-  });
+  const build = await createBuild({ ...common, shutdown });
 
   shutdown.add(async () => {
     await indexingShutdown.kill();
@@ -81,10 +75,10 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   if (cliOptions.disableUi !== true) {
-    createUi({ common: { ...common, shutdown } });
+    createUi({ ...common, shutdown });
   }
 
-  const exit = createExit({ common: { ...common, shutdown } });
+  const exit = createExit({ ...common, shutdown });
 
   let isInitialBuild = true;
 
@@ -156,7 +150,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
         const indexingBuildResult = await build.compileIndexing({
           configResult: configResult.result,
-          schemaResult: schemaResult.result,
           indexingResult: indexingResult.result,
         });
 
@@ -168,20 +161,25 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           });
           return;
         }
-        indexingBuild = indexingBuildResult.result;
 
-        database = await createDatabase({
-          common: { ...common, shutdown: indexingShutdown },
-          namespace,
-          preBuild,
-          schemaBuild,
+        const buildId = build.compileBuildId({
+          configResult: configResult.result,
+          schemaResult: schemaResult.result,
+          indexingResult: indexingResult.result,
         });
-        crashRecoveryCheckpoint = await database.migrate(
-          indexingBuildResult.result,
+
+        const database = await createDatabase(
+          { ...common, shutdown: indexingShutdown },
+          {
+            namespace,
+            preBuild,
+            schemaBuild,
+          },
         );
+        const crashRecoveryCheckpoint = await database.migrate({ buildId });
 
         const apiResult = await build.executeApi({
-          indexingBuild,
+          indexingBuild: indexingBuildResult.result,
           database,
         });
         if (apiResult.status === "error") {
@@ -232,18 +230,22 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           1,
         );
 
-        runServer({
+        app = {
           common: { ...common, shutdown: apiShutdown },
-          database,
-          apiBuild: apiBuildResult.result,
-        });
-
-        run({
-          common: { ...common, shutdown: indexingShutdown },
-          database,
+          buildId,
           preBuild,
+          namespace,
+          database,
           schemaBuild,
           indexingBuild: indexingBuildResult.result,
+          apiBuild: apiBuildResult.result,
+        };
+
+        runServer(app!);
+
+        app.common.shutdown = indexingShutdown;
+
+        run(app, {
           crashRecoveryCheckpoint,
           onFatalError: () => {
             exit({ reason: "Received fatal error", code: 1 });
@@ -257,8 +259,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         metrics.resetApiMetrics();
 
         const apiResult = await build.executeApi({
-          indexingBuild: indexingBuild!,
-          database: database!,
+          indexingBuild: app!.indexingBuild,
+          database: app!.database,
         });
         if (apiResult.status === "error") {
           buildQueue.add({
@@ -281,20 +283,15 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           return;
         }
 
-        const apiBuild = buildResult.result;
+        app!.common.shutdown = apiShutdown;
+        app!.apiBuild = buildResult.result;
 
-        runServer({
-          common: { ...common, shutdown: apiShutdown },
-          database: database!,
-          apiBuild,
-        });
+        runServer(app!);
       }
     },
   });
 
-  let indexingBuild: IndexingBuild | undefined;
-  let database: Database | undefined;
-  let crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
+  let app: PonderApp | undefined;
 
   const namespace =
     cliOptions.schema ?? process.env.DATABASE_SCHEMA ?? "public";

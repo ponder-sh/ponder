@@ -1,8 +1,8 @@
 import {
   setupCleanup,
   setupCommon,
-  setupDatabaseServices,
-  setupIsolatedDatabase,
+  setupDatabase,
+  setupPonder,
 } from "@/_test/setup.js";
 import { bigint, hex, onchainTable } from "@/drizzle/onchain.js";
 import type { QueryWithTypings } from "drizzle-orm";
@@ -13,7 +13,7 @@ import { beforeEach, expect, test } from "vitest";
 import { client } from "./index.js";
 
 beforeEach(setupCommon);
-beforeEach(setupIsolatedDatabase);
+beforeEach(setupDatabase);
 beforeEach(setupCleanup);
 
 const queryToParams = (query: QueryWithTypings) =>
@@ -27,9 +27,7 @@ test("client.db", async (context) => {
     balance: p.bigint(),
   }));
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema: { account } },
-  });
+  const { database } = await setupPonder(context, { schema: { account } });
 
   globalThis.PONDER_DATABASE = database;
 
@@ -60,7 +58,7 @@ test("client.db", async (context) => {
 });
 
 test("client.db error", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+  const { database } = await setupPonder(context);
   globalThis.PONDER_DATABASE = database;
 
   const app = new Hono().use(
@@ -91,9 +89,9 @@ test("client.db search_path", async (context) => {
     balance: bigint(),
   });
 
-  const { database } = await setupDatabaseServices(context, {
-    namespaceBuild: "Ponder",
-    schemaBuild: { schema: { account: schemaAccount } },
+  const { database } = await setupPonder(context, {
+    namespace: "Ponder",
+    schema: { account: schemaAccount },
   });
 
   globalThis.PONDER_DATABASE = database;
@@ -122,9 +120,7 @@ test("client.db readonly", async (context) => {
     balance: p.bigint(),
   }));
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema: { account } },
-  });
+  const { database } = await setupPonder(context, { schema: { account } });
 
   globalThis.PONDER_DATABASE = database;
 
@@ -150,9 +146,7 @@ test("client.db recursive", async (context) => {
     balance: p.bigint(),
   }));
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema: { account } },
-  });
+  const { database } = await setupPonder(context, { schema: { account } });
 
   globalThis.PONDER_DATABASE = database;
 
@@ -181,7 +175,7 @@ FROM infinite_cte;`,
 test("client.status", async (context) => {
   globalThis.PONDER_NAMESPACE_BUILD = "public";
 
-  const { database } = await setupDatabaseServices(context);
+  const { database } = await setupPonder(context);
 
   globalThis.PONDER_DATABASE = database;
 

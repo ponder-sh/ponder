@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import fs from "node:fs";
 import path from "node:path";
 import type { Common } from "@/internal/common.js";
 
@@ -19,8 +19,8 @@ declare module "ponder:schema" {
 // See https://ponder.sh/docs/getting-started/installation#typescript for more information.
 `;
 
-export function runCodegen({ common }: { common: Common }) {
-  writeFileSync(
+export function runCodegen(common: Common) {
+  fs.writeFileSync(
     path.join(common.options.rootDir, "ponder-env.d.ts"),
     ponderEnv,
     "utf8",

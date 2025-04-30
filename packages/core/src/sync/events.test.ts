@@ -1,12 +1,16 @@
 import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
-import { setupCommon } from "@/_test/setup.js";
+import {
+  setupCleanup,
+  setupCommon,
+  setupDatabase,
+  setupPonder,
+} from "@/_test/setup.js";
 import {
   getAccountsConfigAndIndexingFunctions,
   getBlocksConfigAndIndexingFunctions,
   getErc20ConfigAndIndexingFunctions,
 } from "@/_test/utils.js";
-import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import type {
   BlockEvent,
   LogEvent,
@@ -28,17 +32,14 @@ import { beforeEach, expect, test } from "vitest";
 import { decodeEvents } from "./events.js";
 
 beforeEach(setupCommon);
+beforeEach(setupDatabase);
+beforeEach(setupCleanup);
 
 test("decodeEvents() log", async (context) => {
-  const { common } = context;
-
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getErc20ConfigAndIndexingFunctions({
     address: zeroAddress,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
   const topics = encodeEventTopics({
     abi: erc20ABI,
@@ -52,15 +53,15 @@ test("decodeEvents() log", async (context) => {
   const data = padHex(toHex(parseEther("1")), { size: 32 });
 
   const rawEvent = {
-    chainId: 1,
-    sourceIndex: 0,
     checkpoint: ZERO_CHECKPOINT_STRING,
+    chain: app.indexingBuild.chain,
+    eventCallback: app.indexingBuild.eventCallbacks[0],
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: { data, topics },
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [LogEvent];
+  const events = decodeEvents(app, { rawEvents: [rawEvent] }) as [LogEvent];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.args).toMatchObject({
@@ -71,15 +72,10 @@ test("decodeEvents() log", async (context) => {
 });
 
 test("decodeEvents() log error", async (context) => {
-  const { common } = context;
-
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getErc20ConfigAndIndexingFunctions({
     address: zeroAddress,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
   const topics = encodeEventTopics({
     abi: erc20ABI,
@@ -92,9 +88,9 @@ test("decodeEvents() log error", async (context) => {
 
   // invalid log.data, causing an error when decoding
   const rawEvent = {
-    chainId: 1,
-    sourceIndex: 0,
     checkpoint: ZERO_CHECKPOINT_STRING,
+    chain: app.indexingBuild.chain,
+    eventCallback: app.indexingBuild.eventCallbacks[0],
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: {
@@ -103,26 +99,21 @@ test("decodeEvents() log error", async (context) => {
     },
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [LogEvent];
+  const events = decodeEvents(app, { rawEvents: [rawEvent] }) as [LogEvent];
 
   expect(events).toHaveLength(0);
 });
 
 test("decodeEvents() block", async (context) => {
-  const { common } = context;
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
   const rawEvent = {
-    chainId: 1,
-    sourceIndex: 0,
     checkpoint: ZERO_CHECKPOINT_STRING,
+    chain: app.indexingBuild.chain,
+    eventCallback: app.indexingBuild.eventCallbacks[0],
     block: {
       number: 1n,
     } as RawEvent["block"],
@@ -130,7 +121,7 @@ test("decodeEvents() block", async (context) => {
     log: undefined,
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [BlockEvent];
+  const events = decodeEvents(app, { rawEvents: [rawEvent] }) as [BlockEvent];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.block).toMatchObject({
@@ -139,22 +130,16 @@ test("decodeEvents() block", async (context) => {
 });
 
 test("decodeEvents() transfer", async (context) => {
-  const { common } = context;
-
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
+  const { config, indexingFunctions } = getAccountsConfigAndIndexingFunctions({
+    address: ALICE,
   });
 
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
   const rawEvent = {
-    chainId: 1,
-    sourceIndex: 3,
     checkpoint: ZERO_CHECKPOINT_STRING,
+    chain: app.indexingBuild.chain,
+    eventCallback: app.indexingBuild.eventCallbacks[3],
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: undefined,
@@ -174,7 +159,9 @@ test("decodeEvents() transfer", async (context) => {
     },
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [TransferEvent];
+  const events = decodeEvents(app, { rawEvents: [rawEvent] }) as [
+    TransferEvent,
+  ];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.transfer).toMatchObject({
@@ -182,55 +169,46 @@ test("decodeEvents() transfer", async (context) => {
     to: BOB,
     value: parseEther("1"),
   });
-  expect(events[0].name).toBe("Accounts:transfer:from");
+  expect(events[0].eventCallback.name).toBe("Accounts:transfer:from");
 });
 
 test("decodeEvents() transaction", async (context) => {
-  const { common } = context;
-
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
+  const { config, indexingFunctions } = getAccountsConfigAndIndexingFunctions({
+    address: ALICE,
   });
 
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
   const rawEvent = {
-    chainId: 1,
-    sourceIndex: 0,
     checkpoint: ZERO_CHECKPOINT_STRING,
+    chain: app.indexingBuild.chain,
+    eventCallback: app.indexingBuild.eventCallbacks[0],
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: undefined,
     trace: undefined,
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [TransferEvent];
+  const events = decodeEvents(app, { rawEvents: [rawEvent] }) as [
+    TransferEvent,
+  ];
 
   expect(events).toHaveLength(1);
 
-  expect(events[0].name).toBe("Accounts:transaction:to");
+  expect(events[0].eventCallback.name).toBe("Accounts:transaction:to");
 });
 
 test("decodeEvents() trace", async (context) => {
-  const { common } = context;
-
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getErc20ConfigAndIndexingFunctions({
     address: zeroAddress,
     includeCallTraces: true,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
   const rawEvent = {
-    chainId: 1,
-    sourceIndex: 1,
     checkpoint: ZERO_CHECKPOINT_STRING,
+    chain: app.indexingBuild.chain,
+    eventCallback: app.indexingBuild.eventCallbacks[1],
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: undefined,
@@ -258,30 +236,25 @@ test("decodeEvents() trace", async (context) => {
     },
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [TraceEvent];
+  const events = decodeEvents(app, { rawEvents: [rawEvent] }) as [TraceEvent];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.args).toStrictEqual([BOB, parseEther("1")]);
   expect(events[0].event.result).toBe(true);
-  expect(events[0].name).toBe("Erc20.transfer()");
+  expect(events[0].eventCallback.name).toBe("Erc20.transfer()");
 });
 
 test("decodeEvents() trace error", async (context) => {
-  const { common } = context;
-
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getErc20ConfigAndIndexingFunctions({
     address: zeroAddress,
     includeCallTraces: true,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
   const rawEvent = {
-    chainId: 1,
-    sourceIndex: 1,
     checkpoint: ZERO_CHECKPOINT_STRING,
+    chain: app.indexingBuild.chain,
+    eventCallback: app.indexingBuild.eventCallbacks[1],
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: undefined,
@@ -305,7 +278,7 @@ test("decodeEvents() trace error", async (context) => {
     },
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [TraceEvent];
+  const events = decodeEvents(app, { rawEvents: [rawEvent] }) as [TraceEvent];
 
   expect(events).toHaveLength(0);
 });

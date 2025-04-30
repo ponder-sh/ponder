@@ -1,17 +1,33 @@
+import {
+  setupCleanup,
+  setupCommon,
+  setupDatabase,
+  setupPonder,
+} from "@/_test/setup.js";
+import { getBlocksConfigAndIndexingFunctions } from "@/_test/utils.js";
 import { onchainTable } from "@/drizzle/onchain.js";
 import type { BlockEvent, LogEvent, TraceEvent } from "@/internal/types.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import type { Column, Table } from "drizzle-orm";
 import { zeroAddress } from "viem";
-import { expect, test } from "vitest";
+import { beforeEach, expect, test } from "vitest";
 import { recordProfilePattern } from "./profile.js";
 
-test("recordProfilePattern() no pattern", () => {
+beforeEach(setupCommon);
+beforeEach(setupDatabase);
+beforeEach(setupCleanup);
+
+test("recordProfilePattern() no pattern", async (context) => {
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
   const event = {
     type: "block",
-    chainId: 1,
+    chain: app.indexingBuild.chain,
+    eventCallback: app.indexingBuild.eventCallbacks[0]!,
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       block: {} as BlockEvent["event"]["block"],
@@ -40,12 +56,17 @@ test("recordProfilePattern() no pattern", () => {
   expect(pattern).toBeUndefined();
 });
 
-test("recordProfilePattern() with undefined log event args", () => {
+test("recordProfilePattern() with undefined log event args", async (context) => {
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
   const event = {
     type: "log",
-    chainId: 1,
+    chain: app.indexingBuild.chain,
+    eventCallback: app.indexingBuild.eventCallbacks[0]!,
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: undefined,
@@ -77,12 +98,17 @@ test("recordProfilePattern() with undefined log event args", () => {
   expect(pattern).toBeUndefined();
 });
 
-test("recordProfilePattern() with undefined trace event args", () => {
+test("recordProfilePattern() with undefined trace event args", async (context) => {
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
   const event = {
     type: "trace",
-    chainId: 1,
+    chain: app.indexingBuild.chain,
+    eventCallback: app.indexingBuild.eventCallbacks[0]!,
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: undefined,
@@ -115,12 +141,17 @@ test("recordProfilePattern() with undefined trace event args", () => {
   expect(pattern).toBeUndefined();
 });
 
-test("recordProfilePattern() with array log event args", () => {
+test("recordProfilePattern() with array log event args", async (context) => {
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
   const event = {
     type: "log",
-    chainId: 1,
+    chain: app.indexingBuild.chain,
+    eventCallback: app.indexingBuild.eventCallbacks[0]!,
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: [],
@@ -152,12 +183,17 @@ test("recordProfilePattern() with array log event args", () => {
   expect(pattern).toBeUndefined();
 });
 
-test("recordProfilePattern() with array trace event args", () => {
+test("recordProfilePattern() with array trace event args", async (context) => {
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
   const event = {
     type: "trace",
-    chainId: 1,
+    chain: app.indexingBuild.chain,
+    eventCallback: app.indexingBuild.eventCallbacks[0]!,
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: [],
@@ -190,12 +226,17 @@ test("recordProfilePattern() with array trace event args", () => {
   expect(pattern).toBeUndefined();
 });
 
-test("recordProfilePattern() chainId", () => {
+test("recordProfilePattern() chainId", async (context) => {
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
   const event = {
     type: "block",
-    chainId: 1,
+    chain: app.indexingBuild.chain,
+    eventCallback: app.indexingBuild.eventCallbacks[0]!,
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       block: {} as BlockEvent["event"]["block"],
@@ -230,12 +271,17 @@ test("recordProfilePattern() chainId", () => {
   `);
 });
 
-test("recordProfilePattern() log args", () => {
+test("recordProfilePattern() log args", async (context) => {
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
   const event = {
     type: "log",
-    chainId: 1,
+    chain: app.indexingBuild.chain,
+    eventCallback: app.indexingBuild.eventCallbacks[0]!,
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: {
@@ -276,12 +322,17 @@ test("recordProfilePattern() log args", () => {
   `);
 });
 
-test("recordProfilePattern() block", () => {
+test("recordProfilePattern() block", async (context) => {
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
   const event = {
     type: "block",
-    chainId: 1,
+    chain: app.indexingBuild.chain,
+    eventCallback: app.indexingBuild.eventCallbacks[0]!,
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       block: { number: 3n } as BlockEvent["event"]["block"],
@@ -317,12 +368,17 @@ test("recordProfilePattern() block", () => {
   `);
 });
 
-test("recordProfilePattern() hint", () => {
+test("recordProfilePattern() hint", async (context) => {
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
   const event = {
     type: "block",
-    chainId: 1,
+    chain: app.indexingBuild.chain,
+    eventCallback: app.indexingBuild.eventCallbacks[0]!,
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       block: { number: 3n } as BlockEvent["event"]["block"],
@@ -366,12 +422,17 @@ test("recordProfilePattern() hint", () => {
   `);
 });
 
-test("recordProfilePattern() object args", () => {
+test("recordProfilePattern() object args", async (context) => {
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
   const event = {
     type: "log",
-    chainId: 1,
+    chain: app.indexingBuild.chain,
+    eventCallback: app.indexingBuild.eventCallbacks[0]!,
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: {

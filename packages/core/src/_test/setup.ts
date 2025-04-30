@@ -1,7 +1,6 @@
-import { buildSchema } from "@/build/schema.js";
-import { type Database, createDatabase } from "@/database/index.js";
-import type { IndexingStore } from "@/indexing-store/index.js";
-import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
+import { createBuild } from "@/build/index.js";
+import type { Config } from "@/config/index.js";
+import { createDatabase } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
@@ -9,17 +8,24 @@ import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { createTelemetry } from "@/internal/telemetry.js";
 import type {
+  Chain,
   DatabaseConfig,
   IndexingBuild,
-  NamespaceBuild,
-  SchemaBuild,
+  IndexingFunctions,
+  PerChainPonderApp,
+  PonderApp,
+  PreBuild,
+  Schema,
 } from "@/internal/types.js";
-import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
+import { createRpc } from "@/rpc/index.js";
+import { getPerChainPonderApp } from "@/sync/index.js";
 import { createPglite } from "@/utils/pglite.js";
+import type { Result } from "@/utils/result.js";
 import type { PGlite } from "@electric-sql/pglite";
+import { Hono } from "hono";
 import pg from "pg";
 import { type TestContext, afterAll } from "vitest";
-import { poolId, testClient } from "./utils.js";
+import { anvil, poolId, testClient } from "./utils.js";
 
 declare module "vitest" {
   export interface TestContext {
@@ -63,10 +69,10 @@ afterAll(async () => {
  *
  * ```ts
  * // Add this to any test suite that uses the database.
- * beforeEach(setupIsolatedDatabase)
+ * beforeEach(setupDatabase)
  * ```
  */
-export async function setupIsolatedDatabase(context: TestContext) {
+export async function setupDatabase(context: TestContext) {
   const connectionString = process.env.DATABASE_URL;
 
   if (connectionString) {
@@ -170,56 +176,199 @@ export async function setupIsolatedDatabase(context: TestContext) {
   }
 }
 
-export async function setupDatabaseServices(
+export async function setupPonder<isPerChain extends boolean = false>(
   context: TestContext,
   overrides: Partial<{
-    namespaceBuild: NamespaceBuild;
-    schemaBuild: Partial<SchemaBuild>;
-    indexingBuild: Partial<IndexingBuild>;
+    buildId: string;
+    namespace: string;
+    schema: Schema;
+    config: Config;
+    indexingFunctions: IndexingFunctions;
+    app: Hono;
   }> = {},
-): Promise<{
-  database: Database;
-  syncStore: SyncStore;
-  indexingStore: IndexingStore;
-}> {
-  const { statements } = buildSchema({
-    schema: overrides.schemaBuild?.schema ?? {},
+  isPerChain: isPerChain = false as isPerChain,
+): Promise<isPerChain extends true ? PerChainPonderApp : PonderApp> {
+  const build = await createBuild(context.common);
+
+  const config =
+    overrides.config ??
+    ({
+      ordering: "multichain",
+      chains: {
+        mainnet: {
+          id: 1,
+          rpcUrl: `http://127.0.0.1:8545/${poolId}`,
+        },
+      },
+      contracts: {},
+      accounts: {},
+      blocks: {},
+    } satisfies Config);
+
+  const namespace = overrides.namespace ?? "public";
+  const preBuild = {
+    ordering: overrides.config?.ordering ?? "multichain",
+    databaseConfig: context.databaseConfig,
+  } satisfies PreBuild;
+
+  const schemaBuildResult = build.compileSchema({
+    schema: overrides.schema ?? {},
   });
 
-  const database = await createDatabase({
+  if (schemaBuildResult.status === "error") {
+    throw schemaBuildResult.error;
+  }
+
+  const database = await createDatabase(context.common, {
+    namespace,
+    preBuild,
+    schemaBuild: schemaBuildResult.result,
+  });
+
+  // base app
+  if (Object.keys(overrides).length === 0) {
+    const app = {
+      common: context.common,
+      buildId:
+        overrides.buildId ??
+        build.compileBuildId({
+          configResult: { config, contentHash: "" },
+          schemaResult: { schema: {}, contentHash: "" },
+          indexingResult: {
+            indexingFunctions: [],
+            contentHash: "",
+          },
+        }),
+      preBuild,
+      namespace,
+      schemaBuild: schemaBuildResult.result,
+      indexingBuild: [
+        {
+          chain: setupChain(context),
+          eventCallbacks: [],
+        },
+      ],
+      apiBuild: {
+        app: new Hono(),
+        port: 0,
+      },
+      database,
+    } satisfies PonderApp;
+
+    globalThis.PONDER_COMMON = context.common;
+    globalThis.PONDER_NAMESPACE_BUILD = namespace;
+
+    globalThis.PONDER_DATABASE = database;
+
+    await database.migrate({ buildId: app.buildId });
+    await database.migrateSync().catch((err) => {
+      console.log(err);
+      throw err;
+    });
+
+    if (isPerChain) {
+      // @ts-ignore
+      return getPerChainPonderApp(app)[0]!;
+    }
+
+    // @ts-ignore
+    return app;
+  }
+
+  // TODO(kyle) handle no indexing functions registered
+  let indexingBuildResult: Result<IndexingBuild[]>;
+
+  if (overrides.indexingFunctions === undefined) {
+    indexingBuildResult = {
+      status: "success",
+      result: [
+        {
+          chain: setupChain(context),
+          eventCallbacks: [],
+        },
+      ],
+    };
+  } else {
+    indexingBuildResult = await build.compileIndexing({
+      configResult: { config, contentHash: "" },
+      indexingResult: {
+        indexingFunctions: overrides.indexingFunctions ?? [],
+        contentHash: "",
+      },
+    });
+  }
+
+  const apiBuildResult = await build.compileApi({
+    apiResult: { app: overrides.app ?? new Hono() },
+  });
+
+  if (indexingBuildResult.status === "error") {
+    throw indexingBuildResult.error;
+  }
+
+  if (apiBuildResult.status === "error") {
+    throw apiBuildResult.error;
+  }
+
+  const app = {
     common: context.common,
-    namespace: overrides.namespaceBuild ?? "public",
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-    },
-    schemaBuild: {
-      schema: overrides.schemaBuild?.schema ?? {},
-      statements,
-    },
-  });
+    buildId:
+      overrides.buildId ??
+      build.compileBuildId({
+        configResult: { config, contentHash: "" },
+        schemaResult: { schema: overrides.schema ?? {}, contentHash: "" },
+        indexingResult: {
+          indexingFunctions: overrides.indexingFunctions ?? [],
+          contentHash: "",
+        },
+      }),
+    preBuild,
+    namespace,
+    schemaBuild: schemaBuildResult.result,
+    indexingBuild: indexingBuildResult.result,
+    apiBuild: apiBuildResult.result,
+    database,
+  } satisfies PonderApp;
 
-  await database.migrate({
-    buildId: overrides.indexingBuild?.buildId ?? "abc",
-  });
+  globalThis.PONDER_COMMON = context.common;
+  globalThis.PONDER_NAMESPACE_BUILD = namespace;
+  globalThis.PONDER_INDEXING_BUILD = indexingBuildResult.result;
+  globalThis.PONDER_DATABASE = database;
+
+  await database.migrate({ buildId: app.buildId });
 
   await database.migrateSync().catch((err) => {
     console.log(err);
     throw err;
   });
 
-  const syncStore = createSyncStore({ common: context.common, database });
+  if (isPerChain) {
+    if (indexingBuildResult.result.length !== 1) {
+      throw new Error("Expected exactly one chain");
+    }
 
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: overrides.schemaBuild?.schema ?? {} },
-    database,
-  });
+    // @ts-ignore
+    return getPerChainPonderApp(app)[0]!;
+  }
 
+  // @ts-ignore
+  return app;
+}
+
+export function setupChain(context: TestContext) {
   return {
-    database,
-    indexingStore,
-    syncStore,
-  };
+    chain: anvil,
+    rpcUrl: `http://127.0.0.1:8545/${poolId}`,
+    maxRequestsPerSecond: 50,
+    pollingInterval: 1_000,
+    finalityBlockCount: 1,
+    disableCache: false,
+    rpc: createRpc(context.common, {
+      chain: anvil,
+      rpcUrl: `http://127.0.0.1:8545/${poolId}`,
+      maxRequestsPerSecond: 50,
+    }),
+  } satisfies Chain;
 }
 
 /**

@@ -1,10 +1,6 @@
 import path from "node:path";
 import { ALICE } from "@/_test/constants.js";
-import {
-  setupAnvil,
-  setupCommon,
-  setupIsolatedDatabase,
-} from "@/_test/setup.js";
+import { setupAnvil, setupCommon, setupDatabase } from "@/_test/setup.js";
 import { deployFactory } from "@/_test/simulate.js";
 import { createPair } from "@/_test/simulate.js";
 import { swapPair } from "@/_test/simulate.js";
@@ -23,7 +19,7 @@ beforeEach(() => {
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
-beforeEach(setupIsolatedDatabase);
+beforeEach(setupDatabase);
 
 const cliOptions = {
   schema: "public",

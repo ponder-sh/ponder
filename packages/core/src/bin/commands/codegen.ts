@@ -32,14 +32,14 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
   const telemetry = createTelemetry({ options, logger, shutdown });
   const common = { options, logger, metrics, telemetry, shutdown };
 
-  const exit = createExit({ common });
+  const exit = createExit(common);
 
   telemetry.record({
     name: "lifecycle:session_start",
     properties: { cli_command: "codegen" },
   });
 
-  runCodegen({ common });
+  runCodegen(common);
 
   logger.info({ service: "codegen", msg: "Wrote ponder-env.d.ts" });
 

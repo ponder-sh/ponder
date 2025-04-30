@@ -4,7 +4,7 @@ import type {
   SyncTrace,
   SyncTransactionReceipt,
 } from "@/internal/types.js";
-import type { RPC } from "@/rpc/index.js";
+import type { Rpc } from "@/rpc/index.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import {
   type Address,
@@ -20,7 +20,7 @@ import {
  * Helper function for "eth_getBlockByNumber" request.
  */
 export const _eth_getBlockByNumber = (
-  rpc: RPC,
+  rpc: Rpc,
   {
     blockNumber,
     blockTag,
@@ -50,7 +50,7 @@ export const _eth_getBlockByNumber = (
  * Helper function for "eth_getBlockByNumber" request.
  */
 export const _eth_getBlockByHash = (
-  rpc: RPC,
+  rpc: Rpc,
   { hash }: { hash: Hex },
 ): Promise<SyncBlock> =>
   rpc
@@ -71,7 +71,7 @@ export const _eth_getBlockByHash = (
  * Handles different error types and retries the request if applicable.
  */
 export const _eth_getLogs = async (
-  rpc: RPC,
+  rpc: Rpc,
   params: {
     address?: Address | Address[];
     topics?: LogTopic[];
@@ -130,7 +130,7 @@ export const _eth_getLogs = async (
  * Helper function for "eth_getTransactionReceipt" request.
  */
 export const _eth_getTransactionReceipt = (
-  rpc: RPC,
+  rpc: Rpc,
   { hash }: { hash: Hex },
 ): Promise<SyncTransactionReceipt> =>
   rpc
@@ -150,7 +150,7 @@ export const _eth_getTransactionReceipt = (
  * Helper function for "eth_getBlockReceipts" request.
  */
 export const _eth_getBlockReceipts = (
-  rpc: RPC,
+  rpc: Rpc,
   { blockHash }: { blockHash: Hash },
 ): Promise<SyncTransactionReceipt[]> =>
   rpc
@@ -164,7 +164,7 @@ export const _eth_getBlockReceipts = (
  * Helper function for "debug_traceBlockByNumber" request.
  */
 export const _debug_traceBlockByNumber = (
-  rpc: RPC,
+  rpc: Rpc,
   {
     blockNumber,
   }: {
@@ -238,7 +238,7 @@ export const _debug_traceBlockByNumber = (
  * Helper function for "debug_traceBlockByHash" request.
  */
 export const _debug_traceBlockByHash = (
-  rpc: RPC,
+  rpc: Rpc,
   {
     hash,
   }: {

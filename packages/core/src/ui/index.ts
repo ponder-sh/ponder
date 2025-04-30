@@ -7,7 +7,7 @@ import {
 import { buildUiLines, initialUiState } from "./app.js";
 import { patchWriteStreams } from "./patch.js";
 
-export function createUi({ common }: { common: Common }) {
+export function createUi(common: Common) {
   const ui = initialUiState;
 
   const { refresh, shutdown } = patchWriteStreams({

@@ -1,16 +1,18 @@
 import type { Config } from "@/config/index.js";
+import type { Common } from "@/internal/common.js";
 import { BuildError } from "@/internal/errors.js";
 import type {
-  AccountSource,
-  BlockSource,
+  BlockFilter,
   Chain,
-  ContractSource,
+  IndexingBuild,
   IndexingFunctions,
-  RawIndexingFunctions,
-  Source,
+  LogFilter,
   SyncBlock,
+  TraceFilter,
+  TransactionFilter,
+  TransferFilter,
 } from "@/internal/types.js";
-import { buildAbiEvents, buildAbiFunctions, buildTopics } from "@/sync/abi.js";
+import { createRpc } from "@/rpc/index.js";
 import {
   defaultBlockFilterInclude,
   defaultLogFilterInclude,
@@ -19,11 +21,21 @@ import {
   defaultTransactionReceiptInclude,
   defaultTransferFilterInclude,
 } from "@/sync/filter.js";
+import { buildTopics, toSafeName } from "@/utils/abi.js";
 import { chains as viemChains } from "@/utils/chains.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { getFinalityBlockCount } from "@/utils/finality.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { BlockNotFoundError, type Hex, type LogTopic, hexToNumber } from "viem";
+import {
+  type AbiEvent,
+  type AbiFunction,
+  BlockNotFoundError,
+  type Hex,
+  type LogTopic,
+  hexToNumber,
+  toEventSelector,
+  toFunctionSelector,
+} from "viem";
 import { buildLogFactory } from "./factory.js";
 
 const flattenSources = <
@@ -54,16 +66,17 @@ const flattenSources = <
   );
 };
 
-export async function buildConfigAndIndexingFunctions({
-  config,
-  rawIndexingFunctions,
-}: {
-  config: Config;
-  rawIndexingFunctions: RawIndexingFunctions;
-}): Promise<{
-  sources: Source[];
-  chains: Chain[];
-  indexingFunctions: IndexingFunctions;
+export async function buildConfigAndIndexingFunctions(
+  common: Common,
+  {
+    config,
+    indexingFunctions,
+  }: {
+    config: Config;
+    indexingFunctions: IndexingFunctions;
+  },
+): Promise<{
+  indexingBuild: IndexingBuild[];
   logs: { level: "warn" | "info" | "debug"; msg: string }[];
 }> {
   const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
@@ -85,7 +98,7 @@ export async function buildConfigAndIndexingFunctions({
       if (perChainLatestBlockNumber.has(chain.chain.name)) {
         return perChainLatestBlockNumber.get(chain.chain.name)!;
       } else {
-        const blockPromise = chain.transport
+        const blockPromise = chain.rpc
           .request({
             method: "eth_getBlockByNumber",
             params: ["latest", false],
@@ -144,6 +157,11 @@ export async function buildConfigAndIndexingFunctions({
         pollingInterval: chain.pollingInterval ?? 1_000,
         finalityBlockCount: getFinalityBlockCount({ chain: matchedChain }),
         disableCache: chain.disableCache ?? false,
+        rpc: createRpc(common, {
+          chain: matchedChain,
+          rpcUrl: chain.rpcUrl,
+          maxRequestsPerSecond: chain.maxRequestsPerSecond ?? 50,
+        }),
       } satisfies Chain;
     }),
   );
@@ -162,11 +180,15 @@ export async function buildConfigAndIndexingFunctions({
     sourceNames.add(source);
   }
 
-  // Validate and build indexing functions
-  let indexingFunctionCount = 0;
-  const indexingFunctions: IndexingFunctions = {};
+  // Validate indexing functions
 
-  for (const { name: eventName, fn } of rawIndexingFunctions) {
+  if (indexingFunctions.length === 0) {
+    throw new Error(
+      "Validation failed: Found 0 registered indexing functions.",
+    );
+  }
+
+  for (const { name: eventName } of indexingFunctions) {
     const eventNameComponents = eventName.includes(".")
       ? eventName.split(".")
       : eventName.split(":");
@@ -226,13 +248,14 @@ export async function buildConfigAndIndexingFunctions({
           .join(", ")}].`,
       );
     }
-
-    indexingFunctions[eventName] = fn;
-    indexingFunctionCount += 1;
   }
 
-  if (indexingFunctionCount === 0) {
-    logs.push({ level: "warn", msg: "No indexing functions were registered." });
+  const perChainIndexingBuild = new Map<
+    Chain,
+    IndexingBuild["eventCallbacks"]
+  >();
+  for (const chain of chains) {
+    perChainIndexingBuild.set(chain, []);
   }
 
   // common validation for all sources
@@ -274,626 +297,592 @@ export async function buildConfigAndIndexingFunctions({
     }
   }
 
-  const contractSources: ContractSource[] = (
-    await Promise.all(
-      flattenSources(config.contracts ?? {}).map(
-        async (source): Promise<ContractSource[]> => {
-          const chain = chains.find((c) => c.chain.name === source.chain)!;
+  for (const source of flattenSources(config.contracts ?? {})) {
+    const chain = chains.find((c) => c.chain.name === source.chain)!;
+    const filters: (LogFilter | TraceFilter)[] = [];
 
-          // Get indexing function that were registered for this contract
-          const registeredLogEvents: string[] = [];
-          const registeredCallTraceEvents: string[] = [];
-          for (const eventName of Object.keys(indexingFunctions)) {
-            // log event
-            if (eventName.includes(":")) {
-              const [logContractName, logEventName] = eventName.split(":") as [
-                string,
-                string,
-              ];
-              if (logContractName === source.name && logEventName !== "setup") {
-                registeredLogEvents.push(logEventName);
-              }
-            }
+    // Get indexing function that were registered for this contract
+    const registeredLogEvents: string[] = [];
+    const registeredCallTraceEvents: string[] = [];
+    for (const { name } of indexingFunctions) {
+      // log event
+      if (name.includes(":")) {
+        const [logContractName, logEventName] = name.split(":") as [
+          string,
+          string,
+        ];
+        if (logContractName === source.name && logEventName !== "setup") {
+          registeredLogEvents.push(logEventName);
+        }
+      }
 
-            //  trace event
-            if (eventName.includes(".")) {
-              const [functionContractName, functionName] = eventName.split(
-                ".",
-              ) as [string, string];
-              if (functionContractName === source.name) {
-                registeredCallTraceEvents.push(functionName);
-              }
-            }
-          }
+      //  trace event
+      if (name.includes(".")) {
+        const [functionContractName, functionName] = name.split(".") as [
+          string,
+          string,
+        ];
+        if (functionContractName === source.name) {
+          registeredCallTraceEvents.push(functionName);
+        }
+      }
+    }
 
-          // Note: This can probably throw for invalid ABIs. Consider adding explicit ABI validation before this line.
-          const abiEvents = buildAbiEvents({ abi: source.abi });
-          const abiFunctions = buildAbiFunctions({ abi: source.abi });
+    // Note: This can probably throw for invalid ABIs. Consider adding explicit ABI validation before this line.
 
-          const registeredEventSelectors: Hex[] = [];
-          // Validate that the registered log events exist in the abi
-          for (const logEvent of registeredLogEvents) {
-            const abiEvent = abiEvents.bySafeName[logEvent];
-            if (abiEvent === undefined) {
-              throw new Error(
-                `Validation failed: Event name for event '${logEvent}' not found in the contract ABI. Got '${logEvent}', expected one of [${Object.keys(
-                  abiEvents.bySafeName,
-                )
-                  .map((eventName) => `'${eventName}'`)
-                  .join(", ")}].`,
-              );
-            }
+    const registeredEventSelectors: Hex[] = [];
+    // Validate that the registered log events exist in the abi
+    for (const logEvent of registeredLogEvents) {
+      const abiEvent = source.abi.find(
+        (item): item is AbiEvent =>
+          item.type === "event" &&
+          toSafeName({ abi: source.abi, item }) === logEvent,
+      );
 
-            registeredEventSelectors.push(abiEvent.selector);
-          }
+      if (abiEvent === undefined) {
+        throw new Error(
+          `Validation failed: Event name for event '${logEvent}' not found in the contract ABI. Got '${logEvent}', expected one of [${source.abi
+            .filter((item): item is AbiEvent => item.type === "event")
+            .map((item) => `'${toSafeName({ abi: source.abi, item })}'`)
+            .join(", ")}].`,
+        );
+      }
 
-          const registeredFunctionSelectors: Hex[] = [];
-          for (const _function of registeredCallTraceEvents) {
-            const abiFunction = abiFunctions.bySafeName[_function];
-            if (abiFunction === undefined) {
-              throw new Error(
-                `Validation failed: Function name for function '${_function}' not found in the contract ABI. Got '${_function}', expected one of [${Object.keys(
-                  abiFunctions.bySafeName,
-                )
-                  .map((eventName) => `'${eventName}'`)
-                  .join(", ")}].`,
-              );
-            }
+      registeredEventSelectors.push(toEventSelector(abiEvent));
+    }
 
-            registeredFunctionSelectors.push(abiFunction.selector);
-          }
+    const registeredFunctionSelectors: Hex[] = [];
+    for (const _function of registeredCallTraceEvents) {
+      const abiFunction = source.abi.find(
+        (item): item is AbiFunction =>
+          item.type === "function" &&
+          toSafeName({ abi: source.abi, item }) === _function,
+      );
 
-          const topicsArray: {
-            topic0: LogTopic;
-            topic1: LogTopic;
-            topic2: LogTopic;
-            topic3: LogTopic;
-          }[] = [];
+      if (abiFunction === undefined) {
+        throw new Error(
+          `Validation failed: Function name for function '${_function}' not found in the contract ABI. Got '${_function}', expected one of [${source.abi
+            .filter((item): item is AbiFunction => item.type === "function")
+            .map((item) => `'${toSafeName({ abi: source.abi, item })}'`)
+            .join(", ")}].`,
+        );
+      }
 
-          if (source.filter !== undefined) {
-            const eventFilters = Array.isArray(source.filter)
-              ? source.filter
-              : [source.filter];
+      registeredFunctionSelectors.push(toFunctionSelector(abiFunction));
+    }
 
-            for (const filter of eventFilters) {
-              const abiEvent = abiEvents.bySafeName[filter.event];
-              if (!abiEvent) {
-                throw new Error(
-                  `Validation failed: Invalid filter for contract '${
-                    source.name
-                  }'. Got event name '${filter.event}', expected one of [${Object.keys(
-                    abiEvents.bySafeName,
-                  )
-                    .map((n) => `'${n}'`)
-                    .join(", ")}].`,
-                );
-              }
-            }
+    const topicsArray: {
+      topic0: LogTopic;
+      topic1: LogTopic;
+      topic2: LogTopic;
+      topic3: LogTopic;
+    }[] = [];
 
-            topicsArray.push(...buildTopics(source.abi, eventFilters));
+    if (source.filter !== undefined) {
+      const eventFilters = Array.isArray(source.filter)
+        ? source.filter
+        : [source.filter];
 
-            // event selectors that have a filter
-            const filteredEventSelectors: Hex[] = topicsArray.map(
-              (t) => t.topic0 as Hex,
-            );
-            // event selectors that are registered but don't have a filter
-            const excludedRegisteredEventSelectors =
-              registeredEventSelectors.filter(
-                (s) => filteredEventSelectors.includes(s) === false,
-              );
-
-            for (const selector of filteredEventSelectors) {
-              if (registeredEventSelectors.includes(selector) === false) {
-                throw new Error(
-                  `Validation failed: Event selector '${abiEvents.bySelector[selector]?.safeName}' is used in a filter but does not have a corresponding indexing function.`,
-                );
-              }
-            }
-
-            if (excludedRegisteredEventSelectors.length > 0) {
-              topicsArray.push({
-                topic0: excludedRegisteredEventSelectors,
-                topic1: null,
-                topic2: null,
-                topic3: null,
-              });
-            }
-          } else {
-            topicsArray.push({
-              topic0: registeredEventSelectors,
-              topic1: null,
-              topic2: null,
-              topic3: null,
-            });
-          }
-
-          const fromBlock = await resolveBlockNumber(source.startBlock, chain);
-          const toBlock = await resolveBlockNumber(source.endBlock, chain);
-
-          const contractMetadata = {
-            type: "contract",
-            abi: source.abi,
-            abiEvents,
-            abiFunctions,
-            name: source.name,
-            chain,
-          } as const;
-
-          const resolvedAddress = source?.address;
-
-          if (
-            typeof resolvedAddress === "object" &&
-            !Array.isArray(resolvedAddress)
-          ) {
-            // Note that this can throw.
-            const logFactory = buildLogFactory({
-              chainId: chain.chain.id,
-              ...resolvedAddress,
-              fromBlock,
-              toBlock,
-            });
-
-            const logSources = topicsArray.map(
-              (topics) =>
-                ({
-                  ...contractMetadata,
-                  filter: {
-                    type: "log",
-                    chainId: chain.chain.id,
-                    address: logFactory,
-                    topic0: topics.topic0,
-                    topic1: topics.topic1,
-                    topic2: topics.topic2,
-                    topic3: topics.topic3,
-                    fromBlock,
-                    toBlock,
-                    include: defaultLogFilterInclude.concat(
-                      source.includeTransactionReceipts
-                        ? defaultTransactionReceiptInclude
-                        : [],
-                    ),
-                  },
-                }) satisfies ContractSource,
-            );
-
-            if (source.includeCallTraces) {
-              return [
-                ...logSources,
-                {
-                  ...contractMetadata,
-                  filter: {
-                    type: "trace",
-                    chainId: chain.chain.id,
-                    fromAddress: undefined,
-                    toAddress: logFactory,
-                    callType: "CALL",
-                    functionSelector: registeredFunctionSelectors,
-                    includeReverted: false,
-                    fromBlock,
-                    toBlock,
-                    include: defaultTraceFilterInclude.concat(
-                      source.includeTransactionReceipts
-                        ? defaultTransactionReceiptInclude
-                        : [],
-                    ),
-                  },
-                } satisfies ContractSource,
-              ];
-            }
-
-            return logSources;
-          } else if (resolvedAddress !== undefined) {
-            for (const address of Array.isArray(resolvedAddress)
-              ? resolvedAddress
-              : [resolvedAddress]) {
-              if (!address!.startsWith("0x"))
-                throw new Error(
-                  `Validation failed: Invalid prefix for address '${address}'. Got '${address!.slice(
-                    0,
-                    2,
-                  )}', expected '0x'.`,
-                );
-              if (address!.length !== 42)
-                throw new Error(
-                  `Validation failed: Invalid length for address '${address}'. Got ${address!.length}, expected 42 characters.`,
-                );
-            }
-          }
-
-          const validatedAddress = Array.isArray(resolvedAddress)
-            ? dedupe(resolvedAddress).map((r) => toLowerCase(r))
-            : resolvedAddress !== undefined
-              ? toLowerCase(resolvedAddress)
-              : undefined;
-
-          const logSources = topicsArray.map(
-            (topics) =>
-              ({
-                ...contractMetadata,
-                filter: {
-                  type: "log",
-                  chainId: chain.chain.id,
-                  address: validatedAddress,
-                  topic0: topics.topic0,
-                  topic1: topics.topic1,
-                  topic2: topics.topic2,
-                  topic3: topics.topic3,
-                  fromBlock,
-                  toBlock,
-                  include: defaultLogFilterInclude.concat(
-                    source.includeTransactionReceipts
-                      ? defaultTransactionReceiptInclude
-                      : [],
-                  ),
-                },
-              }) satisfies ContractSource,
+      for (const filter of eventFilters) {
+        const abiEvent = source.abi.find(
+          (item): item is AbiEvent =>
+            item.type === "event" &&
+            toSafeName({ abi: source.abi, item }) === filter.event,
+        );
+        if (abiEvent === undefined) {
+          throw new Error(
+            `Validation failed: Invalid filter for contract '${
+              source.name
+            }'. Got event name '${filter.event}', expected one of [${source.abi
+              .filter((item): item is AbiEvent => item.type === "event")
+              .map((item) => `'${toSafeName({ abi: source.abi, item })}'`)
+              .join(", ")}].`,
           );
+        }
+      }
 
-          if (source.includeCallTraces) {
-            return [
-              ...logSources,
-              {
-                ...contractMetadata,
-                filter: {
-                  type: "trace",
-                  chainId: chain.chain.id,
-                  fromAddress: undefined,
-                  toAddress: Array.isArray(validatedAddress)
-                    ? validatedAddress
-                    : validatedAddress === undefined
-                      ? undefined
-                      : [validatedAddress],
-                  callType: "CALL",
-                  functionSelector: registeredFunctionSelectors,
-                  includeReverted: false,
-                  fromBlock,
-                  toBlock,
-                  include: defaultTraceFilterInclude.concat(
-                    source.includeTransactionReceipts
-                      ? defaultTransactionReceiptInclude
-                      : [],
-                  ),
-                },
-              } satisfies ContractSource,
-            ];
-          } else return logSources;
-        },
-      ),
-    )
-  )
-    .flat() // Remove sources with no registered indexing functions
-    .filter((source) => {
-      const hasNoRegisteredIndexingFunctions =
-        source.filter.type === "trace"
-          ? Array.isArray(source.filter.functionSelector) &&
-            source.filter.functionSelector.length === 0
-          : Array.isArray(source.filter.topic0) &&
-            source.filter.topic0?.length === 0;
-      if (hasNoRegisteredIndexingFunctions) {
-        logs.push({
-          level: "debug",
-          msg: `No indexing functions were registered for '${
-            source.name
-          }' ${source.filter.type === "trace" ? "traces" : "logs"}`,
+      topicsArray.push(...buildTopics(source.abi, eventFilters));
+
+      // event selectors that have a filter
+      const filteredEventSelectors: Hex[] = topicsArray.map(
+        (t) => t.topic0 as Hex,
+      );
+      // event selectors that are registered but don't have a filter
+      const excludedRegisteredEventSelectors = registeredEventSelectors.filter(
+        (s) => filteredEventSelectors.includes(s) === false,
+      );
+
+      if (excludedRegisteredEventSelectors.length > 0) {
+        topicsArray.push({
+          topic0: excludedRegisteredEventSelectors,
+          topic1: null,
+          topic2: null,
+          topic3: null,
         });
       }
-      return hasNoRegisteredIndexingFunctions === false;
-    });
+    } else {
+      topicsArray.push({
+        topic0: registeredEventSelectors,
+        topic1: null,
+        topic2: null,
+        topic3: null,
+      });
+    }
 
-  const accountSources: AccountSource[] = (
-    await Promise.all(
-      flattenSources(config.accounts ?? {}).map(
-        async (source): Promise<AccountSource[]> => {
-          const chain = chains.find((c) => c.chain.name === source.chain)!;
+    const fromBlock = await resolveBlockNumber(source.startBlock, chain);
+    const toBlock = await resolveBlockNumber(source.endBlock, chain);
 
-          const fromBlock = await resolveBlockNumber(source.startBlock, chain);
-          const toBlock = await resolveBlockNumber(source.endBlock, chain);
+    const resolvedAddress = source?.address;
 
-          const resolvedAddress = source?.address;
+    if (
+      typeof resolvedAddress === "object" &&
+      !Array.isArray(resolvedAddress)
+    ) {
+      // Note that this can throw.
+      const logFactory = buildLogFactory({
+        chainId: chain.chain.id,
+        ...resolvedAddress,
+        fromBlock,
+        toBlock,
+      });
 
-          if (resolvedAddress === undefined) {
+      const logFilters = topicsArray.map(
+        (topics) =>
+          ({
+            type: "log",
+            chainId: chain.chain.id,
+            address: logFactory,
+            topic0: topics.topic0,
+            topic1: topics.topic1,
+            topic2: topics.topic2,
+            topic3: topics.topic3,
+            fromBlock,
+            toBlock,
+            include: defaultLogFilterInclude.concat(
+              source.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude
+                : [],
+            ),
+          }) satisfies LogFilter,
+      );
+
+      filters.push(...logFilters);
+
+      if (source.includeCallTraces) {
+        filters.push({
+          type: "trace",
+          chainId: chain.chain.id,
+          fromAddress: undefined,
+          toAddress: logFactory,
+          callType: "CALL",
+          functionSelector: registeredFunctionSelectors,
+          includeReverted: false,
+          fromBlock,
+          toBlock,
+          include: defaultTraceFilterInclude.concat(
+            source.includeTransactionReceipts
+              ? defaultTransactionReceiptInclude
+              : [],
+          ),
+        });
+      }
+    } else {
+      if (resolvedAddress !== undefined) {
+        for (const address of Array.isArray(resolvedAddress)
+          ? resolvedAddress
+          : [resolvedAddress]) {
+          if (!address!.startsWith("0x"))
             throw new Error(
-              `Validation failed: Account '${source.name}' must specify an 'address'.`,
+              `Validation failed: Invalid prefix for address '${address}'. Got '${address!.slice(
+                0,
+                2,
+              )}', expected '0x'.`,
             );
-          }
+          if (address!.length !== 42)
+            throw new Error(
+              `Validation failed: Invalid length for address '${address}'. Got ${address!.length}, expected 42 characters.`,
+            );
+        }
+      }
 
-          if (
-            typeof resolvedAddress === "object" &&
-            !Array.isArray(resolvedAddress)
-          ) {
-            // Note that this can throw.
-            const logFactory = buildLogFactory({
-              chainId: chain.chain.id,
-              ...resolvedAddress,
-              fromBlock,
-              toBlock,
+      const validatedAddress = Array.isArray(resolvedAddress)
+        ? dedupe(resolvedAddress).map((r) => toLowerCase(r))
+        : resolvedAddress !== undefined
+          ? toLowerCase(resolvedAddress)
+          : undefined;
+
+      const logFilters = topicsArray.map(
+        (topics) =>
+          ({
+            type: "log",
+            chainId: chain.chain.id,
+            address: validatedAddress,
+            topic0: topics.topic0,
+            topic1: topics.topic1,
+            topic2: topics.topic2,
+            topic3: topics.topic3,
+            fromBlock,
+            toBlock,
+            include: defaultLogFilterInclude.concat(
+              source.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude
+                : [],
+            ),
+          }) satisfies LogFilter,
+      );
+
+      filters.push(...logFilters);
+
+      if (source.includeCallTraces) {
+        filters.push({
+          type: "trace",
+          chainId: chain.chain.id,
+          fromAddress: undefined,
+          toAddress: Array.isArray(validatedAddress)
+            ? validatedAddress
+            : validatedAddress === undefined
+              ? undefined
+              : [validatedAddress],
+          callType: "CALL",
+          functionSelector: registeredFunctionSelectors,
+          includeReverted: false,
+          fromBlock,
+          toBlock,
+          include: defaultTraceFilterInclude.concat(
+            source.includeTransactionReceipts
+              ? defaultTransactionReceiptInclude
+              : [],
+          ),
+        });
+      }
+    }
+
+    for (const filter of filters) {
+      if (filter.type === "log") {
+        if (registeredLogEvents.length > 0) {
+          for (const eventName of registeredLogEvents) {
+            const indexingFunction = indexingFunctions.find(
+              (f) => `${source.name}:${eventName}` === f.name,
+            )!;
+
+            perChainIndexingBuild.get(chain)!.push({
+              type: "contract",
+              filter,
+              callback: indexingFunction.fn,
+              name: indexingFunction.name,
+              abiItem: source.abi.find(
+                (item) =>
+                  item.type === "event" &&
+                  toSafeName({ abi: source.abi, item }) === eventName,
+              )! as AbiEvent,
+              metadata: { safeName: eventName, abi: source.abi },
             });
-
-            return [
-              {
-                type: "account",
-                name: source.name,
-                chain,
-                filter: {
-                  type: "transaction",
-                  chainId: chain.chain.id,
-                  fromAddress: undefined,
-                  toAddress: logFactory,
-                  includeReverted: false,
-                  fromBlock,
-                  toBlock,
-                  include: defaultTransactionFilterInclude,
-                },
-              } satisfies AccountSource,
-              {
-                type: "account",
-                name: source.name,
-                chain,
-                filter: {
-                  type: "transaction",
-                  chainId: chain.chain.id,
-                  fromAddress: logFactory,
-                  toAddress: undefined,
-                  includeReverted: false,
-                  fromBlock,
-                  toBlock,
-                  include: defaultTransactionFilterInclude,
-                },
-              } satisfies AccountSource,
-              {
-                type: "account",
-                name: source.name,
-                chain,
-                filter: {
-                  type: "transfer",
-                  chainId: chain.chain.id,
-                  fromAddress: undefined,
-                  toAddress: logFactory,
-                  includeReverted: false,
-                  fromBlock,
-                  toBlock,
-                  include: defaultTransferFilterInclude.concat(
-                    source.includeTransactionReceipts
-                      ? defaultTransactionReceiptInclude
-                      : [],
-                  ),
-                },
-              } satisfies AccountSource,
-              {
-                type: "account",
-                name: source.name,
-                chain,
-                filter: {
-                  type: "transfer",
-                  chainId: chain.chain.id,
-                  fromAddress: logFactory,
-                  toAddress: undefined,
-                  includeReverted: false,
-                  fromBlock,
-                  toBlock,
-                  include: defaultTransferFilterInclude.concat(
-                    source.includeTransactionReceipts
-                      ? defaultTransactionReceiptInclude
-                      : [],
-                  ),
-                },
-              } satisfies AccountSource,
-            ];
           }
+        } else {
+          logs.push({
+            level: "debug",
+            msg: `No indexing functions were registered for '${
+              source.name
+            }' logs`,
+          });
+        }
+      } else {
+        if (registeredCallTraceEvents.length > 0) {
+          for (const functionName of registeredCallTraceEvents) {
+            const indexingFunction = indexingFunctions.find(
+              (f) => `${source.name}.${functionName}` === f.name,
+            )!;
 
-          for (const address of Array.isArray(resolvedAddress)
-            ? resolvedAddress
-            : [resolvedAddress]) {
-            if (!address!.startsWith("0x"))
-              throw new Error(
-                `Validation failed: Invalid prefix for address '${address}'. Got '${address!.slice(
-                  0,
-                  2,
-                )}', expected '0x'.`,
-              );
-            if (address!.length !== 42)
-              throw new Error(
-                `Validation failed: Invalid length for address '${address}'. Got ${address!.length}, expected 42 characters.`,
-              );
+            perChainIndexingBuild.get(chain)!.push({
+              type: "contract",
+              filter,
+              callback: indexingFunction.fn,
+              name: indexingFunction.name,
+              abiItem: source.abi.find(
+                (item) =>
+                  item.type === "function" &&
+                  toSafeName({ abi: source.abi, item }) === functionName,
+              )! as AbiFunction,
+              metadata: { safeName: functionName, abi: source.abi },
+            });
           }
+        } else {
+          logs.push({
+            level: "debug",
+            msg: `No indexing functions were registered for '${
+              source.name
+            }' traces`,
+          });
+        }
+      }
+    }
+  }
 
-          const validatedAddress = Array.isArray(resolvedAddress)
-            ? dedupe(resolvedAddress).map((r) => toLowerCase(r))
-            : resolvedAddress !== undefined
-              ? toLowerCase(resolvedAddress)
-              : undefined;
+  for (const source of flattenSources(config.accounts ?? {})) {
+    const chain = chains.find((c) => c.chain.name === source.chain)!;
+    const filters: (TransferFilter | TransactionFilter)[] = [];
 
-          return [
-            {
-              type: "account",
-              name: source.name,
-              chain,
-              filter: {
-                type: "transaction",
-                chainId: chain.chain.id,
-                fromAddress: undefined,
-                toAddress: validatedAddress,
-                includeReverted: false,
-                fromBlock,
-                toBlock,
-                include: defaultTransactionFilterInclude,
-              },
-            } satisfies AccountSource,
-            {
-              type: "account",
-              name: source.name,
-              chain,
-              filter: {
-                type: "transaction",
-                chainId: chain.chain.id,
-                fromAddress: validatedAddress,
-                toAddress: undefined,
-                includeReverted: false,
-                fromBlock,
-                toBlock,
-                include: defaultTransactionFilterInclude,
-              },
-            } satisfies AccountSource,
-            {
-              type: "account",
-              name: source.name,
-              chain,
-              filter: {
-                type: "transfer",
-                chainId: chain.chain.id,
-                fromAddress: undefined,
-                toAddress: validatedAddress,
-                includeReverted: false,
-                fromBlock,
-                toBlock,
-                include: defaultTransferFilterInclude.concat(
-                  source.includeTransactionReceipts
-                    ? defaultTransactionReceiptInclude
-                    : [],
-                ),
-              },
-            } satisfies AccountSource,
-            {
-              type: "account",
-              name: source.name,
-              chain,
-              filter: {
-                type: "transfer",
-                chainId: chain.chain.id,
-                fromAddress: validatedAddress,
-                toAddress: undefined,
-                includeReverted: false,
-                fromBlock,
-                toBlock,
-                include: defaultTransferFilterInclude.concat(
-                  source.includeTransactionReceipts
-                    ? defaultTransactionReceiptInclude
-                    : [],
-                ),
-              },
-            } satisfies AccountSource,
-          ];
-        },
-      ),
-    )
-  )
-    .flat()
-    .filter((source) => {
+    const fromBlock = await resolveBlockNumber(source.startBlock, chain);
+    const toBlock = await resolveBlockNumber(source.endBlock, chain);
+
+    const resolvedAddress = source?.address;
+
+    if (resolvedAddress === undefined) {
+      throw new Error(
+        `Validation failed: Account '${source.name}' must specify an 'address'.`,
+      );
+    }
+
+    if (
+      typeof resolvedAddress === "object" &&
+      !Array.isArray(resolvedAddress)
+    ) {
+      // Note that this can throw.
+      const logFactory = buildLogFactory({
+        chainId: chain.chain.id,
+        ...resolvedAddress,
+        fromBlock,
+        toBlock,
+      });
+
+      filters.push({
+        type: "transaction",
+        chainId: chain.chain.id,
+        fromAddress: undefined,
+        toAddress: logFactory,
+        includeReverted: false,
+        fromBlock,
+        toBlock,
+        include: defaultTransactionFilterInclude,
+      });
+
+      filters.push({
+        type: "transaction",
+        chainId: chain.chain.id,
+        fromAddress: logFactory,
+        toAddress: undefined,
+        includeReverted: false,
+        fromBlock,
+        toBlock,
+        include: defaultTransactionFilterInclude,
+      });
+
+      filters.push({
+        type: "transfer",
+        chainId: chain.chain.id,
+        fromAddress: undefined,
+        toAddress: logFactory,
+        includeReverted: false,
+        fromBlock,
+        toBlock,
+        include: defaultTransferFilterInclude.concat(
+          source.includeTransactionReceipts
+            ? defaultTransactionReceiptInclude
+            : [],
+        ),
+      });
+
+      filters.push({
+        type: "transfer",
+        chainId: chain.chain.id,
+        fromAddress: logFactory,
+        toAddress: undefined,
+        includeReverted: false,
+        fromBlock,
+        toBlock,
+        include: defaultTransferFilterInclude.concat(
+          source.includeTransactionReceipts
+            ? defaultTransactionReceiptInclude
+            : [],
+        ),
+      });
+    } else {
+      for (const address of Array.isArray(resolvedAddress)
+        ? resolvedAddress
+        : [resolvedAddress]) {
+        if (!address!.startsWith("0x"))
+          throw new Error(
+            `Validation failed: Invalid prefix for address '${address}'. Got '${address!.slice(
+              0,
+              2,
+            )}', expected '0x'.`,
+          );
+        if (address!.length !== 42)
+          throw new Error(
+            `Validation failed: Invalid length for address '${address}'. Got ${address!.length}, expected 42 characters.`,
+          );
+      }
+
+      const validatedAddress = Array.isArray(resolvedAddress)
+        ? dedupe(resolvedAddress).map((r) => toLowerCase(r))
+        : resolvedAddress !== undefined
+          ? toLowerCase(resolvedAddress)
+          : undefined;
+
+      filters.push({
+        type: "transaction",
+        chainId: chain.chain.id,
+        fromAddress: undefined,
+        toAddress: validatedAddress,
+        includeReverted: false,
+        fromBlock,
+        toBlock,
+        include: defaultTransactionFilterInclude,
+      });
+
+      filters.push({
+        type: "transaction",
+        chainId: chain.chain.id,
+        fromAddress: validatedAddress,
+        toAddress: undefined,
+        includeReverted: false,
+        fromBlock,
+        toBlock,
+        include: defaultTransactionFilterInclude,
+      });
+
+      filters.push({
+        type: "transfer",
+        chainId: chain.chain.id,
+        fromAddress: undefined,
+        toAddress: validatedAddress,
+        includeReverted: false,
+        fromBlock,
+        toBlock,
+        include: defaultTransferFilterInclude.concat(
+          source.includeTransactionReceipts
+            ? defaultTransactionReceiptInclude
+            : [],
+        ),
+      });
+
+      filters.push({
+        type: "transfer",
+        chainId: chain.chain.id,
+        fromAddress: validatedAddress,
+        toAddress: undefined,
+        includeReverted: false,
+        fromBlock,
+        toBlock,
+        include: defaultTransferFilterInclude.concat(
+          source.includeTransactionReceipts
+            ? defaultTransactionReceiptInclude
+            : [],
+        ),
+      });
+    }
+
+    for (const filter of filters) {
       const eventName =
-        source.filter.type === "transaction"
-          ? source.filter.fromAddress === undefined
+        filter.type === "transaction"
+          ? filter.fromAddress === undefined
             ? `${source.name}:transaction:to`
             : `${source.name}:transaction:from`
-          : source.filter.fromAddress === undefined
+          : filter.fromAddress === undefined
             ? `${source.name}:transfer:to`
             : `${source.name}:transfer:from`;
 
-      const hasRegisteredIndexingFunction =
-        indexingFunctions[eventName] !== undefined;
-      if (!hasRegisteredIndexingFunction) {
+      const indexingFunction = indexingFunctions.find(
+        (f) => f.name === eventName,
+      );
+      if (indexingFunction) {
+        perChainIndexingBuild.get(chain)!.push({
+          type: "account",
+          direction: filter.fromAddress === undefined ? "to" : "from",
+          filter,
+          callback: indexingFunction.fn,
+          name: indexingFunction.name,
+        });
+      } else {
         logs.push({
           level: "debug",
           msg: `No indexing functions were registered for '${eventName}'`,
         });
       }
-      return hasRegisteredIndexingFunction;
-    });
+    }
+  }
 
-  const blockSources: BlockSource[] = (
-    await Promise.all(
-      flattenSources(config.blocks ?? {}).map(async (source) => {
-        const chain = chains.find((c) => c.chain.name === source.chain)!;
+  for (const source of flattenSources(config.blocks ?? {})) {
+    const chain = chains.find((c) => c.chain.name === source.chain)!;
 
-        const intervalMaybeNan = source.interval ?? 1;
-        const interval = Number.isNaN(intervalMaybeNan) ? 0 : intervalMaybeNan;
+    const intervalMaybeNan = source.interval ?? 1;
+    const interval = Number.isNaN(intervalMaybeNan) ? 0 : intervalMaybeNan;
 
-        if (!Number.isInteger(interval) || interval === 0) {
-          throw new Error(
-            `Validation failed: Invalid interval for block source '${source.name}'. Got ${interval}, expected a non-zero integer.`,
-          );
-        }
+    if (!Number.isInteger(interval) || interval === 0) {
+      throw new Error(
+        `Validation failed: Invalid interval for block source '${source.name}'. Got ${interval}, expected a non-zero integer.`,
+      );
+    }
 
-        const fromBlock = await resolveBlockNumber(source.startBlock, chain);
-        const toBlock = await resolveBlockNumber(source.endBlock, chain);
+    const fromBlock = await resolveBlockNumber(source.startBlock, chain);
+    const toBlock = await resolveBlockNumber(source.endBlock, chain);
 
-        return {
-          type: "block",
-          name: source.name,
-          chain,
-          filter: {
-            type: "block",
-            chainId: chain.chain.id,
-            interval: interval,
-            offset: (fromBlock ?? 0) % interval,
-            fromBlock,
-            toBlock,
-            include: defaultBlockFilterInclude,
-          },
-        } satisfies BlockSource;
-      }),
-    )
-  )
-    .flat()
-    .filter((blockSource) => {
-      const hasRegisteredIndexingFunction =
-        indexingFunctions[`${blockSource.name}:block`] !== undefined;
-      if (!hasRegisteredIndexingFunction) {
-        logs.push({
-          level: "debug",
-          msg: `No indexing functions were registered for '${blockSource.name}' blocks`,
-        });
-      }
-      return hasRegisteredIndexingFunction;
-    });
+    const blockFilter = {
+      type: "block",
+      chainId: chain.chain.id,
+      interval: interval,
+      offset: (fromBlock ?? 0) % interval,
+      fromBlock,
+      toBlock,
+      include: defaultBlockFilterInclude,
+    } satisfies BlockFilter;
 
-  const sources = [...contractSources, ...accountSources, ...blockSources];
-
-  // Filter out any chains that don't have any sources registered.
-  const chainsWithSources = chains.filter((chain) => {
-    const hasSources = sources.some(
-      (source) => source.chain.chain.name === chain.chain.name,
+    const indexingFunction = indexingFunctions.find(
+      (f) => f.name === `${source.name}:block`,
     );
-    if (!hasSources) {
+    if (indexingFunction) {
+      perChainIndexingBuild.get(chain)!.push({
+        type: "block",
+        filter: blockFilter,
+        callback: indexingFunction.fn,
+        name: indexingFunction.name,
+      });
+    } else {
+      logs.push({
+        level: "debug",
+        msg: `No indexing functions were registered for '${source.name}' blocks`,
+      });
+    }
+  }
+
+  // Filter out any chains that don't have any event callbacks registered.
+  for (const [chain, eventCallbacks] of perChainIndexingBuild) {
+    if (eventCallbacks.length === 0) {
       logs.push({
         level: "warn",
         msg: `No sources registered for chain '${chain.chain.name}'`,
       });
+      perChainIndexingBuild.delete(chain);
     }
-    return hasSources;
-  });
-
-  if (Object.keys(indexingFunctions).length === 0) {
-    throw new Error(
-      "Validation failed: Found 0 registered indexing functions.",
-    );
   }
 
-  return {
-    chains: chainsWithSources,
-    sources,
-    indexingFunctions,
-    logs,
-  };
+  const indexingBuild: IndexingBuild[] = [];
+  for (const [chain, eventCallbacks] of perChainIndexingBuild) {
+    indexingBuild.push({ chain, eventCallbacks });
+  }
+
+  return { indexingBuild, logs };
 }
 
-export async function safeBuildConfigAndIndexingFunctions({
-  config,
-  rawIndexingFunctions,
-}: {
-  config: Config;
-  rawIndexingFunctions: RawIndexingFunctions;
-}) {
+export async function safeBuildConfigAndIndexingFunctions(
+  common: Common,
+  {
+    config,
+    indexingFunctions,
+  }: {
+    config: Config;
+    indexingFunctions: IndexingFunctions;
+  },
+) {
   try {
-    const result = await buildConfigAndIndexingFunctions({
+    const result = await buildConfigAndIndexingFunctions(common, {
       config,
-      rawIndexingFunctions,
+      indexingFunctions,
     });
 
     return {
       status: "success",
-      sources: result.sources,
-      chains: result.chains,
-      indexingFunctions: result.indexingFunctions,
+      indexingBuild: result.indexingBuild,
       logs: result.logs,
     } as const;
   } catch (_error) {

@@ -1,29 +1,21 @@
 import {
   setupCleanup,
   setupCommon,
-  setupDatabaseServices,
-  setupIsolatedDatabase,
+  setupDatabase,
+  setupPonder,
 } from "@/_test/setup.js";
 import { Hono } from "hono";
 import { beforeEach, expect, test, vi } from "vitest";
 import { createServer } from "./index.js";
 
 beforeEach(setupCommon);
-beforeEach(setupIsolatedDatabase);
+beforeEach(setupDatabase);
 beforeEach(setupCleanup);
 
 test("listens on ipv4", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+  const app = await setupPonder(context);
 
-  await createServer({
-    common: context.common,
-    apiBuild: {
-      app: new Hono(),
-
-      port: context.common.options.port,
-    },
-    database,
-  });
+  await createServer(app);
 
   const response = await fetch(
     `http://localhost:${context.common.options.port}/health`,
@@ -32,17 +24,9 @@ test("listens on ipv4", async (context) => {
 });
 
 test("listens on ipv6", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+  const app = await setupPonder(context);
 
-  await createServer({
-    common: context.common,
-    apiBuild: {
-      app: new Hono(),
-
-      port: context.common.options.port,
-    },
-    database,
-  });
+  await createServer(app);
 
   const response = await fetch(
     `http://[::1]:${context.common.options.port}/health`,
@@ -51,17 +35,9 @@ test("listens on ipv6", async (context) => {
 });
 
 test("not ready", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+  const app = await setupPonder(context);
 
-  const server = await createServer({
-    common: context.common,
-    apiBuild: {
-      app: new Hono(),
-
-      port: context.common.options.port,
-    },
-    database,
-  });
+  const server = await createServer(app);
 
   const response = await server.hono.request("/ready");
 
@@ -69,19 +45,11 @@ test("not ready", async (context) => {
 });
 
 test("ready", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+  const app = await setupPonder(context);
 
-  const server = await createServer({
-    common: context.common,
-    apiBuild: {
-      app: new Hono(),
+  const server = await createServer(app);
 
-      port: context.common.options.port,
-    },
-    database,
-  });
-
-  await database.setReady();
+  await app.database.setReady();
 
   const response = await server.hono.request("/ready");
 
@@ -89,17 +57,9 @@ test("ready", async (context) => {
 });
 
 test("health", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+  const app = await setupPonder(context);
 
-  const server = await createServer({
-    common: context.common,
-    apiBuild: {
-      app: new Hono(),
-
-      port: context.common.options.port,
-    },
-    database,
-  });
+  const server = await createServer(app);
 
   const response = await server.hono.request("/health");
 
@@ -107,17 +67,9 @@ test("health", async (context) => {
 });
 
 test("healthy PUT", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+  const app = await setupPonder(context);
 
-  const server = await createServer({
-    common: context.common,
-    apiBuild: {
-      app: new Hono(),
-
-      port: context.common.options.port,
-    },
-    database,
-  });
+  const server = await createServer(app);
 
   const response = await server.hono.request("/health", {
     method: "PUT",
@@ -127,17 +79,9 @@ test("healthy PUT", async (context) => {
 });
 
 test("metrics", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+  const app = await setupPonder(context);
 
-  const server = await createServer({
-    common: context.common,
-    apiBuild: {
-      app: new Hono(),
-
-      port: context.common.options.port,
-    },
-    database,
-  });
+  const server = await createServer(app);
 
   const response = await server.hono.request("/metrics");
 
@@ -145,17 +89,9 @@ test("metrics", async (context) => {
 });
 
 test("metrics error", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+  const app = await setupPonder(context);
 
-  const server = await createServer({
-    common: context.common,
-    apiBuild: {
-      app: new Hono(),
-
-      port: context.common.options.port,
-    },
-    database,
-  });
+  const server = await createServer(app);
 
   const metricsSpy = vi.spyOn(context.common.metrics, "getMetrics");
   metricsSpy.mockRejectedValueOnce(new Error());
@@ -166,17 +102,9 @@ test("metrics error", async (context) => {
 });
 
 test("metrics PUT", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+  const app = await setupPonder(context);
 
-  const server = await createServer({
-    common: context.common,
-    apiBuild: {
-      app: new Hono(),
-
-      port: context.common.options.port,
-    },
-    database,
-  });
+  const server = await createServer(app);
 
   const response = await server.hono.request("/metrics", {
     method: "PUT",
@@ -186,17 +114,9 @@ test("metrics PUT", async (context) => {
 });
 
 test("metrics unmatched route", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+  const app = await setupPonder(context);
 
-  const server = await createServer({
-    common: context.common,
-    apiBuild: {
-      app: new Hono(),
-
-      port: context.common.options.port,
-    },
-    database,
-  });
+  const server = await createServer(app);
 
   await server.hono.request("/unmatched");
 
@@ -208,17 +128,9 @@ test("metrics unmatched route", async (context) => {
 });
 
 test("missing route", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+  const app = await setupPonder(context);
 
-  const server = await createServer({
-    common: context.common,
-    apiBuild: {
-      app: new Hono(),
-
-      port: context.common.options.port,
-    },
-    database,
-  });
+  const server = await createServer(app);
 
   const response = await server.hono.request("/kevin");
 
@@ -226,33 +138,11 @@ test("missing route", async (context) => {
 });
 
 test("custom api route", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
-  const server = await createServer({
-    common: context.common,
-    apiBuild: {
-      app: new Hono().get("/hi", (c) => c.text("hi")),
-      port: context.common.options.port,
-    },
-    database,
+  const app = await setupPonder(context, {
+    app: new Hono().get("/hi", (c) => c.text("hi")),
   });
 
-  const response = await server.hono.request("/hi");
-
-  expect(response.status).toBe(200);
-  expect(await response.text()).toBe("hi");
-});
-
-test("custom hono route", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
-  const app = new Hono().get("/hi", (c) => c.text("hi"));
-
-  const server = await createServer({
-    common: context.common,
-    apiBuild: { app, port: context.common.options.port },
-    database,
-  });
+  const server = await createServer(app);
 
   const response = await server.hono.request("/hi");
 
@@ -263,16 +153,9 @@ test("custom hono route", async (context) => {
 // Note that this test doesn't work because the `hono.request` method doesn't actually
 // create a socket connection, it just calls the request handler function directly.
 test.skip("kill", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+  const app = await setupPonder(context);
 
-  const server = await createServer({
-    common: context.common,
-    apiBuild: {
-      app: new Hono(),
-      port: context.common.options.port,
-    },
-    database,
-  });
+  const server = await createServer(app);
 
   expect(() => server.hono.request("/health")).rejects.toThrow();
 });

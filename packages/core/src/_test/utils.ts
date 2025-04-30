@@ -1,7 +1,7 @@
 import { type AddressInfo, createServer } from "node:net";
 import { factory } from "@/config/address.js";
 import { createConfig } from "@/config/index.js";
-import type { Chain, Status } from "@/internal/types.js";
+import type { Status } from "@/internal/types.js";
 import type { Address, Chain as ViemChain } from "viem";
 import { http, createPublicClient, createTestClient, getAbiItem } from "viem";
 import { mainnet } from "viem/chains";
@@ -65,7 +65,7 @@ export const getErc20ConfigAndIndexingFunctions = (params: {
     },
   });
 
-  const rawIndexingFunctions = params.includeCallTraces
+  const indexingFunctions = params.includeCallTraces
     ? [
         { name: "Erc20.transfer()", fn: () => {} },
         {
@@ -80,7 +80,7 @@ export const getErc20ConfigAndIndexingFunctions = (params: {
         },
       ];
 
-  return { config, rawIndexingFunctions };
+  return { config, indexingFunctions };
 };
 
 export const getPairWithFactoryConfigAndIndexingFunctions = (params: {
@@ -110,14 +110,14 @@ export const getPairWithFactoryConfigAndIndexingFunctions = (params: {
     },
   });
 
-  const rawIndexingFunctions = params.includeCallTraces
+  const indexingFunctions = params.includeCallTraces
     ? [
         { name: "Pair.swap()", fn: () => {} },
         { name: "Pair:Swap", fn: () => {} },
       ]
     : [{ name: "Pair:Swap", fn: () => {} }];
 
-  return { config, rawIndexingFunctions };
+  return { config, indexingFunctions };
 };
 
 export const getBlocksConfigAndIndexingFunctions = (params: {
@@ -138,9 +138,9 @@ export const getBlocksConfigAndIndexingFunctions = (params: {
     },
   });
 
-  const rawIndexingFunctions = [{ name: "Blocks:block", fn: () => {} }];
+  const indexingFunctions = [{ name: "Blocks:block", fn: () => {} }];
 
-  return { config, rawIndexingFunctions };
+  return { config, indexingFunctions };
 };
 
 export const getAccountsConfigAndIndexingFunctions = (params: {
@@ -161,27 +161,14 @@ export const getAccountsConfigAndIndexingFunctions = (params: {
     },
   });
 
-  const rawIndexingFunctions = [
+  const indexingFunctions = [
     { name: "Accounts:transaction:from", fn: () => {} },
     { name: "Accounts:transaction:to", fn: () => {} },
     { name: "Accounts:transfer:from", fn: () => {} },
     { name: "Accounts:transfer:to", fn: () => {} },
   ];
 
-  return { config, rawIndexingFunctions };
-};
-
-export const getChain = (params?: {
-  finalityBlockCount?: number;
-}) => {
-  return {
-    chain: anvil,
-    rpcUrl: `http://127.0.0.1:8545/${poolId}`,
-    maxRequestsPerSecond: 50,
-    pollingInterval: 1_000,
-    finalityBlockCount: params?.finalityBlockCount ?? 1,
-    disableCache: false,
-  } satisfies Chain;
+  return { config, indexingFunctions };
 };
 
 export function getFreePort(): Promise<number> {

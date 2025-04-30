@@ -16,6 +16,16 @@ export {
   replaceBigInts,
 } from "@ponder/utils";
 
+/**
+ * Fix issue with Array.isArray not checking readonly arrays
+ * {@link https://github.com/microsoft/TypeScript/issues/17002}
+ */
+declare global {
+  interface ArrayConstructor {
+    isArray(arg: ReadonlyArray<any> | any): arg is ReadonlyArray<any>;
+  }
+}
+
 import type { Config } from "@/config/index.js";
 import type { Prettify } from "./types/utils.js";
 

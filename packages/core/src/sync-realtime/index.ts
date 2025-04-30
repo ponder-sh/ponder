@@ -27,7 +27,11 @@ import {
   isTransferFilterMatched,
   shouldGetTransactionReceipt,
 } from "@/sync/filter.js";
-import { type SyncProgress, syncBlockToLightBlock } from "@/sync/index.js";
+import {
+  type SyncProgress,
+  getFilters,
+  syncBlockToLightBlock,
+} from "@/sync/index.js";
 import { mutex } from "@/utils/mutex.js";
 import type { Queue } from "@/utils/queue.js";
 import { range } from "@/utils/range.js";
@@ -88,7 +92,13 @@ const MAX_QUEUED_BLOCKS = 25;
 
 export const createRealtimeSync = (
   app: PerChainPonderApp,
-  { onEvent }: { onEvent: (event: RealtimeSyncEvent) => Promise<void> },
+  {
+    onEvent,
+    onFatalError,
+  }: {
+    onEvent: (event: RealtimeSyncEvent) => Promise<void>;
+    onFatalError: (error: Error) => void;
+  },
 ): RealtimeSync => {
   ////////
   // state
@@ -119,7 +129,9 @@ export const createRealtimeSync = (
   const transferFilters: TransferFilter[] = [];
   const blockFilters: BlockFilter[] = [];
 
-  for (const filter of app.indexingBuild.filters) {
+  const filters = getFilters(app);
+
+  for (const filter of filters) {
     // Collect filters
     switch (filter.type) {
       case "block": {
@@ -180,7 +192,7 @@ export const createRealtimeSync = (
     if (isBlockReceipts === false) {
       const transactionReceipts = await Promise.all(
         Array.from(transactionHashes).map(async (hash) =>
-          _eth_getTransactionReceipt(app.indexingBuild.rpc, { hash }),
+          _eth_getTransactionReceipt(app.indexingBuild.chain.rpc, { hash }),
         ),
       );
 
@@ -189,7 +201,7 @@ export const createRealtimeSync = (
 
     let blockReceipts: SyncTransactionReceipt[];
     try {
-      blockReceipts = await _eth_getBlockReceipts(app.indexingBuild.rpc, {
+      blockReceipts = await _eth_getBlockReceipts(app.indexingBuild.chain.rpc, {
         blockHash,
       });
     } catch (_error) {
@@ -251,7 +263,7 @@ export const createRealtimeSync = (
 
     let logs: SyncLog[] = [];
     if (shouldRequestLogs) {
-      logs = await _eth_getLogs(app.indexingBuild.rpc, {
+      logs = await _eth_getLogs(app.indexingBuild.chain.rpc, {
         blockHash: block.hash,
       });
 
@@ -314,7 +326,7 @@ export const createRealtimeSync = (
 
     let traces: SyncTrace[] = [];
     if (shouldRequestTraces) {
-      traces = await _debug_traceBlockByHash(app.indexingBuild.rpc, {
+      traces = await _debug_traceBlockByHash(app.indexingBuild.chain.rpc, {
         hash: block.hash,
       });
 
@@ -684,7 +696,7 @@ export const createRealtimeSync = (
 
         throw new Error(msg);
       } else {
-        remoteBlock = await _eth_getBlockByHash(app.indexingBuild.rpc, {
+        remoteBlock = await _eth_getBlockByHash(app.indexingBuild.chain.rpc, {
           hash: remoteBlock.parentHash,
         });
         // Add tip to `reorgedBlocks`
@@ -722,7 +734,7 @@ export const createRealtimeSync = (
    */
   const fetchAndReconcileLatestBlock = async () => {
     try {
-      const block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+      const block = await _eth_getBlockByNumber(app.indexingBuild.chain.rpc, {
         blockTag: "latest",
       });
 
@@ -777,7 +789,7 @@ export const createRealtimeSync = (
           error,
         });
 
-        app.onFatalError(error);
+        onFatalError(error);
       }
     }
   };
@@ -838,7 +850,7 @@ export const createRealtimeSync = (
 
           const pendingBlocks = await Promise.all(
             missingBlockRange.map((blockNumber) =>
-              _eth_getBlockByNumber(app.indexingBuild.rpc, {
+              _eth_getBlockByNumber(app.indexingBuild.chain.rpc, {
                 blockNumber,
               }).then((block) => fetchBlockEventData(block)),
             ),
@@ -1024,7 +1036,7 @@ export const createRealtimeSync = (
             error,
           });
 
-          app.onFatalError(error);
+          onFatalError(error);
         }
       }
     },

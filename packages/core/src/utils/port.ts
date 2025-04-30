@@ -1,7 +1,7 @@
 import http from "node:http";
 import type { Common } from "@/internal/common.js";
 
-export const getNextAvailablePort = async ({ common }: { common: Common }) => {
+export const getNextAvailablePort = async (common: Common) => {
   const server = http.createServer();
 
   let port = common.options.port;

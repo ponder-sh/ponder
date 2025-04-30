@@ -4,13 +4,13 @@ import {
   setupAnvil,
   setupCleanup,
   setupCommon,
-  setupDatabaseServices,
-  setupIsolatedDatabase,
+  setupDatabase,
+  setupPonder,
 } from "@/_test/setup.js";
 import { deployErc20, deployMulticall, mintErc20 } from "@/_test/simulate.js";
-import { getChain, getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
-import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
+import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
 import { onchainTable } from "@/drizzle/onchain.js";
+import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import type { Event, LogEvent, RawEvent } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
@@ -23,7 +23,7 @@ import { type Context, createIndexing } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
-beforeEach(setupIsolatedDatabase);
+beforeEach(setupDatabase);
 beforeEach(setupCleanup);
 
 const account = onchainTable("account", (p) => ({
@@ -33,37 +33,23 @@ const account = onchainTable("account", (p) => ({
 
 const schema = { account };
 
-const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+const { config, indexingFunctions } = getErc20ConfigAndIndexingFunctions({
   address: zeroAddress,
-});
-const { sources, chains } = await buildConfigAndIndexingFunctions({
-  config,
-  rawIndexingFunctions,
 });
 
 test("createIndexing()", async (context) => {
-  const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
+  const app = await setupPonder(context, true, {
+    config,
+    indexingFunctions,
   });
 
   const eventCount = {};
 
-  const cachedViemClient = createCachedViemClient({
-    common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
-    syncStore,
+  const cachedViemClient = createCachedViemClient(app, {
     eventCount,
   });
 
-  const indexing = createIndexing({
-    common,
-    indexingBuild: {
-      sources,
-      chains,
-      indexingFunctions: {},
-    },
+  const indexing = createIndexing(app, {
     client: cachedViemClient,
     eventCount,
   });
@@ -72,31 +58,23 @@ test("createIndexing()", async (context) => {
 });
 
 test("processSetupEvents() empty", async (context) => {
-  const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
+  const app = await setupPonder(context, true, {
+    config,
+    indexingFunctions,
   });
 
   const eventCount = {};
 
-  const cachedViemClient = createCachedViemClient({
-    common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
-    syncStore,
+  const cachedViemClient = createCachedViemClient(app, {
     eventCount,
   });
 
-  const indexing = createIndexing({
-    common,
-    indexingBuild: {
-      sources,
-      chains,
-      indexingFunctions: {},
-    },
+  const indexing = createIndexing(app, {
     client: cachedViemClient,
     eventCount,
   });
+
+  const indexingStore = createRealtimeIndexingStore(app);
 
   const result = await indexing.processSetupEvents({ db: indexingStore });
 
@@ -104,51 +82,46 @@ test("processSetupEvents() empty", async (context) => {
 });
 
 test("processSetupEvents()", async (context) => {
-  const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+  const indexingFunctions = [
+    {
+      name: "Erc20:setup",
+      fn: vi.fn(),
+    },
+  ];
 
-  const indexingFunctions = {
-    "Erc20:setup": vi.fn(),
-  };
+  const app = await setupPonder(context, true, {
+    config,
+    indexingFunctions,
+  });
 
   const eventCount = { "Erc20:setup": 0 };
 
-  const cachedViemClient = createCachedViemClient({
-    common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
-    syncStore,
+  const cachedViemClient = createCachedViemClient(app, {
     eventCount,
   });
 
-  const indexing = createIndexing({
-    common,
-    indexingBuild: {
-      sources,
-      chains,
-      indexingFunctions,
-    },
+  const indexing = createIndexing(app, {
     client: cachedViemClient,
     eventCount,
   });
+
+  const indexingStore = createRealtimeIndexingStore(app);
 
   const result = await indexing.processSetupEvents({ db: indexingStore });
 
   expect(result).toStrictEqual({ status: "success" });
 
-  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledOnce();
-  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledWith({
+  expect(indexingFunctions[0]!.fn).toHaveBeenCalledOnce();
+  expect(indexingFunctions[0]!.fn).toHaveBeenCalledWith({
     context: {
       chain: { chainId: 1, name: "mainnet" },
       contracts: {
         Erc20: {
           abi: expect.any(Object),
           // @ts-ignore
-          address: checksumAddress(sources[0]!.filter.address),
-          startBlock: sources[0]!.filter.fromBlock,
-          endBlock: sources[0]!.filter.toBlock,
+          address: checksumAddress(app.indexingBuild[0]!.filters[0]!.address),
+          startBlock: app.indexingBuild[0]!.filters[0]!.fromBlock,
+          endBlock: app.indexingBuild[0]!.filters[0]!.toBlock,
         },
       },
       client: expect.any(Object),
@@ -157,41 +130,34 @@ test("processSetupEvents()", async (context) => {
   });
 });
 
-test("processEvent()", async (context) => {
-  const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+test.only("processEvent()", async (context) => {
+  const indexingFunctions = [
+    {
+      name: "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)",
+      fn: vi.fn(),
+    },
+    {
+      name: "Pair:Swap",
+      fn: vi.fn(),
+    },
+  ];
 
-  const indexingFunctions = {
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-      vi.fn(),
-    "Pair:Swap": vi.fn(),
-  };
+  const app = await setupPonder(context, true, { config, indexingFunctions });
+  const perChainApp = { ...app, indexingBuild: app.indexingBuild[0]! };
 
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
     "Pair:Swap": 0,
   };
 
-  const cachedViemClient = createCachedViemClient({
-    common,
-    indexingBuild: { chains },
-    rpcs: [createRpc({ common, chain: chains[0]! })],
-    syncStore,
-    eventCount,
-  });
+  const cachedViemClient = createCachedViemClient(app, { eventCount });
 
-  const indexing = createIndexing({
-    common,
-    indexingBuild: {
-      sources,
-      chains,
-      indexingFunctions,
-    },
+  const indexing = createIndexing(app, {
     client: cachedViemClient,
     eventCount,
   });
+
+  const indexingStore = createRealtimeIndexingStore(perChainApp);
 
   const topics = encodeEventTopics({
     abi: erc20ABI,
@@ -205,28 +171,20 @@ test("processEvent()", async (context) => {
   const data = padHex(toHex(parseEther("1")), { size: 32 });
 
   const rawEvent = {
-    chainId: 1,
-    sourceIndex: 0,
     checkpoint: ZERO_CHECKPOINT_STRING,
+    chain: app.indexingBuild[0]!.chain,
+    eventCallback: app.indexingBuild[0]!.eventCallbacks[0]!,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: { data, topics },
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]);
+  const events = decodeEvents(perChainApp, { rawEvents: [rawEvent] });
   const result = await indexing.processEvents({ db: indexingStore, events });
   expect(result).toStrictEqual({ status: "success" });
 
-  expect(
-    indexingFunctions[
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
-    ],
-  ).toHaveBeenCalledTimes(1);
-  expect(
-    indexingFunctions[
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
-    ],
-  ).toHaveBeenCalledWith({
+  expect(indexingFunctions[0]!.fn).toHaveBeenCalledTimes(1);
+  expect(indexingFunctions[0]!.fn).toHaveBeenCalledWith({
     event: {
       id: expect.any(String),
       args: expect.any(Object),
@@ -240,10 +198,12 @@ test("processEvent()", async (context) => {
       contracts: {
         Erc20: {
           abi: expect.any(Object),
-          // @ts-ignore
-          address: checksumAddress(sources[0]!.filter.address),
-          startBlock: sources[0]!.filter.fromBlock,
-          endBlock: sources[0]!.filter.toBlock,
+          address: checksumAddress(
+            // @ts-ignore
+            perChainApp.indexingBuild.filters[0]!.address,
+          ),
+          startBlock: perChainApp.indexingBuild.filters[0]!.fromBlock,
+          endBlock: perChainApp.indexingBuild.filters[0]!.toBlock,
         },
       },
       client: expect.any(Object),

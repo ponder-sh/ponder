@@ -1,6 +1,6 @@
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { RecordNotFoundError } from "@/internal/errors.js";
-import type { PonderApp } from "@/internal/types.js";
+import type { PerChainPonderApp, PonderApp } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
@@ -13,7 +13,7 @@ import {
 import { getCacheKey, getWhereCondition } from "./utils.js";
 
 export const createRealtimeIndexingStore = (
-  app: Omit<PonderApp, "indexingBuild" | "apiBuild">,
+  app: PonderApp | PerChainPonderApp,
 ): IndexingStore => {
   const find = (table: Table, key: object) => {
     return app.database.qb.drizzle

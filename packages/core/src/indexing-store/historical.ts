@@ -1,6 +1,6 @@
 import { validateQuery } from "@/client/validate.js";
 import { RecordNotFoundError } from "@/internal/errors.js";
-import type { PonderApp, Schema } from "@/internal/types.js";
+import type { PerChainPonderApp, PonderApp, Schema } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
@@ -16,7 +16,7 @@ import {
 } from "./index.js";
 
 export const createHistoricalIndexingStore = (
-  app: Omit<PonderApp, "indexingBuild" | "apiBuild">,
+  app: PonderApp | PerChainPonderApp,
   {
     indexingCache,
     db,

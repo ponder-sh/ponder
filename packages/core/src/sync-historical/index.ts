@@ -16,6 +16,7 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import { createSyncStore } from "@/sync-store/index.js";
 import {
   getChildAddress,
   isAddressFactory,
@@ -27,6 +28,7 @@ import {
 } from "@/sync/filter.js";
 import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import { getFragments, recoverFilter } from "@/sync/fragments.js";
+import { getFilters } from "@/sync/index.js";
 import { dedupe } from "@/utils/dedupe.js";
 import {
   type Interval,
@@ -64,7 +66,10 @@ export type HistoricalSync = {
 
 export const createHistoricalSync = async (
   app: PerChainPonderApp,
+  { onFatalError }: { onFatalError: (error: Error) => void },
 ): Promise<HistoricalSync> => {
+  const syncStore = createSyncStore(app);
+  const filters = getFilters(app);
   /**
    * Flag to fetch transaction receipts through _eth_getBlockReceipts (true) or _eth_getTransactionReceipt (false)
    */
@@ -121,15 +126,15 @@ export const createHistoricalSync = async (
   >;
   if (app.indexingBuild.chain.disableCache) {
     intervalsCache = new Map();
-    for (const filter of app.indexingBuild.filters) {
+    for (const filter of filters) {
       intervalsCache.set(filter, []);
       for (const { fragment } of getFragments(filter)) {
         intervalsCache.get(filter)!.push({ fragment, intervals: [] });
       }
     }
   } else {
-    intervalsCache = await args.syncStore.getIntervals({
-      filters: app.indexingBuild.filters,
+    intervalsCache = await syncStore.getIntervals({
+      filters: filters,
     });
   }
 
@@ -214,7 +219,7 @@ export const createHistoricalSync = async (
     const logs = await Promise.all(
       intervals.flatMap((interval) =>
         addressBatches.map((address) =>
-          _eth_getLogs(app.indexingBuild.rpc, {
+          _eth_getLogs(app.indexingBuild.chain.rpc, {
             address,
             topics,
             fromBlock: interval[0],
@@ -306,7 +311,7 @@ export const createHistoricalSync = async (
     if (blockCache.has(number)) {
       block = await blockCache.get(number)!;
     } else {
-      const _block = _eth_getBlockByNumber(app.indexingBuild.rpc, {
+      const _block = _eth_getBlockByNumber(app.indexingBuild.chain.rpc, {
         blockNumber: toHex(number),
       });
       blockCache.set(number, _block);
@@ -327,7 +332,7 @@ export const createHistoricalSync = async (
     if (traceCache.has(block)) {
       return await traceCache.get(block)!;
     } else {
-      const traces = _debug_traceBlockByNumber(app.indexingBuild.rpc, {
+      const traces = _debug_traceBlockByNumber(app.indexingBuild.chain.rpc, {
         blockNumber: block,
       });
       traceCache.set(block, traces);
@@ -392,7 +397,7 @@ export const createHistoricalSync = async (
     if (transactionReceiptsCache.has(transaction)) {
       return await transactionReceiptsCache.get(transaction)!;
     } else {
-      const receipt = _eth_getTransactionReceipt(app.indexingBuild.rpc, {
+      const receipt = _eth_getTransactionReceipt(app.indexingBuild.chain.rpc, {
         hash: transaction,
       });
       transactionReceiptsCache.set(transaction, receipt);
@@ -404,7 +409,7 @@ export const createHistoricalSync = async (
     if (blockReceiptsCache.has(block)) {
       return await blockReceiptsCache.get(block)!;
     } else {
-      const blockReceipts = _eth_getBlockReceipts(app.indexingBuild.rpc, {
+      const blockReceipts = _eth_getBlockReceipts(app.indexingBuild.chain.rpc, {
         blockHash: block,
       });
       blockReceiptsCache.set(block, blockReceipts);
@@ -432,7 +437,7 @@ export const createHistoricalSync = async (
 
     // Note: `factory` must refer to the same original `factory` in `filter`
     // and not be a recovered factory from `recoverFilter`.
-    await args.syncStore.insertChildAddresses({
+    await syncStore.insertChildAddresses({
       factory,
       childAddresses,
       chainId: app.indexingBuild.chain.chain.id,
@@ -450,7 +455,7 @@ export const createHistoricalSync = async (
     await syncLogFactory(factory, interval);
     // Note: `factory` must refer to the same original `factory` in `filter`
     // and not be a recovered factory from `recoverFilter`.
-    return args.syncStore.getChildAddresses({ factory });
+    return syncStore.getChildAddresses({ factory });
   };
 
   ////////
@@ -485,7 +490,7 @@ export const createHistoricalSync = async (
       });
     }
 
-    await args.syncStore.insertLogs({
+    await syncStore.insertLogs({
       logs,
       chainId: app.indexingBuild.chain.chain.id,
     });
@@ -549,7 +554,7 @@ export const createHistoricalSync = async (
         }),
       ).then((receipts) => receipts.flat());
 
-      await args.syncStore.insertTransactionReceipts({
+      await syncStore.insertTransactionReceipts({
         transactionReceipts,
         chainId: app.indexingBuild.chain.chain.id,
       });
@@ -636,7 +641,7 @@ export const createHistoricalSync = async (
       }),
     ).then((receipts) => receipts.flat());
 
-    await args.syncStore.insertTransactionReceipts({
+    await syncStore.insertTransactionReceipts({
       transactionReceipts,
       chainId: app.indexingBuild.chain.chain.id,
     });
@@ -731,7 +736,7 @@ export const createHistoricalSync = async (
       }),
     ).then((traces) => traces.flat());
 
-    await args.syncStore.insertTraces({
+    await syncStore.insertTraces({
       traces,
       chainId: app.indexingBuild.chain.chain.id,
     });
@@ -748,7 +753,7 @@ export const createHistoricalSync = async (
         }),
       ).then((receipts) => receipts.flat());
 
-      await args.syncStore.insertTransactionReceipts({
+      await syncStore.insertTransactionReceipts({
         transactionReceipts,
         chainId: app.indexingBuild.chain.chain.id,
       });
@@ -767,7 +772,7 @@ export const createHistoricalSync = async (
       // Fragments are used to create a minimal filter, to avoid refetching data even if a filter
       // is only partially synced.
 
-      for (const { filter } of args.sources) {
+      for (const filter of filters) {
         if (
           (filter.fromBlock !== undefined && filter.fromBlock > _interval[1]) ||
           (filter.toBlock !== undefined && filter.toBlock < _interval[0])
@@ -867,7 +872,7 @@ export const createHistoricalSync = async (
               error,
             });
 
-            app.onFatalError(error);
+            onFatalError(error);
 
             return;
           }
@@ -879,11 +884,11 @@ export const createHistoricalSync = async (
       const blocks = await Promise.all(blockCache.values());
 
       await Promise.all([
-        args.syncStore.insertBlocks({
+        syncStore.insertBlocks({
           blocks,
           chainId: app.indexingBuild.chain.chain.id,
         }),
-        args.syncStore.insertTransactions({
+        syncStore.insertTransactions({
           transactions: blocks.flatMap((block) =>
             block.transactions.filter(({ hash }) =>
               transactionsCache.has(hash),
@@ -896,7 +901,7 @@ export const createHistoricalSync = async (
       // Add corresponding intervals to the sync-store
       // Note: this should happen after so the database doesn't become corrupted
       if (app.indexingBuild.chain.disableCache === false) {
-        await args.syncStore.insertIntervals({
+        await syncStore.insertIntervals({
           intervals: intervalsToSync,
           chainId: app.indexingBuild.chain.chain.id,
         });

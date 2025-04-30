@@ -2,8 +2,8 @@ import { ALICE, BOB } from "@/_test/constants.js";
 import {
   setupCleanup,
   setupCommon,
-  setupDatabaseServices,
-  setupIsolatedDatabase,
+  setupDatabase,
+  setupPonder,
 } from "@/_test/setup.js";
 import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
 import type { LogEvent } from "@/internal/types.js";
@@ -14,7 +14,7 @@ import { createIndexingCache } from "./cache.js";
 import { createHistoricalIndexingStore } from "./historical.js";
 
 beforeEach(setupCommon);
-beforeEach(setupIsolatedDatabase);
+beforeEach(setupDatabase);
 beforeEach(setupCleanup);
 
 test("flush() insert", async (context) => {
@@ -25,21 +25,15 @@ test("flush() insert", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+  const app = await setupPonder(context, { schema });
 
-  const indexingCache = createIndexingCache({
-    common: context.common,
-    schemaBuild: { schema },
+  const indexingCache = createIndexingCache(app, {
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
+  await app.database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore(app, {
       indexingCache,
       db: tx,
       client,
@@ -71,21 +65,15 @@ test("flush() update", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+  const app = await setupPonder(context, { schema });
 
-  const indexingCache = createIndexingCache({
-    common: context.common,
-    schemaBuild: { schema },
+  const indexingCache = createIndexingCache(app, {
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
+  await app.database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore(app, {
       indexingCache,
       db: tx,
       client,
@@ -156,21 +144,15 @@ test("flush() encoding", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+  const app = await setupPonder(context, { schema });
 
-  const indexingCache = createIndexingCache({
-    common: context.common,
-    schemaBuild: { schema },
+  const indexingCache = createIndexingCache(app, {
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
+  await app.database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore(app, {
       indexingCache,
       db: tx,
       client,
@@ -219,21 +201,15 @@ test("flush() encoding escape", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+  const app = await setupPonder(context, { schema });
 
-  const indexingCache = createIndexingCache({
-    common: context.common,
-    schemaBuild: { schema },
+  const indexingCache = createIndexingCache(app, {
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
+  await app.database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore(app, {
       indexingCache,
       db: tx,
       client,
@@ -279,15 +255,13 @@ test("prefetch() uses profile metadata", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+  const app = await setupPonder(context, { schema }, true);
 
   const event = {
     type: "log",
-    chainId: 1,
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "Contract:Event",
+    chain: app.indexingBuild.chain,
+    eventCallback: {} as LogEvent["eventCallback"],
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: {
@@ -301,19 +275,15 @@ test("prefetch() uses profile metadata", async (context) => {
     },
   } satisfies LogEvent;
 
-  const indexingCache = createIndexingCache({
-    common: context.common,
-    schemaBuild: { schema },
+  const indexingCache = createIndexingCache(app, {
     crashRecoveryCheckpoint: undefined,
     eventCount: { "Contract:Event": 0 },
   });
 
   indexingCache.event = event;
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
+  await app.database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore(app, {
       indexingCache,
       db: tx,
       client,
@@ -353,13 +323,9 @@ test("prefetch() evicts rows", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+  const app = await setupPonder(context, { schema });
 
-  const indexingCache = createIndexingCache({
-    common: context.common,
-    schemaBuild: { schema },
+  const indexingCache = createIndexingCache(app, {
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
   });
@@ -367,10 +333,8 @@ test("prefetch() evicts rows", async (context) => {
   // skip hot loop
   indexingCache.invalidate();
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
+  await app.database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore(app, {
       indexingCache,
       db: tx,
       client,

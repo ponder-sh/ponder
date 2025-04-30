@@ -84,12 +84,12 @@ export const createIndexing = (
   } = {};
 
   // build chainById
-  for (const { chain } of app.indexingBuild) {
+  for (const chain of app.indexingBuild.chains) {
     chainById[chain.chain.id] = chain;
   }
 
   // build clientByChainId
-  for (const { chain } of app.indexingBuild) {
+  for (const chain of app.indexingBuild.chains) {
     clientByChainId[chain.chain.id] = client.getClient(chain);
   }
 

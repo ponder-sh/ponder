@@ -20,7 +20,7 @@ type Schema = [...PublicRpcSchema, ...DebugRpcSchema];
 type RequestReturnType<method extends EIP1193Parameters<Schema>["method"]> =
   Extract<Schema[number], { Method: method }>["ReturnType"];
 
-export type RPC = {
+export type Rpc = {
   request: <TParameters extends EIP1193Parameters<Schema>>(
     parameters: TParameters,
   ) => Promise<RequestReturnType<TParameters["method"]>>;
@@ -29,21 +29,26 @@ export type RPC = {
 const RETRY_COUNT = 9;
 const BASE_DURATION = 125;
 
-export const createRpc = ({
-  common,
-  chain,
-}: { common: Common; chain: Chain }): RPC => {
-  const request = http(chain.rpcUrl)({
-    chain: chain.chain,
+export const createRpc = (
+  common: Common,
+  {
+    chain,
+    rpcUrl,
+    maxRequestsPerSecond,
+  }: Pick<Chain, "chain" | "rpcUrl" | "maxRequestsPerSecond">,
+): Rpc => {
+  const request = http(rpcUrl)({
+    chain,
     retryCount: 0,
     timeout: 5_000,
   }).request;
 
   const queue = createQueue<
-    Awaited<ReturnType<RPC["request"]>>,
-    Parameters<RPC["request"]>[0]
+    Awaited<ReturnType<Rpc["request"]>>,
+    Parameters<Rpc["request"]>[0]
   >({
-    frequency: chain.maxRequestsPerSecond,
+    frequency: maxRequestsPerSecond,
+    initialStart: true,
     // TODO(kyle) concurrency,
     // @ts-ignore
     worker: async (task) => {
@@ -63,7 +68,7 @@ export const createRpc = ({
             msg: `Received ${task.method} response (duration=${stopClock()}, params=${JSON.stringify(task.params)})`,
           });
           common.metrics.ponder_rpc_request_duration.observe(
-            { method: task.method, chain: chain.chain.name },
+            { method: task.method, chain: chain.name },
             stopClock(),
           );
 

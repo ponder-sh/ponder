@@ -1,6 +1,4 @@
 import crypto from "node:crypto";
-import type { Database } from "@/database/index.js";
-import type { Common } from "@/internal/common.js";
 import type {
   BlockFilter,
   Factory,
@@ -15,6 +13,8 @@ import type {
   InternalTransactionReceipt,
   LightBlock,
   LogFilter,
+  PerChainPonderApp,
+  PonderApp,
   SyncBlock,
   SyncLog,
   SyncTrace,
@@ -57,30 +57,32 @@ import {
 } from "./encoding.js";
 
 export type SyncStore = {
-  insertIntervals(args: {
+  insertIntervals(params: {
     intervals: { filter: FilterWithoutBlocks; interval: Interval }[];
     chainId: number;
   }): Promise<void>;
-  getIntervals(args: { filters: Filter[] }): Promise<
+  getIntervals(params: { filters: Filter[] }): Promise<
     Map<Filter, { fragment: Fragment; intervals: Interval[] }[]>
   >;
-  insertChildAddresses(args: {
+  insertChildAddresses(params: {
     factory: Factory;
     childAddresses: Map<Address, number>;
     chainId: number;
   }): Promise<void>;
-  getChildAddresses(args: { factory: Factory }): Promise<Map<Address, number>>;
-  insertLogs(args: { logs: SyncLog[]; chainId: number }): Promise<void>;
-  insertBlocks(args: { blocks: SyncBlock[]; chainId: number }): Promise<void>;
-  insertTransactions(args: {
+  getChildAddresses(params: { factory: Factory }): Promise<
+    Map<Address, number>
+  >;
+  insertLogs(params: { logs: SyncLog[]; chainId: number }): Promise<void>;
+  insertBlocks(params: { blocks: SyncBlock[]; chainId: number }): Promise<void>;
+  insertTransactions(params: {
     transactions: SyncTransaction[];
     chainId: number;
   }): Promise<void>;
-  insertTransactionReceipts(args: {
+  insertTransactionReceipts(params: {
     transactionReceipts: SyncTransactionReceipt[];
     chainId: number;
   }): Promise<void>;
-  insertTraces(args: {
+  insertTraces(params: {
     traces: {
       trace: SyncTrace;
       block: SyncBlock;
@@ -88,7 +90,7 @@ export type SyncStore = {
     }[];
     chainId: number;
   }): Promise<void>;
-  getEventBlockData(args: {
+  getEventBlockData(params: {
     filters: Filter[];
     fromBlock: number;
     toBlock: number;
@@ -104,7 +106,7 @@ export type SyncStore = {
     }[];
     cursor: number;
   }>;
-  insertRpcRequestResults(args: {
+  insertRpcRequestResults(params: {
     requests: {
       request: EIP1193Parameters;
       blockNumber: number | undefined;
@@ -112,25 +114,24 @@ export type SyncStore = {
     }[];
     chainId: number;
   }): Promise<void>;
-  getRpcRequestResults(args: {
+  getRpcRequestResults(params: {
     requests: EIP1193Parameters[];
     chainId: number;
   }): Promise<(string | undefined)[]>;
-  pruneRpcRequestResults(args: {
+  pruneRpcRequestResults(params: {
     blocks: Pick<LightBlock, "number">[];
     chainId: number;
   }): Promise<void>;
-  pruneByChain(args: { chainId: number }): Promise<void>;
+  pruneByChain(params: { chainId: number }): Promise<void>;
 };
 
-export const createSyncStore = ({
-  common,
-  database,
-}: { common: Common; database: Database }): SyncStore => ({
+export const createSyncStore = (
+  app: PonderApp | PerChainPonderApp,
+): SyncStore => ({
   insertIntervals: async ({ intervals, chainId }) => {
     if (intervals.length === 0) return;
 
-    await database.wrap(
+    await app.database.wrap(
       { method: "insertIntervals", includeTraceLogs: true },
       async () => {
         const perFragmentIntervals = new Map<FragmentId, Interval[]>();
@@ -168,7 +169,7 @@ export const createSyncStore = ({
           });
         }
 
-        await database.qb.sync
+        await app.database.qb.sync
           .insertInto("intervals")
           .values(values)
           .onConflict((oc) =>
@@ -181,7 +182,7 @@ export const createSyncStore = ({
     );
   },
   getIntervals: async ({ filters }) =>
-    database.wrap(
+    app.database.wrap(
       { method: "getIntervals", includeTraceLogs: true },
       async () => {
         let query:
@@ -197,9 +198,9 @@ export const createSyncStore = ({
           const fragments = getFragments(filter);
           for (let j = 0; j < fragments.length; j++) {
             const fragment = fragments[j]!;
-            const _query = database.qb.sync
+            const _query = app.database.qb.sync
               .selectFrom(
-                database.qb.sync
+                app.database.qb.sync
                   .selectFrom("intervals")
                   .select(sql`unnest(blocks)`.as("blocks"))
                   .where("fragment_id", "in", fragment.adjacentIds)
@@ -256,7 +257,7 @@ export const createSyncStore = ({
     if (childAddresses.size === 0) {
       return;
     }
-    await database.wrap(
+    await app.database.wrap(
       { method: "insertChildAddresses", includeTraceLogs: true },
       async () => {
         const values: InsertObject<PonderSyncSchema, "factory_addresses">[] =
@@ -270,7 +271,7 @@ export const createSyncStore = ({
           });
         }
 
-        await database.qb.sync
+        await app.database.qb.sync
           .with("factory_insert", (qb) =>
             qb
               .insertInto("factories")
@@ -289,49 +290,54 @@ export const createSyncStore = ({
     );
   },
   getChildAddresses: ({ factory }) =>
-    database.wrap({ method: "getChildAddresses", includeTraceLogs: true }, () =>
-      database.qb.sync
-        .with("factory_insert", (qb) =>
-          qb
-            .insertInto("factories")
-            .values({ factory })
-            .returning("id")
-            .onConflict((oc) =>
-              oc
-                .column("factory")
-                .doUpdateSet({ factory: sql`excluded.factory` }),
-            ),
-        )
-        .selectFrom("factory_addresses")
-        .select(["factory_addresses.address", "factory_addresses.block_number"])
-        .where(
-          "factory_addresses.factory_id",
-          "=",
-          sql`(SELECT id FROM factory_insert)`,
-        )
-        .execute()
-        .then((rows) => {
-          const result = new Map<Address, number>();
-          for (const { address, block_number } of rows) {
-            if (
-              result.has(address) === false ||
-              result.get(address)! > Number(block_number)
-            ) {
-              result.set(address, Number(block_number));
+    app.database.wrap(
+      { method: "getChildAddresses", includeTraceLogs: true },
+      () =>
+        app.database.qb.sync
+          .with("factory_insert", (qb) =>
+            qb
+              .insertInto("factories")
+              .values({ factory })
+              .returning("id")
+              .onConflict((oc) =>
+                oc
+                  .column("factory")
+                  .doUpdateSet({ factory: sql`excluded.factory` }),
+              ),
+          )
+          .selectFrom("factory_addresses")
+          .select([
+            "factory_addresses.address",
+            "factory_addresses.block_number",
+          ])
+          .where(
+            "factory_addresses.factory_id",
+            "=",
+            sql`(SELECT id FROM factory_insert)`,
+          )
+          .execute()
+          .then((rows) => {
+            const result = new Map<Address, number>();
+            for (const { address, block_number } of rows) {
+              if (
+                result.has(address) === false ||
+                result.get(address)! > Number(block_number)
+              ) {
+                result.set(address, Number(block_number));
+              }
             }
-          }
-          return result;
-        }),
+            return result;
+          }),
     ),
   insertLogs: async ({ logs, chainId }) => {
     if (logs.length === 0) return;
-    await database.wrap(
+    await app.database.wrap(
       { method: "insertLogs", includeTraceLogs: true },
       async () => {
         // Calculate `batchSize` based on how many parameters the
         // input will have
         const batchSize = Math.floor(
-          common.options.databaseMaxQueryParameters /
+          app.common.options.databaseMaxQueryParameters /
             Object.keys(encodeLog({ log: logs[0]!, chainId })).length,
         );
 
@@ -342,7 +348,7 @@ export const createSyncStore = ({
         // in the db.
 
         for (let i = 0; i < logs.length; i += batchSize) {
-          await database.qb.sync
+          await app.database.qb.sync
             .insertInto("logs")
             .values(
               logs
@@ -359,18 +365,18 @@ export const createSyncStore = ({
   },
   insertBlocks: async ({ blocks, chainId }) => {
     if (blocks.length === 0) return;
-    await database.wrap(
+    await app.database.wrap(
       { method: "insertBlocks", includeTraceLogs: true },
       async () => {
         // Calculate `batchSize` based on how many parameters the
         // input will have
         const batchSize = Math.floor(
-          common.options.databaseMaxQueryParameters /
+          app.common.options.databaseMaxQueryParameters /
             Object.keys(encodeBlock({ block: blocks[0]!, chainId })).length,
         );
 
         for (let i = 0; i < blocks.length; i += batchSize) {
-          await database.qb.sync
+          await app.database.qb.sync
             .insertInto("blocks")
             .values(
               blocks
@@ -385,13 +391,13 @@ export const createSyncStore = ({
   },
   insertTransactions: async ({ transactions, chainId }) => {
     if (transactions.length === 0) return;
-    await database.wrap(
+    await app.database.wrap(
       { method: "insertTransactions", includeTraceLogs: true },
       async () => {
         // Calculate `batchSize` based on how many parameters the
         // input will have
         const batchSize = Math.floor(
-          common.options.databaseMaxQueryParameters /
+          app.common.options.databaseMaxQueryParameters /
             Object.keys(
               encodeTransaction({
                 transaction: transactions[0]!,
@@ -405,7 +411,7 @@ export const createSyncStore = ({
         // for new transactions (using onConflictDoUpdate).
 
         for (let i = 0; i < transactions.length; i += batchSize) {
-          await database.qb.sync
+          await app.database.qb.sync
             .insertInto("transactions")
             .values(
               transactions
@@ -426,13 +432,13 @@ export const createSyncStore = ({
   },
   insertTransactionReceipts: async ({ transactionReceipts, chainId }) => {
     if (transactionReceipts.length === 0) return;
-    await database.wrap(
+    await app.database.wrap(
       { method: "insertTransactionReceipts", includeTraceLogs: true },
       async () => {
         // Calculate `batchSize` based on how many parameters the
         // input will have
         const batchSize = Math.floor(
-          common.options.databaseMaxQueryParameters /
+          app.common.options.databaseMaxQueryParameters /
             Object.keys(
               encodeTransactionReceipt({
                 transactionReceipt: transactionReceipts[0]!,
@@ -442,7 +448,7 @@ export const createSyncStore = ({
         );
 
         for (let i = 0; i < transactionReceipts.length; i += batchSize) {
-          await database.qb.sync
+          await app.database.qb.sync
             .insertInto("transaction_receipts")
             .values(
               transactionReceipts
@@ -466,13 +472,13 @@ export const createSyncStore = ({
   },
   insertTraces: async ({ traces, chainId }) => {
     if (traces.length === 0) return;
-    await database.wrap(
+    await app.database.wrap(
       { method: "insertTraces", includeTraceLogs: true },
       async () => {
         // Calculate `batchSize` based on how many parameters the
         // input will have
         const batchSize = Math.floor(
-          common.options.databaseMaxQueryParameters /
+          app.common.options.databaseMaxQueryParameters /
             Object.keys(
               encodeTrace({
                 trace: traces[0]!.trace,
@@ -484,7 +490,7 @@ export const createSyncStore = ({
         );
 
         for (let i = 0; i < traces.length; i += batchSize) {
-          await database.qb.sync
+          await app.database.qb.sync
             .insertInto("traces")
             .values(
               traces
@@ -509,7 +515,7 @@ export const createSyncStore = ({
     );
   },
   getEventBlockData: async ({ filters, fromBlock, toBlock, chainId, limit }) =>
-    database.wrap(
+    app.database.wrap(
       { method: "getEventBlockData", includeTraceLogs: true },
       async () => {
         const logFilters = filters.filter(
@@ -535,7 +541,7 @@ export const createSyncStore = ({
           shouldGetTransactionReceipt,
         );
 
-        const blocksQuery = database.qb.sync
+        const blocksQuery = app.database.qb.sync
           .selectFrom("blocks")
           .where("blocks.chain_id", "=", String(chainId))
           .where("blocks.number", ">=", String(fromBlock))
@@ -564,7 +570,7 @@ export const createSyncStore = ({
           ])
           .limit(limit);
 
-        const transactionsQuery = database.qb.sync
+        const transactionsQuery = app.database.qb.sync
           .selectFrom("transactions")
           .where("chain_id", "=", String(chainId))
           .where("block_number", ">=", String(fromBlock))
@@ -594,7 +600,7 @@ export const createSyncStore = ({
           ])
           .limit(limit);
 
-        const transactionReceiptsQuery = database.qb.sync
+        const transactionReceiptsQuery = app.database.qb.sync
           .selectFrom("transaction_receipts")
           .where("chain_id", "=", String(chainId))
           .where("block_number", ">=", String(fromBlock))
@@ -616,7 +622,7 @@ export const createSyncStore = ({
           ])
           .limit(limit);
 
-        const logsQuery = database.qb.sync
+        const logsQuery = app.database.qb.sync
           .selectFrom("logs")
           .where("logs.chain_id", "=", String(chainId))
           .where("logs.block_number", ">=", String(fromBlock))
@@ -637,7 +643,7 @@ export const createSyncStore = ({
           ])
           .limit(limit);
 
-        const tracesQuery = database.qb.sync
+        const tracesQuery = app.database.qb.sync
           .selectFrom("traces")
           .where("chain_id", "=", String(chainId))
           .where("block_number", ">=", String(fromBlock))
@@ -679,7 +685,7 @@ export const createSyncStore = ({
         ] = await Promise.all([
           shouldQueryBlocks
             ? blocksQuery.execute().then((res) => {
-                common.metrics.ponder_database_method_duration.observe(
+                app.common.metrics.ponder_database_method_duration.observe(
                   { method: "getEventBlockData_blocks" },
                   endClock(),
                 );
@@ -689,7 +695,7 @@ export const createSyncStore = ({
             : [],
           shouldQueryTransactions
             ? transactionsQuery.execute().then((res) => {
-                common.metrics.ponder_database_method_duration.observe(
+                app.common.metrics.ponder_database_method_duration.observe(
                   { method: "getEventBlockData_transactions" },
                   endClock(),
                 );
@@ -699,7 +705,7 @@ export const createSyncStore = ({
             : [],
           shouldQueryTransactionReceipts
             ? transactionReceiptsQuery.execute().then((res) => {
-                common.metrics.ponder_database_method_duration.observe(
+                app.common.metrics.ponder_database_method_duration.observe(
                   { method: "getEventBlockData_transaction_receipts" },
                   endClock(),
                 );
@@ -709,7 +715,7 @@ export const createSyncStore = ({
             : [],
           shouldQueryLogs
             ? logsQuery.execute().then((res) => {
-                common.metrics.ponder_database_method_duration.observe(
+                app.common.metrics.ponder_database_method_duration.observe(
                   { method: "getEventBlockData_logs" },
                   endClock(),
                 );
@@ -719,7 +725,7 @@ export const createSyncStore = ({
             : [],
           shouldQueryTraces
             ? tracesQuery.execute().then((res) => {
-                common.metrics.ponder_database_method_duration.observe(
+                app.common.metrics.ponder_database_method_duration.observe(
                   { method: "getEventBlockData_traces" },
                   endClock(),
                 );
@@ -986,7 +992,7 @@ export const createSyncStore = ({
           });
         }
 
-        common.metrics.ponder_historical_extract_duration.inc(
+        app.common.metrics.ponder_historical_extract_duration.inc(
           { step: "format" },
           endClock(),
         );
@@ -1026,7 +1032,7 @@ export const createSyncStore = ({
     ),
   insertRpcRequestResults: async ({ requests, chainId }) => {
     if (requests.length === 0) return;
-    return database.wrap(
+    return app.database.wrap(
       { method: "insertRpcRequestResults", includeTraceLogs: true },
       async () => {
         const values = requests.map(({ request, blockNumber, result }) => ({
@@ -1039,7 +1045,7 @@ export const createSyncStore = ({
           result,
         }));
 
-        await database.qb.sync
+        await app.database.qb.sync
           .insertInto("rpc_request_results")
           .values(values)
           .onConflict((oc) =>
@@ -1053,7 +1059,7 @@ export const createSyncStore = ({
   },
   getRpcRequestResults: async ({ requests, chainId }) => {
     if (requests.length === 0) return [];
-    return database.wrap(
+    return app.database.wrap(
       { method: "getRpcRequestResults", includeTraceLogs: true },
       async () => {
         const requestHashes = requests.map((request) =>
@@ -1063,7 +1069,7 @@ export const createSyncStore = ({
             .digest("hex"),
         );
 
-        const result = await database.qb.sync
+        const result = await app.database.qb.sync
           .selectFrom("rpc_request_results")
           .select(["request_hash", "result"])
           .where("request_hash", "in", requestHashes)
@@ -1081,12 +1087,12 @@ export const createSyncStore = ({
   },
   pruneRpcRequestResults: async ({ blocks, chainId }) => {
     if (blocks.length === 0) return;
-    return database.wrap(
+    return app.database.wrap(
       { method: "pruneRpcRequestResults", includeTraceLogs: true },
       async () => {
         const numbers = blocks.map(({ number }) => String(hexToNumber(number)));
 
-        await database.qb.sync
+        await app.database.qb.sync
           .deleteFrom("rpc_request_results")
           .where("chain_id", "=", String(chainId))
           .where("block_number", "in", numbers)
@@ -1095,8 +1101,8 @@ export const createSyncStore = ({
     );
   },
   pruneByChain: async ({ chainId }) =>
-    database.wrap({ method: "pruneByChain", includeTraceLogs: true }, () =>
-      database.qb.sync.transaction().execute(async (tx) => {
+    app.database.wrap({ method: "pruneByChain", includeTraceLogs: true }, () =>
+      app.database.qb.sync.transaction().execute(async (tx) => {
         await tx
           .deleteFrom("logs")
           .where("chain_id", "=", String(chainId))

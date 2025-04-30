@@ -1,10 +1,11 @@
 import type {
-  Chain,
   PerChainPonderApp,
   PonderApp,
   SetupEvent,
 } from "@/internal/types.js";
 import type { Event } from "@/internal/types.js";
+import { createSyncStore } from "@/sync-store/index.js";
+import { findChain } from "@/sync/index.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
@@ -54,7 +55,7 @@ import {
 } from "./profile.js";
 
 export type CachedViemClient = {
-  getClient: (chain: Chain) => ReadonlyClient;
+  getClient: (perChainApp: PerChainPonderApp) => ReadonlyClient;
   prefetch: (params: {
     events: Event[];
   }) => Promise<void>;
@@ -364,6 +365,7 @@ export const createCachedViemClient = (
   app: PonderApp,
   { eventCount }: { eventCount: { [eventName: string]: number } },
 ): CachedViemClient => {
+  const syncStore = createSyncStore(app);
   let event: Event | SetupEvent = undefined!;
   const cache: Cache = new Map();
   const profile: Profile = new Map();
@@ -580,12 +582,10 @@ export const createCachedViemClient = (
   };
 
   return {
-    getClient(chain) {
-      const indexingBuild = app.indexingBuild.find((b) => b.chain === chain)!;
-
+    getClient(perChainApp) {
       return createClient({
-        transport: cachedTransport({ ...app, indexingBuild }, { cache }),
-        chain: chain.chain,
+        transport: cachedTransport(perChainApp, { cache }),
+        chain: perChainApp.indexingBuild.chain.chain,
         // @ts-expect-error overriding `readContract` is not supported by viem
       }).extend(ponderActions);
     },
@@ -630,9 +630,7 @@ export const createCachedViemClient = (
 
       await Promise.all(
         Array.from(chainRequests.entries()).map(async ([chainId, requests]) => {
-          const indexingBuild = app.indexingBuild.find(
-            (b) => b.chain.chain.id === chainId,
-          )!;
+          const chain = findChain(app, chainId);
 
           const dbRequests = requests.filter(
             ({ ev }) => ev > DB_PREDICTION_THRESHOLD,
@@ -640,7 +638,7 @@ export const createCachedViemClient = (
 
           app.common.metrics.ponder_indexing_rpc_prefetch_total.inc(
             {
-              chain: indexingBuild.chain.chain.name,
+              chain: chain.chain.name,
               method: "eth_call",
               type: "database",
             },
@@ -661,13 +659,13 @@ export const createCachedViemClient = (
                 .get(chainId)!
                 .set(getCacheKey(request.request), cachedResult);
             } else if (request.ev > RPC_PREDICTION_THRESHOLD) {
-              const resultPromise = indexingBuild.rpc
+              const resultPromise = chain.rpc
                 .request(request.request as EIP1193Parameters<PublicRpcSchema>)
                 .then((result) => JSON.stringify(result))
                 .catch((error) => error as Error);
 
               app.common.metrics.ponder_indexing_rpc_prefetch_total.inc({
-                chain: indexingBuild.chain.chain.name,
+                chain: chain.chain.name,
                 method: "eth_call",
                 type: "rpc",
               });
@@ -699,9 +697,12 @@ export const createCachedViemClient = (
   };
 };
 
-export const cachedTransport =
-  (app: PerChainPonderApp, { cache }: { cache: Cache }): Transport =>
-  ({ chain: _chain }) =>
+export const cachedTransport = (
+  app: PerChainPonderApp,
+  { cache }: { cache: Cache },
+): Transport => {
+  const syncStore = createSyncStore(app);
+  return ({ chain: _chain }) =>
     custom({
       async request({ method, params }) {
         const body = { method, params };
@@ -820,7 +821,7 @@ export const cachedTransport =
               (request) => results.has(request) === false,
             );
 
-            const multicallResult = await app.indexingBuild.rpc
+            const multicallResult = await app.indexingBuild.chain.rpc
               .request({
                 method: "eth_call",
                 params: [
@@ -1017,7 +1018,7 @@ export const cachedTransport =
             type: "rpc",
           });
 
-          const response = await app.indexingBuild.rpc.request(body);
+          const response = await app.indexingBuild.chain.rpc.request(body);
 
           // Note: "0x" is a valid response for some requests, but is sometimes erroneously returned by the RPC.
           // Because the frequency of these valid requests with no return data is very low, we don't cache it.
@@ -1039,7 +1040,8 @@ export const cachedTransport =
           }
           return response;
         } else {
-          return app.indexingBuild.rpc.request(body);
+          return app.indexingBuild.chain.rpc.request(body);
         }
       },
     })({ chain: _chain, retryCount: 0 });
+};

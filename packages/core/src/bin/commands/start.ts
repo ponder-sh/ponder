@@ -41,7 +41,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   const shutdown = createShutdown();
   const telemetry = createTelemetry({ options, logger, shutdown });
   const common = { options, logger, metrics, telemetry, shutdown };
-  const exit = createExit({ common });
+  const exit = createExit(common);
 
   if (options.version) {
     metrics.ponder_version_info.set(
@@ -55,12 +55,12 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     );
   }
 
-  const build = await createBuild({ common, cliOptions });
+  const build = await createBuild(common);
 
   // biome-ignore lint/style/useConst: <explanation>
   let database: Database | undefined;
 
-  const namespaceResult = build.namespaceCompile();
+  const namespaceResult = build.namespaceCompile({ cliOptions });
   if (namespaceResult.status === "error") {
     await exit({ reason: "Failed to initialize namespace", code: 1 });
     return;
@@ -98,7 +98,6 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
 
   const indexingBuildResult = await build.compileIndexing({
     configResult: configResult.result,
-    schemaResult: schemaResult.result,
     indexingResult: indexingResult.result,
   });
 
@@ -107,15 +106,18 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  database = await createDatabase({
-    common,
+  const buildId = build.compileBuildId({
+    configResult: configResult.result,
+    schemaResult: schemaResult.result,
+    indexingResult: indexingResult.result,
+  });
+
+  database = await createDatabase(common, {
     namespace: namespaceResult.result,
     preBuild,
     schemaBuild,
   });
-  const crashRecoveryCheckpoint = await database.migrate(
-    indexingBuildResult.result,
-  );
+  const crashRecoveryCheckpoint = await database.migrate({ buildId });
 
   const apiResult = await build.executeApi({
     indexingBuild: indexingBuildResult.result,
@@ -165,13 +167,13 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     schemaBuild,
     indexingBuild: indexingBuildResult.result,
     apiBuild: apiBuildResult.result,
-    onFatalError: () => {
-      exit({ reason: "Received fatal error", code: 1 });
-    },
   } satisfies PonderApp;
 
   run(app, {
     crashRecoveryCheckpoint,
+    onFatalError: () => {
+      exit({ reason: "Received fatal error", code: 1 });
+    },
     onReloadableError: () => {
       exit({ reason: "Encountered indexing error", code: 1 });
     },

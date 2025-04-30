@@ -6,11 +6,7 @@ import { ShutdownError } from "@/internal/errors.js";
 const SHUTDOWN_GRACE_PERIOD_MS = 5_000;
 
 /** Sets up shutdown handlers for the process. Accepts additional cleanup logic to run. */
-export const createExit = ({
-  common,
-}: {
-  common: Pick<Common, "logger" | "telemetry" | "shutdown">;
-}) => {
+export const createExit = (common: Common) => {
   let isShuttingDown = false;
 
   const exit = async ({ reason, code }: { reason: string; code: 0 | 1 }) => {
