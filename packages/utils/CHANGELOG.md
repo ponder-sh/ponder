@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.2.5
+
+### Patch Changes
+
+- [#1710](https://github.com/ponder-sh/ponder/pull/1710) [`e9b0fb99772baff7d3008a9dd1c8383e6182df59`](https://github.com/ponder-sh/ponder/commit/e9b0fb99772baff7d3008a9dd1c8383e6182df59) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated eth_getLogs retry helper to support swell chain.
+
 ## 0.2.4
 
 ### Patch Changes
