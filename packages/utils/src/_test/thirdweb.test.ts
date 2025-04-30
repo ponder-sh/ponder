@@ -1,4 +1,4 @@
-import { MethodNotFoundRpcError, numberToHex } from "viem";
+import { LimitExceededRpcError, numberToHex } from "viem";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { type Params, UNI, WETH, fromBlock, getRequest } from "./utils.js";
@@ -35,7 +35,7 @@ test("thirdweb response size", async () => {
     params,
   }).catch((error) => error);
 
-  expect(error).toBeInstanceOf(MethodNotFoundRpcError);
+  expect(error).toBeInstanceOf(LimitExceededRpcError);
   expect(JSON.stringify(error)).includes(
     "Maximum allowed number of requested blocks is 1000",
   );

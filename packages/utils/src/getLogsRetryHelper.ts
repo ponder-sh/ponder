@@ -22,10 +22,10 @@ export type GetLogsRetryHelperParameters = {
 export type GetLogsRetryHelperReturnType =
   | {
       shouldRetry: true;
-      /** Suggested values to use for (fromBlock, toBlock) in follow-up eth_getLogs requests. */
-      ranges: { fromBlock: Hex; toBlock: Hex }[];
       /** `true` if the error message suggested to use this range on retry. */
       isSuggestedRange: boolean;
+      /** Suggested values to use for (fromBlock, toBlock) in follow-up eth_getLogs requests. */
+      ranges: { fromBlock: Hex; toBlock: Hex }[];
     }
   | {
       shouldRetry: false;
@@ -149,8 +149,8 @@ export const getLogsRetryHelper = ({
 
     return {
       shouldRetry: true,
-      ranges,
       isSuggestedRange: true,
+      ranges,
     } as const;
   }
 
@@ -215,7 +215,7 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
-  // llamarpc
+  // llamarpc, ankr
   match = sError.match(/query exceeds max results/);
   if (match !== null) {
     const ranges = chunk({
@@ -294,6 +294,27 @@ export const getLogsRetryHelper = ({
       shouldRetry: true,
       ranges,
       isSuggestedRange: true,
+    } as const;
+  }
+
+  // base
+  match = sError.match(/no backend is currently healthy to serve traffic/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range:
+        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
+        2n,
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      isSuggestedRange: false,
+      ranges,
     } as const;
   }
 
@@ -399,6 +420,25 @@ export const getLogsRetryHelper = ({
 
   // hyperliquid
   match = sError.match(/query exceeds max block range ([\d,.]+)/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range: BigInt(match[1]!.replace(/[,.]/g, "")),
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+      isSuggestedRange: true,
+    } as const;
+  }
+
+  // swell
+  match = sError.match(/block range greater than ([\d,.]+) max/);
   if (match !== null) {
     const ranges = chunk({
       params,
