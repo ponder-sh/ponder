@@ -259,13 +259,18 @@ export async function run({
                 for (const network of indexingBuild.networks) {
                   common.metrics.ponder_historical_completed_indexing_seconds.set(
                     { network: network.name },
-                    Math.max(
-                      Number(checkpoint.blockTimestamp) -
-                        sync.seconds[network.name]!.start -
-                        sync.seconds[network.name]!.cached,
-                      sync.seconds[network.name]!.end -
-                        sync.seconds[network.name]!.start,
-                      0,
+                    Math.min(
+                      Math.max(
+                        Number(checkpoint.blockTimestamp) -
+                          sync.seconds[network.name]!.start -
+                          sync.seconds[network.name]!.cached,
+                        0,
+                      ),
+                      Math.max(
+                        sync.seconds[network.name]!.end -
+                          sync.seconds[network.name]!.start,
+                        0,
+                      ),
                     ),
                   );
                   common.metrics.ponder_indexing_timestamp.set(
