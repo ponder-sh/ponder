@@ -9,7 +9,11 @@ There are two ways to write to the database in a Ponder app.
 
 ## Store API
 
-The Store API is a SQL-like query builder optimized for common indexing workloads. During historical indexing, all Store API operations run **in-memory** and rows are flushed to the database periodically.
+The Store API is a SQL-like query builder optimized for common indexing workloads.
+
+<Callout type="info">
+  During historical indexing, Store API operations run **in-memory** and rows are flushed to the database periodically using efficient `COPY` statements.
+</Callout>
 
 The examples below use this `ponder.schema.ts` to demonstrate the core concepts.
 
@@ -55,7 +59,9 @@ const rows = await db.insert(accounts).values([
 ]);
 ```
 
-If you insert a row that violates a not null constraint, the function will throw an error.
+#### Errors
+
+If you insert a row that's missing a required column value (not null constraint violation), `insert` will reject with an error.
 
 ```ts [src/index.ts]
 import { accounts } from "ponder:schema";
@@ -67,22 +73,40 @@ const row = await db.insert(accounts).values({
 // Error: Column "balance" is required but not present in the values object.
 ```
 
+If you insert a duplicate row (unique constraint violation), `insert` will reject with an error.
+
+```ts [src/index.ts]
+import { accounts } from "ponder:schema";
+ 
+const row = await db.insert(accounts).values({
+  address: "0x7Df1",
+});
+
+// Error: Column "balance" is required but not present in the values object.
+```
+
+Use [conflict resolution](#conflict-resolution) to ignore unique constraint violations with `onConflictDoNothing` or achieve upsert behavior with `onConflictDoUpdate`.
+
 ### Find
 
 Find a single row by primary key. Returns the row, or `null` if not found.
 
-The second argument is an object including all the primary key values.
+The second argument is an object that specifies the primary key value to search for.
 
 ```ts [src/index.ts]
 import { accounts } from "ponder:schema";
 
-// Find by single-column primary key
 const row = await db.find(accounts, { address: "0x7Df1" });
+```
 
-// Find by composite primary key
-const allowance = await db.find(allowances, { 
-  owner: "0x7Df1", 
-  spender: "0x7Df2" 
+If the table has a composite primary key, the object must include a value for each column in the primary key.
+
+```ts [src/index.ts]
+import { allowances } from "ponder:schema";
+
+const row = await db.find(allowances, {
+  owner: "0x7Df1",
+  spender: "0x7Df2"
 });
 ```
 
@@ -93,20 +117,50 @@ Update a row by primary key. Returns the updated row.
 ```ts [src/index.ts]
 import { accounts } from "ponder:schema";
 
-// Update with static value
 const row = await db
   .update(accounts, { address: "0x7Df1" })
   .set({ balance: 100n });
+```
 
-// Update using existing value
+You can also pass a function to `set`, which receives the existing row and returns the update object.
+
+```ts [src/index.ts]
+import { accounts } from "ponder:schema";
+
 const row = await db
   .update(accounts, { address: "0x7Df1" })
-  .set((row) => ({ balance: row.balance + 100n }));
+  .set((row) => ({ balance: row.balance + 100n })); // [!code focus]
+```
+
+#### Errors
+
+If the target row is not found, `update` will reject with an error.
+
+```ts [src/index.ts]
+import { tokens } from "ponder:schema";
+
+const row = await db
+  .update(accounts, { address: "0xa4F0" })
+  .set({ balance: 200n });
+
+// Error: No row found for address "0xa4F0".
+```
+
+If the new row violates a not null constraint, `update` will reject with an error.
+
+```ts [src/index.ts]
+import { tokens } from "ponder:schema";
+
+const row = await db
+  .update(accounts, { address: "0x7Df1" })
+  .set({ balance: null });
+
+// Error: Column "balance" is required but not present in the object.
 ```
 
 ### Delete
 
-Delete a row by primary key. Returns `true` if deleted, `false` if not found.
+Delete a row by primary key. Returns `true` if the row was deleted, or `false` if not found.
 
 ```ts [src/index.ts]
 import { accounts } from "ponder:schema";
@@ -116,29 +170,48 @@ const deleted = await db.delete(accounts, { address: "0x7Df1" });
 
 ### Conflict resolution
 
-Handle duplicate primary keys with `onConflictDoNothing` or `onConflictDoUpdate`.
+The `insert` method supports conflict resolution. 
+
+#### `onConflictDoNothing`
+
+Use `onConflictDoNothing` to skip the insert if the specified row already exists. This avoids unique constraint violation errors.
 
 ```ts [src/index.ts]
 import { accounts } from "ponder:schema";
 
-// Skip if row exists
 const row = await db
   .insert(accounts)
   .values({ address: "0x7Df1", balance: 0n })
-  .onConflictDoNothing();
-
-// Update if row exists
-const row = await db
-  .insert(accounts)
-  .values({ address: "0x7Df1", balance: 0n })
-  .onConflictDoUpdate((row) => ({ 
-    balance: row.balance + 100n 
-  }));
+  .onConflictDoNothing(); // [!code focus]
 ```
 
-<Callout type="info">
-  The store API runs in-memory during historical indexing for performance. It periodically flushes to the database using efficient `COPY` statements.
-</Callout>
+#### `onConflictDoUpdate`
+
+Use `onConflictDoUpdate` to achieve "upsert" behavior.
+
+If the row does not exist, it will be inserted using the specified `values`. Otherwise, the existing row will be updated with the values passed to `onConflictDoUpdate`.
+
+```ts [src/index.ts]
+import { accounts } from "ponder:schema";
+
+const row = await db
+  .insert(accounts)
+  .values({ address: "0x7Df1", balance: 0n })
+  .onConflictDoUpdate({ value: 200n }); // [!code focus]
+```
+
+Just like with `update`, you can pass a function to `onConflictDoUpdate` that receives the existing row and returns the update object.
+
+```ts [src/index.ts]
+import { accounts } from "ponder:schema";
+
+const row = await db
+  .insert(accounts)
+  .values({ address: "0x7Df1", balance: 0n })
+  .onConflictDoUpdate((row) => ({ // [!code focus]
+    balance: row.balance + 50n // [!code focus]
+  })); // [!code focus]
+```
 
 ## Raw SQL
 

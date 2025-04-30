@@ -8,7 +8,7 @@ The purpose of indexing functions is to transform onchain data and insert it int
 
 ## Register an indexing function
 
-To register an indexing function, use `ponder.on(...)`. The first argument is the event name as configured in `ponder.config.ts`, and the second argument is the function / callback that the indexing engine calls to process the event.
+To register an indexing function, use `ponder.on(...)`. The first argument is the event name, and the second argument is the function / callback that the indexing engine runs to process the event.
 
 ```ts [src/index.ts]
 import { ponder } from "ponder:registry"; // [!code focus]
@@ -32,7 +32,7 @@ Read more about how to [write to the database](/docs/indexing/write) and [read c
 
 ### Ordering
 
-For each chain, the indexing engine calls indexing functions according to EVM execution order (block number, transaction index, log index). The ordering guarantee across multiple chains is more complex. [Read more](/docs/api-reference/ponder/config#event-ordering).
+For each chain, the indexing engine calls indexing functions according to EVM execution order (block number, transaction index, log index). [Read more](/docs/api-reference/ponder/config#event-ordering) about the ordering guarantee across multiple chains, which is more complex. 
 
 ### Reorgs
 
