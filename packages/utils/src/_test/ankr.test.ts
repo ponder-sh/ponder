@@ -3,7 +3,7 @@ import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { type Params, UNI, fromBlock, getRequest } from "./utils.js";
 
-const request = getRequest("https://rpc.ankr.com/eth");
+const request = getRequest(process.env.RPC_URL_ANKR_1!);
 const maxBlockRange = 3000n;
 
 test("ankr success", async () => {
@@ -21,7 +21,7 @@ test("ankr success", async () => {
   expect(logs).toHaveLength(13);
 });
 
-test("ankr block range", async () => {
+test("ankr response size", async () => {
   const params: Params = [
     {
       fromBlock: numberToHex(fromBlock),
@@ -35,24 +35,17 @@ test("ankr block range", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(RpcError);
-  expect(JSON.stringify(error)).includes("block range is too wide");
+  expect(JSON.stringify(error)).includes("query exceeds max results");
 
   const retry = getLogsRetryHelper({
     params,
     error: error,
   });
 
-  expect(retry).toStrictEqual({
-    shouldRetry: true,
-    ranges: [
-      {
-        fromBlock: numberToHex(fromBlock),
-        toBlock: numberToHex(fromBlock + maxBlockRange),
-      },
-      {
-        fromBlock: numberToHex(fromBlock + maxBlockRange + 1n),
-        toBlock: numberToHex(fromBlock + maxBlockRange + 1n),
-      },
-    ],
+  expect(retry.shouldRetry).toBe(true);
+  expect(retry.ranges).toHaveLength(2);
+  expect(retry.ranges![0]).toStrictEqual({
+    fromBlock: numberToHex(fromBlock),
+    toBlock: numberToHex(fromBlock + maxBlockRange / 2n),
   });
 });

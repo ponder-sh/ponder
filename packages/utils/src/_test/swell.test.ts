@@ -1,27 +1,28 @@
-import { HttpRequestError, numberToHex } from "viem";
+import { numberToHex } from "viem";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
-import { type Params, UNI, fromBlock, getRequest } from "./utils.js";
+import { type Params, getRequest } from "./utils.js";
 
-const request = getRequest(process.env.RPC_URL_QUICKNODE_1!);
-const maxBlockRange = 10000n;
+const request = getRequest("https://swell-mainnet.alt.technology");
+const fromBlock = 6002000n;
+const maxBlockRange = 1000n;
 
-test("quicknode success", async () => {
+test("swell success", async () => {
   const logs = await request({
     method: "eth_getLogs",
     params: [
       {
-        address: UNI,
+        // address: "0x259813b665c8f6074391028ef782e27b65840d89",
         fromBlock: numberToHex(fromBlock),
         toBlock: numberToHex(fromBlock + maxBlockRange),
       },
     ],
   });
 
-  expect(logs).toHaveLength(49);
+  expect(logs).toHaveLength(58);
 });
 
-test("quicknode block range", async () => {
+test("swell block range", async () => {
   const params: Params = [
     {
       fromBlock: numberToHex(fromBlock),
@@ -34,14 +35,11 @@ test("quicknode block range", async () => {
     params,
   }).catch((error) => error);
 
-  expect(error).toBeInstanceOf(HttpRequestError);
-  expect(JSON.stringify(error)).includes(
-    "eth_getLogs is limited to a 10,000 range",
-  );
+  expect(JSON.stringify(error)).includes("block range greater than 1000 max");
 
   const retry = getLogsRetryHelper({
     params,
-    error: error,
+    error,
   });
 
   expect(retry).toStrictEqual({
