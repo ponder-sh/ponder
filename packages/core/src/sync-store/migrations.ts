@@ -1278,8 +1278,8 @@ GROUP BY fragment_id, chain_id
   "2025_02_19_0_primary_key": {
     async up(db) {
       // 1. drop unused indexes
-      // 2. drop primary key
-      // 3. update column types
+      // 2. update column types
+      // 3. drop primary key
       // 4. drop unused columns
       // 5. rename tables and columns
       // 6. create new primary key
@@ -1330,24 +1330,6 @@ GROUP BY fragment_id, chain_id
         `${new Date().toISOString()} [ponder_sync migration] dropped indexes`,
       );
 
-      await db.schema.alterTable("logs").dropConstraint("logs_pkey").execute();
-      await db.schema
-        .alterTable("blocks")
-        .dropConstraint("blocks_pkey")
-        .execute();
-      await db.schema
-        .alterTable("transactions")
-        .dropConstraint("transactions_pkey")
-        .execute();
-      await db.schema
-        .alterTable("transactionReceipts")
-        .dropConstraint("transactionReceipts_pkey")
-        .execute();
-      await db.schema
-        .alterTable("traces")
-        .dropConstraint("traces_pkey")
-        .execute();
-
       await db.schema
         .alterTable("logs")
         .alterColumn("blockNumber", (qb) => qb.setDataType("bigint"))
@@ -1397,11 +1379,30 @@ GROUP BY fragment_id, chain_id
         .alterColumn("chain_id", (qb) => qb.setDataType("bigint"))
         .execute();
 
+      await db.deleteFrom("logs").where("checkpoint", "=", null).execute();
+
       console.log(
         `${new Date().toISOString()} [ponder_sync migration] updated column types`,
       );
 
-      await db.deleteFrom("logs").where("checkpoint", "=", null).execute();
+      await db.schema.alterTable("logs").dropConstraint("logs_pkey").execute();
+      await db.schema
+        .alterTable("blocks")
+        .dropConstraint("blocks_pkey")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .dropConstraint("transactions_pkey")
+        .execute();
+      await db.schema
+        .alterTable("transactionReceipts")
+        .dropConstraint("transactionReceipts_pkey")
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .dropConstraint("traces_pkey")
+        .execute();
+
       await db.schema.alterTable("logs").dropColumn("checkpoint").execute();
       await db.schema.alterTable("logs").dropColumn("id").execute();
       await db.schema.alterTable("blocks").dropColumn("checkpoint").execute();
@@ -1725,15 +1726,15 @@ GROUP BY fragment_id, chain_id
 
       await db.schema
         .alterTable("rpc_request_results")
-        .dropConstraint("rpc_request_result_primary_key")
-        .execute();
-      await db.schema
-        .alterTable("rpc_request_results")
         .addColumn("request_hash_temp", "text")
         .execute();
       await db
         .updateTable("rpc_request_results")
         .set({ request_hash_temp: sql`request_hash` })
+        .execute();
+      await db.schema
+        .alterTable("rpc_request_results")
+        .dropConstraint("rpc_request_result_primary_key")
         .execute();
       await db.schema
         .alterTable("rpc_request_results")
