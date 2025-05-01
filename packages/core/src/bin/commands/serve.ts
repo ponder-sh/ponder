@@ -69,9 +69,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const schemaResult = await build.executeSchema({
-    namespace: namespaceResult.result,
-  });
+  const schemaResult = await build.executeSchema();
   if (schemaResult.status === "error") {
     await exit({ reason: "Failed intial build", code: 1 });
     return;

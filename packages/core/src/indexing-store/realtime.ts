@@ -61,6 +61,10 @@ export const createRealtimeIndexingStore = ({
                     return result.length === 1 ? result[0] : null;
                   }
 
+                  if (result.length === 0) {
+                    return new Array(values.length).fill(null);
+                  }
+
                   const rows = [];
                   let resultIndex = 0;
 
@@ -308,6 +312,5 @@ export const createRealtimeIndexingStore = ({
       },
       { schema, casing: "snake_case" },
     ),
-    event: undefined,
   };
 };

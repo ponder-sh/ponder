@@ -8,14 +8,12 @@ import {
   UniqueConstraintError,
   getBaseError,
 } from "@/internal/errors.js";
-import type { Event, Schema } from "@/internal/types.js";
+import type { Schema } from "@/internal/types.js";
 import type { Db } from "@/types/db.js";
 import type { Table } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 
-export type IndexingStore = Db<Schema> & {
-  event: Event | undefined;
-};
+export type IndexingStore = Db<Schema>;
 
 export const parseSqlError = (e: any): Error => {
   let error = getBaseError(e);
@@ -24,7 +22,7 @@ export const parseSqlError = (e: any): Error => {
     error = new NotNullConstraintError(error.message);
   } else if (error?.message?.includes("violates unique constraint")) {
     error = new UniqueConstraintError(error.message);
-  } else if (error?.message.includes("violates check constraint")) {
+  } else if (error?.message?.includes("violates check constraint")) {
     error = new CheckConstraintError(error.message);
   } else if (
     error?.message?.includes("Do not know how to serialize a BigInt")

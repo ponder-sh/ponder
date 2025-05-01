@@ -18,6 +18,10 @@ export default schema;
 
 const apiModule = () => `import { createPublicClient } from "viem";
 
+if (globalThis.PONDER_INDEXING_BUILD === undefined || globalThis.PONDER_DATABASE === undefined) {
+  throw new Error('Invalid dependency graph. Config, schema, and indexing function files cannot import objects from the API function file "src/api/index.ts".')
+}
+
 const publicClients = {};
 
 for (const network of globalThis.PONDER_INDEXING_BUILD.networks) {

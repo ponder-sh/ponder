@@ -1010,7 +1010,9 @@ export const getPerChainOnRealtimeSyncEvent = ({
 
         for (const block of finalizedBlocks) {
           for (const [factory, addresses] of block.childAddresses) {
-            childAddresses.set(factory, new Map());
+            if (childAddresses.has(factory) === false) {
+              childAddresses.set(factory, new Map());
+            }
             for (const address of addresses) {
               if (childAddresses.get(factory)!.has(address) === false) {
                 childAddresses

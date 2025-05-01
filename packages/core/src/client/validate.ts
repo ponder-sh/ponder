@@ -12,10 +12,23 @@ const getNodeType = (node: Node) => Object.keys(node)[0]!;
 
 const ALLOW_CACHE = new Map<string, boolean>();
 
-export const validateQuery = async (sql: string) => {
+/**
+ * Validate a SQL query.
+ *
+ * @param sql - SQL query
+ * @param shouldValidateInnerNode - `true` if the properties of each ast node should be validated, else only the allow list is checked
+ */
+export const validateQuery = async (
+  sql: string,
+  shouldValidateInnerNode = true,
+) => {
   // @ts-ignore
   const Parser = await import(/* webpackIgnore: true */ "pg-query-emscripten");
   const crypto = await import(/* webpackIgnore: true */ "node:crypto");
+
+  if (sql.length > 5_000) {
+    throw new Error("Invalid query");
+  }
 
   const hash = crypto
     .createHash("sha256")
@@ -23,16 +36,18 @@ export const validateQuery = async (sql: string) => {
     .digest("hex")
     .slice(0, 10);
 
-  if (ALLOW_CACHE.has(hash)) {
-    const result = ALLOW_CACHE.get(hash)!;
+  if (shouldValidateInnerNode) {
+    if (ALLOW_CACHE.has(hash)) {
+      const result = ALLOW_CACHE.get(hash)!;
 
-    ALLOW_CACHE.delete(hash);
-    ALLOW_CACHE.set(hash, result);
+      ALLOW_CACHE.delete(hash);
+      ALLOW_CACHE.set(hash, result);
 
-    if (result) return;
-    throw new Error("Invalid query");
-  } else {
-    ALLOW_CACHE.set(hash, false);
+      if (result) return;
+      throw new Error("Invalid query");
+    } else {
+      ALLOW_CACHE.set(hash, false);
+    }
   }
 
   const { parse } = await Parser.default();
@@ -64,8 +79,10 @@ export const validateQuery = async (sql: string) => {
       throw new Error(`${getNodeType(node)} not supported`);
     }
 
-    // @ts-ignore
-    ALLOW_LIST.get(getNodeType(node))!.validate?.(node[getNodeType(node)]);
+    if (shouldValidateInnerNode) {
+      // @ts-ignore
+      ALLOW_LIST.get(getNodeType(node))!.validate?.(node[getNodeType(node)]);
+    }
 
     for (const child of ALLOW_LIST.get(getNodeType(node))!.children(
       // @ts-ignore
@@ -77,10 +94,12 @@ export const validateQuery = async (sql: string) => {
 
   validate(stmt.stmt);
 
-  ALLOW_CACHE.set(hash, true);
-  if (ALLOW_CACHE.size > 1_000_000) {
-    const firstKey = ALLOW_CACHE.keys().next().value;
-    if (firstKey) ALLOW_CACHE.delete(firstKey);
+  if (shouldValidateInnerNode) {
+    ALLOW_CACHE.set(hash, true);
+    if (ALLOW_CACHE.size > 1_000_000) {
+      const firstKey = ALLOW_CACHE.keys().next().value;
+      if (firstKey) ALLOW_CACHE.delete(firstKey);
+    }
   }
 };
 
@@ -524,6 +543,7 @@ const ALLOWED_FUNCTIONS = new Set([
   "json_array",
   "json_object_agg",
   "json_array_agg",
+  "json_build_array",
 ]);
 
 const FUNC_CALL_VALIDATOR: ValidatorNode<"FuncCall"> = {

@@ -1001,15 +1001,13 @@ test("handleReorg() throws error for deep reorg", async (context) => {
     blockNumber: 0,
   });
 
-  const spy = vi.fn();
-
   const realtimeSync = createRealtimeSync({
     common,
     network,
     requestQueue,
     sources,
     onEvent: vi.fn(),
-    onFatalError: spy,
+    onFatalError: vi.fn(),
   });
 
   await testClient.mine({ blocks: 3 });
@@ -1034,6 +1032,6 @@ test("handleReorg() throws error for deep reorg", async (context) => {
     },
   });
 
-  expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
-  expect(spy).toHaveBeenCalledWith(expect.any(Error));
+  // block 4 is not added to `unfinalizedBlocks`
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(3);
 });

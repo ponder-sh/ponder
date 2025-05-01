@@ -1,5 +1,41 @@
 # @ponder/client
 
+## 0.10.22
+
+## 0.10.21
+
+## 0.10.20
+
+## 0.10.19
+
+## 0.10.18
+
+## 0.10.17
+
+## 0.10.16
+
+## 0.10.15
+
+## 0.10.14
+
+## 0.10.13
+
+## 0.10.12
+
+## 0.10.11
+
+### Patch Changes
+
+- [#1653](https://github.com/ponder-sh/ponder/pull/1653) [`4447771a45dc81887586845801becf83cfdb6387`](https://github.com/ponder-sh/ponder/commit/4447771a45dc81887586845801becf83cfdb6387) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated drizzle-orm from v0.39.3 to v0.41.0.
+
+## 0.10.10
+
+## 0.10.9
+
+## 0.10.8
+
+## 0.10.7
+
 ## 0.10.6
 
 ## 0.10.5

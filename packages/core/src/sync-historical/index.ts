@@ -471,16 +471,34 @@ export const createHistoricalSync = async (
   ////////
 
   const syncLogFilter = async (filter: LogFilter, interval: Interval) => {
-    // Resolve `filter.address`
-    const address = isAddressFactory(filter.address)
-      ? await syncAddressFactory(filter.address, interval).then((result) =>
-          result.size >= args.common.options.factoryAddressCountThreshold
+    let logs: SyncLog[];
+    if (isAddressFactory(filter.address)) {
+      const childAddresses = await syncAddressFactory(filter.address, interval);
+      logs = await syncLogsDynamic({
+        filter,
+        interval,
+        address:
+          childAddresses.size >=
+          args.common.options.factoryAddressCountThreshold
             ? undefined
-            : Array.from(result.keys()),
-        )
-      : filter.address;
+            : Array.from(childAddresses.keys()),
+      });
 
-    const logs = await syncLogsDynamic({ filter, interval, address });
+      logs = logs.filter((log) =>
+        isAddressMatched({
+          address: log.address,
+          blockNumber: hexToNumber(log.blockNumber),
+          childAddresses,
+        }),
+      );
+    } else {
+      logs = await syncLogsDynamic({
+        filter,
+        interval,
+        address: filter.address,
+      });
+    }
+
     await args.syncStore.insertLogs({ logs, chainId: args.network.chainId });
 
     const blocks = await Promise.all(

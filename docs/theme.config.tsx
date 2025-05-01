@@ -24,7 +24,7 @@ const config: DocsThemeConfig = {
     ),
   },
   chat: {
-    link: "https://t.me/ponder_sh",
+    link: "https://t.me/pondersh",
     icon: (
       <>
         <TelegramIcon className="text-neutral-800 dark:text-neutral-200 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors" />

@@ -598,9 +598,7 @@ export const createDatabase = async ({
     },
     async transaction(fn) {
       if (dialect === "postgres") {
-        const client = await (
-          database.driver as { internal: Pool }
-        ).internal.connect();
+        const client = await (database.driver as { user: Pool }).user.connect();
         try {
           await client.query("BEGIN");
           const tx = drizzleNodePg(client, {
@@ -1184,7 +1182,12 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
     },
     async createIndexes() {
       for (const statement of schemaBuild.statements.indexes.sql) {
-        await qb.drizzle.execute(statement);
+        await this.wrap({ method: "createIndexes" }, async () => {
+          await qb.drizzle.transaction(async (tx) => {
+            await tx.execute("SET statement_timeout = 3600000;"); // 60 minutes
+            await tx.execute(statement);
+          });
+        });
       }
     },
     async createTriggers() {

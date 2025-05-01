@@ -66,7 +66,7 @@ A generic type that optionally accepts an event name and returns the `context` o
 import { ponder, type Context } from "ponder:registry";
 
 function helper(context: Context<"Weth:Deposit">) {
-  event;
+  context;
   // ^? {
   //      network: { name: "mainnet"; chainId: 1; };
   //      client: ReadonlyClient;

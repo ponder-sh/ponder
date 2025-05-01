@@ -1,9 +1,10 @@
-import { InvalidParamsRpcError, numberToHex } from "viem";
+import { LimitExceededRpcError, numberToHex } from "viem";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { type Params, UNI, WETH, fromBlock, getRequest } from "./utils.js";
 
 const request = getRequest("https://1.rpc.thirdweb.com");
+const maxBlockRange = 1_000n;
 
 test("thirdweb success", async () => {
   const logs = await request({
@@ -12,12 +13,12 @@ test("thirdweb success", async () => {
       {
         address: UNI,
         fromBlock: numberToHex(fromBlock),
-        toBlock: numberToHex(fromBlock + 2_000n),
+        toBlock: numberToHex(fromBlock + maxBlockRange),
       },
     ],
   });
 
-  expect(logs).toHaveLength(11);
+  expect(logs).toHaveLength(9);
 });
 
 test("thirdweb response size", async () => {
@@ -25,7 +26,7 @@ test("thirdweb response size", async () => {
     {
       address: WETH,
       fromBlock: numberToHex(fromBlock),
-      toBlock: numberToHex(fromBlock + 2_000n),
+      toBlock: numberToHex(fromBlock + maxBlockRange + 1n),
     },
   ];
 
@@ -34,18 +35,28 @@ test("thirdweb response size", async () => {
     params,
   }).catch((error) => error);
 
-  expect(error).toBeInstanceOf(InvalidParamsRpcError);
-  expect(JSON.stringify(error)).includes("Try with this block range ");
+  expect(error).toBeInstanceOf(LimitExceededRpcError);
+  expect(JSON.stringify(error)).includes(
+    "Maximum allowed number of requested blocks is 1000",
+  );
 
   const retry = getLogsRetryHelper({
     params,
     error,
   });
 
-  expect(retry.shouldRetry).toBe(true);
-  expect(retry.ranges).toHaveLength(8);
-  expect(retry.ranges![0]).toStrictEqual({
-    fromBlock: "0x112a880",
-    toBlock: "0x112a993",
+  expect(retry).toStrictEqual({
+    shouldRetry: true,
+    isSuggestedRange: true,
+    ranges: [
+      {
+        fromBlock: numberToHex(fromBlock),
+        toBlock: numberToHex(fromBlock + maxBlockRange),
+      },
+      {
+        fromBlock: numberToHex(fromBlock + maxBlockRange + 1n),
+        toBlock: numberToHex(fromBlock + maxBlockRange + 1n),
+      },
+    ],
   });
 });

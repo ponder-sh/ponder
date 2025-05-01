@@ -23,7 +23,7 @@ export function Footer() {
 
               <div className="min-h-full w-[1px] bg-neutral-300 dark:bg-neutral-600" />
 
-              <Link href="https://t.me/ponder_sh" target="_blank">
+              <Link href="https://t.me/pondersh" target="_blank">
                 <TelegramIcon className="h-5 transition-colors text-neutral-700 dark:text-neutral-200 hover:text-neutral-900 dark:hover:text-neutral-100" />
                 <span className="_sr-only">Telegram</span>
               </Link>

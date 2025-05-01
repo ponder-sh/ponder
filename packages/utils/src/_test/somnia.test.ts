@@ -1,36 +1,35 @@
-import { InvalidParamsRpcError, numberToHex } from "viem";
+import { RpcRequestError, numberToHex } from "viem";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
-import { type Params, UNI, fromBlock, getRequest } from "./utils.js";
+import { type Params, getRequest } from "./utils.js";
 
-const request = getRequest("https://ethereum.blockpi.network/v1/rpc/public");
-const maxBlockRange = 1024n;
+const request = getRequest("https://dream-rpc.somnia.network");
+const fromBlock = 53_580_000n;
+const maxBlockRange = 1_000n;
 
 test(
-  "blockpi success",
+  "somnia success",
   async () => {
     const logs = await request({
       method: "eth_getLogs",
       params: [
         {
-          address: UNI,
           fromBlock: numberToHex(fromBlock),
           toBlock: numberToHex(fromBlock + maxBlockRange),
         },
       ],
     });
 
-    expect(logs).toHaveLength(9);
+    expect(logs).toHaveLength(5616);
   },
   { timeout: 15_000 },
 );
 
 test(
-  "blockpi block range",
+  "somnia block range",
   async () => {
     const params: Params = [
       {
-        address: UNI,
         fromBlock: numberToHex(fromBlock),
         toBlock: numberToHex(fromBlock + maxBlockRange + 1n),
       },
@@ -41,10 +40,8 @@ test(
       params,
     }).catch((error) => error);
 
-    expect(error).toBeInstanceOf(InvalidParamsRpcError);
-    expect(JSON.stringify(error)).includes(
-      "eth_getLogs is limited to 1024 block range",
-    );
+    expect(error).toBeInstanceOf(RpcRequestError);
+    expect(JSON.stringify(error)).includes("block range exceeds 1000");
 
     const retry = getLogsRetryHelper({
       params,

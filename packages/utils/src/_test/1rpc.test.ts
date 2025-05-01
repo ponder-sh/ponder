@@ -50,6 +50,7 @@ test("1rpc block range", async () => {
 
   expect(retry).toStrictEqual({
     shouldRetry: true,
+    isSuggestedRange: true,
     ranges: [
       {
         fromBlock: numberToHex(fromBlock),

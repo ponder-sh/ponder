@@ -53,14 +53,19 @@ export function createPool(config: PoolConfig, logger: Logger) {
     ): void | Promise<void> {
       if (callback) {
         super.connect(() => {
-          this.query("SET synchronous_commit = off;", callback);
+          this.query(
+            `
+            SET synchronous_commit = off;
+            SET idle_in_transaction_session_timeout = 3600000;`,
+            callback,
+          );
         });
       } else {
-        return super
-          .connect()
-          .then(() =>
-            this.query("SET synchronous_commit = off;").then(() => {}),
-          );
+        return super.connect().then(() =>
+          this.query(`
+            SET synchronous_commit = off;
+            SET idle_in_transaction_session_timeout = 3600000;`).then(() => {}),
+        );
       }
     }
   }

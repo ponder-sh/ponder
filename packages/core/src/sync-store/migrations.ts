@@ -1289,6 +1289,8 @@ GROUP BY fragment_id, chain_id
         `${new Date().toISOString()} [ponder_sync migration] started 2025_02_19_0_primary_key`,
       );
 
+      await db.executeQuery(sql`SET statement_timeout = 3600000;`.compile(db));
+
       await db.schema.dropIndex("logAddressIndex").ifExists().execute();
       await db.schema.dropIndex("logBlockHashIndex").ifExists().execute();
       await db.schema.dropIndex("logBlockNumberIndex").ifExists().execute();
@@ -1665,6 +1667,7 @@ GROUP BY fragment_id, chain_id
       console.log(
         `${new Date().toISOString()} [ponder_sync migration] started 2025_02_26_0_factories`,
       );
+      await db.executeQuery(sql`SET statement_timeout = 3600000;`.compile(db));
 
       // drop any intervals that contain a factory address
       await db
@@ -1718,6 +1721,7 @@ GROUP BY fragment_id, chain_id
       console.log(
         `${new Date().toISOString()} [ponder_sync migration] started 2025_02_26_1_rpc_request_results`,
       );
+      await db.executeQuery(sql`SET statement_timeout = 3600000;`.compile(db));
 
       await db.schema
         .alterTable("rpc_request_results")

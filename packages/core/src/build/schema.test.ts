@@ -220,3 +220,16 @@ test("buildScheama() success with enum", () => {
 
   buildSchema({ schema });
 });
+
+test("buildScheama() duplicate table name", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+    })),
+    account2: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+    })),
+  };
+
+  expect(() => buildSchema({ schema })).toThrowError();
+});

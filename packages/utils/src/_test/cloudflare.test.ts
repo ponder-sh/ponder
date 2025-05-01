@@ -6,7 +6,7 @@ import { type Params, UNI, fromBlock, getRequest } from "./utils.js";
 const request = getRequest("https://cloudflare-eth.com");
 const maxBlockRange = 799n;
 
-test("cloudflare success", async () => {
+test.skip("cloudflare success", async () => {
   const logs = await request({
     method: "eth_getLogs",
     params: [
@@ -44,6 +44,7 @@ test("cloudflare block range", async () => {
 
   expect(retry).toStrictEqual({
     shouldRetry: true,
+    isSuggestedRange: true,
     ranges: [
       {
         fromBlock: numberToHex(fromBlock),
