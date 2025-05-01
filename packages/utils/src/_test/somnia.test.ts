@@ -30,7 +30,6 @@ test(
   async () => {
     const params: Params = [
       {
-        address: "0x4200000000000000000000000000000000000006",
         fromBlock: numberToHex(fromBlock),
         toBlock: numberToHex(fromBlock + maxBlockRange + 1n),
       },
