@@ -60,7 +60,7 @@ export const encodeBlock = ({
   receipts_root: block.receiptsRoot,
   transactions_root: block.transactionsRoot,
   sha3_uncles: block.sha3Uncles ?? null,
-  size: block.size ? hexToBigInt(block.size) : 0n,
+  size: hexToBigInt(block.size),
   difficulty: hexToBigInt(block.difficulty),
   total_difficulty: block.totalDifficulty
     ? hexToBigInt(block.totalDifficulty)
