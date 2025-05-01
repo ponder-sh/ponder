@@ -1472,7 +1472,6 @@ export const getLocalSyncProgress = async ({
     0,
     hexToNumber(diagnostics[1].number) - network.finalityBlockCount,
   );
-  // const finalized = 25095586;
   syncProgress.finalized = await _eth_getBlockByNumber(requestQueue, {
     blockNumber: finalized,
   });
