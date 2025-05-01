@@ -18,7 +18,7 @@ const emptySchemaBuild = {
   },
 };
 
-export async function createView({
+export async function createViews({
   cliOptions,
 }: {
   cliOptions: CliOptions & {
