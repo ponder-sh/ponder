@@ -253,12 +253,14 @@ export const createSyncStore = ({
       },
     ),
   insertChildAddresses: async ({ factory, childAddresses, chainId }) => {
-    if (childAddresses.size === 0) {
-      return;
-    }
+    if (childAddresses.size === 0) return;
     await database.wrap(
       { method: "insertChildAddresses", includeTraceLogs: true },
       async () => {
+        const batchSize = Math.floor(
+          common.options.databaseMaxQueryParameters / 3,
+        );
+
         const values: InsertObject<PonderSyncSchema, "factory_addresses">[] =
           [];
         for (const [address, blockNumber] of childAddresses) {
@@ -270,21 +272,23 @@ export const createSyncStore = ({
           });
         }
 
-        await database.qb.sync
-          .with("factory_insert", (qb) =>
-            qb
-              .insertInto("factories")
-              .values({ factory })
-              .returning("id")
-              .onConflict((oc) =>
-                oc
-                  .column("factory")
-                  .doUpdateSet({ factory: sql`excluded.factory` }),
-              ),
-          )
-          .insertInto("factory_addresses")
-          .values(values)
-          .execute();
+        for (let i = 0; i < values.length; i += batchSize) {
+          await database.qb.sync
+            .with("factory_insert", (qb) =>
+              qb
+                .insertInto("factories")
+                .values({ factory })
+                .returning("id")
+                .onConflict((oc) =>
+                  oc
+                    .column("factory")
+                    .doUpdateSet({ factory: sql`excluded.factory` }),
+                ),
+            )
+            .insertInto("factory_addresses")
+            .values(values.slice(i, i + batchSize))
+            .execute();
+        }
       },
     );
   },
