@@ -37,9 +37,16 @@ export const sidebar = {
     {
       text: "Query",
       items: [
-        { text: "Overview", link: "/docs/query/overview" },
-        { text: "SQL client", link: "/docs/query/sql-client" },
-        { text: "GraphQL", link: "/docs/query/graphql" },
+        // { text: "Overview", link: "/docs/query/overview" },
+        // { text: "SQL client", link: "/docs/query/sql-client" },
+        // { text: "GraphQL", link: "/docs/query/graphql" },
+        {
+          text: "HTTP",
+          items: [
+            { text: "SQL client", link: "/docs/query/http/sql-client" },
+            { text: "GraphQL", link: "/docs/query/http/graphql" },
+          ],
+        },
         { text: "Direct SQL", link: "/docs/query/direct-sql" },
       ],
     },
@@ -51,19 +58,9 @@ export const sidebar = {
       ],
     },
     {
-      text: "Guides",
-      items: [
-        { text: "Factory pattern", link: "/docs/guides/factory" },
-        { text: "Call traces", link: "/docs/guides/traces" },
-        { text: "Transaction receipts", link: "/docs/guides/receipts" },
-        { text: "Time series data", link: "/docs/guides/time-series-data" },
-        { text: "Foundry", link: "/docs/guides/foundry" },
-      ],
-    },
-    {
       text: "Production",
       items: [
-        { text: "Introduction", link: "/docs/production" },
+        { text: "Overview", link: "/docs/production/overview" },
         {
           text: "Deploy",
           items: [
@@ -74,6 +71,16 @@ export const sidebar = {
             },
           ],
         },
+      ],
+    },
+    {
+      text: "Guides",
+      items: [
+        { text: "Factory pattern", link: "/docs/guides/factory" },
+        { text: "Call traces", link: "/docs/guides/traces" },
+        { text: "Transaction receipts", link: "/docs/guides/receipts" },
+        { text: "Time series data", link: "/docs/guides/time-series-data" },
+        { text: "Foundry", link: "/docs/guides/foundry" },
       ],
     },
     {

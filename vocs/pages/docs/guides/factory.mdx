@@ -2,7 +2,7 @@ import { Callout } from "vocs/components";
 
 # Factory pattern [Collect a dynamic list of addresses]
 
-The factory pattern makes it possible to index a dynamic list of contracts by address. You can think of the `factory()` function as returning a list of addresses that updates whenever a log is found that matches the configuration.
+The factory pattern makes it possible to index a dynamic list of contracts. You can think of the `factory()` function as returning a list of addresses that updates whenever a log is found that matches the configuration.
 
 ## Basic usage
 
@@ -33,7 +33,7 @@ export default createConfig({
 });
 ```
 
-The indexing functions you register for a contract (or account) that uses `factory()` receive events for all contracts (or accounts) matched by the factory configuration.
+The indexing functions you register for a contract (or account) that uses `factory()` will process events for _all_ contracts (or accounts) found by the factory configuration.
 
 Visit the [contracts](/docs/config/contracts) and [accounts](/docs/config/accounts) guides to learn more.
 
@@ -41,7 +41,7 @@ Visit the [contracts](/docs/config/contracts) and [accounts](/docs/config/accoun
 
 It's often useful to register an indexing function for the factory event itself, e.g. to run setup logic for each child contract.
 
-To index the factory contract itself, add a new entry to the `contracts` object. This entry works like a normal contract with a single address.
+To index the factory contract itself, add a new entry to `contracts`. This entry should be a normal contract with a single address.
 
 :::code-group
 
@@ -95,9 +95,9 @@ ponder.on("SudoswapPool:Transfer", async ({ event }) => {
 
 ## Multiple factories, same child
 
-Sometimes, multiple factory contracts have the same factory event signature and create the same kind of child contract.
+Sometimes, multiple factory contracts 1) have the same factory event signature and 2) create the same kind of child contract.
 
-In these cases, you can pass a list of factory contract addresses to the `factory()` function, and the list of child addresses will be fetched from all factories and merged into a single list.
+In these cases, you can pass a list of factory contract addresses to the `factory()` function, and the list of child addresses across all factories will be merged into a single list.
 
 ```ts [ponder.config.ts]
 import { createConfig } from "ponder";
@@ -126,7 +126,9 @@ export default createConfig({
 
 ## Usage with non-factory contracts
 
-The factory pattern simply collects a list of addresses from a specific event log emitted by any contract. The contract does not have to be a "factory" in the Solidity/EVM sense (it doesn't need to create other contracts).
+
+
+The factory pattern is simply a primitive that extracts a list of addresses from event logs. The contract does not have to be a "factory" in the EVM/Solidity sense (it doesn't need to create other contracts).
 
 For example, the `ENSRegistry` contract emits the `NewResolver` event whenever a name's resolver gets set or changed. We can use this event with the factory pattern to index all resolvers that have ever been used.
 
@@ -188,6 +190,6 @@ event ChildCreated(ChildContract child);
 
 ### Nested factory patterns
 
-The sync engine doesn't support factory patterns that are nested beyond a single layer.
+Ponder does not support factory patterns that are nested beyond a single layer.
 
 

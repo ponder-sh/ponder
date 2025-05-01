@@ -567,7 +567,7 @@ importers:
     dependencies:
       forge-std:
         specifier: github:foundry-rs/forge-std
-        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/6853b9ec7df5dc0c213b05ae67785ad4f4baa0ea
+        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/77041d2ce690e692d6e03cc812b57d1ddaa4d505
 
   examples/with-foundry/ponder:
     dependencies:
@@ -4495,6 +4495,9 @@ packages:
   '@types/semver@7.5.8':
     resolution: {integrity: sha512-I8EUhyrgfLrcTkzV3TSsGyl1tSuPrEDzr0yd5m90UgNxQkyDXULk3b6MlQqTCpZpNtWe1K0hzclnZkTcLBe2UQ==}
 
+  '@types/trusted-types@2.0.7':
+    resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
+
   '@types/unist@2.0.11':
     resolution: {integrity: sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA==}
 
@@ -5534,8 +5537,8 @@ packages:
     peerDependencies:
       cytoscape: ^3.2.0
 
-  cytoscape@3.28.1:
-    resolution: {integrity: sha512-xyItz4O/4zp9/239wCcH8ZcFuuZooEeF8KHRmzjDfGdXsj3OG9MFSMA0pJE0uX3uCN/ygof6hHf4L7lst+JaDg==}
+  cytoscape@3.31.4:
+    resolution: {integrity: sha512-JfUX/esCfnBGP+uNqRSkAr8jDr1HDSEm6jUNG+BToi43zwLisWrArZjIboB3NfCF5yKu2eG6sbPYaefEEaufyQ==}
     engines: {node: '>=0.10'}
 
   d3-array@2.12.1:
@@ -5673,8 +5676,8 @@ packages:
     resolution: {integrity: sha512-b8AmV3kfQaqWAuacbPuNbL6vahnOJflOhexLzMMNLga62+/nh0JzvJ0aO/5a5MVgUFGS7Hu1P9P03o3fJkDCyw==}
     engines: {node: '>=12'}
 
-  d3@7.8.5:
-    resolution: {integrity: sha512-JgoahDG51ncUfJu6wX/1vWQEqOflgXyl4MaHqlcSruTez7yhaRKR9i8VjjcQGeS2en/jnFivXuaIMnseMMt0XA==}
+  d3@7.9.0:
+    resolution: {integrity: sha512-e1U46jVP+w7Iut8Jt8ri1YsPOvFpg46k+K8TpCb0P+zjCkjkPnV7WzfDJzMHy1LnA+wj5pLT1wjO901gLXeEhA==}
     engines: {node: '>=12'}
 
   dagre-d3-es@7.0.10:
@@ -5697,8 +5700,8 @@ packages:
   dataloader@2.2.2:
     resolution: {integrity: sha512-8YnDaaf7N3k/q5HnTJVuzSyLETjoZjVmHc4AeKAzOvKHEFQKcn64OKBfzHYtE9zGjctNM7V9I0MfnUVLpi7M5g==}
 
-  dayjs@1.11.10:
-    resolution: {integrity: sha512-vjAczensTgRcqDERK0SR2XMwsF/tSvnvlv6VcF2GIhg6Sx4yOIt/irsr1RDJsKiIyBzJDpCoXiWWq28MqH2cnQ==}
+  dayjs@1.11.13:
+    resolution: {integrity: sha512-oaMBel6gjolK862uaPQOVTA7q3TZhuSvuMQAAglQDOWYO9A91IrAOUJEyKVlqJlHE0vq5p5UXxzdPfMH/x6xNg==}
 
   debounce-fn@5.1.2:
     resolution: {integrity: sha512-Sr4SdOZ4vw6eQDvPYNxHogvrxmCIld/VenC5JbNrFwMiwd7lY/Z18ZFfo+EWNG4DD9nFlAujWAo/wGuOPHmy5A==}
@@ -5894,8 +5897,8 @@ packages:
     resolution: {integrity: sha512-cgwlv/1iFQiFnU96XXgROh8xTeetsnJiDsTc7TYCLFd9+/WNkIqPTxiM/8pSd8VIrhXGTf1Ny1q1hquVqDJB5w==}
     engines: {node: '>= 4'}
 
-  dompurify@3.0.6:
-    resolution: {integrity: sha512-ilkD8YEnnGh1zJ240uJsW7AzE+2qpbOUYjacomn3AvJ6J4JhKGSZ2nh4wUIXPZrEPppaCLx5jFe8T89Rk8tQ7w==}
+  dompurify@3.2.5:
+    resolution: {integrity: sha512-mLPd29uoRe9HpvwP2TxClGQBzGXeEC/we/q+bFlmPPmj2p2Ugl3r6ATu/UU1v77DXNcehiBg9zsr1dREyA/dJQ==}
 
   domutils@3.1.0:
     resolution: {integrity: sha512-H78uMmQtI2AhgDJjWeQmHwJJ2bLPD3GMmO7Zja/ZZh84wkm+4ut+IUnUdRa8uCGX88DiVx1j6FRe1XfxEgjEZA==}
@@ -6653,9 +6656,9 @@ packages:
   forever-agent@0.6.1:
     resolution: {integrity: sha512-j0KLYPhm6zeac4lz3oJ3o65qvgQCcPubiyotZrXqEaG4hNagNYO8qdlUrX5vwqv9ohqeT/Z3j6+yW067yWWdUw==}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/6853b9ec7df5dc0c213b05ae67785ad4f4baa0ea:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/6853b9ec7df5dc0c213b05ae67785ad4f4baa0ea}
-    version: 1.9.6
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/77041d2ce690e692d6e03cc812b57d1ddaa4d505:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/77041d2ce690e692d6e03cc812b57d1ddaa4d505}
+    version: 1.9.7
 
   form-data@2.3.3:
     resolution: {integrity: sha512-1lLKB2Mu3aGP1Q/2eCOx0fNbRMe7XdwktwOruhfqqd0rIJWwN4Dh+E3hrPSlDCXnSR7UtZ1N38rVXm+6+MEhJQ==}
@@ -7015,9 +7018,6 @@ packages:
 
   header-case@2.0.4:
     resolution: {integrity: sha512-H/vuk5TEEVZwrR0lp2zed9OCo1uAILMlx0JEMgC26rzyJJ3N1v6XkwHHXJQdR2doSjcGPM6OKPYoJgf0plJ11Q==}
-
-  heap@0.2.7:
-    resolution: {integrity: sha512-2bsegYkkHO+h/9MGbn6KWcE45cHZgPANo5LXF7EvWdT0yT2EguSVO1nDgU5c8+ZOPwp2vMNa7YFsJhVcDR9Sdg==}
 
   hmac-drbg@1.0.1:
     resolution: {integrity: sha512-Tti3gMqLdZfhOQY1Mzf/AanLiqh1WTiJgEj26ZuYQ9fbkLomzGchCws4FyrSd4VkpBfiNhaE1On+lOz894jvXg==}
@@ -9918,8 +9918,8 @@ packages:
       babel-plugin-macros:
         optional: true
 
-  stylis@4.3.1:
-    resolution: {integrity: sha512-EQepAV+wMsIaGVGX1RECzgrcqRRU/0sYOHkeLsZ3fzHaHXZy4DaOOX0vOlGQdlsjkh3mFHAIlVimpwAs4dslyQ==}
+  stylis@4.3.6:
+    resolution: {integrity: sha512-yQ3rwFWRfwNUY7H5vpU0wfdkNSnvnJinhF9830Swlaxl03zsOjCfmX0ugac+3LtK0lYSgwL/KXc8oYL3mG4YFQ==}
 
   sucrase@3.35.0:
     resolution: {integrity: sha512-8EbVDiu9iN/nESwxeSxDKe0dunta1GOlHufmSSXxMD2z2/tMZpDMpvXQGsc+ajGo8y2uYUmixaSRUc/QPoQ0GA==}
@@ -10321,9 +10321,6 @@ packages:
 
   unified@10.1.2:
     resolution: {integrity: sha512-pUSWAi/RAnVy1Pif2kAoeWNBa3JVrx0MId2LASj8G+7AiHWoKZNTomq6LG326T68U7/e263X6fTdcXIy7XnF7Q==}
-
-  unified@11.0.4:
-    resolution: {integrity: sha512-apMPnyLjAX+ty4OrNap7yumyVAMlKx5IWU2wlzzUdYJO9A8f1p9m/gywF/GM2ZDFcjQPrx59Mc90KwmxsoklxQ==}
 
   unified@11.0.5:
     resolution: {integrity: sha512-xKvGhPWw3k84Qjh8bI3ZeJjqnyadK+GEFtazSfZv/rKeTkTjOJho6mFqh2SM96iIcZokxiOpg78GazTSg8+KHA==}
@@ -14431,6 +14428,9 @@ snapshots:
 
   '@types/semver@7.5.8': {}
 
+  '@types/trusted-types@2.0.7':
+    optional: true
+
   '@types/unist@2.0.11': {}
 
   '@types/unist@3.0.3': {}
@@ -15640,20 +15640,17 @@ snapshots:
       csv-stringify: 5.6.5
       stream-transform: 2.1.3
 
-  cytoscape-cose-bilkent@4.1.0(cytoscape@3.28.1):
+  cytoscape-cose-bilkent@4.1.0(cytoscape@3.31.4):
     dependencies:
       cose-base: 1.0.3
-      cytoscape: 3.28.1
+      cytoscape: 3.31.4
 
-  cytoscape-fcose@2.2.0(cytoscape@3.28.1):
+  cytoscape-fcose@2.2.0(cytoscape@3.31.4):
     dependencies:
       cose-base: 2.2.0
-      cytoscape: 3.28.1
+      cytoscape: 3.31.4
 
-  cytoscape@3.28.1:
-    dependencies:
-      heap: 0.2.7
-      lodash: 4.17.21
+  cytoscape@3.31.4: {}
 
   d3-array@2.12.1:
     dependencies:
@@ -15789,7 +15786,7 @@ snapshots:
       d3-selection: 3.0.0
       d3-transition: 3.0.1(d3-selection@3.0.0)
 
-  d3@7.8.5:
+  d3@7.9.0:
     dependencies:
       d3-array: 3.2.4
       d3-axis: 3.0.0
@@ -15824,7 +15821,7 @@ snapshots:
 
   dagre-d3-es@7.0.10:
     dependencies:
-      d3: 7.8.5
+      d3: 7.9.0
       lodash-es: 4.17.21
 
   damerau-levenshtein@1.0.8: {}
@@ -15839,7 +15836,7 @@ snapshots:
 
   dataloader@2.2.2: {}
 
-  dayjs@1.11.10: {}
+  dayjs@1.11.13: {}
 
   debounce-fn@5.1.2:
     dependencies:
@@ -16004,7 +16001,9 @@ snapshots:
     dependencies:
       domelementtype: 2.3.0
 
-  dompurify@3.0.6: {}
+  dompurify@3.2.5:
+    optionalDependencies:
+      '@types/trusted-types': 2.0.7
 
   domutils@3.1.0:
     dependencies:
@@ -16922,7 +16921,7 @@ snapshots:
 
   forever-agent@0.6.1: {}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/6853b9ec7df5dc0c213b05ae67785ad4f4baa0ea: {}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/77041d2ce690e692d6e03cc812b57d1ddaa4d505: {}
 
   form-data@2.3.3:
     dependencies:
@@ -17470,8 +17469,6 @@ snapshots:
     dependencies:
       capital-case: 1.0.4
       tslib: 2.6.2
-
-  heap@0.2.7: {}
 
   hmac-drbg@1.0.1:
     dependencies:
@@ -18751,20 +18748,20 @@ snapshots:
       '@braintree/sanitize-url': 6.0.4
       '@types/d3-scale': 4.0.8
       '@types/d3-scale-chromatic': 3.0.3
-      cytoscape: 3.28.1
-      cytoscape-cose-bilkent: 4.1.0(cytoscape@3.28.1)
-      cytoscape-fcose: 2.2.0(cytoscape@3.28.1)
-      d3: 7.8.5
+      cytoscape: 3.31.4
+      cytoscape-cose-bilkent: 4.1.0(cytoscape@3.31.4)
+      cytoscape-fcose: 2.2.0(cytoscape@3.31.4)
+      d3: 7.9.0
       d3-sankey: 0.12.3
       dagre-d3-es: 7.0.10
-      dayjs: 1.11.10
-      dompurify: 3.0.6
+      dayjs: 1.11.13
+      dompurify: 3.2.5
       elkjs: 0.8.2
       khroma: 2.1.0
       lodash-es: 4.17.21
       mdast-util-from-markdown: 1.3.1
       non-layered-tidy-tree-layout: 2.0.2
-      stylis: 4.3.1
+      stylis: 4.3.6
       ts-dedent: 2.2.0
       uuid: 9.0.1
       web-worker: 1.2.0
@@ -20657,7 +20654,7 @@ snapshots:
       '@types/mdast': 4.0.4
       mdast-util-math: 3.0.0
       micromark-extension-math: 3.0.0
-      unified: 11.0.4
+      unified: 11.0.5
     transitivePeerDependencies:
       - supports-color
 
@@ -21306,7 +21303,7 @@ snapshots:
       client-only: 0.0.1
       react: 18.2.0
 
-  stylis@4.3.1: {}
+  stylis@4.3.6: {}
 
   sucrase@3.35.0:
     dependencies:
@@ -21779,16 +21776,6 @@ snapshots:
       is-plain-obj: 4.1.0
       trough: 2.1.0
       vfile: 5.3.7
-
-  unified@11.0.4:
-    dependencies:
-      '@types/unist': 3.0.3
-      bail: 2.0.2
-      devlop: 1.1.0
-      extend: 3.0.2
-      is-plain-obj: 4.1.0
-      trough: 2.1.0
-      vfile: 6.0.3
 
   unified@11.0.5:
     dependencies:
