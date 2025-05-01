@@ -2,4 +2,4 @@
 "ponder": patch
 ---
 
-Fixed an issue where the historical sync would fail with an error "RangeError: Invalid array length" when indexing a very large factory contracts.
+Fixed an issue where the historical sync would sometimes fail with the error "RangeError: Invalid array length" when indexing very large factory contracts.
