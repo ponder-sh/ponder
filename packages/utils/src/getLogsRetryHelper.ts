@@ -319,7 +319,7 @@ export const getLogsRetryHelper = ({
   }
 
   // arbitrum
-  match = sError.match(/logs matched by query exceeds limit of 10000/);
+  match = sError.match(/logs matched by query exceeds limit of \d+/);
   if (match !== null) {
     const ranges = chunk({
       params,
@@ -439,6 +439,25 @@ export const getLogsRetryHelper = ({
 
   // swell
   match = sError.match(/block range greater than ([\d,.]+) max/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range: BigInt(match[1]!.replace(/[,.]/g, "")),
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+      isSuggestedRange: true,
+    } as const;
+  }
+
+  // somnia
+  match = sError.match(/block range exceeds ([\d,.]+)/);
   if (match !== null) {
     const ranges = chunk({
       params,
