@@ -1,5 +1,21 @@
 # ponder
 
+## 0.10.23
+
+### Patch Changes
+
+- [#1716](https://github.com/ponder-sh/ponder/pull/1716) [`610388dbd11dbf472a2727fe30ada71ec43f0a3e`](https://github.com/ponder-sh/ponder/commit/610388dbd11dbf472a2727fe30ada71ec43f0a3e) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug causing events from sources with factories to be missed.
+
+  Any users that were affected by this bug can removed corrupted `ponder_sync` rows with the query:
+
+  ```sql
+  DELETE FROM ponder_sync.intervals WHERE fragment_id like '%offset%' OR fragment_id like '%topic%';
+  ```
+
+- [#1717](https://github.com/ponder-sh/ponder/pull/1717) [`abb8f9d710360d23ef79269709f006aa2572ce4f`](https://github.com/ponder-sh/ponder/commit/abb8f9d710360d23ef79269709f006aa2572ce4f) Thanks [@typedarray](https://github.com/typedarray)! - Fixed an issue where the historical sync would sometimes fail with the error "RangeError: Invalid array length" when indexing very large factory contracts.
+
+- [#1712](https://github.com/ponder-sh/ponder/pull/1712) [`4670b7eb5ed10b2ca51aca0ea0b7fcb0e2eeaac4`](https://github.com/ponder-sh/ponder/commit/4670b7eb5ed10b2ca51aca0ea0b7fcb0e2eeaac4) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue where the `0.10` database migration to `ponder_sync` failed on databases where logical replication was enabled.
+
 ## 0.10.22
 
 ### Patch Changes
