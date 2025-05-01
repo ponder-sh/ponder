@@ -23,7 +23,7 @@ export async function createView({
 }: {
   cliOptions: CliOptions & {
     schema?: string | undefined;
-    publishSchema?: string | undefined;
+    viewsSchema?: string | undefined;
   };
 }) {
   const options = buildOptions({ cliOptions });
@@ -50,10 +50,10 @@ export async function createView({
     await exit({ reason: "Create views failed", code: 1 });
     return;
   }
-  if (cliOptions.publishSchema === undefined) {
+  if (cliOptions.viewsSchema === undefined) {
     logger.warn({
       service: "create-views",
-      msg: "Required CLI option '--publish-schema' not provided.",
+      msg: "Required CLI option '--views-schema' not provided.",
     });
     await exit({ reason: "Create views failed", code: 1 });
     return;
@@ -97,41 +97,41 @@ export async function createView({
   }
 
   await database.qb.drizzle.execute(
-    sql.raw(`CREATE SCHEMA IF NOT EXISTS ${cliOptions.publishSchema}`),
+    sql.raw(`CREATE SCHEMA IF NOT EXISTS ${cliOptions.viewsSchema}`),
   );
 
   for (const table of meta[0]!.app.table_names) {
     await database.qb.drizzle.execute(
       sql.raw(
-        `CREATE OR REPLACE VIEW "${cliOptions.publishSchema}"."${table}" AS SELECT * FROM "${cliOptions.schema}"."${table}"`,
+        `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."${table}" AS SELECT * FROM "${cliOptions.schema}"."${table}"`,
       ),
     );
   }
 
   logger.warn({
     service: "create-views",
-    msg: `Created ${meta[0]!.app.table_names.length} views in schema "${cliOptions.publishSchema}"`,
+    msg: `Created ${meta[0]!.app.table_names.length} views in schema "${cliOptions.viewsSchema}"`,
   });
 
   await database.qb.drizzle.execute(
     sql.raw(
-      `CREATE OR REPLACE VIEW "${cliOptions.publishSchema}"."_ponder_meta" AS SELECT * FROM "${cliOptions.schema}"."_ponder_meta"`,
+      `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${cliOptions.schema}"."_ponder_meta"`,
     ),
   );
 
   await database.qb.drizzle.execute(
     sql.raw(
-      `CREATE OR REPLACE VIEW "${cliOptions.publishSchema}"."_ponder_status" AS SELECT * FROM "${cliOptions.schema}"."_ponder_status"`,
+      `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."_ponder_status" AS SELECT * FROM "${cliOptions.schema}"."_ponder_status"`,
     ),
   );
 
-  const trigger = `status_${cliOptions.publishSchema}_trigger`;
+  const trigger = `status_${cliOptions.viewsSchema}_trigger`;
   const notification = "status_notify()";
-  const channel = `${cliOptions.publishSchema}_status_channel`;
+  const channel = `${cliOptions.viewsSchema}_status_channel`;
 
   await database.qb.drizzle.execute(
     sql.raw(`
-CREATE OR REPLACE FUNCTION "${cliOptions.publishSchema}".${notification}
+CREATE OR REPLACE FUNCTION "${cliOptions.viewsSchema}".${notification}
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
@@ -148,7 +148,7 @@ CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
 ON "${cliOptions.schema}"._ponder_status
 FOR EACH STATEMENT
-EXECUTE PROCEDURE "${cliOptions.publishSchema}".${notification};`),
+EXECUTE PROCEDURE "${cliOptions.viewsSchema}".${notification};`),
   );
 
   await exit({ reason: "Success", code: 0 });
