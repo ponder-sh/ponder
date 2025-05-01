@@ -1734,15 +1734,15 @@ GROUP BY fragment_id, chain_id
         .execute();
       await db.schema
         .alterTable("rpc_request_results")
+        .dropConstraint("rpc_request_result_primary_key")
+        .execute();
+      await db.schema
+        .alterTable("rpc_request_results")
         .dropColumn("request_hash")
         .execute();
       await db.schema
         .alterTable("rpc_request_results")
         .renameColumn("request_hash_temp", "request_hash")
-        .execute();
-      await db.schema
-        .alterTable("rpc_request_results")
-        .dropConstraint("rpc_request_result_primary_key")
         .execute();
       await db.schema
         .alterTable("rpc_request_results")
