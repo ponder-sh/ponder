@@ -2,8 +2,10 @@ import type {
   SyncBlock,
   SyncLog,
   SyncTrace,
+  SyncTransaction,
   SyncTransactionReceipt,
 } from "@/internal/types.js";
+import { isInBloom, zeroLogsBloom } from "@/sync-realtime/bloom.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
@@ -14,6 +16,8 @@ import {
   type LogTopic,
   TransactionReceiptNotFoundError,
   numberToHex,
+  zeroAddress,
+  zeroHash,
 } from "viem";
 
 /**
@@ -302,3 +306,483 @@ export const _debug_traceBlockByHash = (
 
       return result;
     });
+
+/**
+ * Validate that the logs are consistent with the block.
+ *
+ * @dev Allows `log.transactionHash` to be `zeroHash`.
+ * @dev Allows `block.logsBloom` to be `zeroLogsBloom`.
+ */
+export const validateLogsAndBlock = (logs: SyncLog[], block: SyncBlock) => {
+  const logIds = new Set<string>();
+  const transactionHashes = new Set(block.transactions.map((t) => t.hash));
+  for (const log of logs) {
+    if (block.hash !== log.blockHash) {
+      throw new Error(
+        `Detected inconsistent RPC responses. 'log.blockHash' ${log.blockHash} does not match 'block.hash' ${block.hash}`,
+      );
+    }
+
+    if (block.number !== log.blockNumber) {
+      throw new Error(
+        `Detected inconsistent RPC responses. 'log.blockNumber' ${log.blockNumber} does not match 'block.number' ${block.number}`,
+      );
+    }
+
+    if (
+      transactionHashes.has(log.transactionHash) === false &&
+      log.transactionHash !== zeroHash
+    ) {
+      throw new Error(
+        `Detected inconsistent RPC responses. 'log.transactionHash' ${log.transactionHash} not found in 'block.transactions' ${block.hash}`,
+      );
+    }
+
+    const id = `${log.blockHash}-${log.logIndex}`;
+    if (logIds.has(id)) {
+      throw new Error(
+        `Detected invalid eth_getLogs response. Duplicate log index ${log.logIndex} for block ${log.blockHash}.`,
+      );
+    } else {
+      logIds.add(id);
+    }
+
+    if (block.logsBloom === zeroLogsBloom) continue;
+
+    const error = new Error(
+      `Detected inconsistent RPC responses. Log at index ${log.logIndex} is not in 'block.logsBloom' for block ${block.hash}.`,
+    );
+
+    if (isInBloom(block.logsBloom, log.address) === false) {
+      throw error;
+    }
+
+    if (log.topics[0] && isInBloom(block.logsBloom, log.topics[0]) === false) {
+      throw error;
+    }
+
+    if (log.topics[1] && isInBloom(block.logsBloom, log.topics[1]) === false) {
+      throw error;
+    }
+
+    if (log.topics[2] && isInBloom(block.logsBloom, log.topics[2]) === false) {
+      throw error;
+    }
+
+    if (log.topics[3] && isInBloom(block.logsBloom, log.topics[3]) === false) {
+      throw error;
+    }
+  }
+};
+
+/**
+ * Validate that the traces are consistent with the block.
+ */
+export const validateTracesAndBlock = (
+  traces: SyncTrace[],
+  block: SyncBlock,
+) => {
+  const traceIds = new Set<string>();
+  const transactionHashes = new Set(block.transactions.map((t) => t.hash));
+  for (const trace of traces) {
+    if (transactionHashes.has(trace.transactionHash) === false) {
+      throw new Error(
+        `Detected inconsistent RPC responses. 'trace.transactionHash' ${trace.transactionHash} not found in 'block.transactions' ${block.hash}`,
+      );
+    }
+
+    const id = `${trace.transactionHash}-${trace.trace.index}`;
+    if (traceIds.has(id)) {
+      throw new Error(
+        `Detected invalid debug_traceBlockByHash response. Duplicate trace index ${trace.trace.index} for transaction ${trace.transactionHash}.`,
+      );
+    } else {
+      traceIds.add(id);
+    }
+  }
+
+  // Use the fact that any transaction produces a trace to validate.
+  if (block.transactions.length !== 0 && traces.length === 0) {
+    throw new Error(
+      "Detected invalid debug_traceBlock response. `block.transactions` is not empty but zero traces were returned.",
+    );
+  }
+};
+
+/**
+ * Validate that the block receipts are consistent with the block.
+ */
+export const validateBlockReceiptsAndBlock = (
+  receipts: SyncTransactionReceipt[],
+  block: SyncBlock,
+) => {
+  const receiptIds = new Set<string>();
+
+  for (const receipt of receipts) {
+    const id = receipt.transactionHash;
+    if (receiptIds.has(id)) {
+      throw new Error(
+        `Detected invalid eth_getBlockReceipts response. Duplicate receipt for transaction ${receipt.transactionHash}.`,
+      );
+    } else {
+      receiptIds.add(id);
+    }
+  }
+
+  const transactionHashes = new Set(block.transactions.map((t) => t.hash));
+
+  for (const receipt of receipts) {
+    if (block.hash !== receipt.blockHash) {
+      throw new Error(
+        `Detected inconsistent RPC responses. 'receipt.blockHash' ${receipt.blockHash} does not match 'block.hash' ${block.hash}`,
+      );
+    }
+
+    if (block.number !== receipt.blockNumber) {
+      throw new Error(
+        `Detected inconsistent RPC responses. 'receipt.blockNumber' ${receipt.blockNumber} does not match 'block.number' ${block.number}`,
+      );
+    }
+
+    if (transactionHashes.has(receipt.transactionHash) === false) {
+      throw new Error(
+        `Detected inconsistent RPC responses. 'receipt.transactionHash' ${receipt.transactionHash} not found in 'block.transactions' ${block.hash}`,
+      );
+    }
+  }
+
+  if (block.transactions.length !== receipts.length) {
+    throw new Error(
+      `Detected inconsistent RPC responses. 'block.transactions' length ${block.transactions.length} does not match 'receipts' length ${receipts.length} for block ${block.hash}`,
+    );
+  }
+};
+
+/**
+ * Validate required block properties and set non-required properties.
+ *
+ * Required properties:
+ * - hash
+ * - number
+ * - timestamp
+ * - logsBloom
+ * - parentHash
+ * - transactions
+ *
+ * Non-required properties:
+ * - miner
+ * - gasUsed
+ * - gasLimit
+ * - baseFeePerGas
+ * - nonce
+ * - mixHash
+ * - stateRoot
+ * - transactionsRoot
+ * - sha3Uncles
+ * - size
+ * - difficulty
+ * - totalDifficulty
+ * - extraData
+ */
+export const standardizeBlock = (block: SyncBlock): SyncBlock => {
+  // required properties
+  if (block.hash === undefined) {
+    throw new Error("'block.hash' is a required property");
+  }
+  if (block.number === undefined) {
+    throw new Error("'block.number' is a required property");
+  }
+  if (block.timestamp === undefined) {
+    throw new Error("'block.timestamp' is a required property");
+  }
+  if (block.logsBloom === undefined) {
+    throw new Error("'block.logsBloom' is a required property");
+  }
+  if (block.parentHash === undefined) {
+    throw new Error("'block.parentHash' is a required property");
+  }
+  if (block.transactions === undefined) {
+    throw new Error("'block.transactions' is a required property");
+  }
+
+  // non-required properties
+  if (block.miner === undefined) {
+    block.miner = zeroAddress;
+  }
+  if (block.gasUsed === undefined) {
+    block.gasUsed = "0x0";
+  }
+  if (block.gasLimit === undefined) {
+    block.gasLimit = "0x0";
+  }
+  if (block.baseFeePerGas === undefined) {
+    block.baseFeePerGas = "0x0";
+  }
+  if (block.nonce === undefined) {
+    block.nonce = "0x0";
+  }
+  if (block.mixHash === undefined) {
+    block.mixHash = zeroHash;
+  }
+  if (block.stateRoot === undefined) {
+    block.stateRoot = zeroHash;
+  }
+  if (block.transactionsRoot === undefined) {
+    block.transactionsRoot = zeroHash;
+  }
+  if (block.sha3Uncles === undefined) {
+    block.sha3Uncles = zeroHash;
+  }
+  if (block.size === undefined) {
+    block.size = "0x0";
+  }
+  if (block.difficulty === undefined) {
+    block.difficulty = "0x0";
+  }
+  if (block.totalDifficulty === undefined) {
+    block.totalDifficulty = "0x0";
+  }
+  if (block.extraData === undefined) {
+    block.extraData = "0x";
+  }
+
+  return block;
+};
+
+/**
+ * Validate required transaction properties and set non-required properties.
+ *
+ * Required properties:
+ * - hash
+ * - transactionIndex
+ * - blockNumber
+ * - blockHash
+ * - from
+ * - to
+ *
+ * Non-required properties:
+ * - input
+ * - value
+ * - nonce
+ * - r
+ * - s
+ * - v
+ * - type
+ * - gas
+ */
+export const standardizeTransaction = (
+  transaction: SyncTransaction,
+): SyncTransaction => {
+  // required properties
+  if (transaction.hash === undefined) {
+    throw new Error("'transaction.hash' is a required property");
+  }
+  if (transaction.transactionIndex === undefined) {
+    throw new Error("'transaction.transactionIndex' is a required property");
+  }
+  if (transaction.blockNumber === undefined) {
+    throw new Error("'transaction.blockNumber' is a required property");
+  }
+  if (transaction.blockHash === undefined) {
+    throw new Error("'transaction.blockHash' is a required property");
+  }
+  if (transaction.from === undefined) {
+    throw new Error("'transaction.from' is a required property");
+  }
+  if (transaction.to === undefined) {
+    throw new Error("'transaction.to' is a required property");
+  }
+
+  // non-required properties
+  if (transaction.input === undefined) {
+    transaction.input = "0x";
+  }
+  if (transaction.value === undefined) {
+    transaction.value = "0x0";
+  }
+  if (transaction.nonce === undefined) {
+    transaction.nonce = "0x0";
+  }
+  if (transaction.r === undefined) {
+    transaction.r = "0x0";
+  }
+  if (transaction.s === undefined) {
+    transaction.s = "0x0";
+  }
+  if (transaction.v === undefined) {
+    transaction.v = "0x0";
+  }
+  if (transaction.type === undefined) {
+    // @ts-ignore
+    transaction.type = "0x0";
+  }
+  if (transaction.gas === undefined) {
+    transaction.gas = "0x0";
+  }
+
+  return transaction;
+};
+
+/**
+ * Validate required log properties and set properties.
+ *
+ * Required properties:
+ * - blockNumber
+ * - logIndex
+ * - blockHash
+ * - address
+ * - topics
+ * - data
+ * - transactionHash
+ * - transactionIndex
+ *
+ * Non-required properties:
+ * - removed
+ */
+export const standardizeLog = (log: SyncLog): SyncLog => {
+  // required properties
+  if (log.blockNumber === undefined) {
+    throw new Error("'log.blockNumber' is a required property");
+  }
+  if (log.logIndex === undefined) {
+    throw new Error("'log.logIndex' is a required property");
+  }
+  if (log.blockHash === undefined) {
+    throw new Error("'log.blockHash' is a required property");
+  }
+  if (log.address === undefined) {
+    throw new Error("'log.address' is a required property");
+  }
+  if (log.topics === undefined) {
+    throw new Error("'log.topics' is a required property");
+  }
+  if (log.data === undefined) {
+    throw new Error("'log.data' is a required property");
+  }
+  if (log.transactionHash === undefined) {
+    log.transactionHash = zeroHash;
+  }
+  if (log.transactionIndex === undefined) {
+    log.transactionIndex = "0x0";
+  }
+
+  // non-required properties
+  if (log.removed === undefined) {
+    log.removed = false;
+  }
+
+  return log;
+};
+
+/**
+ * Validate required trace properties and set non-required properties.
+ *
+ * Required properties:
+ * - transactionHash
+ * - type
+ * - from
+ * - input
+ *
+ * Non-required properties:
+ * - gas
+ * - gasUsed
+ */
+export const standardizeTrace = (trace: SyncTrace): SyncTrace => {
+  // required properties
+  if (trace.transactionHash === undefined) {
+    throw new Error("'trace.transactionHash' is a required property");
+  }
+  if (trace.trace.type === undefined) {
+    throw new Error("'trace.type' is a required property");
+  }
+  if (trace.trace.from === undefined) {
+    throw new Error("'trace.from' is a required property");
+  }
+  if (trace.trace.input === undefined) {
+    throw new Error("'trace.input' is a required property");
+  }
+
+  // non-required properties
+  if (trace.trace.gas === undefined) {
+    trace.trace.gas = "0x0";
+  }
+  if (trace.trace.gasUsed === undefined) {
+    trace.trace.gasUsed = "0x0";
+  }
+
+  return trace;
+};
+
+/**
+ * Validate required transaction receipt properties and set non-required properties.
+ *
+ * Required properties:
+ * - blockHash
+ * - blockNumber
+ * - transactionHash
+ * - transactionIndex
+ * - from
+ * - to
+ * - status
+ *
+ * Non-required properties:
+ * - logs
+ * - logsBloom
+ * - gasUsed
+ * - cumulativeGasUsed
+ * - effectiveGasPrice
+ * - root
+ * - type
+ */
+export const standardizeTransactionReceipt = (
+  receipt: SyncTransactionReceipt,
+): SyncTransactionReceipt => {
+  // required properties
+  if (receipt.blockHash === undefined) {
+    throw new Error("'receipt.blockHash' is a required property");
+  }
+  if (receipt.blockNumber === undefined) {
+    throw new Error("'receipt.blockNumber' is a required property");
+  }
+  if (receipt.transactionHash === undefined) {
+    throw new Error("'receipt.transactionHash' is a required property");
+  }
+  if (receipt.transactionIndex === undefined) {
+    throw new Error("'receipt.transactionIndex' is a required property");
+  }
+  if (receipt.from === undefined) {
+    throw new Error("'receipt.from' is a required property");
+  }
+  if (receipt.to === undefined) {
+    throw new Error("'receipt.to' is a required property");
+  }
+  if (receipt.status === undefined) {
+    throw new Error("'receipt.status' is a required property");
+  }
+
+  // non-required properties
+  if (receipt.logs === undefined) {
+    receipt.logs = [];
+  }
+  if (receipt.logsBloom === undefined) {
+    receipt.logsBloom = zeroLogsBloom;
+  }
+  if (receipt.gasUsed === undefined) {
+    receipt.gasUsed = "0x0";
+  }
+  if (receipt.cumulativeGasUsed === undefined) {
+    receipt.cumulativeGasUsed = "0x0";
+  }
+  if (receipt.effectiveGasPrice === undefined) {
+    receipt.effectiveGasPrice = "0x0";
+  }
+  if (receipt.root === undefined) {
+    receipt.root = zeroHash;
+  }
+  if (receipt.type === undefined) {
+    // @ts-ignore
+    receipt.type = "0x0";
+  }
+
+  return receipt;
+};
