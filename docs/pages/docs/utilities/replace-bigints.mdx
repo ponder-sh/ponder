@@ -89,9 +89,9 @@ Here are three common ways to replace `BigInt` values.
 
 | Encoding            | Replacer type                  | Replacer function                                                 |
 | :------------------ | :----------------------------- | :---------------------------------------------------------------- |
-| **Hex**             | `` `0x${string}` {:ts}``       | [`numberToHex`](https://viem.sh/docs/utilities/toHex#numbertohex) |
+| **Hex**             | `` `0x${string}` `` {:ts}      | [`numberToHex`](https://viem.sh/docs/utilities/toHex#numbertohex) |
 | **String**          | `string`                       | `String`                                                          |
-| **Lossless string** | `` `#bigint.${string}` {:ts}`` | `` (x) => `#bigint.${String(x)}` {:ts}``                          |
+| **Lossless string** | `` `#bigint.${string}` ``{:ts} | `` (x) => `#bigint.${String(x)}``` {:ts}                          |
 
 See the [Wagmi FAQ](https://wagmi.sh/react/guides/faq#bigint-serialization) for more information on `BigInt` serialization.
 
