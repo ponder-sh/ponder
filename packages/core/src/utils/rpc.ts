@@ -101,7 +101,13 @@ export const _eth_getLogs = async (
           },
         ],
       })
-      .then((l) => l as SyncLog[]);
+      .then((l) => {
+        if (l === null || l === undefined) {
+          throw new Error("Received invalid empty eth_getLogs response.");
+        }
+
+        return l as SyncLog[];
+      });
   }
 
   return requestQueue
@@ -127,7 +133,13 @@ export const _eth_getLogs = async (
         },
       ],
     })
-    .then((l) => l as SyncLog[]);
+    .then((l) => {
+      if (l === null || l === undefined) {
+        throw new Error("Received invalid empty eth_getLogs response.");
+      }
+
+      return l as SyncLog[];
+    });
 };
 
 /**
@@ -162,7 +174,15 @@ export const _eth_getBlockReceipts = (
       method: "eth_getBlockReceipts",
       params: [blockHash],
     } as any)
-    .then((receipts) => receipts as unknown as SyncTransactionReceipt[]);
+    .then((receipts) => {
+      if (receipts === null || receipts === undefined) {
+        throw new Error(
+          "Received invalid empty eth_getBlockReceipts response.",
+        );
+      }
+
+      return receipts as unknown as SyncTransactionReceipt[];
+    });
 
 /**
  * Helper function for "debug_traceBlockByNumber" request.
@@ -186,6 +206,12 @@ export const _debug_traceBlockByNumber = (
       ],
     })
     .then((traces) => {
+      if (traces === null || traces === undefined) {
+        throw new Error(
+          "Received invalid empty debug_traceBlockByNumber response.",
+        );
+      }
+
       const result: SyncTrace[] = [];
       let index = 0;
       // all traces that weren't included because the trace has an error
@@ -255,6 +281,12 @@ export const _debug_traceBlockByHash = (
       params: [hash, { tracer: "callTracer" }],
     })
     .then((traces) => {
+      if (traces === null || traces === undefined) {
+        throw new Error(
+          "Received invalid empty debug_traceBlockByHash response.",
+        );
+      }
+
       const result: SyncTrace[] = [];
       let index = 0;
       // all traces that weren't included because the trace has an error
