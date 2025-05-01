@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.2.6
+
+### Patch Changes
+
+- [#1714](https://github.com/ponder-sh/ponder/pull/1714) [`27886fef0788e7ee1c25221087ecd6af05ea6197`](https://github.com/ponder-sh/ponder/commit/27886fef0788e7ee1c25221087ecd6af05ea6197) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated eth_getLogs retry helper to support somnia chain.
+
 ## 0.2.5
 
 ### Patch Changes
