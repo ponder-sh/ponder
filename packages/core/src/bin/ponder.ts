@@ -6,7 +6,7 @@ import type { Prettify } from "@/types/utils.js";
 import { Command } from "@commander-js/extra-typings";
 import dotenv from "dotenv";
 import { codegen } from "./commands/codegen.js";
-import { createView } from "./commands/createView.js";
+import { createViews } from "./commands/createViews.js";
 import { dev } from "./commands/dev.js";
 import { list } from "./commands/list.js";
 import { prune } from "./commands/prune.js";
@@ -121,7 +121,7 @@ const serveCommand = new Command("serve")
     await serve({ cliOptions });
   });
 
-const createViewCommand = new Command("create-views")
+const createViewsCommand = new Command("create-views")
   .description("Create database views")
   .option("--schema <SCHEMA>", "Source database schema", String)
   .option("--views-schema <SCHEMA>", "Target database schema", String)
@@ -132,7 +132,7 @@ const createViewCommand = new Command("create-views")
       command: command.name(),
       version: packageJson.version,
     } as GlobalOptions & ReturnType<typeof command.opts>;
-    await createView({ cliOptions });
+    await createViews({ cliOptions });
   });
 
 const dbCommand = new Command("db").description("Database management commands");
@@ -175,29 +175,9 @@ const codegenCommand = new Command("codegen")
     await codegen({ cliOptions });
   });
 
-// const cache = new Command("cache");
-
-// cache
-//   .command("drop")
-//   .description("Dangerously drop all cached RPC data")
-//   .action(async (_, command) => {
-//     const cliOptions = command.optsWithGlobals() as GlobalOptions &
-//       ReturnType<typeof command.opts>;
-//     console.log("ponder db drop");
-//   });
-
-// ponder.addCommand(cache);
-
-// cli
-//   .command("cache prune", "Drop stale indexed data tables")
-//   .action(async (cliOptions: DbOptions) => {
-//     // if (cliOptions.help) process.exit(0);
-//     console.log("ponder cache prune");
-//   });
-
 dbCommand.addCommand(listCommand);
 dbCommand.addCommand(pruneCommand);
-dbCommand.addCommand(createViewCommand);
+dbCommand.addCommand(createViewsCommand);
 
 ponder.addCommand(devCommand);
 ponder.addCommand(startCommand);
