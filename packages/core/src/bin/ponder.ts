@@ -124,7 +124,7 @@ const serveCommand = new Command("serve")
 const createViewCommand = new Command("create-views")
   .description("Create database views")
   .option("--schema <SCHEMA>", "Source database schema", String)
-  .option("--publish-schema <SCHEMA>", "Target database schema", String)
+  .option("--views-schema <SCHEMA>", "Target database schema", String)
   .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
