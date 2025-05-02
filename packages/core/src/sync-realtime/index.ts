@@ -297,6 +297,16 @@ export const createRealtimeSync = (
             );
           }
         }
+
+        if (
+          block.transactions.find(
+            (t) => t.transactionIndex === log.transactionIndex,
+          ) === undefined
+        ) {
+          throw new Error(
+            `Detected inconsistent '${args.network.name}' RPC responses. 'log.transactionIndex' ${log.transactionIndex} not found in 'block.transactions' ${block.hash}`,
+          );
+        }
       }
     }
 
