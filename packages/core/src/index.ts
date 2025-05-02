@@ -31,6 +31,7 @@ export {
   hex,
   bigint,
 } from "@/drizzle/onchain.js";
+export type { OnchainTable} from "@/drizzle/onchain.js"
 
 export type { ReadonlyDrizzle } from "@/types/db.js";
 
