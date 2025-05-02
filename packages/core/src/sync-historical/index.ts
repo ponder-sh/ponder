@@ -484,6 +484,7 @@ export const createHistoricalSync = async (
     if (isAddressFactory(filter.address)) {
       const childAddresses = await syncAddressFactory(filter.address, interval);
 
+      // Note: Exit early when only the factory needs to be synced
       if ((filter.fromBlock ?? 0) > interval[1]) return;
 
       logs = await syncLogsDynamic({
@@ -604,6 +605,7 @@ export const createHistoricalSync = async (
       ? await syncAddressFactory(filter.toAddress, interval)
       : undefined;
 
+    // Note: Exit early when only the factory needs to be synced
     if ((filter.fromBlock ?? 0) > interval[1]) return;
 
     const blocks = await Promise.all(
@@ -679,6 +681,7 @@ export const createHistoricalSync = async (
       ? await syncAddressFactory(filter.toAddress, interval)
       : undefined;
 
+    // Note: Exit early when only the factory needs to be synced
     if ((filter.fromBlock ?? 0) > interval[1]) return;
 
     const requiredBlocks: Set<Hash> = new Set();
