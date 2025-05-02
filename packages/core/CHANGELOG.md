@@ -1,5 +1,11 @@
 # ponder
 
+## 0.10.24
+
+### Patch Changes
+
+- [#1719](https://github.com/ponder-sh/ponder/pull/1719) [`69ce57fb1987a6bc5e960feae38ebcc81064964e`](https://github.com/ponder-sh/ponder/commit/69ce57fb1987a6bc5e960feae38ebcc81064964e) Thanks [@kyscott18](https://github.com/kyscott18)! - Added more rpc response validation. Fixed inconsistent logs and transactions for some degraded rpc providers leading `event.transaction` being undefined.
+
 ## 0.10.23
 
 ### Patch Changes
