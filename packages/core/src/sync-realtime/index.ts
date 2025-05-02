@@ -282,10 +282,10 @@ export const createRealtimeSync = (
           logIds.add(id);
         }
 
-        if (
-          block.transactions.find((t) => t.hash === log.transactionHash) ===
-          undefined
-        ) {
+        const transaction = block.transactions.find(
+          (t) => t.hash === log.transactionHash,
+        );
+        if (transaction === undefined) {
           if (log.transactionHash === zeroHash) {
             args.common.logger.warn({
               service: "sync",
@@ -294,6 +294,12 @@ export const createRealtimeSync = (
           } else {
             throw new Error(
               `Detected inconsistent '${args.network.name}' RPC responses. 'log.transactionHash' ${log.transactionHash} not found in 'block.transactions' ${block.hash}`,
+            );
+          }
+        } else {
+          if (transaction!.transactionIndex !== log.transactionIndex) {
+            throw new Error(
+              `Detected inconsistent '${args.network.name}' RPC responses. 'log.transactionIndex' ${log.transactionIndex} not found in 'block.transactions' ${block.hash}`,
             );
           }
         }

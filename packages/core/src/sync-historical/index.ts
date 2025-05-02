@@ -516,10 +516,10 @@ export const createHistoricalSync = async (
         );
       }
 
-      if (
-        block.transactions.find((t) => t.hash === log.transactionHash) ===
-        undefined
-      ) {
+      const transaction = block.transactions.find(
+        (t) => t.hash === log.transactionHash,
+      );
+      if (transaction === undefined) {
         if (log.transactionHash === zeroHash) {
           args.common.logger.warn({
             service: "sync",
@@ -528,6 +528,12 @@ export const createHistoricalSync = async (
         } else {
           throw new Error(
             `Detected inconsistent RPC responses. 'log.transactionHash' ${log.transactionHash} not found in 'block.transactions' ${block.hash}`,
+          );
+        }
+      } else {
+        if (transaction!.transactionIndex !== log.transactionIndex) {
+          throw new Error(
+            `Detected inconsistent RPC responses. 'log.transactionIndex' ${log.transactionIndex} not found in 'block.transactions' ${block.hash}`,
           );
         }
       }
