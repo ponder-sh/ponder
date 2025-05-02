@@ -531,6 +531,16 @@ export const createHistoricalSync = async (
           );
         }
       }
+
+      if (
+        block.transactions.find(
+          (t) => t.transactionIndex === log.transactionIndex,
+        ) === undefined
+      ) {
+        throw new Error(
+          `Detected inconsistent RPC responses. 'log.transactionIndex' ${log.transactionIndex} not found in 'block.transactions' ${block.hash}`,
+        );
+      }
     }
 
     const transactionHashes = new Set(logs.map((l) => l.transactionHash));
