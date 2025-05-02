@@ -340,6 +340,34 @@ export const _debug_traceBlockByHash = (
     });
 
 /**
+ * Validate that the transactions are consistent with the block.
+ */
+export const validateTransactionsAndBlock = (block: SyncBlock) => {
+  const transactionIds = new Set<Hex>();
+  for (const transaction of block.transactions) {
+    if (block.hash !== transaction.blockHash) {
+      throw new Error(
+        `Detected inconsistent RPC responses. 'transaction.blockHash' ${transaction.blockHash} does not match 'block.hash' ${block.hash}`,
+      );
+    }
+
+    if (block.number !== transaction.blockNumber) {
+      throw new Error(
+        `Detected inconsistent RPC responses. 'transaction.blockNumber' ${transaction.blockNumber} does not match 'block.number' ${block.number}`,
+      );
+    }
+
+    if (transactionIds.has(transaction.transactionIndex)) {
+      throw new Error(
+        `Detected invalid eth_getBlock response. Duplicate transaction index ${transaction.transactionIndex} for block ${block.hash}.`,
+      );
+    } else {
+      transactionIds.add(transaction.transactionIndex);
+    }
+  }
+};
+
+/**
  * Validate that the logs are consistent with the block.
  *
  * @dev Allows `log.transactionHash` to be `zeroHash`.
@@ -347,7 +375,12 @@ export const _debug_traceBlockByHash = (
  */
 export const validateLogsAndBlock = (logs: SyncLog[], block: SyncBlock) => {
   const logIds = new Set<string>();
-  const transactionHashes = new Set(block.transactions.map((t) => t.hash));
+  const transactionByIndex = new Map<Hex, SyncTransaction>(
+    block.transactions.map((transaction) => [
+      transaction.transactionIndex,
+      transaction,
+    ]),
+  );
   for (const log of logs) {
     if (block.hash !== log.blockHash) {
       throw new Error(
@@ -361,16 +394,20 @@ export const validateLogsAndBlock = (logs: SyncLog[], block: SyncBlock) => {
       );
     }
 
-    if (
-      transactionHashes.has(log.transactionHash) === false &&
-      log.transactionHash !== zeroHash
-    ) {
-      throw new Error(
-        `Detected inconsistent RPC responses. 'log.transactionHash' ${log.transactionHash} not found in 'block.transactions' ${block.hash}`,
-      );
+    if (log.transactionHash !== zeroHash) {
+      const transaction = transactionByIndex.get(log.transactionIndex);
+      if (transaction === undefined) {
+        throw new Error(
+          `Detected inconsistent RPC responses. 'log.transactionIndex' ${log.transactionIndex} not found in 'block.transactions' for block ${block.hash}`,
+        );
+      } else if (transaction.hash !== log.transactionHash) {
+        throw new Error(
+          `Detected inconsistent RPC responses. 'log.transactionHash' ${log.transactionHash} does not match 'transaction.hash' ${transaction.hash} for block ${block.hash}`,
+        );
+      }
     }
 
-    const id = `${log.blockHash}-${log.logIndex}`;
+    const id = `${log.blockNumber}-${log.logIndex}`;
     if (logIds.has(id)) {
       throw new Error(
         `Detected invalid eth_getLogs response. Duplicate log index ${log.logIndex} for block ${log.blockHash}.`,
@@ -442,11 +479,12 @@ export const validateTracesAndBlock = (
 };
 
 /**
- * Validate that the block receipts are consistent with the block.
+ * Validate that the receipts are consistent with the block.
  */
-export const validateBlockReceiptsAndBlock = (
+export const validateReceiptsAndBlock = (
   receipts: SyncTransactionReceipt[],
   block: SyncBlock,
+  method: "eth_getBlockReceipts" | "eth_getTransactionReceipt",
 ) => {
   const receiptIds = new Set<string>();
 
@@ -461,7 +499,12 @@ export const validateBlockReceiptsAndBlock = (
     }
   }
 
-  const transactionHashes = new Set(block.transactions.map((t) => t.hash));
+  const transactionByIndex = new Map<Hex, SyncTransaction>(
+    block.transactions.map((transaction) => [
+      transaction.transactionIndex,
+      transaction,
+    ]),
+  );
 
   for (const receipt of receipts) {
     if (block.hash !== receipt.blockHash) {
@@ -476,14 +519,22 @@ export const validateBlockReceiptsAndBlock = (
       );
     }
 
-    if (transactionHashes.has(receipt.transactionHash) === false) {
+    const transaction = transactionByIndex.get(receipt.transactionIndex);
+    if (transaction === undefined) {
       throw new Error(
-        `Detected inconsistent RPC responses. 'receipt.transactionHash' ${receipt.transactionHash} not found in 'block.transactions' ${block.hash}`,
+        `Detected inconsistent RPC responses. 'receipt.transactionIndex' ${receipt.transactionIndex} not found in 'block.transactions' for block ${block.hash}`,
+      );
+    } else if (transaction.hash !== receipt.transactionHash) {
+      throw new Error(
+        `Detected inconsistent RPC responses. 'receipt.transactionHash' ${receipt.transactionHash} does not match 'transaction.hash' ${transaction.hash} for block ${block.hash}`,
       );
     }
   }
 
-  if (block.transactions.length !== receipts.length) {
+  if (
+    method === "eth_getBlockReceipts" &&
+    block.transactions.length !== receipts.length
+  ) {
     throw new Error(
       `Detected inconsistent RPC responses. 'block.transactions' length ${block.transactions.length} does not match 'receipts' length ${receipts.length} for block ${block.hash}`,
     );
