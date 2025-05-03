@@ -29,6 +29,7 @@ import {
   shouldGetTransactionReceipt,
 } from "@/sync/filter.js";
 import { encodeFragment, getFragments } from "@/sync/fragments.js";
+import { lazyChecksumAddress } from "@/utils/checksum.js";
 import type { Interval } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
@@ -41,12 +42,7 @@ import {
   sql,
 } from "kysely";
 import type { InsertObject } from "kysely";
-import {
-  type Address,
-  type EIP1193Parameters,
-  checksumAddress,
-  hexToNumber,
-} from "viem";
+import { type Address, type EIP1193Parameters, hexToNumber } from "viem";
 import {
   type PonderSyncSchema,
   encodeBlock,
@@ -769,7 +765,7 @@ export const createSyncStore = ({
         let transactionReceiptIndex = 0;
         let traceIndex = 0;
         let logIndex = 0;
-        for (const block of blocksRows) {
+        for (let block of blocksRows) {
           if (Number(block.number) > supremum) {
             break;
           }
@@ -783,14 +779,15 @@ export const createSyncStore = ({
             transactionIndex < transactionsRows.length &&
             transactionsRows[transactionIndex]!.blockNumber === block.number
           ) {
-            const transaction = transactionsRows[transactionIndex]!;
+            let transaction = transactionsRows[transactionIndex]!;
             const internalTransaction =
               transaction as unknown as InternalTransaction;
 
             internalTransaction.blockNumber = Number(transaction.blockNumber);
-            internalTransaction.from = checksumAddress(transaction.from);
+
+            transaction = lazyChecksumAddress(transaction, "from");
             if (transaction.to !== null) {
-              internalTransaction.to = checksumAddress(transaction.to);
+              transaction = lazyChecksumAddress(transaction, "to");
             }
             internalTransaction.value = BigInt(transaction.value);
             if (transaction.v !== null) {
@@ -847,7 +844,7 @@ export const createSyncStore = ({
             transactionReceiptsRows[transactionReceiptIndex]!.blockNumber ===
               block.number
           ) {
-            const transactionReceipt =
+            let transactionReceipt =
               transactionReceiptsRows[transactionReceiptIndex]!;
 
             const internalTransactionReceipt =
@@ -857,16 +854,20 @@ export const createSyncStore = ({
               transactionReceipt.blockNumber,
             );
             if (transactionReceipt.contractAddress !== null) {
-              internalTransactionReceipt.contractAddress = checksumAddress(
-                transactionReceipt.contractAddress,
+              transactionReceipt = lazyChecksumAddress(
+                transactionReceipt,
+                "contractAddress",
               );
             }
-            internalTransactionReceipt.from = checksumAddress(
-              transactionReceipt.from,
+
+            transactionReceipt = lazyChecksumAddress(
+              transactionReceipt,
+              "from",
             );
             if (transactionReceipt.to !== null) {
-              internalTransactionReceipt.to = checksumAddress(
-                transactionReceipt.to,
+              transactionReceipt = lazyChecksumAddress(
+                transactionReceipt,
+                "to",
               );
             }
             internalTransactionReceipt.gasUsed = BigInt(
@@ -903,11 +904,11 @@ export const createSyncStore = ({
             logIndex < logsRows.length &&
             logsRows[logIndex]!.blockNumber === block.number
           ) {
-            const log = logsRows[logIndex]!;
+            let log = logsRows[logIndex]!;
             const internalLog = log as unknown as InternalLog;
 
             internalLog.blockNumber = Number(log.blockNumber);
-            internalLog.address = checksumAddress(log.address);
+            log = lazyChecksumAddress(log, "address");
             internalLog.removed = false;
             internalLog.topics = [
               // @ts-ignore
@@ -933,14 +934,14 @@ export const createSyncStore = ({
             traceIndex < tracesRows.length &&
             tracesRows[traceIndex]!.blockNumber === block.number
           ) {
-            const trace = tracesRows[traceIndex]!;
+            let trace = tracesRows[traceIndex]!;
             const internalTrace = trace as unknown as InternalTrace;
 
             internalTrace.blockNumber = Number(trace.blockNumber);
 
-            internalTrace.from = checksumAddress(trace.from);
+            trace = lazyChecksumAddress(trace, "from");
             if (trace.to !== null) {
-              internalTrace.to = checksumAddress(trace.to);
+              trace = lazyChecksumAddress(trace, "to");
             }
 
             if (trace.output === null) {
@@ -970,7 +971,7 @@ export const createSyncStore = ({
           internalBlock.number = BigInt(block.number);
           internalBlock.timestamp = BigInt(block.timestamp);
           internalBlock.gasUsed = BigInt(block.gasUsed);
-          internalBlock.miner = checksumAddress(block.miner);
+          block = lazyChecksumAddress(block, "miner");
           internalBlock.gasLimit = BigInt(block.gasLimit);
           if (block.baseFeePerGas !== null) {
             internalBlock.baseFeePerGas = BigInt(block.baseFeePerGas);
