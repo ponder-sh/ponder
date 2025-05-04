@@ -29,8 +29,8 @@ import {
   shouldGetTransactionReceipt,
 } from "@/sync/filter.js";
 import { encodeFragment, getFragments } from "@/sync/fragments.js";
-import { lazyChecksumAddress } from "@/utils/checksum.js";
 import type { Interval } from "@/utils/interval.js";
+import { lazyChecksumAddress } from "@/utils/lazy.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
 import { startClock } from "@/utils/timer.js";

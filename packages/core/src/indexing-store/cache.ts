@@ -9,6 +9,7 @@ import type { Event, Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { dedupe } from "@/utils/dedupe.js";
+import { lazyCopy } from "@/utils/lazy.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import { PGlite } from "@electric-sql/pglite";
@@ -375,7 +376,8 @@ export const createIndexingCache = ({
           table: getTableName(table),
           type: isCacheComplete ? "complete" : "hit",
         });
-        return structuredClone(bufferEntry.row);
+
+        return bufferEntry.row;
       }
 
       const entry = cache.get(table)!.get(ck);
@@ -385,7 +387,7 @@ export const createIndexingCache = ({
           table: getTableName(table),
           type: isCacheComplete ? "complete" : "hit",
         });
-        return structuredClone(entry);
+        return entry === null ? null : lazyCopy(entry);
       }
 
       if (isCacheComplete) {
@@ -411,12 +413,12 @@ export const createIndexingCache = ({
         .where(getWhereCondition(table, key))
         .then((res) => (res.length === 0 ? null : res[0]!))
         .then((row) => {
-          cache.get(table)!.set(ck, structuredClone(row));
+          cache.get(table)!.set(ck, row);
 
           // Note: the size is not recorded because it is not possible
           // to miss the cache when in the "full in-memory" mode
 
-          return row;
+          return row === null ? null : lazyCopy(row);
         });
 
       common.metrics.ponder_indexing_cache_query_duration.observe(
@@ -434,12 +436,12 @@ export const createIndexingCache = ({
 
       if (isUpdate) {
         updateBuffer.get(table)!.set(ck, {
-          row: structuredClone(row),
+          row: lazyCopy(row),
           metadata: { event },
         });
       } else {
         insertBuffer.get(table)!.set(ck, {
-          row: structuredClone(row),
+          row: lazyCopy(row),
           metadata: { event },
         });
       }
