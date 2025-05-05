@@ -47,7 +47,7 @@ export const _eth_getBlockByNumber = (
         throw new BlockNotFoundError({
           blockNumber: (blockNumber ?? blockTag) as any,
         });
-      return _block as SyncBlock;
+      return standardizeBlock(_block as SyncBlock);
     });
 
 /**
@@ -67,7 +67,7 @@ export const _eth_getBlockByHash = (
         throw new BlockNotFoundError({
           blockHash: hash,
         });
-      return _block as SyncBlock;
+      return standardizeBlock(_block as SyncBlock);
     });
 
 /**
@@ -106,7 +106,7 @@ export const _eth_getLogs = async (
           throw new Error("Received invalid empty eth_getLogs response.");
         }
 
-        return l as SyncLog[];
+        return (l as SyncLog[]).map(standardizeLog);
       });
   }
 
@@ -138,7 +138,7 @@ export const _eth_getLogs = async (
         throw new Error("Received invalid empty eth_getLogs response.");
       }
 
-      return l as SyncLog[];
+      return (l as SyncLog[]).map(standardizeLog);
     });
 };
 
@@ -159,7 +159,7 @@ export const _eth_getTransactionReceipt = (
         throw new TransactionReceiptNotFoundError({
           hash,
         });
-      return receipt as SyncTransactionReceipt;
+      return standardizeTransactionReceipt(receipt as SyncTransactionReceipt);
     });
 
 /**
@@ -181,7 +181,9 @@ export const _eth_getBlockReceipts = (
         );
       }
 
-      return receipts as unknown as SyncTransactionReceipt[];
+      return (receipts as unknown as SyncTransactionReceipt[]).map(
+        standardizeTransactionReceipt,
+      );
     });
 
 /**
@@ -261,7 +263,7 @@ export const _debug_traceBlockByNumber = (
         dfs([trace.result], trace.txHash, undefined);
       }
 
-      return result;
+      return result.map(standardizeTrace);
     });
 
 /**
@@ -336,7 +338,7 @@ export const _debug_traceBlockByHash = (
         dfs([trace.result], trace.txHash, undefined);
       }
 
-      return result;
+      return result.map(standardizeTrace);
     });
 
 /**
@@ -628,6 +630,8 @@ export const standardizeBlock = (block: SyncBlock): SyncBlock => {
   if (block.extraData === undefined) {
     block.extraData = "0x";
   }
+
+  block.transactions = block.transactions.map(standardizeTransaction);
 
   return block;
 };
