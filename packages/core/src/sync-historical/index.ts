@@ -30,7 +30,6 @@ import {
 } from "@/sync/filter.js";
 import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import { getFragments, recoverFilter } from "@/sync/fragments.js";
-import { dedupe } from "@/utils/dedupe.js";
 import {
   type Interval,
   getChunks,
@@ -45,6 +44,10 @@ import {
   _eth_getBlockReceipts,
   _eth_getLogs,
   _eth_getTransactionReceipt,
+  validateLogsAndBlock,
+  validateReceiptsAndBlock,
+  validateTracesAndBlock,
+  validateTransactionsAndBlock,
 } from "@/utils/rpc.js";
 import { getLogsRetryHelper } from "@ponder/utils";
 import {
@@ -349,7 +352,7 @@ export const createHistoricalSync = async (
   };
 
   const syncTransactionReceipts = async (
-    block: Hash,
+    block: SyncBlock,
     transactionHashes: Set<Hash>,
   ): Promise<SyncTransactionReceipt[]> => {
     if (transactionHashes.size === 0) {
@@ -363,12 +366,18 @@ export const createHistoricalSync = async (
         ),
       );
 
+      validateReceiptsAndBlock(
+        transactionReceipts,
+        block,
+        "eth_getTransactionReceipt",
+      );
+
       return transactionReceipts;
     }
 
     let blockReceipts: SyncTransactionReceipt[];
     try {
-      blockReceipts = await syncBlockReceipts(block);
+      blockReceipts = await syncBlockReceipts(block.hash);
     } catch (_error) {
       const error = _error as Error;
       args.common.logger.warn({
@@ -383,17 +392,8 @@ export const createHistoricalSync = async (
       return syncTransactionReceipts(block, transactionHashes);
     }
 
-    const blockReceiptsTransactionHashes = new Set(
-      blockReceipts.map((r) => r.transactionHash),
-    );
-    // Validate that block transaction receipts include all required transactions
-    for (const hash of Array.from(transactionHashes)) {
-      if (blockReceiptsTransactionHashes.has(hash) === false) {
-        throw new Error(
-          `Detected inconsistent RPC responses. 'transaction.hash' ${hash} not found in eth_getBlockReceipts response for block '${block}'`,
-        );
-      }
-    }
+    validateReceiptsAndBlock(blockReceipts, block, "eth_getBlockReceipts");
+
     const transactionReceipts = blockReceipts.filter((receipt) =>
       transactionHashes.has(receipt.transactionHash),
     );
@@ -501,34 +501,32 @@ export const createHistoricalSync = async (
 
     await args.syncStore.insertLogs({ logs, chainId: args.network.chainId });
 
+    const logsPerBlock = new Map<number, SyncLog[]>();
+    for (const log of logs) {
+      const blockNumber = hexToNumber(log.blockNumber);
+      if (logsPerBlock.has(blockNumber) === false) {
+        logsPerBlock.set(blockNumber, []);
+      }
+      logsPerBlock.get(blockNumber)!.push(log);
+    }
+
     const blocks = await Promise.all(
-      logs.map((log) => syncBlock(hexToNumber(log.blockNumber))),
+      Array.from(logsPerBlock.keys()).map(syncBlock),
     );
 
-    // Validate that logs point to the valid transaction hash in the block
-    for (let i = 0; i < logs.length; i++) {
-      const log = logs[i]!;
+    for (let i = 0; i < blocks.length; i++) {
       const block = blocks[i]!;
+      const logs = logsPerBlock.get(hexToNumber(block.number))!;
 
-      if (block.hash !== log.blockHash) {
-        throw new Error(
-          `Detected inconsistent RPC responses. 'log.blockHash' ${log.blockHash} does not match 'block.hash' ${block.hash}`,
-        );
-      }
+      validateTransactionsAndBlock(block);
+      validateLogsAndBlock(logs, block);
 
-      if (
-        block.transactions.find((t) => t.hash === log.transactionHash) ===
-        undefined
-      ) {
+      for (const log of logs) {
         if (log.transactionHash === zeroHash) {
           args.common.logger.warn({
             service: "sync",
             msg: `Detected log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
           });
-        } else {
-          throw new Error(
-            `Detected inconsistent RPC responses. 'log.transactionHash' ${log.transactionHash} not found in 'block.transactions' ${block.hash}`,
-          );
         }
       }
     }
@@ -540,23 +538,16 @@ export const createHistoricalSync = async (
 
     if (shouldGetTransactionReceipt(filter)) {
       const transactionReceipts = await Promise.all(
-        dedupe(blocks, (b) => b.hash).map((block) => {
+        blocks.map((block) => {
           const blockTransactionHashes = new Set<Hash>();
 
-          for (const log of logs) {
-            if (log.blockHash === block.hash) {
-              if (log.transactionHash === zeroHash) {
-                args.common.logger.warn({
-                  service: "sync",
-                  msg: `Detected log with empty transaction hash in block ${log.blockHash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
-                });
-              } else {
-                blockTransactionHashes.add(log.transactionHash);
-              }
+          for (const log of logsPerBlock.get(hexToNumber(block.number))!) {
+            if (log.transactionHash !== zeroHash) {
+              blockTransactionHashes.add(log.transactionHash);
             }
           }
 
-          return syncTransactionReceipts(block.hash, blockTransactionHashes);
+          return syncTransactionReceipts(block, blockTransactionHashes);
         }),
       ).then((receipts) => receipts.flat());
 
@@ -577,7 +568,13 @@ export const createHistoricalSync = async (
       requiredBlocks.push(b);
     }
 
-    await Promise.all(requiredBlocks.map((number) => syncBlock(number)));
+    await Promise.all(
+      requiredBlocks.map(async (number) => {
+        const block = await syncBlock(number);
+        validateTransactionsAndBlock(block);
+        return block;
+      }),
+    );
   };
 
   const syncTransactionFilter = async (
@@ -600,6 +597,8 @@ export const createHistoricalSync = async (
     const requiredBlocks: Set<SyncBlock> = new Set();
 
     for (const block of blocks) {
+      validateTransactionsAndBlock(block);
+
       for (const transaction of block.transactions) {
         if (isTransactionFilterMatched({ filter, transaction }) === false) {
           continue;
@@ -643,7 +642,7 @@ export const createHistoricalSync = async (
             .filter((t) => transactionHashes.has(t.hash))
             .map((t) => t.hash),
         );
-        return syncTransactionReceipts(block.hash, blockTransactionHashes);
+        return syncTransactionReceipts(block, blockTransactionHashes);
       }),
     ).then((receipts) => receipts.flat());
 
@@ -665,7 +664,7 @@ export const createHistoricalSync = async (
       ? await syncAddressFactory(filter.toAddress, interval)
       : undefined;
 
-    const requiredBlocks: Set<Hash> = new Set();
+    const requiredBlocks: Set<SyncBlock> = new Set();
     const traces = await Promise.all(
       intervalRange(interval).map(async (number) => {
         let traces = await syncTrace(number);
@@ -722,7 +721,11 @@ export const createHistoricalSync = async (
         if (traces.length === 0) return [];
 
         const block = await syncBlock(number);
-        requiredBlocks.add(block.hash);
+
+        validateTransactionsAndBlock(block);
+        validateTracesAndBlock(traces, block);
+
+        requiredBlocks.add(block);
 
         return traces.map((trace) => {
           const transaction = block.transactions.find(
@@ -749,13 +752,13 @@ export const createHistoricalSync = async (
 
     if (shouldGetTransactionReceipt(filter)) {
       const transactionReceipts = await Promise.all(
-        Array.from(requiredBlocks).map((blockHash) => {
+        Array.from(requiredBlocks).map((block) => {
           const blockTransactionHashes = new Set(
             traces
-              .filter((t) => t.block.hash === blockHash)
+              .filter((t) => t.block.hash === block.hash)
               .map((t) => t.transaction.hash),
           );
-          return syncTransactionReceipts(blockHash, blockTransactionHashes);
+          return syncTransactionReceipts(block, blockTransactionHashes);
         }),
       ).then((receipts) => receipts.flat());
 
