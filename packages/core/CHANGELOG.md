@@ -1,5 +1,11 @@
 # ponder
 
+## 0.10.25
+
+### Patch Changes
+
+- [#1725](https://github.com/ponder-sh/ponder/pull/1725) [`f8cb9634a67bd75098f86fc57585c400b8dd70e8`](https://github.com/ponder-sh/ponder/commit/f8cb9634a67bd75098f86fc57585c400b8dd70e8) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed graphql resolver for `many` relations.
+
 ## 0.10.24
 
 ### Patch Changes
