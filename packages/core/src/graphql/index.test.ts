@@ -591,6 +591,95 @@ test("singular with many relation", async (context) => {
   });
 });
 
+test("multiple many relations", async (context) => {
+  const person = onchainTable("person", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text(),
+  }));
+
+  const personRelations = relations(person, ({ many }) => ({
+    pets1: many(pet, { relationName: "owner1_relation" }),
+    pets2: many(pet, { relationName: "owner2_relation" }),
+  }));
+
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    owner1: t.text(),
+    owner2: t.text(),
+  }));
+
+  const petRelations = relations(pet, ({ one }) => ({
+    owner1Relation: one(person, {
+      fields: [pet.owner1],
+      relationName: "owner1_relation",
+      references: [person.id],
+    }),
+    owner2Relation: one(person, {
+      fields: [pet.owner2],
+      relationName: "owner2_relation",
+      references: [person.id],
+    }),
+  }));
+
+  const schema = { person, personRelations, pet, petRelations };
+
+  const { database, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await indexingStore
+    .insert(schema.person)
+    .values({ id: "jake", name: "jake" });
+  await indexingStore.insert(schema.pet).values([
+    { id: "dog1", owner1: "jake", owner2: "jim" },
+    { id: "dog2", owner1: "jake", owner2: "kyle" },
+    { id: "dog3", owner1: "kyle", owner2: "jim" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      person(id: "jake") {
+       pets1 {
+          items {
+            id
+          }
+        }
+        pets2 {
+          items {
+            id
+          }
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchInlineSnapshot(`
+    {
+      "person": {
+        "pets1": {
+          "items": [
+            {
+              "id": "dog1",
+            },
+            {
+              "id": "dog2",
+            },
+          ],
+        },
+        "pets2": {
+          "items": [],
+        },
+      },
+    }
+  `);
+});
+
 test("singular with many relation using filter", async (context) => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
