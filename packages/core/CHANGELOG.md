@@ -1,5 +1,11 @@
 # ponder
 
+## 0.10.26
+
+### Patch Changes
+
+- [#1721](https://github.com/ponder-sh/ponder/pull/1721) [`149872c4b4d1b62e0f0caf441db305761d1ba171`](https://github.com/ponder-sh/ponder/commit/149872c4b4d1b62e0f0caf441db305761d1ba171) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved log for lagging networks.
+
 ## 0.10.25
 
 ### Patch Changes
