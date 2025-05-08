@@ -456,49 +456,131 @@ export const decodeEvents = (
       case "account": {
         switch (source.filter.type) {
           case "transaction": {
-            const isFrom = source.filter.toAddress === undefined;
+            const isAll =
+              source.filter.fromAddress === undefined &&
+              source.filter.toAddress === undefined;
 
-            events.push({
-              type: "transaction",
-              chainId: event.chainId,
-              checkpoint: event.checkpoint,
+            if (isAll) {
+              events.push({
+                type: "transaction",
+                chainId: event.chainId,
+                checkpoint: event.checkpoint,
 
-              name: `${source.name}:transaction:${isFrom ? "from" : "to"}`,
+                name: `${source.name}:transaction:from`,
 
-              event: {
-                id: event.checkpoint,
-                block: event.block,
-                transaction: event.transaction!,
-                transactionReceipt: event.transactionReceipt,
-              },
-            });
+                event: {
+                  id: event.checkpoint,
+                  block: event.block,
+                  transaction: event.transaction!,
+                  transactionReceipt: event.transactionReceipt,
+                },
+              });
+              events.push({
+                type: "transaction",
+                chainId: event.chainId,
+                checkpoint: event.checkpoint,
+
+                name: `${source.name}:transaction:to`,
+
+                event: {
+                  id: event.checkpoint,
+                  block: event.block,
+                  transaction: event.transaction!,
+                  transactionReceipt: event.transactionReceipt,
+                },
+              });
+            } else {
+              const isFrom = source.filter.toAddress === undefined;
+
+              events.push({
+                type: "transaction",
+                chainId: event.chainId,
+                checkpoint: event.checkpoint,
+
+                name: `${source.name}:transaction:${isFrom ? "from" : "to"}`,
+
+                event: {
+                  id: event.checkpoint,
+                  block: event.block,
+                  transaction: event.transaction!,
+                  transactionReceipt: event.transactionReceipt,
+                },
+              });
+            }
 
             break;
           }
 
           case "transfer": {
-            const isFrom = source.filter.toAddress === undefined;
+            const isAll =
+              source.filter.fromAddress === undefined &&
+              source.filter.toAddress === undefined;
 
-            events.push({
-              type: "transfer",
-              chainId: event.chainId,
-              checkpoint: event.checkpoint,
+            if (isAll) {
+              events.push({
+                type: "transfer",
+                chainId: event.chainId,
+                checkpoint: event.checkpoint,
 
-              name: `${source.name}:transfer:${isFrom ? "from" : "to"}`,
+                name: `${source.name}:transfer:from`,
 
-              event: {
-                id: event.checkpoint,
-                transfer: {
-                  from: event.trace!.from,
-                  to: event.trace!.to!,
-                  value: event.trace!.value!,
+                event: {
+                  id: event.checkpoint,
+                  transfer: {
+                    from: event.trace!.from,
+                    to: event.trace!.to!,
+                    value: event.trace!.value!,
+                  },
+                  block: event.block,
+                  transaction: event.transaction!,
+                  transactionReceipt: event.transactionReceipt,
+                  trace: event.trace!,
                 },
-                block: event.block,
-                transaction: event.transaction!,
-                transactionReceipt: event.transactionReceipt,
-                trace: event.trace!,
-              },
-            });
+              });
+              events.push({
+                type: "transfer",
+                chainId: event.chainId,
+                checkpoint: event.checkpoint,
+
+                name: `${source.name}:transfer:to`,
+
+                event: {
+                  id: event.checkpoint,
+                  transfer: {
+                    from: event.trace!.from,
+                    to: event.trace!.to!,
+                    value: event.trace!.value!,
+                  },
+                  block: event.block,
+                  transaction: event.transaction!,
+                  transactionReceipt: event.transactionReceipt,
+                  trace: event.trace!,
+                },
+              });
+            } else {
+              const isFrom = source.filter.toAddress === undefined;
+
+              events.push({
+                type: "transfer",
+                chainId: event.chainId,
+                checkpoint: event.checkpoint,
+
+                name: `${source.name}:transfer:${isFrom ? "from" : "to"}`,
+
+                event: {
+                  id: event.checkpoint,
+                  transfer: {
+                    from: event.trace!.from,
+                    to: event.trace!.to!,
+                    value: event.trace!.value!,
+                  },
+                  block: event.block,
+                  transaction: event.transaction!,
+                  transactionReceipt: event.transactionReceipt,
+                  trace: event.trace!,
+                },
+              });
+            }
 
             break;
           }

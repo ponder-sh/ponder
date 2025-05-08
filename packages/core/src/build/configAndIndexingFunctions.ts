@@ -606,9 +606,23 @@ export async function buildConfigAndIndexingFunctions({
           const resolvedAddress = source?.address;
 
           if (resolvedAddress === undefined) {
-            throw new Error(
-              `Validation failed: Account '${source.name}' must specify an 'address'.`,
-            );
+            return [
+              {
+                type: "account",
+                name: source.name,
+                network,
+                filter: {
+                  type: "transaction",
+                  chainId: network.chainId,
+                  fromAddress: undefined,
+                  toAddress: undefined,
+                  includeReverted: false,
+                  fromBlock,
+                  toBlock,
+                  include: defaultTransactionFilterInclude,
+                },
+              } satisfies AccountSource,
+            ];
           }
 
           if (
