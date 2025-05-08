@@ -24,8 +24,6 @@ export type NetworkConfig = Prettify<Config["networks"][string]>;
 export type BlockConfig = Prettify<Config["blocks"][string]>;
 export type DatabaseConfig = Prettify<Config["database"]>;
 
-export * as PONDER_SYNC_SCHEMA from "./sync-store/schema.js";
-
 export {
   onchainTable,
   onchainEnum,
