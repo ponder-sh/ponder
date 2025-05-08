@@ -215,23 +215,10 @@ export const createDatabase = async ({
       }
     });
 
-    // const kyselyDialect = createPgliteKyselyDialect(driver.instance);
-
     await driver.instance.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
     await driver.instance.query(`SET search_path TO "${namespace}"`);
 
     qb = {
-      // migrate: new Kysely({
-      //   dialect: kyselyDialect,
-      //   log(event) {
-      //     if (event.level === "query") {
-      //       common.metrics.ponder_postgres_query_total.inc({
-      //         pool: "migrate",
-      //       });
-      //     }
-      //   },
-      //   plugins: [new WithSchemaPlugin(namespace)],
-      // }),
       sync: drizzlePglite((driver as PGliteDriver).instance, {
         casing: "snake_case",
         schema: ponderSyncSchema,
@@ -296,17 +283,6 @@ export const createDatabase = async ({
     await driver.internal.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
 
     qb = {
-      // migrate: new Kysely({
-      //   dialect: new PostgresDialect({ pool: driver.internal }),
-      //   log(event) {
-      //     if (event.level === "query") {
-      //       common.metrics.ponder_postgres_query_total.inc({
-      //         pool: "migrate",
-      //       });
-      //     }
-      //   },
-      //   plugins: [new WithSchemaPlugin(namespace)],
-      // }),
       sync: drizzleNodePg(driver.sync, {
         casing: "snake_case",
         schema: ponderSyncSchema,
