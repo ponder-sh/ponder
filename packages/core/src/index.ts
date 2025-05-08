@@ -109,5 +109,3 @@ export {
   except,
   exceptAll,
 } from "drizzle-orm/pg-core";
-
-export type { Trace, DebugRpcSchema } from "@/utils/debug.js";
