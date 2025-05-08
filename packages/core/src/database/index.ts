@@ -871,7 +871,7 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
                   `DROP INDEX IF EXISTS "${namespace}"."${indexStatement.data.name}"`,
                 ),
               );
-              common.logger.info({
+              common.logger.debug({
                 service: "database",
                 msg: `Dropped index '${indexStatement.data.name}' in schema '${namespace}'`,
               });
