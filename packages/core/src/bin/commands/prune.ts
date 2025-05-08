@@ -4,6 +4,7 @@ import {
   createDatabase,
   getPonderMeta,
 } from "@/database/index.js";
+import { TABLES } from "@/database/index.js";
 import { sqlToReorgTableName } from "@/drizzle/kit/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
@@ -12,7 +13,6 @@ import { createShutdown } from "@/internal/shutdown.js";
 import { createTelemetry } from "@/internal/telemetry.js";
 import { count, eq, inArray, sql } from "drizzle-orm";
 import { unionAll } from "drizzle-orm/pg-core";
-import { pgSchema } from "drizzle-orm/pg-core";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 
@@ -62,11 +62,6 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     preBuild: buildResult.result,
     schemaBuild: emptySchemaBuild,
   });
-
-  const TABLES = pgSchema("information_schema").table("tables", (t) => ({
-    table_name: t.text().notNull(),
-    table_schema: t.text().notNull(),
-  }));
 
   const ponderSchemas = await database.qb.drizzle
     .select({ schema: TABLES.table_schema, tableCount: count() })

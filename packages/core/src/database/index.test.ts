@@ -14,8 +14,13 @@ import { wait } from "@/utils/wait.js";
 import { and, eq, sql } from "drizzle-orm";
 import { index } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
-import { beforeEach, expect, test } from "vitest";
-import { type Database, createDatabase, getPonderMeta } from "./index.js";
+import { beforeEach, expect, test, vi } from "vitest";
+import {
+  type Database,
+  TABLES,
+  createDatabase,
+  getPonderMeta,
+} from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -274,6 +279,58 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
   });
 
   await databaseTwo.migrate({ buildId: "abc" });
+
+  await context.common.shutdown.kill();
+});
+
+test("migrateSync()", async (context) => {
+  const database = await createDatabase({
+    common: context.common,
+    namespace: "public",
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({ schema: { account } }).statements,
+    },
+  });
+
+  await database.migrateSync();
+
+  // Note: this is a hack to avoid trying to update the metadata table on shutdown
+  context.common.options.command = "list";
+
+  await context.common.shutdown.kill();
+});
+
+// Note: this test doesn't do anything because we don't have a migration using the
+// new design yet.
+test.skip("migrateSync() handles concurrent migrations", async (context) => {
+  if (context.databaseConfig.kind !== "postgres") return;
+
+  const database = await createDatabase({
+    common: context.common,
+    namespace: "public",
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({ schema: { account } }).statements,
+    },
+  });
+
+  // The second migration should error, then retry and succeed
+  const spy = vi.spyOn(database.qb.sync, "transaction");
+
+  await Promise.all([database.migrateSync(), database.migrateSync()]);
+
+  // transaction gets called when perfoming a migration
+  expect(spy).toHaveBeenCalledTimes(3);
+
+  // Note: this is a hack to avoid trying to update the metadata table on shutdown
+  context.common.options.command = "list";
 
   await context.common.shutdown.kill();
 });
@@ -862,10 +919,13 @@ test("setStatus()", async (context) => {
 
 async function getUserTableNames(database: Database, namespace: string) {
   const rows = await database.qb.drizzle
-    .select({ name: sql<string>`table_name`.as("name") })
-    .from(sql`information_schema.tables`)
+    .select({ name: TABLES.table_name })
+    .from(TABLES)
     .where(
-      and(eq(sql`table_schema`, namespace), eq(sql`table_type`, "BASE TABLE")),
+      and(
+        eq(TABLES.table_schema, namespace),
+        eq(TABLES.table_type, "BASE TABLE"),
+      ),
     );
 
   return rows.map(({ name }) => name);
