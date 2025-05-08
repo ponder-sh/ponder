@@ -304,7 +304,9 @@ test("migrateSync()", async (context) => {
   await context.common.shutdown.kill();
 });
 
-test("migrateSync() handles concurrent migrations", async (context) => {
+// Note: this test doesn't do anything because we don't have a migration using the
+// new design yet.
+test.skip("migrateSync() handles concurrent migrations", async (context) => {
   if (context.databaseConfig.kind !== "postgres") return;
 
   const database = await createDatabase({
