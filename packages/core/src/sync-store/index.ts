@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
+  BlockFilter,
   Factory,
   Filter,
   FilterWithoutBlocks,
@@ -23,14 +24,28 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
-import { shouldGetTransactionReceipt } from "@/sync/filter.js";
+import {
+  isAddressFactory,
+  shouldGetTransactionReceipt,
+} from "@/sync/filter.js";
 import { encodeFragment, getFragments } from "@/sync/fragments.js";
 import type { Interval } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
 import { startClock } from "@/utils/timer.js";
-import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
-import { unionAll } from "drizzle-orm/pg-core";
+import {
+  type SQL,
+  and,
+  asc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";
+import { type PgColumn, unionAll } from "drizzle-orm/pg-core";
 import {
   type Address,
   type EIP1193Parameters,
@@ -675,6 +690,7 @@ export const createSyncStore = ({
               eq(ponderSyncSchema.logs.chainId, BigInt(chainId)),
               gte(ponderSyncSchema.logs.blockNumber, BigInt(fromBlock)),
               lte(ponderSyncSchema.logs.blockNumber, BigInt(toBlock)),
+              or(...logFilters.map((filter) => logFilter(filter))),
             ),
           )
           .orderBy(
@@ -706,6 +722,10 @@ export const createSyncStore = ({
               eq(ponderSyncSchema.traces.chainId, BigInt(chainId)),
               gte(ponderSyncSchema.traces.blockNumber, BigInt(fromBlock)),
               lte(ponderSyncSchema.traces.blockNumber, BigInt(toBlock)),
+              or(
+                ...traceFilters.map((filter) => traceFilter(filter)),
+                ...transferFilters.map((filter) => transferFilter(filter)),
+              ),
             ),
           )
           .orderBy(
@@ -1138,3 +1158,169 @@ export const createSyncStore = ({
       }),
     ),
 });
+
+const addressFilter = (
+  address:
+    | LogFilter["address"]
+    | TransactionFilter["fromAddress"]
+    | TransactionFilter["toAddress"],
+  // column: "address" | "from" | "to",
+  column: PgColumn,
+): SQL => {
+  // `factory` filtering is handled in-memory
+  if (isAddressFactory(address)) return sql`true`;
+  // @ts-ignore
+  if (Array.isArray(address)) return inArray(column, address);
+  // @ts-ignore
+  if (typeof address === "string") return eq(column, address);
+  return sql`true`;
+};
+
+const logFilter = (filter: LogFilter): SQL => {
+  const conditions: SQL[] = [];
+
+  for (const idx of [0, 1, 2, 3] as const) {
+    // If it's an array of length 1, collapse it.
+    const raw = filter[`topic${idx}`] ?? null;
+    if (raw === null) continue;
+    const topic = Array.isArray(raw) && raw.length === 1 ? raw[0]! : raw;
+    if (Array.isArray(topic)) {
+      conditions.push(inArray(ponderSyncSchema.logs[`topic${idx}`], topic));
+    } else {
+      conditions.push(eq(ponderSyncSchema.logs[`topic${idx}`], topic));
+    }
+  }
+
+  conditions.push(addressFilter(filter.address, ponderSyncSchema.logs.address));
+
+  if (filter.fromBlock !== undefined) {
+    conditions.push(
+      gte(ponderSyncSchema.logs.blockNumber, BigInt(filter.fromBlock!)),
+    );
+  }
+  if (filter.toBlock !== undefined) {
+    conditions.push(
+      lte(ponderSyncSchema.logs.blockNumber, BigInt(filter.toBlock!)),
+    );
+  }
+
+  return and(...conditions)!;
+};
+
+// @ts-expect-error
+const blockFilter = (filter: BlockFilter): SQL => {
+  const conditions: SQL[] = [];
+
+  conditions.push(
+    sql`(blocks.number - ${filter.offset}) % ${filter.interval} = 0`,
+  );
+
+  if (filter.fromBlock !== undefined) {
+    conditions.push(
+      gte(ponderSyncSchema.blocks.number, BigInt(filter.fromBlock!)),
+    );
+  }
+  if (filter.toBlock !== undefined) {
+    conditions.push(
+      lte(ponderSyncSchema.blocks.number, BigInt(filter.toBlock!)),
+    );
+  }
+
+  return and(...conditions)!;
+};
+
+// @ts-expect-error
+const transactionFilter = (filter: TransactionFilter): SQL => {
+  const conditions: SQL[] = [];
+
+  conditions.push(
+    addressFilter(filter.fromAddress, ponderSyncSchema.transactions.from),
+  );
+  conditions.push(
+    addressFilter(filter.toAddress, ponderSyncSchema.transactions.to),
+  );
+
+  if (filter.fromBlock !== undefined) {
+    conditions.push(
+      gte(ponderSyncSchema.transactions.blockNumber, BigInt(filter.fromBlock!)),
+    );
+  }
+  if (filter.toBlock !== undefined) {
+    conditions.push(
+      lte(ponderSyncSchema.transactions.blockNumber, BigInt(filter.toBlock!)),
+    );
+  }
+
+  return and(...conditions)!;
+};
+
+const transferFilter = (filter: TransferFilter): SQL => {
+  const conditions: SQL[] = [];
+
+  conditions.push(
+    addressFilter(filter.fromAddress, ponderSyncSchema.traces.from),
+  );
+  conditions.push(addressFilter(filter.toAddress, ponderSyncSchema.traces.to));
+
+  if (filter.includeReverted === false) {
+    conditions.push(isNull(ponderSyncSchema.traces.error));
+  }
+
+  if (filter.fromBlock !== undefined) {
+    conditions.push(
+      gte(ponderSyncSchema.traces.blockNumber, BigInt(filter.fromBlock!)),
+    );
+  }
+  if (filter.toBlock !== undefined) {
+    conditions.push(
+      lte(ponderSyncSchema.traces.blockNumber, BigInt(filter.toBlock!)),
+    );
+  }
+
+  return and(...conditions)!;
+};
+
+const traceFilter = (filter: TraceFilter): SQL => {
+  const conditions: SQL[] = [];
+
+  conditions.push(
+    addressFilter(filter.fromAddress, ponderSyncSchema.traces.from),
+  );
+  conditions.push(addressFilter(filter.toAddress, ponderSyncSchema.traces.to));
+
+  if (filter.includeReverted === false) {
+    conditions.push(isNull(ponderSyncSchema.traces.error));
+  }
+
+  if (filter.callType !== undefined) {
+    conditions.push(eq(ponderSyncSchema.traces.type, filter.callType));
+  }
+
+  if (filter.functionSelector !== undefined) {
+    if (Array.isArray(filter.functionSelector)) {
+      conditions.push(
+        inArray(
+          sql`substring(traces.input from 1 for 10)`,
+          filter.functionSelector,
+        ),
+      );
+    } else {
+      conditions.push(
+        eq(sql`substring(traces.input from 1 for 10)`, filter.functionSelector),
+      );
+    }
+  }
+
+  if (filter.fromBlock !== undefined) {
+    conditions.push(
+      gte(ponderSyncSchema.traces.blockNumber, BigInt(filter.fromBlock!)),
+    );
+  }
+  if (filter.toBlock !== undefined) {
+    conditions.push(
+      lte(ponderSyncSchema.traces.blockNumber, BigInt(filter.toBlock!)),
+    );
+  }
+
+  return and(...conditions)!;
+};
