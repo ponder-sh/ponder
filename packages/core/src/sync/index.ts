@@ -609,9 +609,16 @@ export const createSync = async (params: {
           getChainCheckpoint({ syncProgress, network, tag: "finalized" })! >
             getOmnichainCheckpoint({ tag: "current" })!
         ) {
+          const chainId = Number(
+            decodeCheckpoint(getOmnichainCheckpoint({ tag: "current" })!)
+              .chainId,
+          );
+          const network = params.indexingBuild.networks.find(
+            (network) => network.chainId === chainId,
+          )!;
           params.common.logger.warn({
             service: "sync",
-            msg: `Finalized '${network.name}' block has surpassed overall indexing checkpoint`,
+            msg: `'${network.name}' is lagging behind other networks`,
           });
         }
 
