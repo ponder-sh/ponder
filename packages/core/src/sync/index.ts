@@ -77,8 +77,11 @@ export type RealtimeEvent =
   | {
       type: "block";
       network: Network;
-      checkpoint: string;
       events: Event[];
+      /**
+       * Closest-to-tip checkpoint for each chain,
+       * excluding chains that were not updated with this event.
+       */
       checkpoints: { chainId: number; checkpoint: string }[];
     }
   | {
@@ -94,6 +97,10 @@ export type RealtimeEvent =
 
 type EventGenerator = AsyncGenerator<{
   events: Event[];
+  /**
+   * Closest-to-tip checkpoint for each chain,
+   * excluding chains that were not updated with this batch of events.
+   */
   checkpoints: { chainId: number; checkpoint: string }[];
 }>;
 
@@ -526,7 +533,6 @@ export const createSync = async (params: {
             .onRealtimeEvent({
               type: "block",
               network,
-              checkpoint,
               events: readyEvents.sort((a, b) =>
                 a.checkpoint < b.checkpoint ? -1 : 1,
               ),
@@ -594,7 +600,6 @@ export const createSync = async (params: {
             params
               .onRealtimeEvent({
                 type: "block",
-                checkpoint: to,
                 events: readyEvents.sort((a, b) =>
                   a.checkpoint < b.checkpoint ? -1 : 1,
                 ),
