@@ -83,6 +83,7 @@ export const sidebar = {
     {
       text: "API reference",
       items: [
+        { text: "create-ponder", link: "/docs/api-reference/create-ponder" },
         {
           text: "ponder",
           items: [
@@ -111,7 +112,6 @@ export const sidebar = {
         { text: "@ponder/client", link: "/docs/api-reference/ponder-client" },
         { text: "@ponder/react", link: "/docs/api-reference/ponder-react" },
         { text: "@ponder/utils", link: "/docs/api-reference/ponder-utils" },
-        { text: "create-ponder", link: "/docs/api-reference/create-ponder" },
       ],
     },
     {

@@ -1,6 +1,210 @@
-# SQL client [Run custom SQL queries over HTTP]
+# SQL client [Query with custom SQL over HTTP]
 
-The `@ponder/client` package includes an SQL client 
+Ponder natively supports SQL queries over HTTP using the `@ponder/client` package.
 
+The SQL client is a more powerful alternative to [GraphQL](/docs/query/graphql) that offers zero-codegen type inference, live queries, and the flexibility of SQL directly in your client code.
 
+## Guide
 
+::::steps
+
+### Register `client` middleware
+
+Use the `client` Hono middleware to enable SQL client queries.
+
+```ts [src/api/index.ts]
+import { db } from "ponder:api";
+import schema from "ponder:schema";
+import { Hono } from "hono";
+import { client } from "ponder"; // [!code focus]
+
+const app = new Hono();
+
+app.use("/sql/*", client({ db, schema })); // [!code focus]
+
+export default app;
+```
+
+### Install `@ponder/client`
+
+Install the `@ponder/client` package in your client project.
+
+:::code-group
+
+```bash [pnpm]
+pnpm add @ponder/client
+```
+
+```bash [yarn]
+yarn add @ponder/client
+```
+
+```bash [npm]
+npm add @ponder/client
+```
+
+:::
+
+### Connect to the server
+
+Use `createClient` to connect to the server at the path where you registered the middleware.
+
+Import your schema from `ponder.schema.ts` into the same file. [Read more](#use-schema-from-a-different-repo) about schema portability.
+
+```ts [Client project]
+import { createClient } from "@ponder/client";
+import * as schema from "../../ponder/ponder.schema";
+
+const client = createClient("http://localhost:42069/sql", { schema });
+
+export { client, schema };
+```
+
+### Run a query
+
+Use `client.db.select()` to build a custom SQL query using Drizzle and execute it over HTTP.
+
+```ts [Client project]
+import { desc } from "@ponder/client";
+import { client, schema } from "../lib/ponder";
+
+const result = await client.db
+  .select()
+  .from(schema.account)
+  .orderBy(desc(schema.account.balance))
+  .limit(10);
+```
+
+:::tip
+The `@ponder/client` package re-exports all Drizzle utility functions (like `desc` and `eq`). You shouldn't need to install `drizzle-orm` separately.
+:::
+
+::::
+
+## Guide (React)
+
+The `@ponder/react` package provides React hooks for subscribing to live updates from your database, powered by `@ponder/client`. This package wraps [TanStack Query](https://tanstack.com/query), a popular library for managing async state in React.
+
+::::steps
+
+### Set up `@ponder/client`
+
+First, follow the [steps above](#guide) to set up a SQL client instance using `@ponder/client`.
+
+### Install dependencies
+
+Install `@ponder/react` and peer dependencies in your client project.
+
+:::code-group
+
+```bash [pnpm]
+pnpm add @ponder/react @ponder/client @tanstack/react-query
+```
+
+```bash [yarn]
+yarn add @ponder/react @ponder/client @tanstack/react-query
+```
+
+```bash [npm]
+npm add @ponder/react @ponder/client @tanstack/react-query
+```
+
+:::
+
+### Set up `PonderProvider`
+
+Wrap your app with `PonderProvider` and include the `@ponder/client` instance. This makes the client instance available to all child components.
+
+```tsx
+import { PonderProvider } from "@ponder/react";
+import { client } from "../lib/ponder";
+ 
+function App() {
+  return (
+    <PonderProvider client={client}>
+      {/** ... */}
+    </PonderProvider>
+  );
+}
+```
+
+### Set up TanStack Query
+
+Inside the `PonderProvider`, wrap your app with a TanStack Query Provider. If you're already using TanStack Query, you can skip this step. [Read more](https://tanstack.com/query/latest/docs/framework/react/quick-start) about setting up TanStack Query.
+
+```tsx
+import { PonderProvider } from "@ponder/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"; // [!code focus]
+import { client } from "../lib/ponder";
+ 
+const queryClient = new QueryClient(); // [!code focus]
+ 
+function App() {
+  return (
+    <PonderProvider client={client}>
+      <QueryClientProvider client={queryClient}> {/* [!code focus] */}
+        {/** ... */}
+      </QueryClientProvider> {/* [!code focus] */}
+    </PonderProvider>
+  );
+}
+```
+
+### Run a query
+
+Use the `usePonderQuery` hook in a client component to initiate a live query. The hook returns an ordinary TanStack Query result object.
+
+Whenever the query result changes, the component will re-render with the new data.
+
+```tsx
+import { usePonderQuery } from "@ponder/react";
+import { schema } from "../lib/ponder";
+ 
+export function Deposits() {
+  const { data, isError, isPending } = usePonderQuery({
+    queryFn: (db) =>
+      db.select()
+        .from(schema.depositEvent)
+        .orderBy(schema.depositEvent.timestamp)
+        .limit(10),
+  });
+ 
+  if (isPending) return <div>Loading deposits</div>;
+  if (isError) return <div>Error fetching deposits</div>;
+  return <div>Deposits: {data}</div>;
+}
+```
+
+::::
+
+## Frequently asked questions
+
+### Use schema from a different repo
+
+The `@ponder/client` package needs the `onchainTable` objects exported by `ponder.schema.ts` to properly compile the SQL queries client-side. If the client project is in a different repo from the Ponder project, it's not possible to import the schema file directly.
+
+At the moment, the easiest workaround is to copy the entire `ponder.schema.ts` file into the client project and install `ponder` to get access to the `onchainTable` function.
+
+### Security
+
+Here are the measures taken by the `client` middleware to prevent malicious queries & denial-of-service attacks. These measures aim to achieve a similar level of risk as the GraphQL API.
+
+- **Read-only**: Each query statement runs in a `READ ONLY` transaction using autocommit.
+- **Query validator**: Each query is parsed using [`libpg_query`](https://github.com/pganalyze/libpg_query) and must pass the following checks.
+
+  - The query AST root must be a `SELECT{:sql}` statement. Queries containing multiple statements are rejected.
+  - The query must only contain allowed AST node types and built-in SQL functions. For example, `SELECT{:sql}`, `WHERE{:sql}`, and `max(){:sql}` are allowed, but `DELETE{:sql}`, `SET{:sql}`, and `pg_advisory_lock(){:sql}` are not. [Read more](https://github.com/ponder-sh/ponder/blob/main/packages/core/src/client/validate.ts).
+  - The query must not reference objects in schemas other than the current schema. [Read more](/docs/production/deploy#database-schema).
+
+- **Resource limits**: The database session uses the following resource limit settings.
+  <div className="h-2" />
+  ```sql
+  SET work_mem = '512MB';
+  SET statement_timeout = '500ms';
+  SET lock_timeout = '500ms';
+  ```
+
+### More examples
+
+- [Basic usage](https://github.com/ponder-sh/ponder/blob/main/examples/with-client/client/src/index.ts) (`@ponder/client` only)
+- [Usage with Next.js](https://github.com/ponder-sh/ponder/blob/main/examples/with-nextjs/frontend/src/pages/index.tsx#L11-L18) (`@ponder/client` and `@ponder/react`)

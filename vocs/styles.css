@@ -88,3 +88,11 @@
 .vocs_DesktopSearch_search {
   height: var(--vocs-space_32);
 }
+
+/* LEFT SIDEBAR */
+div.vocs_Sidebar_item {
+  cursor: default;
+}
+div.vocs_Sidebar_item:hover {
+  color: var(--vocs-color_text2);
+}
