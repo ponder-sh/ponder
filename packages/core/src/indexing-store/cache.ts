@@ -5,7 +5,12 @@ import { getColumnCasing } from "@/drizzle/kit/index.js";
 import { addErrorMeta, toErrorMeta } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import { FlushError } from "@/internal/errors.js";
-import type { Event, Schema, SchemaBuild } from "@/internal/types.js";
+import type {
+  CrashRecoveryCheckpoint,
+  Event,
+  Schema,
+  SchemaBuild,
+} from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { prettyPrint } from "@/utils/print.js";
@@ -284,7 +289,7 @@ export const createIndexingCache = ({
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
-  crashRecoveryCheckpoint: string | undefined;
+  crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   eventCount: { [eventName: string]: number };
 }): IndexingCache => {
   /**

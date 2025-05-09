@@ -74,7 +74,7 @@ test("mergeAsyncGenerators() yields all results", async () => {
 
   await new Promise((res) => setTimeout(res));
 
-  expect(results).toStrictEqual([1, 3, 2, 4]);
+  expect(results).toStrictEqual([1, 2, 3, 4]);
 });
 
 test("bufferAsyncGenerator() prefetches results", async () => {

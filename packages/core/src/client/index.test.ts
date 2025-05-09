@@ -195,5 +195,5 @@ test("client.status", async (context) => {
   const response = await app.request("/sql/status");
   expect(response.status).toBe(200);
   const result = await response.json();
-  expect(result).toMatchInlineSnapshot("null");
+  expect(result).toMatchInlineSnapshot("{}");
 });
