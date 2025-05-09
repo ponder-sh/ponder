@@ -1,11 +1,9 @@
-import { Callout } from "vocs/components";
+# `ponder.config.ts` [API reference]
 
-# `ponder.config.ts` [Configure chains, contracts, and the database]
-
-<Callout type="tip">
+:::tip
   This is a low-level reference. For an introduction, visit the
   [Config](/docs/config) section.
-</Callout>
+:::
 
 The `ponder.config.ts` file defines chain IDs, RPC URLs, contract addresses & ABIs, and database configuration.
 
@@ -61,9 +59,9 @@ The omnichain and multichain ordering strategies offer different guarantees. Mul
 
 The `networks` field is an object where each key is a network name containing that network's configuration. Networks are Ethereum-based blockchains like Ethereum mainnet, Goerli, or Foundry's local Anvil node.
 
-<Callout type="warning">
+:::warning
   Most Ponder apps require a paid RPC provider plan to avoid rate limits.
-</Callout>
+:::
 
 | field                    |    type     |                                                                                                                            |
 | :----------------------- | :---------: | :------------------------------------------------------------------------------------------------------------------------- |
@@ -134,11 +132,11 @@ export default createConfig({
 
 ### Log filter
 
-<Callout type="tip">
+:::tip
   The `filter` option is _only_ necessary if you have not specified an
   `address`. By default, Ponder only fetches and indexes events for which you
   have registered an indexing function.
-</Callout>
+:::
 
 [Read more](/docs/contracts-and-networks#event-filter) about log filters.
 
