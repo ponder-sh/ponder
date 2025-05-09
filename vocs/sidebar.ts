@@ -43,8 +43,8 @@ export const sidebar = {
         {
           text: "HTTP",
           items: [
-            { text: "SQL client", link: "/docs/query/http/sql-client" },
-            { text: "GraphQL", link: "/docs/query/http/graphql" },
+            { text: "SQL client", link: "/docs/query/sql-client" },
+            { text: "GraphQL", link: "/docs/query/graphql" },
           ],
         },
         { text: "Direct SQL", link: "/docs/query/direct-sql" },
