@@ -1,3 +1,4 @@
+import { remarkMermaid } from "@theguild/remark-mermaid";
 import { defineConfig } from "vocs";
 import pkg from "../packages/core/package.json";
 import { sidebar } from "./sidebar";
@@ -12,6 +13,7 @@ export default defineConfig({
     process.env.VERCEL_ENV === "production"
       ? "https://ponder.sh"
       : process.env.VERCEL_URL,
+  markdown: { remarkPlugins: [remarkMermaid] },
   sidebar,
   topNav: [
     { text: "Docs", link: "/docs/getting-started", match: "/docs" },
