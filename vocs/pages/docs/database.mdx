@@ -1,0 +1,55 @@
+# Database [Set up the database]
+
+Ponder supports two database options.
+
+- **PostgreSQL**: A traditional Postgres database server. Required for production, can be used for local development.
+- **PGlite**: An [embedded Postgres](https://pglite.dev/) database that stores data in the `.ponder` directory. Only suitable for local development.
+
+## Choose a database
+
+Ponder uses PGlite by default. To use Postgres, set the `DATABASE_URL` environment variable to a Postgres connection string, or use explicit configuration in `ponder.config.ts`.
+
+```ts
+import { createConfig } from "ponder";
+
+export default createConfig({
+  database: { // [!code focus]
+    kind: "postgres", // [!code focus]
+    connectionString: "postgresql://user:password@localhost:5432/dbname", // [!code focus]
+  }, // [!code focus]
+  // ...
+});
+```
+
+[Read more](/docs/api-reference/config#database) about database configuration in the `ponder.config.ts` API reference.
+
+## Database schema
+
+When you start Ponder, you must specify a **database schema**. This is where the app will create the tables defined in `ponder.schema.ts`.
+
+Use the `DATABASE_SCHEMA` environment variable or the `--schema` CLI option to configure it.
+
+:::code-group
+
+```bash [.env.local]
+DATABASE_SCHEMA=my_schema
+```
+
+```bash [CLI]
+ponder start --schema my_schema
+```
+
+:::
+
+[Read more](/docs/production/self-hosting#database-schema) about database schema selection in the self-hosting guide.
+
+## Guidelines
+
+Here are the key guidelines to keep in mind when selecting a database schema.
+
+- No two Ponder instances/deployments can use the same database schema at the same time.
+- Tables created by `ponder start` are treated as valuable and will never be dropped automatically.
+- The default schema for `ponder dev` is `public`. When using `ponder start`, you must explicitly set the database schema; there is no default.
+- Use `ponder dev` for local development; `ponder start` is intended for production.
+
+[Read more](/docs/api-reference/database) about the instance lifecycle and database schema rules.

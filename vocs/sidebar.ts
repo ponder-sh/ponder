@@ -7,6 +7,7 @@ export const sidebar = {
       items: [
         { text: "Getting started", link: "/docs/getting-started" },
         { text: "Installation", link: "/docs/installation" },
+        { text: "Database", link: "/docs/database" },
         { text: "Migration guide", link: "/docs/migration-guide" },
       ],
     },
@@ -73,6 +74,10 @@ export const sidebar = {
           text: "ponder",
           items: [
             {
+              text: "CLI (dev, start, serve)",
+              link: "/docs/api-reference/ponder/cli",
+            },
+            {
               text: "ponder.config.ts",
               link: "/docs/api-reference/ponder/config",
             },
@@ -89,8 +94,8 @@ export const sidebar = {
               link: "/docs/api-reference/ponder/api-endpoints",
             },
             {
-              text: "CLI (dev, start, serve)",
-              link: "/docs/api-reference/ponder/cli",
+              text: "Database reference",
+              link: "/docs/api-reference/ponder/database",
             },
           ],
         },
