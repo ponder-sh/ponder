@@ -51,17 +51,8 @@ export const sidebar = {
     {
       text: "Production",
       items: [
-        { text: "Overview", link: "/docs/production/overview" },
-        {
-          text: "Deploy",
-          items: [
-            { text: "Railway", link: "/docs/production/deploy/railway" },
-            {
-              text: "Self-hosting",
-              link: "/docs/production/deploy/self-hosting",
-            },
-          ],
-        },
+        { text: "Railway", link: "/docs/production/railway" },
+        { text: "Self-hosting", link: "/docs/production/self-hosting" },
       ],
     },
     {

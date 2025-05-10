@@ -10,19 +10,9 @@ Direct SQL is more complex than querying over HTTP with GraphQL or the SQL clien
 
 As a rule of thumb, the _only_ supported operation is `SELECT` queries against Ponder tables.
 
-- **Direct SQL queries are read-only**. Direct SQL queries cannot insert, update, or delete rows from Ponder tables.
-- **Direct SQL with zero downtime requires additional setup**. [Read more](/docs/production/overview) in the production guide.
+- **Direct SQL queries are read-only**. Direct SQL queries should not insert, update, or delete rows from Ponder tables.
+- **Direct SQL with zero-downtime deployments requires additional setup**. [Read more](/docs/production/deploy/self-hosting#views-pattern) about the views pattern in the production guide.
 - **Triggers on Ponder tables are not supported**.
-
-## Guide
-
-::::steps
-
-### Connect to the database
-
-### 
-
-::::
 
 ## Database schema
 
@@ -59,7 +49,7 @@ SET search_path TO my_ponder_project, "$user", public;
 
 If you're writing direct SQL queries using Drizzle (e.g. from a downstream Node.js application), you can use the `setDatabaseSchema` utility function to target a specific database schema.
 
-This function mutates a Drizzle schema such that any queries built using the schema will be qualified with the target database schema. [Read more](https://orm.drizzle.team/docs/schemas) in the Drizzle documentation.
+This function mutates a Drizzle schema such that any queries built using that schema will target the specified database schema. [Read more](https://orm.drizzle.team/docs/schemas) in the Drizzle documentation.
 
 :::code-group
 
@@ -88,40 +78,4 @@ LIMIT 100;
 
 :::
 
-## Frequently asked questions
-
-### Join Ponder data with other data
-
-It's often useful to join Ponder data with other tables in your database.
-
-:::code-group
-
-```ts [Drizzle]
-import { setDatabaseSchema } from "@ponder/client";
-import { drizzle } from "drizzle-orm/node-postgres";
-import * as _schema from "../../ponder/ponder.schema";
-
-const schema = setDatabaseSchema(_schema, "my_schema");
-
-const db = drizzle(process.env.DATABASE_URL, { schema, casing: "snake_case" });
-
-// Basic select
-const oldAccounts = await db
-  .select()
-  .from(schema.accounts)
-  .orderBy(asc(schema.accounts.createdAt))
-  .limit(100);
-
-// Drizzle Relations query
-const whalesWithTransfers = await db.query.accounts.findMany({
-  where: (accounts, { eq }) => eq(accounts.balance, 1_000_000n),
-  with: { transferEvents: true },
-});
-```
-
-```sql [SQL]
-
-```
-
-:::
 

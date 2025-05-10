@@ -16,9 +16,9 @@ Connect your GitHub account, and make sure that your Ponder app has been pushed 
 
 From the Railway console:
 
-1. Click **New Project** → **Deploy from GitHub repo** and select your repo from the list
-2. Click **Add variables**, then add RPC URLs (e.g. `PONDER_RPC_URL_1`) and other environment variables
-3. Create a public domain. In **Settings** → **Networking**, click **Generate Domain**
+1. Click **New Project** → **Deploy from GitHub repo** and select your repo from the list.
+2. Click **Add variables**, then add RPC URLs (e.g. `PONDER_RPC_URL_1`) and other environment variables.
+3. Create a public domain. In **Settings** → **Networking**, click **Generate Domain**.
 4. Update the start command. In **Settings** → **Deploy**, set the **Custom Start Command** to include the `--schema` option. This is required to enable zero-downtime deployments. [Read more](/docs/getting-started/database#database-schema).
 
 :::code-group
@@ -37,7 +37,7 @@ npm run start -- --schema $RAILWAY_DEPLOYMENT_ID
 
 :::
 
-5. Set the healthcheck path and timeout. In **Settings** → **Deploy**, set the **Healthcheck Path** to `/ready` and the **Healthcheck Timeout** to `3600` seconds (1 hour)
+5. Set the healthcheck path and timeout. In **Settings** → **Deploy**, set the **Healthcheck Path** to `/ready` and the **Healthcheck Timeout** to `3600` seconds (1 hour, the maximum allowed).
 
 :::info
 _Monorepo users:_ Use the **Root Directory** and **Start Command** options

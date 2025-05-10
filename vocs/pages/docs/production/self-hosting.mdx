@@ -10,11 +10,11 @@ Ponder works best with a Postgres database running in the same private network. 
 import { createConfig } from "ponder";
 
 export default createConfig({
-  database: {
-    kind: "postgres",
-    connectionString: "postgres://user:password@mycloud.internal:5432/database",
-  },
-  // ... more config
+  database: { // [!code focus]
+    kind: "postgres", // [!code focus]
+    connectionString: "postgres://user:password@mycloud.internal:5432/database", // [!code focus]
+  }, // [!code focus]
+  // ...
 });
 ```
 
@@ -29,7 +29,7 @@ Ponder uses **database schemas** to isolate deployments. Each deployment must us
 
 Use the `DATABASE_SCHEMA` environment variable or the `--schema` CLI argument to specify which database schema a deployment should use. [Read more](/docs/api-reference/database#database-schema-rules) about database schema selection rules.
 
-The best choice depends on your deployment strategy, but here are a few common options.
+It typically makes sense to automate the database schema for each deployment. Here are a few common options.
 
 - Kubernetes pod name
 - Git branch name or commit hash
@@ -72,24 +72,6 @@ To simulate the same behavior at the SQL level, Ponder supports using **database
 :::
 ::::
 
-
-#### Standalone CLI command
-
-The `ponder db create-views` CLI command creates (or updates) views in the target schema to point at the specified deployment's tables.
-
-```bash
-pnpm db create-views --schema=deployment-123 --views-schema=project-name
-```
-
-#### Automated
-
-The `ponder start` command also accepts the `--views-schema` CLI flag. When specified, the deployment will run the `ponder db create-views` command automatically as soon as it becomes ready.
-
-```bash
-pnpm start --schema=deployment-123 --views-schema=project-name
-```
-
-
 ## Health checks & probes
 
 Use the `/health` and `/ready` endpoints to configure health checks or [probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/).
@@ -107,7 +89,7 @@ If a Ponder app running `ponder start` crashes and restarts using the same datab
 
 If a `ponder start` instance receives a large volume of HTTP traffic (e.g. GraphQL requests), the HTTP server will contend with the indexing engine for CPU and memory resources. This can lead to degraded indexing performance and might ultimately crash the instance.
 
-To solve this problem, you can use `ponder serve` to run additional instances of the HTTP server without the indexing engine. Here are a few things to keep in mind.
+To solve this problem, you can use `ponder serve` to run standalone instances of the HTTP server without the indexing engine. Here are a few things to keep in mind.
 
 - The `ponder serve` instance should use the same [database schema](#database-schema) as the `ponder start` instance that you'd like to scale.
 - If one `ponder serve` instance is not enough, it's safe to run multiple replicas behind a proxy.
