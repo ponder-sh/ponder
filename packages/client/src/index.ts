@@ -29,6 +29,15 @@ type ClientDb<schema extends Schema = Schema> = Prettify<
   >
 >;
 
+type Row = { [k: string]: unknown } | null;
+
+type QueryOrder = { name: string; dir: "asc" | "desc" }[];
+
+type QueryCursor = {
+  before: Row;
+  after: Row;
+};
+
 export type Client<schema extends Schema = Schema> = {
   /** Query the database. */
   db: ClientDb<schema>;
@@ -87,6 +96,83 @@ const dialect: PgDialect = noopDatabase.dialect;
 export const compileQuery = (query: SQLWrapper) => {
   return dialect.sqlToQuery(query.getSQL());
 };
+
+/**
+ * Determine the ordering that will be used to paginate the query.
+ *
+ * @dev This function can throw if the query is not able to be paginated.
+ */
+function recoverOrdering(query: SQLWrapper) {
+  // Define the config type with proper structure
+  interface QueryConfig {
+    groupBy?: unknown;
+    leftJoin?: unknown;
+    rightJoin?: unknown;
+    innerJoin?: unknown;
+    fullJoin?: unknown;
+    orderBy?: Array<{
+      queryChunks?: Array<{ value: string[] }>;
+    }>;
+  }
+
+  // Get the config safely with proper typing
+  const config = (query as unknown as { config: QueryConfig }).config;
+
+  // Unsupported operations
+  const unsupportedOperations = [
+    { type: "GROUP BY", exists: config.groupBy },
+    { type: "LEFT JOIN", exists: config.leftJoin },
+    { type: "RIGHT JOIN", exists: config.rightJoin },
+    { type: "INNER JOIN", exists: config.innerJoin },
+    { type: "FULL JOIN", exists: config.fullJoin },
+  ];
+
+  for (const { type, exists } of unsupportedOperations) {
+    if (exists) {
+      throw new Error(`Invalid query: ${type} is not supported for pagination`);
+    }
+  }
+
+  const ordering: QueryOrder = [];
+  if (config.orderBy) {
+    config.orderBy.forEach((order: any) => {
+      if ("queryChunks" in order) {
+        ordering.push({
+          name: order.queryChunks[1].name,
+          dir: order.queryChunks[order.queryChunks.length - 1].value[0].trim(),
+        });
+      } else {
+        ordering.push({ name: order.name, dir: "asc" });
+      }
+    });
+  }
+
+  return ordering;
+}
+
+/**
+ * Use the result of the previous query to determine the cursor.
+ */
+function getQueryCursor(queryOrder: QueryOrder, rows: Row[]) {
+  // not sure how to use `queryOrder` as rows will already be ordered according to it
+  // so we just take the first and last rows as the cursors
+
+  let after = null;
+  let before = null;
+  if (rows.length === 0) {
+    return {
+      after: null,
+      before: null,
+    } as QueryCursor;
+  }
+  after = rows.length > 0 ? rows[0] : null;
+  before = rows.length > 0 ? rows[rows.length - 1] : null;
+
+  return {
+    after,
+    before,
+  } as QueryCursor;
+}
 
 /**
  * Create a client for querying Ponder apps.
