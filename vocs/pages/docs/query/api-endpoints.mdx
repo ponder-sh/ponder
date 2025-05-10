@@ -1,0 +1,39 @@
+# API endpoints [Customize the HTTP server]
+
+Use API endpoints to write custom logic to serve web requests, with direct access to Ponder's database and other useful resources.
+
+## Hono instance
+
+Ponder's API server uses [Hono](https://hono.dev/), a fast and lightweight HTTP router.
+
+The `src/api/index.ts` file **must** default export a Hono instance. To customize the server, register routes and middleware on the Hono instance before exporting it.
+
+```ts [src/api/index.ts (minimal)]
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/hello", (c) => {
+  return c.text("Hello, world!");
+});
+
+export default app;
+```
+
+## Create a custom endpoint
+
+::::steps
+
+### Register route handler
+
+### Make RPC requests
+
+### Return a response
+
+::::
+
+## Frequently asked questions
+
+### CORS
+
+## Example projects

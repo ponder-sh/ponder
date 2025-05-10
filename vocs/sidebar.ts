@@ -42,16 +42,10 @@ export const sidebar = {
           items: [
             { text: "GraphQL", link: "/docs/query/graphql" },
             { text: "SQL client", link: "/docs/query/sql-client" },
+            { text: "API endpoints", link: "/docs/query/api-endpoints" },
           ],
         },
         { text: "Direct SQL", link: "/docs/query/direct-sql" },
-      ],
-    },
-    {
-      text: "HTTP API",
-      items: [
-        { text: "API functions", link: "/docs/http/api-functions" },
-        // { text: "`/metrics`, `/ready`", link: "/docs/http/builtin" },
       ],
     },
     {
@@ -100,8 +94,8 @@ export const sidebar = {
               link: "/docs/api-reference/ponder/indexing-functions",
             },
             {
-              text: "API functions",
-              link: "/docs/api-reference/ponder/api-functions",
+              text: "API endpoints",
+              link: "/docs/api-reference/ponder/api-endpoints",
             },
             {
               text: "CLI (dev, start, serve)",
