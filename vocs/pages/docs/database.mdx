@@ -1,9 +1,9 @@
 # Database [Set up the database]
 
-Ponder supports two database options.
+Ponder supports two database options, [**PGlite**](https://pglite.dev/) and Postgres.
 
+- **PGlite**: An embedded Postgres database. PGlite runs in the same Node.js process as Ponder, and stores data in the `.ponder` directory. **Only suitable for local development**.
 - **PostgreSQL**: A traditional Postgres database server. Required for production, can be used for local development.
-- **PGlite**: An [embedded Postgres](https://pglite.dev/) database that stores data in the `.ponder` directory. Only suitable for local development.
 
 ## Choose a database
 
@@ -25,9 +25,9 @@ export default createConfig({
 
 ## Database schema
 
-When you start Ponder, you must specify a **database schema**. This is where the app will create the tables defined in `ponder.schema.ts`.
+Ponder uses **database schemas** to organize data. Each instance must use a different schema.
 
-Use the `DATABASE_SCHEMA` environment variable or the `--schema` CLI option to configure it.
+Use the `DATABASE_SCHEMA` environment variable or `--schema` CLI option to configure the database schema for an instance. This is where the app will create the tables defined in `ponder.schema.ts`.
 
 :::code-group
 
@@ -43,13 +43,11 @@ ponder start --schema my_schema
 
 [Read more](/docs/production/self-hosting#database-schema) about database schema selection in the self-hosting guide.
 
-## Guidelines
+### Guidelines
 
-Here are the key guidelines to keep in mind when selecting a database schema.
+Here are a few things to keep in mind when choosing a database schema.
 
 - No two Ponder instances/deployments can use the same database schema at the same time.
 - Tables created by `ponder start` are treated as valuable and will never be dropped automatically.
-- The default schema for `ponder dev` is `public`. When using `ponder start`, you must explicitly set the database schema; there is no default.
+- The default schema for `ponder dev` is `public`. There is no default for `ponder start`, you must explicitly set the database schema.
 - Use `ponder dev` for local development; `ponder start` is intended for production.
-
-[Read more](/docs/api-reference/database) about the instance lifecycle and database schema rules.

@@ -5,10 +5,10 @@ export const sidebar = {
     {
       text: "Introduction",
       items: [
-        { text: "Getting started", link: "/docs/introduction/getting-started" },
-        { text: "Installation", link: "/docs/introduction/installation" },
-        { text: "Database", link: "/docs/introduction/database" },
-        { text: "Migration guide", link: "/docs/introduction/migration-guide" },
+        { text: "Getting started", link: "/docs/getting-started" },
+        { text: "Installation", link: "/docs/installation" },
+        { text: "Database", link: "/docs/database" },
+        { text: "Migration guide", link: "/docs/migration-guide" },
       ],
     },
     {
