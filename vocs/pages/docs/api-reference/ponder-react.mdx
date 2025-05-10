@@ -34,7 +34,7 @@ npm add @ponder/react @ponder/client @tanstack/react-query
 
 React Context Provider that makes the SQL client instance available to all child components.
 
-**Usage**
+#### Usage
 
 ```tsx [Client project]
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -54,7 +54,7 @@ function App() {
 }
 ```
 
-**Parameters**
+#### Parameters
 
 | Parameter | Type     | Description                                                        |
 | --------- | -------- | ------------------------------------------------------------------ |
@@ -64,7 +64,7 @@ function App() {
 
 Hook to run a custom SQL query over HTTP with live updates.
 
-**Usage**
+#### Usage
 
 ```tsx [Client project]
 import { usePonderQuery } from "@ponder/react";
@@ -91,14 +91,14 @@ function AccountList() {
 }
 ```
 
-**Parameters**
+#### Parameters
 
 | Parameter        | Type                                                     | Description                                             |
 | ---------------- | -------------------------------------------------------- | ------------------------------------------------------- |
 | `params.queryFn` | `(db: Client["db"]) => Promise<Result>`                  | Required query builder callback using the `db` argument |
 | `...params`      | `Omit<UseQueryOptions<Result>, "queryFn" \| "queryKey">` | All `useQuery` options except `queryFn` and `queryKey`  |
 
-**Returns**
+#### Returns
 
 Returns a normal TanStack `useQuery` result object. [Read more](https://tanstack.com/query/latest/docs/framework/react/reference/useQuery) in the TanStack documention.
 
@@ -112,7 +112,7 @@ Returns a normal TanStack `useQuery` result object. [Read more](https://tanstack
 
 Hook to query the indexing status of the Ponder server over HTTP with live updates.
 
-**Usage**
+#### Usage
 
 ```tsx [Client project]
 import { usePonderStatus } from "@ponder/react";
@@ -141,13 +141,13 @@ function IndexingStatus() {
 }
 ```
 
-**Parameters**
+#### Parameters
 
 | Parameter | Type                                                     | Description                                            |
 | --------- | -------------------------------------------------------- | ------------------------------------------------------ |
 | `params`  | `Omit<UseQueryOptions<Status>, "queryFn" \| "queryKey">` | All `useQuery` options except `queryFn` and `queryKey` |
 
-**Returns**
+#### Returns
 
 Returns a normal TanStack `useQuery` result. [Read more](https://tanstack.com/query/latest/docs/framework/react/reference/useQuery) in the TanStack documention.
 
@@ -213,14 +213,14 @@ export function DepositsTable() {
 
 :::
 
-**Parameters**
+#### Parameters
 
 | Parameter | Type                                    | Description                                                                         |
 | --------- | --------------------------------------- | ----------------------------------------------------------------------------------- |
 | `client`  | `Client`                                | A client instance created by `createClient`                                         |
 | `queryFn` | `(db: Client["db"]) => Promise<Result>` | Function that receives the Drizzle query builder and returns a query result promise |
 
-**Returns**
+#### Returns
 
 | Property   | Type                    | Description                                                                                                                                      |
 | ---------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |

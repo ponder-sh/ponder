@@ -29,7 +29,7 @@ npm add @ponder/client
 
 Create a client object connected to a Ponder server.
 
-**Usage**
+#### Usage
 
 ```ts [Client project]
 import { createClient } from "@ponder/client";
@@ -40,14 +40,14 @@ const client = createClient("https://.../sql", { schema });
 export { client, schema };
 ```
 
-**Parameters**
+#### Parameters
 
 | Parameter        | Type     | Description                                                |
 | ---------------- | -------- | ---------------------------------------------------------- |
 | `baseUrl`        | `string` | Ponder server URL where the `client` middleware is running |
 | `options.schema` | `Schema` | The schema exported by `ponder.schema.ts`                  |
 
-**Returns**
+#### Returns
 
 Returns a `Client` object with methods for querying the database.
 
@@ -55,7 +55,7 @@ Returns a `Client` object with methods for querying the database.
 
 Build a SQL query using Drizzle and execute it over HTTP.
 
-**Usage**
+#### Usage
 
 ```ts [Client project]
 import { client, schema } from "../lib/ponder";
@@ -69,7 +69,7 @@ const filteredResults = await client.db
   .where(eq(schema.account.id, "0x123..."));
 ```
 
-**Returns**
+#### Returns
 
 Returns an array of objects according to the query.
 
@@ -77,7 +77,7 @@ Returns an array of objects according to the query.
 
 Subscribe to live updates from the database using server-sent events (SSE).
 
-**Usage**
+#### Usage
 
 ```ts [Client project]
 import { client, schema } from "../lib/ponder";
@@ -96,7 +96,7 @@ const { unsubscribe } = client.live(
 unsubscribe();
 ```
 
-**Parameters**
+#### Parameters
 
 | Parameter | Type                                | Description                                          |
 | --------- | ----------------------------------- | ---------------------------------------------------- |
@@ -104,11 +104,11 @@ unsubscribe();
 | `onData`  | `(result: Result) => void`          | Callback that receives each new query result         |
 | `onError` | `(error: Error) => void`            | Optional callback that handles any errors that occur |
 
-**Returns**
+#### Returns
 
 Returns an object with an `unsubscribe` method that can be called to stop receiving updates.
 
-**Implementation notes**
+#### Notes
 
 - Each `createClient` instance multiplexes all live queries over a single SSE connection.
 - The server notifies the client whenever a new block gets indexed. If a query result is no longer valid, the client immediately refetches it to receive the latest result.
@@ -117,7 +117,7 @@ Returns an object with an `unsubscribe` method that can be called to stop receiv
 
 Fetch the indexing progress of each chain.
 
-**Usage**
+#### Usage
 
 ```ts [Client project]
 import { client, schema } from "../lib/ponder";
@@ -127,7 +127,7 @@ const status = await client.getStatus();
 console.log("Mainnet indexing status:", status.mainnet);
 ```
 
-**Returns**
+#### Returns
 
 Returns a Promise that resolves to an object containing the indexing status of each network.
 
@@ -144,7 +144,7 @@ type Status = {
 
 The `@ponder/client` package exports all relevant Drizzle utility functions ([full list](https://github.com/ponder-sh/ponder/blob/main/packages/client/src/index.ts#L176)). You shouldn't need to install `drizzle-orm` separately.
 
-**Usage**
+#### Usage
 
 ```ts [Client project]
 import { client, schema } from "../lib/ponder";
