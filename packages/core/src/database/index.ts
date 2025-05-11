@@ -56,8 +56,8 @@ import prometheus from "prom-client";
 export type Database = {
   driver: PostgresDriver | PGliteDriver;
   qb: QueryBuilder;
-  PONDER_META: ReturnType<typeof getPonderMeta>;
-  PONDER_CHECKPOINT: ReturnType<typeof getPonderCheckpoint>;
+  PONDER_META: ReturnType<typeof getPonderMetaTable>;
+  PONDER_CHECKPOINT: ReturnType<typeof getPonderCheckpointTable>;
   retry: <T>(fn: () => Promise<T>) => Promise<T>;
   record: <T>(
     options: { method: string; includeTraceLogs?: boolean },
@@ -163,7 +163,7 @@ type QueryBuilder = {
   drizzleReadonly: Drizzle<Schema>;
 };
 
-export const getPonderMeta = (namespace: NamespaceBuild) => {
+export const getPonderMetaTable = (namespace: NamespaceBuild) => {
   if (namespace === "public") {
     return pgTable("_ponder_meta", (t) => ({
       key: t.text().primaryKey().$type<"app">(),
@@ -177,7 +177,7 @@ export const getPonderMeta = (namespace: NamespaceBuild) => {
   }));
 };
 
-export const getPonderCheckpoint = (namespace: NamespaceBuild) => {
+export const getPonderCheckpointTable = (namespace: NamespaceBuild) => {
   if (namespace === "public") {
     return pgTable("_ponder_checkpoint", (t) => ({
       chainName: t.text().primaryKey(),
@@ -208,8 +208,8 @@ export const createDatabase = async ({
 }): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
 
-  const PONDER_META = getPonderMeta(namespace);
-  const PONDER_CHECKPOINT = getPonderCheckpoint(namespace);
+  const PONDER_META = getPonderMetaTable(namespace);
+  const PONDER_CHECKPOINT = getPonderCheckpointTable(namespace);
 
   ////////
   // Create schema, drivers, roles, and query builders
