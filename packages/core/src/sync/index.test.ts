@@ -967,22 +967,34 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
   })();
 
   p1.resolve({
-    events: [{ checkpoint: "01" }, { checkpoint: "07" }] as Event[],
+    events: [
+      { checkpoint: "01", chainId: 1 },
+      { checkpoint: "07", chainId: 1 },
+    ] as Event[],
     checkpoint: "10",
   });
   p3.resolve({
-    events: [{ checkpoint: "02" }, { checkpoint: "05" }] as Event[],
+    events: [
+      { checkpoint: "02", chainId: 2 },
+      { checkpoint: "05", chainId: 2 },
+    ] as Event[],
     checkpoint: "06",
   });
 
   await new Promise((res) => setTimeout(res));
 
   p4.resolve({
-    events: [{ checkpoint: "08" }, { checkpoint: "11" }] as Event[],
+    events: [
+      { checkpoint: "08", chainId: 1 },
+      { checkpoint: "11", chainId: 1 },
+    ] as Event[],
     checkpoint: "20",
   });
   p2.resolve({
-    events: [{ checkpoint: "08" }, { checkpoint: "13" }] as Event[],
+    events: [
+      { checkpoint: "08", chainId: 2 },
+      { checkpoint: "13", chainId: 2 },
+    ] as Event[],
     checkpoint: "20",
   });
 
@@ -993,22 +1005,25 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
       {
         "checkpoints": [
           {
-            "chainId": undefined,
+            "chainId": 1,
             "checkpoint": "01",
           },
           {
-            "chainId": undefined,
+            "chainId": 2,
             "checkpoint": "05",
           },
         ],
         "events": [
           {
+            "chainId": 1,
             "checkpoint": "01",
           },
           {
+            "chainId": 2,
             "checkpoint": "02",
           },
           {
+            "chainId": 2,
             "checkpoint": "05",
           },
         ],
@@ -1016,19 +1031,21 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
       {
         "checkpoints": [
           {
-            "chainId": undefined,
+            "chainId": 1,
             "checkpoint": "07",
           },
           {
-            "chainId": undefined,
+            "chainId": 1,
             "checkpoint": "08",
           },
         ],
         "events": [
           {
+            "chainId": 1,
             "checkpoint": "07",
           },
           {
+            "chainId": 1,
             "checkpoint": "08",
           },
         ],
@@ -1036,22 +1053,25 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
       {
         "checkpoints": [
           {
-            "chainId": undefined,
+            "chainId": 2,
             "checkpoint": "13",
           },
           {
-            "chainId": undefined,
+            "chainId": 1,
             "checkpoint": "11",
           },
         ],
         "events": [
           {
+            "chainId": 2,
             "checkpoint": "08",
           },
           {
+            "chainId": 1,
             "checkpoint": "11",
           },
           {
+            "chainId": 2,
             "checkpoint": "13",
           },
         ],
