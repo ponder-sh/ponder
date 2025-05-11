@@ -281,28 +281,28 @@ Specifies a list of addresses collected from decoded event logs. Both [`contract
 | **parameter** |                       `string`                       | **Required**. Name of the parameter within `event` that contains child contract addresses. |
 
 ```ts [ponder.config.ts] {8-14}
-import { createConfig, factory } from "ponder";
+import { createConfig, factory } from "ponder"; // [!code focus]
 
 export default createConfig({
-  // ... more config
   contracts: {
     uniswapV2: {
-      // ... other contract options
-      address: factory({
-        address: "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
-        event: parseAbiItem(
-          "event PairCreated(address indexed token0, address indexed token1, address pair, uint256)"
-        ),
-        parameter: "pair",
-      }),
+      // ...
+      address: factory({ // [!code focus]
+        address: "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f", // [!code focus]
+        event: parseAbiItem( // [!code focus]
+          "event PairCreated(address indexed token0, address indexed token1, address pair, uint256)" // [!code focus]
+        ), // [!code focus]
+        parameter: "pair", // [!code focus]
+      }), // [!code focus]
     },
   },
+  // ...
 });
 ```
 
 ## Types
 
-The `ponder` package exports several utility types that may be useful when generating configuration options dynamically.
+The `ponder` package exports several utility types. Use these types to maintain type safety when generating config options dynamically.
 
 ### DatabaseConfig
 
