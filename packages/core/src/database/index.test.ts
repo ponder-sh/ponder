@@ -19,7 +19,7 @@ import {
   type Database,
   TABLES,
   createDatabase,
-  getPonderMeta,
+  getPonderMetaTable,
 } from "./index.js";
 
 beforeEach(setupCommon);
@@ -222,7 +222,7 @@ test("migrate() succeeds with crash recovery", async (context) => {
 
   const metadata = await databaseTwo.qb.drizzle
     .select()
-    .from(getPonderMeta("public"));
+    .from(getPonderMetaTable("public"));
 
   expect(metadata).toHaveLength(1);
 
@@ -417,7 +417,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
 
   const metadata = await databaseTwo.qb.drizzle
     .select()
-    .from(getPonderMeta("public"));
+    .from(getPonderMetaTable("public"));
 
   expect(metadata).toHaveLength(1);
 
@@ -511,14 +511,14 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
 
   const row = await database.qb.drizzle
     .select()
-    .from(getPonderMeta("public"))
+    .from(getPonderMetaTable("public"))
     .then((result) => result[0]!.value);
 
   await wait(500);
 
   const rowAfterHeartbeat = await database.qb.drizzle
     .select()
-    .from(getPonderMeta("public"))
+    .from(getPonderMetaTable("public"))
     .then((result) => result[0]!.value);
 
   expect(BigInt(rowAfterHeartbeat!.heartbeat_at)).toBeGreaterThan(

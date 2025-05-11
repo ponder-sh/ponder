@@ -2,7 +2,7 @@ import { createBuild } from "@/build/index.js";
 import {
   type PonderApp,
   createDatabase,
-  getPonderMeta,
+  getPonderMetaTable,
 } from "@/database/index.js";
 import { TABLES } from "@/database/index.js";
 import { sqlToReorgTableName } from "@/drizzle/kit/index.js";
@@ -80,11 +80,11 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   const queries = ponderSchemas.map((row) =>
     database.qb.drizzle
       .select({
-        value: getPonderMeta(row.schema).value,
+        value: getPonderMetaTable(row.schema).value,
         schema: sql<string>`${row.schema}`.as("schema"),
       })
-      .from(getPonderMeta(row.schema))
-      .where(eq(getPonderMeta(row.schema).key, "app")),
+      .from(getPonderMetaTable(row.schema))
+      .where(eq(getPonderMetaTable(row.schema).key, "app")),
   );
 
   if (queries.length === 0) {

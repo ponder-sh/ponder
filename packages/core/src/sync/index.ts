@@ -379,6 +379,9 @@ export const createSync = async (params: {
           historicalSync,
         });
 
+        // In order to speed up the "extract" phase when there is a crash recovery,
+        // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
+        // is defined and `crashRecoveryCheckpoint` refers to the same chain as `network`.
         let from: string;
         if (
           crashRecoveryCheckpoint &&
