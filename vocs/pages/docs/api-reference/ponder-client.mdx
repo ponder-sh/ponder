@@ -108,7 +108,7 @@ unsubscribe();
 
 Returns an object with an `unsubscribe` method that can be called to stop receiving updates.
 
-#### Notes
+#### Implementation notes
 
 - Each `createClient` instance multiplexes all live queries over a single SSE connection.
 - The server notifies the client whenever a new block gets indexed. If a query result is no longer valid, the client immediately refetches it to receive the latest result.

@@ -277,58 +277,80 @@ export default createConfig({
 });
 ```
 
-## Examples
+## Types
 
-### Basic example
+The `ponder` package exports several utility types that may be useful when generating configuration options dynamically.
 
-```ts [ponder.config.ts]
-import { createConfig } from "ponder";
-import { http } from "viem";
+### DatabaseConfig
 
-import { ArtGobblersAbi } from "./abis/ArtGobblers";
+```ts [ponder.config.ts] {1,6}
+import { createConfig, type DatabaseConfig } from "ponder"; // [!code focus]
+
+const database = { // [!code focus]
+  kind: "postgres", // [!code focus]
+  connectionString: process.env.DATABASE_URL, // [!code focus]
+} as const satisfies DatabaseConfig; // [!code focus]
 
 export default createConfig({
-  networks: {
-    mainnet: {
-      chainId: 1,
-      transport: http(process.env.PONDER_RPC_URL_1),
-    },
-  },
-  contracts: {
-    ArtGobblers: {
-      network: "mainnet",
-      abi: ArtGobblersAbi,
-      address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
-      startBlock: 15863321,
-    },
-  },
+  database,
+  // ...
 });
 ```
 
-### Using top-level await
+### NetworkConfig
 
-{/* prettier-ignore */}
-```ts [ponder.config.ts] {5,19}
-import { createConfig } from "ponder";
+```ts [ponder.config.ts]
+import { createConfig, type NetworkConfig } from "ponder"; // [!code focus]
+import { http } from "viem";
 
-import { ArtGobblersAbi } from "./abis/ArtGobblers";
-
-const startBlock = await fetch("http://...");
+const mainnet = { // [!code focus]
+  chainId: 1, // [!code focus]
+  transport: http(process.env.PONDER_RPC_URL_1), // [!code focus]
+} as const satisfies NetworkConfig; // [!code focus]
 
 export default createConfig({
   networks: {
-    mainnet: {
-      chainId: 1,
-      transport: http(process.env.PONDER_RPC_URL_1),
-    },
-  },
+    mainnet,
+  }
+  // ...
+});
+```
+
+### ContractConfig
+
+```ts [ponder.config.ts] {1}
+import { createConfig, type ContractConfig } from "ponder"; // [!code focus]
+import { Erc20Abi } from "./abis/Erc20Abi.ts";
+
+const Erc20 = { // [!code focus]
+  network: "mainnet" // [!code focus]
+  abi: Erc20Abi, // [!code focus]
+  address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", // [!code focus]
+} as const satisfies ContractConfig; // [!code focus]
+
+export default createConfig({
   contracts: {
-    ArtGobblers: {
-      network: "mainnet",
-      abi: ArtGobblersAbi,
-      address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
-      startBlock,
-    },
+    Erc20,
   },
+  // ...
+});
+```
+
+### BlockConfig
+
+```ts [ponder.config.ts]
+import { createConfig, type BlockConfig } from "ponder"; // [!code focus]
+
+const ChainlinkPriceOracle = { // [!code focus]
+  network: "mainnet", // [!code focus]
+  startBlock: 19_750_000, // [!code focus]
+  interval: 5, // [!code focus]
+} as const satisfies BlockConfig; // [!code focus]
+
+export default createConfig({
+  blocks: {
+    ChainlinkPriceOracle,
+  },
+  // ...
 });
 ```

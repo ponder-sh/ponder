@@ -25,7 +25,7 @@ ponder.on("ContractName:EventName", async ({ event, context }) => { // [!code fo
 });
 ```
 
-## Log event
+### Log event
 
 Log events are specified with `"ContractName:EventName"`.
 
@@ -51,7 +51,7 @@ type LogEvent = {
 };
 ```
 
-### Decoded arguments
+#### Decoded arguments
 
 The `event.args` object contains log argument data (`log.topics` and `log.data`) decoded using Viem's [decodeEventLog](https://viem.sh/docs/contract/decodeEventLog.html) function.
 
@@ -64,7 +64,7 @@ type Args = {
 };
 ```
 
-## Call trace event
+### Call trace event
 
 Call trace events are specified using `"ContractName.functionName()"`.
 
@@ -96,11 +96,11 @@ type TraceEvent = {
 };
 ```
 
-### Decoded arguments
+#### Decoded arguments
 
 The `event.args` and `event.result` objects contain `trace.input` and `trace.output` decoded using Viem's [decodeFunctionData](https://viem.sh/docs/contract/decodeFunctionData.html) and [decodeFunctionResult](https://viem.sh/docs/contract/decodeFunctionResult.html) functions, respectively.
 
-## Transaction event
+### Transaction event
 
 Transaction events are specified using `"AccountName:transaction:from"` or `"AccountName:transaction:to"`.
 
@@ -122,7 +122,7 @@ type TransactionEvent = {
 };
 ```
 
-## Transfer event
+### Transfer event
 
 Native transfer events are specified using `"AccountName:transfer:from"` or `"AccountName:transfer:to"`.
 
@@ -151,7 +151,7 @@ type TransferEvent = {
 };
 ```
 
-## Block event
+### Block event
 
 Block events are created by [block intervals](/docs/config/block-intervals).
 
@@ -171,7 +171,221 @@ type BlockEvent = {
 };
 ```
 
-## EVM object types
+### `"setup"` event
+
+You can also define a setup function for each contract that runs before indexing begins.
+
+- The indexing function does not receive an `event` argument, only `context`.
+- If you read from contracts in a `"setup"` indexing function, the `blockNumber` for the request is set to the contract's `startBlock`.
+
+For example, you might have a singleton `World` record that occasionally gets updated in indexing functions.
+
+```ts [src/index.ts]
+import { ponder } from "ponder:registry";
+import { world } from "ponder:schema";
+
+ponder.on("FunGame:NewPlayer", async ({ context }) => {
+  await context.db
+    .insert(world)
+    .values({ id: 1, playerCount: 0 })
+    .onConflictDoUpdate((row) => ({
+      playerCount: row.playerCount + 1,
+    }));
+});
+```
+
+Without the `"setup"` event, you need to upsert the record in each indexing function that attempts to use it, which is clunky and bad for performance. Instead, use the `"setup"` event to create the singleton record once at the beginning of indexing.
+
+{/* prettier-ignore */}
+```ts [src/index.ts]
+import { ponder } from "ponder:registry";
+import { world } from "ponder:schema";
+
+ponder.on("FunGame:setup", async ({ context }) => {
+  await context.db.insert(world).values({
+    id: 1,
+    playerCount: 0,
+  });
+});
+
+ponder.on("FunGame:NewPlayer", async ({ context }) => {
+  await context.db
+    .update(world, { id: 1 })
+    .set((row) => ({
+      playerCount: row.playerCount + 1,
+  }));
+});
+```
+
+## Context
+
+The `context` argument passed to each indexing function contains database model objects and helper objects based on your config.
+
+At runtime, the indexing engine uses a different `context` object depending on the network the current event was emitted on. The TypeScript types for the `context` object reflect this by creating a union of possible types for `context.network` and `context.contracts`.
+
+{/* prettier-ignore */}
+```ts
+type Context = {
+  db: Database;
+  network: { name: string; chainId: number };
+  client: ReadOnlyClient;
+  contracts: Record<
+    string,
+    { abi: Abi; address?: `0x${string}`; startBlock?: number; endBlock?: number; }
+  >;
+};
+```
+
+### Database
+
+The `context.db` object is a live database connection. [Read more](/docs/indexing/write-to-the-database) about writing to the database.
+
+```ts [src/index.ts]
+import { ponder } from "ponder:registry";
+import { persons, dogs } from "ponder:schema";
+
+ponder.on("Neighborhood:NewNeighbor", async ({ event, context }) => {
+  await context.db.insert(persons).values({ name: "bob", age: 30 }); // [!code focus]
+  await context.db.insert(dogs).values({ name: "jake", ownerName: "bob" }); // [!code focus]
+  const jake = await context.db.find(dogs, { name: "jake" }); // [!code focus]
+});
+```
+
+### Network
+
+The `context.network` object includes information about the network that the current event is from. The object is strictly typed according to the networks you defined in your config.
+
+```ts [src/index.ts]
+ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
+  context.network;
+  //      ^? { name: "mainnet", chainId 1 } | { name: "base", chainId 8453 }
+
+  if (context.network.name === "mainnet") {
+    // Do mainnet-specific stuff!
+  }
+});
+```
+
+### Client
+
+:::info
+  See the [Read contract data](/docs/indexing/read-contract-data) guide for more
+  details.
+:::
+
+### Contracts
+
+:::info
+  See the [Read contract data](/docs/indexing/read-contract-data) guide for more
+  details.
+:::
+
+## Types
+
+The `"ponder:registry"` module exports utility types that are useful for creating reusable helper functions in your indexing files.
+
+### EventNames
+
+A union of all event names that are available from the contracts defined in `ponder.config.ts`.
+
+```ts [src/helpers.ts]
+import { ponder, type EventNames } from "ponder:registry";
+
+function helper(eventName: EventNames) {
+  eventName;
+  // ^? "Weth:Deposit" | "Weth:Withdraw" | "Weth:Approval | "Weth:Transfer"
+}
+```
+
+### Event
+
+A generic type that optionally accepts an event name and returns the `event` object type for that event.
+
+```ts [src/helpers.ts]
+import { ponder, type Event } from "ponder:registry";
+
+function helper(event: Event<"Weth:Deposit">) {
+  event;
+  // ^? {
+  //      args: { dst: `0x${string}`; wad: bigint };
+  //      block: Block;
+  //      event: "Deposit";
+  //      transaction: Transaction;
+  //      log: Log;
+  //    }
+}
+```
+
+If no event name is provided, `Event` is the union of all event types. This can be useful if all you need is the `block`, `transaction`, and `log` types which are the same for all events.
+
+```ts [src/helpers.ts]
+import { ponder, type Event } from "ponder:registry";
+
+function helper(event: Event) {
+  event;
+  // ^? { args: { dst: `0x${string}`; wad: bigint }; block: Block; event: "Deposit"; transaction: Transaction; log: Log; }
+  //    | { args: { src: `0x${string}`; wad: bigint }; block: Block; event: "Withdraw"; transaction: Transaction; log: Log; }
+  //    ...
+}
+```
+
+### Context
+
+A generic type that optionally accepts an event name and returns the `context` object type.
+
+```ts [src/helpers.ts]
+import { ponder, type Context } from "ponder:registry";
+
+function helper(context: Context<"Weth:Deposit">) {
+  event;
+  // ^? {
+  //      network: { name: "mainnet"; chainId: 1; };
+  //      client: ReadonlyClient;
+  //      db: { Account: DatabaseModel<{ id: `0x${string}`; balance: bigint; }> };
+  //      contracts: { weth9: { abi: ...; address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" } };
+  //    }
+}
+```
+
+If no event name is provided, `Context` returns the union of all context types. This can be useful if all you need is the `db` or `contracts` types which are the same for all events.
+
+### IndexingFunctionArgs
+
+A generic type that optionally accepts an event name and returns the indexing function argument type.
+
+```ts [src/helpers.ts]
+import { ponder, type IndexingFunctionArgs } from "ponder:registry";
+
+function helper(args: IndexingFunctionArgs<"Weth:Deposit">) {
+  args;
+  // ^? {
+  //      event: { ... };
+  //      context: { ... };
+  //    }
+}
+```
+
+Like `Event` and `Context`, `IndexingFunctionArgs` returns the union of all indexing function argument types if no event name is provided.
+
+### Schema
+
+Use the [Drizzle type helpers](https://orm.drizzle.team/docs/goodies#type-api) to create custom types for database records.
+
+```ts [src/helpers.ts]
+import { accounts } from "ponder:schema";
+
+function helper(account: typeof accounts.$inferSelect) {
+  account;
+  // ^? {
+  //      id: bigint;
+  //      balance: bigint;
+  //      nickname: string;
+  //      createdAt: number;
+  //    }
+}
+```
+
+### EVM objects
 
 ```ts
 /** The block containing the transaction that emitted the log being processed. */
@@ -312,113 +526,4 @@ type Trace = {
   /** Number of subcalls. */
   subcalls: number;
 };
-```
-
-## Context
-
-The `context` argument passed to each indexing function contains database model objects and helper objects based on your config.
-
-At runtime, the indexing engine uses a different `context` object depending on the network the current event was emitted on. The TypeScript types for the `context` object reflect this by creating a union of possible types for `context.network` and `context.contracts`.
-
-{/* prettier-ignore */}
-```ts
-type Context = {
-  db: Database;
-  network: { name: string; chainId: number };
-  client: ReadOnlyClient;
-  contracts: Record<
-    string,
-    { abi: Abi; address?: `0x${string}`; startBlock?: number; endBlock?: number; }
-  >;
-};
-```
-
-### Database
-
-The `context.db` object is a live database connection. [Read more](/docs/indexing/write-to-the-database) about writing to the database.
-
-```ts [src/index.ts]
-import { ponder } from "ponder:registry";
-import { persons, dogs } from "ponder:schema";
-
-ponder.on("Neighborhood:NewNeighbor", async ({ event, context }) => {
-  await context.db.insert(persons).values({ name: "bob", age: 30 }); // [!code focus]
-  await context.db.insert(dogs).values({ name: "jake", ownerName: "bob" }); // [!code focus]
-  const jake = await context.db.find(dogs, { name: "jake" }); // [!code focus]
-});
-```
-
-### Network
-
-The `context.network` object includes information about the network that the current event is from. The object is strictly typed according to the networks you defined in your config.
-
-```ts [src/index.ts]
-ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
-  context.network;
-  //      ^? { name: "mainnet", chainId 1 } | { name: "base", chainId 8453 }
-
-  if (context.network.name === "mainnet") {
-    // Do mainnet-specific stuff!
-  }
-});
-```
-
-### Client
-
-:::info
-  See the [Read contract data](/docs/indexing/read-contract-data) guide for more
-  details.
-:::
-
-### Contracts
-
-:::info
-  See the [Read contract data](/docs/indexing/read-contract-data) guide for more
-  details.
-:::
-
-## `"setup"` event
-
-You can also define a setup function for each contract that runs before indexing begins.
-
-- The indexing function does not receive an `event` argument, only `context`.
-- If you read from contracts in a `"setup"` indexing function, the `blockNumber` for the request is set to the contract's `startBlock`.
-
-For example, you might have a singleton `World` record that occasionally gets updated in indexing functions.
-
-```ts [src/index.ts]
-import { ponder } from "ponder:registry";
-import { world } from "ponder:schema";
-
-ponder.on("FunGame:NewPlayer", async ({ context }) => {
-  await context.db
-    .insert(world)
-    .values({ id: 1, playerCount: 0 })
-    .onConflictDoUpdate((row) => ({
-      playerCount: row.playerCount + 1,
-    }));
-});
-```
-
-Without the `"setup"` event, you need to upsert the record in each indexing function that attempts to use it, which is clunky and bad for performance. Instead, use the `"setup"` event to create the singleton record once at the beginning of indexing.
-
-{/* prettier-ignore */}
-```ts [src/index.ts]
-import { ponder } from "ponder:registry";
-import { world } from "ponder:schema";
-
-ponder.on("FunGame:setup", async ({ context }) => {
-  await context.db.insert(world).values({
-    id: 1,
-    playerCount: 0,
-  });
-});
-
-ponder.on("FunGame:NewPlayer", async ({ context }) => {
-  await context.db
-    .update(world, { id: 1 })
-    .set((row) => ({
-      playerCount: row.playerCount + 1,
-  }));
-});
 ```
