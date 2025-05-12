@@ -407,6 +407,7 @@ export const createBuild = async ({
       // Validates and build the config
       const buildConfigAndIndexingFunctionsResult =
         await safeBuildConfigAndIndexingFunctions({
+          common,
           config: configResult.config,
           rawIndexingFunctions: indexingResult.indexingFunctions,
         });
@@ -437,7 +438,8 @@ export const createBuild = async ({
         result: {
           buildId,
           sources: buildConfigAndIndexingFunctionsResult.sources,
-          networks: buildConfigAndIndexingFunctionsResult.networks,
+          chains: buildConfigAndIndexingFunctionsResult.chains,
+          rpcs: buildConfigAndIndexingFunctionsResult.rpcs,
           indexingFunctions:
             buildConfigAndIndexingFunctionsResult.indexingFunctions,
         },

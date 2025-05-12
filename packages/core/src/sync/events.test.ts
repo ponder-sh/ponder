@@ -36,6 +36,7 @@ test("decodeEvents() log", async (context) => {
     address: zeroAddress,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common,
     config,
     rawIndexingFunctions,
   });
@@ -77,6 +78,7 @@ test("decodeEvents() log error", async (context) => {
     address: zeroAddress,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common,
     config,
     rawIndexingFunctions,
   });
@@ -115,6 +117,7 @@ test("decodeEvents() block", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common,
     config,
     rawIndexingFunctions,
   });
@@ -147,6 +150,7 @@ test("decodeEvents() transfer", async (context) => {
     });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common,
     config,
     rawIndexingFunctions,
   });
@@ -194,6 +198,7 @@ test("decodeEvents() transaction", async (context) => {
     });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common,
     config,
     rawIndexingFunctions,
   });
@@ -223,6 +228,7 @@ test("decodeEvents() trace", async (context) => {
     includeCallTraces: true,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common,
     config,
     rawIndexingFunctions,
   });
@@ -274,6 +280,7 @@ test("decodeEvents() trace error", async (context) => {
     includeCallTraces: true,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common,
     config,
     rawIndexingFunctions,
   });
