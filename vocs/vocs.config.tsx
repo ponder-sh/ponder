@@ -11,8 +11,8 @@ export default defineConfig({
   rootDir: ".",
   baseUrl:
     process.env.VERCEL_ENV === "production"
-      ? "https://ponder.sh"
-      : process.env.VERCEL_URL,
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : `https://${process.env.VERCEL_URL}`,
   markdown: { remarkPlugins: [remarkMermaid] },
   sidebar,
   topNav: [
