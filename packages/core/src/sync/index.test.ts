@@ -1,3 +1,4 @@
+import { ALICE } from "@/_test/constants.js";
 import {
   setupCleanup,
   setupCommon,
@@ -5,8 +6,10 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { setupAnvil } from "@/_test/setup.js";
+import { deployErc20, mintErc20 } from "@/_test/simulate.js";
 import {
   getBlocksConfigAndIndexingFunctions,
+  getErc20ConfigAndIndexingFunctions,
   getNetwork,
   testClient,
 } from "@/_test/utils.js";
@@ -22,8 +25,14 @@ import { drainAsyncGenerator } from "@/utils/generators.js";
 import type { Interval } from "@/utils/interval.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
-import { _eth_getBlockByNumber } from "@/utils/rpc.js";
+import { _eth_getBlockByNumber, _eth_getLogs } from "@/utils/rpc.js";
+import { parseEther } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
+import {
+  syncBlockToInternal,
+  syncLogToInternal,
+  syncTransactionToInternal,
+} from "./events.js";
 import { getFragments } from "./fragments.js";
 import {
   createSync,
@@ -111,7 +120,10 @@ test("splitEvents()", async () => {
 test("getPerChainOnRealtimeSyncEvent() handles block", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
-  const requestQueue = createRequestQueue({ network, common: context.common });
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -158,10 +170,10 @@ test("getPerChainOnRealtimeSyncEvent() handles block", async (context) => {
     hasMatchedFilter: false,
     block,
     logs: [],
-    factoryLogs: [],
     traces: [],
     transactions: [],
     transactionReceipts: [],
+    childAddresses: new Map(),
   });
 
   expect(event.type).toBe("block");
@@ -170,7 +182,10 @@ test("getPerChainOnRealtimeSyncEvent() handles block", async (context) => {
 test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
-  const requestQueue = createRequestQueue({ network, common: context.common });
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -219,10 +234,10 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
     hasMatchedFilter: true,
     block,
     logs: [],
-    factoryLogs: [],
     traces: [],
     transactions: [],
     transactionReceipts: [],
+    childAddresses: new Map(),
   });
 
   const event = await onRealtimeSyncEvent({
@@ -244,21 +259,17 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
     .selectAll()
     .execute();
 
-  expect(intervals).toMatchInlineSnapshot(`
-    [
-      {
-        "blocks": "{[0,2]}",
-        "chain_id": 1,
-        "fragment_id": "block_1_1_0",
-      },
-    ]
-  `);
+  expect(intervals).toHaveLength(1);
+  expect(intervals[0]!.blocks).toBe("{[0,2]}");
 });
 
 test("getPerChainOnRealtimeSyncEvent() handles reorg", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
-  const requestQueue = createRequestQueue({ network, common: context.common });
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -307,10 +318,10 @@ test("getPerChainOnRealtimeSyncEvent() handles reorg", async (context) => {
     hasMatchedFilter: true,
     block,
     logs: [],
-    factoryLogs: [],
     traces: [],
     transactions: [],
     transactionReceipts: [],
+    childAddresses: new Map(),
   });
 
   const event = await onRealtimeSyncEvent({
@@ -344,7 +355,10 @@ test("getLocalEventGenerator()", async (context) => {
     network,
     syncStore,
     sources,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+    }),
     onFatalError: () => {},
   });
 
@@ -352,7 +366,10 @@ test("getLocalEventGenerator()", async (context) => {
     common: context.common,
     sources,
     network,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+    }),
     intervalsCache: historicalSync.intervalsCache,
   });
 
@@ -400,7 +417,10 @@ test("getLocalEventGenerator() pagination", async (context) => {
     network,
     syncStore,
     sources,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+    }),
     onFatalError: () => {},
   });
 
@@ -408,7 +428,10 @@ test("getLocalEventGenerator() pagination", async (context) => {
     common: context.common,
     sources,
     network,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+    }),
     intervalsCache: historicalSync.intervalsCache,
   });
 
@@ -456,7 +479,10 @@ test("getLocalSyncGenerator()", async (context) => {
     network,
     syncStore,
     sources,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+    }),
     onFatalError: () => {},
   });
 
@@ -464,7 +490,10 @@ test("getLocalSyncGenerator()", async (context) => {
     common: context.common,
     sources,
     network,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+    }),
     intervalsCache: historicalSync.intervalsCache,
   });
 
@@ -482,15 +511,8 @@ test("getLocalSyncGenerator()", async (context) => {
     .selectAll()
     .execute();
 
-  expect(intervals).toMatchInlineSnapshot(`
-    [
-      {
-        "blocks": "{[0,2]}",
-        "chain_id": 1,
-        "fragment_id": "block_1_1_0",
-      },
-    ]
-  `);
+  expect(intervals).toHaveLength(1);
+  expect(intervals[0]!.blocks).toBe("{[0,2]}");
 });
 
 test("getLocalSyncGenerator() with partial cache", async (context) => {
@@ -515,7 +537,10 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     network,
     syncStore,
     sources,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+    }),
     onFatalError: () => {},
   });
 
@@ -523,7 +548,10 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     common: context.common,
     sources,
     network,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+    }),
     intervalsCache: historicalSync.intervalsCache,
   });
 
@@ -543,7 +571,10 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     network,
     syncStore,
     sources,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+    }),
     onFatalError: () => {},
   });
 
@@ -551,7 +582,10 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     common: context.common,
     sources,
     network,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+    }),
     intervalsCache: historicalSync.intervalsCache,
   });
 
@@ -569,21 +603,17 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     .selectAll()
     .execute();
 
-  expect(intervals).toMatchInlineSnapshot(`
-    [
-      {
-        "blocks": "{[0,3]}",
-        "chain_id": 1,
-        "fragment_id": "block_1_1_0",
-      },
-    ]
-  `);
+  expect(intervals).toHaveLength(1);
+  expect(intervals[0]!.blocks).toBe("{[0,3]}");
 });
 
 test("getLocalSyncGenerator() with full cache", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
   const network = getNetwork();
-  const requestQueue = createRequestQueue({ network, common: context.common });
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -611,7 +641,10 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     common: context.common,
     sources,
     network,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+    }),
     intervalsCache: historicalSync.intervalsCache,
   });
 
@@ -629,7 +662,10 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     network,
     syncStore,
     sources,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+    }),
     onFatalError: () => {},
   });
 
@@ -637,7 +673,10 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     common: context.common,
     sources,
     network,
-    requestQueue: createRequestQueue({ network, common: context.common }),
+    requestQueue: createRequestQueue({
+      network,
+      common: context.common,
+    }),
     intervalsCache: historicalSync.intervalsCache,
   });
 
@@ -660,7 +699,10 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
 
 test("getLocalSyncProgress()", async (context) => {
   const network = getNetwork();
-  const requestQueue = createRequestQueue({ network, common: context.common });
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -696,7 +738,10 @@ test("getLocalSyncProgress()", async (context) => {
 
 test("getLocalSyncProgress() future end block", async (context) => {
   const network = getNetwork();
-  const requestQueue = createRequestQueue({ network, common: context.common });
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -1002,11 +1047,16 @@ test("createSync()", async (context) => {
   const sync = await createSync({
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+      }),
+    ],
     syncStore,
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1035,10 +1085,15 @@ test("getEvents() multichain", async (context) => {
     syncStore,
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+      }),
+    ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1072,10 +1127,15 @@ test("getEvents() omnichain", async (context) => {
     syncStore,
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+      }),
+    ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "omnichain",
   });
 
@@ -1110,10 +1170,15 @@ test("getEvents() mulitchain updates status", async (context) => {
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+      }),
+    ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1148,10 +1213,15 @@ test("getEvents() omnichain updates status", async (context) => {
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+      }),
+    ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1186,10 +1256,15 @@ test("getEvents() with initial checkpoint", async (context) => {
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+      }),
+    ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: MAX_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: MAX_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1223,10 +1298,15 @@ test.skip("startRealtime()", async (context) => {
     syncStore,
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+      }),
+    ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1263,7 +1343,12 @@ test("onEvent() multichain handles block", async (context) => {
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+      }),
+    ],
     onRealtimeEvent: async (event) => {
       if (event.type === "block") {
         events.push(...event.events);
@@ -1271,7 +1356,7 @@ test("onEvent() multichain handles block", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1306,7 +1391,10 @@ test("onEvent() omnichain handles block", async (context) => {
       networks,
     },
     requestQueues: [
-      createRequestQueue({ network: networks[0]!, common: context.common }),
+      createRequestQueue({
+        network: networks[0]!,
+        common: context.common,
+      }),
     ],
     syncStore,
     onRealtimeEvent: async (event) => {
@@ -1315,7 +1403,7 @@ test("onEvent() omnichain handles block", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "omnichain",
   });
 
@@ -1353,7 +1441,12 @@ test("onEvent() handles finalize", async (context) => {
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+      }),
+    ],
     onRealtimeEvent: async (event) => {
       if (event.type === "finalize") {
         checkpoint = event.checkpoint;
@@ -1361,7 +1454,7 @@ test("onEvent() handles finalize", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1404,7 +1497,12 @@ test("onEvent() kills realtime when finalized", async (context) => {
     syncStore,
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+      }),
+    ],
     onRealtimeEvent: async (event) => {
       if (event.type === "finalize") {
         checkpoint = event.checkpoint;
@@ -1412,7 +1510,7 @@ test("onEvent() kills realtime when finalized", async (context) => {
       }
     },
     onFatalError: () => {},
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1451,12 +1549,17 @@ test("onEvent() handles errors", async (context) => {
 
     common: context.common,
     indexingBuild: { sources, networks: [network] },
-    requestQueues: [createRequestQueue({ network, common: context.common })],
+    requestQueues: [
+      createRequestQueue({
+        network,
+        common: context.common,
+      }),
+    ],
     onRealtimeEvent: async () => {},
     onFatalError: () => {
       promise.resolve();
     },
-    initialCheckpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
     ordering: "multichain",
   });
 
@@ -1470,4 +1573,113 @@ test("onEvent() handles errors", async (context) => {
   await sync.startRealtime();
 
   await promise.promise;
+});
+
+test("historical events match realtime events", async (context) => {
+  const { syncStore } = await setupDatabaseServices(context);
+
+  const network = getNetwork();
+  const requestQueue = createRequestQueue({
+    network,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+    address,
+    includeTransactionReceipts: true,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    config,
+    rawIndexingFunctions,
+  });
+
+  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+    blockNumber: 2,
+  });
+  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
+
+  await syncStore.insertTransactions({
+    transactions: [rpcBlock.transactions[0]!],
+    chainId: 1,
+  });
+
+  const rpcLogs = await _eth_getLogs(requestQueue, {
+    fromBlock: 2,
+    toBlock: 2,
+  });
+  await syncStore.insertLogs({
+    logs: [rpcLogs[0]!],
+    chainId: 1,
+  });
+
+  const { blockData: historicalBlockData } = await syncStore.getEventBlockData({
+    filters: [sources[0]!.filter],
+    fromBlock: 0,
+    toBlock: 10,
+    chainId: 1,
+    limit: 3,
+  });
+
+  const realtimeBlockData = [
+    {
+      block: syncBlockToInternal({ block: rpcBlock }),
+      logs: rpcLogs.map((log) => syncLogToInternal({ log })),
+      transactions: rpcBlock.transactions.map((transaction) =>
+        syncTransactionToInternal({ transaction }),
+      ),
+      transactionReceipts: [],
+      traces: [],
+    },
+  ];
+
+  // Note: blocks and transactions are not asserted because they are non deterministic
+
+  expect(historicalBlockData[0]!.logs).toMatchInlineSnapshot(`
+    [
+      {
+        "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        "blockNumber": 2,
+        "data": "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000",
+        "logIndex": 0,
+        "removed": false,
+        "topic0": undefined,
+        "topic1": undefined,
+        "topic2": undefined,
+        "topic3": undefined,
+        "topics": [
+          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          null,
+        ],
+        "transactionIndex": 0,
+      },
+    ]
+  `);
+
+  expect(realtimeBlockData[0]!.logs).toMatchInlineSnapshot(`
+    [
+      {
+        "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        "blockNumber": 2,
+        "data": "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000",
+        "logIndex": 0,
+        "removed": false,
+        "topics": [
+          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        ],
+        "transactionIndex": 0,
+      },
+    ]
+  `);
 });

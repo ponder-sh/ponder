@@ -1,98 +1,80 @@
-import type { FragmentId } from "@/internal/types.js";
 import type {
+  Factory,
+  FragmentId,
   SyncBlock,
   SyncLog,
   SyncTrace,
   SyncTransaction,
   SyncTransactionReceipt,
-} from "@/types/sync.js";
-import {
-  EVENT_TYPES,
-  MAX_CHECKPOINT,
-  ZERO_CHECKPOINT,
-  encodeCheckpoint,
-} from "@/utils/checkpoint.js";
+} from "@/internal/types.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { ColumnType, Insertable } from "kysely";
 import type { Address, Hash, Hex } from "viem";
 import { hexToBigInt, hexToNumber } from "viem";
 
+type PgNumeric = ColumnType<string, string | bigint, string | bigint>;
+type PgInt8 = ColumnType<string, string | number, string | number>;
+
 type BlocksTable = {
+  chain_id: PgInt8;
+  number: PgInt8;
+  timestamp: PgInt8;
   hash: Hash;
-  chainId: number;
-  checkpoint: string;
-  number: ColumnType<string, string | bigint, string | bigint>;
-  timestamp: ColumnType<string, string | bigint, string | bigint>;
-  baseFeePerGas: ColumnType<string, string | bigint, string | bigint> | null;
-  difficulty: ColumnType<string, string | bigint, string | bigint>;
-  extraData: Hex;
-  gasLimit: ColumnType<string, string | bigint, string | bigint>;
-  gasUsed: ColumnType<string, string | bigint, string | bigint>;
-  logsBloom: Hex;
+  parent_hash: Hash;
+  logs_bloom: Hex;
   miner: Address;
-  mixHash: Hash | null;
+  gas_used: PgNumeric;
+  gas_limit: PgNumeric;
+  base_fee_per_gas: PgNumeric | null;
   nonce: Hex | null;
-  parentHash: Hash;
-  receiptsRoot: Hex;
-  sha3Uncles: Hash | null;
-  size: ColumnType<string, string | bigint, string | bigint>;
-  stateRoot: Hash;
-  totalDifficulty: ColumnType<string, string | bigint, string | bigint> | null;
-  transactionsRoot: Hash;
+  mix_hash: Hash | null;
+  state_root: Hash;
+  receipts_root: Hash;
+  transactions_root: Hash;
+  sha3_uncles: Hash | null;
+  size: PgNumeric;
+  difficulty: PgNumeric;
+  total_difficulty: PgNumeric | null;
+  extra_data: Hex;
 };
 
 export const encodeBlock = ({
   block,
   chainId,
-}: {
-  block: SyncBlock;
-  chainId: number;
-}): Insertable<BlocksTable> => {
-  return {
-    hash: block.hash,
-    chainId,
-    checkpoint: encodeCheckpoint({
-      blockTimestamp: hexToNumber(block.timestamp),
-      chainId: BigInt(chainId),
-      blockNumber: hexToBigInt(block.number),
-      transactionIndex: MAX_CHECKPOINT.transactionIndex,
-      eventType: EVENT_TYPES.blocks,
-      eventIndex: ZERO_CHECKPOINT.eventIndex,
-    }),
-    baseFeePerGas: block.baseFeePerGas
-      ? hexToBigInt(block.baseFeePerGas)
-      : null,
-    difficulty: hexToBigInt(block.difficulty),
-    number: hexToBigInt(block.number),
-    timestamp: hexToBigInt(block.timestamp),
-    extraData: block.extraData,
-    gasLimit: hexToBigInt(block.gasLimit),
-    gasUsed: hexToBigInt(block.gasUsed),
-    logsBloom: block.logsBloom!,
-    miner: toLowerCase(block.miner),
-    mixHash: block.mixHash ?? null,
-    nonce: block.nonce ?? null,
-    parentHash: block.parentHash,
-    receiptsRoot: block.receiptsRoot,
-    sha3Uncles: block.sha3Uncles ?? null,
-    size: hexToBigInt(block.size),
-    stateRoot: block.stateRoot,
-    totalDifficulty: block.totalDifficulty
-      ? hexToBigInt(block.totalDifficulty)
-      : null,
-    transactionsRoot: block.transactionsRoot,
-  };
-};
+}: { block: SyncBlock; chainId: number }): Insertable<BlocksTable> => ({
+  chain_id: chainId,
+  number: hexToNumber(block.number),
+  timestamp: hexToNumber(block.timestamp),
+  hash: block.hash,
+  parent_hash: block.parentHash,
+  logs_bloom: block.logsBloom!,
+  miner: toLowerCase(block.miner),
+  gas_used: hexToBigInt(block.gasUsed),
+  gas_limit: hexToBigInt(block.gasLimit),
+  base_fee_per_gas: block.baseFeePerGas
+    ? hexToBigInt(block.baseFeePerGas)
+    : null,
+  nonce: block.nonce ?? null,
+  mix_hash: block.mixHash ?? null,
+  state_root: block.stateRoot,
+  receipts_root: block.receiptsRoot,
+  transactions_root: block.transactionsRoot,
+  sha3_uncles: block.sha3Uncles ?? null,
+  size: block.size ? hexToBigInt(block.size) : 0n,
+  difficulty: hexToBigInt(block.difficulty),
+  total_difficulty: block.totalDifficulty
+    ? hexToBigInt(block.totalDifficulty)
+    : null,
+  extra_data: block.extraData,
+});
 
 type LogsTable = {
-  id: string;
-  chainId: number;
-  checkpoint: string | null;
-  blockHash: Hash;
-  blockNumber: ColumnType<string, string | bigint, string | bigint>;
-  logIndex: number;
-  transactionHash: Hash;
-  transactionIndex: number;
+  chain_id: PgInt8;
+  block_number: PgInt8;
+  log_index: number;
+  transaction_index: number;
+  block_hash: Hash;
+  transaction_hash: Hash;
   address: Address;
   topic0: Hex | null;
   topic1: Hex | null;
@@ -103,129 +85,92 @@ type LogsTable = {
 
 export const encodeLog = ({
   log,
-  block,
   chainId,
-}: {
-  log: SyncLog;
-  block?: SyncBlock;
-  chainId: number;
-}): Insertable<LogsTable> => {
-  return {
-    id: `${log.blockHash}-${log.logIndex}`,
-    chainId,
-    checkpoint:
-      block === undefined
-        ? null
-        : encodeCheckpoint({
-            blockTimestamp: hexToNumber(block.timestamp),
-            chainId: BigInt(chainId),
-            blockNumber: hexToBigInt(log.blockNumber),
-            transactionIndex: hexToBigInt(log.transactionIndex),
-            eventType: EVENT_TYPES.logs,
-            eventIndex: hexToBigInt(log.logIndex),
-          }),
-    blockHash: log.blockHash,
-    blockNumber: hexToBigInt(log.blockNumber),
-    logIndex: hexToNumber(log.logIndex),
-    transactionHash: log.transactionHash,
-    transactionIndex: hexToNumber(log.transactionIndex),
-    address: toLowerCase(log.address),
-    topic0: log.topics[0] ? log.topics[0] : null,
-    topic1: log.topics[1] ? log.topics[1] : null,
-    topic2: log.topics[2] ? log.topics[2] : null,
-    topic3: log.topics[3] ? log.topics[3] : null,
-    data: log.data,
-  };
-};
+}: { log: SyncLog; chainId: number }): Insertable<LogsTable> => ({
+  chain_id: chainId,
+  block_number: hexToNumber(log.blockNumber),
+  log_index: hexToNumber(log.logIndex),
+  transaction_index: hexToNumber(log.transactionIndex),
+  block_hash: log.blockHash,
+  transaction_hash: log.transactionHash,
+  address: toLowerCase(log.address),
+  topic0: log.topics[0] ? log.topics[0] : null,
+  topic1: log.topics[1] ? log.topics[1] : null,
+  topic2: log.topics[2] ? log.topics[2] : null,
+  topic3: log.topics[3] ? log.topics[3] : null,
+  data: log.data,
+});
 
 type TransactionsTable = {
+  chain_id: PgInt8;
+  block_number: PgInt8;
+  transaction_index: number;
   hash: Hash;
-  chainId: number;
-  /** `checkpoint` will be null for transactions inserted before 0.8. This is to avoid a very slow migration. */
-  checkpoint: string | null;
-  blockHash: Hash;
-  blockNumber: ColumnType<string, string | bigint, string | bigint>;
+  block_hash: Hash;
   from: Address;
-  gas: ColumnType<string, string | bigint, string | bigint>;
+  to: Address | null;
   input: Hex;
+  value: PgNumeric;
   nonce: number;
   r: Hex | null;
   s: Hex | null;
-  to: Address | null;
-  transactionIndex: number;
-  v: ColumnType<string, string | bigint, string | bigint> | null;
-  value: ColumnType<string, string | bigint, string | bigint>;
+  v: PgNumeric | null;
   type: Hex;
-  gasPrice: ColumnType<string, string | bigint, string | bigint> | null;
-  maxFeePerGas: ColumnType<string, string | bigint, string | bigint> | null;
-  maxPriorityFeePerGas: ColumnType<
-    string,
-    string | bigint,
-    string | bigint
-  > | null;
-  accessList: string | null;
+  gas: PgNumeric;
+  gas_price: PgNumeric | null;
+  max_fee_per_gas: PgNumeric | null;
+  max_priority_fee_per_gas: PgNumeric | null;
+  access_list: string | null;
 };
 
 export const encodeTransaction = ({
   transaction,
-  block,
   chainId,
 }: {
   transaction: SyncTransaction;
-  block: Pick<SyncBlock, "timestamp">;
   chainId: number;
-}): Insertable<TransactionsTable> => {
-  return {
-    hash: transaction.hash,
-    checkpoint: encodeCheckpoint({
-      blockTimestamp: hexToNumber(block.timestamp),
-      chainId: BigInt(chainId),
-      blockNumber: hexToBigInt(transaction.blockNumber),
-      transactionIndex: hexToBigInt(transaction.transactionIndex),
-      eventType: EVENT_TYPES.transactions,
-      eventIndex: ZERO_CHECKPOINT.eventIndex,
-    }),
-    chainId,
-    blockHash: transaction.blockHash,
-    blockNumber: hexToBigInt(transaction.blockNumber),
-    accessList: transaction.accessList
-      ? JSON.stringify(transaction.accessList)
-      : undefined,
-    from: toLowerCase(transaction.from),
-    gas: hexToBigInt(transaction.gas),
-    gasPrice: transaction.gasPrice ? hexToBigInt(transaction.gasPrice) : null,
-    input: transaction.input,
-    maxFeePerGas: transaction.maxFeePerGas
-      ? hexToBigInt(transaction.maxFeePerGas)
-      : null,
-    maxPriorityFeePerGas: transaction.maxPriorityFeePerGas
-      ? hexToBigInt(transaction.maxPriorityFeePerGas)
-      : null,
-    nonce: hexToNumber(transaction.nonce),
-    r: transaction.r ?? null,
-    s: transaction.s ?? null,
-    to: transaction.to ? toLowerCase(transaction.to) : null,
-    transactionIndex: hexToNumber(transaction.transactionIndex),
-    type: transaction.type ?? "0x0",
-    value: hexToBigInt(transaction.value),
-    v: transaction.v ? hexToBigInt(transaction.v) : null,
-  };
-};
+}): Insertable<TransactionsTable> => ({
+  chain_id: chainId,
+  block_number: hexToNumber(transaction.blockNumber),
+  transaction_index: hexToNumber(transaction.transactionIndex),
+  hash: transaction.hash,
+  block_hash: transaction.blockHash,
+  from: toLowerCase(transaction.from),
+  to: transaction.to ? toLowerCase(transaction.to) : null,
+  input: transaction.input,
+  value: hexToBigInt(transaction.value),
+  nonce: hexToNumber(transaction.nonce),
+  r: transaction.r ?? null,
+  s: transaction.s ?? null,
+  v: transaction.v ? hexToBigInt(transaction.v) : null,
+  type: transaction.type ?? "0x0",
+  gas: hexToBigInt(transaction.gas),
+  gas_price: transaction.gasPrice ? hexToBigInt(transaction.gasPrice) : null,
+  max_fee_per_gas: transaction.maxFeePerGas
+    ? hexToBigInt(transaction.maxFeePerGas)
+    : null,
+  max_priority_fee_per_gas: transaction.maxPriorityFeePerGas
+    ? hexToBigInt(transaction.maxPriorityFeePerGas)
+    : null,
+  access_list: transaction.accessList
+    ? JSON.stringify(transaction.accessList)
+    : null,
+});
 
 type TransactionReceiptsTable = {
-  transactionHash: Hash;
-  chainId: number;
-  blockHash: Hash;
-  blockNumber: ColumnType<string, string | bigint, string | bigint>;
-  contractAddress: Address | null;
-  cumulativeGasUsed: ColumnType<string, string | bigint, string | bigint>;
-  effectiveGasPrice: ColumnType<string, string | bigint, string | bigint>;
+  chain_id: PgInt8;
+  block_number: PgInt8;
+  transaction_index: number;
+  transaction_hash: Hash;
+  block_hash: Hash;
   from: Address;
-  gasUsed: ColumnType<string, string | bigint, string | bigint>;
-  logsBloom: Hex;
-  status: Hex;
   to: Address | null;
-  transactionIndex: number;
+  contract_address: Address | null;
+  logs_bloom: Hex;
+  gas_used: PgNumeric;
+  cumulative_gas_used: PgNumeric;
+  effective_gas_price: PgNumeric;
+  status: Hex;
   type: Hex;
 };
 
@@ -235,124 +180,108 @@ export const encodeTransactionReceipt = ({
 }: {
   transactionReceipt: SyncTransactionReceipt;
   chainId: number;
-}): Insertable<TransactionReceiptsTable> => {
-  return {
-    transactionHash: transactionReceipt.transactionHash,
-    chainId,
-    blockHash: transactionReceipt.blockHash,
-    blockNumber: hexToBigInt(transactionReceipt.blockNumber),
-    contractAddress: transactionReceipt.contractAddress
-      ? toLowerCase(transactionReceipt.contractAddress)
-      : null,
-    cumulativeGasUsed: hexToBigInt(transactionReceipt.cumulativeGasUsed),
-    effectiveGasPrice: hexToBigInt(transactionReceipt.effectiveGasPrice),
-    from: toLowerCase(transactionReceipt.from),
-    gasUsed: hexToBigInt(transactionReceipt.gasUsed),
-    logsBloom: transactionReceipt.logsBloom,
-    status: transactionReceipt.status,
-    to: transactionReceipt.to ? toLowerCase(transactionReceipt.to) : null,
-    transactionIndex: hexToNumber(transactionReceipt.transactionIndex),
-    type: transactionReceipt.type as Hex,
-  };
-};
+}): Insertable<TransactionReceiptsTable> => ({
+  chain_id: chainId,
+  block_number: hexToNumber(transactionReceipt.blockNumber),
+  transaction_index: hexToNumber(transactionReceipt.transactionIndex),
+  transaction_hash: transactionReceipt.transactionHash,
+  block_hash: transactionReceipt.blockHash,
+  from: toLowerCase(transactionReceipt.from),
+  to: transactionReceipt.to ? toLowerCase(transactionReceipt.to) : null,
+  contract_address: transactionReceipt.contractAddress
+    ? toLowerCase(transactionReceipt.contractAddress)
+    : null,
+  logs_bloom: transactionReceipt.logsBloom,
+  gas_used: hexToBigInt(transactionReceipt.gasUsed),
+  cumulative_gas_used: hexToBigInt(transactionReceipt.cumulativeGasUsed),
+  effective_gas_price: hexToBigInt(transactionReceipt.effectiveGasPrice),
+  status: transactionReceipt.status,
+  type: transactionReceipt.type as Hex,
+});
 
 type TracesTable = {
-  id: string;
-  chainId: number;
-  checkpoint: string;
-  type: string;
-  transactionHash: Hex;
-  blockHash: Hex;
-  blockNumber: ColumnType<string, string | bigint, string | bigint>;
+  chain_id: PgInt8;
+  block_number: PgInt8;
+  transaction_index: number;
+  trace_index: number;
   from: Address;
   to: Address | null;
-  gas: ColumnType<string, string | bigint, string | bigint>;
-  gasUsed: ColumnType<string, string | bigint, string | bigint>;
   input: Hex;
-  functionSelector: Hex;
   output: Hex | null;
+  value: PgNumeric | null;
+  type: string;
+  gas: PgNumeric;
+  gas_used: PgNumeric;
   error: string | null;
-  revertReason: string | null;
-  value: ColumnType<
-    string | null,
-    string | bigint | null,
-    string | bigint | null
-  >;
-  index: number;
+  revert_reason: string | null;
   subcalls: number;
-  isReverted: number;
 };
 
-export function encodeTrace({
+export const encodeTrace = ({
   trace,
   block,
   transaction,
   chainId,
 }: {
-  trace: Omit<SyncTrace["trace"], "calls" | "logs">;
-  block: Pick<SyncBlock, "hash" | "number" | "timestamp">;
-  transaction: Pick<SyncTransaction, "hash" | "transactionIndex">;
+  trace: SyncTrace;
+  block: Pick<SyncBlock, "number">;
+  transaction: Pick<SyncTransaction, "transactionIndex">;
   chainId: number;
-}): Insertable<TracesTable> {
-  return {
-    id: `${transaction.hash}-${trace.index}`,
-    chainId,
-    checkpoint: encodeCheckpoint({
-      blockTimestamp: hexToNumber(block.timestamp),
-      chainId: BigInt(chainId),
-      blockNumber: hexToBigInt(block.number),
-      transactionIndex: hexToBigInt(transaction.transactionIndex),
-      eventType: EVENT_TYPES.traces,
-      eventIndex: BigInt(trace.index),
-    }),
-    type: trace.type,
-    transactionHash: transaction.hash,
-    blockHash: block.hash,
-    blockNumber: hexToBigInt(block.number),
-    from: toLowerCase(trace.from),
-    to: trace.to ? toLowerCase(trace.to) : null,
-    gas: hexToBigInt(trace.gas),
-    gasUsed: hexToBigInt(trace.gasUsed),
-    input: trace.input,
-    functionSelector: trace.input.slice(0, 10) as Hex,
-    output: trace.output ?? null,
-    revertReason: trace.revertReason
-      ? trace.revertReason.replace(/\0/g, "")
-      : null,
-    error: trace.error ? trace.error.replace(/\0/g, "") : null,
-    value: trace.value ? hexToBigInt(trace.value) : null,
-    index: trace.index,
-    subcalls: trace.subcalls,
-    isReverted: trace.error === undefined ? 0 : 1,
-  };
-}
-
-type RpcRequestResultsTable = {
-  request: string;
-  request_hash: ColumnType<string, undefined>;
-  chain_id: number;
-  block_number: ColumnType<
-    string | undefined,
-    string | bigint | undefined,
-    string | bigint | undefined
-  >;
-  result: string;
-};
+}): Insertable<TracesTable> => ({
+  chain_id: chainId,
+  block_number: hexToNumber(block.number),
+  transaction_index: hexToNumber(transaction.transactionIndex),
+  trace_index: trace.trace.index,
+  from: toLowerCase(trace.trace.from),
+  to: trace.trace.to ? toLowerCase(trace.trace.to) : null,
+  input: trace.trace.input,
+  output: trace.trace.output ?? null,
+  value: trace.trace.value ? hexToBigInt(trace.trace.value) : null,
+  type: trace.trace.type,
+  gas: hexToBigInt(trace.trace.gas),
+  gas_used: hexToBigInt(trace.trace.gasUsed),
+  error: trace.trace.error ? trace.trace.error.replace(/\0/g, "") : null,
+  revert_reason: trace.trace.revertReason
+    ? trace.trace.revertReason.replace(/\0/g, "")
+    : null,
+  subcalls: trace.trace.subcalls,
+});
 
 type IntervalTable = {
   fragment_id: FragmentId;
-  chain_id: number;
+  chain_id: PgInt8;
   blocks: string;
+};
+
+type RpcRequestResultsTable = {
+  request_hash: string;
+  chain_id: PgInt8;
+  block_number: PgInt8 | undefined;
+  result: string;
+};
+
+type FactoriesTable = {
+  id: ColumnType<number, undefined>;
+  factory: Factory;
+};
+
+type FactoryAddressesTable = {
+  id: ColumnType<number, undefined>;
+  factory_id: number; // references `factories.id`
+  chain_id: PgInt8;
+  block_number: PgInt8;
+  address: Address;
 };
 
 export type PonderSyncSchema = {
   blocks: BlocksTable;
   logs: LogsTable;
   transactions: TransactionsTable;
-  transactionReceipts: TransactionReceiptsTable;
+  transaction_receipts: TransactionReceiptsTable;
   traces: TracesTable;
 
   rpc_request_results: RpcRequestResultsTable;
-
   intervals: IntervalTable;
+  factories: FactoriesTable;
+  factory_addresses: FactoryAddressesTable;
 };

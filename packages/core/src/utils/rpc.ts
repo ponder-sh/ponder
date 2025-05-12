@@ -3,7 +3,7 @@ import type {
   SyncLog,
   SyncTrace,
   SyncTransactionReceipt,
-} from "@/types/sync.js";
+} from "@/internal/types.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import type { RequestQueue } from "@/utils/requestQueue.js";
 import {

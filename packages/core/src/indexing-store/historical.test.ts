@@ -13,7 +13,7 @@ import {
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { eq } from "drizzle-orm";
 import { pgTable } from "drizzle-orm/pg-core";
-import { zeroAddress } from "viem";
+import { toBytes, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { createIndexingCache } from "./cache.js";
 import { createHistoricalIndexingStore } from "./historical.js";
@@ -37,7 +37,8 @@ test("find", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -95,7 +96,8 @@ test("insert", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -249,7 +251,8 @@ test("update", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -343,7 +346,8 @@ test("delete", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -401,7 +405,8 @@ test("sql", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -479,7 +484,8 @@ test("sql followed by find", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -519,7 +525,8 @@ test("onchain table", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -554,7 +561,8 @@ test("missing rows", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -591,7 +599,8 @@ test("notNull", async (context) => {
   let indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -640,7 +649,8 @@ test("notNull", async (context) => {
     indexingCache = createIndexingCache({
       common: context.common,
       schemaBuild: { schema },
-      checkpoint: ZERO_CHECKPOINT_STRING,
+      crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+      eventCount: {},
     });
 
     indexingStore = createHistoricalIndexingStore({
@@ -680,7 +690,8 @@ test("default", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -716,7 +727,8 @@ test("$default", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -755,7 +767,8 @@ test("$onUpdateFn", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -797,7 +810,8 @@ test("array", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -841,7 +855,8 @@ test("text array", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -890,7 +905,8 @@ test("enum", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -933,7 +949,8 @@ test("json bigint", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -951,5 +968,341 @@ test("json bigint", async (context) => {
           .insert(schema.account)
           .values({ address: zeroAddress, metadata: { balance: 10n } }),
     ).rejects.toThrowError(BigIntSerializationError);
+  });
+});
+
+test("bytes", async (context) => {
+  const { database } = await setupDatabaseServices(context);
+
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      calldata: t.bytes().notNull(),
+    })),
+  };
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
+  });
+
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    await indexingStore.insert(schema.account).values({
+      address: zeroAddress,
+      calldata: toBytes(zeroAddress),
+    });
+
+    const result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      calldata: toBytes(zeroAddress),
+    });
+  });
+});
+
+test("text with null bytes", async (context) => {
+  const { database } = await setupDatabaseServices(context);
+
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      name: t.text().notNull(),
+    })),
+  };
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
+  });
+
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    await indexingStore.insert(schema.account).values({
+      address: zeroAddress,
+      name: "tencentclub\x00\x00\x00\x00\x00\x00",
+    });
+
+    const result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      name: "tencentclub",
+    });
+  });
+});
+
+test.skip("time", async (context) => {
+  const { database } = await setupDatabaseServices(context);
+
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      time: t.time().notNull(),
+    })),
+  };
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
+  });
+
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    await indexingStore.insert(schema.account).values({
+      address: zeroAddress,
+      time: "04:05:06",
+    });
+
+    const result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      time: "04:05:06",
+    });
+  });
+});
+
+test("timestamp", async (context) => {
+  const { database } = await setupDatabaseServices(context);
+
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      timestamp: t.timestamp().notNull(),
+    })),
+  };
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
+  });
+
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    await indexingStore.insert(schema.account).values({
+      address: zeroAddress,
+      timestamp: new Date(1742925862000),
+    });
+
+    const result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      timestamp: new Date(1742925862000),
+    });
+  });
+});
+
+test.skip("date", async (context) => {
+  const { database } = await setupDatabaseServices(context);
+
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      date: t.date({ mode: "date" }).notNull(),
+    })),
+  };
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
+  });
+
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    await indexingStore.insert(schema.account).values({
+      address: zeroAddress,
+      date: new Date(1742925862000),
+    });
+
+    const result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      date: new Date("2025-03-25T00:00:00.000Z"),
+    });
+  });
+});
+
+test.skip("interval", async (context) => {
+  const { database } = await setupDatabaseServices(context);
+
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      interval: t.interval().notNull(),
+    })),
+  };
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
+  });
+
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    await indexingStore.insert(schema.account).values({
+      address: zeroAddress,
+      interval: "1 day",
+    });
+
+    const result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      interval: "1 day",
+    });
+  });
+});
+
+test("point", async (context) => {
+  const { database } = await setupDatabaseServices(context);
+
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      point: t.point().notNull(),
+    })),
+  };
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
+  });
+
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    await indexingStore.insert(schema.account).values({
+      address: zeroAddress,
+      point: [1, 2],
+    });
+
+    const result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      point: [1, 2],
+    });
+  });
+});
+
+test("line", async (context) => {
+  const { database } = await setupDatabaseServices(context);
+
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      line: t.line().notNull(),
+    })),
+  };
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
+  });
+
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    await indexingStore.insert(schema.account).values({
+      address: zeroAddress,
+      line: [1, 2, 3],
+    });
+
+    const result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toStrictEqual({
+      address: zeroAddress,
+      line: [1, 2, 3],
+    });
   });
 });

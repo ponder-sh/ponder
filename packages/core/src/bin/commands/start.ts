@@ -60,8 +60,6 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
   // biome-ignore lint/style/useConst: <explanation>
   let database: Database | undefined;
 
-  // const shutdown = setupShutdown({ common, cleanup });
-
   const namespaceResult = build.namespaceCompile();
   if (namespaceResult.status === "error") {
     await exit({ reason: "Failed to initialize namespace", code: 1 });
@@ -74,9 +72,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const schemaResult = await build.executeSchema({
-    namespace: namespaceResult.result,
-  });
+  const schemaResult = await build.executeSchema();
   if (schemaResult.status === "error") {
     await exit({ reason: "Failed intial build", code: 1 });
     return;

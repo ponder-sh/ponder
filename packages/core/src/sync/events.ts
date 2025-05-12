@@ -3,24 +3,19 @@ import type {
   BlockFilter,
   Event,
   Factory,
+  InternalBlock,
+  InternalLog,
+  InternalTrace,
+  InternalTransaction,
+  InternalTransactionReceipt,
   RawEvent,
   Source,
-} from "@/internal/types.js";
-import type { BlockWithEventData } from "@/sync-realtime/index.js";
-import type {
-  Block,
-  Log,
-  Trace,
-  Transaction,
-  TransactionReceipt,
-} from "@/types/eth.js";
-import type {
   SyncBlock,
   SyncLog,
   SyncTrace,
   SyncTransaction,
   SyncTransactionReceipt,
-} from "@/types/sync.js";
+} from "@/internal/types.js";
 import {
   EVENT_TYPES,
   MAX_CHECKPOINT,
@@ -28,13 +23,11 @@ import {
   encodeCheckpoint,
 } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
-import { startClock } from "@/utils/timer.js";
 import type { AbiEvent, AbiParameter } from "abitype";
 import {
   type Address,
   DecodeLogDataMismatch,
   DecodeLogTopicsMismatch,
-  type Hash,
   type Hex,
   checksumAddress,
   decodeAbiParameters,
@@ -44,6 +37,7 @@ import {
   hexToNumber,
 } from "viem";
 import {
+  isAddressMatched,
   isBlockFilterMatched,
   isLogFilterMatched,
   isTraceFilterMatched,
@@ -57,33 +51,31 @@ import { isAddressFactory, shouldGetTransactionReceipt } from "./filter.js";
  */
 export const buildEvents = ({
   sources,
-  blockWithEventData: {
-    block,
-    logs,
-    transactions,
-    transactionReceipts,
-    traces,
-  },
-  finalizedChildAddresses,
-  unfinalizedChildAddresses,
+  blockData: { block, logs, transactions, transactionReceipts, traces },
+  childAddresses,
   chainId,
 }: {
   sources: Source[];
-  blockWithEventData: Omit<BlockWithEventData, "filters" | "factoryLogs">;
-  finalizedChildAddresses: Map<Factory, Set<Address>>;
-  unfinalizedChildAddresses: Map<Factory, Set<Address>>;
+  blockData: {
+    block: InternalBlock;
+    logs: InternalLog[];
+    transactions: InternalTransaction[];
+    transactionReceipts: InternalTransactionReceipt[];
+    traces: InternalTrace[];
+  };
+  childAddresses: Map<Factory, Map<Address, number>>;
   chainId: number;
 }) => {
   const events: RawEvent[] = [];
 
-  const transactionCache = new Map<Hash, SyncTransaction>();
-  const transactionReceiptCache = new Map<Hash, SyncTransactionReceipt>();
+  const transactionCache = new Map<number, InternalTransaction>();
+  const transactionReceiptCache = new Map<number, InternalTransactionReceipt>();
   for (const transaction of transactions) {
-    transactionCache.set(transaction.hash, transaction);
+    transactionCache.set(transaction.transactionIndex, transaction);
   }
   for (const transactionReceipt of transactionReceipts) {
     transactionReceiptCache.set(
-      transactionReceipt.transactionHash,
+      transactionReceipt.transactionIndex,
       transactionReceipt,
     );
   }
@@ -98,40 +90,35 @@ export const buildEvents = ({
           case "log": {
             for (const log of logs) {
               if (
-                isLogFilterMatched({ filter, block, log }) &&
+                isLogFilterMatched({ filter, log }) &&
                 (isAddressFactory(filter.address)
-                  ? finalizedChildAddresses
-                      .get(filter.address)!
-                      .has(log.address) ||
-                    unfinalizedChildAddresses
-                      .get(filter.address)!
-                      .has(log.address)
+                  ? isAddressMatched({
+                      address: log.address,
+                      blockNumber: Number(block.number),
+                      childAddresses: childAddresses.get(filter.address)!,
+                    })
                   : true)
               ) {
                 events.push({
                   chainId: filter.chainId,
                   sourceIndex: i,
                   checkpoint: encodeCheckpoint({
-                    blockTimestamp: hexToNumber(block.timestamp),
+                    blockTimestamp: block.timestamp,
                     chainId: BigInt(filter.chainId),
-                    blockNumber: hexToBigInt(log.blockNumber),
-                    transactionIndex: hexToBigInt(log.transactionIndex),
+                    blockNumber: block.number,
+                    transactionIndex: BigInt(log.transactionIndex),
                     eventType: EVENT_TYPES.logs,
-                    eventIndex: hexToBigInt(log.logIndex),
+                    eventIndex: BigInt(log.logIndex),
                   }),
-                  log: convertLog(log),
-                  block: convertBlock(block),
-                  transaction: transactionCache.has(log.transactionHash)
-                    ? convertTransaction(
-                        transactionCache.get(log.transactionHash)!,
-                      )
+                  log,
+                  block,
+                  transaction: transactionCache.has(log.transactionIndex)
+                    ? transactionCache.get(log.transactionIndex)!
                     : undefined,
                   transactionReceipt:
-                    transactionReceiptCache.has(log.transactionHash) &&
+                    transactionReceiptCache.has(log.transactionIndex) &&
                     shouldGetTransactionReceipt(filter)
-                      ? convertTransactionReceipt(
-                          transactionReceiptCache.get(log.transactionHash)!,
-                        )
+                      ? transactionReceiptCache.get(log.transactionIndex)!
                       : undefined,
                   trace: undefined,
                 });
@@ -142,58 +129,54 @@ export const buildEvents = ({
 
           case "trace": {
             for (const trace of traces) {
-              const fromChildAddresses = isAddressFactory(filter.fromAddress)
-                ? [
-                    finalizedChildAddresses.get(filter.fromAddress)!,
-                    unfinalizedChildAddresses.get(filter.fromAddress)!,
-                  ]
-                : undefined;
-
-              const toChildAddresses = isAddressFactory(filter.toAddress)
-                ? [
-                    finalizedChildAddresses.get(filter.toAddress)!,
-                    unfinalizedChildAddresses.get(filter.toAddress)!,
-                  ]
-                : undefined;
-
               if (
                 isTraceFilterMatched({
                   filter,
+                  trace,
                   block,
-                  trace: trace.trace,
-                  fromChildAddresses,
-                  toChildAddresses,
                 }) &&
+                (isAddressFactory(filter.fromAddress)
+                  ? isAddressMatched({
+                      address: trace.from,
+                      blockNumber: Number(block.number),
+                      childAddresses: childAddresses.get(filter.fromAddress)!,
+                    })
+                  : true) &&
+                (isAddressFactory(filter.toAddress)
+                  ? isAddressMatched({
+                      address: trace.to ?? undefined,
+                      blockNumber: Number(block.number),
+                      childAddresses: childAddresses.get(filter.toAddress)!,
+                    })
+                  : true) &&
                 (filter.callType === undefined
                   ? true
-                  : filter.callType === trace.trace.type) &&
-                (filter.includeReverted
-                  ? true
-                  : trace.trace.error === undefined)
+                  : filter.callType === trace.type) &&
+                (filter.includeReverted ? true : trace.error === undefined)
               ) {
                 const transaction = transactionCache.get(
-                  trace.transactionHash,
+                  trace.transactionIndex,
                 )!;
                 const transactionReceipt = transactionReceiptCache.get(
-                  trace.transactionHash,
+                  trace.transactionIndex,
                 )!;
                 events.push({
                   chainId: filter.chainId,
                   sourceIndex: i,
                   checkpoint: encodeCheckpoint({
-                    blockTimestamp: hexToNumber(block.timestamp),
+                    blockTimestamp: block.timestamp,
                     chainId: BigInt(filter.chainId),
-                    blockNumber: hexToBigInt(block.number),
+                    blockNumber: block.number,
                     transactionIndex: BigInt(transaction.transactionIndex),
                     eventType: EVENT_TYPES.traces,
-                    eventIndex: BigInt(trace.trace.index),
+                    eventIndex: BigInt(trace.traceIndex),
                   }),
                   log: undefined,
-                  trace: convertTrace(trace),
-                  block: convertBlock(block),
-                  transaction: convertTransaction(transaction),
+                  trace,
+                  block,
+                  transaction,
                   transactionReceipt: shouldGetTransactionReceipt(filter)
-                    ? convertTransactionReceipt(transactionReceipt)
+                    ? transactionReceipt
                     : undefined,
                 });
               }
@@ -208,51 +191,48 @@ export const buildEvents = ({
         switch (filter.type) {
           case "transaction": {
             for (const transaction of transactions) {
-              const fromChildAddresses = isAddressFactory(filter.fromAddress)
-                ? [
-                    finalizedChildAddresses.get(filter.fromAddress)!,
-                    unfinalizedChildAddresses.get(filter.fromAddress)!,
-                  ]
-                : undefined;
-
-              const toChildAddresses = isAddressFactory(filter.toAddress)
-                ? [
-                    finalizedChildAddresses.get(filter.toAddress)!,
-                    unfinalizedChildAddresses.get(filter.toAddress)!,
-                  ]
-                : undefined;
-
               if (
                 isTransactionFilterMatched({
                   filter,
-                  block,
                   transaction,
-                  fromChildAddresses,
-                  toChildAddresses,
                 }) &&
+                (isAddressFactory(filter.fromAddress)
+                  ? isAddressMatched({
+                      address: transaction.from,
+                      blockNumber: Number(block.number),
+                      childAddresses: childAddresses.get(filter.fromAddress)!,
+                    })
+                  : true) &&
+                (isAddressFactory(filter.toAddress)
+                  ? isAddressMatched({
+                      address: transaction.to ?? undefined,
+                      blockNumber: Number(block.number),
+                      childAddresses: childAddresses.get(filter.toAddress)!,
+                    })
+                  : true) &&
                 (filter.includeReverted
                   ? true
-                  : transactionReceiptCache.get(transaction.hash)!.status ===
-                    "0x1")
+                  : transactionReceiptCache.get(transaction.transactionIndex)!
+                      .status === "success")
               ) {
                 events.push({
                   chainId: filter.chainId,
                   sourceIndex: i,
                   checkpoint: encodeCheckpoint({
-                    blockTimestamp: hexToNumber(block.timestamp),
+                    blockTimestamp: block.timestamp,
                     chainId: BigInt(filter.chainId),
-                    blockNumber: hexToBigInt(block.number),
+                    blockNumber: block.number,
                     transactionIndex: BigInt(transaction.transactionIndex),
                     eventType: EVENT_TYPES.transactions,
                     eventIndex: 0n,
                   }),
                   log: undefined,
                   trace: undefined,
-                  block: convertBlock(block),
-                  transaction: convertTransaction(transaction),
-                  transactionReceipt: convertTransactionReceipt(
-                    transactionReceiptCache.get(transaction.hash)!,
-                  ),
+                  block,
+                  transaction,
+                  transactionReceipt: transactionReceiptCache.get(
+                    transaction.transactionIndex,
+                  )!,
                 });
               }
             }
@@ -261,55 +241,51 @@ export const buildEvents = ({
 
           case "transfer": {
             for (const trace of traces) {
-              const fromChildAddresses = isAddressFactory(filter.fromAddress)
-                ? [
-                    finalizedChildAddresses.get(filter.fromAddress)!,
-                    unfinalizedChildAddresses.get(filter.fromAddress)!,
-                  ]
-                : undefined;
-
-              const toChildAddresses = isAddressFactory(filter.toAddress)
-                ? [
-                    finalizedChildAddresses.get(filter.toAddress)!,
-                    unfinalizedChildAddresses.get(filter.toAddress)!,
-                  ]
-                : undefined;
-
               if (
                 isTransferFilterMatched({
                   filter,
+                  trace,
                   block,
-                  trace: trace.trace,
-                  fromChildAddresses,
-                  toChildAddresses,
                 }) &&
-                (filter.includeReverted
-                  ? true
-                  : trace.trace.error === undefined)
+                (isAddressFactory(filter.fromAddress)
+                  ? isAddressMatched({
+                      address: trace.from,
+                      blockNumber: Number(block.number),
+                      childAddresses: childAddresses.get(filter.fromAddress)!,
+                    })
+                  : true) &&
+                (isAddressFactory(filter.toAddress)
+                  ? isAddressMatched({
+                      address: trace.to ?? undefined,
+                      blockNumber: Number(block.number),
+                      childAddresses: childAddresses.get(filter.toAddress)!,
+                    })
+                  : true) &&
+                (filter.includeReverted ? true : trace.error === undefined)
               ) {
                 const transaction = transactionCache.get(
-                  trace.transactionHash,
+                  trace.transactionIndex,
                 )!;
                 const transactionReceipt = transactionReceiptCache.get(
-                  trace.transactionHash,
+                  trace.transactionIndex,
                 )!;
                 events.push({
                   chainId: filter.chainId,
                   sourceIndex: i,
                   checkpoint: encodeCheckpoint({
-                    blockTimestamp: hexToNumber(block.timestamp),
+                    blockTimestamp: block.timestamp,
                     chainId: BigInt(filter.chainId),
-                    blockNumber: hexToBigInt(block.number),
+                    blockNumber: block.number,
                     transactionIndex: BigInt(transaction.transactionIndex),
                     eventType: EVENT_TYPES.traces,
-                    eventIndex: BigInt(trace.trace.index),
+                    eventIndex: BigInt(trace.traceIndex),
                   }),
                   log: undefined,
-                  trace: convertTrace(trace),
-                  block: convertBlock(block),
-                  transaction: convertTransaction(transaction),
+                  trace,
+                  block,
+                  transaction,
                   transactionReceipt: shouldGetTransactionReceipt(filter)
-                    ? convertTransactionReceipt(transactionReceipt)
+                    ? transactionReceipt
                     : undefined,
                 });
               }
@@ -326,14 +302,14 @@ export const buildEvents = ({
             chainId: filter.chainId,
             sourceIndex: i,
             checkpoint: encodeCheckpoint({
-              blockTimestamp: hexToNumber(block.timestamp),
+              blockTimestamp: block.timestamp,
               chainId: BigInt(filter.chainId),
-              blockNumber: hexToBigInt(block.number),
+              blockNumber: block.number,
               transactionIndex: MAX_CHECKPOINT.transactionIndex,
               eventType: EVENT_TYPES.blocks,
               eventIndex: ZERO_CHECKPOINT.eventIndex,
             }),
-            block: convertBlock(block),
+            block,
             log: undefined,
             trace: undefined,
             transaction: undefined,
@@ -356,8 +332,6 @@ export const decodeEvents = (
   rawEvents: RawEvent[],
 ): Event[] => {
   const events: Event[] = [];
-
-  const endClock = startClock();
 
   for (const event of rawEvents) {
     const source = sources[event.sourceIndex]!;
@@ -391,8 +365,8 @@ export const decodeEvents = (
                 name: `${source.name}:${safeName}`,
 
                 event: {
-                  name: safeName,
-                  args: removeNullCharacters(args),
+                  id: event.checkpoint,
+                  args,
                   log: event.log!,
                   block: event.block,
                   transaction: event.transaction!,
@@ -403,12 +377,12 @@ export const decodeEvents = (
               if (source.filter.address === undefined) {
                 common.logger.debug({
                   service: "app",
-                  msg: `Unable to decode log, skipping it. id: ${event.log?.id}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
+                  msg: `Unable to decode log, skipping it. blockNumber: ${event.log?.blockNumber}, logIndex: ${event.log?.logIndex}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
                 });
               } else {
                 common.logger.warn({
                   service: "app",
-                  msg: `Unable to decode log, skipping it. id: ${event.log?.id}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
+                  msg: `Unable to decode log, skipping it. blockNumber: ${event.log?.blockNumber}, logIndex: ${event.log?.logIndex}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
                 });
               }
             }
@@ -448,8 +422,9 @@ export const decodeEvents = (
                 name: `${source.name}.${safeName}`,
 
                 event: {
-                  args: removeNullCharacters(args),
-                  result: removeNullCharacters(result),
+                  id: event.checkpoint,
+                  args,
+                  result,
                   trace: event.trace!,
                   block: event.block,
                   transaction: event.transaction!,
@@ -460,12 +435,12 @@ export const decodeEvents = (
               if (source.filter.toAddress === undefined) {
                 common.logger.debug({
                   service: "app",
-                  msg: `Unable to decode trace, skipping it. id: ${event.trace?.id}, input: ${event.trace?.input}, output: ${event.trace?.output}`,
+                  msg: `Unable to decode trace, skipping it. blockNumber: ${event.trace?.blockNumber}, transactionIndex: ${event.trace?.transactionIndex}, traceIndex: ${event.trace?.traceIndex}, input: ${event.trace?.input}, output: ${event.trace?.output}`,
                 });
               } else {
                 common.logger.warn({
                   service: "app",
-                  msg: `Unable to decode trace, skipping it. id: ${event.trace?.id}, input: ${event.trace?.input}, output: ${event.trace?.output}`,
+                  msg: `Unable to decode trace, skipping it. blockNumber: ${event.trace?.blockNumber}, transactionIndex: ${event.trace?.transactionIndex}, traceIndex: ${event.trace?.traceIndex},  input: ${event.trace?.input}, output: ${event.trace?.output}`,
                 });
               }
             }
@@ -491,6 +466,7 @@ export const decodeEvents = (
               name: `${source.name}:transaction:${isFrom ? "from" : "to"}`,
 
               event: {
+                id: event.checkpoint,
                 block: event.block,
                 transaction: event.transaction!,
                 transactionReceipt: event.transactionReceipt,
@@ -511,6 +487,7 @@ export const decodeEvents = (
               name: `${source.name}:transfer:${isFrom ? "from" : "to"}`,
 
               event: {
+                id: event.checkpoint,
                 transfer: {
                   from: event.trace!.from,
                   to: event.trace!.to!,
@@ -536,6 +513,7 @@ export const decodeEvents = (
           checkpoint: event.checkpoint,
           name: `${source.name}:block`,
           event: {
+            id: event.checkpoint,
             block: event.block,
           },
         });
@@ -546,8 +524,6 @@ export const decodeEvents = (
         never(source);
     }
   }
-
-  common.metrics.ponder_indexing_abi_decoding_duration.observe(endClock());
 
   return events;
 };
@@ -611,39 +587,23 @@ export function decodeEventLog({
   return Object.values(args).length > 0 ? args : undefined;
 }
 
+const ARRAY_REGEX = /^(.*)\[(\d+)?\]$/;
+
 function decodeTopic({ param, value }: { param: AbiParameter; value: Hex }) {
   if (
     param.type === "string" ||
     param.type === "bytes" ||
     param.type === "tuple" ||
-    param.type.match(/^(.*)\[(\d+)?\]$/)
+    param.type.match(ARRAY_REGEX)
   )
     return value;
   const decodedArg = decodeAbiParameters([param], value) || [];
   return decodedArg[0];
 }
 
-export function removeNullCharacters(obj: unknown): unknown {
-  if (typeof obj === "string") {
-    return obj.replace(/\0/g, "");
-  }
-  if (Array.isArray(obj)) {
-    // Recursively handle array elements
-    return obj.map(removeNullCharacters);
-  }
-  if (obj && typeof obj === "object") {
-    // Recursively handle object properties
-    const newObj: { [key: string]: unknown } = {};
-    for (const [key, val] of Object.entries(obj)) {
-      newObj[key] = removeNullCharacters(val);
-    }
-    return newObj;
-  }
-  // For other types (number, boolean, null, undefined, etc.), return as-is
-  return obj;
-}
-
-const convertBlock = (block: SyncBlock): Block => ({
+export const syncBlockToInternal = ({
+  block,
+}: { block: SyncBlock }): InternalBlock => ({
   baseFeePerGas: block.baseFeePerGas ? hexToBigInt(block.baseFeePerGas) : null,
   difficulty: hexToBigInt(block.difficulty),
   extraData: block.extraData,
@@ -658,7 +618,7 @@ const convertBlock = (block: SyncBlock): Block => ({
   parentHash: block.parentHash,
   receiptsRoot: block.receiptsRoot,
   sha3Uncles: block.sha3Uncles,
-  size: hexToBigInt(block.size),
+  size: block.size ? hexToBigInt(block.size) : 0n,
   stateRoot: block.stateRoot,
   timestamp: hexToBigInt(block.timestamp),
   totalDifficulty: block.totalDifficulty
@@ -667,25 +627,31 @@ const convertBlock = (block: SyncBlock): Block => ({
   transactionsRoot: block.transactionsRoot,
 });
 
-const convertLog = (log: SyncLog): Log => ({
-  id: `${log.blockHash}-${log.logIndex}`,
+export const syncLogToInternal = ({ log }: { log: SyncLog }): InternalLog => ({
+  blockNumber: hexToNumber(log.blockNumber),
+  logIndex: hexToNumber(log.logIndex),
+  transactionIndex: hexToNumber(log.transactionIndex),
   address: checksumAddress(log.address!),
   data: log.data,
-  logIndex: Number(log.logIndex),
   removed: false,
   topics: log.topics,
 });
 
-const convertTransaction = (transaction: SyncTransaction): Transaction => ({
+export const syncTransactionToInternal = ({
+  transaction,
+}: {
+  transaction: SyncTransaction;
+}): InternalTransaction => ({
+  blockNumber: hexToNumber(transaction.blockNumber),
+  transactionIndex: hexToNumber(transaction.transactionIndex),
   from: checksumAddress(transaction.from),
   gas: hexToBigInt(transaction.gas),
   hash: transaction.hash,
   input: transaction.input,
-  nonce: Number(transaction.nonce),
+  nonce: hexToNumber(transaction.nonce),
   r: transaction.r,
   s: transaction.s,
   to: transaction.to ? checksumAddress(transaction.to) : transaction.to,
-  transactionIndex: Number(transaction.transactionIndex),
   value: hexToBigInt(transaction.value),
   v: transaction.v ? hexToBigInt(transaction.v) : null,
   ...(transaction.type === "0x0"
@@ -726,9 +692,13 @@ const convertTransaction = (transaction: SyncTransaction): Transaction => ({
             }),
 });
 
-const convertTransactionReceipt = (
-  transactionReceipt: SyncTransactionReceipt,
-): TransactionReceipt => ({
+export const syncTransactionReceiptToInternal = ({
+  transactionReceipt,
+}: {
+  transactionReceipt: SyncTransactionReceipt;
+}): InternalTransactionReceipt => ({
+  blockNumber: hexToNumber(transactionReceipt.blockNumber),
+  transactionIndex: hexToNumber(transactionReceipt.transactionIndex),
   contractAddress: transactionReceipt.contractAddress
     ? checksumAddress(transactionReceipt.contractAddress)
     : null,
@@ -742,7 +712,7 @@ const convertTransactionReceipt = (
       ? "success"
       : transactionReceipt.status === "0x0"
         ? "reverted"
-        : (transactionReceipt.status as TransactionReceipt["status"]),
+        : (transactionReceipt.status as InternalTransactionReceipt["status"]),
   to: transactionReceipt.to ? checksumAddress(transactionReceipt.to) : null,
   type:
     transactionReceipt.type === "0x0"
@@ -756,16 +726,27 @@ const convertTransactionReceipt = (
             : transactionReceipt.type,
 });
 
-const convertTrace = (trace: SyncTrace): Trace => ({
-  id: `${trace.transactionHash}-${trace.trace.index}`,
+export const syncTraceToInternal = ({
+  trace,
+  block,
+  transaction,
+}: {
+  trace: SyncTrace;
+  block: Pick<SyncBlock, "number">;
+  transaction: Pick<SyncTransaction, "transactionIndex">;
+}): InternalTrace => ({
+  blockNumber: hexToNumber(block.number),
+  traceIndex: trace.trace.index,
+  transactionIndex: hexToNumber(transaction.transactionIndex),
   type: trace.trace.type,
   from: checksumAddress(trace.trace.from),
   to: trace.trace.to ? checksumAddress(trace.trace.to) : null,
-  input: trace.trace.input,
-  output: trace.trace.output,
   gas: hexToBigInt(trace.trace.gas),
   gasUsed: hexToBigInt(trace.trace.gasUsed),
+  input: trace.trace.input,
+  output: trace.trace.output,
+  error: trace.trace.error,
+  revertReason: trace.trace.revertReason,
   value: trace.trace.value ? hexToBigInt(trace.trace.value) : null,
-  traceIndex: trace.trace.index,
   subcalls: trace.trace.subcalls,
 });

@@ -8,6 +8,7 @@ import dotenv from "dotenv";
 import { codegen } from "./commands/codegen.js";
 import { dev } from "./commands/dev.js";
 import { list } from "./commands/list.js";
+import { prune } from "./commands/prune.js";
 import { serve } from "./commands/serve.js";
 import { start } from "./commands/start.js";
 
@@ -122,7 +123,7 @@ const serveCommand = new Command("serve")
 const dbCommand = new Command("db").description("Database management commands");
 
 const listCommand = new Command("list")
-  .description("List all deployments")
+  .description("List all Ponder deployments")
   .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
@@ -131,6 +132,20 @@ const listCommand = new Command("list")
       version: packageJson.version,
     } as GlobalOptions & ReturnType<typeof command.opts>;
     await list({ cliOptions });
+  });
+
+const pruneCommand = new Command("prune")
+  .description(
+    "Drop all database tables, functions, and schemas created by Ponder deployments that are not active",
+  )
+  .showHelpAfterError()
+  .action(async (_, command) => {
+    const cliOptions = {
+      ...command.optsWithGlobals(),
+      command: command.name(),
+      version: packageJson.version,
+    } as GlobalOptions & ReturnType<typeof command.opts>;
+    await prune({ cliOptions });
   });
 
 const codegenCommand = new Command("codegen")
@@ -166,6 +181,7 @@ const codegenCommand = new Command("codegen")
 //   });
 
 dbCommand.addCommand(listCommand);
+dbCommand.addCommand(pruneCommand);
 
 ponder.addCommand(devCommand);
 ponder.addCommand(startCommand);

@@ -38,7 +38,7 @@ import { toHex } from "viem";
 
 ponder.on("EntryPoint:UserOp", async ({ event, context }) => {
   await context.db.insert(userOperations).values({
-    id: event.log.id,
+    id: event.id,
     receipt: replaceBigInts(event.transactionReceipt, toHex),
   });
 });
@@ -53,7 +53,7 @@ import type { TransactionReceipt, Hex } from "viem";
 
 export const userOperations = onchainTable("user_operations", (t) => ({
   id: t.text().primaryKey(),
-  receipt: t.json<ReplaceBigInts<TransactionReceipt, Hex>>(),
+  receipt: t.json().$type<ReplaceBigInts<TransactionReceipt, Hex>>(),
 }));
 ```
 

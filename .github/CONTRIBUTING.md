@@ -2,7 +2,7 @@
 
 Thanks for your interest in contributing to Ponder! Please take a moment to review this document **before submitting a pull request.**
 
-If you want to contribute, but aren't sure where to start, reach out in Ponder's [public telegram group](https://t.me/ponder_sh) or create a [new discussion](https://github.com/ponder-sh/ponder/discussions).
+If you want to contribute, but aren't sure where to start, reach out in Ponder's [public telegram group](https://t.me/pondersh) or create a [new discussion](https://github.com/ponder-sh/ponder/discussions).
 
 ## Get started
 
@@ -184,6 +184,6 @@ When you're ready to release, merge the `"chore: version packages"` PR into `mai
 
 ## That's it!
 
-If you still have questions, please reach out in Ponder's [public telegram group](https://t.me/ponder_sh) or create a [new discussion](https://github.com/ponder-sh/ponder/discussions).
+If you still have questions, please reach out in Ponder's [public Telegram chat](https://t.me/pondersh) or create a [new discussion](https://github.com/ponder-sh/ponder/discussions).
 
 This guide was adapted from [viem](https://github.com/wagmi-dev/viem/blob/main/.github/CONTRIBUTING.md)'s contribution guide. ❤️

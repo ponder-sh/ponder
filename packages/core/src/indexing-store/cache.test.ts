@@ -1,3 +1,4 @@
+import { ALICE, BOB } from "@/_test/constants.js";
 import {
   setupCleanup,
   setupCommon,
@@ -5,8 +6,9 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
+import type { LogEvent } from "@/internal/types.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
-import { zeroAddress } from "viem";
+import { parseEther, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { createIndexingCache } from "./cache.js";
 import { createHistoricalIndexingStore } from "./historical.js";
@@ -30,7 +32,8 @@ test("flush() insert", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -75,13 +78,13 @@ test("flush() update", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
-
       schemaBuild: { schema },
       indexingCache,
       db: tx,
@@ -101,13 +104,14 @@ test("flush() update", async (context) => {
       balance: 10n,
     });
 
+    // first flush takes "insert" path
     await indexingCache.flush({ client });
-    indexingCache.commit();
 
     await indexingStore.update(schema.account, { address: zeroAddress }).set({
       balance: 12n,
     });
 
+    // second flush takes "update" path
     await indexingCache.flush({ client });
 
     let result = await indexingStore.find(schema.account, {
@@ -159,7 +163,8 @@ test("flush() encoding", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -221,7 +226,8 @@ test("flush() encoding escape", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
   await database.transaction(async (client, tx) => {
@@ -265,7 +271,81 @@ test("flush() encoding escape", async (context) => {
   });
 });
 
-test("commit() evicts rows", async (context) => {
+test("prefetch() uses profile metadata", async (context) => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const event = {
+    type: "log",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "Contract:Event",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: {
+        from: zeroAddress,
+        to: ALICE,
+        amount: parseEther("1"),
+      },
+      log: {} as LogEvent["event"]["log"],
+      block: {} as LogEvent["event"]["block"],
+      transaction: {} as LogEvent["event"]["transaction"],
+    },
+  } satisfies LogEvent;
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: { "Contract:Event": 0 },
+  });
+
+  indexingCache.event = event;
+
+  await database.transaction(async (client, tx) => {
+    const indexingStore = createHistoricalIndexingStore({
+      common: context.common,
+      schemaBuild: { schema },
+      indexingCache,
+      db: tx,
+      client,
+    });
+
+    await indexingStore
+      .insert(schema.account)
+      .values({
+        address: ALICE,
+        balance: parseEther("1"),
+      })
+      .onConflictDoNothing();
+
+    // @ts-ignore
+    event.event.args.to = BOB;
+
+    await indexingCache.flush({ client });
+    await indexingCache.prefetch({
+      events: [event],
+      db: tx,
+    });
+
+    const result = indexingCache.has({
+      table: schema.account,
+      key: { address: BOB },
+    });
+
+    expect(result).toBe(true);
+  });
+});
+
+test("prefetch() evicts rows", async (context) => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -280,10 +360,12 @@ test("commit() evicts rows", async (context) => {
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
-    checkpoint: ZERO_CHECKPOINT_STRING,
+    crashRecoveryCheckpoint: ZERO_CHECKPOINT_STRING,
+    eventCount: {},
   });
 
-  context.common.options.indexingCacheMaxBytes = 0;
+  // skip hot loop
+  indexingCache.invalidate();
 
   await database.transaction(async (client, tx) => {
     const indexingStore = createHistoricalIndexingStore({
@@ -300,7 +382,8 @@ test("commit() evicts rows", async (context) => {
     });
 
     await indexingCache.flush({ client });
-    indexingCache.commit();
+    // prefetch() should evict rows from the cache to free memory
+    await indexingCache.prefetch({ events: [], db: tx });
 
     const result = indexingCache.has({
       table: schema.account,

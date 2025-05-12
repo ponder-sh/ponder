@@ -3,11 +3,11 @@ import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { type Params, getRequest } from "./utils.js";
 
-const request = getRequest("https://api.hyperliquid-testnet.xyz/evm");
+const request = getRequest("https://rpc.hyperliquid.xyz/evm");
 const fromBlock = 9419400;
 const maxBlockRange = 50;
 
-test("hyperliquid success", async () => {
+test.skip("hyperliquid success", async () => {
   const logs = await request({
     method: "eth_getLogs",
     params: [
@@ -21,7 +21,7 @@ test("hyperliquid success", async () => {
   expect(logs).toHaveLength(5);
 });
 
-test("hyperliquid block range", async () => {
+test.skip("hyperliquid block range", async () => {
   const params: Params = [
     {
       fromBlock: numberToHex(fromBlock),

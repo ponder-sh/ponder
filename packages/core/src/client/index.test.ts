@@ -177,3 +177,23 @@ FROM infinite_cte;`,
   expect(response.status).toBe(500);
   expect(await response.text()).toContain("Recursive CTEs not supported");
 });
+
+test("client.status", async (context) => {
+  globalThis.PONDER_NAMESPACE_BUILD = "public";
+
+  const { database } = await setupDatabaseServices(context);
+
+  globalThis.PONDER_DATABASE = database;
+
+  const app = new Hono().use(
+    client({
+      db: database.qb.drizzleReadonly,
+      schema: {},
+    }),
+  );
+
+  const response = await app.request("/sql/status");
+  expect(response.status).toBe(200);
+  const result = await response.json();
+  expect(result).toMatchInlineSnapshot("null");
+});

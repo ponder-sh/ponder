@@ -26,3 +26,9 @@ export type DeepPartial<T> = {
       ? DeepPartial<T[P]>
       : T[P];
 };
+
+/**
+ * @description Marks a property of an object as optional.
+ */
+export type MakeOptional<T, K extends keyof T> = Omit<T, K> &
+  Partial<Pick<T, K>>;

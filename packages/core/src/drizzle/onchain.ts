@@ -15,6 +15,7 @@ import {
   PgTable,
   type PgTableExtraConfig,
   type PgTableWithColumns,
+  type PgTextConfig,
   type TableConfig,
   primaryKey as drizzlePrimaryKey,
 } from "drizzle-orm/pg-core";
@@ -23,7 +24,19 @@ import {
   getPgColumnBuilders,
 } from "drizzle-orm/pg-core/columns/all";
 import { PgBigintBuilder, type PgBigintBuilderInitial } from "./bigint.js";
+import { PgBytesBuilder, type PgBytesBuilderInitial } from "./bytes.js";
 import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
+import { PgTextBuilder, type PgTextBuilderInitial } from "./text.js";
+
+/** @internal */
+function getColumnNameAndConfig<
+  TConfig extends Record<string, any> | undefined,
+>(a: string | TConfig | undefined, b: TConfig | undefined) {
+  return {
+    name: typeof a === "string" && a.length > 0 ? a : ("" as string),
+    config: typeof a === "object" ? a : (b as TConfig),
+  };
+}
 
 // @ts-ignore
 export function hex(): PgHexBuilderInitial<"">;
@@ -41,6 +54,32 @@ export function bigint<name extends string>(
 ): PgBigintBuilderInitial<name>;
 export function bigint(columnName?: string) {
   return new PgBigintBuilder(columnName ?? "");
+}
+
+// @ts-ignore
+export function bytes(): PgBytesBuilderInitial<"">;
+export function bytes<name extends string>(
+  columnName: name,
+): PgBytesBuilderInitial<name>;
+export function bytes(columnName?: string) {
+  return new PgBytesBuilder(columnName ?? "");
+}
+
+export function text(): PgTextBuilderInitial<"", [string, ...string[]]>;
+export function text<U extends string, T extends Readonly<[U, ...U[]]>>(
+  config?: PgTextConfig<T | Writable<T>>,
+): PgTextBuilderInitial<"", Writable<T>>;
+export function text<
+  TName extends string,
+  U extends string,
+  T extends Readonly<[U, ...U[]]>,
+>(
+  name: TName,
+  config?: PgTextConfig<T | Writable<T>>,
+): PgTextBuilderInitial<TName, Writable<T>>;
+export function text(a?: string | PgTextConfig, b: PgTextConfig = {}): any {
+  const { name, config } = getColumnNameAndConfig<PgTextConfig>(a, b);
+  return new PgTextBuilder(name, config as any);
 }
 
 export const onchain = Symbol.for("ponder:onchain");
@@ -102,18 +141,31 @@ type PgColumnsBuilders = Omit<
    */
   hex: typeof hex;
   /**
-   * Create a column for hex strings
+   * Create a column for Ethereum integers
    *
    * - Docs: https://ponder.sh/docs/api-reference/schema#onchaintable
    *
    * @example
-   * import { hex, onchainTable } from "ponder";
+   * import { bigint, onchainTable } from "ponder";
    *
    * export const account = onchainTable("account", (p) => ({
    *   balance: p.bigint(),
    * }));
    */
   bigint: typeof bigint;
+  /**
+   * Create a column for Ethereum bytes
+   *
+   * - Docs: https://ponder.sh/docs/api-reference/schema#onchaintable
+   *
+   * @example
+   * import { bytes, onchainTable } from "ponder";
+   *
+   * export const account = onchainTable("account", (p) => ({
+   *   calldata: p.bytes(),
+   * }));
+   */
+  bytes: typeof bytes;
 };
 
 /**
@@ -217,11 +269,11 @@ function pgTableWithSchema<
     dialect: "pg";
   }>(name, schema, baseName);
 
-  const { bigint: int8, ...restColumns } = getPgColumnBuilders();
+  const { bigint: int8, text: _text, ...restColumns } = getPgColumnBuilders();
 
   const parsedColumns: columns =
     typeof columns === "function"
-      ? columns({ ...restColumns, int8, hex, bigint })
+      ? columns({ ...restColumns, int8, hex, bigint, bytes, text })
       : columns;
 
   const builtColumns = Object.fromEntries(

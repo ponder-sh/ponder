@@ -266,13 +266,32 @@ export function buildGraphQLSchema({
           } else if (is(relation, Many)) {
             // Search the relations of the referenced table for the corresponding `one` relation.
             // If "relationName" is not provided, use the first `one` relation that references this table.
-            const oneRelation = Object.values(referencedTable.relations).find(
-              (relation) =>
-                relation.relationName === relationName ||
-                (is(relation, One) &&
-                  relation.referencedTableName === table.dbName),
-            ) as One | undefined;
-            if (!oneRelation)
+
+            let oneRelation: One | undefined;
+
+            for (const _relation of Object.values(referencedTable.relations)) {
+              if (
+                is(_relation, One) &&
+                relation.relationName === _relation.relationName
+              ) {
+                oneRelation = _relation;
+              }
+            }
+
+            if (oneRelation === undefined) {
+              for (const _relation of Object.values(
+                referencedTable.relations,
+              )) {
+                if (
+                  is(_relation, One) &&
+                  table.dbName === _relation.referencedTableName
+                ) {
+                  oneRelation = _relation;
+                }
+              }
+            }
+
+            if (oneRelation === undefined)
               throw new Error(
                 `Internal error: Relation "${relationName}" not found in table "${referencedTable.tsName}"`,
               );

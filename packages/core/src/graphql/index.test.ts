@@ -8,6 +8,8 @@ import type { Database } from "@/database/index.js";
 import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
 import { relations } from "drizzle-orm";
 import { type GraphQLType, execute, parse } from "graphql";
+import { toBytes } from "viem";
+import { zeroAddress } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
@@ -82,6 +84,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
       boolean: t.boolean(),
       hex: t.hex(),
       bigint: t.bigint(),
+      bytes: t.bytes(),
 
       stringNotNull: t.text().notNull(),
       intNotNull: t.integer().notNull(),
@@ -89,6 +92,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
       booleanNotNull: t.boolean().notNull(),
       hexNotNull: t.hex().notNull(),
       bigintNotNull: t.bigint().notNull(),
+      bytesNotNull: t.bytes().notNull(),
 
       stringArray: t.text().array(),
       intArray: t.integer().array(),
@@ -121,6 +125,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     boolean: false,
     hex: "0x0",
     bigint: 0n,
+    bytes: toBytes(zeroAddress),
 
     stringNotNull: "0",
     intNotNull: 0,
@@ -128,6 +133,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     booleanNotNull: false,
     hexNotNull: "0x0",
     bigintNotNull: 0n,
+    bytesNotNull: toBytes(zeroAddress),
 
     stringArray: ["0"],
     intArray: [0],
@@ -157,6 +163,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
         boolean
         hex
         bigint
+        bytes
 
         stringNotNull
         intNotNull
@@ -164,6 +171,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
         booleanNotNull
         hexNotNull
         bigintNotNull
+        bytesNotNull
 
         stringArray
         intArray
@@ -193,6 +201,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
       boolean: false,
       hex: "0x00",
       bigint: "0",
+      bytes: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 
       stringNotNull: "0",
       intNotNull: 0,
@@ -200,6 +209,9 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
       booleanNotNull: false,
       hexNotNull: "0x00",
       bigintNotNull: "0",
+      bytesNotNull: [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      ],
 
       stringArray: ["0"],
       intArray: [0],
@@ -577,6 +589,95 @@ test("singular with many relation", async (context) => {
       pets: { items: [{ id: "dog1" }, { id: "dog2" }] },
     },
   });
+});
+
+test("multiple many relations", async (context) => {
+  const person = onchainTable("person", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text(),
+  }));
+
+  const personRelations = relations(person, ({ many }) => ({
+    pets1: many(pet, { relationName: "owner1_relation" }),
+    pets2: many(pet, { relationName: "owner2_relation" }),
+  }));
+
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    owner1: t.text(),
+    owner2: t.text(),
+  }));
+
+  const petRelations = relations(pet, ({ one }) => ({
+    owner1Relation: one(person, {
+      fields: [pet.owner1],
+      relationName: "owner1_relation",
+      references: [person.id],
+    }),
+    owner2Relation: one(person, {
+      fields: [pet.owner2],
+      relationName: "owner2_relation",
+      references: [person.id],
+    }),
+  }));
+
+  const schema = { person, personRelations, pet, petRelations };
+
+  const { database, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await indexingStore
+    .insert(schema.person)
+    .values({ id: "jake", name: "jake" });
+  await indexingStore.insert(schema.pet).values([
+    { id: "dog1", owner1: "jake", owner2: "jim" },
+    { id: "dog2", owner1: "jake", owner2: "kyle" },
+    { id: "dog3", owner1: "kyle", owner2: "jim" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      person(id: "jake") {
+       pets1 {
+          items {
+            id
+          }
+        }
+        pets2 {
+          items {
+            id
+          }
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchInlineSnapshot(`
+    {
+      "person": {
+        "pets1": {
+          "items": [
+            {
+              "id": "dog1",
+            },
+            {
+              "id": "dog2",
+            },
+          ],
+        },
+        "pets2": {
+          "items": [],
+        },
+      },
+    }
+  `);
 });
 
 test("singular with many relation using filter", async (context) => {

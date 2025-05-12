@@ -12,7 +12,7 @@ import {
 } from "@/internal/errors.js";
 import { eq } from "drizzle-orm";
 import { pgTable } from "drizzle-orm/pg-core";
-import { zeroAddress } from "viem";
+import { toBytes, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { createRealtimeIndexingStore } from "./realtime.js";
 
@@ -154,6 +154,16 @@ test("insert", async (context) => {
     null,
     { address: "0x0000000000000000000000000000000000000003", balance: 0n },
   ]);
+
+  result = await indexingStore
+    .insert(schema.account)
+    .values([
+      { address: "0x0000000000000000000000000000000000000001", balance: 44n },
+      { address: "0x0000000000000000000000000000000000000001", balance: 44n },
+    ])
+    .onConflictDoNothing();
+
+  expect(result).toStrictEqual([null, null]);
 
   result = await indexingStore.find(schema.account, {
     address: "0x0000000000000000000000000000000000000001",
@@ -723,5 +733,269 @@ test("bigint array", async (context) => {
   expect(result).toStrictEqual({
     address: zeroAddress,
     balances: [1n, BIGINT_LARGE, BIGINT_MAX],
+  });
+});
+
+test("bytes", async (context) => {
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      calldata: t.bytes().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+  });
+
+  await indexingStore.insert(schema.account).values({
+    address: zeroAddress,
+    calldata: toBytes(zeroAddress),
+  });
+
+  const result = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    calldata: toBytes(zeroAddress),
+  });
+});
+
+test("text with null bytes", async (context) => {
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      name: t.text().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+  });
+
+  await indexingStore.insert(schema.account).values({
+    address: zeroAddress,
+    name: "tencentclub\x00\x00\x00\x00\x00\x00",
+  });
+
+  const result = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    name: "tencentclub",
+  });
+});
+
+test.skip("time", async (context) => {
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      time: t.time().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+  });
+
+  await indexingStore.insert(schema.account).values({
+    address: zeroAddress,
+    time: "04:05:06 PST",
+  });
+
+  const result = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    time: "04:05:06",
+  });
+});
+
+test("timestamp", async (context) => {
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      timestamp: t.timestamp().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+  });
+
+  await indexingStore.insert(schema.account).values({
+    address: zeroAddress,
+    timestamp: new Date(1742925862000),
+  });
+
+  const result = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    timestamp: new Date(1742925862000),
+  });
+});
+
+test.skip("date", async (context) => {
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      date: t.date({ mode: "date" }).notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+  });
+
+  await indexingStore.insert(schema.account).values({
+    address: zeroAddress,
+    date: new Date(1742925862000),
+  });
+
+  const result = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    date: new Date("2025-03-25T00:00:00.000Z"),
+  });
+});
+
+test.skip("interval", async (context) => {
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      interval: t.interval().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+  });
+
+  await indexingStore.insert(schema.account).values({
+    address: zeroAddress,
+    interval: "18 months",
+  });
+
+  const result = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    interval: "1 year 6 mons",
+  });
+});
+
+test("point", async (context) => {
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      point: t.point().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+  });
+
+  await indexingStore.insert(schema.account).values({
+    address: zeroAddress,
+    point: [1, 2],
+  });
+
+  const result = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    point: [1, 2],
+  });
+});
+
+test("line", async (context) => {
+  const schema = {
+    account: onchainTable("account", (t) => ({
+      address: t.hex().primaryKey(),
+      line: t.line().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+  });
+
+  await indexingStore.insert(schema.account).values({
+    address: zeroAddress,
+    line: [1, 2, 3],
+  });
+
+  const result = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    line: [1, 2, 3],
   });
 });

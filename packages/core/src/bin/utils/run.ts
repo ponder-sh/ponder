@@ -3,6 +3,7 @@ import type { Database } from "@/database/index.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
+import { createCachedViemClient } from "@/indexing/client.js";
 import { createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import { FlushError } from "@/internal/errors.js";
@@ -16,9 +17,11 @@ import {
 } from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
+import { recordAsyncGenerator } from "@/utils/generators.js";
 import { createMutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { createRequestQueue } from "@/utils/requestQueue.js";
+import { startClock } from "@/utils/timer.js";
 
 /** Starts the sync and indexing services for the specified build. */
 export async function run({
@@ -38,13 +41,19 @@ export async function run({
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
 }) {
-  const initialCheckpoint = await database.recoverCheckpoint();
+  const crashRecoveryCheckpoint = await database.recoverCheckpoint();
   await database.migrateSync();
 
   runCodegen({ common });
 
   const requestQueues = indexingBuild.networks.map((network) =>
-    createRequestQueue({ network, common }),
+    createRequestQueue({
+      network,
+      common,
+      concurrency: Math.floor(
+        common.options.rpcMaxConcurrency / indexingBuild.networks.length,
+      ),
+    }),
   );
 
   const syncStore = createSyncStore({ common, database });
@@ -64,21 +73,35 @@ export async function run({
       return onRealtimeEvent(realtimeEvent);
     },
     onFatalError,
-    initialCheckpoint,
+    crashRecoveryCheckpoint,
     ordering: preBuild.ordering,
+  });
+
+  const eventCount: { [eventName: string]: number } = {};
+  for (const eventName of Object.keys(indexingBuild.indexingFunctions)) {
+    eventCount[eventName] = 0;
+  }
+
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild,
+    requestQueues,
+    syncStore,
+    eventCount,
   });
 
   const indexing = createIndexing({
     common,
     indexingBuild,
-    requestQueues,
-    syncStore,
+    client: cachedViemClient,
+    eventCount,
   });
 
   const indexingCache = createIndexingCache({
     common,
     schemaBuild,
-    checkpoint: initialCheckpoint,
+    crashRecoveryCheckpoint,
+    eventCount,
   });
 
   await database.setStatus(sync.getStatus());
@@ -117,7 +140,7 @@ export async function run({
   common.metrics.start_timestamp = Date.now();
 
   // If the initial checkpoint is zero, we need to run setup events.
-  if (initialCheckpoint === ZERO_CHECKPOINT_STRING) {
+  if (crashRecoveryCheckpoint === ZERO_CHECKPOINT_STRING) {
     await database.retry(async () => {
       await database.transaction(async (client, tx) => {
         const historicalIndexingStore = createHistoricalIndexingStore({
@@ -140,11 +163,45 @@ export async function run({
   }
 
   // Run historical indexing until complete.
-  for await (const events of sync.getEvents()) {
+  for await (const events of recordAsyncGenerator(
+    sync.getEvents(),
+    (params) => {
+      common.metrics.ponder_historical_concurrency_group_duration.inc(
+        { group: "extract" },
+        params.await,
+      );
+      common.metrics.ponder_historical_concurrency_group_duration.inc(
+        { group: "transform" },
+        params.yield,
+      );
+    },
+  )) {
+    let endClock = startClock();
+
+    await Promise.all([
+      indexingCache.prefetch({
+        events,
+        db: database.qb.drizzle,
+      }),
+      cachedViemClient.prefetch({
+        events,
+      }),
+    ]);
+    common.metrics.ponder_historical_transform_duration.inc(
+      { step: "prefetch" },
+      endClock(),
+    );
     if (events.length > 0) {
+      endClock = startClock();
       await database.retry(async () => {
         await database
           .transaction(async (client, tx) => {
+            common.metrics.ponder_historical_transform_duration.inc(
+              { step: "begin" },
+              endClock(),
+            );
+
+            endClock = startClock();
             const historicalIndexingStore = createHistoricalIndexingStore({
               common,
               schemaBuild,
@@ -158,6 +215,7 @@ export async function run({
               const result = await indexing.processEvents({
                 events: eventChunk,
                 db: historicalIndexingStore,
+                cache: indexingCache,
               });
 
               if (result.status === "error") {
@@ -173,7 +231,7 @@ export async function run({
                 common.metrics.ponder_historical_completed_indexing_seconds.set(
                   { network: network.name },
                   Math.max(
-                    checkpoint.blockTimestamp -
+                    Number(checkpoint.blockTimestamp) -
                       sync.seconds[network.name]!.start -
                       sync.seconds[network.name]!.cached,
                     0,
@@ -181,7 +239,7 @@ export async function run({
                 );
                 common.metrics.ponder_indexing_timestamp.set(
                   { network: network.name },
-                  checkpoint.blockTimestamp,
+                  Number(checkpoint.blockTimestamp),
                 );
               }
 
@@ -190,6 +248,7 @@ export async function run({
                 await new Promise(setImmediate);
               }
             }
+            await new Promise(setImmediate);
 
             // underlying metrics collection is actually synchronous
             // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
@@ -206,6 +265,15 @@ export async function run({
               });
             }
 
+            common.metrics.ponder_historical_transform_duration.inc(
+              { step: "index" },
+              endClock(),
+            );
+
+            endClock = startClock();
+            // Note: at this point, the next events can be preloaded, as long as the are not indexed until
+            // the "flush" + "finalize" is complete.
+
             try {
               await indexingCache.flush({ client });
             } catch (error) {
@@ -216,17 +284,35 @@ export async function run({
               throw error;
             }
 
+            common.metrics.ponder_historical_transform_duration.inc(
+              { step: "load" },
+              endClock(),
+            );
+            endClock = startClock();
+
             await database.finalize({
               checkpoint: events[events.length - 1]!.checkpoint,
               db: tx,
             });
+
+            common.metrics.ponder_historical_transform_duration.inc(
+              { step: "finalize" },
+              endClock(),
+            );
+            endClock = startClock();
           })
           .catch((error) => {
             indexingCache.rollback();
             throw error;
           });
       });
-      indexingCache.commit();
+      cachedViemClient.clear();
+      common.metrics.ponder_historical_transform_duration.inc(
+        { step: "commit" },
+        endClock(),
+      );
+
+      await new Promise(setImmediate);
     }
 
     await database.setStatus(sync.getStatus());
@@ -349,13 +435,13 @@ export async function run({
 
               common.metrics.ponder_indexing_timestamp.set(
                 { network: network.name },
-                decodeCheckpoint(checkpoint).blockTimestamp,
+                Number(decodeCheckpoint(checkpoint).blockTimestamp),
               );
             } else {
               for (const network of indexingBuild.networks) {
                 common.metrics.ponder_indexing_timestamp.set(
                   { network: network.name },
-                  decodeCheckpoint(checkpoint).blockTimestamp,
+                  Number(decodeCheckpoint(checkpoint).blockTimestamp),
                 );
               }
             }

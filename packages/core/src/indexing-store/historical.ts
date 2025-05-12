@@ -1,6 +1,7 @@
+import { validateQuery } from "@/client/validate.js";
 import type { Common } from "@/internal/common.js";
 import { RecordNotFoundError } from "@/internal/errors.js";
-import type { Event, Schema, SchemaBuild } from "@/internal/types.js";
+import type { Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
@@ -28,8 +29,6 @@ export const createHistoricalIndexingStore = ({
   db: Drizzle<Schema>;
   client: PoolClient | PGlite;
 }): IndexingStore => {
-  let event: Event | undefined;
-
   return {
     // @ts-ignore
     find: (table: Table, key) => {
@@ -72,7 +71,6 @@ export const createHistoricalIndexingStore = ({
                         key: value,
                         row: value,
                         isUpdate: false,
-                        metadata: { event },
                       }),
                     );
                   }
@@ -94,7 +92,6 @@ export const createHistoricalIndexingStore = ({
                   key: values,
                   row: values,
                   isUpdate: false,
-                  metadata: { event },
                 });
               }
             },
@@ -132,7 +129,6 @@ export const createHistoricalIndexingStore = ({
                         key: value,
                         row,
                         isUpdate: true,
-                        metadata: { event },
                       }),
                     );
                   } else {
@@ -142,7 +138,6 @@ export const createHistoricalIndexingStore = ({
                         key: value,
                         row: value,
                         isUpdate: false,
-                        metadata: { event },
                       }),
                     );
                   }
@@ -172,7 +167,6 @@ export const createHistoricalIndexingStore = ({
                     key: values,
                     row,
                     isUpdate: true,
-                    metadata: { event },
                   });
                 }
 
@@ -181,7 +175,6 @@ export const createHistoricalIndexingStore = ({
                   key: values,
                   row: values,
                   isUpdate: false,
-                  metadata: { event },
                 });
               }
             },
@@ -205,7 +198,6 @@ export const createHistoricalIndexingStore = ({
                       key: value,
                       row: value,
                       isUpdate: false,
-                      metadata: { event },
                     }),
                   );
                 }
@@ -219,7 +211,6 @@ export const createHistoricalIndexingStore = ({
                   key: values,
                   row: values,
                   isUpdate: false,
-                  metadata: { event },
                 });
                 return Promise.resolve(result).then(onFulfilled, onRejected);
               }
@@ -280,7 +271,6 @@ export const createHistoricalIndexingStore = ({
             key,
             row,
             isUpdate: true,
-            metadata: { event },
           });
         },
       };
@@ -298,7 +288,18 @@ export const createHistoricalIndexingStore = ({
     sql: drizzle(
       async (_sql, params, method, typings) => {
         await indexingCache.flush({ client });
-        indexingCache.invalidate();
+
+        let safeQuery = false;
+
+        try {
+          await validateQuery(_sql, false);
+          safeQuery = true;
+        } catch {}
+
+        if (safeQuery === false) {
+          indexingCache.invalidate();
+          indexingCache.clear();
+        }
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
         const endClock = startClock();
@@ -320,8 +321,5 @@ export const createHistoricalIndexingStore = ({
       },
       { schema, casing: "snake_case" },
     ),
-    set event(_event: Event | undefined) {
-      event = _event;
-    },
   };
 };

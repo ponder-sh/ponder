@@ -4,26 +4,36 @@ import {
   getIndexingProgress,
   getSyncProgress,
 } from "@/internal/metrics.js";
-import { buildUiState, setupInkApp } from "./app.js";
+import { buildUiLines, initialUiState } from "./app.js";
+import { patchWriteStreams } from "./patch.js";
 
 export function createUi({ common }: { common: Common }) {
-  const ui = buildUiState();
-  const { render, unmount } = setupInkApp(ui);
+  const ui = initialUiState;
 
-  const renderInterval = setInterval(async () => {
+  const { refresh, shutdown } = patchWriteStreams({
+    getLines: () => buildUiLines(ui),
+  });
+
+  // Update the UI state every 100ms (independent of write rate)
+  const stateUpdateInterval = setInterval(async () => {
     ui.sync = await getSyncProgress(common.metrics);
     ui.indexing = await getIndexingProgress(common.metrics);
     ui.app = await getAppProgress(common.metrics);
 
     if (common.options.hostname) ui.hostname = common.options.hostname;
-    ui.port = (await common.metrics.ponder_http_server_port.get())
-      .values[0]!.value;
-
-    render(ui);
+    const port = (await common.metrics.ponder_http_server_port.get()).values[0]!
+      .value;
+    if (port !== 0) ui.port = port;
   }, 100);
 
-  common.shutdown.add(async () => {
-    clearInterval(renderInterval);
-    unmount();
+  // Refresh the UI every 32ms
+  const refreshInterval = setInterval(() => {
+    refresh();
+  }, 32);
+
+  common.shutdown.add(() => {
+    clearInterval(stateUpdateInterval);
+    clearInterval(refreshInterval);
+    shutdown();
   });
 }

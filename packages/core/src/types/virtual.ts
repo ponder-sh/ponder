@@ -6,7 +6,7 @@ import type {
   SafeEventNames,
   SafeFunctionNames,
 } from "@/config/utilityTypes.js";
-import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
+import type { ReadonlyClient } from "@/indexing/client.js";
 import type { Schema } from "@/internal/types.js";
 import type {
   Block,
@@ -100,10 +100,14 @@ export namespace Virtual {
     eventName extends ExtractEventName<name> = ExtractEventName<name>,
   > = name extends `${string}:block`
     ? // 1. block event
-      { block: Prettify<Block> }
+      {
+        id: string;
+        block: Prettify<Block>;
+      }
     : name extends `${string}:transaction:${"from" | "to"}`
       ? // 2. transaction event
         {
+          id: string;
           block: Prettify<Block>;
           transaction: Prettify<Transaction>;
           transactionReceipt: Prettify<TransactionReceipt>;
@@ -111,6 +115,7 @@ export namespace Virtual {
       : name extends `${string}:transfer:${"from" | "to"}`
         ? // 3. transfer event
           {
+            id: string;
             transfer: Prettify<Transfer>;
             block: Prettify<Block>;
             transaction: Prettify<Transaction>;
@@ -120,6 +125,7 @@ export namespace Virtual {
           ? // 4. call trace event
             Prettify<
               {
+                id: string;
                 args: FormatFunctionArgs<
                   config["contracts"][sourceName]["abi"],
                   eventName
@@ -139,7 +145,7 @@ export namespace Virtual {
             : // 6. log event
               Prettify<
                 {
-                  name: eventName;
+                  id: string;
                   args: FormatEventArgs<
                     config["contracts"][sourceName]["abi"],
                     eventName
@@ -213,7 +219,7 @@ export namespace Virtual {
               keyof config["networks"]]["chainId"];
           };
         }[keyof sourceNetwork];
-    client: Prettify<ReadOnlyClient>;
+    client: Prettify<ReadonlyClient>;
     db: Db<schema>;
   };
 
