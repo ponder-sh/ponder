@@ -23,7 +23,7 @@ In this example, we'll index transactions sent by the [Beaver](https://beaverbui
 
 ### Add an account
 
-Add the network, address, and start block to the `accounts` field in `ponder.config.ts`.
+Add the chain, address, and start block to the `accounts` field in `ponder.config.ts`.
 
 ```ts filename="ponder.config.ts"
 import { createConfig } from "ponder";
@@ -32,7 +32,7 @@ export default createConfig({
   // ... more config
   accounts: {
     BeaverBuild: {
-      network: "mainnet",
+      chain: "mainnet",
       address: "0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5",
       startBlock: 20000000,
     },
@@ -67,17 +67,16 @@ Account indexing also supports the `transaction:to`, `transfer:from`, and `trans
 
 Every account must have a unique name, provided as a key to the `accounts` object. Names must be unique across accounts, contracts, and block intervals.
 
-```ts filename="ponder.config.ts" {9}
+```ts filename="ponder.config.ts" {8}
 import { createConfig } from "ponder";
-import { http } from "viem";
 
 export default createConfig({
-  networks: {
-    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
+  chains: {
+    mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1! },
   },
   accounts: {
     BeaverBuild: {
-      network: "mainnet",
+      chain: "mainnet",
       address: "0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5",
       startBlock: 12439123,
     },
@@ -85,14 +84,14 @@ export default createConfig({
 });
 ```
 
-## Network
+## Chain
 
-The `network` option for accounts works the same way as it does for contracts. [Read more](/docs/contracts-and-networks#network).
+The `chain` option for accounts works the same way as it does for contracts. [Read more](/docs/contracts-and-chains#chain).
 
 ## Address
 
-The `address` option for accounts works the same way as it does for contracts. You can provide a single address, a list of addresses, or an address factory. You can also specify network-specific overrides. [Read more](/docs/contracts-and-networks#address).
+The `address` option for accounts works the same way as it does for contracts. You can provide a single address, a list of addresses, or an address factory. You can also specify chain-specific overrides. [Read more](/docs/contracts-and-chains#address).
 
 ## Block range
 
-The `startBlock` and `endBlock` options for accounts work the same way as it does for contracts. [Read more](/docs/contracts-and-networks#block-range).
+The `startBlock` and `endBlock` options for accounts work the same way as it does for contracts. [Read more](/docs/contracts-and-chains#block-range).
