@@ -60,9 +60,9 @@ export const sidebar = {
       text: "Guides",
       items: [
         { text: "Factory pattern", link: "/docs/guides/factory" },
-        { text: "Call traces", link: "/docs/guides/traces" },
+        { text: "Call traces", link: "/docs/guides/call-traces" },
         { text: "Transaction receipts", link: "/docs/guides/receipts" },
-        { text: "Time series data", link: "/docs/guides/time-series-data" },
+        { text: "Time-series data", link: "/docs/guides/time-series" },
         { text: "Foundry", link: "/docs/guides/foundry" },
         { text: "Observability", link: "/docs/guides/observability" },
       ],

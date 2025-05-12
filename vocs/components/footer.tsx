@@ -48,7 +48,7 @@ export default function Footer() {
                 Resources
               </h4>
               <a
-                href="/docs/getting-started/new-project"
+                href="/docs/get-started/new-project"
                 className="mb-3 transition-colors text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
               >
                 Documentation

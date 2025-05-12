@@ -16,7 +16,7 @@ export default defineConfig({
   markdown: { remarkPlugins: [remarkMermaid] },
   sidebar,
   topNav: [
-    { text: "Docs", link: "/docs/getting-started", match: "/docs" },
+    { text: "Docs", link: "/docs/get-started", match: "/docs" },
     {
       text: "Examples",
       link: "https://github.com/ponder-sh/ponder/tree/main/examples",

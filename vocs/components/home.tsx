@@ -33,7 +33,7 @@ export function Home() {
             <div className="w-full md:w-[unset] space-y-4">
               <div className="flex flex-row gap-4">
                 <a
-                  href="/docs/getting-started"
+                  href="/docs/get-started"
                   className={cn([
                     buttonDefaults,
                     "h-10 px-4 py-2",
