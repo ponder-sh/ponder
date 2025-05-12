@@ -1,5 +1,4 @@
 import { createConfig } from "ponder";
-import { http } from "viem";
 
 export default createConfig({
   chains: {
