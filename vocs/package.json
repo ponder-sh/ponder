@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vocs dev",
     "build": "vocs build",
+    "search-index": "vocs search-index",
     "preview": "vocs preview"
   },
   "dependencies": {
