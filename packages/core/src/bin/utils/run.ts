@@ -163,6 +163,7 @@ export async function run({
     });
   }
 
+  // Note: `_ponder_checkpoint` must be updated after the setup events are processed.
   await database.setCheckpoints({
     checkpoints: indexingBuild.networks.map((network) => ({
       chainName: network.name,
@@ -489,7 +490,7 @@ export async function run({
         break;
       }
       case "reorg":
-        // Note: `setLatestCheckpoint` is not called here, instead it is called
+        // Note: `_ponder_checkpoint` is not called here, instead it is called
         // in the `block` case.
 
         await database.removeTriggers();

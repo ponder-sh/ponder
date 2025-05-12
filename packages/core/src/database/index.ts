@@ -20,7 +20,6 @@ import * as ponderSyncSchema from "@/sync-store/schema.js";
 import type { Drizzle } from "@/types/db.js";
 import {
   MAX_CHECKPOINT_STRING,
-  ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
   min,
 } from "@/utils/checkpoint.js";
@@ -907,9 +906,8 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
 
             await this.revert({ checkpoint: revertCheckpoint, tx });
 
-            await tx
-              .update(PONDER_CHECKPOINT)
-              .set({ latestCheckpoint: ZERO_CHECKPOINT_STRING });
+            // Note: We don't update the `_ponder_checkpoint` table here, instead we wait for it to be updated
+            // in the runtime script.
 
             await tx.update(PONDER_META).set({ value: metadata });
             return { status: "success", crashRecoveryCheckpoint } as const;
