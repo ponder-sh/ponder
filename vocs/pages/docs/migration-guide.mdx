@@ -4,9 +4,9 @@
 
 ### Breaking changes
 
-#### API function file is required
+#### API endpoints file is required
 
-The API function file `src/api/index.ts` is now required. The GraphQL API is no longer served by default.
+The Hono / API endpoints file `src/api/index.ts` is now required. The GraphQL API is no longer served by default.
 
 To achieve the same functionality as `<=0.8`, copy the following code into `src/api/index.ts`.
 
@@ -26,7 +26,7 @@ export default app;
 
 #### Removed `ponder.get()`, `post()`, `use()`
 
-This release makes the API layer less opinionated. Just default export a normal Hono `App` object from the `src/api/index.ts` file, and Ponder will serve it.
+This release makes custom API endpoints less opinionated. Just default export a normal Hono `App` object from the `src/api/index.ts` file, and Ponder will serve it.
 
 The `ponder.get()`, `post()`, `use()` methods were removed. Now, use Hono's built-in routing system.
 
@@ -89,7 +89,7 @@ The `@ponder/client` package provides a new experience for querying a Ponder app
 
 The `@ponder/react` package uses `@ponder/client` and Tanstack Query to provide reactive live queries. [Read more](/docs/query/sql-client#guide-react).
 
-#### Custom API endpoints: `publicClients`
+#### `publicClients`
 
 Custom API endpoint files now have access to a new `"ponder:api"` virtual module. This module contains the `db` object and a new `publicClients` object, which contains a Viem [Public Client](https://viem.sh/docs/clients/public) for each network. These clients use the transports defined in `ponder.config.ts`.
 
