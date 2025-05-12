@@ -21,7 +21,7 @@ To register an indexing function, use the `.on(){:ts}` method of the `ponder` ob
 import { ponder } from "ponder:registry";
 
 ponder.on("ContractName:EventName", async ({ event, context }) => {
-  const { db, network, client, contracts } = context;
+  const { db, chain, client, contracts } = context;
 
   // ...
 });
@@ -72,7 +72,7 @@ Call trace events are specified using `"ContractName.functionName()"`.
 
 <Callout type="default">
   The [`includeCallTraces` contract
-  option](/docs/contracts-and-networks#call-traces) must be enabled to use call
+  option](/docs/contracts-and-chains#call-traces) must be enabled to use call
   trace events.
 </Callout>
 
@@ -317,13 +317,13 @@ type Trace = {
 
 The `context` argument passed to each indexing function contains database model objects and helper objects based on your config.
 
-At runtime, the indexing engine uses a different `context` object depending on the network the current event was emitted on. The TypeScript types for the `context` object reflect this by creating a union of possible types for `context.network` and `context.contracts`.
+At runtime, the indexing engine uses a different `context` object depending on the chain the current event was emitted on. The TypeScript types for the `context` object reflect this by creating a union of possible types for `context.chain` and `context.contracts`.
 
 {/* prettier-ignore */}
 ```ts
 type Context = {
   db: Database;
-  network: { name: string; chainId: number };
+  chain: { name: string; id: number };
   client: ReadOnlyClient;
   contracts: Record<
     string,
@@ -347,16 +347,16 @@ ponder.on("Neighborhood:NewNeighbor", async ({ event, context }) => {
 });
 ```
 
-### Network
+### Chain
 
-The `context.network` object includes information about the network that the current event is from. The object is strictly typed according to the networks you defined in your config.
+The `context.chain` object includes information about the chain that the current event is from. The object is strictly typed according to the chains you defined in your config.
 
 ```ts filename="src/index.ts"
 ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
-  context.network;
-  //      ^? { name: "mainnet", chainId 1 } | { name: "base", chainId 8453 }
+  context.chain;
+  //      ^? { name: "mainnet", id: 1 } | { name: "base", id: 8453 }
 
-  if (context.network.name === "mainnet") {
+  if (context.chain.name === "mainnet") {
     // Do mainnet-specific stuff!
   }
 });
