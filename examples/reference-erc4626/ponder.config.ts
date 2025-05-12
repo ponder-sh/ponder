@@ -3,15 +3,15 @@ import { http } from "viem";
 import { erc4626ABI } from "./abis/erc4626ABI";
 
 export default createConfig({
-  networks: {
+  chains: {
     mainnet: {
-      chainId: 1,
-      transport: http(process.env.PONDER_RPC_URL_1),
+      id: 1,
+      rpc: process.env.PONDER_RPC_URL_1!,
     },
   },
   contracts: {
     ERC4626: {
-      network: "mainnet",
+      chain: "mainnet",
       abi: erc4626ABI,
       address: "0xc21F107933612eCF5677894d45fc060767479A9b",
       startBlock: 15774471,
