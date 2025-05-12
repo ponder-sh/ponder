@@ -12,8 +12,8 @@ import {
 import {
   getAccountsConfigAndIndexingFunctions,
   getBlocksConfigAndIndexingFunctions,
+  getChain,
   getErc20ConfigAndIndexingFunctions,
-  getNetwork,
   getPairWithFactoryConfigAndIndexingFunctions,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
@@ -27,7 +27,7 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
-import { createRequestQueue } from "@/utils/requestQueue.js";
+import { createRpc } from "@/rpc/index.js";
 import { _eth_getBlockByNumber, _eth_getLogs } from "@/utils/rpc.js";
 import {
   type Address,
@@ -83,9 +83,9 @@ test("getChildAddress() offset", () => {
 });
 
 test("isLogFactoryMatched()", async (context) => {
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -101,13 +101,14 @@ test("isLogFactoryMatched()", async (context) => {
     });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   const filter = sources[0]!.filter as LogFilter<LogFactory>;
 
-  const rpcLogs = await _eth_getLogs(requestQueue, {
+  const rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 2,
     toBlock: 2,
   });
@@ -136,9 +137,9 @@ test("isLogFactoryMatched()", async (context) => {
 });
 
 test("isLogFilterMatched()", async (context) => {
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -155,13 +156,14 @@ test("isLogFilterMatched()", async (context) => {
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   const filter = sources[0]!.filter as LogFilter<undefined>;
 
-  const rpcLogs = await _eth_getLogs(requestQueue, {
+  const rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 2,
     toBlock: 2,
   });
@@ -181,9 +183,9 @@ test("isLogFilterMatched()", async (context) => {
 });
 
 test("isBlockFilterMatched", async (context) => {
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -192,13 +194,14 @@ test("isBlockFilterMatched", async (context) => {
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   const filter = sources[0]!.filter as BlockFilter;
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 0,
   });
 
@@ -219,9 +222,9 @@ test("isBlockFilterMatched", async (context) => {
 });
 
 test("isTransactionFilterMatched()", async (context) => {
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -237,6 +240,7 @@ test("isTransactionFilterMatched()", async (context) => {
     });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -244,7 +248,7 @@ test("isTransactionFilterMatched()", async (context) => {
   // transaction:from
   const filter = sources[1]!.filter as TransactionFilter<undefined, undefined>;
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
 
@@ -264,9 +268,9 @@ test("isTransactionFilterMatched()", async (context) => {
 });
 
 test("isTransferFilterMatched()", async (context) => {
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const requestQueue = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -282,6 +286,7 @@ test("isTransferFilterMatched()", async (context) => {
     });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -327,9 +332,9 @@ test("isTransferFilterMatched()", async (context) => {
 });
 
 test("isTraceFilterMatched()", async (context) => {
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const requestQueue = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -353,6 +358,7 @@ test("isTraceFilterMatched()", async (context) => {
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
