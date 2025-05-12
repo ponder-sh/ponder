@@ -20,7 +20,10 @@ const queryToParams = (query: QueryWithTypings) =>
   new URLSearchParams({ sql: superjson.stringify(query) });
 
 test("client.db", async (context) => {
-  globalThis.PONDER_NAMESPACE_BUILD = "public";
+  globalThis.PONDER_NAMESPACE_BUILD = {
+    schema: "public",
+    viewsSchema: undefined,
+  };
 
   const account = onchainTable("account", (p) => ({
     address: p.hex().primaryKey(),
@@ -70,7 +73,10 @@ test("client.db error", async (context) => {
     }),
   );
 
-  globalThis.PONDER_NAMESPACE_BUILD = "public";
+  globalThis.PONDER_NAMESPACE_BUILD = {
+    schema: "public",
+    viewsSchema: undefined,
+  };
   globalThis.PONDER_DATABASE = database;
 
   const query = {
@@ -84,7 +90,10 @@ test("client.db error", async (context) => {
 });
 
 test("client.db search_path", async (context) => {
-  globalThis.PONDER_NAMESPACE_BUILD = "Ponder";
+  globalThis.PONDER_NAMESPACE_BUILD = {
+    schema: "Ponder",
+    viewsSchema: undefined,
+  };
 
   const schemaAccount = pgSchema("Ponder").table("account", {
     address: hex().primaryKey(),
@@ -92,7 +101,10 @@ test("client.db search_path", async (context) => {
   });
 
   const { database } = await setupDatabaseServices(context, {
-    namespaceBuild: "Ponder",
+    namespaceBuild: {
+      schema: "Ponder",
+      viewsSchema: undefined,
+    },
     schemaBuild: { schema: { account: schemaAccount } },
   });
 
@@ -115,7 +127,10 @@ test("client.db search_path", async (context) => {
 });
 
 test("client.db readonly", async (context) => {
-  globalThis.PONDER_NAMESPACE_BUILD = "public";
+  globalThis.PONDER_NAMESPACE_BUILD = {
+    schema: "public",
+    viewsSchema: undefined,
+  };
 
   const account = onchainTable("account", (p) => ({
     address: p.hex().primaryKey(),
@@ -143,7 +158,10 @@ test("client.db readonly", async (context) => {
 });
 
 test("client.db recursive", async (context) => {
-  globalThis.PONDER_NAMESPACE_BUILD = "public";
+  globalThis.PONDER_NAMESPACE_BUILD = {
+    schema: "public",
+    viewsSchema: undefined,
+  };
 
   const account = onchainTable("account", (p) => ({
     address: p.hex().primaryKey(),
@@ -179,7 +197,10 @@ FROM infinite_cte;`,
 });
 
 test("client.status", async (context) => {
-  globalThis.PONDER_NAMESPACE_BUILD = "public";
+  globalThis.PONDER_NAMESPACE_BUILD = {
+    schema: "public",
+    viewsSchema: undefined,
+  };
 
   const { database } = await setupDatabaseServices(context);
 

@@ -1,5 +1,5 @@
 import { createBuild } from "@/build/index.js";
-import { createDatabase, getPonderMeta } from "@/database/index.js";
+import { createDatabase, getPonderMetaTable } from "@/database/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -75,12 +75,15 @@ export async function createViews({
   const database = await createDatabase({
     common,
     // Note: `namespace` is not used in this command
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: buildResult.result,
     schemaBuild: emptySchemaBuild,
   });
 
-  const PONDER_META = getPonderMeta(cliOptions.schema);
+  const PONDER_META = getPonderMetaTable(cliOptions.schema);
 
   const meta = await database.qb.drizzle
     .select({ app: PONDER_META.value })
@@ -97,7 +100,7 @@ export async function createViews({
   }
 
   await database.qb.drizzle.execute(
-    sql.raw(`CREATE SCHEMA IF NOT EXISTS ${cliOptions.viewsSchema}`),
+    sql.raw(`CREATE SCHEMA IF NOT EXISTS "${cliOptions.viewsSchema}"`),
   );
 
   for (const table of meta[0]!.app.table_names) {

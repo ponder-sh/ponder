@@ -316,7 +316,10 @@ export type Schema = { [name: string]: unknown };
 // Build artifacts
 
 /** Database schema name. */
-export type NamespaceBuild = string;
+export type NamespaceBuild = {
+  schema: string;
+  viewsSchema: string | undefined;
+};
 
 /** Consolidated CLI, env vars, and config. */
 export type PreBuild = {
