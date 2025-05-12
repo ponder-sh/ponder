@@ -9,6 +9,8 @@ export function CommandLineIcon() {
       strokeWidth={1.5}
       stroke="currentColor"
       className="w-6 h-6"
+      role="img"
+      aria-label="Command line icon"
     >
       <path
         strokeLinecap="round"
@@ -28,6 +30,8 @@ export function CursorArrowRaysIcon() {
       strokeWidth={1.5}
       stroke="currentColor"
       className="w-6 h-6"
+      role="img"
+      aria-label="Cursor arrow rays icon"
     >
       <path
         strokeLinecap="round"
@@ -47,6 +51,8 @@ export function ShieldCheckIcon() {
       strokeWidth={1.5}
       stroke="currentColor"
       className="w-6 h-6"
+      role="img"
+      aria-label="Shield check icon"
     >
       <path
         strokeLinecap="round"
@@ -66,6 +72,8 @@ export function ServerStackIcon() {
       strokeWidth={1.5}
       stroke="currentColor"
       className="w-6 h-6"
+      role="img"
+      aria-label="Server stack icon"
     >
       <path
         strokeLinecap="round"
@@ -83,6 +91,8 @@ export function TwitterIcon(props: ComponentProps<"svg">) {
       viewBox="0 0 18 15"
       width={24}
       height={24}
+      role="img"
+      aria-label="Twitter icon"
       {...props}
     >
       <path
@@ -95,7 +105,14 @@ export function TwitterIcon(props: ComponentProps<"svg">) {
 
 export function TelegramIcon(props: ComponentProps<"svg">) {
   return (
-    <svg width={24} height={24} viewBox="0 0 1000 1000" {...props}>
+    <svg
+      width={24}
+      height={24}
+      viewBox="0 0 1000 1000"
+      role="img"
+      aria-label="Telegram icon"
+      {...props}
+    >
       <defs>
         <mask id="mask" x="0" y="0" width="1000" height="1000">
           <rect x="0" y="0" width="1000" height="1000" fill="#fff" />
@@ -125,6 +142,8 @@ export function GraphLogo(props: ComponentProps<"svg">) {
       viewBox="0 0 15 18"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
+      role="img"
+      aria-label="Graph logo icon"
       {...props}
     >
       <path
