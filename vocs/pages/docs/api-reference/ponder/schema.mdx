@@ -2,7 +2,7 @@
 
 :::tip
   This is a low-level reference. For an introduction and guides, visit the
-  [Schema](/docs/schema) section.
+  [Schema](/docs/schema/tables) section.
 :::
 
 The `ponder.schema.ts` file defines your database tables and their relationships. Each table you include in `ponder.schema.ts` will be created as an SQL table, populated during indexing, and exposed via the GraphQL API.
@@ -181,4 +181,4 @@ export const usersRelations = relations(users, ({ one }) => ({
 | **One-to-many**  | `many()`    | References array of related records            |
 | **Many-to-many** | Combination | Uses join table with two one-to-many relations |
 
-Read more in the [relationships guide](/docs/schema#relationships) and the Drizzle [relations documentation](https://orm.drizzle.team/docs/relations).
+Read more in the [relationships guide](/docs/schema/relations) and the Drizzle [relations documentation](https://orm.drizzle.team/docs/relations).

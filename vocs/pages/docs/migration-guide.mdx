@@ -118,7 +118,7 @@ export default app;
 
 #### Custom log filters
 
-The `contracts.filter` property now supports multiple log filters, and requires argument values. [Read more](/docs/contracts-and-networks#event-filter).
+The `contracts.filter` property now supports multiple log filters, and requires argument values. [Read more](/docs/config/contracts#filter).
 
 ## 0.8
 
@@ -141,12 +141,12 @@ ponder start --schema my_schema
 ```
 
 :::info
-Each deployment/instance of a Ponder app must have it's own schema, with some exceptions for `ponder dev` and crash recovery. [Read more](/docs/get-started/database#database-schema).
+Each deployment/instance of a Ponder app must have it's own schema, with some exceptions for `ponder dev` and crash recovery. [Read more](/docs/database#database-schema).
 :::
 
 #### Railway
 
-Railway users should [update the start command](/docs/production/deploy#create-a-ponder-app-service) to include a database schema.
+Railway users should [update the start command](/docs/production/railway#create-a-ponder-app-service) to include a database schema.
 
 ::::code-group
 ```bash [pnpm]
@@ -276,7 +276,7 @@ All of the data is still available on other properties of the `event` object, su
 
 #### Account indexing
 
-A new event source `accounts` is available. Accounts can be used to index transactions and native transfers to and from an address. [Read more](/docs/accounts).
+A new event source `accounts` is available. Accounts can be used to index transactions and native transfers to and from an address. [Read more](/docs/config/accounts).
 
 #### `ponder:schema` alias
 
@@ -652,7 +652,7 @@ The new `/ready` endpoint returns an HTTP `200` response once the app **is ready
 
 The existing `/health` endpoint now returns an HTTP `200` response as soon as the process starts. (This release removes the `maxHealthcheckDuration` option, which previously governed the behavior of `/health`.)
 
-For Railway users, we now recommend using `/ready` as the health check endpoint to enable zero downtime deployments. If your app takes a while to sync, be sure to set the healthcheck timeout accordingly. Read the [Railway deployment guide](/docs/production/deploy#railway) for more details.
+For Railway users, we now recommend using `/ready` as the health check endpoint to enable zero downtime deployments. If your app takes a while to sync, be sure to set the healthcheck timeout accordingly. Read the [Railway deployment guide](/docs/production/railway#create-a-ponder-app-service) for more details.
 
 
 ## 0.5.0
@@ -681,7 +681,7 @@ npm install hono@latest
 
 #### Introduced custom API endpoints
 
-This release added support for API functions. [Read more](/docs/query/api-functions).
+This release added support for API functions. [Read more](/docs/query/api-endpoints).
 
 ## 0.4.0
 
@@ -706,7 +706,7 @@ Isolation while running multiple Ponder instances against the same database also
 This also changes the zero-downtime behavior on platforms like Railway. For more information on how this works in `0.4`, please reference:
 
 - [Direct SQL](/docs/query/direct-sql)
-- [Zero-downtime deployments](/docs/production/zero-downtime)
+- [Zero-downtime deployments](/docs/production/self-hosting#database-schema)
 
 **Postgres table cleanup**
 
