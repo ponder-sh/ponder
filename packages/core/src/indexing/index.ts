@@ -4,10 +4,10 @@ import type { CachedViemClient } from "@/indexing/client.js";
 import type { Common } from "@/internal/common.js";
 import { ShutdownError } from "@/internal/errors.js";
 import type {
+  Chain,
   ContractSource,
   Event,
   IndexingBuild,
-  Network,
   Schema,
   SetupEvent,
 } from "@/internal/types.js";
@@ -28,7 +28,7 @@ import { addStackTrace } from "./addStackTrace.js";
 import type { ReadonlyClient } from "./client.js";
 
 export type Context = {
-  network: { chainId: number; name: string };
+  chain: { id: number; name: string };
   client: ReadonlyClient;
   db: Db<Schema>;
   contracts: Record<
@@ -55,26 +55,26 @@ export type Indexing = {
 
 export const createIndexing = ({
   common,
-  indexingBuild: { sources, networks, indexingFunctions },
+  indexingBuild: { sources, chains, indexingFunctions },
   client,
   eventCount,
 }: {
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
-    "sources" | "networks" | "indexingFunctions"
+    "sources" | "chains" | "indexingFunctions"
   >;
   client: CachedViemClient;
   eventCount: { [eventName: string]: number };
 }): Indexing => {
   const context: Context = {
-    network: { name: undefined!, chainId: undefined! },
+    chain: { name: undefined!, id: undefined! },
     contracts: undefined!,
     client: undefined!,
     db: undefined!,
   };
 
-  const networkByChainId: { [chainId: number]: Network } = {};
+  const chainById: { [chainId: number]: Chain } = {};
   const clientByChainId: { [chainId: number]: ReadonlyClient } = {};
   const contractsByChainId: {
     [chainId: number]: Record<
@@ -88,14 +88,14 @@ export const createIndexing = ({
     >;
   } = {};
 
-  // build networkByChainId
-  for (const network of networks) {
-    networkByChainId[network.chainId] = network;
+  // build chainById
+  for (const chain of chains) {
+    chainById[chain.id] = chain;
   }
 
   // build clientByChainId
-  for (const network of networks) {
-    clientByChainId[network.chainId] = client.getClient(network);
+  for (const chain of chains) {
+    clientByChainId[chain.id] = client.getClient(chain);
   }
 
   // build contractsByChainId
@@ -158,8 +158,8 @@ export const createIndexing = ({
     const metricLabel = { event: event.name };
 
     try {
-      context.network.chainId = event.chainId;
-      context.network.name = networkByChainId[event.chainId]!.name;
+      context.chain.id = event.chainId;
+      context.chain.name = chainById[event.chainId]!.name;
       context.contracts = contractsByChainId[event.chainId]!;
 
       const endClock = startClock();
@@ -184,7 +184,7 @@ export const createIndexing = ({
       const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
       common.logger.error({
         service: "indexing",
-        msg: `Error while processing '${event.name}' event in '${networkByChainId[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
+        msg: `Error while processing '${event.name}' event in '${chainById[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
         error,
       });
 
@@ -205,8 +205,8 @@ export const createIndexing = ({
     const metricLabel = { event: event.name };
 
     try {
-      context.network.chainId = event.chainId;
-      context.network.name = networkByChainId[event.chainId]!.name;
+      context.chain.id = event.chainId;
+      context.chain.name = chainById[event.chainId]!.name;
       context.contracts = contractsByChainId[event.chainId]!;
 
       const endClock = startClock();
@@ -232,7 +232,7 @@ export const createIndexing = ({
 
       common.logger.error({
         service: "indexing",
-        msg: `Error while processing '${event.name}' event in '${networkByChainId[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
+        msg: `Error while processing '${event.name}' event in '${chainById[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
         error,
       });
 
@@ -252,22 +252,22 @@ export const createIndexing = ({
 
         const [contractName] = eventName.split(":");
 
-        for (const network of networks) {
+        for (const chain of chains) {
           const source = sources.find(
             (s) =>
               s.type === "contract" &&
               s.name === contractName &&
-              s.filter.chainId === network.chainId,
+              s.filter.chainId === chain.id,
           ) as ContractSource | undefined;
 
           if (source === undefined) continue;
 
           const event = {
             type: "setup",
-            chainId: network.chainId,
+            chainId: chain.id,
             checkpoint: encodeCheckpoint({
               ...ZERO_CHECKPOINT,
-              chainId: BigInt(network.chainId),
+              chainId: BigInt(chain.id),
               blockNumber: BigInt(source.filter.fromBlock ?? 0),
             }),
 
@@ -277,7 +277,7 @@ export const createIndexing = ({
           } satisfies SetupEvent;
 
           client.event = event;
-          context.client = clientByChainId[network.chainId]!;
+          context.client = clientByChainId[chain.id]!;
 
           eventCount[eventName]!++;
 

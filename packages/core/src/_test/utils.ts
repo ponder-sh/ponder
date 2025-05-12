@@ -1,8 +1,8 @@
 import { type AddressInfo, createServer } from "node:net";
 import { factory } from "@/config/address.js";
 import { createConfig } from "@/config/index.js";
-import type { Network, Status } from "@/internal/types.js";
-import type { Address, Chain } from "viem";
+import type { Chain, Status } from "@/internal/types.js";
+import type { Address, Chain as ViemChain } from "viem";
 import { http, createPublicClient, createTestClient, getAbiItem } from "viem";
 import { mainnet } from "viem/chains";
 import { erc20ABI, factoryABI, pairABI } from "./generated.js";
@@ -26,7 +26,7 @@ export const anvil = {
       webSocket: [`ws://127.0.0.1:8545/${poolId}`],
     },
   },
-} as const satisfies Chain;
+} as const satisfies ViemChain;
 
 export const testClient = createTestClient({
   chain: anvil,
@@ -48,16 +48,16 @@ export const getErc20ConfigAndIndexingFunctions = (params: {
   includeTransactionReceipts?: boolean;
 }) => {
   const config = createConfig({
-    networks: {
+    chains: {
       mainnet: {
-        chainId: 1,
-        transport: http(`http://127.0.0.1:8545/${poolId}`),
+        id: 1,
+        rpc: `http://127.0.0.1:8545/${poolId}`,
       },
     },
     contracts: {
       Erc20: {
         abi: erc20ABI,
-        network: "mainnet",
+        chain: "mainnet",
         address: params.address,
         includeCallTraces: params.includeCallTraces,
         includeTransactionReceipts: params.includeTransactionReceipts,
@@ -89,16 +89,16 @@ export const getPairWithFactoryConfigAndIndexingFunctions = (params: {
   includeTransactionReceipts?: boolean;
 }) => {
   const config = createConfig({
-    networks: {
+    chains: {
       mainnet: {
-        chainId: 1,
-        transport: http(`http://127.0.0.1:8545/${poolId}`),
+        id: 1,
+        rpc: `http://127.0.0.1:8545/${poolId}`,
       },
     },
     contracts: {
       Pair: {
         abi: pairABI,
-        network: "mainnet",
+        chain: "mainnet",
         address: factory({
           address: params.address,
           event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
@@ -124,15 +124,15 @@ export const getBlocksConfigAndIndexingFunctions = (params: {
   interval: number;
 }) => {
   const config = createConfig({
-    networks: {
+    chains: {
       mainnet: {
-        chainId: 1,
-        transport: http(`http://127.0.0.1:8545/${poolId}`),
+        id: 1,
+        rpc: `http://127.0.0.1:8545/${poolId}`,
       },
     },
     blocks: {
       Blocks: {
-        network: "mainnet",
+        chain: "mainnet",
         interval: params.interval,
       },
     },
@@ -147,15 +147,15 @@ export const getAccountsConfigAndIndexingFunctions = (params: {
   address: Address;
 }) => {
   const config = createConfig({
-    networks: {
+    chains: {
       mainnet: {
-        chainId: 1,
-        transport: http(`http://127.0.0.1:8545/${poolId}`),
+        id: 1,
+        rpc: `http://127.0.0.1:8545/${poolId}`,
       },
     },
     accounts: {
       Accounts: {
-        network: "mainnet",
+        chain: "mainnet",
         address: params.address,
       },
     },
@@ -171,19 +171,19 @@ export const getAccountsConfigAndIndexingFunctions = (params: {
   return { config, rawIndexingFunctions };
 };
 
-export const getNetwork = (params?: {
+export const getChain = (params?: {
   finalityBlockCount?: number;
 }) => {
   return {
     name: "mainnet",
-    chainId: 1,
-    chain: anvil,
-    transport: http(`http://127.0.0.1:8545/${poolId}`)({ chain: anvil }),
+    id: 1,
+    rpc: `http://127.0.0.1:8545/${poolId}`,
     maxRequestsPerSecond: 50,
     pollingInterval: 1_000,
     finalityBlockCount: params?.finalityBlockCount ?? 1,
     disableCache: false,
-  } satisfies Network;
+    viemChain: anvil,
+  } satisfies Chain;
 };
 
 export function getFreePort(): Promise<number> {

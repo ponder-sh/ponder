@@ -1,10 +1,10 @@
-import { setupAnvil } from "@/_test/setup.js";
+import { setupAnvil, setupCommon } from "@/_test/setup.js";
 import { poolId } from "@/_test/utils.js";
 import { factory } from "@/config/address.js";
+import { createConfig } from "@/config/index.js";
 import type { LogFactory, LogFilter, TraceFilter } from "@/internal/types.js";
 import { shouldGetTransactionReceipt } from "@/sync/filter.js";
 import {
-  http,
   type Address,
   parseAbiItem,
   toEventSelector,
@@ -12,11 +12,12 @@ import {
   zeroAddress,
 } from "viem";
 import { beforeEach, expect, test } from "vitest";
-import { type Config, createConfig } from "../config/index.js";
 import {
   buildConfigAndIndexingFunctions,
   safeBuildConfigAndIndexingFunctions,
 } from "./configAndIndexingFunctions.js";
+
+beforeEach(setupCommon);
 
 const event0 = parseAbiItem("event Event0(bytes32 indexed arg)");
 const event1 = parseAbiItem("event Event1()");
@@ -36,14 +37,14 @@ const bytes2 =
 
 beforeEach(setupAnvil);
 
-test("buildConfigAndIndexingFunctions() builds topics for multiple events", async () => {
+test("buildConfigAndIndexingFunctions() builds topics for multiple events", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
     },
     contracts: {
       a: {
-        network: { mainnet: {} },
+        chain: "mainnet",
         abi: [event0, event1],
         address: address1,
         startBlock: 16370000,
@@ -53,6 +54,7 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple events", asyn
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [
       { name: "a:Event0", fn: () => {} },
@@ -66,14 +68,14 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple events", asyn
   ]);
 });
 
-test("buildConfigAndIndexingFunctions() handles overloaded event signatures and combines topics", async () => {
+test("buildConfigAndIndexingFunctions() handles overloaded event signatures and combines topics", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
     },
     contracts: {
       a: {
-        network: { mainnet: {} },
+        chain: "mainnet",
         abi: [event1, event1Overloaded],
         address: address1,
         startBlock: 16370000,
@@ -83,6 +85,7 @@ test("buildConfigAndIndexingFunctions() handles overloaded event signatures and 
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [
       { name: "a:Event1()", fn: () => {} },
@@ -96,14 +99,14 @@ test("buildConfigAndIndexingFunctions() handles overloaded event signatures and 
   ]);
 });
 
-test("buildConfigAndIndexingFunctions() handles multiple addresses", async () => {
+test("buildConfigAndIndexingFunctions() handles multiple addresses", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
     },
     contracts: {
       a: {
-        network: {
+        chain: {
           mainnet: {
             address: [address1, address3],
             startBlock: 16370000,
@@ -116,6 +119,7 @@ test("buildConfigAndIndexingFunctions() handles multiple addresses", async () =>
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [
       { name: "a:Event1()", fn: () => {} },
@@ -129,21 +133,22 @@ test("buildConfigAndIndexingFunctions() handles multiple addresses", async () =>
   ]);
 });
 
-test("buildConfigAndIndexingFunctions() creates a source for each network for multi-network contracts", async () => {
+test("buildConfigAndIndexingFunctions() creates a source for each chain for multi-chain contracts", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
-      optimism: { chainId: 10, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpc: "http://127.0.0.1:8545" },
+      optimism: { id: 10, rpc: "http://127.0.0.1:8545" },
     },
     contracts: {
       a: {
-        network: { mainnet: {}, optimism: {} },
+        chain: { mainnet: {}, optimism: {} },
         abi: [event0],
       },
     },
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -151,14 +156,14 @@ test("buildConfigAndIndexingFunctions() creates a source for each network for mu
   expect(sources.length).toBe(2);
 });
 
-test("buildConfigAndIndexingFunctions() builds topics for event filter", async () => {
+test("buildConfigAndIndexingFunctions() builds topics for event filter", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpc: "http://127.0.0.1:8545" },
     },
     contracts: {
       a: {
-        network: { mainnet: {} },
+        chain: { mainnet: {} },
         abi: [event0],
         filter: {
           event: "Event0",
@@ -174,6 +179,7 @@ test("buildConfigAndIndexingFunctions() builds topics for event filter", async (
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -185,14 +191,14 @@ test("buildConfigAndIndexingFunctions() builds topics for event filter", async (
   expect((sources[0]!.filter as LogFilter).topic1).toMatchObject(bytes1);
 });
 
-test("buildConfigAndIndexingFunctions() builds topics for multiple event filters", async () => {
+test("buildConfigAndIndexingFunctions() builds topics for multiple event filters", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpc: "http://127.0.0.1:8545" },
     },
     contracts: {
       a: {
-        network: { mainnet: {} },
+        chain: { mainnet: {} },
         abi: [event0, event1Overloaded],
         filter: [
           {
@@ -214,6 +220,7 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple event filters
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [
       { name: "a:Event0", fn: () => {} },
@@ -235,10 +242,10 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple event filters
   expect((sources[1]!.filter as LogFilter).topic1).toMatchObject(bytes1);
 });
 
-test("buildConfigAndIndexingFunctions() overrides default values with network-specific values", async () => {
+test("buildConfigAndIndexingFunctions() overrides default values with chain-specific values", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpc: "http://127.0.0.1:8545" },
     },
     contracts: {
       a: {
@@ -246,7 +253,7 @@ test("buildConfigAndIndexingFunctions() overrides default values with network-sp
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
-        network: {
+        chain: {
           mainnet: {
             address: address2,
           },
@@ -256,6 +263,7 @@ test("buildConfigAndIndexingFunctions() overrides default values with network-sp
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -263,14 +271,14 @@ test("buildConfigAndIndexingFunctions() overrides default values with network-sp
   expect((sources[0]!.filter as LogFilter).address).toBe(address2);
 });
 
-test("buildConfigAndIndexingFunctions() handles network name shortcut", async () => {
+test("buildConfigAndIndexingFunctions() handles chain name shortcut", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpc: "http://127.0.0.1:8545" },
     },
     contracts: {
       a: {
-        network: "mainnet",
+        chain: "mainnet",
         abi: [event0],
         address: address1,
         startBlock: 16370000,
@@ -280,22 +288,23 @@ test("buildConfigAndIndexingFunctions() handles network name shortcut", async ()
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
-  expect(sources[0]!.network.name).toBe("mainnet");
+  expect(sources[0]!.chain.name).toBe("mainnet");
 });
 
-test("buildConfigAndIndexingFunctions() validates network name", async () => {
+test("buildConfigAndIndexingFunctions() validates chain name", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpc: "http://127.0.0.1:8545" },
     },
     contracts: {
       a: {
         // @ts-expect-error
-        network: "mainnetz",
+        chain: "mainnetz",
         abi: [event0],
         address: address1,
       },
@@ -303,24 +312,25 @@ test("buildConfigAndIndexingFunctions() validates network name", async () => {
   });
 
   const result = await safeBuildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
   expect(result.status).toBe("error");
   expect(result.error?.message).toBe(
-    "Validation failed: Invalid network for 'a'. Got 'mainnetz', expected one of ['mainnet'].",
+    "Validation failed: Invalid chain for 'a'. Got 'mainnetz', expected one of ['mainnet'].",
   );
 });
 
-test("buildConfigAndIndexingFunctions() warns for public RPC URL", async () => {
+test("buildConfigAndIndexingFunctions() warns for public RPC URL", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+    chains: {
+      mainnet: { id: 1, rpc: "https://cloudflare-eth.com" },
     },
     contracts: {
       a: {
-        network: "mainnet",
+        chain: "mainnet",
         abi: [event0],
         address: address1,
       },
@@ -328,6 +338,7 @@ test("buildConfigAndIndexingFunctions() warns for public RPC URL", async () => {
   });
 
   const result = await safeBuildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -336,19 +347,19 @@ test("buildConfigAndIndexingFunctions() warns for public RPC URL", async () => {
   expect(result.logs!.filter((l) => l.level === "warn")).toMatchObject([
     {
       level: "warn",
-      msg: "Network 'mainnet' is using a public RPC URL (https://cloudflare-eth.com). Most apps require an RPC URL with a higher rate limit.",
+      msg: "Chain 'mainnet' is using a public RPC URL (https://cloudflare-eth.com). Most apps require an RPC URL with a higher rate limit.",
     },
   ]);
 });
 
-test("buildConfigAndIndexingFunctions() validates event filter event name must be present in ABI", async () => {
+test("buildConfigAndIndexingFunctions() validates event filter event name must be present in ABI", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+    chains: {
+      mainnet: { id: 1, rpc: "https://cloudflare-eth.com" },
     },
     contracts: {
       a: {
-        network: "mainnet",
+        chain: "mainnet",
         abi: [event0],
         // @ts-expect-error
         filter: {
@@ -362,6 +373,7 @@ test("buildConfigAndIndexingFunctions() validates event filter event name must b
   });
 
   const result = await safeBuildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -372,14 +384,14 @@ test("buildConfigAndIndexingFunctions() validates event filter event name must b
   );
 });
 
-test("buildConfigAndIndexingFunctions() validates address empty string", async () => {
+test("buildConfigAndIndexingFunctions() validates address empty string", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+    chains: {
+      mainnet: { id: 1, rpc: "https://cloudflare-eth.com" },
     },
     contracts: {
       a: {
-        network: "mainnet",
+        chain: "mainnet",
         abi: [event0],
         address: "" as Address,
       },
@@ -387,7 +399,8 @@ test("buildConfigAndIndexingFunctions() validates address empty string", async (
   });
 
   const result = await safeBuildConfigAndIndexingFunctions({
-    config: config as unknown as Config,
+    common: context.common,
+    config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
@@ -397,14 +410,14 @@ test("buildConfigAndIndexingFunctions() validates address empty string", async (
   );
 });
 
-test("buildConfigAndIndexingFunctions() validates address prefix", async () => {
+test("buildConfigAndIndexingFunctions() validates address prefix", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+    chains: {
+      mainnet: { id: 1, rpc: "https://cloudflare-eth.com" },
     },
     contracts: {
       a: {
-        network: "mainnet",
+        chain: "mainnet",
         abi: [event0],
 
         address: "0b0000000000000000000000000000000000000001" as Address,
@@ -413,7 +426,8 @@ test("buildConfigAndIndexingFunctions() validates address prefix", async () => {
   });
 
   const result = await safeBuildConfigAndIndexingFunctions({
-    config: config as unknown as Config,
+    common: context.common,
+    config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
@@ -423,14 +437,14 @@ test("buildConfigAndIndexingFunctions() validates address prefix", async () => {
   );
 });
 
-test("buildConfigAndIndexingFunctions() validates address length", async () => {
+test("buildConfigAndIndexingFunctions() validates address length", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("https://cloudflare-eth.com") },
+    chains: {
+      mainnet: { id: 1, rpc: "https://cloudflare-eth.com" },
     },
     contracts: {
       a: {
-        network: "mainnet",
+        chain: "mainnet",
         abi: [event0],
         address: "0x000000000001",
       },
@@ -438,6 +452,7 @@ test("buildConfigAndIndexingFunctions() validates address length", async () => {
   });
 
   const result = await safeBuildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -448,14 +463,14 @@ test("buildConfigAndIndexingFunctions() validates address length", async () => {
   );
 });
 
-test("buildConfigAndIndexingFunctions() coerces NaN startBlock to undefined", async () => {
+test("buildConfigAndIndexingFunctions() coerces NaN startBlock to undefined", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpc: "http://127.0.0.1:8545" },
     },
     contracts: {
       a: {
-        network: { mainnet: {} },
+        chain: { mainnet: {} },
         abi: [event0, event1],
         startBlock: Number.NaN,
       },
@@ -463,6 +478,7 @@ test("buildConfigAndIndexingFunctions() coerces NaN startBlock to undefined", as
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -470,17 +486,17 @@ test("buildConfigAndIndexingFunctions() coerces NaN startBlock to undefined", as
   expect(sources[0]?.filter.fromBlock).toBe(undefined);
 });
 
-test("buildConfigAndIndexingFunctions() coerces `latest` to number", async () => {
+test("buildConfigAndIndexingFunctions() coerces `latest` to number", async (context) => {
   const config = createConfig({
-    networks: {
+    chains: {
       mainnet: {
-        chainId: 1,
-        transport: http(`http://127.0.0.1:8545/${poolId}`),
+        id: 1,
+        rpc: `http://127.0.0.1:8545/${poolId}`,
       },
     },
     contracts: {
       a: {
-        network: { mainnet: {} },
+        chain: { mainnet: {} },
         abi: [event0, event1],
         startBlock: "latest",
       },
@@ -488,6 +504,7 @@ test("buildConfigAndIndexingFunctions() coerces `latest` to number", async () =>
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -495,16 +512,16 @@ test("buildConfigAndIndexingFunctions() coerces `latest` to number", async () =>
   expect(sources[0]?.filter.fromBlock).toBeTypeOf("number");
 });
 
-test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () => {
+test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
-      optimism: { chainId: 10, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpc: "http://127.0.0.1:8545" },
+      optimism: { id: 10, rpc: "http://127.0.0.1:8545" },
     },
     contracts: {
       a: {
         includeTransactionReceipts: true,
-        network: {
+        chain: {
           mainnet: {},
           optimism: { includeTransactionReceipts: false },
         },
@@ -513,6 +530,7 @@ test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () =>
     },
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -521,16 +539,16 @@ test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async () =>
   expect(shouldGetTransactionReceipt(sources[1]!.filter)).toBe(false);
 });
 
-test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
+test("buildConfigAndIndexingFunctions() includeCallTraces", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
-      optimism: { chainId: 10, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpc: "http://127.0.0.1:8545" },
+      optimism: { id: 10, rpc: "http://127.0.0.1:8545" },
     },
     contracts: {
       a: {
         includeCallTraces: true,
-        network: {
+        chain: {
           mainnet: {},
           optimism: { includeCallTraces: false },
         },
@@ -541,6 +559,7 @@ test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a.func0()", fn: () => {} }],
   });
@@ -557,16 +576,16 @@ test("buildConfigAndIndexingFunctions() includeCallTraces", async () => {
   expect(shouldGetTransactionReceipt(sources[0]!.filter)).toBe(false);
 });
 
-test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async () => {
+test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
-      optimism: { chainId: 10, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpc: "http://127.0.0.1:8545" },
+      optimism: { id: 10, rpc: "http://127.0.0.1:8545" },
     },
     contracts: {
       a: {
         includeCallTraces: true,
-        network: {
+        chain: {
           mainnet: {},
           optimism: { includeCallTraces: false },
         },
@@ -581,6 +600,7 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a.func0()", fn: () => {} }],
   });
@@ -597,14 +617,14 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
   expect(shouldGetTransactionReceipt(sources[0]!.filter)).toBe(false);
 });
 
-test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", async () => {
+test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpc: "http://127.0.0.1:8545" },
     },
     contracts: {
       a: {
-        network: { mainnet: {} },
+        chain: { mainnet: {} },
         abi: [event0, event1],
         endBlock: Number.NaN,
       },
@@ -612,6 +632,7 @@ test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", asyn
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -619,14 +640,14 @@ test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", asyn
   expect(sources[0]!.filter.toBlock).toBe(undefined);
 });
 
-test("buildConfigAndIndexingFunctions() account source", async () => {
+test("buildConfigAndIndexingFunctions() account source", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpc: "http://127.0.0.1:8545" },
     },
     accounts: {
       a: {
-        network: { mainnet: {} },
+        chain: { mainnet: {} },
         address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
@@ -635,6 +656,7 @@ test("buildConfigAndIndexingFunctions() account source", async () => {
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [
       { name: "a:transfer:from", fn: () => {} },
@@ -644,8 +666,8 @@ test("buildConfigAndIndexingFunctions() account source", async () => {
 
   expect(sources).toHaveLength(2);
 
-  expect(sources[0]?.network.name).toBe("mainnet");
-  expect(sources[1]?.network.name).toBe("mainnet");
+  expect(sources[0]?.chain.name).toBe("mainnet");
+  expect(sources[1]?.chain.name).toBe("mainnet");
 
   expect(sources[0]?.name).toBe("a");
   expect(sources[1]?.name).toBe("a");
@@ -660,14 +682,14 @@ test("buildConfigAndIndexingFunctions() account source", async () => {
   expect(sources[1]?.filter.toBlock).toBe(16370020);
 });
 
-test("buildConfigAndIndexingFunctions() block source", async () => {
+test("buildConfigAndIndexingFunctions() block source", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpc: "http://127.0.0.1:8545" },
     },
     blocks: {
       a: {
-        network: { mainnet: {} },
+        chain: { mainnet: {} },
         startBlock: 16370000,
         endBlock: 16370020,
       },
@@ -675,13 +697,14 @@ test("buildConfigAndIndexingFunctions() block source", async () => {
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:block", fn: () => {} }],
   });
 
   expect(sources).toHaveLength(1);
 
-  expect(sources[0]?.network.name).toBe("mainnet");
+  expect(sources[0]?.chain.name).toBe("mainnet");
   expect(sources[0]?.name).toBe("a");
   expect(sources[0]?.filter.type).toBe("block");
   // @ts-ignore
