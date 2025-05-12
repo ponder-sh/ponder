@@ -363,8 +363,7 @@ export type CrashRecoveryCheckpoint =
 // Status
 
 export type Status = {
-  [chainName: string]: {
-    chainId: number;
+  [networkName: string]: {
     block: { number: number; timestamp: number };
   };
 };
