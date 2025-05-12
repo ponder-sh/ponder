@@ -40,10 +40,10 @@ import { createConfig, loadBalance } from "ponder";
 import { http } from "viem";
 
 export default createConfig({
-  networks: {
+  chains: {
     mainnet: {
-      chainId: 1,
-      transport: loadBalance([
+      id: 1,
+      rpc: loadBalance([
         http("https://cloudflare-eth.com"),
         http("https://eth-mainnet.public.blastapi.io"),
         webSocket("wss://ethereum-rpc.publicnode.com"),
@@ -93,10 +93,10 @@ import { createConfig, rateLimit } from "ponder";
 import { http } from "viem";
 
 export default createConfig({
-  networks: {
+  chains: {
     mainnet: {
-      chainId: 1,
-      transport: rateLimit(http(process.env.PONDER_RPC_URL_1), {
+      id: 1,
+      rpc: rateLimit(http(process.env.PONDER_RPC_URL_1), {
         requestsPerSecond: 25,
       }),
     },

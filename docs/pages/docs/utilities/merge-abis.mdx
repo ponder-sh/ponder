@@ -24,22 +24,21 @@ Use `mergeAbis` to preserve type safety when combining multiple ABIs for a singl
 
 For convenience, `ponder` re-exports `mergeAbis` from `@ponder/utils`.
 
-```ts filename="ponder.config.ts" {1,14}
+```ts filename="ponder.config.ts" {1,13}
 import { createConfig, mergeAbis } from "ponder";
-import { http } from "viem";
 
 import { ERC1967ProxyAbi } from "./abis/ERC1967Proxy";
 import { NameRegistryAbi } from "./abis/NameRegistry";
 import { NameRegistry2Abi } from "./abis/NameRegistry2";
 
 export default createConfig({
-  networks: {
-    goerli: { chainId: 5, transport: http(process.env.PONDER_RPC_URL_5) },
+  chains: {
+    goerli: { id: 5, rpc: process.env.PONDER_RPC_URL_5 },
   },
   contracts: {
     FarcasterNameRegistry: {
       abi: mergeAbis([ERC1967ProxyAbi, NameRegistryAbi, NameRegistry2Abi]),
-      network: "goerli",
+      chain: "goerli",
       address: "0xe3Be01D99bAa8dB9905b33a3cA391238234B79D1",
       startBlock: 7648795,
     },

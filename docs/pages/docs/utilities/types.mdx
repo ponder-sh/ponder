@@ -68,7 +68,7 @@ import { ponder, type Context } from "ponder:registry";
 function helper(context: Context<"Weth:Deposit">) {
   context;
   // ^? {
-  //      network: { name: "mainnet"; chainId: 1; };
+  //      chain: { name: "mainnet"; id: 1; };
   //      client: ReadonlyClient;
   //      db: { Account: DatabaseModel<{ id: `0x${string}`; balance: bigint; }> };
   //      contracts: { weth9: { abi: ...; address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" } };
@@ -127,34 +127,33 @@ import { createConfig, type ContractConfig } from "ponder";
 import { Erc20Abi } from "./abis/Erc20Abi.ts";
 
 const Erc20 = {
-  network: "mainnet"
+  chain: "mainnet"
   abi: Erc20Abi,
   address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
 } as const satisfies ContractConfig;
 
 export default createConfig({
-  networks: ...,
+  chains: ...,
   contracts: {
     Erc20,
   },
 });
 ```
 
-### NetworkConfig
+### ChainConfig
 
-The type of a network in `createConfig(){:ts}`.
+The type of a chain in `createConfig(){:ts}`.
 
 ```ts filename="ponder.config.ts" {1}
-import { createConfig, type NetworkConfig } from "ponder";
-import { http } from "viem";
+import { createConfig, type ChainConfig } from "ponder";
 
 const mainnet = {
-  chainId: 1,
-  transport: http(process.env.PONDER_RPC_URL_1),
-} as const satisfies NetworkConfig;
+  id: 1,
+  rpc: process.env.PONDER_RPC_URL_1!,
+} as const satisfies ChainConfig;
 
 export default createConfig({
-  networks: {
+  chains: {
     mainnet,
   }
   contracts: ...,
@@ -169,13 +168,13 @@ The type of a block source in `createConfig(){:ts}`.
 import { createconfig, type blockconfig } from "ponder";
 
 const ChainlinkPriceOracle = {
-  network: "mainnet",
+  chain: "mainnet",
   startBlock: 19_750_000,
   interval: 5,
 } as const satisfies BlockConfig;
 
 export default createConfig({
-  networks: ...,
+  chains: ...,
   blocks: {
     ChainlinkPriceOracle,
   },
@@ -195,7 +194,7 @@ const database = {
 } as const satisfies DatabaseConfig;
 
 export default createConfig({
-  networks: ...,
+  chains: ...,
   contracts: ...,
   database,
 });

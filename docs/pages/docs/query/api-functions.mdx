@@ -136,7 +136,7 @@ export default app;
 
 ### Send RPC requests
 
-The API function context also includes a [Viem client](https://viem.sh/docs/clients/public) for each network defined in `ponder.config.ts`.
+The API function context also includes a [Viem client](https://viem.sh/docs/clients/public) for each chain defined in `ponder.config.ts`.
 
 ```ts filename="src/api/index.ts" {1,11}
 import { publicClients, db } from "ponder:api";
