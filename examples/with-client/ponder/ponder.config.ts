@@ -1,5 +1,4 @@
 import { createConfig } from "ponder";
-import { http } from "viem";
 
 import { weth9Abi } from "./abis/weth9Abi";
 

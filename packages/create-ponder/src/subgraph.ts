@@ -61,7 +61,7 @@ export const fromSubgraphId = async ({
 
   manifest.dataSources.forEach((d: any) => {
     contracts[d.name] = {
-      network: d.network,
+      chain: d.network,
       address: d.source.address,
       startBlock: d.source.startBlock,
     };
@@ -102,12 +102,12 @@ export const fromSubgraphId = async ({
   // Build the ponder sources.
   const ponderContracts = dataSources.map((sourceInvalid) => {
     const source = validateGraphProtocolSource(sourceInvalid);
-    const network = source.network || "mainnet";
+    const chain = source.network || "mainnet";
     const abiRelativePath = `./abis/${source.source.abi}Abi.ts`;
 
     return {
       name: source.name,
-      network: network,
+      chain: chain,
       address: source.source.address,
       abi: {
         abi: abis[source.source.abi],
@@ -119,20 +119,20 @@ export const fromSubgraphId = async ({
   });
 
   const contractsObject: any = {};
-  const networksObject: any = {};
+  const chainsObject: any = {};
 
   ponderContracts.forEach((pc) => {
-    const chainId = getGraphProtocolChainId(pc.network);
+    const chainId = getGraphProtocolChainId(pc.chain);
     contractsObject[pc.name] = pc;
-    networksObject[pc.network] = {
-      chainId,
-      transport: `http(process.env.PONDER_RPC_URL_${chainId})`,
+    chainsObject[pc.chain] = {
+      id: chainId,
+      rpc: `process.env.PONDER_RPC_URL_${chainId}!`,
     };
     contractsObject[pc.name].name = undefined;
   });
 
   const config: SerializableConfig = {
-    networks: networksObject,
+    chains: chainsObject,
     contracts: contractsObject,
   };
 
