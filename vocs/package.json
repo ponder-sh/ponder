@@ -1,0 +1,23 @@
+{
+  "name": "ponder-docs",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vocs dev",
+    "build": "vocs build",
+    "preview": "vocs preview"
+  },
+  "dependencies": {
+    "@theguild/remark-mermaid": "^0.3.0",
+    "clsx": "^2.1.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.0.2",
+    "tailwindcss": "^4.0.6",
+    "vocs": "^1.0.11"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.10"
+  }
+}

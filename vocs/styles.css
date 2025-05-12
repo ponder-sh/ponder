@@ -1,0 +1,103 @@
+@import "tailwindcss" important;
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-ponder-50: #39dff2;
+  --color-ponder-100: #35cddf;
+  --color-ponder-200: #30bccc;
+  --color-ponder-300: #2caab9;
+  --color-ponder-400: #2aa3b1;
+  --color-ponder-500: #238793;
+  --color-ponder-600: #1e7580;
+  --color-ponder-700: #1a646c;
+  --color-ponder-800: #155259;
+  --color-ponder-900: #114146;
+  --color-ponder-950: #0c2f33;
+}
+
+/* CONTENT & SIDEBAR WIDTH */
+/* Probably a better way to do this */
+:root {
+  /* Default: 300px */
+  --vocs-sidebar_width: 260px;
+  /* Default: 70ch */
+  --vocs-content_width: calc(
+    74ch + (var(--vocs-content_horizontalPadding) * 2)
+  );
+}
+:root.dark {
+  /* Default: 300px */
+  --vocs-sidebar_width: 260px;
+  /* Default: 70ch */
+  --vocs-content_width: calc(
+    74ch + (var(--vocs-content_horizontalPadding) * 2)
+  );
+}
+
+/* HERO TEXTURE */
+.hero-texture {
+  background:
+    radial-gradient(
+      91.96% 91.96% at 50% 91.96%,
+      rgba(0, 0, 0, 0) 0%,
+      #fff 100%
+    ),
+    url("/hero.png") lightgray 50% / cover no-repeat;
+}
+.dark .hero-texture {
+  background:
+    radial-gradient(
+      91.96% 91.96% at 50% 91.96%,
+      rgba(0, 0, 0, 0) -20%,
+      #111 100%
+    ),
+    url("/hero.png") lightgray 50% / cover no-repeat;
+}
+
+/* LOGO SIZING */
+.vocs_NavLogo_logoImage {
+  height: 28%; /* Default: 50% */
+}
+.vocs_DesktopTopNav_logo > a {
+  margin-top: 1.5px !important;
+}
+.vocs_Sidebar_logo {
+  padding-top: 2px !important;
+  padding-bottom: 2px;
+}
+
+/* TOP NAV BORDER */
+.vocs_DocsLayout_gutterTop_sticky {
+  border-bottom: 1px solid var(--vocs-color_border);
+}
+.vocs_DocsLayout_gutterTop_sticky .vocs_MobileTopNav {
+  border-bottom: none;
+}
+
+/* TOP NAV ALIGNMENT */
+.vocs_DesktopTopNav {
+  padding-right: var(--vocs-space_24);
+}
+
+/* SEARCH BAR */
+.vocs_DesktopTopNav_withLogo {
+  justify-content: end;
+  gap: 0.625rem;
+}
+.vocs_DesktopSearch_search {
+  height: var(--vocs-space_32);
+}
+
+/* LEFT SIDEBAR */
+div.vocs_Sidebar_item {
+  cursor: default;
+}
+div.vocs_Sidebar_item:hover {
+  color: var(--vocs-color_text2);
+}
+
+/* BLOG POSTS */
+.vocs_BlogPosts {
+  min-height: calc(100vh - 60px - 77px - 108px);
+}
