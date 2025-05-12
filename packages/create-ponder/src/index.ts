@@ -32,9 +32,9 @@ import {
 
 const log = console.log;
 
-export type SerializableNetwork = {
-  chainId: number;
-  transport: string;
+export type SerializableChain = {
+  id: number;
+  rpc: string;
 };
 
 export type SerializableContract = {
@@ -42,12 +42,12 @@ export type SerializableContract = {
     | { abi: Abi; name: string; dir: string }
     | { abi: Abi; name: string; dir: string }[];
   address: string;
-  network: Record<string, any> | string;
+  chain: Record<string, any> | string;
   startBlock?: number;
 };
 
 export type SerializableConfig = {
-  networks: Record<string, SerializableNetwork>;
+  chains: Record<string, SerializableChain>;
   contracts: Record<string, SerializableContract>;
 };
 
@@ -350,7 +350,6 @@ export async function run({
           ? ", mergeAbis"
           : ""
       } } from "ponder";
-      import { http } from "viem";
 
       ${Object.values(config.contracts)
         .flatMap((c) => c.abi)
@@ -365,12 +364,10 @@ export async function run({
         .join("\n")}
 
       export default createConfig({
-        networks: ${JSON.stringify(config.networks)
-          .replaceAll(
-            /"process.env.PONDER_RPC_URL_(.*?)"/g,
-            "process.env.PONDER_RPC_URL_$1",
-          )
-          .replaceAll(/"http\((.*?)\)"/g, "http($1)")},
+        chains: ${JSON.stringify(config.chains).replaceAll(
+          /"process.env.PONDER_RPC_URL_(.*?)"/g,
+          "process.env.PONDER_RPC_URL_$1",
+        )},
         contracts: ${JSON.stringify(
           Object.entries(config.contracts).reduce<Record<string, any>>(
             (acc, [name, c]) => {

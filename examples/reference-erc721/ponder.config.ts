@@ -1,5 +1,4 @@
 import { createConfig } from "ponder";
-import { http } from "viem";
 import { erc721ABI } from "./abis/erc721ABI";
 
 export default createConfig({

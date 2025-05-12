@@ -190,17 +190,17 @@ export const fromEtherscan = async ({
 
   // Build and return the partial ponder config.
   const config: SerializableConfig = {
-    networks: {
+    chains: {
       [name]: {
-        chainId: chainId,
-        transport: `http(process.env.PONDER_RPC_URL_${chainId})`,
+        id: chainId,
+        rpc: `http(process.env.PONDER_RPC_URL_${chainId})`,
       },
     },
     contracts: {
       [contractName]: {
         abi: abiConfig!,
         address: contractAddress,
-        network: name,
+        chain: name,
         startBlock: blockNumber ?? undefined,
       },
     },
