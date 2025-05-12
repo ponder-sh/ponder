@@ -11,7 +11,7 @@ type Prettify<T> = {
 } & {};
 
 export type Status = {
-  [chainName: string]: {
+  [networkName: string]: {
     block: { number: number; timestamp: number };
   };
 };
