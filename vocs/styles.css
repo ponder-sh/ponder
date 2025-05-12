@@ -96,3 +96,8 @@ div.vocs_Sidebar_item {
 div.vocs_Sidebar_item:hover {
   color: var(--vocs-color_text2);
 }
+
+/* BLOG POSTS */
+.vocs_BlogPosts {
+  min-height: calc(100vh - 60px - 77px - 108px);
+}
