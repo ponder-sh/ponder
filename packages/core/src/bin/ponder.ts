@@ -88,6 +88,7 @@ const devCommand = new Command("dev")
 const startCommand = new Command("start")
   .description("Start the production server")
   .option("--schema <SCHEMA>", "Database schema", String)
+  .option("--views-schema <SCHEMA>", "Views database schema", String)
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option(
     "-H, --hostname <HOSTNAME>",

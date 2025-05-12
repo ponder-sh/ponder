@@ -59,7 +59,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   const database = await createDatabase({
     common,
     // Note: `namespace` is not used in this command
-    namespace: "public",
+    namespace: { schema: "public", viewsSchema: undefined },
     preBuild: buildResult.result,
     schemaBuild: emptySchemaBuild,
   });

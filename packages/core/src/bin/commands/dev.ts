@@ -172,7 +172,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
         database = await createDatabase({
           common: { ...common, shutdown: indexingShutdown },
-          namespace,
+          namespace: { schema, viewsSchema: undefined },
           preBuild,
           schemaBuild,
         });
@@ -242,6 +242,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           common: { ...common, shutdown: indexingShutdown },
           database,
           preBuild,
+          namespaceBuild: { schema, viewsSchema: undefined },
           schemaBuild,
           indexingBuild: indexingBuildResult.result,
           crashRecoveryCheckpoint,
@@ -296,10 +297,9 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   let database: Database | undefined;
   let crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
 
-  const namespace =
-    cliOptions.schema ?? process.env.DATABASE_SCHEMA ?? "public";
+  const schema = cliOptions.schema ?? process.env.DATABASE_SCHEMA ?? "public";
 
-  globalThis.PONDER_NAMESPACE_BUILD = namespace;
+  globalThis.PONDER_NAMESPACE_BUILD = { schema, viewsSchema: undefined };
 
   build.startDev({
     onReload: (kind) => {
