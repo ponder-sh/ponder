@@ -83,15 +83,37 @@ Options:
   -h, --help                 display help for command
 ```
 
-## db list
+## codegen
+
+Write or update the `ponder-env.d.ts` file.
+
+```bash
+Usage: ponder codegen [options]
+
+Generate the ponder-env.d.ts file, then exit
+
+Options:
+  -h, --help  display help for command
+```
+
+## db
+
+Database management commands.
+
+### list
 
 List all `ponder start` instances that have ever ran in the connected database.
 
 ```bash
-Usage: ponder db list
+Usage: ponder db list [options]
 
-List all deployments
+List all Ponder deployments
 
+Options:
+  -h, --help  display help for command
+```
+
+```bash [Result]
 │ Schema        │ Active   │ Last active    │ Table count │
 ├───────────────┼──────────┼────────────────┼─────────────┤
 │ indexer_prod  │      yes │            --- │          10 │
@@ -99,19 +121,14 @@ List all deployments
 │ demo          │       no │      1 day ago │           5 │
 ```
 
-## codegen
+### prune
 
-:::info
-  When using `ponder dev`, codegen runs automatically when the dev server
-  detects a change in `ponder.schema.ts`.
-:::
-
-Generate the `ponder-env.d.ts` file.
+Drop all database tables, functions, and schemas created by Ponder deployments that are not currently active.
 
 ```bash
-Usage: ponder codegen [options]
+Usage: ponder db prune [options]
 
-Generate the ponder-env.d.ts file, then exit
+Drop all database tables, functions, and schemas created by Ponder deployments that are not active
 
 Options:
   -h, --help  display help for command
