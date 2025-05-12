@@ -4,9 +4,9 @@
 
 Ponder is an open-source framework for custom Ethereum indexing.
 
-You write TypeScript code to transform onchain data into your desired application schema. Then, you can query the data through GraphQL, SQL over HTTP, or directly in Postgres.
+You write TypeScript code to transform onchain data into your application's schema. Then, Ponder fetches data from the chain, runs your indexing logic, and writes the result to Postgres.
 
-Ponder supports any Ethereum-compatible blockchain — all you need is an RPC URL.
+Once indexed, you can query the data through GraphQL, SQL over HTTP, or directly in Postgres.
 
 ## Quickstart
 
@@ -14,7 +14,7 @@ Ponder supports any Ethereum-compatible blockchain — all you need is an RPC UR
 
 ### Run `create-ponder`
 
-The `create-ponder` CLI tool quickly bootstraps a new Ponder project.
+The quickest way to create a new Ponder project is `create-ponder`, which sets up everything automatically for you.
 
 :::code-group
 
@@ -31,6 +31,31 @@ npm init ponder@latest
 ```
 
 :::
+
+On installation, you'll see a few prompts.
+
+:::code-group
+
+```ansi [Default]
+✔ What's the name of your project? › new-project
+✔ Which template would you like to use? › Default
+
+✔ Installed packages with pnpm.
+✔ Initialized git repository.
+```
+
+```ansi [Etherscan template]
+✔ What's the name of your project? › new-project
+✔ Which template would you like to use? › Etherscan contract link
+✔ Enter a block explorer contract url › https://basescan.org/address/0x3bf93770f2d4a794c3d9ebefbaebae2a8f09a5e5
+
+✔ Fetched contract metadata from basescan.org.
+✔ Installed packages with pnpm.
+✔ Initialized git repository.
+```
+
+:::
+
 
 ### Start the dev server
 
@@ -50,6 +75,10 @@ yarn dev
 npm run dev
 ```
 
+:::
+
+:::tip
+By default, Ponder fetches data from public RPC endpoints and writes to PGlite, an embedded Postgres database. You can change these settings later.
 :::
 
 ### Query the database

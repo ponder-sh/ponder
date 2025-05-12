@@ -95,7 +95,7 @@ export default defineConfig({
   ],
   editLink: {
     pattern: "https://github.com/ponder-sh/ponder/edit/main/vocs/pages/:path",
-    text: "Suggest changes to this page",
+    text: "Suggest changes",
   },
   theme: {
     accentColor: {
@@ -105,6 +105,9 @@ export default defineConfig({
     variables: {
       content: {
         width: "calc(70ch + (var(--vocs-content_horizontalPadding) * 2))",
+      },
+      fontSize: {
+        codeBlock: "13px", // Default: 14px
       },
     },
   },

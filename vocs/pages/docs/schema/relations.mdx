@@ -1,14 +1,10 @@
-import { Callout } from "vocs/components";
-
 # Relations [Define relationships between database tables]
 
 Ponder uses [Drizzle Relations](https://orm.drizzle.team/docs/relations) to define relationships between tables. This guide describes each kind of relationship and how to use them.
 
-<Callout type="info">
-  Relations **do not** create foreign key constraints and won't stop
-  you from inserting rows that violate referential integrity. They exist only to enrich the
-  GraphQL API and Drizzle Query API (`findMany` and `findFirst`).
-</Callout>
+:::info
+  Relations *only* enrich the GraphQL API and Drizzle Query API (`findMany` and `findFirst`). They **do not** create foreign key constraints, and won't stop you from inserting rows that violate referential integrity.
+:::
 
 ## One-to-one
 
@@ -96,11 +92,11 @@ console.log(bob.dogs);
 //          ^? { name: string; dogs: { petId: string; age: number }[] }
 ```
 
-<Callout type="info">
+:::info
   Note that in a one-to-many relationship, you cannot directly set the value of
   the `many` field. Instead, you must insert or update the related rows
   individually.
-</Callout>
+:::
 
 ## Many-to-many
 
