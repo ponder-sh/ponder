@@ -55,7 +55,7 @@ pnpm dev
 yarn dev
 ```
 
-### 3. Add contracts & networks
+### 3. Add contracts & chains
 
 Ponder fetches event logs for the contracts added to `ponder.config.ts`, and passes those events to the indexing functions you write.
 
@@ -68,16 +68,16 @@ import { http } from "viem";
 import { BaseRegistrarAbi } from "./abis/BaseRegistrar";
  
 export default createConfig({
-  networks: {
+  chains: {
     mainnet: { 
-      chainId: 1,
-      transport: http("https://eth-mainnet.g.alchemy.com/v2/...")
+      id: 1,
+      rpc: "https://eth-mainnet.g.alchemy.com/v2/...",
     },
   },
   contracts: {
     BaseRegistrar: {
       abi: BaseRegistrarAbi,
-      network: "mainnet",
+      chain: "mainnet",
       address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
       startBlock: 9380410,
     },
