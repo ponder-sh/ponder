@@ -79,6 +79,7 @@ test("metadata", async (context) => {
     _meta: {
       status: {
         mainnet: {
+          id: 1,
           block: {
             number: 10,
             timestamp: 20,
