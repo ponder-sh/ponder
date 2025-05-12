@@ -1,5 +1,3 @@
-import { Callout } from "vocs/components";
-
 # Tables [Define database tables and columns]
 
 Ponder's schema definition API is built on [Drizzle](https://orm.drizzle.team/), a modern TypeScript ORM. To define a table, use the `onchainTable` function and include column definitions.
@@ -48,12 +46,12 @@ export const accounts = onchainTable("accounts", (t) => ({
 }));
 ```
 
-<Callout type="info">
+:::info
   Ponder's `bigint` type takes precedence over the Drizzle
   [`bigint`](https://orm.drizzle.team/docs/column-types/pg#bigint) type, which
   is an 8-byte integer (too small for EVM integer values). To
   create an 8-byte integer column, use the `int8` alias.
-</Callout>
+:::
 
 ### `hex`
 
@@ -206,10 +204,10 @@ export const dogsRelations = relations(dogs, ({ one }) => ({
 
 The `index(){:ts}` function supports specifying multiple columns, ordering, and custom index types like GIN and GIST. Read more in the [Drizzle](https://orm.drizzle.team/docs/indexes-constraints#indexes) and [PostgreSQL](https://www.postgresql.org/docs/current/indexes.html) documention.
 
-<Callout type="info">
+:::info
   To improve performance, the indexing engine creates database indexes _after_ historical
   indexing is complete, just before the app becomes healthy.
-</Callout>
+:::
 
 ## Best practices
 

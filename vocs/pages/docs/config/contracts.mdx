@@ -1,6 +1,4 @@
-import { Callout } from "vocs/components";
-
-# Contracts [Index event logs emitted by a contract]
+# Contracts [Index events emitted by a contract]
 
 To index **event logs** or **call traces** produced by a contract, use the `contracts` field in `ponder.config.ts`.
 
@@ -303,10 +301,10 @@ export default createConfig({
 
 To index multiple contracts that have the same ABI (or share an interface like `ERC20`), pass a list of addresses to the the `address` field.
 
-<Callout type="info">
+:::info
   With this configuration, all addresses share the same `startBlock`. It's
   often best to use the earliest deployment block among them.
-</Callout>
+:::
 
 ```ts [ponder.config.ts]
 import { createConfig } from "ponder";
@@ -331,9 +329,9 @@ export default createConfig({
 
 ### Factory pattern
 
-<Callout type="info">
+:::info
   Visit the [factory pattern](/docs/guides/factory) guide for more information.
-</Callout>
+:::
 
 Use the `factory()` function to specify a dynamic list of addresses collected from a factory contract.
 
@@ -381,9 +379,9 @@ ponder.on("SudoswapPool:Transfer", async ({ event }) => {
 
 To index a proxy/upgradable contract, use the proxy contract address in the `address` field. Then, be sure to include the ABIs of all implementation contracts that the proxy has ever had. The implementation ABIs are required to properly identify and decode all historical event logs. To add multiple ABIs safely, use the [`mergeAbis`](/docs/utilities/merge-abis) utility function.
 
-<Callout type="tip">
+:::tip
   On Etherscan, there is a link to the current implementation contract on the **Contract → Read as Proxy** tab. You can copy all the implementation ABIs as text and paste them into `.ts` files.
-</Callout>
+:::
 
 ![Etherscan contract proxy address](/etherscan-proxy-contract.png)
 
@@ -421,16 +419,16 @@ The `endBlock` option specifies the block number to stop indexing at. The defaul
 
 If you set `endBlock` to `"latest"`, the indexing engine will fetch the latest block on startup and use that value.
 
-<Callout type="tip">
+:::tip
   To speed up hot reloads during development, you can use `endBlock` to index a small slice of history.
-</Callout>
+:::
 
 
 ## Filter by indexed parameter value
 
-<Callout type="warning">
+:::warning
   You do **not** need to keep `filter` in sync with your indexing function registrations; the build step does this automatically. Most apps should not use `filter`.
-</Callout>
+:::
 
 Sometimes, it's useful to filter for event logs that match specific [indexed parameter](https://docs.soliditylang.org/en/latest/contracts.html#events) values (topics).
 
@@ -475,9 +473,9 @@ Note that the `filter` option accepts an array of filter configurations and that
 
 ## Call traces
 
-<Callout type="info">
+:::info
   Visit the [call traces](/docs/guides/traces) guide for more information.
-</Callout>
+:::
 
 Use the `includeCallTraces` option to enable call trace indexing for a contract, which makes it possible to register indexing functions for every _function_ present in the contract ABI.
 
@@ -515,9 +513,9 @@ ponder.on("Blitmap.mintOriginal()", async ({ event }) => {
 
 ## Transaction receipts
 
-<Callout type="info">
+:::info
   Visit the [transaction receipts](/docs/guides/receipts) guide for more information.
-</Callout>
+:::
 
 Use the `includeTransactionReceipts` option to fetch the transaction receipt for each event. This will make the `event.transactionReceipt` object available in all indexing functions for the contract.
 

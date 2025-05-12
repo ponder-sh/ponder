@@ -1,5 +1,3 @@
-import { Callout } from "vocs/components";
-
 # Write to the database [Insert, update, and delete rows]
 
 There are two ways to write to the database in a Ponder app.
@@ -11,9 +9,9 @@ There are two ways to write to the database in a Ponder app.
 
 The Store API is a SQL-like query builder optimized for common indexing workloads.
 
-<Callout type="info">
+:::info
   During historical indexing, Store API operations run **in-memory** and rows are flushed to the database periodically using efficient `COPY` statements.
-</Callout>
+:::
 
 The examples below use this `ponder.schema.ts` to demonstrate the core concepts.
 
@@ -215,9 +213,9 @@ const row = await db
 
 ## Raw SQL
 
-<Callout type="warning">
+:::warning
   Raw SQL queries are **much slower** than the store API. Only use raw SQL when you need complex queries that aren't possible with the store API.
-</Callout>
+:::
 
 ### Query builder
 

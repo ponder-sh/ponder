@@ -1,5 +1,3 @@
-import { Callout } from "vocs/components";
-
 # Networks [Configure chain IDs and transports]
 
 Use the `networks` field in `ponder.config.ts` to configure network names, chain IDs, RPC URLs, and transport options.
@@ -83,9 +81,9 @@ export default createConfig({
 
 ## Transport
 
-<Callout type="warning">
+:::warning
   Most Ponder apps require a paid RPC provider plan to avoid rate-limiting.
-</Callout>
+:::
 
 Use the `transport` field to provide a [Viem Transport](https://viem.sh/docs/clients/intro#transports) for each network. The indexing engine uses the transport you provide for all RPC requests.
 
@@ -127,9 +125,9 @@ export default createConfig({
 
 ### WebSocket
 
-<Callout type="warning">
+:::warning
   The indexing engine does not yet take advantage of WebSocket-only features like `eth_subscribe`.
-</Callout>
+:::
 
 Use the `webSocket` transport to connect to an RPC endpoint over WebSocket. Read the [Viem docs](https://viem.sh/docs/clients/transports/websocket) for more details.
 
