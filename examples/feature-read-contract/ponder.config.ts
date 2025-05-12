@@ -1,18 +1,17 @@
 import { createConfig } from "ponder";
-import { http } from "viem";
 
 import { FileStoreAbi } from "./abis/FileStoreAbi";
 
 export default createConfig({
-  networks: {
+  chains: {
     mainnet: {
-      chainId: 1,
-      transport: http(process.env.PONDER_RPC_URL_1),
+      id: 1,
+      rpc: process.env.PONDER_RPC_URL_1!,
     },
   },
   contracts: {
     FileStore: {
-      network: "mainnet",
+      chain: "mainnet",
       abi: FileStoreAbi,
       address: "0x9746fD0A77829E12F8A9DBe70D7a322412325B91",
       startBlock: 15963553,
