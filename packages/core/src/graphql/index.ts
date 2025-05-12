@@ -420,9 +420,8 @@ export function buildGraphQLSchema({
     resolve: async (_source, _args, context) => {
       const checkpoints = await context.getCheckpoints();
       const status: Status = {};
-      for (const { chainName, chainId, latestCheckpoint } of checkpoints) {
+      for (const { chainName, latestCheckpoint } of checkpoints) {
         status[chainName] = {
-          chainId,
           block: {
             number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
             timestamp: Number(
