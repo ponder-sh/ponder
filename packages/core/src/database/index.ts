@@ -8,20 +8,20 @@ import {
 import type { Common } from "@/internal/common.js";
 import { NonRetryableError, ShutdownError } from "@/internal/errors.js";
 import type {
+  CrashRecoveryCheckpoint,
   IndexingBuild,
   NamespaceBuild,
   PreBuild,
   Schema,
   SchemaBuild,
-  Status,
 } from "@/internal/types.js";
 import { migrationProvider } from "@/sync-store/migrations.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
 import type { Drizzle } from "@/types/db.js";
 import {
   MAX_CHECKPOINT_STRING,
-  ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
+  min,
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
@@ -55,6 +55,8 @@ import prometheus from "prom-client";
 export type Database = {
   driver: PostgresDriver | PGliteDriver;
   qb: QueryBuilder;
+  PONDER_META: ReturnType<typeof getPonderMetaTable>;
+  PONDER_CHECKPOINT: ReturnType<typeof getPonderCheckpointTable>;
   retry: <T>(fn: () => Promise<T>) => Promise<T>;
   record: <T>(
     options: { method: string; includeTraceLogs?: boolean },
@@ -69,21 +71,51 @@ export type Database = {
   ) => Promise<T>;
   /** Migrate the `ponder_sync` schema. */
   migrateSync(): Promise<void>;
-  /** Migrate the user schema. */
+  /**
+   * Migrate the user schema.
+   *
+   * @returns The crash recovery checkpoint for each chain if there is a cache hit, else undefined.
+   */
   migrate({
     buildId,
-  }: Pick<IndexingBuild, "buildId">): Promise<string | undefined>;
+  }: Pick<IndexingBuild, "buildId">): Promise<CrashRecoveryCheckpoint>;
   createIndexes(): Promise<void>;
   createTriggers(): Promise<void>;
   removeTriggers(): Promise<void>;
-  getStatus: () => Promise<Status | null>;
-  setStatus: (status: Status) => Promise<void>;
+  /**
+   * - "safe" checkpoint: The closest-to-tip finalized and completed checkpoint.
+   * - "latest" checkpoint: The closest-to-tip completed checkpoint.
+   *
+   * @dev It is an invariant that every "latest" checkpoint is specific to that chain.
+   * In other words, `chainId === latestCheckpoint.chainId`.
+   */
+  setCheckpoints: ({
+    checkpoints,
+  }: {
+    checkpoints: {
+      chainName: string;
+      chainId: number;
+      safeCheckpoint: string;
+      latestCheckpoint: string;
+    }[];
+    db: Drizzle<Schema>;
+  }) => Promise<void>;
+  getCheckpoints: () => Promise<
+    {
+      chainName: string;
+      chainId: number;
+      safeCheckpoint: string;
+      latestCheckpoint: string;
+    }[]
+  >;
+  setReady(): Promise<void>;
+  getReady(): Promise<boolean>;
   revert(args: {
     checkpoint: string;
     tx: PgTransaction<PgQueryResultHKT, Schema>;
   }): Promise<void>;
   finalize(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
-  complete(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
+  commitBlock(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
 };
 
 export const SCHEMATA = pgSchema("information_schema").table(
@@ -100,16 +132,16 @@ export const TABLES = pgSchema("information_schema").table("tables", (t) => ({
 }));
 
 export type PonderApp = {
+  version: string;
+  build_id: string;
+  table_names: string[];
   is_locked: 0 | 1;
   is_dev: 0 | 1;
+  is_ready: 0 | 1;
   heartbeat_at: number;
-  build_id: string;
-  checkpoint: string;
-  table_names: string[];
-  version: string;
 };
 
-const VERSION = "1";
+const VERSION = "2";
 
 type PGliteDriver = { instance: PGlite };
 
@@ -130,7 +162,7 @@ type QueryBuilder = {
   drizzleReadonly: Drizzle<Schema>;
 };
 
-export const getPonderMeta = (namespace: NamespaceBuild) => {
+export const getPonderMetaTable = (namespace: NamespaceBuild) => {
   if (namespace === "public") {
     return pgTable("_ponder_meta", (t) => ({
       key: t.text().primaryKey().$type<"app">(),
@@ -144,21 +176,21 @@ export const getPonderMeta = (namespace: NamespaceBuild) => {
   }));
 };
 
-export const getPonderStatus = (namespace: NamespaceBuild) => {
+export const getPonderCheckpointTable = (namespace: NamespaceBuild) => {
   if (namespace === "public") {
-    return pgTable("_ponder_status", (t) => ({
-      network_name: t.text().primaryKey(),
-      block_number: t.bigint({ mode: "number" }),
-      block_timestamp: t.bigint({ mode: "number" }),
-      ready: t.boolean().notNull(),
+    return pgTable("_ponder_checkpoint", (t) => ({
+      chainName: t.text().primaryKey(),
+      chainId: t.bigint({ mode: "number" }).notNull(),
+      safeCheckpoint: t.varchar({ length: 75 }).notNull(),
+      latestCheckpoint: t.varchar({ length: 75 }).notNull(),
     }));
   }
 
-  return pgSchema(namespace).table("_ponder_status", (t) => ({
-    network_name: t.text().primaryKey(),
-    block_number: t.bigint({ mode: "number" }),
-    block_timestamp: t.bigint({ mode: "number" }),
-    ready: t.boolean().notNull(),
+  return pgSchema(namespace).table("_ponder_checkpoint", (t) => ({
+    chainName: t.text().primaryKey(),
+    chainId: t.bigint({ mode: "number" }).notNull(),
+    safeCheckpoint: t.varchar({ length: 75 }).notNull(),
+    latestCheckpoint: t.varchar({ length: 75 }).notNull(),
   }));
 };
 
@@ -175,8 +207,8 @@ export const createDatabase = async ({
 }): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
 
-  const PONDER_META = getPonderMeta(namespace);
-  const PONDER_STATUS = getPonderStatus(namespace);
+  const PONDER_META = getPonderMetaTable(namespace);
+  const PONDER_CHECKPOINT = getPonderCheckpointTable(namespace);
 
   ////////
   // Create schema, drivers, roles, and query builders
@@ -206,8 +238,7 @@ export const createDatabase = async ({
       if (["start", "dev"].includes(common.options.command)) {
         await qb.drizzle
           .update(PONDER_META)
-          .set({ value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))` })
-          .where(eq(PONDER_META.key, "app"));
+          .set({ value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))` });
       }
 
       if (dialect === "pglite") {
@@ -303,8 +334,7 @@ export const createDatabase = async ({
       if (["start", "dev"].includes(common.options.command)) {
         await qb.drizzle
           .update(PONDER_META)
-          .set({ value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))` })
-          .where(eq(PONDER_META.key, "app"));
+          .set({ value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))` });
       }
 
       const d = driver as PostgresDriver;
@@ -363,6 +393,8 @@ export const createDatabase = async ({
   const database = {
     driver,
     qb,
+    PONDER_META,
+    PONDER_CHECKPOINT,
     async retry(fn) {
       const RETRY_COUNT = 9;
       const BASE_DURATION = 125;
@@ -633,18 +665,18 @@ export const createDatabase = async ({
           await qb.drizzle.execute(
             sql.raw(`
 CREATE TABLE IF NOT EXISTS "${namespace}"."_ponder_meta" (
-  "key" TEXT PRIMARY KEY,
-  "value" JSONB
+  "key" text PRIMARY KEY,
+  "value" jsonb NOT NULL
 )`),
           );
 
           await qb.drizzle.execute(
             sql.raw(`
-CREATE TABLE IF NOT EXISTS "${namespace}"."_ponder_status" (
-  "network_name" TEXT PRIMARY KEY,
-  "block_number" BIGINT,
-  "block_timestamp" BIGINT,
-  "ready" BOOLEAN NOT NULL
+CREATE TABLE IF NOT EXISTS "${namespace}"."_ponder_checkpoint" (
+  "chain_name" text PRIMARY KEY,
+  "chain_id" integer NOT NULL,
+  "safe_checkpoint" varchar(75) NOT NULL,
+  "latest_checkpoint" varchar(75) NOT NULL
 )`),
           );
 
@@ -669,7 +701,7 @@ $$;`),
             sql.raw(`
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
-ON "${namespace}"._ponder_status
+ON "${namespace}"._ponder_checkpoint
 FOR EACH STATEMENT
 EXECUTE PROCEDURE "${namespace}".${notification};`),
           );
@@ -722,11 +754,11 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
             const metadata = {
               version: VERSION,
               build_id: buildId,
+              table_names: tables.map(getTableName),
               is_dev: common.options.command === "dev" ? 1 : 0,
               is_locked: 1,
+              is_ready: 0,
               heartbeat_at: Date.now(),
-              checkpoint: ZERO_CHECKPOINT_STRING,
-              table_names: tables.map(getTableName),
             } satisfies PonderApp;
 
             if (previousApp === undefined) {
@@ -747,21 +779,10 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
               } as const;
             }
 
-            // Note: ponder <=0.8 will evaluate this as true because the version is undefined
-            if (previousApp.version !== VERSION) {
-              const error = new NonRetryableError(
-                `Schema '${namespace}' was previously used by a Ponder app with a different minor version. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/getting-started/database#database-schema`,
-              );
-              error.stack = undefined;
-              throw error;
-            }
-
             if (
               previousApp.is_dev === 1 ||
               (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
-                previousApp.build_id !== buildId) ||
-              (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
-                previousApp.checkpoint === ZERO_CHECKPOINT_STRING)
+                previousApp.build_id !== buildId)
             ) {
               for (const table of previousApp.table_names) {
                 await tx.execute(
@@ -785,7 +806,7 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
 
               await tx.execute(
                 sql.raw(
-                  `TRUNCATE TABLE "${namespace}"."${getTableName(PONDER_STATUS)}" CASCADE`,
+                  `TRUNCATE TABLE "${namespace}"."${getTableName(PONDER_CHECKPOINT)}" CASCADE`,
                 ),
               );
 
@@ -802,6 +823,15 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
                 status: "success",
                 crashRecoveryCheckpoint: undefined,
               } as const;
+            }
+
+            // Note: ponder <=0.8 will evaluate this as true because the version is undefined
+            if (previousApp.version !== VERSION) {
+              const error = new NonRetryableError(
+                `Schema '${namespace}' was previously used by a Ponder app with a different minor version. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/getting-started/database#database-schema`,
+              );
+              error.stack = undefined;
+              throw error;
             }
 
             if (
@@ -831,6 +861,20 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
               msg: `Detected crash recovery for build '${buildId}' in schema '${namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
             });
 
+            const checkpoints = await tx.select().from(PONDER_CHECKPOINT);
+            const crashRecoveryCheckpoint =
+              checkpoints.length === 0
+                ? undefined
+                : checkpoints.map((c) => ({
+                    chainId: c.chainId,
+                    checkpoint: c.safeCheckpoint,
+                  }));
+
+            if (previousApp.is_ready === 0) {
+              await tx.update(PONDER_META).set({ value: metadata });
+              return { status: "success", crashRecoveryCheckpoint } as const;
+            }
+
             // Remove triggers
 
             for (const table of tables) {
@@ -855,18 +899,18 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
               });
             }
 
-            await this.revert({ checkpoint: previousApp.checkpoint, tx });
+            // Note: it is an invariant that checkpoints.length > 0;
+            const revertCheckpoint = min(
+              ...checkpoints.map((c) => c.safeCheckpoint),
+            );
 
-            // TODO(kyle) eventually improve this using checkpoint for each chain
-            await tx
-              .update(PONDER_STATUS)
-              .set({ block_number: null, block_timestamp: null, ready: false });
+            await this.revert({ checkpoint: revertCheckpoint, tx });
+
+            // Note: We don't update the `_ponder_checkpoint` table here, instead we wait for it to be updated
+            // in the runtime script.
 
             await tx.update(PONDER_META).set({ value: metadata });
-            return {
-              status: "success",
-              crashRecoveryCheckpoint: previousApp.checkpoint,
-            } as const;
+            return { status: "success", crashRecoveryCheckpoint } as const;
           }),
         );
 
@@ -898,12 +942,9 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
         try {
           const heartbeat = Date.now();
 
-          await qb.drizzle
-            .update(PONDER_META)
-            .set({
-              value: sql`jsonb_set(value, '{heartbeat_at}', ${heartbeat})`,
-            })
-            .where(eq(PONDER_META.key, "app"));
+          await qb.drizzle.update(PONDER_META).set({
+            value: sql`jsonb_set(value, '{heartbeat_at}', ${heartbeat})`,
+          });
 
           common.logger.trace({
             service: "database",
@@ -989,52 +1030,38 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
         },
       );
     },
-    getStatus() {
-      return this.wrap({ method: "getStatus" }, async () => {
-        const result = await this.qb.drizzle.select().from(PONDER_STATUS);
-
-        if (result.length === 0) {
-          return null;
-        }
-
-        const status: Status = {};
-
-        for (const row of result) {
-          status[row.network_name] = {
-            block:
-              row.block_number && row.block_timestamp
-                ? {
-                    number: row.block_number,
-                    timestamp: row.block_timestamp,
-                  }
-                : null,
-            ready: row.ready,
-          };
-        }
-
-        return status;
-      });
-    },
-    setStatus(status) {
-      return this.wrap({ method: "setStatus" }, async () => {
-        await this.qb.drizzle
-          .insert(PONDER_STATUS)
-          .values(
-            Object.entries(status).map(([networkName, value]) => ({
-              network_name: networkName,
-              block_number: value.block?.number,
-              block_timestamp: value.block?.timestamp,
-              ready: value.ready,
-            })),
-          )
+    setCheckpoints({ checkpoints, db }) {
+      return this.wrap({ method: "setCheckpoints" }, async () => {
+        await db
+          .insert(PONDER_CHECKPOINT)
+          .values(checkpoints)
           .onConflictDoUpdate({
-            target: PONDER_STATUS.network_name,
+            target: PONDER_CHECKPOINT.chainName,
             set: {
-              block_number: sql`excluded.block_number`,
-              block_timestamp: sql`excluded.block_timestamp`,
-              ready: sql`excluded.ready`,
+              safeCheckpoint: sql`excluded.safe_checkpoint`,
+              latestCheckpoint: sql`excluded.latest_checkpoint`,
             },
           });
+      });
+    },
+    getCheckpoints() {
+      return this.wrap({ method: "getCheckpoints" }, () =>
+        qb.drizzle.select().from(PONDER_CHECKPOINT),
+      );
+    },
+    setReady() {
+      return this.wrap({ method: "setReady" }, async () => {
+        await qb.drizzle
+          .update(PONDER_META)
+          .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` });
+      });
+    },
+    getReady() {
+      return this.wrap({ method: "getReady" }, async () => {
+        return qb.drizzle
+          .select()
+          .from(PONDER_META)
+          .then((result) => result[0]?.value.is_ready === 1 ?? false);
       });
     },
     async revert({ checkpoint, tx }) {
@@ -1098,13 +1125,6 @@ WITH reverted1 AS (
       await this.record(
         { method: "finalize", includeTraceLogs: true },
         async () => {
-          await db
-            .update(PONDER_META)
-            .set({
-              value: sql`jsonb_set(value, '{checkpoint}', to_jsonb(${checkpoint}::varchar(75)))`,
-            })
-            .where(eq(PONDER_META.key, "app"));
-
           await Promise.all(
             tables.map((table) =>
               db
@@ -1122,7 +1142,7 @@ WITH reverted1 AS (
         msg: `Updated finalized checkpoint to (timestamp=${decoded.blockTimestamp} chainId=${decoded.chainId} block=${decoded.blockNumber})`,
       });
     },
-    async complete({ checkpoint, db }) {
+    async commitBlock({ checkpoint, db }) {
       await Promise.all(
         tables.map((table) =>
           this.wrap({ method: "complete" }, async () => {

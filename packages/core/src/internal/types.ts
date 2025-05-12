@@ -351,13 +351,20 @@ export type ApiBuild = {
   app: Hono;
 };
 
+// Crash recovery
+
+export type CrashRecoveryCheckpoint =
+  | {
+      chainId: number;
+      checkpoint: string;
+    }[]
+  | undefined;
+
 // Status
 
-/** Closest-to-tip indexed block per network. */
 export type Status = {
-  [network: string]: {
-    block: { number: number; timestamp: number } | null;
-    ready: boolean;
+  [networkName: string]: {
+    block: { number: number; timestamp: number };
   };
 };
 

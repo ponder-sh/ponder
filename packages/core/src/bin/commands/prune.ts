@@ -2,7 +2,7 @@ import { createBuild } from "@/build/index.js";
 import {
   type PonderApp,
   createDatabase,
-  getPonderMeta,
+  getPonderMetaTable,
 } from "@/database/index.js";
 import { TABLES } from "@/database/index.js";
 import { sqlToReorgTableName } from "@/drizzle/kit/index.js";
@@ -80,11 +80,11 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   const queries = ponderSchemas.map((row) =>
     database.qb.drizzle
       .select({
-        value: getPonderMeta(row.schema).value,
+        value: getPonderMetaTable(row.schema).value,
         schema: sql<string>`${row.schema}`.as("schema"),
       })
-      .from(getPonderMeta(row.schema))
-      .where(eq(getPonderMeta(row.schema).key, "app")),
+      .from(getPonderMetaTable(row.schema))
+      .where(eq(getPonderMetaTable(row.schema).key, "app")),
   );
 
   if (queries.length === 0) {
@@ -124,7 +124,11 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
       functionsToDrop.push(`"${schema}"."operation_reorg__${table}"`);
     }
     tablesToDrop.push(`"${schema}"."_ponder_meta"`);
-    tablesToDrop.push(`"${schema}"."_ponder_status"`);
+    if (value.version === "2") {
+      tablesToDrop.push(`"${schema}"."_ponder_checkpoint"`);
+    } else {
+      tablesToDrop.push(`"${schema}"."_ponder_status"`);
+    }
 
     const tableCount = ponderSchemas.find(
       (s) => s.schema === schema,

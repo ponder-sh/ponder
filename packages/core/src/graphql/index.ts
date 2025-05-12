@@ -1,8 +1,9 @@
 import type { Database } from "@/database/index.js";
 import type { OnchainTable } from "@/drizzle/onchain.js";
 import { normalizeColumn } from "@/indexing-store/utils.js";
-import type { Schema } from "@/internal/types.js";
+import type { Schema, Status } from "@/internal/types.js";
 import type { Drizzle, ReadonlyDrizzle } from "@/types/db.js";
+import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import { deserialize, serialize } from "@/utils/serialize.js";
 import DataLoader from "dataloader";
@@ -68,7 +69,7 @@ import { GraphQLJSON } from "./json.js";
 type Parent = Record<string, any>;
 type Context = {
   getDataLoader: ReturnType<typeof buildDataLoaderCache>;
-  getStatus: Database["getStatus"];
+  getCheckpoints: Database["getCheckpoints"];
   drizzle: Drizzle<{ [key: string]: OnchainTable }>;
 };
 
@@ -417,7 +418,19 @@ export function buildGraphQLSchema({
   queryFields._meta = {
     type: GraphQLMeta,
     resolve: async (_source, _args, context) => {
-      const status = await context.getStatus();
+      const checkpoints = await context.getCheckpoints();
+      const status: Status = {};
+      for (const { chainName, latestCheckpoint } of checkpoints) {
+        status[chainName] = {
+          block: {
+            number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
+            timestamp: Number(
+              decodeCheckpoint(latestCheckpoint).blockTimestamp,
+            ),
+          },
+        };
+      }
+
       return { status };
     },
   };

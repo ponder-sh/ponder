@@ -198,11 +198,11 @@ export function getFreePort(): Promise<number> {
 
 export async function waitForIndexedBlock({
   port,
-  networkName,
+  chainName,
   block,
 }: {
   port: number;
-  networkName: string;
+  chainName: string;
   block: { number: number };
 }) {
   return new Promise((resolve, reject) => {
@@ -213,14 +213,9 @@ export async function waitForIndexedBlock({
     const interval = setInterval(async () => {
       const response = await fetch(`http://localhost:${port}/status`);
       if (response.status === 200) {
-        const status = (await response.json()) as Status | null;
-        const statusBlockNumber = status
-          ? status[networkName]?.block?.number
-          : undefined;
-        if (
-          statusBlockNumber !== undefined &&
-          statusBlockNumber >= block.number
-        ) {
+        const status = (await response.json()) as Status;
+        const sb = status[chainName]?.block;
+        if (sb !== undefined && sb.number >= block.number) {
           clearTimeout(timeout);
           clearInterval(interval);
           resolve(undefined);
