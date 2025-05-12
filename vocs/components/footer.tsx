@@ -24,7 +24,16 @@ export function Footer() {
       >
         <div className="pt-12 pb-6 flex flex-col gap-12 justify-between md:flex-row">
           <div className="flex gap-4 flex-row justify-between items-center md:flex-col md:justify-start md:items-start">
-            <img src="/ponder-dark.svg" alt="Ponder" className="h-[13.5px]" />
+            <img
+              src="/ponder-light.svg"
+              alt="Ponder"
+              className="h-[13.5px] dark:hidden"
+            />
+            <img
+              src="/ponder-dark.svg"
+              alt="Ponder"
+              className="h-[13.5px] hidden dark:block"
+            />
 
             <Socials className="-ml-1 mt-auto" />
           </div>

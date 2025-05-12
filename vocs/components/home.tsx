@@ -17,17 +17,16 @@ export function Home() {
     <>
       <main className="w-full max-w-full relative">
         <div className="max-w-[1180px] mx-auto md:mt-6">
-          <div className="w-full flex flex-col justify-between md:flex-row gap-8 p-4 mb-6 md:p-8 rounded-lg text-neutral-950 shadow-sm dark:text-neutral-50 hero-texture">
-            <div className="flex flex-col items-start space-y-1.5 max-w-[540px]">
-              <p className="pb-4 text-neutral-500 dark:text-neutral-400">
-                Introducing Ponder
-              </p>
+          <div className="w-full flex flex-col justify-between md:flex-row gap-8 p-4 mb-6 md:p-8 rounded-lg shadow-sm hero-texture">
+            <div className="flex flex-col items-start space-y-1.5 max-w-[540px] text-neutral-950 dark:text-neutral-50">
+              <p className="pb-4">Introducing Ponder</p>
               <h1 className="text-4xl font-semibold tracking-tight pb-4">
-                Rapidly build an API for any EVM smart contract
+                Rapid custom indexing for any EVM smart contract
               </h1>
               <p>
-                Ponder is an open-source backend framework for building robust,
-                performant, and maintainable crypto apps
+                Ponder is an open-source framework for building fast, reliable,
+                <br className="hidden lg:inline" />
+                and maintainable backend software in crypto.
               </p>
             </div>
 
@@ -82,9 +81,9 @@ export function Home() {
                 <div className="p-2 rounded-[4px] mb-5 bg-neutral-200 dark:bg-neutral-800">
                   <ServerStackIcon />
                 </div>
-                <CardTitle>Powerful local dev server</CardTitle>
+                <CardTitle>Powerful local development server</CardTitle>
                 <CardDescription>
-                  Build incredibly fast & stay unblocked with{" "}
+                  Build faster & stay unblocked with{" "}
                   <strong>hot reloading</strong>
                 </CardDescription>
               </CardHeader>

@@ -23,7 +23,7 @@ export function Benchmarks({
               <p className="pt-[2px]">37s</p>
             </div>
             <div className="flex flex-row justify-start mb-5 gap-3 w-full">
-              <div className="h-[34px] w-[calc(100%-75px)] bg-neutral-400 dark:bg-neutral-700 rounded-[4px] flex items-center">
+              <div className="h-[34px] w-[calc(100%-75px)] bg-neutral-300 dark:bg-neutral-700 rounded-[4px] flex items-center">
                 <GraphLogo className="ml-[10px]" />
               </div>
               <p className="pt-[2px]">6m 40s</p>

@@ -18,10 +18,6 @@ export default defineConfig({
   topNav: [
     { text: "Docs", link: "/docs/get-started", match: "/docs" },
     {
-      text: "Examples",
-      link: "https://github.com/ponder-sh/ponder/tree/main/examples",
-    },
-    {
       text: "Blog",
       link: "/blog",
       // items: [
@@ -32,13 +28,15 @@ export default defineConfig({
       // ],
     },
     {
+      text: "Examples",
+      link: "https://github.com/ponder-sh/ponder/tree/main/examples",
+    },
+    {
       text: pkg.version,
       items: [
         {
-          text: `Migrating to ${toPatchVersionRange(pkg.version)}`,
-          link: `/docs/migration-guide#_${toPatchVersionRange(
-            pkg.version,
-          ).replace(/\./g, "-")}-breaking-changes`,
+          text: "Migration guide",
+          link: "/docs/migration-guide",
         },
         {
           text: "Changelog",
