@@ -94,9 +94,8 @@ export async function createServer({
     .get("/status", async (c) => {
       const checkpoints = await globalThis.PONDER_DATABASE.getCheckpoints();
       const status: Status = {};
-      for (const { chainName, chainId, latestCheckpoint } of checkpoints) {
+      for (const { chainName, latestCheckpoint } of checkpoints) {
         status[chainName] = {
-          chainId,
           block: {
             number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
             timestamp: Number(
