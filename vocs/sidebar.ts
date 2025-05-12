@@ -64,7 +64,6 @@ export const sidebar = {
         { text: "Transaction receipts", link: "/docs/guides/receipts" },
         { text: "Time-series data", link: "/docs/guides/time-series" },
         { text: "Foundry", link: "/docs/guides/foundry" },
-        { text: "Observability", link: "/docs/guides/observability" },
       ],
     },
     {
@@ -103,6 +102,13 @@ export const sidebar = {
         { text: "@ponder/client", link: "/docs/api-reference/ponder-client" },
         { text: "@ponder/react", link: "/docs/api-reference/ponder-react" },
         { text: "@ponder/utils", link: "/docs/api-reference/ponder-utils" },
+      ],
+    },
+    {
+      text: "Advanced",
+      items: [
+        { text: "Observability", link: "/docs/advanced/observability" },
+        { text: "Telemetry", link: "/docs/advanced/telemetry" },
       ],
     },
   ],
