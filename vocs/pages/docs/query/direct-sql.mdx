@@ -11,14 +11,14 @@ Direct SQL is more complex than querying over HTTP with GraphQL or the SQL clien
 As a rule of thumb, the _only_ supported operation is `SELECT` queries against Ponder tables.
 
 - **Direct SQL queries are read-only**. Direct SQL queries should not insert, update, or delete rows from Ponder tables.
-- **Direct SQL with zero-downtime deployments requires additional setup**. [Read more](/docs/production/deploy/self-hosting#views-pattern) about the views pattern in the production guide.
+- **Direct SQL with zero-downtime deployments requires additional setup**. [Read more](/docs/production/self-hosting) about the views pattern in the production guide.
 - **Triggers on Ponder tables are not supported**.
 
 ## Database schema
 
-Ponder uses **database schemas** to isolate deployments. [Read more](/docs/production/overview) in the self-hosting guide.
+Ponder uses **database schemas** to isolate deployments. [Read more](/docs/production/self-hosting#database-schema) in the self-hosting guide.
 
-Direct SQL queries should target the database schema corresponding to a specific deployment. Or, if your project uses the [views pattern](/docs/production/overview) (**recommended**), queries should target the views schema.
+Direct SQL queries should target the database schema corresponding to a specific deployment. Or, if your project uses the [views pattern](/docs/production/self-hosting#views-pattern) (**recommended**), queries should target the views schema.
 
 Here are a few strategies to configure the database schema.
 

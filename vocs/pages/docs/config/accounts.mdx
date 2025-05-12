@@ -2,7 +2,7 @@
 
 To index **transactions** or **native transfers** sent to (or from) an address, use the `accounts` field in `ponder.config.ts`.
 
-This guide describes each configuration option and suggests patterns for common use cases. Visit the config [API reference](/docs/api-reference/config) for more information.
+This guide describes each configuration option and suggests patterns for common use cases. Visit the config [API reference](/docs/api-reference/ponder/config) for more information.
 
 :::warning
   The RPC methods that power account indexing (`eth_getBlockByNumber`, `debug_traceBlockByNumber`) do not support filtering the way `eth_getLogs` does. Large historical backfills may consume an impractical amount of RPC credits.
@@ -46,7 +46,7 @@ ponder.on("BeaverBuild:transaction:from", async ({ event, context }) => { // [!c
 });
 ```
 
-You can also register indexing functions for the `transaction:to`, `transfer:from`, and `transfer:to` events. [Read more](/docs/api-reference/config#accounts) about event types.
+You can also register indexing functions for the `transaction:to`, `transfer:from`, and `transfer:to` events. [Read more](/docs/api-reference/ponder/config#accounts) about event types.
 
 :::tip
   The indexing engine only fetches data required for _registered_ indexing functions. In this example, native transfers will **not** be fetched because no indexing functions were registered for `transfer:from` and `transfer:to`.

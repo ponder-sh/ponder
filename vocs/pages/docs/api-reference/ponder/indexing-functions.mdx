@@ -2,7 +2,7 @@
 
 :::tip
   This is a low-level reference. For an introduction, visit the
-  [Indexing](/docs/indexing) section.
+  [Indexing](/docs/indexing/overview) section.
 :::
 
 Indexing functions are user-defined functions that receive blockchain data (a log, block, transaction, trace, or transfer) and insert data into the database. You can register indexing functions within any `.ts` file inside the `src/` directory.
@@ -69,7 +69,7 @@ type Args = {
 Call trace events are specified using `"ContractName.functionName()"`.
 
 :::tip
-  The [includeCallTraces](/docs/contracts-and-networks#call-traces) option must
+  The [includeCallTraces](/docs/guides/call-traces) option must
   be enabled to register call trace indexing functions.
 :::
 
@@ -238,7 +238,7 @@ type Context = {
 
 ### Database
 
-The `context.db` object is a live database connection. [Read more](/docs/indexing/write-to-the-database) about writing to the database.
+The `context.db` object is a live database connection. [Read more](/docs/indexing/write) about writing to the database.
 
 ```ts [src/index.ts]
 import { ponder } from "ponder:registry";

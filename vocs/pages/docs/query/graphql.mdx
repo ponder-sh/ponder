@@ -450,7 +450,7 @@ query {
 ## Relationship fields
 
 :::info
-[Read more](/docs/schema#relationships) about how to define relationships in your schema.
+[Read more](/docs/schema/relations) about how to define relationships in your schema.
 :::
 
 The GraphQL schema includes a relationship field for each `one` or `many` relation defined in your schema. One-to-many fields are very similar to the top-level plural query field, except they are automatically filtered by the parent row ID.
@@ -509,5 +509,5 @@ Here are a few tips for speeding up slow GraphQL queries.
 
 1. **Limit query depth**: Each layer of depth in a GraphQL query introduces at least one additional sequential database query. Avoid queries that are more than 2 layers deep.
 2. **Use pagination**: Use cursor-based pagination to fetch records in smaller, more manageable chunks. This can help reduce the load on the database.
-3. **Consider database indexes**: Consider creating database indexes to speed up filters, joins, and sort conditions. Keep in mind that relations **do not** automatically create indexes. [Read more](/docs/schema#indexes).
-4. **Enable horizontal scaling**: If the GraphQL API is struggling to keep up with request volume, consider spreading the load across multiple instances. [Read more](/docs/production/horizontal-scaling).
+3. **Consider database indexes**: Consider creating database indexes to speed up filters, joins, and sort conditions. Keep in mind that relations **do not** automatically create indexes. [Read more](/docs/schema/tables#indexes).
+4. **Enable horizontal scaling**: If the GraphQL API is struggling to keep up with request volume, consider spreading the load across multiple instances. [Read more](/docs/production/self-hosting#scale-the-http-server).

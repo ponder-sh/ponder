@@ -2,7 +2,7 @@
 
 To index **event logs** or **call traces** produced by a contract, use the `contracts` field in `ponder.config.ts`.
 
-This guide describes each configuration option and suggests patterns for common use cases. Visit the config [API reference](/docs/api-reference/config) for more information.
+This guide describes each configuration option and suggests patterns for common use cases. Visit the config [API reference](/docs/api-reference/ponder/config) for more information.
 
 ## Example
 
@@ -110,7 +110,7 @@ export const BlitmapAbi = [ // [!code focus]
 
 ### Multiple ABIs
 
-Use the [`mergeAbis`](/docs/utilities/merge-abis) utility function to combine multiple ABIs into one. This function removes duplicate ABI items and maintains strict types.
+Use the [`mergeAbis`](/docs/api-reference/ponder-utils#mergeabis) utility function to combine multiple ABIs into one. This function removes duplicate ABI items and maintains strict types.
 
 This pattern is often useful for proxy contracts where the implementation ABI has changed over time.
 
@@ -377,7 +377,7 @@ ponder.on("SudoswapPool:Transfer", async ({ event }) => {
 
 ### Proxy & upgradable contracts
 
-To index a proxy/upgradable contract, use the proxy contract address in the `address` field. Then, be sure to include the ABIs of all implementation contracts that the proxy has ever had. The implementation ABIs are required to properly identify and decode all historical event logs. To add multiple ABIs safely, use the [`mergeAbis`](/docs/utilities/merge-abis) utility function.
+To index a proxy/upgradable contract, use the proxy contract address in the `address` field. Then, be sure to include the ABIs of all implementation contracts that the proxy has ever had. The implementation ABIs are required to properly identify and decode all historical event logs. To add multiple ABIs safely, use the [`mergeAbis`](/docs/api-reference/ponder-utils#mergeabis) utility function.
 
 :::tip
   On Etherscan, there is a link to the current implementation contract on the **Contract → Read as Proxy** tab. You can copy all the implementation ABIs as text and paste them into `.ts` files.
@@ -474,7 +474,7 @@ Note that the `filter` option accepts an array of filter configurations and that
 ## Call traces
 
 :::info
-  Visit the [call traces](/docs/guides/traces) guide for more information.
+  Visit the [call traces](/docs/guides/call-traces) guide for more information.
 :::
 
 Use the `includeCallTraces` option to enable call trace indexing for a contract, which makes it possible to register indexing functions for every _function_ present in the contract ABI.
