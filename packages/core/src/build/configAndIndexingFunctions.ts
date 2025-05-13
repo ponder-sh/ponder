@@ -128,31 +128,16 @@ export async function buildConfigAndIndexingFunctions({
         throw new Error(
           `Chain "${chainName}" with id ${chain.id} has no RPC URL.`,
         );
-      } else if (typeof chain.rpc === "string") {
-        for (const http of matchedChain.rpcUrls.default.http) {
-          if (http === chain.rpc) {
-            logs.push({
-              level: "warn",
-              msg: `Chain '${chainName}' is using a public RPC URL (${http}). Most apps require an RPC URL with a higher rate limit.`,
-            });
-          }
-        }
-        for (const ws of matchedChain.rpcUrls.default.webSocket ?? []) {
-          if (ws === chain.rpc) {
-            logs.push({
-              level: "warn",
-              msg: `Chain '${chainName}' is using a public RPC URL (${ws}). Most apps require an RPC URL with a higher rate limit.`,
-            });
-          }
-        }
-      } else if (Array.isArray(chain.rpc)) {
-        if (chain.rpc.length === 0) {
+      } else if (typeof chain.rpc === "string" || Array.isArray(chain.rpc)) {
+        const rpcs = Array.isArray(chain.rpc) ? chain.rpc : [chain.rpc];
+
+        if (rpcs.length === 0) {
           throw new Error(
             `Chain "${chainName}" with id ${chain.id} has no RPC URLs.`,
           );
         }
 
-        for (const rpc of chain.rpc) {
+        for (const rpc of rpcs) {
           for (const http of matchedChain.rpcUrls.default.http) {
             if (http === rpc) {
               logs.push({
