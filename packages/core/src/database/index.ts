@@ -224,10 +224,17 @@ export const createDatabase = async ({
 
   const dialect = preBuild.databaseConfig.kind;
 
-  common.logger.info({
-    service: "database",
-    msg: `Using database schema '${namespace.schema}'`,
-  });
+  if (namespace.viewsSchema) {
+    common.logger.info({
+      service: "database",
+      msg: `Using database schema '${namespace.schema}' and views schema '${namespace.viewsSchema}'`,
+    });
+  } else {
+    common.logger.info({
+      service: "database",
+      msg: `Using database schema '${namespace.schema}'`,
+    });
+  }
 
   if (dialect === "pglite" || dialect === "pglite_test") {
     driver = {
