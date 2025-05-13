@@ -4,7 +4,10 @@ import { type NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
 import { customType, pgSchema } from "drizzle-orm/pg-core";
 import { Pool } from "pg";
 import seedrandom from "seedrandom";
-import { debug } from "../packages/core/src/bin/commands/debug.js";
+import {
+  type SimParams,
+  debug,
+} from "../packages/core/src/bin/commands/debug.js";
 import { getChunks } from "../packages/core/src/utils/interval.js";
 
 // inputs
@@ -14,18 +17,23 @@ const SEED = "dff1a6a325d3ac4a42143e0d60aa1dc25dc69b19694dab3739eabc5c2aa5001e";
 const CONNECTION_STRING = "postgresql://kylescott@localhost:5432/integration";
 
 // params
+
 const INTERVAL_CHUNKS = 8;
 const INTERVAL_EVICT_RATE = 0.25;
-const ERROR_RATE = 0.01;
-const ETH_GET_LOGS_RESPONSE_LIMIT = Number.POSITIVE_INFINITY;
-const ETH_GET_LOGS_BLOCK_LIMIT = 20_000;
-/** Probability of a reorg. */
-const REALTIME_REORG_RATE = 0.15;
-// TODO(kyle) deep reorg
-/** Probability that the chain fast forwards and skips a block. */
-const REALTIME_FAST_FORWARD_RATE = 0.5;
-/** Probability that a block is delayed and a block on another chain is ordered first. */
-const REALTIME_DELAY_RATE = 0.4;
+
+const SIM_PARAMS: SimParams = {
+  SEED,
+  ERROR_RATE: 0.01,
+  ETH_GET_LOGS_RESPONSE_LIMIT: Number.POSITIVE_INFINITY,
+  ETH_GET_LOGS_BLOCK_LIMIT: 20_000,
+  /** Probability of a reorg. */
+  REALTIME_REORG_RATE: 0.15,
+  // TODO(kyle) deep reorg
+  /** Probability that the chain fast forwards and skips a block. */
+  REALTIME_FAST_FORWARD_RATE: 0.5,
+  /** Probability that a block is delayed and a block on another chain is ordered first. */
+  REALTIME_DELAY_RATE: 0.4,
+};
 
 // constants
 const TARGET_SCHEMA = "test";
@@ -149,6 +157,8 @@ const kill = await debug({
     logFormat: "pretty",
     // logLevel: "debug",
   },
+  params: SIM_PARAMS,
+  connectionString: CONNECTION_STRING,
 });
 
 // stop when no more events are possible: historical end or realtime finalized

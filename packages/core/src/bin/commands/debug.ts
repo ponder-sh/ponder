@@ -1,4 +1,5 @@
 import path from "node:path";
+import { sim } from "@/_test/simulation.js";
 import { createBuild } from "@/build/index.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import { createLogger } from "@/internal/logger.js";
@@ -12,7 +13,25 @@ import { createExit } from "../utils/exit.js";
 import { run } from "../utils/run.js";
 import { runServer } from "../utils/runServer.js";
 
-export async function debug({ cliOptions }: { cliOptions: CliOptions }) {
+export type SimParams = {
+  SEED: string;
+  ERROR_RATE: number;
+  ETH_GET_LOGS_RESPONSE_LIMIT: number;
+  ETH_GET_LOGS_BLOCK_LIMIT: number;
+  REALTIME_REORG_RATE: number;
+  REALTIME_FAST_FORWARD_RATE: number;
+  REALTIME_DELAY_RATE: number;
+};
+
+export async function debug({
+  cliOptions,
+  params,
+  connectionString,
+}: {
+  cliOptions: CliOptions;
+  params: SimParams;
+  connectionString?: string;
+}) {
   const options = buildOptions({ cliOptions });
 
   const logger = createLogger({
@@ -70,6 +89,17 @@ export async function debug({ cliOptions }: { cliOptions: CliOptions }) {
   if (configResult.status === "error") {
     await exit({ reason: "Failed intial build", code: 1 });
     return;
+  }
+
+  for (const chain of Object.keys(configResult.result.config.chains)) {
+    const chainConfig = configResult.result.config.chains[chain]!;
+    // @ts-ignore
+    chainConfig.transport = sim(
+      // @ts-ignore
+      chainConfig.transport,
+      params,
+      connectionString,
+    );
   }
 
   const schemaResult = await build.executeSchema();
