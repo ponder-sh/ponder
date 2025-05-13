@@ -2,6 +2,8 @@ packages:
   - benchmarks
   - docs
   - vocs
+  - integration-test
   - examples/**
   - packages/*
   - tmp/*
+

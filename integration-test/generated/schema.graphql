@@ -1,0 +1,247 @@
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSON
+
+scalar BigInt
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+type Meta {
+  status: JSON
+}
+
+type Query {
+  account(address: String!): account
+  accounts(where: accountFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): accountPage!
+  transferEvent(id: String!): transferEvent
+  transferEvents(where: transferEventFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): transferEventPage!
+  allowance(owner: String!, spender: String!): allowance
+  allowances(where: allowanceFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): allowancePage!
+  approvalEvent(id: String!): approvalEvent
+  approvalEvents(where: approvalEventFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): approvalEventPage!
+  _meta: Meta
+}
+
+type account {
+  address: String!
+  balance: BigInt!
+  isOwner: Boolean!
+  transferFromEvents(where: transferEventFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): transferEventPage
+  transferToEvents(where: transferEventFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): transferEventPage
+}
+
+type transferEventPage {
+  items: [transferEvent!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type transferEvent {
+  id: String!
+  amount: BigInt!
+  timestamp: Int!
+  from: String!
+  to: String!
+  fromAccount: account
+  toAccount: account
+}
+
+input transferEventFilter {
+  AND: [transferEventFilter]
+  OR: [transferEventFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  amount: BigInt
+  amount_not: BigInt
+  amount_in: [BigInt]
+  amount_not_in: [BigInt]
+  amount_gt: BigInt
+  amount_lt: BigInt
+  amount_gte: BigInt
+  amount_lte: BigInt
+  timestamp: Int
+  timestamp_not: Int
+  timestamp_in: [Int]
+  timestamp_not_in: [Int]
+  timestamp_gt: Int
+  timestamp_lt: Int
+  timestamp_gte: Int
+  timestamp_lte: Int
+  from: String
+  from_not: String
+  from_in: [String]
+  from_not_in: [String]
+  from_contains: String
+  from_not_contains: String
+  from_starts_with: String
+  from_ends_with: String
+  from_not_starts_with: String
+  from_not_ends_with: String
+  to: String
+  to_not: String
+  to_in: [String]
+  to_not_in: [String]
+  to_contains: String
+  to_not_contains: String
+  to_starts_with: String
+  to_ends_with: String
+  to_not_starts_with: String
+  to_not_ends_with: String
+}
+
+type accountPage {
+  items: [account!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input accountFilter {
+  AND: [accountFilter]
+  OR: [accountFilter]
+  address: String
+  address_not: String
+  address_in: [String]
+  address_not_in: [String]
+  address_contains: String
+  address_not_contains: String
+  address_starts_with: String
+  address_ends_with: String
+  address_not_starts_with: String
+  address_not_ends_with: String
+  balance: BigInt
+  balance_not: BigInt
+  balance_in: [BigInt]
+  balance_not_in: [BigInt]
+  balance_gt: BigInt
+  balance_lt: BigInt
+  balance_gte: BigInt
+  balance_lte: BigInt
+  isOwner: Boolean
+  isOwner_not: Boolean
+  isOwner_in: [Boolean]
+  isOwner_not_in: [Boolean]
+}
+
+type allowance {
+  owner: String
+  spender: String
+  amount: BigInt!
+}
+
+type allowancePage {
+  items: [allowance!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input allowanceFilter {
+  AND: [allowanceFilter]
+  OR: [allowanceFilter]
+  owner: String
+  owner_not: String
+  owner_in: [String]
+  owner_not_in: [String]
+  owner_contains: String
+  owner_not_contains: String
+  owner_starts_with: String
+  owner_ends_with: String
+  owner_not_starts_with: String
+  owner_not_ends_with: String
+  spender: String
+  spender_not: String
+  spender_in: [String]
+  spender_not_in: [String]
+  spender_contains: String
+  spender_not_contains: String
+  spender_starts_with: String
+  spender_ends_with: String
+  spender_not_starts_with: String
+  spender_not_ends_with: String
+  amount: BigInt
+  amount_not: BigInt
+  amount_in: [BigInt]
+  amount_not_in: [BigInt]
+  amount_gt: BigInt
+  amount_lt: BigInt
+  amount_gte: BigInt
+  amount_lte: BigInt
+}
+
+type approvalEvent {
+  id: String!
+  amount: BigInt!
+  timestamp: Int!
+  owner: String!
+  spender: String!
+}
+
+type approvalEventPage {
+  items: [approvalEvent!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input approvalEventFilter {
+  AND: [approvalEventFilter]
+  OR: [approvalEventFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  amount: BigInt
+  amount_not: BigInt
+  amount_in: [BigInt]
+  amount_not_in: [BigInt]
+  amount_gt: BigInt
+  amount_lt: BigInt
+  amount_gte: BigInt
+  amount_lte: BigInt
+  timestamp: Int
+  timestamp_not: Int
+  timestamp_in: [Int]
+  timestamp_not_in: [Int]
+  timestamp_gt: Int
+  timestamp_lt: Int
+  timestamp_gte: Int
+  timestamp_lte: Int
+  owner: String
+  owner_not: String
+  owner_in: [String]
+  owner_not_in: [String]
+  owner_contains: String
+  owner_not_contains: String
+  owner_starts_with: String
+  owner_ends_with: String
+  owner_not_starts_with: String
+  owner_not_ends_with: String
+  spender: String
+  spender_not: String
+  spender_in: [String]
+  spender_not_in: [String]
+  spender_contains: String
+  spender_not_contains: String
+  spender_starts_with: String
+  spender_ends_with: String
+  spender_not_starts_with: String
+  spender_not_ends_with: String
+}
