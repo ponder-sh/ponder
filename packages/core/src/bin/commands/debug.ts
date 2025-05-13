@@ -1,5 +1,5 @@
 import path from "node:path";
-import { sim } from "@/_test/simulation.js";
+import { realtimeBlockEngine, sim } from "@/_test/simulation.js";
 import { createBuild } from "@/build/index.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import { createLogger } from "@/internal/logger.js";
@@ -7,7 +7,10 @@ import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
+import type { SyncBlock } from "@/internal/types.js";
+import { createRpc } from "@/rpc/index.js";
 import { mergeResults } from "@/utils/result.js";
+import { custom } from "viem";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 import { run } from "../utils/run.js";
@@ -89,17 +92,6 @@ export async function debug({
   if (configResult.status === "error") {
     await exit({ reason: "Failed intial build", code: 1 });
     return;
-  }
-
-  for (const chain of Object.keys(configResult.result.config.chains)) {
-    const chainConfig = configResult.result.config.chains[chain]!;
-    // @ts-ignore
-    chainConfig.transport = sim(
-      // @ts-ignore
-      chainConfig.transport,
-      params,
-      connectionString,
-    );
   }
 
   const schemaResult = await build.executeSchema();
@@ -185,6 +177,68 @@ export async function debug({
     },
     1,
   );
+
+  const chains: Parameters<typeof realtimeBlockEngine>[0] = new Map();
+  for (let i = 0; i < indexingBuildResult.result.chains.length; i++) {
+    const chain = indexingBuildResult.result.chains[i]!;
+    const rpc = indexingBuildResult.result.rpcs[i]!;
+
+    chain.rpc = sim(
+      custom({
+        async request(body) {
+          return rpc.request(body);
+        },
+      }),
+      params,
+      connectionString,
+    );
+
+    indexingBuildResult.result.rpcs[i] = createRpc({
+      common,
+      chain,
+      concurrency: Math.floor(
+        common.options.rpcMaxConcurrency /
+          indexingBuildResult.result.chains.length,
+      ),
+    });
+
+    // @ts-ignore
+    chains.set(chain.id, { request: rpc.request });
+
+    common.logger.warn({
+      service: "sim",
+      msg: `Mocking eip1193 transport for chain '${chain.name}'`,
+    });
+  }
+
+  const getRealtimeBlockGenerator = realtimeBlockEngine(
+    chains,
+    params,
+    connectionString,
+  );
+
+  for (let i = 0; i < indexingBuildResult.result.chains.length; i++) {
+    const chain = indexingBuildResult.result.chains[i]!;
+    const rpc = indexingBuildResult.result.rpcs[i]!;
+
+    getRealtimeBlockGenerator(chain.id, 13_149_000);
+
+    rpc.subscribe = (onBlock) => {
+      (async () => {
+        for await (const block of getRealtimeBlockGenerator(
+          chain.id,
+          13_149_000,
+        )) {
+          await onBlock(block as SyncBlock);
+        }
+      })();
+    };
+
+    common.logger.warn({
+      service: "sim",
+      msg: `Mocking realtime block subscription for chain '${chain.name}'`,
+    });
+  }
 
   run({
     common,

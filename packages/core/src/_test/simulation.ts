@@ -544,12 +544,7 @@ export const sim =
   };
 
 export const realtimeBlockEngine = (
-  chains: Map<
-    number,
-    {
-      request: ReturnType<Transport>["request"];
-    }
-  >,
+  chains: Map<number, { request: ReturnType<Transport>["request"] }>,
   params: {
     SEED: string;
     REALTIME_REORG_RATE: number;

@@ -1497,27 +1497,27 @@ export const getLocalSyncProgress = async ({
     cached === undefined
       ? [
           rpc.request({ method: "eth_chainId" }),
-          _eth_getBlockByNumber(rpc, { blockTag: "latest" }),
+          // _eth_getBlockByNumber(rpc, { blockTag: "latest" }),
           _eth_getBlockByNumber(rpc, { blockNumber: start }),
         ]
       : [
           rpc.request({ method: "eth_chainId" }),
-          _eth_getBlockByNumber(rpc, { blockTag: "latest" }),
+          // _eth_getBlockByNumber(rpc, { blockTag: "latest" }),
           _eth_getBlockByNumber(rpc, { blockNumber: start }),
           _eth_getBlockByNumber(rpc, { blockNumber: cached }),
         ],
   );
 
-  const finalized = Math.max(
-    0,
-    hexToNumber(diagnostics[1].number) - chain.finalityBlockCount,
-  );
+  // const finalized = Math.max(
+  //   0,
+  //   hexToNumber(diagnostics[1].number) - chain.finalityBlockCount,
+  // );
   syncProgress.finalized = await _eth_getBlockByNumber(rpc, {
-    blockNumber: finalized,
+    blockNumber: 13_150_000,
   });
-  syncProgress.start = diagnostics[2];
-  if (diagnostics.length === 4) {
-    syncProgress.current = diagnostics[3];
+  syncProgress.start = diagnostics[1];
+  if (diagnostics.length === 3) {
+    syncProgress.current = diagnostics[2];
   }
 
   // Warn if the config has a different chainId than the remote.

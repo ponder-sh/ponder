@@ -1,7 +1,8 @@
 import url from "node:url";
 import type { Common } from "@/internal/common.js";
-import type { Chain } from "@/internal/types.js";
+import type { Chain, SyncBlock } from "@/internal/types.js";
 import { createQueue } from "@/utils/queue.js";
+import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import {
@@ -34,6 +35,7 @@ export type Rpc = {
   request: <TParameters extends EIP1193Parameters<Schema>>(
     parameters: TParameters,
   ) => Promise<RequestReturnType<TParameters["method"]>>;
+  subscribe: (onBlock: (block: SyncBlock) => Promise<void>) => void;
 };
 
 const RETRY_COUNT = 9;
@@ -162,10 +164,24 @@ export const createRpc = ({
     },
   });
 
-  return {
+  let interval: NodeJS.Timeout;
+
+  // @ts-ignore
+  const rpc: Rpc = {
     // @ts-ignore
     request: queue.add,
+    subscribe(onBlock) {
+      interval = setInterval(() => {
+        _eth_getBlockByNumber(rpc, { blockTag: "latest" }).then(onBlock);
+      }, chain.pollingInterval);
+
+      common.shutdown.add(() => {
+        clearInterval(interval);
+      });
+    },
   };
+
+  return rpc;
 };
 
 /**

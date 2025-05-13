@@ -121,7 +121,6 @@ export const createRealtimeSync = (
   let unfinalizedBlocks: LightBlock[] = [];
   let fetchAndReconcileLatestBlockErrorCount = 0;
   let reconcileBlockErrorCount = 0;
-  let interval: NodeJS.Timeout | undefined;
 
   const factories: Factory[] = [];
   const logFilters: LogFilter[] = [];
@@ -736,12 +735,8 @@ export const createRealtimeSync = (
   /**
    * Start syncing the latest block.
    */
-  const fetchAndReconcileLatestBlock = async () => {
+  const fetchAndReconcileLatestBlock = async (block: SyncBlock) => {
     try {
-      const block = await _eth_getBlockByNumber(args.rpc, {
-        blockTag: "latest",
-      });
-
       args.common.logger.debug({
         service: "realtime",
         msg: `Received latest '${args.chain.name}' block ${hexToNumber(block.number)}`,
@@ -1049,17 +1044,11 @@ export const createRealtimeSync = (
       finalizedBlock = startArgs.syncProgress.finalized;
       childAddresses = startArgs.initialChildAddresses;
 
-      interval = setInterval(
-        fetchAndReconcileLatestBlock,
-        args.chain.pollingInterval,
-      );
-
-      args.common.shutdown.add(() => {
-        clearInterval(interval);
-      });
+      // TODO(kyle) on error
+      args.rpc.subscribe(async (block) => fetchAndReconcileLatestBlock(block));
 
       // Note: Return the mutex for testing purposes.
-      return fetchAndReconcileLatestBlock().then(() => reconcileBlock);
+      return Promise.resolve(reconcileBlock);
     },
     get unfinalizedBlocks() {
       return unfinalizedBlocks;
@@ -1068,7 +1057,7 @@ export const createRealtimeSync = (
       return childAddresses;
     },
     async kill() {
-      clearInterval(interval);
+      // TODO(kyle)
     },
   };
 };
