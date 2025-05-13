@@ -7,9 +7,9 @@ import type { Chain } from "viem";
  * @param chain The chain to get the finality block count for.
  * @returns The finality block count.
  */
-export function getFinalityBlockCount({ chain }: { chain: Chain }) {
+export function getFinalityBlockCount({ chain }: { chain: Chain | undefined }) {
   let finalityBlockCount: number;
-  switch (chain.id) {
+  switch (chain?.id) {
     // Mainnet and mainnet testnets.
     case 1:
     case 3:

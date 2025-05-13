@@ -352,6 +352,29 @@ test("buildConfigAndIndexingFunctions() warns for public RPC URL", async (contex
   ]);
 });
 
+test("buildConfigAndIndexingFunctions() handles chains not found in viem", async (context) => {
+  const config = createConfig({
+    chains: {
+      mainnet: { id: 1909023431, rpc: "https://cloudflare-eth.com" },
+    },
+    contracts: {
+      a: {
+        chain: "mainnet",
+        abi: [event0],
+        address: address1,
+      },
+    },
+  });
+
+  const result = await safeBuildConfigAndIndexingFunctions({
+    common: context.common,
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+  });
+
+  expect(result.status).toBe("success");
+});
+
 test("buildConfigAndIndexingFunctions() validates event filter event name must be present in ABI", async (context) => {
   const config = createConfig({
     chains: {
