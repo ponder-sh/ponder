@@ -305,7 +305,7 @@ export type Chain = {
   maxRequestsPerSecond: number;
   finalityBlockCount: number;
   disableCache: boolean;
-  viemChain: ViemChain;
+  viemChain: ViemChain | undefined;
 };
 
 // Schema
