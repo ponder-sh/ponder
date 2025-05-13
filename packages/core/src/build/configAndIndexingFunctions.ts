@@ -119,11 +119,11 @@ export async function buildConfigAndIndexingFunctions({
         "id" in c ? c.id === chain.id : false,
       );
 
-      if (matchedChain === undefined) {
-        throw new Error(
-          `Chain "${chainName}" with id ${chain.id} not found in viem. Please update viem to the latest version.`,
-        );
-      }
+      // if (matchedChain === undefined) {
+      //   throw new Error(
+      //     `Chain "${chainName}" with id ${chain.id} not found in viem. Please update viem to the latest version.`,
+      //   );
+      // }
       if (chain.rpc === undefined) {
         throw new Error(
           `Chain "${chainName}" with id ${chain.id} has no RPC URL.`,
@@ -137,23 +137,25 @@ export async function buildConfigAndIndexingFunctions({
           );
         }
 
-        for (const rpc of rpcs) {
-          for (const http of matchedChain.rpcUrls.default.http) {
-            if (http === rpc) {
-              logs.push({
-                level: "warn",
-                msg: `Chain '${chainName}' is using a public RPC URL (${http}). Most apps require an RPC URL with a higher rate limit.`,
-              });
-              break;
+        if (matchedChain) {
+          for (const rpc of rpcs) {
+            for (const http of matchedChain.rpcUrls.default.http) {
+              if (http === rpc) {
+                logs.push({
+                  level: "warn",
+                  msg: `Chain '${chainName}' is using a public RPC URL (${http}). Most apps require an RPC URL with a higher rate limit.`,
+                });
+                break;
+              }
             }
-          }
-          for (const ws of matchedChain.rpcUrls.default.webSocket ?? []) {
-            if (ws === rpc) {
-              logs.push({
-                level: "warn",
-                msg: `Chain '${chainName}' is using a public RPC URL (${ws}). Most apps require an RPC URL with a higher rate limit.`,
-              });
-              break;
+            for (const ws of matchedChain.rpcUrls.default.webSocket ?? []) {
+              if (ws === rpc) {
+                logs.push({
+                  level: "warn",
+                  msg: `Chain '${chainName}' is using a public RPC URL (${ws}). Most apps require an RPC URL with a higher rate limit.`,
+                });
+                break;
+              }
             }
           }
         }
