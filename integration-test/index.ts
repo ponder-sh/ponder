@@ -4,7 +4,7 @@ import { type NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
 import { customType, pgSchema } from "drizzle-orm/pg-core";
 import { Pool } from "pg";
 import seedrandom from "seedrandom";
-import { start } from "../packages/core/src/bin/commands/start.js";
+import { debug } from "../packages/core/src/bin/commands/debug.js";
 import { getChunks } from "../packages/core/src/utils/interval.js";
 
 // inputs
@@ -75,21 +75,25 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
 const db = drizzle(pool, { casing: "snake_case" });
 
 await db.execute(sql.raw(`DROP SCHEMA IF EXISTS "${TARGET_SCHEMA}" CASCADE`));
+await db.execute(
+  sql.raw(`DROP SCHEMA IF EXISTS "${TARGET_SYNC_SCHEMA}" CASCADE`),
+);
+await db.execute(sql.raw(`DROP SCHEMA IF EXISTS "${APP_ID}_expected" CASCADE`));
 
 await $`psql ${CONNECTION_STRING} -U postgres -h localhost -p 5432 -f ./db/${APP_ID}_expected.sql`.quiet();
 await $`psql ${CONNECTION_STRING} -U postgres -h localhost -p 5432 -f ./db/${APP_ID}_ponder_sync.sql`.quiet();
 
-// await db.execute(
-//   sql.raw(
-//     `CREATE INDEX transactions_integration_idx ON "ponder_sync".transactions (chain_id, block_number)`,
-//   ),
-// );
+await db.execute(
+  sql.raw(
+    `CREATE INDEX transactions_integration_idx ON "ponder_sync".transactions (chain_id, block_number)`,
+  ),
+);
 
-// await db.execute(
-//   sql.raw(
-//     `CREATE TABLE "${TARGET_SYNC_SCHEMA}".intervals_expected AS SELECT * FROM "${TARGET_SYNC_SCHEMA}".intervals`,
-//   ),
-// );
+await db.execute(
+  sql.raw(
+    `CREATE TABLE "${TARGET_SYNC_SCHEMA}".intervals_expected AS SELECT * FROM "${TARGET_SYNC_SCHEMA}".intervals`,
+  ),
+);
 
 for (const interval of await db.select().from(INTERVALS)) {
   const blocks: [number, number] = JSON.parse(interval.blocks.slice(1, -1));
@@ -134,8 +138,9 @@ for (const interval of await db.select().from(INTERVALS)) {
 
 process.env.DATABASE_SCHEMA = TARGET_SCHEMA;
 process.env.DATABASE_URL = CONNECTION_STRING;
+process.env.PONDER_TELEMETRY_DISABLED = "true";
 
-const kill = await start({
+const kill = await debug({
   cliOptions: {
     root: APP_DIR,
     command: "start",
