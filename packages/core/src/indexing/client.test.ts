@@ -1,3 +1,9 @@
+import {
+  deployErc20,
+  deployMulticall,
+  deployRevert,
+  mintErc20,
+} from "@/_test/actions.js";
 import { ALICE } from "@/_test/constants.js";
 import { erc20ABI, revertABI } from "@/_test/generated.js";
 import {
@@ -7,12 +13,6 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import {
-  deployErc20,
-  deployMulticall,
-  deployRevert,
-  mintErc20,
-} from "@/_test/simulate.js";
 import { getChain, publicClient } from "@/_test/utils.js";
 import type { LogEvent } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";

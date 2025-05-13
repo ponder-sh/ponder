@@ -1,3 +1,4 @@
+import { deployErc20, mintErc20 } from "@/_test/actions.js";
 import { ALICE } from "@/_test/constants.js";
 import {
   setupCleanup,
@@ -6,7 +7,6 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { setupAnvil } from "@/_test/setup.js";
-import { deployErc20, mintErc20 } from "@/_test/simulate.js";
 import {
   getBlocksConfigAndIndexingFunctions,
   getChain,

@@ -1,3 +1,9 @@
+import {
+  createPair,
+  deployErc20,
+  deployFactory,
+  mintErc20,
+} from "@/_test/actions.js";
 import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
@@ -7,12 +13,6 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import {
-  createPair,
-  deployErc20,
-  deployFactory,
-  mintErc20,
-} from "@/_test/simulate.js";
 import {
   getBlocksConfigAndIndexingFunctions,
   getChain,

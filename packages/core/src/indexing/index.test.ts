@@ -1,3 +1,4 @@
+import { deployErc20, deployMulticall, mintErc20 } from "@/_test/actions.js";
 import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
@@ -7,7 +8,6 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { deployErc20, deployMulticall, mintErc20 } from "@/_test/simulate.js";
 import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
 import { onchainTable } from "@/drizzle/onchain.js";

@@ -1,13 +1,13 @@
 import path from "node:path";
+import { deployFactory } from "@/_test/actions.js";
+import { createPair } from "@/_test/actions.js";
+import { swapPair } from "@/_test/actions.js";
 import { ALICE } from "@/_test/constants.js";
 import {
   setupAnvil,
   setupCommon,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { deployFactory } from "@/_test/simulate.js";
-import { createPair } from "@/_test/simulate.js";
-import { swapPair } from "@/_test/simulate.js";
 import { getFreePort, waitForIndexedBlock } from "@/_test/utils.js";
 import { start } from "@/bin/commands/start.js";
 import { createClient } from "@ponder/client";

@@ -1,11 +1,11 @@
 import path from "node:path";
+import { deployErc20, mintErc20 } from "@/_test/actions.js";
 import { ALICE } from "@/_test/constants.js";
 import {
   setupAnvil,
   setupCommon,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { deployErc20, mintErc20 } from "@/_test/simulate.js";
 import { getFreePort, waitForIndexedBlock } from "@/_test/utils.js";
 import { start } from "@/bin/commands/start.js";
 import { createClient } from "@ponder/client";

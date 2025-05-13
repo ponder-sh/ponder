@@ -1,6 +1,3 @@
-import { ALICE, BOB } from "@/_test/constants.js";
-import { erc20ABI } from "@/_test/generated.js";
-import { setupAnvil, setupCommon } from "@/_test/setup.js";
 import {
   createPair,
   deployErc20,
@@ -8,7 +5,10 @@ import {
   mintErc20,
   transferErc20,
   transferEth,
-} from "@/_test/simulate.js";
+} from "@/_test/actions.js";
+import { ALICE, BOB } from "@/_test/constants.js";
+import { erc20ABI } from "@/_test/generated.js";
+import { setupAnvil, setupCommon } from "@/_test/setup.js";
 import {
   getAccountsConfigAndIndexingFunctions,
   getBlocksConfigAndIndexingFunctions,
