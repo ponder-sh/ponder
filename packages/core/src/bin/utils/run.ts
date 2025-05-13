@@ -511,45 +511,46 @@ export async function run({
   });
 
   if (namespaceBuild.viewsSchema) {
-    await database.qb.drizzle.execute(
-      sql.raw(`CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.viewsSchema}"`),
-    );
+    await database.wrap({ method: "create-views" }, async () => {
+      await database.qb.drizzle.execute(
+        sql.raw(`CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.viewsSchema}"`),
+      );
 
-    const tables = Object.values(schemaBuild.schema).filter(
-      (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
-    );
+      const tables = Object.values(schemaBuild.schema).filter(
+        (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
+      );
 
-    for (const table of tables) {
+      for (const table of tables) {
+        await database.qb.drizzle.execute(
+          sql.raw(
+            `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
+          ),
+        );
+      }
+
+      common.logger.info({
+        service: "app",
+        msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
+      });
+
       await database.qb.drizzle.execute(
         sql.raw(
-          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
+          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_meta"`,
         ),
       );
-    }
 
-    common.logger.info({
-      service: "create-views",
-      msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
-    });
+      await database.qb.drizzle.execute(
+        sql.raw(
+          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_status" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_status"`,
+        ),
+      );
 
-    await database.qb.drizzle.execute(
-      sql.raw(
-        `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_meta"`,
-      ),
-    );
+      const trigger = `status_${namespaceBuild.viewsSchema}_trigger`;
+      const notification = "status_notify()";
+      const channel = `${namespaceBuild.viewsSchema}_status_channel`;
 
-    await database.qb.drizzle.execute(
-      sql.raw(
-        `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_status" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_status"`,
-      ),
-    );
-
-    const trigger = `status_${namespaceBuild.viewsSchema}_trigger`;
-    const notification = "status_notify()";
-    const channel = `${namespaceBuild.viewsSchema}_status_channel`;
-
-    await database.qb.drizzle.execute(
-      sql.raw(`
+      await database.qb.drizzle.execute(
+        sql.raw(`
   CREATE OR REPLACE FUNCTION "${namespaceBuild.viewsSchema}".${notification}
   RETURNS TRIGGER
   LANGUAGE plpgsql
@@ -559,16 +560,17 @@ export async function run({
   RETURN NULL;
   END;
   $$;`),
-    );
+      );
 
-    await database.qb.drizzle.execute(
-      sql.raw(`
+      await database.qb.drizzle.execute(
+        sql.raw(`
   CREATE OR REPLACE TRIGGER "${trigger}"
   AFTER INSERT OR UPDATE OR DELETE
   ON "${namespaceBuild.schema}"._ponder_status
   FOR EACH STATEMENT
   EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
-    );
+      );
+    });
   }
 
   await database.createIndexes();
