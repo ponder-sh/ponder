@@ -22,6 +22,7 @@ export type SimParams = {
   ETH_GET_LOGS_RESPONSE_LIMIT: number;
   ETH_GET_LOGS_BLOCK_LIMIT: number;
   REALTIME_REORG_RATE: number;
+  REALTIME_DEEP_REORG_RATE: number;
   REALTIME_FAST_FORWARD_RATE: number;
   REALTIME_DELAY_RATE: number;
 };

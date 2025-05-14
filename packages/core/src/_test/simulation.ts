@@ -569,6 +569,7 @@ export const realtimeBlockEngine = (
   params: {
     SEED: string;
     REALTIME_REORG_RATE: number;
+    REALTIME_DEEP_REORG_RATE: number;
     REALTIME_FAST_FORWARD_RATE: number;
     REALTIME_DELAY_RATE: number;
   },
@@ -735,8 +736,6 @@ export const realtimeBlockEngine = (
       // @ts-ignore
       block.transactions = transactions.map(decodeTransaction);
 
-      blocksByHash.get(chainId)!.set(block.hash!, blockNumber);
-
       // @ts-ignore
       block = sanitizeLogsBloom(db, chainId, block as RpcBlock);
 
@@ -784,8 +783,7 @@ export const realtimeBlockEngine = (
 
     let block = blockPerChain.get(chainId!)!;
 
-    const r = random();
-    if (r < params.REALTIME_REORG_RATE) {
+    if (random() < params.REALTIME_REORG_RATE) {
       blockPerChain.set(chainId!, block);
 
       const hash = `0x${crypto.randomBytes(32).toString("hex")}` as Hash;
@@ -794,6 +792,15 @@ export const realtimeBlockEngine = (
       } else {
         block = { ...block, hash };
       }
+    } else if (random() < params.REALTIME_DEEP_REORG_RATE) {
+      // Note: another way to trigger a deep reorg is for the next block to be way in the past.
+      const nextBlock = await getBlock(
+        chainId!,
+        hexToNumber(block.number!) + 1,
+      );
+
+      nextBlock.parentHash = block.parentHash;
+      blockPerChain.set(chainId!, nextBlock);
     } else {
       blockPerChain.set(
         chainId!,
