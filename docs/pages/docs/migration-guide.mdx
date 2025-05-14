@@ -17,8 +17,11 @@ Introduced a new `chains` property in `ponder.config.ts`. This replaces the `net
 
 - `networks` is renamed to `chains`
 - `chainId` is renamed to `id`
+- `rpc` replaces `transport`. `rpc` accepts type `string | string[] | viem.Transport`.
 
-The `rpc` property replaces `transport`. `rpc` accepts type `string | string[] | viem.Transport`. When multiple RPC URLS are provided, Ponder load balances across them.
+<Callout type="info">
+  When multiple RPC URLS are provided, Ponder load balances across them.
+</Callout>
 
 <div className="code-columns">
 
