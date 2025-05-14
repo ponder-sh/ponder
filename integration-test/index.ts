@@ -9,6 +9,7 @@ import {
   debug,
 } from "../packages/core/src/bin/commands/debug.js";
 import { getChunks } from "../packages/core/src/utils/interval.js";
+import { promiseWithResolvers } from "../packages/core/src/utils/promiseWithResolvers.js";
 
 // inputs
 const APP_DIR = "./apps/reference-erc20";
@@ -151,6 +152,8 @@ process.env.DATABASE_SCHEMA = TARGET_SCHEMA;
 process.env.DATABASE_URL = CONNECTION_STRING;
 process.env.PONDER_TELEMETRY_DISABLED = "true";
 
+const pwr = promiseWithResolvers<void>();
+
 const kill = await debug({
   cliOptions: {
     root: APP_DIR,
@@ -162,37 +165,35 @@ const kill = await debug({
   },
   params: SIM_PARAMS,
   connectionString: CONNECTION_STRING,
+  onReady: () => {},
+  onComplete: () => {
+    pwr.resolve();
+  },
 });
 
 // stop when no more events are possible: historical end or realtime finalized
 
-while (true) {
-  try {
-    const response = await fetch("http://localhost:42069/ready");
-    if (response.status === 200) break;
-  } catch {}
-  await new Promise((resolve) => setTimeout(resolve, 50));
-}
-
-await new Promise((resolve) => setTimeout(resolve, 25_000));
-
+await pwr.promise;
 console.log("KILLING");
-
 await kill!();
 
-// const schema = await import(`./${APP_DIR}/ponder.schema.ts`);
-// for (const key of Object.keys(schema)) {
-//   if (is(schema[key], Table)) {
-//     const table = schema[key] as Table;
-//     const tableName = getTableName(table);
+console.log("COMPARING");
 
-//     await compareTables(
-//       db,
-//       `"${APP_ID}_expected"."${tableName}"`,
-//       `"${TARGET_SCHEMA}"."${tableName}"`,
-//     );
-//   }
-// }
+const schema = await import(`./${APP_DIR}/ponder.schema.ts`);
+for (const key of Object.keys(schema)) {
+  if (is(schema[key], Table)) {
+    const table = schema[key] as Table;
+    const tableName = getTableName(table);
+
+    await compareTables(
+      db,
+      `"${APP_ID}_expected"."${tableName}"`,
+      `"${TARGET_SCHEMA}"."${tableName}"`,
+    );
+  }
+}
+
+console.log("CLEANUP");
 
 await db.execute(sql.raw(`DROP SCHEMA IF EXISTS "${TARGET_SCHEMA}" CASCADE`));
 await db.execute(

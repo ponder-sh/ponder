@@ -33,10 +33,14 @@ export async function debug({
   cliOptions,
   params,
   connectionString,
+  onReady,
+  onComplete,
 }: {
   cliOptions: CliOptions;
   params: SimParams;
   connectionString?: string;
+  onReady: () => void;
+  onComplete: () => void;
 }) {
   const options = buildOptions({ cliOptions });
 
@@ -229,7 +233,7 @@ export async function debug({
       request: rpc.request,
       interval: [
         hexToNumber(indexingBuildResult.result.finalizedBlocks[i]!.number),
-        end,
+        end + chain.finalityBlockCount * 2,
       ],
     });
 
@@ -276,6 +280,8 @@ export async function debug({
     onReloadableError: () => {
       exit({ reason: "Encountered indexing error", code: 1 });
     },
+    onReady,
+    onComplete,
   });
 
   runServer({

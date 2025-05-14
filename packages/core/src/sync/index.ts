@@ -242,6 +242,7 @@ export const createSync = async (params: {
   syncStore: SyncStore;
   onRealtimeEvent(event: RealtimeEvent): Promise<void>;
   onFatalError(error: Error): void;
+  onComplete: () => void;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   ordering: "omnichain" | "multichain";
 }): Promise<Sync> => {
@@ -251,6 +252,7 @@ export const createSync = async (params: {
       syncProgress: SyncProgress;
       historicalSync: HistoricalSync;
       realtimeSync: RealtimeSync;
+      isComplete: boolean;
     }
   >();
 
@@ -813,9 +815,14 @@ export const createSync = async (params: {
                 realtimeSync,
               });
 
-              if (isSyncFinalized(syncProgress) && isSyncEnd(syncProgress)) {
+              if (
+                isSyncFinalized(syncProgress) &&
+                isSyncEnd(syncProgress) &&
+                hexToNumber(syncProgress.finalized.number) >
+                  hexToNumber(syncProgress.end!.number)
+              ) {
                 // The realtime service can be killed if `endBlock` is
-                // defined has become finalized.
+                // defined and has become finalized.
 
                 params.common.metrics.ponder_sync_is_realtime.set(
                   { chain: chain.name },
@@ -830,6 +837,15 @@ export const createSync = async (params: {
                   msg: `Killing '${chain.name}' live indexing because the end block ${hexToNumber(syncProgress.end!.number)} has been finalized`,
                 });
                 realtimeSync.kill();
+                perChainSync.get(chain)!.isComplete = true;
+
+                if (
+                  Array.from(perChainSync.values()).every(
+                    ({ isComplete }) => isComplete,
+                  )
+                ) {
+                  params.onComplete();
+                }
               }
             })
             .catch((error) => {
@@ -857,6 +873,7 @@ export const createSync = async (params: {
         syncProgress,
         historicalSync,
         realtimeSync,
+        isComplete: false,
       });
 
       const perChainOnRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
@@ -913,6 +930,8 @@ export const createSync = async (params: {
         const filters = sources.map(({ filter }) => filter);
 
         if (isSyncEnd(syncProgress)) {
+          perChainSync.get(chain)!.isComplete = true;
+
           params.common.metrics.ponder_sync_is_complete.set(
             { chain: chain.name },
             1,
@@ -973,6 +992,12 @@ export const createSync = async (params: {
 
           realtimeSync.start({ syncProgress, initialChildAddresses });
         }
+      }
+
+      if (
+        Array.from(perChainSync.values()).every(({ isComplete }) => isComplete)
+      ) {
+        params.onComplete();
       }
     },
     seconds,

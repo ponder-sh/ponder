@@ -252,6 +252,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
             buildQueue.clear();
             buildQueue.add({ status: "error", kind: "indexing", error });
           },
+          onReady: () => {},
+          onComplete: () => {},
         });
       } else {
         metrics.resetApiMetrics();

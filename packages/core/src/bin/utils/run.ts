@@ -33,8 +33,11 @@ export async function run({
   indexingBuild,
   database,
   crashRecoveryCheckpoint,
+
   onFatalError,
   onReloadableError,
+  onReady,
+  onComplete,
 }: {
   common: Common;
   preBuild: PreBuild;
@@ -44,6 +47,8 @@ export async function run({
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
+  onReady: () => void;
+  onComplete: () => void;
 }) {
   await database.migrateSync();
 
@@ -64,6 +69,7 @@ export async function run({
       return onRealtimeEvent(realtimeEvent);
     },
     onFatalError,
+    onComplete,
     crashRecoveryCheckpoint,
     ordering: preBuild.ordering,
   });
@@ -394,7 +400,12 @@ export async function run({
     db: database.qb.drizzle,
   });
 
+  await database.createIndexes();
+  await database.createTriggers();
+
   await database.setReady();
+
+  onReady();
 
   const realtimeIndexingStore = createRealtimeIndexingStore({
     common,
@@ -504,9 +515,6 @@ export async function run({
         never(event);
     }
   });
-
-  await database.createIndexes();
-  await database.createTriggers();
 
   await sync.startRealtime();
 

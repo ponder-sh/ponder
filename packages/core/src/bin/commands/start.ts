@@ -169,6 +169,8 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     onReloadableError: () => {
       exit({ reason: "Encountered indexing error", code: 1 });
     },
+    onReady: () => {},
+    onComplete: () => {},
   });
 
   runServer({
