@@ -149,7 +149,7 @@ import { createConfig, type ChainConfig } from "ponder";
 
 const mainnet = {
   id: 1,
-  rpc: process.env.PONDER_RPC_URL_1!,
+  rpc: process.env.PONDER_RPC_URL_1,
 } as const satisfies ChainConfig;
 
 export default createConfig({

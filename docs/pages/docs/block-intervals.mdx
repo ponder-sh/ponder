@@ -20,7 +20,7 @@ import { createConfig } from "ponder";
 
 export default createConfig({
   chains: {
-    mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1! },
+    mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1 },
   },
   blocks: {
     ChainlinkOracleUpdate: {
@@ -90,12 +90,12 @@ To find the block time of a specific chain, check the chain's documentation webs
 
 If you only need to index blocks from one chain, pass the chain name as a string to the `chain` field.
 
-```ts filename="ponder.config.ts" {7}
+```ts filename="ponder.config.ts" {9}
 import { createConfig } from "ponder";
 
 export default createConfig({
   chains: {
-    mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1! },
+    mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1 },
   },
   blocks: {
     ChainlinkOracleUpdate: {
@@ -116,8 +116,8 @@ import { createConfig } from "ponder";
 
 export default createConfig({
   chains: {
-    mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1! },
-    optimism: { id: 10, rpc: process.env.PONDER_RPC_URL_10! },
+    mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1 },
+    optimism: { id: 10, rpc: process.env.PONDER_RPC_URL_10 },
   },
   blocks: {
     ChainlinkOracleUpdate: {
@@ -161,33 +161,3 @@ The optional `startBlock` and `endBlock` options specify the block range to inde
 
 If `endBlock` is defined, no events will be indexed after that block number. This option is useful if you're only interested in a slice of historical data, or to enable faster feedback loops during development where it's not necessary to index the entire history.
 
-## Block range
-
-The `startBlock` and `endBlock` options specify the block range that this interval should run in.
-
-| field          |               type                |                                                                 |
-| :------------- | :-------------------------------: | :-------------------------------------------------------------- |
-| **startBlock** | `number \| "latest" \| undefined` | **Default: `0`**. Block number or tag to start indexing.        |
-| **endBlock**   | `number \| "latest" \| undefined` | **Default: `undefined`**. Block number or tag to stop indexing. |
-
-The `"latest"{:ts}` option fetches the latest block during the build step and uses that block number. Use this option with `startBlock` to only index in realtime, or `endBlock` to only index historical data.
-
-When `endBlock` is `undefined{:ts}`, indexing will continue indefinitely in realtime. Set `endBlock` to index only a slice of history, or to enable faster feedback loops during development.
-
-```ts filename="ponder.config.ts" {8}
-import { createConfig } from "ponder";
-
-export default createConfig({
-  chains: {
-    mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1! },
-  },
-  blocks: {
-    ChainlinkOracleUpdate: {
-      chain: "mainnet",
-      interval: 60 / 12, // Every 60 seconds
-      startBlock: 19600000,
-      endBlock: 19700000,
-    },
-  },
-});
-```

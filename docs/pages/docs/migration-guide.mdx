@@ -7,6 +7,96 @@ import { FileTree, Steps, Tabs, Callout } from "nextra/components";
 
 # Migration guide
 
+## 0.11
+
+### Breaking changes
+
+#### Removed `networks` in `ponder.config.ts`
+
+Introduced a new `chains` property in `ponder.config.ts`. This replaces the `networks` property.
+
+- `networks` is renamed to `chains`
+- `chainId` is renamed to `id`
+
+The `rpc` property replaces `transport`. `rpc` accepts type `string | string[] | viem.Transport`. When multiple RPC URLS are provided, Ponder load balances across them.
+
+<div className="code-columns">
+
+```ts filename="ponder.config.ts (<=0.10)"
+import { createConfig } from "ponder";
+import { http } from "viem";
+
+export default createConfig({
+  networks: {
+    mainnet: {
+      chainId: 1,
+      transport: http("https://eth-mainnet.g.alchemy.com/v2/your-api-key"),
+    },
+  },
+  contracts: {
+    Erc20: {
+      network: "mainnet",
+      // ... more config
+    }
+  }
+});
+```
+
+```ts filename="ponder.config.ts (0.11)" {4-9, 12}
+import { createConfig } from "ponder";
+
+export default createConfig({
+  chains: {
+    mainnet: {
+      id: 1,
+      rpc: "https://eth-mainnet.g.alchemy.com/v2/your-api-key",
+    },
+  },
+  contracts: {
+    Erc20: {
+      chain: "mainnet",
+      // ... more config
+    }
+  }
+});
+```
+
+</div>
+
+#### Removed `context.network`
+
+`context.network` is removed. Use `context.chain` instead.
+
+#### Default `multichain` ordering
+
+Multichain ordering is now the default. Read more about ordering [here](/docs/api-reference/config#ordering).
+
+#### `publicClients`
+
+The [`publicClients`](/docs/api-reference/api-functions#send-rpc-requests) object is now keyed by chain name rather than chain ID.
+
+#### `/status` response
+
+The response type for the `/status` endpoint has been updated.
+
+```diff
+type Status = {
+  [chainName: string]: {
++   id: number;
+-   ready: boolean;    
+    block: { number: number; timestamp: number };
+  };
+};
+```
+
+#### `_ponder_status` table
+
+The `_ponder_status` table was replaced with the `_ponder_checkpoint` table.
+
+### New features
+
+#### `ponder db create-views` and `ponder start --views-schema <schema>`
+
 ## 0.10
 
 ### Breaking changes

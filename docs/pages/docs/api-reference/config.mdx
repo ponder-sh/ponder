@@ -33,7 +33,7 @@ The `ordering` field specifies how events across multiple chains should be order
 
 | field        |             type              |                                                      |
 | :----------- | :---------------------------: | :--------------------------------------------------- |
-| **ordering** | `"omnichain" \| "multichain"` | **Default:** `"omnichain"`. Event ordering strategy. |
+| **ordering** | `"omnichain" \| "multichain"` | **Default:** `"multichain"`. Event ordering strategy.|
 
 {/* prettier-ignore */}
 ```ts filename="ponder.config.ts" {4}
@@ -50,7 +50,7 @@ export default createConfig({
 
 The omnichain and multichain ordering strategies offer different guarantees. Multichain ordering is generally faster, but will fail or produce a non-deterministic database state if your indexing logic attempts to access the same database row(s) from multiple chains.
 
-|                                      | Omnichain (default)                                                         | Multichain                                                 |
+|                                      | Omnichain                                                                   | Multichain (default)                                       |
 | :----------------------------------- | :-------------------------------------------------------------------------- | :--------------------------------------------------------- |
 | Event order for any individual chain | Deterministic, by EVM execution                                             | Deterministic, by EVM execution                            |
 | Event order across chains            | Deterministic, by (block timestamp, chain ID, block number)                 | Non-deterministic, no ordering guarantee                   |
@@ -84,7 +84,7 @@ export default createConfig({
   chains: {
     mainnet: {
       id: 1,
-      rpc: process.env.PONDER_RPC_URL_1!,
+      rpc: process.env.PONDER_RPC_URL_1,
     },
   },
   contracts: {
@@ -299,7 +299,7 @@ export default createConfig({
   chains: {
     mainnet: {
       id: 1,
-      rpc: process.env.PONDER_RPC_URL_1!,
+      rpc: process.env.PONDER_RPC_URL_1,
     },
   },
   contracts: {
@@ -327,7 +327,7 @@ export default createConfig({
   chains: {
     mainnet: {
       id: 1,
-      rpc: process.env.PONDER_RPC_URL_1!,
+      rpc: process.env.PONDER_RPC_URL_1,
     },
   },
   contracts: {

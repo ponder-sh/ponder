@@ -76,9 +76,9 @@ style Z2 fill:#f00,color:#fff
 
 The `_ponder_meta` table tracks the state of an instance running in a specific database schema. It stores the `build_id`, indexing checkpoint, and table names of the current instance, and uses a heartbeat locking mechanism to support the lifecycle logic described above.
 
-### Status Table
+### Checkpoint Table
 
-The `_ponder_status` table tracks the indexing progress of each chain.
+The `_ponder_checkpoint` table tracks the indexing progress of each chain.
 
 ### Build ID and crash recovery
 

@@ -145,11 +145,11 @@ import { Hono } from "hono";
 
 const app = new Hono();
 
-app.get("/account/:chainId/:address", async (c) => {
-  const chainId = c.req.param("chainId");
+app.get("/account/:chain/:address", async (c) => {
+  const chain = c.req.param("chain");
   const address = c.req.param("address");
 
-  const balance = await publicClients[chainId].getBalance({ address });
+  const balance = await publicClients[chain].getBalance({ address });
 
   const account = await db.query.accounts.findFirst({
     where: eq(schema.accounts.address, address),
