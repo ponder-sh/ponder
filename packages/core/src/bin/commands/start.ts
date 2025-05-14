@@ -160,6 +160,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     common,
     database,
     preBuild,
+    namespaceBuild: namespaceResult.result,
     schemaBuild,
     indexingBuild: indexingBuildResult.result,
     crashRecoveryCheckpoint,

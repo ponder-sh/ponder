@@ -131,6 +131,11 @@ export const TABLES = pgSchema("information_schema").table("tables", (t) => ({
   table_type: t.text().notNull(),
 }));
 
+export const VIEWS = pgSchema("information_schema").table("views", (t) => ({
+  table_name: t.text().notNull(),
+  table_schema: t.text().notNull(),
+}));
+
 export type PonderApp = {
   version: string;
   build_id: string;
@@ -162,22 +167,22 @@ type QueryBuilder = {
   drizzleReadonly: Drizzle<Schema>;
 };
 
-export const getPonderMetaTable = (namespace: NamespaceBuild) => {
-  if (namespace === "public") {
+export const getPonderMetaTable = (schema: string) => {
+  if (schema === "public") {
     return pgTable("_ponder_meta", (t) => ({
       key: t.text().primaryKey().$type<"app">(),
       value: t.jsonb().$type<PonderApp>().notNull(),
     }));
   }
 
-  return pgSchema(namespace).table("_ponder_meta", (t) => ({
+  return pgSchema(schema).table("_ponder_meta", (t) => ({
     key: t.text().primaryKey().$type<"app">(),
     value: t.jsonb().$type<PonderApp>().notNull(),
   }));
 };
 
-export const getPonderCheckpointTable = (namespace: NamespaceBuild) => {
-  if (namespace === "public") {
+export const getPonderCheckpointTable = (schema: string) => {
+  if (schema === "public") {
     return pgTable("_ponder_checkpoint", (t) => ({
       chainName: t.text().primaryKey(),
       chainId: t.bigint({ mode: "number" }).notNull(),
@@ -186,7 +191,7 @@ export const getPonderCheckpointTable = (namespace: NamespaceBuild) => {
     }));
   }
 
-  return pgSchema(namespace).table("_ponder_checkpoint", (t) => ({
+  return pgSchema(schema).table("_ponder_checkpoint", (t) => ({
     chainName: t.text().primaryKey(),
     chainId: t.bigint({ mode: "number" }).notNull(),
     safeCheckpoint: t.varchar({ length: 75 }).notNull(),
@@ -207,8 +212,8 @@ export const createDatabase = async ({
 }): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
 
-  const PONDER_META = getPonderMetaTable(namespace);
-  const PONDER_CHECKPOINT = getPonderCheckpointTable(namespace);
+  const PONDER_META = getPonderMetaTable(namespace.schema);
+  const PONDER_CHECKPOINT = getPonderCheckpointTable(namespace.schema);
 
   ////////
   // Create schema, drivers, roles, and query builders
@@ -219,10 +224,17 @@ export const createDatabase = async ({
 
   const dialect = preBuild.databaseConfig.kind;
 
-  common.logger.info({
-    service: "database",
-    msg: `Using database schema '${namespace}'`,
-  });
+  if (namespace.viewsSchema) {
+    common.logger.info({
+      service: "database",
+      msg: `Using database schema '${namespace.schema}' and views schema '${namespace.viewsSchema}'`,
+    });
+  } else {
+    common.logger.info({
+      service: "database",
+      msg: `Using database schema '${namespace.schema}'`,
+    });
+  }
 
   if (dialect === "pglite" || dialect === "pglite_test") {
     driver = {
@@ -246,8 +258,10 @@ export const createDatabase = async ({
       }
     });
 
-    await driver.instance.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
-    await driver.instance.query(`SET search_path TO "${namespace}"`);
+    await driver.instance.query(
+      `CREATE SCHEMA IF NOT EXISTS "${namespace.schema}"`,
+    );
+    await driver.instance.query(`SET search_path TO "${namespace.schema}"`);
 
     qb = {
       sync: drizzlePglite((driver as PGliteDriver).instance, {
@@ -277,7 +291,7 @@ export const createDatabase = async ({
       internal: createPool(
         {
           ...preBuild.databaseConfig.poolConfig,
-          application_name: `${namespace}_internal`,
+          application_name: `${namespace.schema}_internal`,
           max: internalMax,
           statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
         },
@@ -286,7 +300,7 @@ export const createDatabase = async ({
       user: createPool(
         {
           ...preBuild.databaseConfig.poolConfig,
-          application_name: `${namespace}_user`,
+          application_name: `${namespace.schema}_user`,
           max: userMax,
         },
         common.logger,
@@ -294,11 +308,11 @@ export const createDatabase = async ({
       readonly: createReadonlyPool(
         {
           ...preBuild.databaseConfig.poolConfig,
-          application_name: `${namespace}_readonly`,
+          application_name: `${namespace.schema}_readonly`,
           max: readonlyMax,
         },
         common.logger,
-        namespace,
+        namespace.schema,
       ),
       sync: createPool(
         {
@@ -311,7 +325,9 @@ export const createDatabase = async ({
       listen: undefined,
     } as PostgresDriver;
 
-    await driver.internal.query(`CREATE SCHEMA IF NOT EXISTS "${namespace}"`);
+    await driver.internal.query(
+      `CREATE SCHEMA IF NOT EXISTS "${namespace.schema}"`,
+    );
 
     qb = {
       sync: drizzleNodePg(driver.sync, {
@@ -664,15 +680,15 @@ export const createDatabase = async ({
         async () => {
           await qb.drizzle.execute(
             sql.raw(`
-CREATE TABLE IF NOT EXISTS "${namespace}"."_ponder_meta" (
-  "key" text PRIMARY KEY,
-  "value" jsonb NOT NULL
+CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_meta" (
+  "key" TEXT PRIMARY KEY,
+  "value" JSONB NOT NULL
 )`),
           );
 
           await qb.drizzle.execute(
             sql.raw(`
-CREATE TABLE IF NOT EXISTS "${namespace}"."_ponder_checkpoint" (
+CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
   "chain_name" text PRIMARY KEY,
   "chain_id" integer NOT NULL,
   "safe_checkpoint" varchar(75) NOT NULL,
@@ -682,11 +698,11 @@ CREATE TABLE IF NOT EXISTS "${namespace}"."_ponder_checkpoint" (
 
           const trigger = "status_trigger";
           const notification = "status_notify()";
-          const channel = `${namespace}_status_channel`;
+          const channel = `${namespace.schema}_status_channel`;
 
           await qb.drizzle.execute(
             sql.raw(`
-CREATE OR REPLACE FUNCTION "${namespace}".${notification}
+CREATE OR REPLACE FUNCTION "${namespace.schema}".${notification}
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
@@ -701,9 +717,9 @@ $$;`),
             sql.raw(`
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
-ON "${namespace}"._ponder_checkpoint
+ON "${namespace.schema}"._ponder_checkpoint
 FOR EACH STATEMENT
-EXECUTE PROCEDURE "${namespace}".${notification};`),
+EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
           );
         },
       );
@@ -787,26 +803,26 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
               for (const table of previousApp.table_names) {
                 await tx.execute(
                   sql.raw(
-                    `DROP TABLE IF EXISTS "${namespace}"."${table}" CASCADE`,
+                    `DROP TABLE IF EXISTS "${namespace.schema}"."${table}" CASCADE`,
                   ),
                 );
                 await tx.execute(
                   sql.raw(
-                    `DROP TABLE IF EXISTS "${namespace}"."${sqlToReorgTableName(table)}" CASCADE`,
+                    `DROP TABLE IF EXISTS "${namespace.schema}"."${sqlToReorgTableName(table)}" CASCADE`,
                   ),
                 );
               }
               for (const enumName of schemaBuild.statements.enums.json) {
                 await tx.execute(
                   sql.raw(
-                    `DROP TYPE IF EXISTS "${namespace}"."${enumName.name}"`,
+                    `DROP TYPE IF EXISTS "${namespace.schema}"."${enumName.name}"`,
                   ),
                 );
               }
 
               await tx.execute(
                 sql.raw(
-                  `TRUNCATE TABLE "${namespace}"."${getTableName(PONDER_CHECKPOINT)}" CASCADE`,
+                  `TRUNCATE TABLE "${namespace.schema}"."${getTableName(PONDER_CHECKPOINT)}" CASCADE`,
                 ),
               );
 
@@ -828,7 +844,7 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
             // Note: ponder <=0.8 will evaluate this as true because the version is undefined
             if (previousApp.version !== VERSION) {
               const error = new NonRetryableError(
-                `Schema '${namespace}' was previously used by a Ponder app with a different minor version. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/getting-started/database#database-schema`,
+                `Schema '${namespace.schema}' was previously used by a Ponder app with a different minor version. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/getting-started/database#database-schema`,
               );
               error.stack = undefined;
               throw error;
@@ -839,7 +855,7 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
               previousApp.build_id !== buildId
             ) {
               const error = new NonRetryableError(
-                `Schema '${namespace}' was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/getting-started/database#database-schema`,
+                `Schema '${namespace.schema}' was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/getting-started/database#database-schema`,
               );
               error.stack = undefined;
               throw error;
@@ -858,7 +874,7 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
 
             common.logger.info({
               service: "database",
-              msg: `Detected crash recovery for build '${buildId}' in schema '${namespace}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
+              msg: `Detected crash recovery for build '${buildId}' in schema '${namespace.schema}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
             });
 
             const checkpoints = await tx.select().from(PONDER_CHECKPOINT);
@@ -880,7 +896,7 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
             for (const table of tables) {
               await tx.execute(
                 sql.raw(
-                  `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace}"."${getTableName(table)}"`,
+                  `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
                 ),
               );
             }
@@ -890,12 +906,12 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
             for (const indexStatement of schemaBuild.statements.indexes.json) {
               await tx.execute(
                 sql.raw(
-                  `DROP INDEX IF EXISTS "${namespace}"."${indexStatement.data.name}"`,
+                  `DROP INDEX IF EXISTS "${namespace.schema}"."${indexStatement.data.name}"`,
                 ),
               );
               common.logger.debug({
                 service: "database",
-                msg: `Dropped index '${indexStatement.data.name}' in schema '${namespace}'`,
+                msg: `Dropped index '${indexStatement.data.name}' in schema '${namespace.schema}'`,
               });
             }
 
@@ -919,11 +935,11 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
         const duration = result.expiry - Date.now();
         common.logger.warn({
           service: "database",
-          msg: `Schema '${namespace}' is locked by a different Ponder app`,
+          msg: `Schema '${namespace.schema}' is locked by a different Ponder app`,
         });
         common.logger.warn({
           service: "database",
-          msg: `Waiting ${formatEta(duration)} for lock on schema '${namespace} to expire...`,
+          msg: `Waiting ${formatEta(duration)} for lock on schema '${namespace.schema}' to expire...`,
         });
 
         await wait(duration);
@@ -931,7 +947,7 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
         result = await tryAcquireLockAndMigrate();
         if (result.status === "locked") {
           const error = new NonRetryableError(
-            `Failed to acquire lock on schema '${namespace}'. A different Ponder app is actively using this schema.`,
+            `Failed to acquire lock on schema '${namespace.schema}'. A different Ponder app is actively using this schema.`,
           );
           error.stack = undefined;
           throw error;
@@ -987,17 +1003,17 @@ EXECUTE PROCEDURE "${namespace}".${notification};`),
 
             await qb.drizzle.execute(
               sql.raw(`
-CREATE OR REPLACE FUNCTION "${namespace}".${getTableNames(table).triggerFn}
+CREATE OR REPLACE FUNCTION "${namespace.schema}".${getTableNames(table).triggerFn}
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    INSERT INTO "${namespace}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
     VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${MAX_CHECKPOINT_STRING}');
   ELSIF TG_OP = 'UPDATE' THEN
-    INSERT INTO "${namespace}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
     VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${MAX_CHECKPOINT_STRING}');
   ELSIF TG_OP = 'DELETE' THEN
-    INSERT INTO "${namespace}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
     VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${MAX_CHECKPOINT_STRING}');
   END IF;
   RETURN NULL;
@@ -1008,8 +1024,8 @@ $$ LANGUAGE plpgsql`),
             await qb.drizzle.execute(
               sql.raw(`
 CREATE OR REPLACE TRIGGER "${getTableNames(table).trigger}"
-AFTER INSERT OR UPDATE OR DELETE ON "${namespace}"."${getTableName(table)}"
-FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
+AFTER INSERT OR UPDATE OR DELETE ON "${namespace.schema}"."${getTableName(table)}"
+FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).triggerFn};
 `),
             );
           }
@@ -1023,7 +1039,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
           for (const table of tables) {
             await qb.drizzle.execute(
               sql.raw(
-                `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace}"."${getTableName(table)}"`,
+                `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
               ),
             );
           }
@@ -1073,7 +1089,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace}".${getTableNames(table).triggerFn};
             const result = await tx.execute(
               sql.raw(`
 WITH reverted1 AS (
-  DELETE FROM "${namespace}"."${getTableName(getReorgTable(table))}"
+  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE checkpoint > '${checkpoint}' RETURNING *
 ), reverted2 AS (
   SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1
@@ -1086,7 +1102,7 @@ WITH reverted1 AS (
   ON ${primaryKeyColumns.map(({ sql }) => `reverted2."${sql}" = reverted1."${sql}"`).join("AND ")}
   AND reverted2.operation_id = reverted1.operation_id
 ), inserted AS (
-  DELETE FROM "${namespace}"."${getTableName(table)}" as t
+  DELETE FROM "${namespace.schema}"."${getTableName(table)}" as t
   WHERE EXISTS (
     SELECT * FROM reverted3
     WHERE ${primaryKeyColumns.map(({ sql }) => `t."${sql}" = reverted3."${sql}"`).join("AND ")}
@@ -1094,7 +1110,7 @@ WITH reverted1 AS (
   )
   RETURNING *
 ), updated_or_deleted AS (
-  INSERT INTO  "${namespace}"."${getTableName(table)}"
+  INSERT INTO  "${namespace.schema}"."${getTableName(table)}"
   SELECT ${Object.values(getTableColumns(table))
     .map((column) => `"${getColumnCasing(column, "snake_case")}"`)
     .join(", ")} FROM reverted3

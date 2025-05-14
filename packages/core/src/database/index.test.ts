@@ -37,7 +37,10 @@ function createCheckpoint(checkpoint: Partial<Checkpoint>): string {
 test("migrate() succeeds with empty schema", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -83,7 +86,10 @@ test("migrate() with empty schema creates tables and enums", async (context) => 
 
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -111,7 +117,10 @@ test("migrate() with empty schema creates tables and enums", async (context) => 
 test("migrate() throws with schema used", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -127,7 +136,10 @@ test("migrate() throws with schema used", async (context) => {
 
   const databaseTwo = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -156,7 +168,10 @@ test("migrate() throws with schema used after waiting for lock", async (context)
 
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -169,7 +184,10 @@ test("migrate() throws with schema used after waiting for lock", async (context)
 
   const databaseTwo = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -191,7 +209,10 @@ test("migrate() throws with schema used after waiting for lock", async (context)
 test("migrate() succeeds with crash recovery", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -208,7 +229,10 @@ test("migrate() succeeds with crash recovery", async (context) => {
 
   const databaseTwo = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -240,7 +264,10 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
 
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -257,7 +284,10 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
 
   const databaseTwo = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -275,7 +305,10 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
 test("migrateSync()", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -300,7 +333,10 @@ test.skip("migrateSync() handles concurrent migrations", async (context) => {
 
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -327,7 +363,10 @@ test.skip("migrateSync() handles concurrent migrations", async (context) => {
 test("migrate() with crash recovery reverts rows", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -387,7 +426,10 @@ test("migrate() with crash recovery reverts rows", async (context) => {
 
   const databaseTwo = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -438,7 +480,10 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
 
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -472,7 +517,10 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
 
   const databaseTwo = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -497,7 +545,10 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
 
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -531,7 +582,10 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
 test("finalize()", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -603,7 +657,10 @@ test("createIndexes()", async (context) => {
 
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -625,7 +682,10 @@ test("createIndexes()", async (context) => {
 test("createTriggers()", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -668,7 +728,10 @@ test("createTriggers()", async (context) => {
 test("createTriggers() duplicate", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -688,7 +751,10 @@ test("createTriggers() duplicate", async (context) => {
 test("commitBlock()", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -736,7 +802,10 @@ test("commitBlock()", async (context) => {
 test("revert()", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -817,7 +886,10 @@ test("revert() with composite primary key", async (context) => {
 
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
