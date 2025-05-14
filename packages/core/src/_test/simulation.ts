@@ -37,11 +37,7 @@ const PONDER_RPC_METHODS = [
 ] as const;
 
 const shouldMockBlocks = false;
-const blocksByNumber = new Map<
-  number,
-  Map<number, { hash: Hash; timestamp: Hex }>
->();
-const blocksByHash = new Map<number, Map<Hash, number>>();
+const blocks = new Map<number, RpcBlock[]>();
 
 // TODO(kyle) add noise in responses like extra transactions, etc.
 
@@ -145,62 +141,62 @@ export const sim =
               );
 
             if (blocks.length === 0) {
-              if (shouldMockBlocks === false) {
-                result = await _request(body).then((block) =>
-                  sanitizeLogsBloom(db, chain!.id, block as RpcBlock),
-                );
-                break;
-              }
-
-              // Use block metadata to create a mock block.
-
-              const metadata = blocksByNumber
-                .get(chain!.id)!
-                .get(hexToNumber(body.params[0]));
-              const parentMetadata = blocksByNumber
-                .get(chain!.id)!
-                .get(hexToNumber(body.params[0]) - 1);
-
-              if (metadata === undefined) {
-                throw new Error(
-                  `Block metadata not found for block ${hexToNumber(body.params[0])}`,
-                );
-              }
-
-              if (parentMetadata === undefined) {
-                throw new Error(
-                  `Block metadata not found for block ${hexToNumber(body.params[0]) - 1}`,
-                );
-              }
-
-              result = {
-                number: body.params[0],
-                timestamp: metadata.timestamp,
-                hash: metadata.hash,
-                parentHash: parentMetadata.hash,
-                transactions: [],
-                logsBloom: zeroLogsBloom,
-                miner: zeroAddress,
-                gasLimit: "0x0",
-                gasUsed: "0x0",
-                baseFeePerGas: "0x0",
-                blobGasUsed: "0x0",
-                excessBlobGas: "0x0",
-                nonce: "0x0",
-                mixHash: "0x",
-                stateRoot: "0x",
-                receiptsRoot: "0x",
-                transactionsRoot: "0x",
-                difficulty: "0x0",
-                totalDifficulty: "0x0",
-                size: "0x0",
-                extraData: "0x",
-                sealFields: [],
-                uncles: [],
-                sha3Uncles: "0x",
-              } satisfies RpcBlock;
-
+              // if (shouldMockBlocks === false) {
+              result = await _request(body).then((block) =>
+                sanitizeLogsBloom(db, chain!.id, block as RpcBlock),
+              );
               break;
+              //   }
+
+              //   // Use block metadata to create a mock block.
+
+              //   const metadata = blocksByNumber
+              //     .get(chain!.id)!
+              //     .get(hexToNumber(body.params[0]));
+              //   const parentMetadata = blocksByNumber
+              //     .get(chain!.id)!
+              //     .get(hexToNumber(body.params[0]) - 1);
+
+              //   if (metadata === undefined) {
+              //     throw new Error(
+              //       `Block metadata not found for block ${hexToNumber(body.params[0])}`,
+              //     );
+              //   }
+
+              //   if (parentMetadata === undefined) {
+              //     throw new Error(
+              //       `Block metadata not found for block ${hexToNumber(body.params[0]) - 1}`,
+              //     );
+              //   }
+
+              //   result = {
+              //     number: body.params[0],
+              //     timestamp: metadata.timestamp,
+              //     hash: metadata.hash,
+              //     parentHash: parentMetadata.hash,
+              //     transactions: [],
+              //     logsBloom: zeroLogsBloom,
+              //     miner: zeroAddress,
+              //     gasLimit: "0x0",
+              //     gasUsed: "0x0",
+              //     baseFeePerGas: "0x0",
+              //     blobGasUsed: "0x0",
+              //     excessBlobGas: "0x0",
+              //     nonce: "0x0",
+              //     mixHash: "0x",
+              //     stateRoot: "0x",
+              //     receiptsRoot: "0x",
+              //     transactionsRoot: "0x",
+              //     difficulty: "0x0",
+              //     totalDifficulty: "0x0",
+              //     size: "0x0",
+              //     extraData: "0x",
+              //     sealFields: [],
+              //     uncles: [],
+              //     sha3Uncles: "0x",
+              //   } satisfies RpcBlock;
+
+              //   break;
             }
 
             const transactions = await db
@@ -239,27 +235,27 @@ export const sim =
               );
 
             if (blocks.length === 0) {
-              if (shouldMockBlocks === false) {
-                result = await _request(body);
-                break;
-              }
+              // if (shouldMockBlocks === false) {
+              result = await _request(body);
+              break;
+              // }
 
               // Complete the eth_getBlockByNumber by looking up the block hash and substituting
               // in the correct block number.
 
-              if (blocksByHash.has(body.params[0]) === false) {
-                throw new Error(
-                  `Invariant violation: block '${body.params[0]}' not found`,
-                );
-              }
+              // if (blocksByHash.has(body.params[0]) === false) {
+              //   throw new Error(
+              //     `Invariant violation: block '${body.params[0]}' not found`,
+              //   );
+              // }
 
-              const number = blocksByHash.get(chain!.id)!.get(body.params[0])!;
+              // const number = blocksByHash.get(chain!.id)!.get(body.params[0])!;
 
-              result = await request({
-                method: "eth_getBlockByNumber",
-                params: [toHex(number), true],
-              });
-              break;
+              // result = await request({
+              //   method: "eth_getBlockByNumber",
+              //   params: [toHex(number), true],
+              // });
+              // break;
             }
 
             const transactions = await db
@@ -576,8 +572,8 @@ export const realtimeBlockEngine = (
   connectionString?: string,
 ) => {
   const random = seedrandom(params.SEED);
-  const blockPerChain = new Map<number, RpcBlock>();
-  const finalizedPerChain = new Map<number, number>();
+  // const blockPerChain = new Map<number, RpcBlock>();
+  // const finalizedPerChain = new Map<number, number>();
   const db = connectionString
     ? drizzle(connectionString, {
         casing: "snake_case",
@@ -585,163 +581,47 @@ export const realtimeBlockEngine = (
       })
     : undefined;
 
-  for (const [id] of chains) {
-    blocksByNumber.set(id, new Map());
-    blocksByHash.set(id, new Map());
-  }
-
   // TODO(kyle) block not found error
 
-  const getBlock = async (
+  const getBlockDb = async (
+    chainId: number,
+    blockNumber: number,
+  ): Promise<RpcBlock | undefined> => {
+    if (db === undefined) return undefined;
+
+    const block = await db
+      .select()
+      .from(PONDER_SYNC_SCHEMA.blocks)
+      .where(
+        and(
+          eq(PONDER_SYNC_SCHEMA.blocks.chainId, BigInt(chainId)),
+          eq(PONDER_SYNC_SCHEMA.blocks.number, BigInt(blockNumber)),
+        ),
+      )
+      .then((blocks) => (blocks.length > 0 ? blocks[0] : undefined));
+
+    if (block === undefined) return undefined;
+
+    const transactions = await db
+      .select()
+      .from(PONDER_SYNC_SCHEMA.transactions)
+      .where(
+        and(
+          eq(PONDER_SYNC_SCHEMA.transactions.chainId, BigInt(chainId)),
+          eq(PONDER_SYNC_SCHEMA.transactions.blockNumber, BigInt(blockNumber)),
+        ),
+      );
+
+    return sanitizeLogsBloom(db, chainId, {
+      ...decodeBlock(block),
+      transactions: transactions.map(decodeTransaction),
+    });
+  };
+
+  const getBlockRpc = async (
     chainId: number,
     blockNumber: number,
   ): Promise<RpcBlock> => {
-    if (db) {
-      const blocks = await db
-        .select()
-        .from(PONDER_SYNC_SCHEMA.blocks)
-        .where(
-          and(
-            eq(PONDER_SYNC_SCHEMA.blocks.chainId, BigInt(chainId)),
-            eq(PONDER_SYNC_SCHEMA.blocks.number, BigInt(blockNumber)),
-          ),
-        );
-
-      if (blocks.length === 0) {
-        // const previousBlock = blockPerChain.get(chainId);
-
-        // if (previousBlock) {
-        // const nextBlock = await db
-        //   .select()
-        //   .from(PONDER_SYNC_SCHEMA.blocks)
-        //   .where(
-        //     and(
-        //       eq(PONDER_SYNC_SCHEMA.blocks.chainId, BigInt(chainId)),
-        //       gt(PONDER_SYNC_SCHEMA.blocks.number, BigInt(blockNumber)),
-        //     ),
-        //   )
-        //   .orderBy(desc(PONDER_SYNC_SCHEMA.blocks.number))
-        //   .limit(1)
-        //   .then((blocks) => (blocks.length === 0 ? undefined : blocks[0]));
-        //   if (hexToNumber(previousBlock.number!) !== blockNumber - 1) {
-        //     // TODO(kyle) reorg
-        //   }
-
-        //   // Optimization for skipping rpc requests when the block
-        //   // is not found in the db. The mocked blocks must have a proper
-        //   // hash chain.
-
-        //   let hash: Hash;
-
-        //   if (nextBlock?.number === BigInt(blockNumber + 1)) {
-        //     hash = nextBlock.parentHash;
-        //   } else {
-        //     hash = `0x${crypto.randomBytes(32).toString("hex")}` as Hash;
-        //   }
-
-        //   const timestamp = nextBlock
-        //     ? toHex(
-        //         Number(previousBlock.timestamp) +
-        //           Math.round(
-        //             ((Number(nextBlock.timestamp) -
-        //               Number(previousBlock.timestamp)) /
-        //               (Number(nextBlock.number) -
-        //                 Number(previousBlock.number))) *
-        //               (blockNumber - Number(previousBlock.number)),
-        //           ),
-        //       )
-        //     : toHex(
-        //         previousBlock.timestamp +
-        //           (BigInt(blockNumber) - hexToBigInt(previousBlock.timestamp)),
-        //       );
-
-        //   blocksByNumber.get(chainId)!.set(blockNumber, {
-        //     hash,
-        //     timestamp,
-        //   });
-        //   blocksByHash.get(chainId)!.set(hash, blockNumber);
-
-        //   return {
-        //     number: toHex(blockNumber),
-        //     timestamp: nextBlock
-        //       ? toHex(
-        //           Number(previousBlock.timestamp) +
-        //             Math.round(
-        //               ((Number(nextBlock.timestamp) -
-        //                 Number(previousBlock.timestamp)) /
-        //                 (Number(nextBlock.number) -
-        //                   Number(previousBlock.number))) *
-        //                 (blockNumber - Number(previousBlock.number)),
-        //             ),
-        //         )
-        //       : toHex(
-        //           previousBlock.timestamp +
-        //             (BigInt(blockNumber) -
-        //               hexToBigInt(previousBlock.timestamp)),
-        //         ),
-        //     hash,
-        //     parentHash: previousBlock.hash!,
-        //     transactions: [],
-        //     logsBloom: zeroLogsBloom,
-        //     miner: zeroAddress,
-        //     gasLimit: "0x0",
-        //     gasUsed: "0x0",
-        //     baseFeePerGas: "0x0",
-        //     blobGasUsed: "0x0",
-        //     excessBlobGas: "0x0",
-        //     nonce: "0x0",
-        //     mixHash: "0x",
-        //     stateRoot: "0x",
-        //     receiptsRoot: "0x",
-        //     transactionsRoot: "0x",
-        //     difficulty: "0x0",
-        //     totalDifficulty: "0x0",
-        //     size: "0x0",
-        //     extraData: "0x",
-        //     sealFields: [],
-        //     uncles: [],
-        //     sha3Uncles: "0x",
-        //   } satisfies RpcBlock;
-        // } else {
-        // Note: this path happens on startup
-        const block = await chains
-          .get(chainId)!
-          .request({
-            method: "eth_getBlockByNumber",
-            params: [toHex(blockNumber), true],
-          })
-          .then((block) => sanitizeLogsBloom(db, chainId, block as RpcBlock));
-
-        // @ts-ignore
-        blocksByHash.get(chainId)!.set(block.hash!, blockNumber);
-
-        return block as RpcBlock;
-        // }
-      }
-
-      const transactions = await db
-        .select()
-        .from(PONDER_SYNC_SCHEMA.transactions)
-        .where(
-          and(
-            eq(PONDER_SYNC_SCHEMA.transactions.chainId, BigInt(chainId)),
-            eq(
-              PONDER_SYNC_SCHEMA.transactions.blockNumber,
-              BigInt(blockNumber),
-            ),
-          ),
-        );
-
-      let block = decodeBlock(blocks[0]!);
-      // @ts-ignore
-      block.transactions = transactions.map(decodeTransaction);
-
-      // @ts-ignore
-      block = sanitizeLogsBloom(db, chainId, block as RpcBlock);
-
-      return block as RpcBlock;
-    }
-
     // @ts-ignore
     return chains.get(chainId)!.request({
       method: "eth_getBlockByNumber",
@@ -749,60 +629,217 @@ export const realtimeBlockEngine = (
     });
   };
 
-  const calculateNextBlock = async (): Promise<
+  const getNextBlock = async (chainId: number): Promise<RpcBlock> => {
+    const blockNumber =
+      hexToNumber(
+        blocks.get(chainId)![blocks.get(chainId)!.length - 1]!.number!,
+      ) + 1;
+
+    return (
+      (await getBlockDb(chainId, blockNumber)) ??
+      (await getBlockRpc(chainId, blockNumber))
+    );
+  };
+
+  // const getBlock = async (
+  //   chainId: number,
+  //   blockNumber: number,
+  // ): Promise<RpcBlock> => {
+  //   if (db) {
+  //     const blocks = await db
+  //       .select()
+  //       .from(PONDER_SYNC_SCHEMA.blocks)
+  //       .where(
+  //         and(
+  //           eq(PONDER_SYNC_SCHEMA.blocks.chainId, BigInt(chainId)),
+  //           eq(PONDER_SYNC_SCHEMA.blocks.number, BigInt(blockNumber)),
+  //         ),
+  //       );
+
+  //     if (blocks.length === 0) {
+  //       // const previousBlock = blockPerChain.get(chainId);
+
+  //       // if (previousBlock) {
+  //       // const nextBlock = await db
+  //       //   .select()
+  //       //   .from(PONDER_SYNC_SCHEMA.blocks)
+  //       //   .where(
+  //       //     and(
+  //       //       eq(PONDER_SYNC_SCHEMA.blocks.chainId, BigInt(chainId)),
+  //       //       gt(PONDER_SYNC_SCHEMA.blocks.number, BigInt(blockNumber)),
+  //       //     ),
+  //       //   )
+  //       //   .orderBy(desc(PONDER_SYNC_SCHEMA.blocks.number))
+  //       //   .limit(1)
+  //       //   .then((blocks) => (blocks.length === 0 ? undefined : blocks[0]));
+  //       //   if (hexToNumber(previousBlock.number!) !== blockNumber - 1) {
+  //       //     // TODO(kyle) reorg
+  //       //   }
+
+  //       //   // Optimization for skipping rpc requests when the block
+  //       //   // is not found in the db. The mocked blocks must have a proper
+  //       //   // hash chain.
+
+  //       //   let hash: Hash;
+
+  //       //   if (nextBlock?.number === BigInt(blockNumber + 1)) {
+  //       //     hash = nextBlock.parentHash;
+  //       //   } else {
+  //       //     hash = `0x${crypto.randomBytes(32).toString("hex")}` as Hash;
+  //       //   }
+
+  //       //   const timestamp = nextBlock
+  //       //     ? toHex(
+  //       //         Number(previousBlock.timestamp) +
+  //       //           Math.round(
+  //       //             ((Number(nextBlock.timestamp) -
+  //       //               Number(previousBlock.timestamp)) /
+  //       //               (Number(nextBlock.number) -
+  //       //                 Number(previousBlock.number))) *
+  //       //               (blockNumber - Number(previousBlock.number)),
+  //       //           ),
+  //       //       )
+  //       //     : toHex(
+  //       //         previousBlock.timestamp +
+  //       //           (BigInt(blockNumber) - hexToBigInt(previousBlock.timestamp)),
+  //       //       );
+
+  //       //   blocksByNumber.get(chainId)!.set(blockNumber, {
+  //       //     hash,
+  //       //     timestamp,
+  //       //   });
+  //       //   blocksByHash.get(chainId)!.set(hash, blockNumber);
+
+  //       //   return {
+  //       //     number: toHex(blockNumber),
+  //       //     timestamp: nextBlock
+  //       //       ? toHex(
+  //       //           Number(previousBlock.timestamp) +
+  //       //             Math.round(
+  //       //               ((Number(nextBlock.timestamp) -
+  //       //                 Number(previousBlock.timestamp)) /
+  //       //                 (Number(nextBlock.number) -
+  //       //                   Number(previousBlock.number))) *
+  //       //                 (blockNumber - Number(previousBlock.number)),
+  //       //             ),
+  //       //         )
+  //       //       : toHex(
+  //       //           previousBlock.timestamp +
+  //       //             (BigInt(blockNumber) -
+  //       //               hexToBigInt(previousBlock.timestamp)),
+  //       //         ),
+  //       //     hash,
+  //       //     parentHash: previousBlock.hash!,
+  //       //     transactions: [],
+  //       //     logsBloom: zeroLogsBloom,
+  //       //     miner: zeroAddress,
+  //       //     gasLimit: "0x0",
+  //       //     gasUsed: "0x0",
+  //       //     baseFeePerGas: "0x0",
+  //       //     blobGasUsed: "0x0",
+  //       //     excessBlobGas: "0x0",
+  //       //     nonce: "0x0",
+  //       //     mixHash: "0x",
+  //       //     stateRoot: "0x",
+  //       //     receiptsRoot: "0x",
+  //       //     transactionsRoot: "0x",
+  //       //     difficulty: "0x0",
+  //       //     totalDifficulty: "0x0",
+  //       //     size: "0x0",
+  //       //     extraData: "0x",
+  //       //     sealFields: [],
+  //       //     uncles: [],
+  //       //     sha3Uncles: "0x",
+  //       //   } satisfies RpcBlock;
+  //       // } else {
+  //       // Note: this path happens on startup
+  //       const block = await chains
+  //         .get(chainId)!
+  //         .request({
+  //           method: "eth_getBlockByNumber",
+  //           params: [toHex(blockNumber), true],
+  //         })
+  //         .then((block) => sanitizeLogsBloom(db, chainId, block as RpcBlock));
+
+  //       return block as RpcBlock;
+  //       // }
+  //     }
+
+  //     const transactions = await db
+  //       .select()
+  //       .from(PONDER_SYNC_SCHEMA.transactions)
+  //       .where(
+  //         and(
+  //           eq(PONDER_SYNC_SCHEMA.transactions.chainId, BigInt(chainId)),
+  //           eq(
+  //             PONDER_SYNC_SCHEMA.transactions.blockNumber,
+  //             BigInt(blockNumber),
+  //           ),
+  //         ),
+  //       );
+
+  //     let block = decodeBlock(blocks[0]!);
+  //     // @ts-ignore
+  //     block.transactions = transactions.map(decodeTransaction);
+
+  //     // @ts-ignore
+  //     block = sanitizeLogsBloom(db, chainId, block as RpcBlock);
+
+  //     return block as RpcBlock;
+  //   }
+
+  //   // @ts-ignore
+  //   return chains.get(chainId)!.request({
+  //     method: "eth_getBlockByNumber",
+  //     params: [toHex(blockNumber), true],
+  //   });
+  // };
+
+  const simulate = async (): Promise<
     { chainId: number; block: RpcBlock } | undefined
   > => {
-    const timestampOrder = Array.from(blockPerChain.entries())
+    const latestBlocks: [number, RpcBlock][] = [];
+    for (const [chainId, _blocks] of blocks) {
+      latestBlocks.push([chainId, _blocks[_blocks.length - 1]!]);
+    }
+
+    const orderedBlocks = latestBlocks
       .sort((a, b) =>
         hexToNumber(a[1].timestamp) < hexToNumber(b[1].timestamp) ? -1 : 1,
       )
       .map(([chainId]) => chainId);
 
     let chainId: number;
-    for (let i = 0; i < timestampOrder.length; i++) {
+    for (let i = 0; i < orderedBlocks.length; i++) {
       if (
         random() < params.REALTIME_DELAY_RATE ||
-        i === timestampOrder.length - 1
+        i === orderedBlocks.length - 1
       ) {
-        chainId = timestampOrder[i]!;
+        chainId = orderedBlocks[i]!;
         break;
       }
     }
 
-    if (random() < params.REALTIME_FAST_FORWARD_RATE) {
-      blockPerChain.set(
-        chainId!,
-        await getBlock(
-          chainId!,
-          hexToNumber(blockPerChain.get(chainId!)!.number!) + 1,
-        ),
-      );
-
-      return calculateNextBlock();
+    // @ts-ignore
+    if (chainId === undefined) {
+      throw "never";
     }
 
-    let block = blockPerChain.get(chainId!)!;
+    let block = latestBlocks.find((b) => b[0] === chainId)![1];
+    const nextBlock = await getNextBlock(chainId);
+    blocks.get(chainId)!.push(nextBlock);
+
+    if (random() < params.REALTIME_FAST_FORWARD_RATE) {
+      return simulate();
+    }
 
     if (random() < params.REALTIME_REORG_RATE) {
-      blockPerChain.set(chainId!, block);
-
       const hash = `0x${crypto.randomBytes(32).toString("hex")}` as Hash;
       block = { ...block, hash, logsBloom: zeroLogsBloom };
     } else if (random() < params.REALTIME_DEEP_REORG_RATE) {
       // Note: another way to trigger a deep reorg is for the next block to be way in the past.
-      const nextBlock = await getBlock(
-        chainId!,
-        hexToNumber(block.number!) + 1,
-      );
 
       nextBlock.parentHash = block.parentHash;
-
-      blockPerChain.set(chainId!, nextBlock);
-    } else {
-      blockPerChain.set(
-        chainId!,
-        await getBlock(chainId!, hexToNumber(block.number!) + 1),
-      );
     }
 
     return { chainId: chainId!, block };
@@ -816,20 +853,21 @@ export const realtimeBlockEngine = (
   }
 
   return async function* (chainId: number, finalizedBlockNumber: number) {
-    blockPerChain.set(
-      chainId,
-      await getBlock(chainId, finalizedBlockNumber + 1),
-    );
-    finalizedPerChain.set(chainId, finalizedBlockNumber);
+    blocks.set(chainId, [
+      (await getBlockDb(chainId, finalizedBlockNumber)) ??
+        (await getBlockRpc(chainId, finalizedBlockNumber)),
+      (await getBlockDb(chainId, finalizedBlockNumber + 1)) ??
+        (await getBlockRpc(chainId, finalizedBlockNumber + 1)),
+    ]);
 
-    if (blockPerChain.size === chains.size) {
+    if (blocks.size === chains.size) {
       startPwr.resolve();
     } else {
       await startPwr.promise;
     }
 
     while (true) {
-      const next = await calculateNextBlock();
+      const next = await simulate();
       if (next === undefined) return;
 
       if (chainId === next.chainId) {
