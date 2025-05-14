@@ -19,7 +19,7 @@ const CONNECTION_STRING = "postgresql://kylescott@localhost:5432/integration";
 // params
 
 const INTERVAL_CHUNKS = 8;
-const INTERVAL_EVICT_RATE = 0.25;
+const INTERVAL_EVICT_RATE = 0.0;
 
 const SIM_PARAMS: SimParams = {
   SEED,
@@ -29,7 +29,7 @@ const SIM_PARAMS: SimParams = {
   /** Probability of a reorg. */
   REALTIME_REORG_RATE: 0.05,
   /** Probability of a deep reorg. */
-  REALTIME_DEEP_REORG_RATE: 0.01,
+  REALTIME_DEEP_REORG_RATE: 0,
   // TODO(kyle) deep reorg
   /** Probability that the chain fast forwards and skips a block. */
   REALTIME_FAST_FORWARD_RATE: 0.5,
@@ -173,7 +173,7 @@ while (true) {
   await new Promise((resolve) => setTimeout(resolve, 50));
 }
 
-await new Promise((resolve) => setTimeout(resolve, 15_000));
+await new Promise((resolve) => setTimeout(resolve, 25_000));
 
 console.log("KILLING");
 

@@ -6,12 +6,11 @@ import {
   type PromiseWithResolvers,
   promiseWithResolvers,
 } from "@/utils/promiseWithResolvers.js";
-import { type SQL, and, desc, eq, gt, gte, inArray, lte } from "drizzle-orm";
+import { type SQL, and, asc, eq, gt, gte, inArray, lte } from "drizzle-orm";
 import { type NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
 import seedrandom from "seedrandom";
 import {
   type Hash,
-  type Hex,
   type RpcBlock,
   type RpcLog,
   type RpcTransaction,
@@ -36,7 +35,7 @@ const PONDER_RPC_METHODS = [
   "debug_traceBlockByHash",
 ] as const;
 
-const shouldMockBlocks = false;
+let isRealtime = false;
 const blocks = new Map<number, RpcBlock[]>();
 
 // TODO(kyle) add noise in responses like extra transactions, etc.
@@ -93,6 +92,8 @@ export const sim =
         throw new Error("Simulated error");
       }
 
+      // block tag validation
+
       switch (body.method) {
         case "eth_getBlockByNumber":
         case "eth_getBlockReceipts":
@@ -111,6 +112,8 @@ export const sim =
           break;
       }
 
+      // eth_getLogs block range validation
+
       if (body.method === "eth_getLogs") {
         if ("fromBlock" in body.params[0] && "toBlock" in body.params[0]) {
           const { fromBlock, toBlock } = body.params[0];
@@ -127,153 +130,99 @@ export const sim =
       if (db) {
         switch (body.method) {
           case "eth_getBlockByNumber": {
-            const blocks = await db
-              .select()
-              .from(PONDER_SYNC_SCHEMA.blocks)
-              .where(
-                and(
-                  eq(PONDER_SYNC_SCHEMA.blocks.chainId, BigInt(chain!.id)),
-                  eq(
-                    PONDER_SYNC_SCHEMA.blocks.number,
-                    hexToBigInt(body.params[0]),
+            if (isRealtime) {
+              result = blocks
+                .get(chain!.id)!
+                .find((block) => block.number === body.params[0]);
+            } else {
+              const block = await db
+                .select()
+                .from(PONDER_SYNC_SCHEMA.blocks)
+                .where(
+                  and(
+                    eq(PONDER_SYNC_SCHEMA.blocks.chainId, BigInt(chain!.id)),
+                    eq(
+                      PONDER_SYNC_SCHEMA.blocks.number,
+                      hexToBigInt(body.params[0]),
+                    ),
                   ),
-                ),
-              );
+                )
+                .then((blocks) => blocks[0]);
 
-            if (blocks.length === 0) {
-              // if (shouldMockBlocks === false) {
-              result = await _request(body).then((block) =>
-                sanitizeLogsBloom(db, chain!.id, block as RpcBlock),
-              );
-              break;
-              //   }
+              if (block) {
+                const transactions = await db
+                  .select()
+                  .from(PONDER_SYNC_SCHEMA.transactions)
+                  .where(
+                    and(
+                      eq(
+                        PONDER_SYNC_SCHEMA.transactions.chainId,
+                        BigInt(chain!.id),
+                      ),
+                      eq(
+                        PONDER_SYNC_SCHEMA.transactions.blockNumber,
+                        hexToBigInt(body.params[0]),
+                      ),
+                    ),
+                  );
 
-              //   // Use block metadata to create a mock block.
-
-              //   const metadata = blocksByNumber
-              //     .get(chain!.id)!
-              //     .get(hexToNumber(body.params[0]));
-              //   const parentMetadata = blocksByNumber
-              //     .get(chain!.id)!
-              //     .get(hexToNumber(body.params[0]) - 1);
-
-              //   if (metadata === undefined) {
-              //     throw new Error(
-              //       `Block metadata not found for block ${hexToNumber(body.params[0])}`,
-              //     );
-              //   }
-
-              //   if (parentMetadata === undefined) {
-              //     throw new Error(
-              //       `Block metadata not found for block ${hexToNumber(body.params[0]) - 1}`,
-              //     );
-              //   }
-
-              //   result = {
-              //     number: body.params[0],
-              //     timestamp: metadata.timestamp,
-              //     hash: metadata.hash,
-              //     parentHash: parentMetadata.hash,
-              //     transactions: [],
-              //     logsBloom: zeroLogsBloom,
-              //     miner: zeroAddress,
-              //     gasLimit: "0x0",
-              //     gasUsed: "0x0",
-              //     baseFeePerGas: "0x0",
-              //     blobGasUsed: "0x0",
-              //     excessBlobGas: "0x0",
-              //     nonce: "0x0",
-              //     mixHash: "0x",
-              //     stateRoot: "0x",
-              //     receiptsRoot: "0x",
-              //     transactionsRoot: "0x",
-              //     difficulty: "0x0",
-              //     totalDifficulty: "0x0",
-              //     size: "0x0",
-              //     extraData: "0x",
-              //     sealFields: [],
-              //     uncles: [],
-              //     sha3Uncles: "0x",
-              //   } satisfies RpcBlock;
-
-              //   break;
+                result = sanitizeLogsBloom(db, chain!.id, {
+                  ...decodeBlock(block),
+                  transactions: transactions.map(decodeTransaction),
+                });
+              } else {
+                result = await _request(body).then((block) =>
+                  sanitizeLogsBloom(db, chain!.id, block as RpcBlock),
+                );
+              }
             }
-
-            const transactions = await db
-              .select()
-              .from(PONDER_SYNC_SCHEMA.transactions)
-              .where(
-                and(
-                  eq(
-                    PONDER_SYNC_SCHEMA.transactions.chainId,
-                    BigInt(chain!.id),
-                  ),
-                  eq(
-                    PONDER_SYNC_SCHEMA.transactions.blockNumber,
-                    hexToBigInt(body.params[0]),
-                  ),
-                ),
-              );
-
-            result = decodeBlock(blocks[0]!);
-            // @ts-ignore
-            result.transactions = transactions.map(decodeTransaction);
-
-            result = await sanitizeLogsBloom(db, chain!.id, result as RpcBlock);
 
             break;
           }
           case "eth_getBlockByHash": {
-            const blocks = await db
-              .select()
-              .from(PONDER_SYNC_SCHEMA.blocks)
-              .where(
-                and(
-                  eq(PONDER_SYNC_SCHEMA.blocks.chainId, BigInt(chain!.id)),
-                  eq(PONDER_SYNC_SCHEMA.blocks.hash, body.params[0]),
-                ),
-              );
-
-            if (blocks.length === 0) {
-              // if (shouldMockBlocks === false) {
-              result = await _request(body);
-              break;
-              // }
-
-              // Complete the eth_getBlockByNumber by looking up the block hash and substituting
-              // in the correct block number.
-
-              // if (blocksByHash.has(body.params[0]) === false) {
-              //   throw new Error(
-              //     `Invariant violation: block '${body.params[0]}' not found`,
-              //   );
-              // }
-
-              // const number = blocksByHash.get(chain!.id)!.get(body.params[0])!;
-
-              // result = await request({
-              //   method: "eth_getBlockByNumber",
-              //   params: [toHex(number), true],
-              // });
-              // break;
-            }
-
-            const transactions = await db
-              .select()
-              .from(PONDER_SYNC_SCHEMA.transactions)
-              .where(
-                and(
-                  eq(
-                    PONDER_SYNC_SCHEMA.transactions.chainId,
-                    BigInt(chain!.id),
+            if (isRealtime) {
+              result = blocks
+                .get(chain!.id)!
+                .find((block) => block.hash === body.params[0]);
+            } else {
+              const block = await db
+                .select()
+                .from(PONDER_SYNC_SCHEMA.blocks)
+                .where(
+                  and(
+                    eq(PONDER_SYNC_SCHEMA.blocks.chainId, BigInt(chain!.id)),
+                    eq(PONDER_SYNC_SCHEMA.blocks.hash, body.params[0]),
                   ),
-                  eq(PONDER_SYNC_SCHEMA.transactions.blockHash, body.params[0]),
-                ),
-              );
+                )
+                .then((blocks) => blocks[0]);
 
-            result = decodeBlock(blocks[0]!);
-            // @ts-ignore
-            result.transactions = transactions.map(decodeTransaction);
+              if (block) {
+                const transactions = await db
+                  .select()
+                  .from(PONDER_SYNC_SCHEMA.transactions)
+                  .where(
+                    and(
+                      eq(
+                        PONDER_SYNC_SCHEMA.transactions.chainId,
+                        BigInt(chain!.id),
+                      ),
+                      eq(
+                        PONDER_SYNC_SCHEMA.transactions.blockHash,
+                        body.params[0],
+                      ),
+                    ),
+                  );
+
+                result = sanitizeLogsBloom(db, chain!.id, {
+                  ...decodeBlock(block),
+                  transactions: transactions.map(decodeTransaction),
+                });
+              } else {
+                result = await _request(body).then((block) =>
+                  sanitizeLogsBloom(db, chain!.id, block as RpcBlock),
+                );
+              }
+            }
 
             break;
           }
@@ -572,8 +521,6 @@ export const realtimeBlockEngine = (
   connectionString?: string,
 ) => {
   const random = seedrandom(params.SEED);
-  // const blockPerChain = new Map<number, RpcBlock>();
-  // const finalizedPerChain = new Map<number, number>();
   const db = connectionString
     ? drizzle(connectionString, {
         casing: "snake_case",
@@ -598,7 +545,7 @@ export const realtimeBlockEngine = (
           eq(PONDER_SYNC_SCHEMA.blocks.number, BigInt(blockNumber)),
         ),
       )
-      .then((blocks) => (blocks.length > 0 ? blocks[0] : undefined));
+      .then((blocks) => blocks[0]);
 
     if (block === undefined) return undefined;
 
@@ -630,170 +577,79 @@ export const realtimeBlockEngine = (
   };
 
   const getNextBlock = async (chainId: number): Promise<RpcBlock> => {
-    const blockNumber =
-      hexToNumber(
-        blocks.get(chainId)![blocks.get(chainId)!.length - 1]!.number!,
-      ) + 1;
+    const currentBlock = blocks.get(chainId)![blocks.get(chainId)!.length - 1]!;
+    const blockNumber = hexToNumber(currentBlock.number!) + 1;
 
-    return (
-      (await getBlockDb(chainId, blockNumber)) ??
-      (await getBlockRpc(chainId, blockNumber))
-    );
+    const dbBlock = await getBlockDb(chainId, blockNumber);
+
+    if (dbBlock) return dbBlock;
+
+    if (db === undefined) {
+      return getBlockRpc(chainId, blockNumber);
+    }
+
+    // Optimization for skipping rpc requests when the block
+    // is not found in the db. The mocked blocks must have a proper
+    // hash chain.
+
+    const nextBlock = await db
+      .select()
+      .from(PONDER_SYNC_SCHEMA.blocks)
+      .where(
+        and(
+          eq(PONDER_SYNC_SCHEMA.blocks.chainId, BigInt(chainId)),
+          gt(PONDER_SYNC_SCHEMA.blocks.number, BigInt(blockNumber)),
+        ),
+      )
+      .orderBy(asc(PONDER_SYNC_SCHEMA.blocks.number))
+      .limit(1)
+      .then((blocks) => (blocks.length === 0 ? undefined : blocks[0]));
+
+    let hash: Hash;
+
+    if (nextBlock?.number === BigInt(blockNumber + 1)) {
+      hash = nextBlock.parentHash;
+    } else {
+      hash = `0x${crypto.randomBytes(32).toString("hex")}` as Hash;
+    }
+
+    const timestamp = nextBlock
+      ? Number(currentBlock.timestamp) +
+        Math.round(
+          ((Number(nextBlock.timestamp) - Number(currentBlock.timestamp)) /
+            (Number(nextBlock.number) - Number(currentBlock.number))) *
+            (blockNumber - Number(currentBlock.number)),
+        )
+      : currentBlock.timestamp +
+        (BigInt(blockNumber) - hexToBigInt(currentBlock.timestamp));
+
+    return {
+      number: toHex(blockNumber),
+      timestamp: toHex(timestamp),
+      hash,
+      parentHash: currentBlock.hash!,
+      transactions: [],
+      logsBloom: zeroLogsBloom,
+      miner: zeroAddress,
+      gasLimit: "0x0",
+      gasUsed: "0x0",
+      baseFeePerGas: "0x0",
+      blobGasUsed: "0x0",
+      excessBlobGas: "0x0",
+      nonce: "0x0",
+      mixHash: "0x",
+      stateRoot: "0x",
+      receiptsRoot: "0x",
+      transactionsRoot: "0x",
+      difficulty: "0x0",
+      totalDifficulty: "0x0",
+      size: "0x0",
+      extraData: "0x",
+      sealFields: [],
+      uncles: [],
+      sha3Uncles: "0x",
+    } satisfies RpcBlock;
   };
-
-  // const getBlock = async (
-  //   chainId: number,
-  //   blockNumber: number,
-  // ): Promise<RpcBlock> => {
-  //   if (db) {
-  //     const blocks = await db
-  //       .select()
-  //       .from(PONDER_SYNC_SCHEMA.blocks)
-  //       .where(
-  //         and(
-  //           eq(PONDER_SYNC_SCHEMA.blocks.chainId, BigInt(chainId)),
-  //           eq(PONDER_SYNC_SCHEMA.blocks.number, BigInt(blockNumber)),
-  //         ),
-  //       );
-
-  //     if (blocks.length === 0) {
-  //       // const previousBlock = blockPerChain.get(chainId);
-
-  //       // if (previousBlock) {
-  //       // const nextBlock = await db
-  //       //   .select()
-  //       //   .from(PONDER_SYNC_SCHEMA.blocks)
-  //       //   .where(
-  //       //     and(
-  //       //       eq(PONDER_SYNC_SCHEMA.blocks.chainId, BigInt(chainId)),
-  //       //       gt(PONDER_SYNC_SCHEMA.blocks.number, BigInt(blockNumber)),
-  //       //     ),
-  //       //   )
-  //       //   .orderBy(desc(PONDER_SYNC_SCHEMA.blocks.number))
-  //       //   .limit(1)
-  //       //   .then((blocks) => (blocks.length === 0 ? undefined : blocks[0]));
-  //       //   if (hexToNumber(previousBlock.number!) !== blockNumber - 1) {
-  //       //     // TODO(kyle) reorg
-  //       //   }
-
-  //       //   // Optimization for skipping rpc requests when the block
-  //       //   // is not found in the db. The mocked blocks must have a proper
-  //       //   // hash chain.
-
-  //       //   let hash: Hash;
-
-  //       //   if (nextBlock?.number === BigInt(blockNumber + 1)) {
-  //       //     hash = nextBlock.parentHash;
-  //       //   } else {
-  //       //     hash = `0x${crypto.randomBytes(32).toString("hex")}` as Hash;
-  //       //   }
-
-  //       //   const timestamp = nextBlock
-  //       //     ? toHex(
-  //       //         Number(previousBlock.timestamp) +
-  //       //           Math.round(
-  //       //             ((Number(nextBlock.timestamp) -
-  //       //               Number(previousBlock.timestamp)) /
-  //       //               (Number(nextBlock.number) -
-  //       //                 Number(previousBlock.number))) *
-  //       //               (blockNumber - Number(previousBlock.number)),
-  //       //           ),
-  //       //       )
-  //       //     : toHex(
-  //       //         previousBlock.timestamp +
-  //       //           (BigInt(blockNumber) - hexToBigInt(previousBlock.timestamp)),
-  //       //       );
-
-  //       //   blocksByNumber.get(chainId)!.set(blockNumber, {
-  //       //     hash,
-  //       //     timestamp,
-  //       //   });
-  //       //   blocksByHash.get(chainId)!.set(hash, blockNumber);
-
-  //       //   return {
-  //       //     number: toHex(blockNumber),
-  //       //     timestamp: nextBlock
-  //       //       ? toHex(
-  //       //           Number(previousBlock.timestamp) +
-  //       //             Math.round(
-  //       //               ((Number(nextBlock.timestamp) -
-  //       //                 Number(previousBlock.timestamp)) /
-  //       //                 (Number(nextBlock.number) -
-  //       //                   Number(previousBlock.number))) *
-  //       //                 (blockNumber - Number(previousBlock.number)),
-  //       //             ),
-  //       //         )
-  //       //       : toHex(
-  //       //           previousBlock.timestamp +
-  //       //             (BigInt(blockNumber) -
-  //       //               hexToBigInt(previousBlock.timestamp)),
-  //       //         ),
-  //       //     hash,
-  //       //     parentHash: previousBlock.hash!,
-  //       //     transactions: [],
-  //       //     logsBloom: zeroLogsBloom,
-  //       //     miner: zeroAddress,
-  //       //     gasLimit: "0x0",
-  //       //     gasUsed: "0x0",
-  //       //     baseFeePerGas: "0x0",
-  //       //     blobGasUsed: "0x0",
-  //       //     excessBlobGas: "0x0",
-  //       //     nonce: "0x0",
-  //       //     mixHash: "0x",
-  //       //     stateRoot: "0x",
-  //       //     receiptsRoot: "0x",
-  //       //     transactionsRoot: "0x",
-  //       //     difficulty: "0x0",
-  //       //     totalDifficulty: "0x0",
-  //       //     size: "0x0",
-  //       //     extraData: "0x",
-  //       //     sealFields: [],
-  //       //     uncles: [],
-  //       //     sha3Uncles: "0x",
-  //       //   } satisfies RpcBlock;
-  //       // } else {
-  //       // Note: this path happens on startup
-  //       const block = await chains
-  //         .get(chainId)!
-  //         .request({
-  //           method: "eth_getBlockByNumber",
-  //           params: [toHex(blockNumber), true],
-  //         })
-  //         .then((block) => sanitizeLogsBloom(db, chainId, block as RpcBlock));
-
-  //       return block as RpcBlock;
-  //       // }
-  //     }
-
-  //     const transactions = await db
-  //       .select()
-  //       .from(PONDER_SYNC_SCHEMA.transactions)
-  //       .where(
-  //         and(
-  //           eq(PONDER_SYNC_SCHEMA.transactions.chainId, BigInt(chainId)),
-  //           eq(
-  //             PONDER_SYNC_SCHEMA.transactions.blockNumber,
-  //             BigInt(blockNumber),
-  //           ),
-  //         ),
-  //       );
-
-  //     let block = decodeBlock(blocks[0]!);
-  //     // @ts-ignore
-  //     block.transactions = transactions.map(decodeTransaction);
-
-  //     // @ts-ignore
-  //     block = sanitizeLogsBloom(db, chainId, block as RpcBlock);
-
-  //     return block as RpcBlock;
-  //   }
-
-  //   // @ts-ignore
-  //   return chains.get(chainId)!.request({
-  //     method: "eth_getBlockByNumber",
-  //     params: [toHex(blockNumber), true],
-  //   });
-  // };
 
   const simulate = async (): Promise<
     { chainId: number; block: RpcBlock } | undefined
@@ -853,6 +709,8 @@ export const realtimeBlockEngine = (
   }
 
   return async function* (chainId: number, finalizedBlockNumber: number) {
+    isRealtime = true;
+
     blocks.set(chainId, [
       (await getBlockDb(chainId, finalizedBlockNumber)) ??
         (await getBlockRpc(chainId, finalizedBlockNumber)),
@@ -868,6 +726,7 @@ export const realtimeBlockEngine = (
 
     while (true) {
       const next = await simulate();
+
       if (next === undefined) return;
 
       if (chainId === next.chainId) {

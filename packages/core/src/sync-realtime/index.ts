@@ -930,7 +930,7 @@ export const createRealtimeSync = (
 
         // Make sure `transactions` can be garbage collected
         // @ts-ignore
-        block.transactions = undefined;
+        block.transactions = rest.transactions;
 
         await args.onEvent({
           type: "block",
