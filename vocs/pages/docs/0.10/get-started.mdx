@@ -1,0 +1,123 @@
+# Get started [An introduction to Ponder]
+
+## What is Ponder?
+
+Ponder is an open-source framework for custom Ethereum indexing.
+
+You write TypeScript code to transform onchain data into your application's schema. Then, Ponder fetches data from the chain, runs your indexing logic, and writes the result to Postgres.
+
+Once indexed, you can query the data through GraphQL, SQL over HTTP, or directly in Postgres.
+
+## Quickstart
+
+::::steps
+
+### Run `create-ponder`
+
+The quickest way to create a new Ponder project is `create-ponder`, which sets up everything automatically for you.
+
+:::code-group
+
+```bash [pnpm]
+pnpm create ponder
+```
+
+```bash [yarn]
+yarn create ponder
+```
+
+```bash [npm]
+npm init ponder@latest
+```
+
+:::
+
+On installation, you'll see a few prompts.
+
+:::code-group
+
+```ansi [Default]
+✔ What's the name of your project? › new-project
+✔ Which template would you like to use? › Default
+
+✔ Installed packages with pnpm.
+✔ Initialized git repository.
+```
+
+```ansi [Etherscan template]
+✔ What's the name of your project? › new-project
+✔ Which template would you like to use? › Etherscan contract link
+✔ Enter a block explorer contract url › https://basescan.org/address/0x3bf93770f2d4a794c3d9ebefbaebae2a8f09a5e5
+
+✔ Fetched contract metadata from basescan.org.
+✔ Installed packages with pnpm.
+✔ Initialized git repository.
+```
+
+:::
+
+
+### Start the dev server
+
+Start the local development server.
+
+:::code-group
+
+```bash [pnpm]
+pnpm dev
+```
+
+```bash [yarn]
+yarn dev
+```
+
+```bash [npm]
+npm run dev
+```
+
+:::
+
+:::tip
+By default, Ponder fetches data from public RPC endpoints and writes to PGlite, an embedded Postgres database. You can change these settings later.
+:::
+
+### Query the database
+
+Next, visit [localhost:42069/graphql](http://localhost:42069/graphql) in your browser to explore the auto-generated GraphQL API. Here's a query for the top accounts by balance, along with the total number of accounts.
+
+:::code-group
+
+```graphql [Query]
+query {
+  accounts(orderBy: "balance", orderDirection: "desc", limit: 2) {
+    items {
+      address
+      balance
+    }
+    totalCount
+  }
+}
+```
+
+```json [Result]
+{
+  "accounts": {
+    "items": [
+      { "address": "0x1234567890123456789012345678901234567890", "balance": "1000000000000000000" },
+      { "address": "0x1234567890123456789012345678901234567891", "balance": "900000000000000000" },
+    ],
+    "totalCount": 1726,
+  }
+}
+```
+
+:::
+
+### Customize the schema
+
+### Customize indexing logic
+
+That's it! Next, learn about how to run Ponder in production, the factory pattern, 
+
+::::
+
