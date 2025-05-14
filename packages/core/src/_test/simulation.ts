@@ -531,6 +531,8 @@ export const realtimeBlockEngine = async (
       })
     : undefined;
 
+  const isChainDone = new Map<number, boolean>();
+
   // TODO(kyle) block not found error
 
   const getBlockDb = async (
@@ -654,7 +656,11 @@ export const realtimeBlockEngine = async (
     } satisfies RpcBlock;
   };
 
-  const simulate = async (): Promise<{ chainId: number; block: RpcBlock }> => {
+  const simulate = async (): Promise<
+    { chainId: number; block: RpcBlock } | undefined
+  > => {
+    if (Array.from(isChainDone.values()).every((v) => v)) return undefined;
+
     const latestBlocks: [number, RpcBlock][] = [];
     for (const [chainId, _blocks] of blocks) {
       latestBlocks.push([chainId, _blocks[_blocks.length - 1]!]);
@@ -683,6 +689,14 @@ export const realtimeBlockEngine = async (
     }
 
     let block = latestBlocks.find((b) => b[0] === chainId)![1];
+    const isEnd =
+      chains.get(chainId)!.interval[1] === hexToNumber(block.number!);
+
+    if (isEnd) {
+      isChainDone.set(chainId, true);
+      return { chainId, block };
+    }
+
     const nextBlock = await getNextBlock(chainId);
     blocks.get(chainId)!.push(nextBlock);
 
@@ -699,7 +713,7 @@ export const realtimeBlockEngine = async (
       nextBlock.parentHash = block.parentHash;
     }
 
-    return { chainId: chainId!, block };
+    return { chainId, block };
   };
 
   const startPwr = promiseWithResolvers<void>();
@@ -709,6 +723,7 @@ export const realtimeBlockEngine = async (
   for (const [chainId, { interval }] of chains) {
     pwr.set(chainId, promiseWithResolvers<RpcBlock>());
 
+    isChainDone.set(chainId, false);
     blocks.set(chainId, [
       (await getBlockDb(chainId, interval[0])) ??
         (await getBlockRpc(chainId, interval[0])),
