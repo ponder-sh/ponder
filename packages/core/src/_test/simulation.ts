@@ -606,23 +606,23 @@ export const realtimeBlockEngine = (
             eq(PONDER_SYNC_SCHEMA.blocks.number, BigInt(blockNumber)),
           ),
         );
-      // const nextBlock = await db
-      //   .select()
-      //   .from(PONDER_SYNC_SCHEMA.blocks)
-      //   .where(
-      //     and(
-      //       eq(PONDER_SYNC_SCHEMA.blocks.chainId, BigInt(chainId)),
-      //       gt(PONDER_SYNC_SCHEMA.blocks.number, BigInt(blockNumber)),
-      //     ),
-      //   )
-      //   .orderBy(desc(PONDER_SYNC_SCHEMA.blocks.number))
-      //   .limit(1)
-      //   .then((blocks) => (blocks.length === 0 ? undefined : blocks[0]));
 
       if (blocks.length === 0) {
         // const previousBlock = blockPerChain.get(chainId);
 
         // if (previousBlock) {
+        // const nextBlock = await db
+        //   .select()
+        //   .from(PONDER_SYNC_SCHEMA.blocks)
+        //   .where(
+        //     and(
+        //       eq(PONDER_SYNC_SCHEMA.blocks.chainId, BigInt(chainId)),
+        //       gt(PONDER_SYNC_SCHEMA.blocks.number, BigInt(blockNumber)),
+        //     ),
+        //   )
+        //   .orderBy(desc(PONDER_SYNC_SCHEMA.blocks.number))
+        //   .limit(1)
+        //   .then((blocks) => (blocks.length === 0 ? undefined : blocks[0]));
         //   if (hexToNumber(previousBlock.number!) !== blockNumber - 1) {
         //     // TODO(kyle) reorg
         //   }
@@ -787,11 +787,7 @@ export const realtimeBlockEngine = (
       blockPerChain.set(chainId!, block);
 
       const hash = `0x${crypto.randomBytes(32).toString("hex")}` as Hash;
-      if (db) {
-        block = await sanitizeLogsBloom(db, chainId!, { ...block, hash });
-      } else {
-        block = { ...block, hash };
-      }
+      block = { ...block, hash, logsBloom: zeroLogsBloom };
     } else if (random() < params.REALTIME_DEEP_REORG_RATE) {
       // Note: another way to trigger a deep reorg is for the next block to be way in the past.
       const nextBlock = await getBlock(
@@ -800,6 +796,7 @@ export const realtimeBlockEngine = (
       );
 
       nextBlock.parentHash = block.parentHash;
+
       blockPerChain.set(chainId!, nextBlock);
     } else {
       blockPerChain.set(
