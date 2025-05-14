@@ -732,7 +732,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
               const error = _error as Error;
               if (!error.message.includes("already exists")) throw error;
               const e = new NonRetryableError(
-                `Unable to create table '${namespace}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+                `Unable to create table '${namespace.schema}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
               );
               e.stack = undefined;
               throw e;
@@ -748,7 +748,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
               const error = _error as Error;
               if (!error.message.includes("already exists")) throw error;
               const e = new NonRetryableError(
-                `Unable to create enum '${namespace}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
+                `Unable to create enum '${namespace.schema}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
               );
               e.stack = undefined;
               throw e;

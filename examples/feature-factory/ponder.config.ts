@@ -12,7 +12,7 @@ export default createConfig({
   chains: {
     sepolia: {
       id: 11155111,
-      rpc: process.env.PONDER_RPC_URL_11155111!,
+      rpc: process.env.PONDER_RPC_URL_11155111,
     },
   },
   contracts: {

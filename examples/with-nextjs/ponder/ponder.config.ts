@@ -6,7 +6,7 @@ export default createConfig({
   chains: {
     base: {
       id: 8453,
-      rpc: process.env.PONDER_RPC_URL_8453!,
+      rpc: process.env.PONDER_RPC_URL_8453,
     },
   },
   contracts: {

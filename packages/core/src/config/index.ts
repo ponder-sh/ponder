@@ -92,7 +92,7 @@ type ChainConfig<chain> = {
   /** Chain ID of the chain. */
   id: chain extends { id: infer id extends number } ? id | number : number;
   /** RPC url. */
-  rpc: string | string[] | Transport;
+  rpc: string | string[] | Transport | undefined;
   /** Polling interval (in ms). Default: `1_000`. */
   pollingInterval?: number;
   /** Maximum number of RPC requests per second. Default: `50`. */

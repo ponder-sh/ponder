@@ -5,7 +5,7 @@ import { UniswapV3PoolAbi } from "./abis/UniswapV3PoolAbi";
 
 export default createConfig({
   chains: {
-    mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1! },
+    mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1 },
   },
   contracts: {
     UniswapV3Pool: {

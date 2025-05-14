@@ -5,7 +5,7 @@ export default createConfig({
   chains: {
     arbitrum: {
       id: 42161,
-      rpc: process.env.PONDER_RPC_URL_42161!,
+      rpc: process.env.PONDER_RPC_URL_42161,
     },
   },
   contracts: {
