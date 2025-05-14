@@ -3,6 +3,7 @@ import { DropdownMenu } from "radix-ui";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router";
+import pkg from "../packages/core/package.json";
 import { cn } from "./components/utils";
 
 // useLayoutEffect in the browser, useEffect during SSR
@@ -79,16 +80,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
 const versions = [
   {
-    prefix: "/docs",
+    label: "Latest version",
     activeLabel: "Using latest version",
-    label: "Latest version (0.11)",
+    patch: pkg.version,
+    prefix: "/docs",
     destination: "/docs/get-started",
     isLatest: true,
   },
   {
+    label: "Version 0.10",
+    activeLabel: "Using version 0.10",
+    patch: "0.10.26",
     prefix: "/docs/0.10",
-    activeLabel: "Using <=0.10",
-    label: "0.10 or earlier",
     destination: "/docs/0.10/get-started",
     isLatest: false,
   },
@@ -102,18 +105,22 @@ function VersionPicker() {
 
   if (!activeVersion) return null;
 
-  console.log("activeVersion", activeVersion);
-
   return (
     <div className="pt-4">
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
           <button
             type="button"
-            className="vocs_Button_button rounded-lg w-[calc(var(--vocs-sidebar_width)-2*var(--vocs-sidebar\_horizontalPadding))] px-[var(--vocs-space_12)] justify-between"
+            className="vocs_Button_button h-auto px-[var(--vocs-space_12)] py-[10px] justify-between rounded-lg w-[calc(var(--vocs-sidebar_width)-2*var(--vocs-sidebar\_horizontalPadding))]"
           >
-            {activeVersion.activeLabel}
-            <ChevronsUpDown className="w-4 h-4 -mr-1" />
+            <div className="flex flex-col items-start gap-1 leading-tight">
+              <span className="">{activeVersion.activeLabel}</span>
+              {/* <span className="text-[11px] text-[var(--vocs-color_text3)] -mb-[2px]">
+                {activeVersion.patch}
+              </span> */}
+            </div>
+
+            <ChevronsUpDown className="ml-auto w-4 h-4 -mr-1" />
           </button>
         </DropdownMenu.Trigger>
 
@@ -121,7 +128,7 @@ function VersionPicker() {
           <DropdownMenu.Content
             align="start"
             sideOffset={4}
-            className="z-20 w-[calc(var(--vocs-sidebar_width)-2*var(--vocs-sidebar\_horizontalPadding))] bg-[var(--vocs-color_background3)] border border-[var(--vocs-color_border)] text-[length:var(--vocs-fontSize_14)] font-[var(--vocs-fontWeight_medium)] rounded-lg flex flex-col"
+            className="z-20 w-[calc(var(--vocs-sidebar_width)-2*var(--vocs-sidebar\_horizontalPadding))] bg-[var(--vocs-color_background3)] border border-[var(--vocs-color_border)] text-[length:var(--vocs-fontSize_14)] font-[var(--vocs-fontWeight_medium)] rounded-lg flex flex-col shadow-lg"
           >
             {versions.map((v, index) => (
               <DropdownMenu.Item
@@ -137,7 +144,14 @@ function VersionPicker() {
                   },
                 )}
               >
-                <Link to={v.destination}>{v.label}</Link>
+                <Link to={v.destination}>
+                  <div className="flex flex-col items-start gap-1 leading-tight">
+                    <span className="">{v.label}</span>
+                    <span className="text-[11px] text-[var(--vocs-color_text3)]">
+                      {v.patch}
+                    </span>
+                  </div>
+                </Link>
               </DropdownMenu.Item>
             ))}
           </DropdownMenu.Content>

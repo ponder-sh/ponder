@@ -1,6 +1,5 @@
 import { remarkMermaid } from "@theguild/remark-mermaid";
 import { defineConfig } from "vocs";
-import pkg from "../packages/core/package.json";
 import { sidebar } from "./sidebar";
 
 export default defineConfig({
@@ -17,26 +16,25 @@ export default defineConfig({
   sidebar,
   topNav: [
     { text: "Docs", link: "/docs/get-started", match: "/docs" },
-    {
-      text: "Blog",
-      link: "/blog",
-      // items: [
-      //   {
-      //     text: "Introducing Ponder",
-      //     link: "/blog/introducing-ponder",
-      //   },
-      // ],
-    },
+    { text: "Blog", link: "/blog" },
     {
       text: "Examples",
       link: "https://github.com/ponder-sh/ponder/tree/main/examples",
     },
     {
-      text: pkg.version,
+      text: "Resources",
       items: [
         {
           text: "Migration guide",
           link: "/docs/migration-guide",
+        },
+        {
+          text: "Community chat",
+          link: "https://t.me/pondersh",
+        },
+        {
+          text: "GitHub issues",
+          link: "https://github.com/ponder-sh/ponder/issues",
         },
         {
           text: "Changelog",
@@ -110,8 +108,3 @@ export default defineConfig({
     },
   },
 });
-
-function toPatchVersionRange(version: string) {
-  const [major, minor] = version.split(".").slice(0, 2);
-  return `${major}.${minor}.x`;
-}
