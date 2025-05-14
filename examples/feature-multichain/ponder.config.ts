@@ -7,19 +7,19 @@ export default createConfig({
   chains: {
     mainnet: {
       id: 1,
-      rpc: process.env.PONDER_RPC_URL_1!,
+      rpc: process.env.PONDER_RPC_URL_1,
     },
     base: {
       id: 8453,
-      rpc: process.env.PONDER_RPC_URL_8453!,
+      rpc: process.env.PONDER_RPC_URL_8453,
     },
     optimism: {
       id: 10,
-      rpc: process.env.PONDER_RPC_URL_10!,
+      rpc: process.env.PONDER_RPC_URL_10,
     },
     polygon: {
       id: 137,
-      rpc: process.env.PONDER_RPC_URL_137!,
+      rpc: process.env.PONDER_RPC_URL_137,
     },
   },
   contracts: {

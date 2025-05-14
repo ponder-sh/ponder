@@ -119,16 +119,17 @@ export async function buildConfigAndIndexingFunctions({
         "id" in c ? c.id === chain.id : false,
       );
 
-      // if (matchedChain === undefined) {
-      //   throw new Error(
-      //     `Chain "${chainName}" with id ${chain.id} not found in viem. Please update viem to the latest version.`,
-      //   );
-      // }
       if (chain.rpc === undefined) {
-        throw new Error(
-          `Chain "${chainName}" with id ${chain.id} has no RPC URL.`,
-        );
-      } else if (typeof chain.rpc === "string" || Array.isArray(chain.rpc)) {
+        if (matchedChain === undefined) {
+          throw new Error(
+            `Chain "${chainName}" with id ${chain.id} has no RPC URL.`,
+          );
+        }
+
+        chain.rpc = matchedChain.rpcUrls.default.http as string[];
+      }
+
+      if (typeof chain.rpc === "string" || Array.isArray(chain.rpc)) {
         const rpcs = Array.isArray(chain.rpc) ? chain.rpc : [chain.rpc];
 
         if (rpcs.length === 0) {
