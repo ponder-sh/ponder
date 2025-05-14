@@ -122,7 +122,7 @@ export async function buildConfigAndIndexingFunctions({
       if (chain.rpc === undefined) {
         if (matchedChain === undefined) {
           throw new Error(
-            `Chain "${chainName}" with id ${chain.id} has no RPC URL.`,
+            `Chain "${chainName}" with id ${chain.id} has no RPC defined and no default RPC URL was found in 'viem/chains'.`,
           );
         }
 
