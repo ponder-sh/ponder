@@ -235,7 +235,10 @@ export const getChainCheckpoint = ({
 
 export const createSync = async (params: {
   common: Common;
-  indexingBuild: Pick<IndexingBuild, "sources" | "chains" | "rpcs">;
+  indexingBuild: Pick<
+    IndexingBuild,
+    "sources" | "chains" | "rpcs" | "finalizedBlocks"
+  >;
   syncStore: SyncStore;
   onRealtimeEvent(event: RealtimeEvent): Promise<void>;
   onFatalError(error: Error): void;
@@ -760,7 +763,7 @@ export const createSync = async (params: {
   await Promise.all(
     params.indexingBuild.chains.map(async (chain, index) => {
       const rpc = params.indexingBuild.rpcs[index]!;
-
+      const finalizedBlock = params.indexingBuild.finalizedBlocks[index]!;
       const sources = params.indexingBuild.sources.filter(
         ({ filter }) => filter.chainId === chain.id,
       );
@@ -791,6 +794,7 @@ export const createSync = async (params: {
         chain,
         sources,
         rpc,
+        finalizedBlock,
         intervalsCache: historicalSync.intervalsCache,
       });
 
@@ -1478,11 +1482,13 @@ export const getLocalSyncProgress = async ({
   sources,
   chain,
   rpc,
+  finalizedBlock,
   intervalsCache,
 }: {
   common: Common;
   sources: Source[];
   chain: Chain;
+  finalizedBlock: LightBlock;
   rpc: Rpc;
   intervalsCache: HistoricalSync["intervalsCache"];
 }): Promise<SyncProgress> => {
@@ -1497,24 +1503,16 @@ export const getLocalSyncProgress = async ({
     cached === undefined
       ? [
           rpc.request({ method: "eth_chainId" }),
-          // _eth_getBlockByNumber(rpc, { blockTag: "latest" }),
           _eth_getBlockByNumber(rpc, { blockNumber: start }),
         ]
       : [
           rpc.request({ method: "eth_chainId" }),
-          // _eth_getBlockByNumber(rpc, { blockTag: "latest" }),
           _eth_getBlockByNumber(rpc, { blockNumber: start }),
           _eth_getBlockByNumber(rpc, { blockNumber: cached }),
         ],
   );
 
-  // const finalized = Math.max(
-  //   0,
-  //   hexToNumber(diagnostics[1].number) - chain.finalityBlockCount,
-  // );
-  syncProgress.finalized = await _eth_getBlockByNumber(rpc, {
-    blockNumber: 13_149_000,
-  });
+  syncProgress.finalized = finalizedBlock;
   syncProgress.start = diagnostics[1];
   if (diagnostics.length === 3) {
     syncProgress.current = diagnostics[2];

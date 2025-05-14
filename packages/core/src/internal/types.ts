@@ -341,6 +341,8 @@ export type IndexingBuild = {
   chains: Chain[];
   /** RPCs for all `chains`. */
   rpcs: Rpc[];
+  /** Finalized blocks for all `chains`. */
+  finalizedBlocks: LightBlock[];
   /** Event callbacks for all `sources`.  */
   indexingFunctions: IndexingFunctions;
 };

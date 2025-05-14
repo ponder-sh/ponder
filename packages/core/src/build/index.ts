@@ -440,6 +440,8 @@ export const createBuild = async ({
           sources: buildConfigAndIndexingFunctionsResult.sources,
           chains: buildConfigAndIndexingFunctionsResult.chains,
           rpcs: buildConfigAndIndexingFunctionsResult.rpcs,
+          finalizedBlocks:
+            buildConfigAndIndexingFunctionsResult.finalizedBlocks,
           indexingFunctions:
             buildConfigAndIndexingFunctionsResult.indexingFunctions,
         },

@@ -509,8 +509,11 @@ export const sim =
     return custom({ request })({ chain, retryCount: 0 });
   };
 
-export const realtimeBlockEngine = (
-  chains: Map<number, { request: ReturnType<Transport>["request"] }>,
+export const realtimeBlockEngine = async (
+  chains: Map<
+    number,
+    { request: ReturnType<Transport>["request"]; interval: [number, number] }
+  >,
   params: {
     SEED: string;
     REALTIME_REORG_RATE: number;
@@ -620,8 +623,8 @@ export const realtimeBlockEngine = (
             (Number(nextBlock.number) - Number(currentBlock.number))) *
             (blockNumber - Number(currentBlock.number)),
         )
-      : currentBlock.timestamp +
-        (BigInt(blockNumber) - hexToBigInt(currentBlock.timestamp));
+      : Number(currentBlock.timestamp) +
+        (Number(blockNumber) - hexToNumber(currentBlock.timestamp));
 
     return {
       number: toHex(blockNumber),
@@ -651,9 +654,7 @@ export const realtimeBlockEngine = (
     } satisfies RpcBlock;
   };
 
-  const simulate = async (): Promise<
-    { chainId: number; block: RpcBlock } | undefined
-  > => {
+  const simulate = async (): Promise<{ chainId: number; block: RpcBlock }> => {
     const latestBlocks: [number, RpcBlock][] = [];
     for (const [chainId, _blocks] of blocks) {
       latestBlocks.push([chainId, _blocks[_blocks.length - 1]!]);
@@ -703,22 +704,24 @@ export const realtimeBlockEngine = (
 
   const startPwr = promiseWithResolvers<void>();
   const pwr = new Map<number, PromiseWithResolvers<RpcBlock>>();
+  let startCount = 0;
 
-  for (const [chainId] of chains) {
+  for (const [chainId, { interval }] of chains) {
     pwr.set(chainId, promiseWithResolvers<RpcBlock>());
-  }
-
-  return async function* (chainId: number, finalizedBlockNumber: number) {
-    isRealtime = true;
 
     blocks.set(chainId, [
-      (await getBlockDb(chainId, finalizedBlockNumber)) ??
-        (await getBlockRpc(chainId, finalizedBlockNumber)),
-      (await getBlockDb(chainId, finalizedBlockNumber + 1)) ??
-        (await getBlockRpc(chainId, finalizedBlockNumber + 1)),
+      (await getBlockDb(chainId, interval[0])) ??
+        (await getBlockRpc(chainId, interval[0])),
     ]);
+    blocks.get(chainId)!.push(await getNextBlock(chainId));
+  }
 
-    if (blocks.size === chains.size) {
+  return async function* (chainId: number) {
+    isRealtime = true;
+
+    startCount += 1;
+
+    if (startCount === chains.size) {
       startPwr.resolve();
     } else {
       await startPwr.promise;

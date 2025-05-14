@@ -7,6 +7,7 @@ import type {
   Chain,
   ContractSource,
   IndexingFunctions,
+  LightBlock,
   RawIndexingFunctions,
   Source,
   SyncBlock,
@@ -21,10 +22,12 @@ import {
   defaultTransactionReceiptInclude,
   defaultTransferFilterInclude,
 } from "@/sync/filter.js";
+import { syncBlockToLightBlock } from "@/sync/index.js";
 import { chains as viemChains } from "@/utils/chains.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { getFinalityBlockCount } from "@/utils/finality.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { BlockNotFoundError, type Hex, type LogTopic, hexToNumber } from "viem";
 import { buildLogFactory } from "./factory.js";
 
@@ -67,6 +70,7 @@ export async function buildConfigAndIndexingFunctions({
 }): Promise<{
   chains: Chain[];
   rpcs: Rpc[];
+  finalizedBlocks: LightBlock[];
   sources: Source[];
   indexingFunctions: IndexingFunctions;
   logs: { level: "warn" | "info" | "debug"; msg: string }[];
@@ -195,6 +199,30 @@ export async function buildConfigAndIndexingFunctions({
       common,
       chain,
       concurrency: Math.floor(common.options.rpcMaxConcurrency / chains.length),
+    }),
+  );
+
+  const finalizedBlocks = await Promise.all(
+    chains.map((chain) => {
+      const rpc = rpcs[chains.findIndex((c) => c.name === chain.name)]!;
+
+      const blockPromise = _eth_getBlockByNumber(rpc, {
+        blockTag: "latest",
+      })
+        .then((block) => hexToNumber((block as SyncBlock).number))
+        .catch((e) => {
+          throw new Error(
+            `Unable to fetch "latest" block for chain '${chain.name}':\n${e.message}`,
+          );
+        });
+
+      perChainLatestBlockNumber.set(chain.name, blockPromise);
+
+      return blockPromise.then((latest) =>
+        _eth_getBlockByNumber(rpc, {
+          blockNumber: Math.max(latest - chain.finalityBlockCount, 0),
+        }).then(syncBlockToLightBlock),
+      );
     }),
   );
 
@@ -901,10 +929,12 @@ export async function buildConfigAndIndexingFunctions({
   // Filter out any chains that don't have any sources registered.
   const chainsWithSources: Chain[] = [];
   const rpcsWithoutSources: Rpc[] = [];
+  const finalizedBlocksWithoutSources: LightBlock[] = [];
 
   for (let i = 0; i < chains.length; i++) {
     const chain = chains[i]!;
     const rpc = rpcs[i]!;
+    const finalizedBlock = finalizedBlocks[i]!;
     const hasSources = sources.some(
       (source) => source.chain.name === chain.name,
     );
@@ -912,6 +942,7 @@ export async function buildConfigAndIndexingFunctions({
     if (hasSources) {
       chainsWithSources.push(chain);
       rpcsWithoutSources.push(rpc);
+      finalizedBlocksWithoutSources.push(finalizedBlock);
     } else {
       logs.push({
         level: "warn",
@@ -929,6 +960,7 @@ export async function buildConfigAndIndexingFunctions({
   return {
     chains: chainsWithSources,
     rpcs: rpcsWithoutSources,
+    finalizedBlocks: finalizedBlocksWithoutSources,
     sources,
     indexingFunctions,
     logs,
@@ -956,6 +988,7 @@ export async function safeBuildConfigAndIndexingFunctions({
       sources: result.sources,
       chains: result.chains,
       rpcs: result.rpcs,
+      finalizedBlocks: result.finalizedBlocks,
       indexingFunctions: result.indexingFunctions,
       logs: result.logs,
     } as const;

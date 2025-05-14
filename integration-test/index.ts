@@ -35,6 +35,7 @@ const SIM_PARAMS: SimParams = {
   REALTIME_FAST_FORWARD_RATE: 0.5,
   /** Probability that a block is delayed and a block on another chain is ordered first. */
   REALTIME_DELAY_RATE: 0.4,
+  FINALIZED_RATE: 0.97,
 };
 
 // constants

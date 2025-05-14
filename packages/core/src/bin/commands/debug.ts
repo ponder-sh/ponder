@@ -10,7 +10,8 @@ import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
 import type { SyncBlock } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
 import { mergeResults } from "@/utils/result.js";
-import { custom } from "viem";
+import { _eth_getBlockByNumber } from "@/utils/rpc.js";
+import { custom, hexToNumber } from "viem";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 import { run } from "../utils/run.js";
@@ -25,6 +26,7 @@ export type SimParams = {
   REALTIME_DEEP_REORG_RATE: number;
   REALTIME_FAST_FORWARD_RATE: number;
   REALTIME_DELAY_RATE: number;
+  FINALIZED_RATE: number;
 };
 
 export async function debug({
@@ -203,8 +205,33 @@ export async function debug({
       ),
     });
 
-    // @ts-ignore
-    chains.set(chain.id, { request: rpc.request });
+    const start = Math.min(
+      ...indexingBuildResult.result.sources.map(
+        ({ filter }) => filter.fromBlock ?? 0,
+      ),
+    );
+
+    const end = Math.max(
+      ...indexingBuildResult.result.sources.map(
+        ({ filter }) => filter.toBlock!,
+      ),
+    );
+
+    indexingBuildResult.result.finalizedBlocks[i] = await _eth_getBlockByNumber(
+      rpc,
+      {
+        blockNumber: start + Math.floor((end - start) * params.FINALIZED_RATE),
+      },
+    );
+
+    chains.set(chain.id, {
+      // @ts-ignore
+      request: rpc.request,
+      interval: [
+        hexToNumber(indexingBuildResult.result.finalizedBlocks[i]!.number),
+        end,
+      ],
+    });
 
     common.logger.warn({
       service: "sim",
@@ -212,7 +239,7 @@ export async function debug({
     });
   }
 
-  const getRealtimeBlockGenerator = realtimeBlockEngine(
+  const getRealtimeBlockGenerator = await realtimeBlockEngine(
     chains,
     params,
     connectionString,
@@ -222,14 +249,9 @@ export async function debug({
     const chain = indexingBuildResult.result.chains[i]!;
     const rpc = indexingBuildResult.result.rpcs[i]!;
 
-    getRealtimeBlockGenerator(chain.id, 13_149_000);
-
     rpc.subscribe = (onBlock) => {
       (async () => {
-        for await (const block of getRealtimeBlockGenerator(
-          chain.id,
-          13_149_000,
-        )) {
+        for await (const block of getRealtimeBlockGenerator(chain.id)) {
           await onBlock(block as SyncBlock);
         }
       })();
