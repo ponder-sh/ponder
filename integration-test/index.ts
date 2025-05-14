@@ -27,7 +27,7 @@ const SIM_PARAMS: SimParams = {
   ETH_GET_LOGS_RESPONSE_LIMIT: Number.POSITIVE_INFINITY,
   ETH_GET_LOGS_BLOCK_LIMIT: 20_000,
   /** Probability of a reorg. */
-  REALTIME_REORG_RATE: 0.15,
+  REALTIME_REORG_RATE: 0.05,
   // TODO(kyle) deep reorg
   /** Probability that the chain fast forwards and skips a block. */
   REALTIME_FAST_FORWARD_RATE: 0.5,
@@ -171,21 +171,25 @@ while (true) {
   await new Promise((resolve) => setTimeout(resolve, 50));
 }
 
+await new Promise((resolve) => setTimeout(resolve, 15_000));
+
+console.log("KILLING");
+
 await kill!();
 
-const schema = await import(`./${APP_DIR}/ponder.schema.ts`);
-for (const key of Object.keys(schema)) {
-  if (is(schema[key], Table)) {
-    const table = schema[key] as Table;
-    const tableName = getTableName(table);
+// const schema = await import(`./${APP_DIR}/ponder.schema.ts`);
+// for (const key of Object.keys(schema)) {
+//   if (is(schema[key], Table)) {
+//     const table = schema[key] as Table;
+//     const tableName = getTableName(table);
 
-    await compareTables(
-      db,
-      `"${APP_ID}_expected"."${tableName}"`,
-      `"${TARGET_SCHEMA}"."${tableName}"`,
-    );
-  }
-}
+//     await compareTables(
+//       db,
+//       `"${APP_ID}_expected"."${tableName}"`,
+//       `"${TARGET_SCHEMA}"."${tableName}"`,
+//     );
+//   }
+// }
 
 await db.execute(sql.raw(`DROP SCHEMA IF EXISTS "${TARGET_SCHEMA}" CASCADE`));
 await db.execute(

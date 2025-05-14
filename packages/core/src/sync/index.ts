@@ -1513,7 +1513,7 @@ export const getLocalSyncProgress = async ({
   //   hexToNumber(diagnostics[1].number) - chain.finalityBlockCount,
   // );
   syncProgress.finalized = await _eth_getBlockByNumber(rpc, {
-    blockNumber: 13_150_000,
+    blockNumber: 13_149_000,
   });
   syncProgress.start = diagnostics[1];
   if (diagnostics.length === 3) {
