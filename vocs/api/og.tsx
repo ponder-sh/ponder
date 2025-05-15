@@ -4,13 +4,12 @@ export const config = {
   runtime: "edge",
 };
 
-// https://og-playground.vercel.app/?share=bVLBbtswDP0VQcPQi5O4blYEQtrD2n3BCuySiyzRslpZNCQ5mRfk30c5FdYNO4l8pN6jnnjmCjVwwffaHg-esZhmBw_nc44Z68GaPgl2c1vXn2-qK3iyOvX_YNrG0cmZ0M7Bz4Lm-NkGUMmip5pCNw2-VF-nmGw3P6FP4LOIogNCKbdSvZmAk9dP6DBQ_VNz1zTNl9JAbAt86m2CAo5Sa-sNwbt6fB_kcjn4xxzs7WBYDOrhwPuUxig2myOquNZwXIKVQ4MrLcPbOh7Ngb-_n9rviYzy4g4bZDDWv-Ao2HZHAmxzFSAX_zR19LLv9hfQMHf3eZgF-VE8bdFpwv6iKulXTAkHwVa3DbE_kkedNfsN0f9HB0epbCLz6zURfFBttovqB4Vmm-meobMemHHYSscGSFLLJOlmYDNOgWlU00CfIfO_FdXrySuOY4YjF2e-rAIXu7qu-NUrLrY50dBOhotOuggVhwFf7cs85kVLpyUjnjzot6EFzUUKE1wqnmRLHT04hycMTvPLbw
 export default async function handler(request: Request) {
   const { searchParams } = new URL(request.url);
 
-  const requestUrl = new URL(request.url);
-  const baseUrl = requestUrl.origin;
-  const backgroundImageUrl = `${baseUrl}/og-template.png`;
+  // const requestUrl = new URL(request.url);
+  // const baseUrl = requestUrl.origin;
+  // const backgroundImageUrl = `${baseUrl}/og-template.png`;
 
   const title = searchParams.get("title");
   const description = searchParams.get("description");
@@ -21,33 +20,36 @@ export default async function handler(request: Request) {
   // const interRegularData = await interRegular.arrayBuffer();
 
   return new ImageResponse(
-    <div // Outermost container for background
+    <div
       style={{
         height: "100%",
         width: "100%",
-        display: "flex",
-        alignItems: "center", // Center the text wrapper vertically
-        justifyContent: "center", // Center the text wrapper horizontally
-        backgroundImage: `url(${backgroundImageUrl})`,
+        backgroundImage: "url(/og-template.png)",
         backgroundSize: "1200px 630px", // Or "cover"
+        display: "flex",
+        flexDirection: "column",
+        padding: "80px",
+        paddingTop: "300px",
         // fontFamily: "Inter",
       }}
     >
-      <div // Text wrapper
+      <div
         style={{
           display: "flex",
           flexDirection: "column",
           textAlign: "left",
-          padding: "80px",
           color: "white",
-          maxWidth: "1040px", // 1200px width - 2 * 80px padding
+          // 1200px width - 2 * 80px padding
+          width: "1040px",
+          maxWidth: "1040px",
         }}
       >
-        <div // Title
+        <div
           style={{
-            fontSize: "42px",
-            fontWeight: "bold",
-            marginBottom: 20,
+            fontSize: "52px",
+            fontWeight: 900,
+            marginBottom: 12,
+            letterSpacing: "-1px",
           }}
         >
           {title}
@@ -55,9 +57,10 @@ export default async function handler(request: Request) {
         {description && (
           <div
             style={{
-              opacity: 0.8,
-              fontSize: "32px",
+              opacity: 0.9,
+              fontSize: "36px",
               lineHeight: "1.4",
+              letterSpacing: "-1px",
             }}
           >
             {description}
