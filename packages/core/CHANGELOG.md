@@ -1,5 +1,11 @@
 # ponder
 
+## 0.10.27
+
+### Patch Changes
+
+- [#1737](https://github.com/ponder-sh/ponder/pull/1737) [`7db4e4b848db4cd5f09dff6a24ec9a5b6a978b29`](https://github.com/ponder-sh/ponder/commit/7db4e4b848db4cd5f09dff6a24ec9a5b6a978b29) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug causing duplicate events after the warning "Encountered unrecoverable '[chain]' reorg".
+
 ## 0.10.26
 
 ### Patch Changes
