@@ -151,6 +151,16 @@ export async function run({
           onReloadableError(result.error);
           return;
         }
+
+        try {
+          await indexingCache.flush({ client });
+        } catch (error) {
+          if (error instanceof FlushError) {
+            onReloadableError(error as Error);
+            return;
+          }
+          throw error;
+        }
       });
     });
   }
