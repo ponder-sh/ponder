@@ -14,7 +14,7 @@ export const sidebar = {
     {
       text: "Config",
       items: [
-        { text: "Networks", link: "/docs/config/networks" },
+        { text: "Chains", link: "/docs/config/chains" },
         { text: "Contracts", link: "/docs/config/contracts" },
         { text: "Accounts", link: "/docs/config/accounts" },
         { text: "Block intervals", link: "/docs/config/block-intervals" },
