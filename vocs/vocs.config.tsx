@@ -2,27 +2,21 @@ import { remarkMermaid } from "@theguild/remark-mermaid";
 import { defineConfig } from "vocs";
 import { sidebar } from "./sidebar";
 
+const baseUrl =
+  process.env.VERCEL_ENV === "production"
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : `https://${process.env.VERCEL_URL}`;
+
 export default defineConfig({
   title: "Ponder",
   titleTemplate: "%s – Ponder",
   description:
     "Ponder is an open-source backend framework for robust, performant, and maintainable crypto apps.",
   rootDir: ".",
-  baseUrl:
-    process.env.VERCEL_ENV === "production"
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : `https://${process.env.VERCEL_URL}`,
-  ogImageUrl:
-    "https://vocs.dev/api/og?logo=%logo&title=%title&description=%description",
-  // ogImageUrl: {
-  //   '/': '/og-image.png',
-  //   '/docs':
-  //     'https://vocs.dev/api/og?logo=%logo&title=%title&description=%description',
-  //   '/op-stack':
-  //     'https://vocs.dev/api/og?logo=%logo&title=%title&description=%description',
-  // },
   iconUrl: { light: "/icon.png", dark: "/icon.png" },
   logoUrl: { light: "/ponder-light.svg", dark: "/ponder-dark.svg" },
+  baseUrl,
+  ogImageUrl: `${baseUrl}/api/og?title=%title&description=%description`,
   markdown: { remarkPlugins: [remarkMermaid] },
   sidebar,
   topNav: [
