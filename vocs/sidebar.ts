@@ -118,8 +118,8 @@ export const sidebar = {
       items: [
         { text: "Get started", link: "/docs/0.10/get-started" },
         { text: "Requirements", link: "/docs/0.10/requirements" },
-        // { text: "Database", link: "/docs/0.10/database" },
-        // { text: "Migration guide", link: "/docs/0.10/migration-guide" },
+        { text: "Database", link: "/docs/0.10/database" },
+        { text: "Migration guide", link: "/docs/0.10/migration-guide" },
       ],
     },
     {
