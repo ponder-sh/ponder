@@ -458,6 +458,8 @@ export async function run({
         }
 
         await database.wrap({ method: "setCheckpoints" }, async () => {
+          if (event.checkpoints.length === 0) return;
+
           await database.qb.drizzle
             .insert(database.PONDER_CHECKPOINT)
             .values(
