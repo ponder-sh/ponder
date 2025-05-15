@@ -1,4 +1,4 @@
-import { ChevronsUpDown } from "lucide-react";
+import { CheckIcon, ChevronsUpDown } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -11,6 +11,7 @@ const useIsomorphicLayoutEffect =
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const sidebarHostRef = useRef<HTMLDivElement | null>(null);
+  const sidebarMobileHostRef = useRef<HTMLDivElement | null>(null);
   const contentHostRef = useRef<HTMLDivElement | null>(null);
 
   /* -----------------------------------------------------------
@@ -19,6 +20,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
    * --------------------------------------------------------- */
   if (typeof window !== "undefined" && !sidebarHostRef.current)
     sidebarHostRef.current = document.createElement("div");
+  if (typeof window !== "undefined" && !sidebarMobileHostRef.current)
+    sidebarMobileHostRef.current = document.createElement("div");
   if (typeof window !== "undefined" && !contentHostRef.current)
     contentHostRef.current = document.createElement("div");
 
@@ -29,11 +32,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   useIsomorphicLayoutEffect(() => {
     const sidebarHost = sidebarHostRef.current!;
     const attachSidebar = () => {
-      const sidebar = document.querySelector<HTMLElement>(
+      const sidebarElements = document.querySelectorAll<HTMLElement>(
         "nav.vocs_Sidebar_navigation",
       );
-      if (sidebar && !sidebar.contains(sidebarHost)) {
-        sidebar.insertBefore(sidebarHost, sidebar.firstChild);
+      const sidebarDesktop = sidebarElements[0];
+
+      if (sidebarDesktop && !sidebarDesktop.contains(sidebarHost)) {
+        sidebarDesktop.insertBefore(sidebarHost, sidebarDesktop.firstChild);
+      }
+    };
+
+    const sidebarMobileHost = sidebarMobileHostRef.current!;
+    const attachSidebarMobile = () => {
+      const sidebarElements = document.querySelectorAll<HTMLElement>(
+        "nav.vocs_Sidebar_navigation",
+      );
+      const sidebarMobile = sidebarElements[1];
+      if (sidebarMobile && !sidebarMobile.contains(sidebarMobileHost)) {
+        sidebarMobile.insertBefore(sidebarMobileHost, sidebarMobile.firstChild);
       }
     };
 
@@ -48,10 +64,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       }
     };
 
-    attachSidebar(); // initial page load
-    attachContent(); // initial page load
+    // initial page load
+    attachSidebar();
+    attachSidebarMobile();
+    attachContent();
+
+    // re-attach on sidebar re-mount
     const obs = new MutationObserver(() => {
       attachSidebar();
+      attachSidebarMobile();
       attachContent();
     });
     obs.observe(document.body, { childList: true, subtree: true });
@@ -59,6 +80,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => {
       obs.disconnect();
       sidebarHost.remove();
+      sidebarMobileHost.remove();
       contentHost.remove();
     };
   }, []);
@@ -68,7 +90,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {children}
       {/* sidebarHostRef.current is already defined on the client’s first render */}
       {sidebarHostRef.current &&
-        createPortal(<VersionPicker />, sidebarHostRef.current)}
+        createPortal(<VersionPickerDesktop />, sidebarHostRef.current)}
+      {sidebarMobileHostRef.current &&
+        createPortal(<VersionPickerMobile />, sidebarMobileHostRef.current)}
       {contentHostRef.current &&
         createPortal(<OutdatedVersionCallout />, contentHostRef.current)}
     </>
@@ -94,7 +118,7 @@ const versions = [
   },
 ];
 
-function VersionPicker() {
+function VersionPickerDesktop() {
   const { pathname } = useLocation();
   const activeVersion = [...versions]
     .sort((a, b) => b.prefix.length - a.prefix.length)
@@ -128,7 +152,7 @@ function VersionPicker() {
             align="start"
             sideOffset={4}
             alignOffset={-1}
-            className="z-[15] w-[calc(var(--vocs-sidebar_width)-2*var(--vocs-sidebar\_horizontalPadding)+26px)] bg-[var(--vocs-color_background)] border border-[var(--vocs-color_border)] text-[length:var(--vocs-fontSize_14)] font-[var(--vocs-fontWeight_medium)] rounded-lg flex flex-col shadow-lg"
+            className="z-50 w-[calc(var(--vocs-sidebar_width)-2*var(--vocs-sidebar\_horizontalPadding)+26px)] bg-[var(--vocs-color_background)] border border-[var(--vocs-color_border)] text-[length:var(--vocs-fontSize_14)] font-[var(--vocs-fontWeight_medium)] rounded-lg flex flex-col shadow-lg"
           >
             {versions.map((v, index) => (
               <DropdownMenu.Item
@@ -157,6 +181,40 @@ function VersionPicker() {
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
+    </div>
+  );
+}
+
+function VersionPickerMobile() {
+  const { pathname } = useLocation();
+  const activeVersion = [...versions]
+    .sort((a, b) => b.prefix.length - a.prefix.length)
+    .find((v) => pathname.startsWith(v.prefix));
+
+  if (!activeVersion) return null;
+
+  return (
+    <div className="pt-2 flex flex-col">
+      {versions.map((v) => (
+        <Link
+          to={v.destination}
+          key={v.prefix}
+          className={cn(
+            "flex flex-row items-center justify-between",
+            "pt-[10px] pb-[10px]",
+            "hover:outline-none",
+            "cursor-pointer rounded-lg",
+          )}
+        >
+          <div className="flex flex-col items-start gap-1 leading-tight">
+            <span className="vocs_Sidebar_sectionTitle">{v.label}</span>
+            <span className="text-[11px] text-[var(--vocs-color_text3)]">
+              {v.patch}
+            </span>
+          </div>
+          {v.label === activeVersion.label && <CheckIcon className="w-4 h-4" />}
+        </Link>
+      ))}
     </div>
   );
 }
