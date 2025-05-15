@@ -62,7 +62,7 @@ type CreateRealtimeSyncParameters = {
   chain: Chain;
   rpc: Rpc;
   sources: Source[];
-  onEvent: (event: RealtimeSyncEvent) => Promise<void>;
+  onEvent: (event: RealtimeSyncEvent) => void;
   onFatalError: (error: Error) => void;
 };
 
@@ -709,7 +709,7 @@ export const createRealtimeSync = (
 
     const commonAncestor = getLatestUnfinalizedBlock();
 
-    await args.onEvent({ type: "reorg", block: commonAncestor, reorgedBlocks });
+    args.onEvent({ type: "reorg", block: commonAncestor, reorgedBlocks });
 
     args.common.logger.warn({
       service: "realtime",
@@ -812,7 +812,7 @@ export const createRealtimeSync = (
       block,
       endClock,
       ...rest
-    }: BlockWithEventData & { endClock?: () => number }) => {
+    }: BlockWithEventData & { endClock?: () => number }): Promise<void> => {
       const latestBlock = getLatestUnfinalizedBlock();
 
       // We already saw and handled this block. No-op.
@@ -870,8 +870,8 @@ export const createRealtimeSync = (
             reconcileBlock(pendingBlock);
           }
 
+          // TODO(kyle) this is locking the mutex
           reconcileBlock({ block, endClock, ...rest });
-
           return;
         }
 
@@ -932,7 +932,7 @@ export const createRealtimeSync = (
         // @ts-ignore
         block.transactions = rest.transactions;
 
-        await args.onEvent({
+        args.onEvent({
           type: "block",
           hasMatchedFilter: blockWithEventData.matchedFilters.size > 0,
           block: blockWithEventData.block,
@@ -985,10 +985,7 @@ export const createRealtimeSync = (
 
           finalizedBlock = pendingFinalizedBlock;
 
-          await args.onEvent({
-            type: "finalize",
-            block: pendingFinalizedBlock,
-          });
+          args.onEvent({ type: "finalize", block: pendingFinalizedBlock });
         }
 
         // Reset the error state after successfully completing the happy path.
@@ -1021,7 +1018,7 @@ export const createRealtimeSync = (
 
         // Remove all blocks from the queue. This protects against an
         // erroneous block causing a fatal error.
-        reconcileBlock.clear();
+        // reconcileBlock.clear();
 
         reconcileBlockErrorCount += 1;
 

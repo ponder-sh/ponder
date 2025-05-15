@@ -202,3 +202,4 @@ await db.execute(
 await db.execute(sql.raw(`DROP SCHEMA IF EXISTS "${APP_ID}_expected" CASCADE`));
 
 await pool.end();
+process.exit(0);

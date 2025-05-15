@@ -466,7 +466,7 @@ export const createSync = async (params: {
   // Note: `latencyTimers` not used in multichain ordering
   const latencyTimers = new Map<string, () => number>();
 
-  const onRealtimeSyncEvent = (
+  const onRealtimeSyncEvent = async (
     event: RealtimeSyncEvent,
     {
       chain,
@@ -479,7 +479,7 @@ export const createSync = async (params: {
       syncProgress: SyncProgress;
       realtimeSync: RealtimeSync;
     },
-  ): void => {
+  ): Promise<void> => {
     switch (event.type) {
       case "block": {
         const events = buildEvents({
@@ -535,7 +535,7 @@ export const createSync = async (params: {
             msg: `Sequenced ${readyEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
           });
 
-          params
+          await params
             .onRealtimeEvent({
               type: "block",
               chain,
@@ -601,7 +601,7 @@ export const createSync = async (params: {
               }
             }
 
-            params
+            await params
               .onRealtimeEvent({
                 type: "block",
                 events: readyEvents.sort((a, b) =>
@@ -664,7 +664,7 @@ export const createSync = async (params: {
 
         // Raise event to parent function (runtime)
         if (to > from) {
-          params.onRealtimeEvent({
+          await params.onRealtimeEvent({
             type: "finalize",
             chain,
             checkpoint: to,
@@ -724,7 +724,7 @@ export const createSync = async (params: {
             msg: `Rescheduled ${events.length} reorged events`,
           });
 
-          params.onRealtimeEvent({
+          await params.onRealtimeEvent({
             type: "reorg",
             chain,
             checkpoint,
@@ -746,7 +746,7 @@ export const createSync = async (params: {
           });
 
           if (to < from) {
-            params.onRealtimeEvent({
+            await params.onRealtimeEvent({
               type: "reorg",
               chain,
               checkpoint: to,
@@ -807,8 +807,8 @@ export const createSync = async (params: {
         chain,
         onEvent: realtimeMutex((event) =>
           perChainOnRealtimeSyncEvent(event)
-            .then((event) => {
-              onRealtimeSyncEvent(event, {
+            .then(async (event) => {
+              await onRealtimeSyncEvent(event, {
                 chain,
                 sources,
                 syncProgress,

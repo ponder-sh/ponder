@@ -523,7 +523,6 @@ export const realtimeBlockEngine = async (
   },
   connectionString?: string,
 ) => {
-  const random = seedrandom(params.SEED);
   const db = connectionString
     ? drizzle(connectionString, {
         casing: "snake_case",
@@ -666,19 +665,22 @@ export const realtimeBlockEngine = async (
       latestBlocks.push([chainId, _blocks[_blocks.length - 1]!]);
     }
 
-    const orderedBlocks = latestBlocks
+    const orderedChainIds = latestBlocks
       .sort((a, b) =>
         hexToNumber(a[1].timestamp) < hexToNumber(b[1].timestamp) ? -1 : 1,
       )
       .map(([chainId]) => chainId);
 
+    let random = seedrandom(
+      params.SEED + latestBlocks.map((b) => b[1].number).join(""),
+    );
     let chainId: number;
-    for (let i = 0; i < orderedBlocks.length; i++) {
+    for (let i = 0; i < orderedChainIds.length; i++) {
       if (
         random() < params.REALTIME_DELAY_RATE ||
-        i === orderedBlocks.length - 1
+        i === orderedChainIds.length - 1
       ) {
-        chainId = orderedBlocks[i]!;
+        chainId = orderedChainIds[i]!;
         break;
       }
     }
@@ -700,6 +702,8 @@ export const realtimeBlockEngine = async (
     const nextBlock = await getNextBlock(chainId);
     blocks.get(chainId)!.push(nextBlock);
 
+    random = seedrandom(params.SEED + chainId + nextBlock.number);
+
     if (random() < params.REALTIME_FAST_FORWARD_RATE) {
       return simulate();
     }
@@ -710,6 +714,7 @@ export const realtimeBlockEngine = async (
     } else if (random() < params.REALTIME_DEEP_REORG_RATE) {
       // Note: another way to trigger a deep reorg is for the next block to be way in the past.
 
+      console.log("deep reorg");
       nextBlock.parentHash = block.parentHash;
     }
 
