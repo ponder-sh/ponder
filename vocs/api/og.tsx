@@ -7,17 +7,8 @@ export const config = {
 export default async function handler(request: Request) {
   const { searchParams } = new URL(request.url);
 
-  // const requestUrl = new URL(request.url);
-  // const baseUrl = requestUrl.origin;
-  // const backgroundImageUrl = `${baseUrl}/og-template.png`;
-
   const title = searchParams.get("title");
   const description = searchParams.get("description");
-
-  // const interRegular = await fetch(
-  //   new URL("/Inter_28pt-Regular.ttf", import.meta.url),
-  // );
-  // const interRegularData = await interRegular.arrayBuffer();
 
   return new ImageResponse(
     <div
@@ -50,8 +41,8 @@ export default async function handler(request: Request) {
           style={{
             fontSize: "52px",
             fontWeight: 900,
-            marginBottom: 12,
             letterSpacing: "-1px",
+            marginBottom: 12,
           }}
         >
           {title}
@@ -73,12 +64,6 @@ export default async function handler(request: Request) {
     {
       width: 1200,
       height: 630,
-      // fonts: [
-      //   {
-      //     name: "Inter",
-      //     data: interRegularData,
-      //   },
-      // ],
     },
   );
 }
