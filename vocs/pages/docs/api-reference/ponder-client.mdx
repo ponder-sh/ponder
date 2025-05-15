@@ -129,13 +129,13 @@ console.log("Mainnet indexing status:", status.mainnet);
 
 #### Returns
 
-Returns a Promise that resolves to an object containing the indexing status of each network.
+Returns a Promise that resolves to an object containing the indexing status of each chain.
 
 ```ts
 type Status = {
-  [network: string]: {
+  [chain: string]: {
+    id: number;
     block: { number: number; timestamp: number } | null;
-    ready: boolean;
   };
 };
 ```

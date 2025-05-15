@@ -124,10 +124,9 @@ function IndexingStatus() {
 
   return (
     <div>
-      {Object.entries(data).map(([network, status]) => (
-        <div key={network}>
-          <h3>{network}</h3>
-          <p>Ready: {status.ready ? "Yes" : "No"}</p>
+      {Object.entries(data).map(([chain, status]) => (
+        <div key={chain}>
+          <h3>{chain}</h3>
           {status.block && (
             <p>
               Block: {status.block.number} (
@@ -149,7 +148,7 @@ function IndexingStatus() {
 
 #### Returns
 
-Returns a normal TanStack `useQuery` result. [Read more](https://tanstack.com/query/latest/docs/framework/react/reference/useQuery) in the TanStack documention.
+Returns a normal TanStack `useQuery` result containing the indexing [status object](/docs/advanced/observability#indexing-status). [Read more](https://tanstack.com/query/latest/docs/framework/react/reference/useQuery) in the TanStack documention.
 
 ## `getPonderQueryOptions`
 

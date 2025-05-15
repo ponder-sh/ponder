@@ -4,7 +4,7 @@ import { Callout } from "vocs/components";
 
 To run indexing logic on a **regular schedule**, use the `blocks` field in `ponder.config.ts`. Block intervals are useful for aggregations, time-series logic, and bulk updates using raw SQL.
 
-This guide describes each configuration option and suggests patterns for common use cases. Visit the config [API reference](/docs/api-reference/ponder/config) for more information.
+This guide describes each configuration option and suggests patterns for common use cases. Visit the config [API reference](/docs/0.10/api-reference/ponder/config) for more information.
 
 ## Example
 
@@ -120,10 +120,10 @@ export default createConfig({
 });
 ```
 
-[Read more](/docs/config/contracts#network) in the contracts guide.
+[Read more](/docs/0.10/config/contracts#network) in the contracts guide.
 
 ## Block range
 
-The `startBlock` and `endBlock` options for accounts work the same way as it does for contracts.
+The `startBlock` and `endBlock` options for block intervals work the same way as it does for contracts.
 
-[Read more](/docs/config/contracts#block-range) in the contracts guide.
+[Read more](/docs/0.10/config/contracts#block-range) in the contracts guide.

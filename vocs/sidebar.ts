@@ -14,7 +14,7 @@ export const sidebar = {
     {
       text: "Config",
       items: [
-        { text: "Networks", link: "/docs/config/networks" },
+        { text: "Chains", link: "/docs/config/chains" },
         { text: "Contracts", link: "/docs/config/contracts" },
         { text: "Accounts", link: "/docs/config/accounts" },
         { text: "Block intervals", link: "/docs/config/block-intervals" },
@@ -118,8 +118,8 @@ export const sidebar = {
       items: [
         { text: "Get started", link: "/docs/0.10/get-started" },
         { text: "Requirements", link: "/docs/0.10/requirements" },
-        // { text: "Database", link: "/docs/0.10/database" },
-        // { text: "Migration guide", link: "/docs/0.10/migration-guide" },
+        { text: "Database", link: "/docs/0.10/database" },
+        { text: "Migration guide", link: "/docs/0.10/migration-guide" },
       ],
     },
     {

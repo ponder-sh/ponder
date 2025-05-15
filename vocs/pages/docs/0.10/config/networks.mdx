@@ -2,7 +2,7 @@
 
 Use the `networks` field in `ponder.config.ts` to configure network names, chain IDs, RPC URLs, and transport options.
 
-This guide describes each configuration option and suggests patterns for common use cases. Visit the config [API reference](/docs/api-reference/ponder/config) for more information.
+This guide describes each configuration option and suggests patterns for common use cases. Visit the config [API reference](/docs/0.10/api-reference/ponder/config) for more information.
 
 ## Example
 
@@ -256,7 +256,7 @@ export default createConfig({
 
 Use the `disableCache` option to disable caching for RPC responses. The default is `false`.
 
-Set this option to `true` when indexing a development node like Anvil, where the chain state / history may change. [Read more](/docs/guides/foundry) about indexing Anvil.
+Set this option to `true` when indexing a development node like Anvil, where the chain state / history may change. [Read more](/docs/0.10/guides/foundry) about indexing Anvil.
 
 ```ts [ponder.config.ts]
 import { createConfig } from "ponder";

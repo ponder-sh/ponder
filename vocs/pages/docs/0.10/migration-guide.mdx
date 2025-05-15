@@ -1,5 +1,54 @@
 # Migration guide [Upgrade to a new version of Ponder]
 
+## 0.10
+
+### Breaking changes
+
+#### `ponder_sync` database migration
+
+**WARNING**: This release includes an irreversible database migration to the RPC request cache located in the `ponder_sync` schema. Here are some details to consider when upgrading your production environment.
+
+1. When an `0.10` instance starts up, it will attempt to run the migration against the connected database.
+2. Any `<=0.9` instances currently connected to the database will crash, or the migration will fail.
+3. Once the migration is complete, it's not possible to run `<=0.9` instances against the upgraded database.
+
+#### Removed `event.log.id`
+
+The `event.log.id` and `event.trace.id` properties were removed. Replace each occurence with the new `event.id` property (described below), or update the table definition to use a compound primary key that better represents the business logic / domain.
+
+```ts [src/index.ts]
+import { ponder } from "ponder:registry";
+import { transferEvent } from "ponder:registry";
+
+ponder.on("ERC20:Transfer", ({ event, context }) => {
+  await context.db
+    .insert(transferEvent)
+    .values({ id: event.log.id }); // [!code --]
+    .values({ id: event.id }); // [!code ++]
+});
+```
+
+#### Removed `event.name`
+
+The undocumented `event.name` property was also removed.
+
+### New features
+
+#### `event.id`
+
+The new `event.id` property is a globally unique identifier for a log, block, transaction, or trace event that works across any number of chains. Each `event.id` value is a 75-digit positive integer represented as a string.
+
+#### Factory performance
+
+This release fixes a long-standing performance issue affecting large factory contracts (10k+ addresses). Before, a SQL query was used to dynamically generate the list of addresses for each batch of events. This did not scale well. Now, the list of addresses is materialized directly and all address filtering occurs in-memory.
+
+#### RPC request cache fixes
+
+This release fixes two performance issues related to the ad-hoc RPC request cache.
+
+1. **Reorg reconciliation** — Before, the query that evicted non-canonical results from the cache did not have an appropriate index. This occasionally caused timeouts leading to a crash.
+2. **Large multicalls** — Before, multicall requests were treated naively as a single large `eth_call`. Now, the caching logic intelligently splits large multicall requests into smaller chunks.
+
 ## 0.9
 
 ### Breaking changes
@@ -83,11 +132,11 @@ export default app;
 
 #### SQL client
 
-The `@ponder/client` package provides a new experience for querying a Ponder app over HTTP. It's an SQL-based alternative to the GraphQL API. [Read more](/docs/query/sql-client).
+The `@ponder/client` package provides a new experience for querying a Ponder app over HTTP. It's an SQL-based alternative to the GraphQL API. [Read more](/docs/0.10/query/sql-client).
 
 #### `@ponder/react`
 
-The `@ponder/react` package uses `@ponder/client` and Tanstack Query to provide reactive live queries. [Read more](/docs/query/sql-client#guide-react).
+The `@ponder/react` package uses `@ponder/client` and Tanstack Query to provide reactive live queries. [Read more](/docs/0.10/query/sql-client#guide-react).
 
 #### `publicClients`
 
@@ -118,7 +167,7 @@ export default app;
 
 #### Custom log filters
 
-The `contracts.filter` property now supports multiple log filters, and requires argument values. [Read more](/docs/config/contracts#filter).
+The `contracts.filter` property now supports multiple log filters, and requires argument values. [Read more](/docs/0.10/config/contracts#filter).
 
 ## 0.8
 
@@ -141,12 +190,12 @@ ponder start --schema my_schema
 ```
 
 :::info
-Each deployment/instance of a Ponder app must have it's own schema, with some exceptions for `ponder dev` and crash recovery. [Read more](/docs/database#database-schema).
+Each deployment/instance of a Ponder app must have it's own schema, with some exceptions for `ponder dev` and crash recovery. [Read more](/docs/0.10/database#database-schema).
 :::
 
 #### Railway
 
-Railway users should [update the start command](/docs/production/railway#create-a-ponder-app-service) to include a database schema.
+Railway users should [update the start command](/docs/0.10/production/railway#create-a-ponder-app-service) to include a database schema.
 
 ::::code-group
 ```bash [pnpm]
@@ -276,7 +325,7 @@ All of the data is still available on other properties of the `event` object, su
 
 #### Account indexing
 
-A new event source `accounts` is available. Accounts can be used to index transactions and native transfers to and from an address. [Read more](/docs/config/accounts).
+A new event source `accounts` is available. Accounts can be used to index transactions and native transfers to and from an address. [Read more](/docs/0.10/config/accounts).
 
 #### `ponder:schema` alias
 
@@ -652,7 +701,7 @@ The new `/ready` endpoint returns an HTTP `200` response once the app **is ready
 
 The existing `/health` endpoint now returns an HTTP `200` response as soon as the process starts. (This release removes the `maxHealthcheckDuration` option, which previously governed the behavior of `/health`.)
 
-For Railway users, we now recommend using `/ready` as the health check endpoint to enable zero downtime deployments. If your app takes a while to sync, be sure to set the healthcheck timeout accordingly. Read the [Railway deployment guide](/docs/production/railway#create-a-ponder-app-service) for more details.
+For Railway users, we now recommend using `/ready` as the health check endpoint to enable zero downtime deployments. If your app takes a while to sync, be sure to set the healthcheck timeout accordingly. Read the [Railway deployment guide](/docs/0.10/production/railway#create-a-ponder-app-service) for more details.
 
 
 ## 0.5.0
@@ -681,7 +730,7 @@ npm install hono@latest
 
 #### Introduced custom API endpoints
 
-This release added support for API functions. [Read more](/docs/query/api-endpoints).
+This release added support for API functions. [Read more](/docs/0.10/query/api-endpoints).
 
 ## 0.4.0
 
@@ -691,7 +740,7 @@ This release changes the location of database tables when using both SQLite and 
 
 #### New database layout
 
-Please read the new docs on [direct SQL](/docs/query/direct-sql) for a detailed overview.
+Please read the new docs on [direct SQL](/docs/0.10/query/direct-sql) for a detailed overview.
 
 **SQLite**
 
@@ -705,8 +754,8 @@ Isolation while running multiple Ponder instances against the same database also
 
 This also changes the zero-downtime behavior on platforms like Railway. For more information on how this works in `0.4`, please reference:
 
-- [Direct SQL](/docs/query/direct-sql)
-- [Zero-downtime deployments](/docs/production/self-hosting#database-schema)
+- [Direct SQL](/docs/0.10/query/direct-sql)
+- [Zero-downtime deployments](/docs/0.10/production/self-hosting#database-schema)
 
 **Postgres table cleanup**
 
@@ -768,7 +817,7 @@ Removed `p.bytes()` in favor of a new `p.hex()` primitive column type. `p.hex()`
 
 #### Cursor pagination
 
-Updated the GraphQL API to use cursor pagination instead of offset pagination. Note that this change also affects the `findMany` database method. See the [GraphQL pagination docs](/docs/query/graphql#pagination) for more details.
+Updated the GraphQL API to use cursor pagination instead of offset pagination. Note that this change also affects the `findMany` database method. See the [GraphQL pagination docs](/docs/0.10/query/graphql#pagination) for more details.
 
 ## 0.1
 

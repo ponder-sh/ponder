@@ -133,14 +133,14 @@ curl http://localhost:42069/status
 ```json [Response]
 {
   "mainnet": {
-    "ready": true,
+    "id": 1,
     "block": {
       "number": 20293450,
       "timestamp": 1720823759
     }
   },
   "base": {
-    "ready": true,
+    "id": 8453,
     "block": {
       "number": 17017206,
       "timestamp": 1720823759
@@ -164,14 +164,14 @@ query {
   "_meta": {
     "status": {
       "mainnet": {
-        "ready": true,
+        "id": 1,
         "block": {
           "number": 20293464,
           "timestamp": 1720823939
         }
       },
       "base": {
-        "ready": false,
+        "id": 8453,
         "block": null
       }
     }
@@ -181,9 +181,9 @@ query {
 
 ### API
 
-The response object contains a property for each network in your app with the following fields.
+The response object contains a property for each chain in your app with the following fields.
 
 | field     |                       type                       | description                                                                        |
 | :-------- | :----------------------------------------------: | :--------------------------------------------------------------------------------- |
-| **ready** |                    `boolean`                     | `true` if historical indexing is complete.                                         |
+| **id**    |                     `number`                     | The chain ID.                                                                      |
 | **block** | `{ number: number; timestamp: number; } \| null` | The most recently indexed block, or `null` if historical indexing is not complete. |

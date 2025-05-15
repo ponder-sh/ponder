@@ -83,9 +83,9 @@ export default app;
 
 ### RPC requests
 
-The `publicClients` object exported from `ponder:api` is a collection of Viem [Public Client](https://viem.sh/docs/clients/public) objects — one for each network defined in `ponder.config.ts`, using the same transports.
+The `publicClients` object exported from `ponder:api` is a collection of Viem [Public Client](https://viem.sh/docs/clients/public) objects — one for each chain defined in `ponder.config.ts`, using the same transports.
 
-Use these clients to make RPC requests within custom API endpoints. Note that the `publicClients` object is keyed by chain ID, not network name.
+Use these clients to make RPC requests within custom API endpoints. Note that the `publicClients` object is keyed by chain ID, not chain name.
 
 ```ts [src/api/index.ts]
 import { publicClients } from "ponder:api"; // [!code focus]

@@ -33,7 +33,6 @@ For convenience, `ponder` re-exports `mergeAbis` from `@ponder/utils`.
 
 ```ts [ponder.config.ts]
 import { createConfig, mergeAbis } from "ponder"; // [!code focus]
-import { http } from "viem";
 
 import { ERC1967ProxyAbi } from "./abis/ERC1967Proxy";  // [!code focus]
 import { NameRegistryAbi } from "./abis/NameRegistry";  // [!code focus]
@@ -184,12 +183,12 @@ For convenience, `ponder` re-exports `loadBalance` from `@ponder/utils`.
 
 ```ts [ponder.config.ts] {8-13}
 import { createConfig, loadBalance } from "ponder";
-import { http } from "viem";
+import { http, webSocket, rateLimit } from "viem";
 
 export default createConfig({
-  networks: {
+  chains: {
     mainnet: {
-      chainId: 1,
+      id: 1,
       transport: loadBalance([ // [!code focus]
         http("https://cloudflare-eth.com"), // [!code focus]
         http("https://eth-mainnet.public.blastapi.io"), // [!code focus]
@@ -239,9 +238,9 @@ import { createConfig, rateLimit } from "ponder";
 import { http } from "viem";
 
 export default createConfig({
-  networks: {
+  chains: {
     mainnet: {
-      chainId: 1,
+      id: 1,
       transport: rateLimit(http(process.env.PONDER_RPC_URL_1), {
         requestsPerSecond: 25,
       }),

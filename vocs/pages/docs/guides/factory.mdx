@@ -14,11 +14,11 @@ import { parseAbiItem } from "viem";
 import { SudoswapPoolAbi } from "./abis/SudoswapPool";
 
 export default createConfig({
-  networks: { /* ... */ },
+  chains: { /* ... */ },
   contracts: {
     SudoswapPool: {
       abi: SudoswapPoolAbi,
-      network: "mainnet",
+      chain: "mainnet",
       address: factory({ // [!code focus]
         // Address of the factory contract. // [!code focus]
         address: "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4", // [!code focus]
@@ -52,17 +52,17 @@ import { SudoswapPoolAbi } from "./abis/SudoswapPool";
 import { SudoswapFactoryAbi } from "./abis/SudoswapFactory";
 
 export default createConfig({
-  networks: { /* ... */ },
+  chains: { /* ... */ },
   contracts: {
     SudoswapFactory: { // [!code focus]
       abi: SudoswapFactoryAbi, // [!code focus]
-      network: "mainnet", // [!code focus]
+      chain: "mainnet", // [!code focus]
       address: "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4", // [!code focus]
       startBlock: 14645816, // [!code focus]
     }, // [!code focus]
     SudoswapPool: {
       abi: SudoswapPoolAbi,
-      network: "mainnet",
+      chain: "mainnet",
       address: factory({
         address: "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4",
         event: parseAbiItem("event NewPair(address poolAddress)"),
@@ -105,11 +105,11 @@ import { parseAbiItem } from "viem";
 import { SudoswapPoolAbi } from "./abis/SudoswapPool";
 
 export default createConfig({
-  networks: { /* ... */ },
+  chains: { /* ... */ },
   contracts: {
     SudoswapPool: {
       abi: SudoswapPoolAbi,
-      network: "mainnet",
+      chain: "mainnet",
       address: factory({
         // A list of factory contract addresses that all create SudoswapPool contracts. // [!code focus]
         address: [ // [!code focus]
@@ -138,11 +138,11 @@ import { parseAbiItem } from "viem";
 import { ENSResolverAbi } from "./abis/ENSResolver";
 
 export default createConfig({
-  networks: { /* ... */ },
+  chains: { /* ... */ },
   contracts: {
     ENSResolver: {
       abi: ENSResolverAbi,
-      network: "mainnet",
+      chain: "mainnet",
       address: factory({
         // ENS Registry address
         address: "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e",

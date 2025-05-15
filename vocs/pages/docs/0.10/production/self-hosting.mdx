@@ -27,50 +27,13 @@ is greater than **50ms**. This is common when using a database in a different re
 
 Ponder uses **database schemas** to isolate deployments. Each deployment must use a different schema.
 
-Use the `DATABASE_SCHEMA` environment variable or the `--schema` CLI argument to specify which database schema a deployment should use. [Read more](/docs/database#database-schema) about database schema selection rules.
+Use the `DATABASE_SCHEMA` environment variable or the `--schema` CLI argument to specify which database schema a deployment should use. [Read more](/docs/0.10/database#database-schema) about database schema selection rules.
 
 It typically makes sense to automate the database schema for each deployment. Here are a few common options.
 
 - Kubernetes pod name
 - Git branch name or commit hash
 - Railway deployment ID
-
-### Views pattern
-
-The **views pattern** makes the *latest* deployment's data available in a *static* database schema using [database views](https://www.postgresql.org/docs/current/tutorial-views.html). This makes it possible to write direct SQL queries that always target the latest deployment's tables — without requiring a configuration change after each deployment.
-
-Ponder natively supports this pattern in two ways.
-
-- **Standalone CLI command**: The `ponder db create-views` CLI command creates (or updates) views in the target schema to point at the specified deployment's tables.
-  <div className="h-3" />
-  ```bash
-  pnpm db create-views --schema=deployment-123 --views-schema=project-name
-  ```
-  <div className="h-3" />
-- **Automated**: The `ponder start` command also accepts the `--views-schema` CLI flag. When specified, the deployment will run the `ponder db create-views` command automatically as soon as it becomes ready (when historical indexing is complete).
-  <div className="h-3" />
-  ```bash
-  pnpm start --schema=deployment-123 --views-schema=project-name
-  ```
-  <div className="h-3" />
-
-::::info
-:::details[****Additional explanation of the views pattern****]
-<div className="h-[1px]" />
-**Problem: Database schema changes on each deployment**
-
-If you query Ponder tables directly, you'll soon run into a problem. On each new deployment, the schema containing the _latest_ deployment's tables (the ones you want to query) will change.
-
-To avoid querying the wrong tables, downstream systems will need to be updated on _every_ new deployment. What a pain!
-
-**Solution: Use database views as a "proxy"**
-
-When you query a Ponder project over HTTP, this problem is typically solved at the orchestration layer through healthchecks, blue/green deployments, and an HTTP proxy.
-
-To simulate the same behavior at the SQL level, Ponder supports using **database views** that always "proxy" queries to the latest deployment's tables.
-
-:::
-::::
 
 ## Health checks & probes
 
@@ -81,7 +44,7 @@ Use the `/health` and `/ready` endpoints to configure health checks or [probes](
 
 ## Crash recovery
 
-If a Ponder app running `ponder start` crashes and restarts using the same database schema, it will attempt to resume indexing where it left off. [Read more](/docs/api-reference/ponder/database) about the instance lifecycle and crash recovery mechanism.
+If a Ponder app running `ponder start` crashes and restarts using the same database schema, it will attempt to resume indexing where it left off. [Read more](/docs/0.10/api-reference/ponder/database) about the instance lifecycle and crash recovery mechanism.
 
 ## Advanced
 
@@ -96,4 +59,4 @@ To solve this problem, you can use `ponder serve` to run standalone instances of
 
 ### Database maintenance
 
-The `ponder db` CLI entrypoint offers a set of commands useful for observing and maintaining your database. [Read more](/docs/api-reference/ponder/cli).
+The `ponder db` CLI entrypoint offers a set of commands useful for observing and maintaining your database. [Read more](/docs/0.10/api-reference/ponder/cli).
