@@ -6,7 +6,6 @@ import { Link, useLocation } from "react-router";
 import pkg from "../packages/core/package.json";
 import { cn } from "./components/utils";
 
-// useLayoutEffect in the browser, useEffect during SSR
 const useIsomorphicLayoutEffect =
   typeof window === "undefined" ? useEffect : useLayoutEffect;
 
@@ -76,12 +75,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-/* ------------ VersionPicker stays unchanged ---------------- */
-
 const versions = [
   {
-    label: "Latest version",
-    activeLabel: "Using latest version",
+    label: "Latest Version",
+    activeLabel: "Latest Version",
     patch: pkg.version,
     prefix: "/docs",
     destination: "/docs/get-started",
@@ -89,7 +86,7 @@ const versions = [
   },
   {
     label: "Version 0.10",
-    activeLabel: "Using version 0.10",
+    activeLabel: "Version 0.10",
     patch: "0.10.26",
     prefix: "/docs/0.10",
     destination: "/docs/0.10/get-started",
@@ -138,12 +135,12 @@ function VersionPicker() {
                 key={v.prefix}
                 asChild
                 className={cn(
-                  "pt-[9px] pb-[9px] px-[12px]",
+                  "pt-[10px] pb-[10px] px-[12px]",
                   "hover:outline-none hover:bg-[var(--vocs-color_background4)]",
                   "cursor-pointer",
                   {
-                    "rounded-t-lg": index === 0,
-                    "rounded-b-lg": index === versions.length - 1,
+                    "rounded-t-md": index === 0,
+                    "rounded-b-md": index === versions.length - 1,
                   },
                 )}
               >
