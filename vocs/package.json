@@ -13,6 +13,7 @@
     "@segment/analytics-node": "^2.2.1",
     "@theguild/remark-mermaid": "^0.3.0",
     "@vercel/node": "^5.1.16",
+    "@vercel/og": "^0.6.8",
     "clsx": "^2.1.1",
     "lucide-react": "^0.510.0",
     "posthog-node": "^4.17.1",
