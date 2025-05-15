@@ -134,8 +134,8 @@ Returns a Promise that resolves to an object containing the indexing status of e
 ```ts
 type Status = {
   [chain: string]: {
+    id: number;
     block: { number: number; timestamp: number } | null;
-    ready: boolean;
   };
 };
 ```
