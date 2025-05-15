@@ -107,20 +107,22 @@ function VersionPicker() {
 
   return (
     <div className="pt-4">
-      <DropdownMenu.Root>
+      <DropdownMenu.Root modal={false}>
         <DropdownMenu.Trigger asChild>
           <button
             type="button"
-            className="vocs_Button_button h-auto px-[var(--vocs-space_12)] py-[10px] justify-between rounded-lg w-[calc(var(--vocs-sidebar_width)-2*var(--vocs-sidebar\_horizontalPadding))]"
+            className="flex flex-row items-center justify-between py-[10px] -my-[2px] px-[12px] -mx-[12px] w-[calc(var(--vocs-sidebar_width)-2*var(--vocs-sidebar\_horizontalPadding)+24px)] rounded-lg hover:bg-[var(--vocs-color_background4)]"
           >
             <div className="flex flex-col items-start gap-1 leading-tight">
-              <span className="">{activeVersion.activeLabel}</span>
-              {/* <span className="text-[11px] text-[var(--vocs-color_text3)] -mb-[2px]">
+              <span className="vocs_Sidebar_sectionTitle">
+                {activeVersion.activeLabel}
+              </span>
+              <span className="text-[11px] text-[var(--vocs-color_text3)] -mb-[2px]">
                 {activeVersion.patch}
-              </span> */}
+              </span>
             </div>
 
-            <ChevronsUpDown className="ml-auto w-4 h-4 -mr-1" />
+            <ChevronsUpDown className="w-4 h-4" />
           </button>
         </DropdownMenu.Trigger>
 
@@ -128,14 +130,15 @@ function VersionPicker() {
           <DropdownMenu.Content
             align="start"
             sideOffset={4}
-            className="z-20 w-[calc(var(--vocs-sidebar_width)-2*var(--vocs-sidebar\_horizontalPadding))] bg-[var(--vocs-color_background3)] border border-[var(--vocs-color_border)] text-[length:var(--vocs-fontSize_14)] font-[var(--vocs-fontWeight_medium)] rounded-lg flex flex-col shadow-lg"
+            alignOffset={-1}
+            className="z-[15] w-[calc(var(--vocs-sidebar_width)-2*var(--vocs-sidebar\_horizontalPadding)+26px)] bg-[var(--vocs-color_background)] border border-[var(--vocs-color_border)] text-[length:var(--vocs-fontSize_14)] font-[var(--vocs-fontWeight_medium)] rounded-lg flex flex-col shadow-lg"
           >
             {versions.map((v, index) => (
               <DropdownMenu.Item
                 key={v.prefix}
                 asChild
                 className={cn(
-                  "py-[var(--vocs-space_8)] px-[var(--vocs-space_12)]",
+                  "pt-[9px] pb-[9px] px-[12px]",
                   "hover:outline-none hover:bg-[var(--vocs-color_background4)]",
                   "cursor-pointer",
                   {
@@ -146,7 +149,7 @@ function VersionPicker() {
               >
                 <Link to={v.destination}>
                   <div className="flex flex-col items-start gap-1 leading-tight">
-                    <span className="">{v.label}</span>
+                    <span className="vocs_Sidebar_sectionTitle">{v.label}</span>
                     <span className="text-[11px] text-[var(--vocs-color_text3)]">
                       {v.patch}
                     </span>
