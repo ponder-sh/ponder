@@ -30,7 +30,7 @@ const SIM_PARAMS: SimParams = {
   /** Probability of a reorg. */
   REALTIME_REORG_RATE: 0.05,
   /** Probability of a deep reorg. */
-  REALTIME_DEEP_REORG_RATE: 0,
+  REALTIME_DEEP_REORG_RATE: 0.02,
   // TODO(kyle) deep reorg
   /** Probability that the chain fast forwards and skips a block. */
   REALTIME_FAST_FORWARD_RATE: 0.5,

@@ -708,14 +708,18 @@ export const realtimeBlockEngine = async (
       return simulate();
     }
 
-    if (random() < params.REALTIME_REORG_RATE) {
+    const r = random();
+    if (r < params.REALTIME_REORG_RATE) {
+      if (r < params.REALTIME_REORG_RATE / 2) {
+        block = blocks.get(chainId)![blocks.get(chainId)!.length - 3]!;
+      } else {
+        const hash = `0x${crypto.randomBytes(32).toString("hex")}` as Hash;
+        block = { ...block, hash, logsBloom: zeroLogsBloom };
+      }
+    } else if (random() < params.REALTIME_DEEP_REORG_RATE) {
+      block = blocks.get(chainId)![1]!;
       const hash = `0x${crypto.randomBytes(32).toString("hex")}` as Hash;
       block = { ...block, hash, logsBloom: zeroLogsBloom };
-    } else if (random() < params.REALTIME_DEEP_REORG_RATE) {
-      // Note: another way to trigger a deep reorg is for the next block to be way in the past.
-
-      console.log("deep reorg");
-      nextBlock.parentHash = block.parentHash;
     }
 
     return { chainId, block };
