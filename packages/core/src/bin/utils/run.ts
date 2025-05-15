@@ -541,7 +541,7 @@ export async function run({
 
       await database.qb.drizzle.execute(
         sql.raw(
-          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_status" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_status"`,
+          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_checkpoint"`,
         ),
       );
 
@@ -566,7 +566,7 @@ export async function run({
         sql.raw(`
   CREATE OR REPLACE TRIGGER "${trigger}"
   AFTER INSERT OR UPDATE OR DELETE
-  ON "${namespaceBuild.schema}"._ponder_status
+  ON "${namespaceBuild.schema}"._ponder_checkpoint
   FOR EACH STATEMENT
   EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
       );

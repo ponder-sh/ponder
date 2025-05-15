@@ -124,7 +124,7 @@ export async function createViews({
 
   await database.qb.drizzle.execute(
     sql.raw(
-      `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."_ponder_status" AS SELECT * FROM "${cliOptions.schema}"."_ponder_status"`,
+      `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${cliOptions.schema}"."_ponder_checkpoint"`,
     ),
   );
 
@@ -149,7 +149,7 @@ $$;`),
     sql.raw(`
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
-ON "${cliOptions.schema}"._ponder_status
+ON "${cliOptions.schema}"._ponder_checkpoint
 FOR EACH STATEMENT
 EXECUTE PROCEDURE "${cliOptions.viewsSchema}".${notification};`),
   );
