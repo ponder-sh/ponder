@@ -2,7 +2,7 @@
 
 :::tip
 This is a low-level reference. For an overview, visit the
-[Query](/docs/query/api-endpoints) section.
+[Query](/docs/0.10/query/api-endpoints) section.
 :::
 
 Ponder's HTTP server is built with [Hono](https://hono.dev/), a fast and lightweight routing framework.
@@ -171,5 +171,5 @@ Ponder reserves a few routes for standard use. If you register custom endpoints 
 | :--------- | :--------------------------------------------------------------------------------------------------- |
 | `/health`  | Returns status code `200` immediately after the process starts.                                      |
 | `/ready`   | Returns status code `503` during the backfill, and status code `200` after the backfill is complete. |
-| `/status`  | Returns the current indexing status. [Read more](/docs/advanced/observability#indexing-status).                             |
-| `/metrics` | Prometheus metrics endpoint. [Read more](/docs/advanced/observability#metrics).                                    |
+| `/status`  | Returns the current indexing status. [Read more](/docs/0.10/advanced/observability#indexing-status).                             |
+| `/metrics` | Prometheus metrics endpoint. [Read more](/docs/0.10/advanced/observability#metrics).                                    |

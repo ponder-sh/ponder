@@ -27,7 +27,7 @@ is greater than **50ms**. This is common when using a database in a different re
 
 Ponder uses **database schemas** to isolate deployments. Each deployment must use a different schema.
 
-Use the `DATABASE_SCHEMA` environment variable or the `--schema` CLI argument to specify which database schema a deployment should use. [Read more](/docs/database#database-schema) about database schema selection rules.
+Use the `DATABASE_SCHEMA` environment variable or the `--schema` CLI argument to specify which database schema a deployment should use. [Read more](/docs/0.10/database#database-schema) about database schema selection rules.
 
 It typically makes sense to automate the database schema for each deployment. Here are a few common options.
 
@@ -44,7 +44,7 @@ Use the `/health` and `/ready` endpoints to configure health checks or [probes](
 
 ## Crash recovery
 
-If a Ponder app running `ponder start` crashes and restarts using the same database schema, it will attempt to resume indexing where it left off. [Read more](/docs/api-reference/ponder/database) about the instance lifecycle and crash recovery mechanism.
+If a Ponder app running `ponder start` crashes and restarts using the same database schema, it will attempt to resume indexing where it left off. [Read more](/docs/0.10/api-reference/ponder/database) about the instance lifecycle and crash recovery mechanism.
 
 ## Advanced
 
@@ -59,4 +59,4 @@ To solve this problem, you can use `ponder serve` to run standalone instances of
 
 ### Database maintenance
 
-The `ponder db` CLI entrypoint offers a set of commands useful for observing and maintaining your database. [Read more](/docs/api-reference/ponder/cli).
+The `ponder db` CLI entrypoint offers a set of commands useful for observing and maintaining your database. [Read more](/docs/0.10/api-reference/ponder/cli).

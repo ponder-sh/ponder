@@ -83,11 +83,11 @@ export default app;
 
 #### SQL client
 
-The `@ponder/client` package provides a new experience for querying a Ponder app over HTTP. It's an SQL-based alternative to the GraphQL API. [Read more](/docs/query/sql-client).
+The `@ponder/client` package provides a new experience for querying a Ponder app over HTTP. It's an SQL-based alternative to the GraphQL API. [Read more](/docs/0.10/query/sql-client).
 
 #### `@ponder/react`
 
-The `@ponder/react` package uses `@ponder/client` and Tanstack Query to provide reactive live queries. [Read more](/docs/query/sql-client#guide-react).
+The `@ponder/react` package uses `@ponder/client` and Tanstack Query to provide reactive live queries. [Read more](/docs/0.10/query/sql-client#guide-react).
 
 #### `publicClients`
 
@@ -118,7 +118,7 @@ export default app;
 
 #### Custom log filters
 
-The `contracts.filter` property now supports multiple log filters, and requires argument values. [Read more](/docs/config/contracts#filter).
+The `contracts.filter` property now supports multiple log filters, and requires argument values. [Read more](/docs/0.10/config/contracts#filter).
 
 ## 0.8
 
@@ -141,12 +141,12 @@ ponder start --schema my_schema
 ```
 
 :::info
-Each deployment/instance of a Ponder app must have it's own schema, with some exceptions for `ponder dev` and crash recovery. [Read more](/docs/database#database-schema).
+Each deployment/instance of a Ponder app must have it's own schema, with some exceptions for `ponder dev` and crash recovery. [Read more](/docs/0.10/database#database-schema).
 :::
 
 #### Railway
 
-Railway users should [update the start command](/docs/production/railway#create-a-ponder-app-service) to include a database schema.
+Railway users should [update the start command](/docs/0.10/production/railway#create-a-ponder-app-service) to include a database schema.
 
 ::::code-group
 ```bash [pnpm]
@@ -276,7 +276,7 @@ All of the data is still available on other properties of the `event` object, su
 
 #### Account indexing
 
-A new event source `accounts` is available. Accounts can be used to index transactions and native transfers to and from an address. [Read more](/docs/config/accounts).
+A new event source `accounts` is available. Accounts can be used to index transactions and native transfers to and from an address. [Read more](/docs/0.10/config/accounts).
 
 #### `ponder:schema` alias
 
@@ -652,7 +652,7 @@ The new `/ready` endpoint returns an HTTP `200` response once the app **is ready
 
 The existing `/health` endpoint now returns an HTTP `200` response as soon as the process starts. (This release removes the `maxHealthcheckDuration` option, which previously governed the behavior of `/health`.)
 
-For Railway users, we now recommend using `/ready` as the health check endpoint to enable zero downtime deployments. If your app takes a while to sync, be sure to set the healthcheck timeout accordingly. Read the [Railway deployment guide](/docs/production/railway#create-a-ponder-app-service) for more details.
+For Railway users, we now recommend using `/ready` as the health check endpoint to enable zero downtime deployments. If your app takes a while to sync, be sure to set the healthcheck timeout accordingly. Read the [Railway deployment guide](/docs/0.10/production/railway#create-a-ponder-app-service) for more details.
 
 
 ## 0.5.0
@@ -681,7 +681,7 @@ npm install hono@latest
 
 #### Introduced custom API endpoints
 
-This release added support for API functions. [Read more](/docs/query/api-endpoints).
+This release added support for API functions. [Read more](/docs/0.10/query/api-endpoints).
 
 ## 0.4.0
 
@@ -691,7 +691,7 @@ This release changes the location of database tables when using both SQLite and 
 
 #### New database layout
 
-Please read the new docs on [direct SQL](/docs/query/direct-sql) for a detailed overview.
+Please read the new docs on [direct SQL](/docs/0.10/query/direct-sql) for a detailed overview.
 
 **SQLite**
 
@@ -705,8 +705,8 @@ Isolation while running multiple Ponder instances against the same database also
 
 This also changes the zero-downtime behavior on platforms like Railway. For more information on how this works in `0.4`, please reference:
 
-- [Direct SQL](/docs/query/direct-sql)
-- [Zero-downtime deployments](/docs/production/self-hosting#database-schema)
+- [Direct SQL](/docs/0.10/query/direct-sql)
+- [Zero-downtime deployments](/docs/0.10/production/self-hosting#database-schema)
 
 **Postgres table cleanup**
 
@@ -768,7 +768,7 @@ Removed `p.bytes()` in favor of a new `p.hex()` primitive column type. `p.hex()`
 
 #### Cursor pagination
 
-Updated the GraphQL API to use cursor pagination instead of offset pagination. Note that this change also affects the `findMany` database method. See the [GraphQL pagination docs](/docs/query/graphql#pagination) for more details.
+Updated the GraphQL API to use cursor pagination instead of offset pagination. Note that this change also affects the `findMany` database method. See the [GraphQL pagination docs](/docs/0.10/query/graphql#pagination) for more details.
 
 ## 0.1
 

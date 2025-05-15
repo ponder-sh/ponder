@@ -2,12 +2,12 @@
 
 :::tip
 This is a low-level reference. For an introduction, visit the
-[SQL Client](/docs/query/sql-client) page.
+[SQL Client](/docs/0.10/query/sql-client) page.
 :::
 
 The `@ponder/react` package provides React hooks for subscribing to live updates from your database.
 
-This package uses [`@ponder/client`](/docs/api-reference/ponder-client) to execute SQL queries over HTTP, and integrates with [TanStack Query](https://tanstack.com/query) for async state management.
+This package uses [`@ponder/client`](/docs/0.10/api-reference/ponder-client) to execute SQL queries over HTTP, and integrates with [TanStack Query](https://tanstack.com/query) for async state management.
 
 ## Installation
 
@@ -104,7 +104,7 @@ Returns a normal TanStack `useQuery` result object. [Read more](https://tanstack
 
 #### Implementation notes
 
-- Uses [`client.live`](/docs/api-reference/ponder-client#clientlive) to automatically refetch data when new blocks are indexed
+- Uses [`client.live`](/docs/0.10/api-reference/ponder-client#clientlive) to automatically refetch data when new blocks are indexed
 - Subscribes to updates on mount and unsubscribes on unmount
 - Requires `PonderProvider` in the component tree
 

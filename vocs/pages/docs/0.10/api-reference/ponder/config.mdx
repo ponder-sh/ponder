@@ -2,7 +2,7 @@
 
 :::tip
   This is a low-level reference. For an introduction, visit the
-  different config sections: [Networks](/docs/config/networks), [Contracts](/docs/config/contracts), [Accounts](/docs/config/accounts), [Block intervals](/docs/config/block-intervals).
+  different config sections: [Networks](/docs/0.10/config/networks), [Contracts](/docs/0.10/config/contracts), [Accounts](/docs/0.10/config/accounts), [Block intervals](/docs/0.10/config/block-intervals).
 :::
 
 The `ponder.config.ts` file defines chain IDs, RPC URLs, contract addresses & ABIs, and database configuration.
@@ -150,7 +150,7 @@ export default createConfig({
 | **transport**            | `Transport` | **Required**. A Viem [Transport](https://viem.sh/docs/clients/transports/http.html) e.g. `http` or `fallback`.             |
 | **pollingInterval**      |  `number`   | **Default: `1_000`**. Frequency (in ms) used when polling for new events on this network.                                  |
 | **maxRequestsPerSecond** |  `number`   | **Default: `50`**. Maximum number of RPC requests per second. Can be reduced to work around rate limits.                   |
-| **disableCache**         |  `boolean`  | **Default: `false`**. Disables the RPC request cache. Use when indexing a [local node](/docs/guides/foundry) like Anvil. |
+| **disableCache**         |  `boolean`  | **Default: `false`**. Disables the RPC request cache. Use when indexing a [local node](/docs/0.10/guides/foundry) like Anvil. |
 
 
 ### `contracts`
@@ -182,13 +182,13 @@ export default createConfig({
 | :----------------------------- | :-------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **name**                       |                `string`                 | **Required**. A unique name for the smart contract. Must be unique across all contracts. _Provided as the object property name._                                                                                                       |
 | **abi**                        |              `abitype.Abi`              | **Required**. The contract [ABI](https://docs.soliditylang.org/en/v0.8.17/abi-spec.html) as an array as const. Must be asserted as constant, see [ABIType documentation](https://abitype.dev/guide/get-started#usage) for details. |
-| **network**                    |        `string \| NetworkConfig`        | **Required**. The name of the network this contract is deployed to. References the `networks` field. Also supports [multiple networks](/docs/config/contracts#multiple-networks).                                                |
+| **network**                    |        `string \| NetworkConfig`        | **Required**. The name of the network this contract is deployed to. References the `networks` field. Also supports [multiple networks](/docs/0.10/config/contracts#multiple-networks).                                                |
 | **address**                    | `0x{string} \| 0x{string}[] \| Factory` | **Default: `undefined`**. One or more contract addresses or factory configuration.                                                                                                                                                     |
 | **startBlock**                 |          `number \| "latest"`           | **Default: `0`**. Block number or tag to start indexing. Usually set to the contract deployment block number.                                                                                                                          |
 | **endBlock**                   |          `number \| "latest"`           | **Default: `undefined`**. Block number or tag to stop indexing. If this field is specified, the contract will not be indexed in realtime. This field can be used alongside `startBlock` to index a specific block range.               |
-| **filter**                     |         [`Filter`](#filter)             | **Default: `undefined`**. Event filter criteria. [Read more](/docs/config/contracts#filter-by-indexed-parameter-value).                                                                                                                               |
+| **filter**                     |         [`Filter`](#filter)             | **Default: `undefined`**. Event filter criteria. [Read more](/docs/0.10/config/contracts#filter-by-indexed-parameter-value).                                                                                                                               |
 | **includeTransactionReceipts** |                `boolean`                | **Default: `false`**. If this field is `true`, `transactionReceipt` will be included in `event`.                                                                                                                                       |
-| **includeCallTraces**          |                `boolean`                | **Default: `false`**. If this field is `true`, each function in the abi will be available as an indexing function event name. [Read more](/docs/guides/call-traces).                                            |
+| **includeCallTraces**          |                `boolean`                | **Default: `false`**. If this field is `true`, each function in the abi will be available as an indexing function event name. [Read more](/docs/0.10/guides/call-traces).                                            |
 
 
 #### `filter`
@@ -199,7 +199,7 @@ export default createConfig({
   have registered an indexing function.
 :::
 
-The `filter` option is used to filter event logs by argument value. [Read more](/docs/config/contracts#filter-by-indexed-parameter-value) about log filters.
+The `filter` option is used to filter event logs by argument value. [Read more](/docs/0.10/config/contracts#filter-by-indexed-parameter-value) about log filters.
 
 | field     |         type         |                                                                                                                                       |
 | :-------- | :------------------: | :------------------------------------------------------------------------------------------------------------------------------------ |
@@ -232,7 +232,7 @@ export default createConfig({
 | field                          |                  type                   |                                                                                                                                                                                                                         |
 | :----------------------------- | :-------------------------------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **name**                       |                `string`                 | **Required**. A unique name for the smart contract. Must be unique across all contracts. _Provided as the object property name._                                                                                        |
-| **network**                    |                `string`                 | **Required**. The name of the network this contract is deployed to. References the `networks` field. Also supports [multiple networks](/docs/config/contracts#network).                                 |
+| **network**                    |                `string`                 | **Required**. The name of the network this contract is deployed to. References the `networks` field. Also supports [multiple networks](/docs/0.10/config/contracts#network).                                 |
 | **address**                    | `0x{string} \| 0x{string}[] \| Factory` | **Default: `undefined`**. One or more contract addresses or factory configuration.                                                                                                                                      |
 | **startBlock**                 |                `number`                 | **Default: `0`**. Block number to start syncing events.                                                                                                                                                                 |
 | **endBlock**                   |                `number`                 | **Default: `undefined`**. Block number to stop syncing events. If this field is specified, the contract will not be indexed in realtime. This field can be used alongside `startBlock` to index a specific block range. |
@@ -265,14 +265,14 @@ export default createConfig({
 | field     |                         type                         |                                                                                            |
 | :-------- | :--------------------------------------------------: | :----------------------------------------------------------------------------------------- |
 | **name**  |                `string`                | **Required**. A unique name for the block interval. Must be unique across all block intervals. _Provided as the object property name._ |
-| **network** |                `string`                | **Required**. The name of the network this block interval is deployed to. References the `networks` field. Also supports [multiple networks](/docs/config/contracts#network). |
+| **network** |                `string`                | **Required**. The name of the network this block interval is deployed to. References the `networks` field. Also supports [multiple networks](/docs/0.10/config/contracts#network). |
 | **startBlock** |                `number`                | **Default: `0`**. Block number to start syncing events. |
 | **endBlock** |                `number`                | **Default: `undefined`**. Block number to stop syncing events. If this field is specified, the contract will not be indexed in realtime. This field can be used alongside `startBlock` to index a specific block range. |
 | **interval** |                `number`                | **Default: `0`**. The interval between blocks to index. |
 
 ## `factory`
 
-Specifies a list of addresses collected from decoded event logs. Both [`contracts`](#contracts) and [`accounts`](#accounts) support `factory()` in their `address` field. [Read more](/docs/guides/factory) in the factory pattern guide.
+Specifies a list of addresses collected from decoded event logs. Both [`contracts`](#contracts) and [`accounts`](#accounts) support `factory()` in their `address` field. [Read more](/docs/0.10/guides/factory) in the factory pattern guide.
 
 | field         |                         type                         |                                                                                            |
 | :------------ | :--------------------------------------------------: | :----------------------------------------------------------------------------------------- |

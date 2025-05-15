@@ -26,13 +26,13 @@ ponder.on("Blitmap:MetadataChanged", async ({ event, context }) => { // [!code f
 }); // [!code focus]
 ```
 
-Read more about how to [write to the database](/docs/indexing/write) and [read contract data](/docs/indexing/read-contracts) within indexing functions.
+Read more about how to [write to the database](/docs/0.10/indexing/write) and [read contract data](/docs/0.10/indexing/read-contracts) within indexing functions.
 
 ## Frequently asked questions
 
 ### Ordering
 
-For each chain, the indexing engine calls indexing functions according to EVM execution order (block number, transaction index, log index). [Read more](/docs/api-reference/ponder/config#event-ordering) about the ordering guarantee across multiple chains, which is more complex. 
+For each chain, the indexing engine calls indexing functions according to EVM execution order (block number, transaction index, log index). [Read more](/docs/0.10/api-reference/ponder/config#event-ordering) about the ordering guarantee across multiple chains, which is more complex. 
 
 ### Reorgs
 

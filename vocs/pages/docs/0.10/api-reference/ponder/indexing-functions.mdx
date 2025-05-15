@@ -2,7 +2,7 @@
 
 :::tip
   This is a low-level reference. For an introduction, visit the
-  [Indexing](/docs/indexing/overview) section.
+  [Indexing](/docs/0.10/indexing/overview) section.
 :::
 
 Indexing functions are user-defined functions that receive blockchain data (a log, block, transaction, trace, or transfer) and insert data into the database. You can register indexing functions within any `.ts` file inside the `src/` directory.
@@ -69,7 +69,7 @@ type Args = {
 Call trace events are specified using `"ContractName.functionName()"`.
 
 :::tip
-  The [includeCallTraces](/docs/guides/call-traces) option must
+  The [includeCallTraces](/docs/0.10/guides/call-traces) option must
   be enabled to register call trace indexing functions.
 :::
 
@@ -153,7 +153,7 @@ type TransferEvent = {
 
 ### Block event
 
-Block events are created by [block intervals](/docs/config/block-intervals).
+Block events are created by [block intervals](/docs/0.10/config/block-intervals).
 
 ```ts [src/index.ts]
 import { ponder } from "ponder:registry";
@@ -238,7 +238,7 @@ type Context = {
 
 ### Database
 
-The `context.db` object is a live database connection. [Read more](/docs/indexing/write) about writing to the database.
+The `context.db` object is a live database connection. [Read more](/docs/0.10/indexing/write) about writing to the database.
 
 ```ts [src/index.ts]
 import { ponder } from "ponder:registry";
@@ -269,14 +269,14 @@ ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
 ### Client
 
 :::info
-  See the [Read contract data](/docs/indexing/read-contracts) guide for more
+  See the [Read contract data](/docs/0.10/indexing/read-contracts) guide for more
   details.
 :::
 
 ### Contracts
 
 :::info
-  See the [Read contract data](/docs/indexing/read-contracts) guide for more
+  See the [Read contract data](/docs/0.10/indexing/read-contracts) guide for more
   details.
 :::
 
