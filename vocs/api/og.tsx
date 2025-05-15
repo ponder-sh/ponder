@@ -15,10 +15,10 @@ export default async function handler(request: Request) {
   const title = searchParams.get("title");
   const description = searchParams.get("description");
 
-  const interRegular = await fetch(
-    new URL("/Inter_28pt-Regular.ttf", import.meta.url),
-  );
-  const interRegularData = await interRegular.arrayBuffer();
+  // const interRegular = await fetch(
+  //   new URL("/Inter_28pt-Regular.ttf", import.meta.url),
+  // );
+  // const interRegularData = await interRegular.arrayBuffer();
 
   return new ImageResponse(
     <div // Outermost container for background
@@ -30,7 +30,7 @@ export default async function handler(request: Request) {
         justifyContent: "center", // Center the text wrapper horizontally
         backgroundImage: `url(${backgroundImageUrl})`,
         backgroundSize: "1200px 630px", // Or "cover"
-        fontFamily: "Inter",
+        // fontFamily: "Inter",
       }}
     >
       <div // Text wrapper
@@ -68,12 +68,12 @@ export default async function handler(request: Request) {
     {
       width: 1200,
       height: 630,
-      fonts: [
-        {
-          name: "Inter",
-          data: interRegularData,
-        },
-      ],
+      // fonts: [
+      //   {
+      //     name: "Inter",
+      //     data: interRegularData,
+      //   },
+      // ],
     },
   );
 }
