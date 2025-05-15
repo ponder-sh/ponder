@@ -47,6 +47,12 @@ export default defineConfig({
       ],
     },
   ],
+  search: {
+    boostDocument(documentId) {
+      if (documentId.startsWith("docs/0.10")) return 0.25;
+      return 1;
+    },
+  },
   head() {
     return (
       <>
@@ -62,15 +68,6 @@ export default defineConfig({
       </>
     );
   },
-  // ogImageUrl: {
-  //   '/': '/og-image.png',
-  //   '/docs':
-  //     'https://vocs.dev/api/og?logo=%logo&title=%title&description=%description',
-  //   '/op-stack':
-  //     'https://vocs.dev/api/og?logo=%logo&title=%title&description=%description',
-  // },
-  // iconUrl: { light: '/favicons/light.png', dark: '/favicons/dark.png' },
-  logoUrl: { light: "/ponder-light.svg", dark: "/ponder-dark.svg" },
   socials: [
     {
       icon: "github",
@@ -93,6 +90,15 @@ export default defineConfig({
     pattern: "https://github.com/ponder-sh/ponder/edit/main/vocs/pages/:path",
     text: "Suggest changes",
   },
+  // ogImageUrl: {
+  //   '/': '/og-image.png',
+  //   '/docs':
+  //     'https://vocs.dev/api/og?logo=%logo&title=%title&description=%description',
+  //   '/op-stack':
+  //     'https://vocs.dev/api/og?logo=%logo&title=%title&description=%description',
+  // },
+  // iconUrl: { light: '/favicons/light.png', dark: '/favicons/dark.png' },
+  logoUrl: { light: "/ponder-light.svg", dark: "/ponder-dark.svg" },
   theme: {
     accentColor: {
       light: "#0a9fb2",
