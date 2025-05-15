@@ -3,8 +3,10 @@ import { DropdownMenu } from "radix-ui";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router";
+import type { SidebarItem } from "vocs";
 import pkg from "../packages/core/package.json";
 import { cn } from "./components/utils";
+import { sidebar } from "./sidebar";
 
 const useIsomorphicLayoutEffect =
   typeof window === "undefined" ? useEffect : useLayoutEffect;
@@ -88,7 +90,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
-      {/* sidebarHostRef.current is already defined on the client’s first render */}
+      {/* sidebarHostRef.current is already defined on the client's first render */}
       {sidebarHostRef.current &&
         createPortal(<VersionPickerDesktop />, sidebarHostRef.current)}
       {sidebarMobileHostRef.current &&
@@ -105,7 +107,7 @@ const versions = [
     activeLabel: "Latest Version",
     patch: pkg.version,
     prefix: "/docs",
-    destination: "/docs/get-started",
+    home: "/get-started",
     isLatest: true,
   },
   {
@@ -113,7 +115,7 @@ const versions = [
     activeLabel: "Version 0.10",
     patch: "0.10.26",
     prefix: "/docs/0.10",
-    destination: "/docs/0.10/get-started",
+    home: "/get-started",
     isLatest: false,
   },
 ];
@@ -125,6 +127,8 @@ function VersionPickerDesktop() {
     .find((v) => pathname.startsWith(v.prefix));
 
   if (!activeVersion) return null;
+
+  const subpath = pathname.replace(activeVersion.prefix, "");
 
   return (
     <div className="pt-4">
@@ -168,7 +172,7 @@ function VersionPickerDesktop() {
                   },
                 )}
               >
-                <Link to={v.destination}>
+                <Link to={findBestPage(subpath, v)}>
                   <div className="flex flex-col items-start gap-1 leading-tight">
                     <span className="vocs_Sidebar_sectionTitle">{v.label}</span>
                     <span className="text-[11px] text-[var(--vocs-color_text3)]">
@@ -193,11 +197,13 @@ function VersionPickerMobile() {
 
   if (!activeVersion) return null;
 
+  const subpath = pathname.replace(activeVersion.prefix, "");
+
   return (
     <div className="pt-2 flex flex-col">
       {versions.map((v) => (
         <Link
-          to={v.destination}
+          to={findBestPage(subpath, v)}
           key={v.prefix}
           className={cn(
             "flex flex-row items-center justify-between",
@@ -253,4 +259,42 @@ function OutdatedVersionCallout() {
       </div>
     </aside>
   );
+}
+
+function findBestPage(
+  subpath: string,
+  targetVersion: (typeof versions)[number],
+): string {
+  const targetFullPath = targetVersion.prefix + subpath;
+
+  // Ensure the prefix key for the sidebar has a trailing slash
+  const sidebarKey = targetVersion.prefix.endsWith("/")
+    ? targetVersion.prefix
+    : `${targetVersion.prefix}/`;
+
+  // @ts-ignore
+  const versionSidebar = sidebar[sidebarKey] as SidebarItem[];
+
+  function searchItems(items: SidebarItem[] | undefined): string | null {
+    if (!items) return null;
+    for (const item of items) {
+      if (item.link && item.link === targetFullPath) {
+        return item.link;
+      }
+      if (item.items) {
+        const found = searchItems(item.items);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  if (versionSidebar) {
+    const foundPage = searchItems(versionSidebar);
+    if (foundPage) {
+      return foundPage;
+    }
+  }
+
+  return `${targetVersion.prefix}${targetVersion.home}`;
 }
