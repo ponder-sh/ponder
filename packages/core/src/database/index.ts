@@ -1046,7 +1046,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).trigg
         },
       );
     },
-    setCheckpoints({ checkpoints, db }) {
+    async setCheckpoints({ checkpoints, db }) {
       if (checkpoints.length === 0) return;
 
       return this.wrap({ method: "setCheckpoints" }, async () => {
