@@ -124,9 +124,9 @@ function IndexingStatus() {
 
   return (
     <div>
-      {Object.entries(data).map(([network, status]) => (
-        <div key={network}>
-          <h3>{network}</h3>
+      {Object.entries(data).map(([chain, status]) => (
+        <div key={chain}>
+          <h3>{chain}</h3>
           <p>Ready: {status.ready ? "Yes" : "No"}</p>
           {status.block && (
             <p>

@@ -12,19 +12,15 @@ To read data from a contract, use `context.client.readContract()` and include th
 
 ```ts [ponder.config.ts]
 import { createConfig } from "ponder";
-import { http } from "viem";
 import { BlitmapAbi } from "./abis/Blitmap";
 
 export default createConfig({
-  networks: {
-    mainnet: {
-      chainId: 1,
-      transport: http(process.env.PONDER_RPC_URL_1),
-    },
+  chains: {
+    mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1 },
   },
   contracts: {
     Blitmap: {
-      network: "mainnet",
+      chain: "mainnet",
       abi: BlitmapAbi,
       address: "0x8d04...D3Ff63",
       startBlock: 12439123,
@@ -108,7 +104,7 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
 
 ### Transport
 
-`context.client` uses the transports you specify in the networks section of `ponder.config.ts`.
+`context.client` uses the transports you specify in the chains section of `ponder.config.ts`.
 
 ### Supported actions
 
@@ -181,12 +177,12 @@ To avoid wasteful RPC requests, all RPC requests made using `context.client` are
 
 The `context.contracts` object contains each contract address and ABI you provide in `ponder.config.ts`.
 
-### Multiple networks
+### Multiple chains
 
-If a contract is configured to run on multiple networks, `context.contracts` contains the contract addresses for whichever network the current event is from.
+If a contract is configured to run on multiple chains, `context.contracts` contains the contract addresses for whichever chain the current event is from.
 
 :::warning
-  It's not currently possible to call a contract that's on a different network
+  It's not currently possible to call a contract that's on a different chain
   than the current event. If you need this feature, please open an issue or send
   a message to the chat.
 :::
@@ -195,18 +191,17 @@ If a contract is configured to run on multiple networks, `context.contracts` con
 
 ```ts [ponder.config.ts]
 import { createConfig } from "ponder";
-import { http } from "viem";
 import { UniswapV3FactoryAbi } from "./abis/UniswapV3Factory";
 
 export default createConfig({
-  networks: {
-    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
-    base: { chainId: 8453, transport: http(process.env.PONDER_RPC_URL_8453) },
+  chains: {
+    mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1 },
+    base: { id: 8453, rpc: process.env.PONDER_RPC_URL_8453 },
   },
   contracts: {
     UniswapV3Factory: {
       abi: UniswapV3FactoryAbi,
-      network: { // [!code focus]
+      chain: { // [!code focus]
         mainnet: { // [!code focus]
           address: "0x1F98431c8aD98523631AE4a59f267346ea31F984", // [!code focus]
           startBlock: 12369621, // [!code focus]
@@ -284,7 +279,7 @@ import { AaveTokenAbi } from "./abis/AaveToken";
 export default createConfig({
   contracts: {
     AaveToken: {
-      network: "mainnet",
+      chain: "mainnet",
       abi: AaveTokenAbi,
       address: "0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9",
       startBlock: 10926829,
