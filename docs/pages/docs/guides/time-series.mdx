@@ -1,11 +1,4 @@
----
-title: "Time-series data"
-description: "Techniques for working with time-series data in a Ponder app."
----
-
-import { Callout, FileTree, Steps } from "nextra/components";
-
-# Time-series data
+# Time-series data [Techniques for working with time-series data]
 
 This guide describes techniques for working with time-series data in your app.
 
@@ -13,7 +6,7 @@ This guide describes techniques for working with time-series data in your app.
 
 To power a [candlestick](https://en.wikipedia.org/wiki/Candlestick_chart) or open-high-low-close chart, create a table that stores OHLC data for a specific time interval.
 
-```ts filename="ponder.schema.ts"
+```ts [ponder.schema.ts]
 import { onchainTable } from "ponder";
 
 export const hourBuckets = onchainTable("hour_buckets", (t) => ({
@@ -29,7 +22,7 @@ export const hourBuckets = onchainTable("hour_buckets", (t) => ({
 
 Then, in your indexing function, create or update the bucket record that the current event falls into.
 
-```ts filename="src/index.ts"
+```ts [src/index.ts]
 import { ponder, type Schema } from "ponder:registry";
 
 const secondsInHour = 60 * 60;
@@ -63,9 +56,9 @@ ponder.on("Token:Swap", async ({ event, context }) => {
 
 Here are GraphQL and SQL queries that return the last 48 hours of OHLC data. These queries could be used to power a chart on your frontend.
 
-<div class="code-columns">
+:::code-group
 
-```graphql filename="GraphQL query"
+```graphql [GraphQL query]
 {
   hourBuckets(orderBy: { id: "desc" }, limit: 48) {
     items {
@@ -81,22 +74,22 @@ Here are GraphQL and SQL queries that return the last 48 hours of OHLC data. The
 }
 ```
 
-```sql filename="SQL query"
+```sql [SQL query]
 SELECT *
   FROM "HourBucket"
   ORDER BY id DESC
   LIMIT 48;
 ```
 
-</div>
+:::
 
 ## Include `block.timestamp`
 
 The simplest way to add a time dimension to your data is to include the block number or block timestamp (or both!) as a column.
 
-<div class="code-columns">
+:::code-group
 
-```ts filename="ponder.schema.ts"
+```ts [ponder.schema.ts]
 import { onchainTable } from "ponder";
 
 export const swapEvents = onchainTable("swap_events", (t) => ({
@@ -108,7 +101,7 @@ export const swapEvents = onchainTable("swap_events", (t) => ({
 }));
 ```
 
-```ts filename="src/index.ts" {10}
+```ts [src/index.ts]
 import { ponder } from "ponder:registry";
 import { swapEvents } from "ponder:schema";
 
@@ -118,16 +111,16 @@ ponder.on("Token:Swap", async ({ event, context }) => {
     from: event.args.from,
     to: event.args.to,
     amount: event.args.amount,
-    timestamp: event.block.timestamp,
+    timestamp: event.block.timestamp, // [!code focus]
   });
 });
 ```
 
-</div>
+:::
 
 Now, you can use the `timestamp` column to filter and sort data over different time intervals.
 
-```graphql filename="GraphQL query"
+```graphql [GraphQL query]
 {
   swapEvents(
     orderBy: { timestamp: "desc" }

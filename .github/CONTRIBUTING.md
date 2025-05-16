@@ -135,7 +135,7 @@ Any test-friendly Postgres server will do. MacOS users can download [Postgres.ap
 
 ## Write documentation
 
-Ponder uses [Nextra](https://nextra.site) and Markdown for the documentation website (located at [`docs`](../docs)). To start the docs website in dev mode, run:
+Ponder uses [Vocs](https://vocs.dev) and Markdown for the documentation website (located at [`docs`](../docs)). To start the docs website in dev mode, run:
 
 ```bash
 cd docs

@@ -1,14 +1,26 @@
 ---
+layout: minimal
 title: "Introducing Ponder"
-description: "A blog post introducing Ponder, a new open-source framework for crypto apps."
-image: "https://ponder.sh/introducing.png"
+description: "An open-source framework for crypto apps"
+# authors:
+#   - "[Kevin](https://twitter.com/typedarray)"
+date: "December 14, 2024"
 ---
 
-import { Benchmarks } from "@/components/Benchmarks";
+import { Benchmarks } from "../../components/benchmarks";
+import { Footer } from "../../components/footer";
 
-# Introducing Ponder
+# Introducing Ponder [An open-source framework for crypto apps]
 
-We’re excited to publish Ponder's first stable release, 0.1.0.
+<div className="flex flex-row items-center gap-4 mt-5">
+  <img src="/kevin-avatar.jpg" className="w-10 h-10 rounded-full" />
+  <div className="flex flex-col">
+    <span className="font-medium">Kevin</span>
+    <span className="text-sm" style={{ color: "var(--vocs-color_text3)" }}>December 14, 2024</span>
+  </div>
+</div>
+
+We’re excited to publish Ponder `0.1`, our first stable release.
 
 ![Introducing ponder cover image](/introducing.png)
 
@@ -82,7 +94,7 @@ There’s still a lot of room for improvement — we’ve really only scratched 
 
 To get started, open up the [docs](https://ponder.sh) and run `npm create ponder`.
 
-- [Documentation](/docs/getting-started/new-project)
+- [Documentation](/docs/get-started)
 - [GitHub repo ↗](https://github.com/ponder-sh/ponder)
 - [Telegram chat ↗](https://t.me/pondersh)
 - [Twitter ↗](https://x.com/ponder_sh)
@@ -102,4 +114,6 @@ We’re truly just getting started. Upcoming work that we're excited about:
 3. New sync options that bypass the standard RPC for better performance
 4. Run indexing functions in the browser for faster real-time updates\*
 
-\*We’re _particularly_ excited about trust-minimized indexing in the browser. In this scheme, the user’s browser will fetch a historical snapshot, verify it, and continue indexing in real-time directly against an Ethereum node. As a developer, you’ll write your indexing functions once, and they’ll run both server-side and in the browser (it’s all JavaScript!). This pattern has the potential to eliminate painful code duplication, simplify client-server state management, and minimize latency. There’s lots of work to do before this becomes a reality, but the door is open.
+We’re _particularly_ excited about trust-minimized indexing in the browser. In this scheme, the user’s browser will fetch a historical snapshot, verify it, and continue indexing in real-time directly against an Ethereum node. As a developer, you’ll write your indexing functions once, and they’ll run both server-side and in the browser (it’s all JavaScript!). This pattern has the potential to eliminate painful code duplication, simplify client-server state management, and minimize latency. There’s lots of work to do before this becomes a reality, but the door is open.
+
+<Footer />

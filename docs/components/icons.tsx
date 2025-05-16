@@ -9,6 +9,8 @@ export function CommandLineIcon() {
       strokeWidth={1.5}
       stroke="currentColor"
       className="w-6 h-6"
+      role="img"
+      aria-label="Command line icon"
     >
       <path
         strokeLinecap="round"
@@ -28,6 +30,8 @@ export function CursorArrowRaysIcon() {
       strokeWidth={1.5}
       stroke="currentColor"
       className="w-6 h-6"
+      role="img"
+      aria-label="Cursor arrow rays icon"
     >
       <path
         strokeLinecap="round"
@@ -47,6 +51,8 @@ export function ShieldCheckIcon() {
       strokeWidth={1.5}
       stroke="currentColor"
       className="w-6 h-6"
+      role="img"
+      aria-label="Shield check icon"
     >
       <path
         strokeLinecap="round"
@@ -66,6 +72,8 @@ export function ServerStackIcon() {
       strokeWidth={1.5}
       stroke="currentColor"
       className="w-6 h-6"
+      role="img"
+      aria-label="Server stack icon"
     >
       <path
         strokeLinecap="round"
@@ -83,6 +91,8 @@ export function TwitterIcon(props: ComponentProps<"svg">) {
       viewBox="0 0 18 15"
       width={24}
       height={24}
+      role="img"
+      aria-label="Twitter icon"
       {...props}
     >
       <path
@@ -95,7 +105,14 @@ export function TwitterIcon(props: ComponentProps<"svg">) {
 
 export function TelegramIcon(props: ComponentProps<"svg">) {
   return (
-    <svg width={24} height={24} viewBox="0 0 1000 1000" {...props}>
+    <svg
+      width={24}
+      height={24}
+      viewBox="0 0 1000 1000"
+      role="img"
+      aria-label="Telegram icon"
+      {...props}
+    >
       <defs>
         <mask id="mask" x="0" y="0" width="1000" height="1000">
           <rect x="0" y="0" width="1000" height="1000" fill="#fff" />
@@ -112,6 +129,29 @@ export function TelegramIcon(props: ComponentProps<"svg">) {
         cy="500"
         r="500"
         mask="url(#mask)"
+      />
+    </svg>
+  );
+}
+
+export function GraphLogo(props: ComponentProps<"svg">) {
+  return (
+    <svg
+      width="15"
+      height="18"
+      viewBox="0 0 15 18"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      role="img"
+      aria-label="Graph logo icon"
+      {...props}
+    >
+      <path
+        id="Vector"
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M6.47542 10.27C4.34098 10.27 2.6273 8.55634 2.6273 6.42165C2.6273 4.28719 4.34098 2.57349 6.47542 2.57349C8.61009 2.57349 10.3238 4.28719 10.3238 6.42165C10.3238 8.55634 8.61009 10.27 6.47542 10.27ZM6.47542 0.649292C9.66232 0.649292 12.2479 3.23495 12.2479 6.42165C12.2479 9.60859 9.66232 12.1942 6.47542 12.1942C3.28875 12.1942 0.703125 9.60859 0.703125 6.42165C0.703125 3.23495 3.28875 0.649292 6.47542 0.649292ZM11.9773 12.4949C12.3681 12.8857 12.3681 13.487 11.9773 13.8478L8.12916 17.6962C7.73815 18.087 7.13687 18.087 6.77606 17.6962C6.38527 17.3051 6.38527 16.7039 6.77606 16.343L10.6244 12.4949C10.9852 12.1041 11.6165 12.1041 11.9773 12.4949ZM14.2021 1.61139C14.2021 2.1525 13.7811 2.57349 13.24 2.57349C12.6989 2.57349 12.2779 2.1525 12.2779 1.61139C12.2779 1.07028 12.6989 0.649292 13.24 0.649292C13.7511 0.649292 14.2021 1.07028 14.2021 1.61139Z"
+        fill="white"
       />
     </svg>
   );

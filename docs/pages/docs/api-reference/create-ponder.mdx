@@ -1,32 +1,24 @@
----
-title: "API Reference: create-ponder"
-description: "Learn about the options available in the create-ponder CLI tool."
----
+# `create-ponder` [API reference]
 
-import { Tabs } from "nextra/components";
+The `create-ponder` CLI tool is the easiest way to get started with Ponder.
 
-# create-ponder
+It asks a few questions, then creates a new Ponder project in the specified directory including all required files (`package.json`, `ponder.config.ts`, ABIs, etc).
 
-The `create-ponder` CLI tool creates a new Ponder project with `package.json`, `ponder.config.ts`, `ponder.schema.ts`, ABIs, and other project files set up for you. It's the easiest way to get started with Ponder.
+:::code-group
 
-{/* prettier-ignore */}
-<Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tabs.Tab>
-```bash filename="shell"
+```bash [pnpm]
 pnpm create ponder {...options}
 ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
+
+```bash [yarn]
 yarn create ponder {...options}
 ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
-npm create ponder@latest {...options}
+
+```bash [npm]
+npm init ponder@latest {...options}
 ```
-</Tabs.Tab>
-</Tabs>
+
+:::
 
 ## Options
 
@@ -76,24 +68,21 @@ To find the subgraph ID, go to the subgraph's page on the [hosted service](https
 The `-t, --template [id]` option creates a new project from one of the [example projects](https://github.com/ponder-sh/ponder/tree/main/examples).
 For example, this command creates a project using the `feature-factory` example project.
 
-{/* prettier-ignore */}
-<Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tabs.Tab>
-```bash filename="shell"
+:::code-group
+
+```bash [pnpm]
 pnpm create ponder --template feature-factory
 ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
+
+```bash [yarn]
 yarn create ponder --template feature-factory
 ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
-npm create ponder@latest --template feature-factory
+
+```bash [npm]
+npm init ponder@latest --template feature-factory
 ```
-</Tabs.Tab>
-</Tabs>
+
+:::
 
 Here are the available projects:
 
