@@ -1,5 +1,12 @@
 # @ponder/react
 
+## 1.0.0
+
+### Patch Changes
+
+- Updated dependencies [[`8c012a3168af5a6f28d166279082a9fc0a672d8e`](https://github.com/ponder-sh/ponder/commit/8c012a3168af5a6f28d166279082a9fc0a672d8e)]:
+  - @ponder/client@1.0.0
+
 ## 0.10.27
 
 ### Patch Changes

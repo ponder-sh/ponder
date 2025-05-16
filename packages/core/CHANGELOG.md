@@ -1,5 +1,11 @@
 # ponder
 
+## 1.0.0
+
+### Minor Changes
+
+- [#1736](https://github.com/ponder-sh/ponder/pull/1736) [`8c012a3168af5a6f28d166279082a9fc0a672d8e`](https://github.com/ponder-sh/ponder/commit/8c012a3168af5a6f28d166279082a9fc0a672d8e) Thanks [@kyscott18](https://github.com/kyscott18)! - Released `0.11`. Visit the [migration guide](https://ponder.sh/docs/migration-guide#011) for details.
+
 ## 0.10.27
 
 ### Patch Changes
