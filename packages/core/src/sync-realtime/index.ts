@@ -32,6 +32,7 @@ import {
 } from "@/sync/filter.js";
 import { type SyncProgress, syncBlockToLightBlock } from "@/sync/index.js";
 import { mutex } from "@/utils/mutex.js";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import type { Queue } from "@/utils/queue.js";
 import { range } from "@/utils/range.js";
 import {
@@ -51,10 +52,9 @@ export type RealtimeSync = {
   start(args: {
     syncProgress: Pick<SyncProgress, "finalized">;
     initialChildAddresses: Map<Factory, Map<Address, number>>;
-  }): Promise<Queue<void, BlockWithEventData>>;
+  }): Promise<Queue<boolean, BlockWithEventData>>;
   unfinalizedBlocks: LightBlock[];
   childAddresses: Map<Factory, Map<Address, number>>;
-  kill: () => void;
 };
 
 type CreateRealtimeSyncParameters = {
@@ -73,13 +73,13 @@ export type BlockWithEventData = {
   logs: SyncLog[];
   traces: SyncTrace[];
   childAddresses: Map<Factory, Set<Address>>;
+  onComplete: () => void;
 };
 
 export type RealtimeSyncEvent =
   | ({
       type: "block";
       hasMatchedFilter: boolean;
-      endClock?: () => number;
     } & BlockWithEventData)
   | {
       type: "finalize";
@@ -242,7 +242,7 @@ export const createRealtimeSync = (
    */
   const fetchBlockEventData = async (
     block: SyncBlock,
-  ): Promise<BlockWithEventData> => {
+  ): Promise<Omit<BlockWithEventData, "onComplete">> => {
     ////////
     // Logs
     ////////
@@ -482,6 +482,7 @@ export const createRealtimeSync = (
     transactions,
     transactionReceipts,
     childAddresses: blockChildAddresses,
+    onComplete,
   }: BlockWithEventData): BlockWithEventData & {
     matchedFilters: Set<Filter>;
   } => {
@@ -651,6 +652,7 @@ export const createRealtimeSync = (
       transactionReceipts,
       traces,
       childAddresses: blockChildAddresses,
+      onComplete,
     };
   };
 
@@ -734,8 +736,14 @@ export const createRealtimeSync = (
 
   /**
    * Start syncing the latest block.
+   *
+   * @returns `true` if the block was accepted into the canonical chain.
    */
-  const fetchAndReconcileLatestBlock = async (block: SyncBlock) => {
+  const fetchAndReconcileLatestBlock = async (
+    block: SyncBlock,
+    onComplete: () => void,
+    // @ts-expect-error
+  ): Promise<boolean> => {
     try {
       args.common.logger.debug({
         service: "realtime",
@@ -750,17 +758,14 @@ export const createRealtimeSync = (
           service: "realtime",
           msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
         });
-
-        return;
+        return false;
       }
-
-      const endClock = startClock();
 
       const blockWithEventData = await fetchBlockEventData(block);
 
       fetchAndReconcileLatestBlockErrorCount = 0;
 
-      return reconcileBlock({ ...blockWithEventData, endClock });
+      return reconcileBlock({ ...blockWithEventData, onComplete });
     } catch (_error) {
       const error = _error as Error;
 
@@ -806,14 +811,14 @@ export const createRealtimeSync = (
    *
    * @dev This mutex only runs one at a time, every block is
    * processed serially.
+   *
+   * @returns `true` if the block was accepted into the canonical chain.
    */
   const reconcileBlock = mutex(
-    async ({
-      block,
-      endClock,
-      ...rest
-    }: BlockWithEventData & { endClock?: () => number }): Promise<void> => {
+    // @ts-expect-error
+    async (blockWithEventData: BlockWithEventData): Promise<boolean> => {
       const latestBlock = getLatestUnfinalizedBlock();
+      const block = blockWithEventData.block;
 
       // We already saw and handled this block. No-op.
       if (latestBlock.hash === block.hash) {
@@ -822,7 +827,7 @@ export const createRealtimeSync = (
           msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
         });
 
-        return;
+        return false;
       }
 
       try {
@@ -830,9 +835,7 @@ export const createRealtimeSync = (
         // number has not increased, a reorg must have occurred.
         if (hexToNumber(latestBlock.number) >= hexToNumber(block.number)) {
           await reconcileReorg(block);
-
-          reconcileBlock.clear();
-          return;
+          return false;
         }
 
         // Blocks are missing. They should be fetched and enqueued.
@@ -864,53 +867,54 @@ export const createRealtimeSync = (
             )}]`,
           });
 
-          reconcileBlock.clear();
-
+          reconcileBlock.clear(({ resolve }) => resolve(false));
           for (const pendingBlock of pendingBlocks) {
-            reconcileBlock(pendingBlock);
+            reconcileBlock({ ...pendingBlock, onComplete: () => {} });
           }
 
-          // TODO(kyle) this is locking the mutex
-          reconcileBlock({ block, endClock, ...rest });
-          return;
+          // Note: awaiting will cause a deadlock
+          // TODO(kyle) this is wrong
+          reconcileBlock(blockWithEventData);
+          return false;
         }
 
         // Check if a reorg occurred by validating the chain of block hashes.
         if (block.parentHash !== latestBlock.hash) {
           await reconcileReorg(block);
-          reconcileBlock.clear();
-          return;
+          blockWithEventData.onComplete();
+          return false;
         }
 
         // New block is exactly one block ahead of the local chain.
         // Attempt to ingest it.
 
-        const blockWithEventData = filterBlockEventData({ block, ...rest });
+        const blockWithEventDataAndFilters =
+          filterBlockEventData(blockWithEventData);
 
         if (
-          blockWithEventData.logs.length > 0 ||
-          blockWithEventData.traces.length > 0 ||
-          blockWithEventData.transactions.length > 0
+          blockWithEventDataAndFilters.logs.length > 0 ||
+          blockWithEventDataAndFilters.traces.length > 0 ||
+          blockWithEventDataAndFilters.transactions.length > 0
         ) {
           const _text: string[] = [];
 
-          if (blockWithEventData.logs.length === 1) {
+          if (blockWithEventDataAndFilters.logs.length === 1) {
             _text.push("1 log");
-          } else if (blockWithEventData.logs.length > 1) {
-            _text.push(`${blockWithEventData.logs.length} logs`);
+          } else if (blockWithEventDataAndFilters.logs.length > 1) {
+            _text.push(`${blockWithEventDataAndFilters.logs.length} logs`);
           }
 
-          if (blockWithEventData.traces.length === 1) {
+          if (blockWithEventDataAndFilters.traces.length === 1) {
             _text.push("1 trace");
-          } else if (blockWithEventData.traces.length > 1) {
-            _text.push(`${blockWithEventData.traces.length} traces`);
+          } else if (blockWithEventDataAndFilters.traces.length > 1) {
+            _text.push(`${blockWithEventDataAndFilters.traces.length} traces`);
           }
 
-          if (blockWithEventData.transactions.length === 1) {
+          if (blockWithEventDataAndFilters.transactions.length === 1) {
             _text.push("1 transaction");
-          } else if (blockWithEventData.transactions.length > 1) {
+          } else if (blockWithEventDataAndFilters.transactions.length > 1) {
             _text.push(
-              `${blockWithEventData.transactions.length} transactions`,
+              `${blockWithEventDataAndFilters.transactions.length} transactions`,
             );
           }
 
@@ -929,19 +933,13 @@ export const createRealtimeSync = (
         unfinalizedBlocks.push(syncBlockToLightBlock(block));
 
         // Make sure `transactions` can be garbage collected
-        // @ts-ignore
-        block.transactions = rest.transactions;
+        block.transactions = blockWithEventDataAndFilters.transactions;
 
         args.onEvent({
           type: "block",
-          hasMatchedFilter: blockWithEventData.matchedFilters.size > 0,
-          block: blockWithEventData.block,
-          logs: blockWithEventData.logs,
-          transactions: blockWithEventData.transactions,
-          transactionReceipts: blockWithEventData.transactionReceipts,
-          traces: blockWithEventData.traces,
-          childAddresses: blockWithEventData.childAddresses,
-          endClock,
+          hasMatchedFilter:
+            blockWithEventDataAndFilters.matchedFilters.size > 0,
+          ...blockWithEventDataAndFilters,
         });
 
         // Determine if a new range has become finalized by evaluating if the
@@ -991,7 +989,7 @@ export const createRealtimeSync = (
         // Reset the error state after successfully completing the happy path.
         reconcileBlockErrorCount = 0;
 
-        return;
+        return true;
       } catch (_error) {
         const error = _error as Error;
 
@@ -1018,7 +1016,7 @@ export const createRealtimeSync = (
 
         // Remove all blocks from the queue. This protects against an
         // erroneous block causing a fatal error.
-        // reconcileBlock.clear();
+        reconcileBlock.clear(({ resolve }) => resolve(false));
 
         reconcileBlockErrorCount += 1;
 
@@ -1042,7 +1040,21 @@ export const createRealtimeSync = (
       childAddresses = startArgs.initialChildAddresses;
 
       // TODO(kyle) on error
-      args.rpc.subscribe(async (block) => fetchAndReconcileLatestBlock(block));
+      args.rpc.subscribe(async (block) => {
+        // TODO(kyle) memory leak
+        const pwr = promiseWithResolvers<void>();
+        const endClock = startClock();
+        const isAccepted = await fetchAndReconcileLatestBlock(block, () => {
+          pwr.resolve();
+
+          args.common.metrics.ponder_realtime_latency.observe(
+            { chain: args.chain.name },
+            endClock(),
+          );
+        });
+
+        if (isAccepted) return pwr.promise;
+      });
 
       // Note: Return the mutex for testing purposes.
       return Promise.resolve(reconcileBlock);
@@ -1052,9 +1064,6 @@ export const createRealtimeSync = (
     },
     get childAddresses() {
       return childAddresses;
-    },
-    async kill() {
-      // TODO(kyle)
     },
   };
 };

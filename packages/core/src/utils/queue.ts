@@ -13,7 +13,9 @@ export type Queue<returnType, taskType> = {
   size: () => number;
   pending: () => Promise<number>;
   add: (task: taskType) => Promise<returnType>;
-  clear: () => void;
+  clear: (
+    callback?: (e: InnerQueue<returnType, taskType>[number]) => void,
+  ) => void;
   isStarted: () => boolean;
   start: () => Promise<void>;
   pause: () => void;
@@ -182,7 +184,15 @@ export const createQueue = <returnType, taskType = void>({
 
       return promise;
     },
-    clear: () => {
+    clear: (
+      callback?: (e: InnerQueue<returnType, taskType>[number]) => void,
+    ) => {
+      if (callback) {
+        for (const e of queue) {
+          callback(e);
+        }
+      }
+
       queue = new Array<InnerQueue<returnType, taskType>[number]>();
       clearTimeout(timer);
       timer = undefined;

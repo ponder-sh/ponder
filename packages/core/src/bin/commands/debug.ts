@@ -232,8 +232,8 @@ export async function debug({
       // @ts-ignore
       request: rpc.request,
       interval: [
-        hexToNumber(indexingBuildResult.result.finalizedBlocks[i]!.number),
-        end + chain.finalityBlockCount * 2,
+        hexToNumber(indexingBuildResult.result.finalizedBlocks[i]!.number) + 1,
+        end + 10,
       ],
     });
 
@@ -258,6 +258,11 @@ export async function debug({
         for await (const block of getRealtimeBlockGenerator(chain.id)) {
           await onBlock(block as SyncBlock);
         }
+        common.logger.warn({
+          service: "sim",
+          msg: `Realtime block subscription for chain '${chain.name}' completed`,
+        });
+        onComplete();
       })();
     };
 

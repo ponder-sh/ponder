@@ -36,6 +36,7 @@ export type Rpc = {
     parameters: TParameters,
   ) => Promise<RequestReturnType<TParameters["method"]>>;
   subscribe: (onBlock: (block: SyncBlock) => Promise<void>) => void;
+  unsubscribe: () => void;
 };
 
 const RETRY_COUNT = 9;
@@ -164,7 +165,7 @@ export const createRpc = ({
     },
   });
 
-  let interval: NodeJS.Timeout;
+  let interval: NodeJS.Timeout | undefined;
 
   // @ts-ignore
   const rpc: Rpc = {
@@ -178,6 +179,9 @@ export const createRpc = ({
       common.shutdown.add(() => {
         clearInterval(interval);
       });
+    },
+    unsubscribe() {
+      clearInterval(interval);
     },
   };
 

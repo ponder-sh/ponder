@@ -31,7 +31,6 @@ const SIM_PARAMS: SimParams = {
   REALTIME_REORG_RATE: 0.05,
   /** Probability of a deep reorg. */
   REALTIME_DEEP_REORG_RATE: 0.02,
-  // TODO(kyle) deep reorg
   /** Probability that the chain fast forwards and skips a block. */
   REALTIME_FAST_FORWARD_RATE: 0.5,
   /** Probability that a block is delayed and a block on another chain is ordered first. */
@@ -174,10 +173,7 @@ const kill = await debug({
 // stop when no more events are possible: historical end or realtime finalized
 
 await pwr.promise;
-console.log("KILLING");
 await kill!();
-
-console.log("COMPARING");
 
 const schema = await import(`./${APP_DIR}/ponder.schema.ts`);
 for (const key of Object.keys(schema)) {
@@ -192,8 +188,6 @@ for (const key of Object.keys(schema)) {
     );
   }
 }
-
-console.log("CLEANUP");
 
 await db.execute(sql.raw(`DROP SCHEMA IF EXISTS "${TARGET_SCHEMA}" CASCADE`));
 await db.execute(

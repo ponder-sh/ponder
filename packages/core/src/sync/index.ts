@@ -463,8 +463,11 @@ export const createSync = async (params: {
     finalized: ZERO_CHECKPOINT_STRING,
   };
 
-  // Note: `latencyTimers` not used in multichain ordering
-  const latencyTimers = new Map<string, () => number>();
+  // Note: `omnichainCheckpointHooks` not used in multichain ordering
+  const omnichainHooks: {
+    checkpoint: string;
+    onComplete: () => void;
+  }[] = [];
 
   const onRealtimeSyncEvent = async (
     event: RealtimeSyncEvent,
@@ -535,35 +538,27 @@ export const createSync = async (params: {
             msg: `Sequenced ${readyEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
           });
 
-          await params
-            .onRealtimeEvent({
-              type: "block",
-              chain,
-              events: readyEvents.sort((a, b) =>
-                a.checkpoint < b.checkpoint ? -1 : 1,
-              ),
-              checkpoints: [{ chainId: chain.id, checkpoint }],
-            })
-            .then(() => {
-              // update `ponder_realtime_latency` metric
-              if (event.endClock) {
-                params.common.metrics.ponder_realtime_latency.observe(
-                  { chain: chain.name },
-                  event.endClock(),
-                );
-              }
-            });
+          await params.onRealtimeEvent({
+            type: "block",
+            chain,
+            events: readyEvents.sort((a, b) =>
+              a.checkpoint < b.checkpoint ? -1 : 1,
+            ),
+            checkpoints: [{ chainId: chain.id, checkpoint }],
+          });
+
+          event.onComplete();
         } else {
           const from = checkpoints.current;
-          checkpoints.current = getOmnichainCheckpoint({ tag: "current" })!;
           const to = getOmnichainCheckpoint({ tag: "current" })!;
+          checkpoints.current = to;
 
-          if (event.endClock !== undefined) {
-            latencyTimers.set(
-              encodeCheckpoint(blockToCheckpoint(event.block, chain.id, "up")),
-              event.endClock,
-            );
-          }
+          omnichainHooks.push({
+            checkpoint: encodeCheckpoint(
+              blockToCheckpoint(event.block, chain.id, "up"),
+            ),
+            onComplete: () => event.onComplete(),
+          });
 
           if (to > from) {
             // Move ready events from pending to executed
@@ -601,32 +596,20 @@ export const createSync = async (params: {
               }
             }
 
-            await params
-              .onRealtimeEvent({
-                type: "block",
-                events: readyEvents.sort((a, b) =>
-                  a.checkpoint < b.checkpoint ? -1 : 1,
-                ),
-                chain,
-                checkpoints,
-              })
-              .then(() => {
-                // update `ponder_realtime_latency` metric
-                for (const [checkpoint, timer] of latencyTimers) {
-                  if (checkpoint > from && checkpoint <= to) {
-                    const chainId = Number(
-                      decodeCheckpoint(checkpoint).chainId,
-                    );
-                    const chain = params.indexingBuild.chains.find(
-                      (chain) => chain.id === chainId,
-                    )!;
-                    params.common.metrics.ponder_realtime_latency.observe(
-                      { chain: chain.name },
-                      timer(),
-                    );
-                  }
-                }
-              });
+            await params.onRealtimeEvent({
+              type: "block",
+              events: readyEvents.sort((a, b) =>
+                a.checkpoint < b.checkpoint ? -1 : 1,
+              ),
+              chain,
+              checkpoints,
+            });
+
+            for (const { checkpoint, onComplete } of omnichainHooks) {
+              if (checkpoint > from && checkpoint <= to) {
+                onComplete();
+              }
+            }
           } else {
             pendingEvents = pendingEvents.concat(decodedEvents);
           }
@@ -836,7 +819,7 @@ export const createSync = async (params: {
                   service: "sync",
                   msg: `Killing '${chain.name}' live indexing because the end block ${hexToNumber(syncProgress.end!.number)} has been finalized`,
                 });
-                realtimeSync.kill();
+                rpc.unsubscribe();
                 perChainSync.get(chain)!.isComplete = true;
 
                 if (
