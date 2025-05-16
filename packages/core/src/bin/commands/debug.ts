@@ -253,7 +253,7 @@ export async function debug({
     const chain = indexingBuildResult.result.chains[i]!;
     const rpc = indexingBuildResult.result.rpcs[i]!;
 
-    rpc.subscribe = (onBlock) => {
+    rpc.subscribe = ({ onBlock }) => {
       (async () => {
         for await (const block of getRealtimeBlockGenerator(chain.id)) {
           await onBlock(block as SyncBlock);
