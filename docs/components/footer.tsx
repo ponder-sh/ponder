@@ -41,7 +41,7 @@ export function Footer() {
           <div className="flex flex-wrap gap-y-12 md:flex-row text-sm">
             <div className="flex flex-col gap-3 w-36 md:w-44">
               <h4 className="font-semibold pb-2">Resources</h4>
-              <a href="/docs/get-started/new-project">Documentation</a>
+              <a href="/docs/get-started">Documentation</a>
               <a
                 href="https://github.com/ponder-sh/ponder/tree/main/examples"
                 target="_blank"
@@ -75,11 +75,11 @@ export function Footer() {
                 Jobs
               </a>
               <a
-                href="https://twitter.com/ponder_sh"
+                href="https://x.com/ponder_sh"
                 target="_blank"
                 rel="noreferrer"
               >
-                Twitter
+                X (Twitter)
               </a>
               <a
                 href="https://warpcast.com/typedarray.eth"
@@ -141,7 +141,7 @@ function Socials(props: React.HTMLAttributes<HTMLDivElement>) {
       />
       <a
         className="vocs_Socials_button"
-        href="https://t.me/ponder_sh"
+        href="https://t.me/pondersh"
         target="_blank"
         rel="noopener noreferrer"
       >

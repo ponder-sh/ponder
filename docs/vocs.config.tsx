@@ -81,7 +81,7 @@ export default defineConfig({
     },
     {
       icon: "telegram",
-      link: "https://t.me/ponder_sh",
+      link: "https://t.me/pondersh",
     },
     {
       icon: "x",
