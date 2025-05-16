@@ -794,6 +794,8 @@ export const createRealtimeSync = (
 
         args.onFatalError(error);
       }
+
+      callback(false);
     }
   };
 
@@ -1041,23 +1043,27 @@ export const createRealtimeSync = (
       finalizedBlock = startArgs.syncProgress.finalized;
       childAddresses = startArgs.initialChildAddresses;
 
-      // TODO(kyle) on error
-      args.rpc.subscribe(async (block) => {
-        // TODO(kyle) memory leak
-        const pwr = promiseWithResolvers<void>();
-        const endClock = startClock();
-        await fetchAndReconcileLatestBlock(block, (isAccepted) => {
-          pwr.resolve();
+      args.rpc.subscribe({
+        onBlock: async (block) => {
+          // TODO(kyle) memory leak
+          const pwr = promiseWithResolvers<void>();
+          const endClock = startClock();
+          await fetchAndReconcileLatestBlock(block, (isAccepted) => {
+            pwr.resolve();
 
-          if (isAccepted) {
-            args.common.metrics.ponder_realtime_latency.observe(
-              { chain: args.chain.name },
-              endClock(),
-            );
-          }
-        });
+            if (isAccepted) {
+              args.common.metrics.ponder_realtime_latency.observe(
+                { chain: args.chain.name },
+                endClock(),
+              );
+            }
+          });
 
-        return pwr.promise;
+          return pwr.promise;
+        },
+        onError: (error) => {
+          // TODO(kyle) handle error
+        },
       });
 
       // Note: Return the mutex for testing purposes.

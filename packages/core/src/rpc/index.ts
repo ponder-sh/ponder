@@ -35,7 +35,10 @@ export type Rpc = {
   request: <TParameters extends EIP1193Parameters<Schema>>(
     parameters: TParameters,
   ) => Promise<RequestReturnType<TParameters["method"]>>;
-  subscribe: (onBlock: (block: SyncBlock) => Promise<void>) => void;
+  subscribe: (params: {
+    onBlock: (block: SyncBlock) => Promise<void>;
+    onError: (error: Error) => void;
+  }) => void;
   unsubscribe: () => void;
 };
 
@@ -171,9 +174,11 @@ export const createRpc = ({
   const rpc: Rpc = {
     // @ts-ignore
     request: queue.add,
-    subscribe(onBlock) {
+    subscribe({ onBlock, onError }) {
       interval = setInterval(() => {
-        _eth_getBlockByNumber(rpc, { blockTag: "latest" }).then(onBlock);
+        _eth_getBlockByNumber(rpc, { blockTag: "latest" })
+          .then(onBlock)
+          .catch(onError);
       }, chain.pollingInterval);
 
       common.shutdown.add(() => {
