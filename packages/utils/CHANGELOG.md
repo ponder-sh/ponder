@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.2.7
+
+### Patch Changes
+
+- [#1749](https://github.com/ponder-sh/ponder/pull/1749) [`5507be933867f74b16db6e842897b6545f2e7567`](https://github.com/ponder-sh/ponder/commit/5507be933867f74b16db6e842897b6545f2e7567) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for merkle.io.
+
 ## 0.2.6
 
 ### Patch Changes
