@@ -6,6 +6,7 @@ import {
 } from "@/_test/setup.js";
 import type { Database } from "@/database/index.js";
 import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
+import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { relations } from "drizzle-orm";
 import { type GraphQLType, execute, parse } from "graphql";
 import { toBytes } from "viem";
@@ -23,7 +24,7 @@ function buildContextValue(database: Database) {
   return {
     drizzle,
     getDataLoader,
-    getStatus: () => database.getStatus(),
+    getCheckpoints: () => database.getCheckpoints(),
   };
 }
 
@@ -39,14 +40,30 @@ test("metadata", async (context) => {
 
   const graphqlSchema = buildGraphQLSchema({ schema });
 
-  await database.setStatus({
-    [1]: {
-      ready: true,
-      block: {
-        number: 10,
-        timestamp: 20,
+  await database.setCheckpoints({
+    checkpoints: [
+      {
+        chainId: 1,
+        chainName: "mainnet",
+        latestCheckpoint: encodeCheckpoint({
+          blockNumber: 10n,
+          chainId: 1n,
+          blockTimestamp: 20n,
+          transactionIndex: 0n,
+          eventType: EVENT_TYPES.blocks,
+          eventIndex: 0n,
+        }),
+        safeCheckpoint: encodeCheckpoint({
+          blockNumber: 10n,
+          chainId: 1n,
+          blockTimestamp: 20n,
+          transactionIndex: 0n,
+          eventType: EVENT_TYPES.blocks,
+          eventIndex: 0n,
+        }),
       },
-    },
+    ],
+    db: database.qb.drizzle,
   });
 
   const result = await query(`
@@ -61,8 +78,8 @@ test("metadata", async (context) => {
   expect(result.data).toMatchObject({
     _meta: {
       status: {
-        1: {
-          ready: true,
+        mainnet: {
+          id: 1,
           block: {
             number: 10,
             timestamp: 20,

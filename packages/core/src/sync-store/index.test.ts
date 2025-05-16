@@ -15,8 +15,8 @@ import {
 } from "@/_test/simulate.js";
 import {
   getBlocksConfigAndIndexingFunctions,
+  getChain,
   getErc20ConfigAndIndexingFunctions,
-  getNetwork,
   getPairWithFactoryConfigAndIndexingFunctions,
   testClient,
 } from "@/_test/utils.js";
@@ -29,13 +29,14 @@ import type {
   SyncTransaction,
 } from "@/internal/types.js";
 import { orderObject } from "@/utils/order.js";
-import { createRequestQueue } from "@/utils/requestQueue.js";
+
+import { createRpc } from "@/rpc/index.js";
 import {
   _eth_getBlockByNumber,
   _eth_getLogs,
   _eth_getTransactionReceipt,
 } from "@/utils/rpc.js";
-import { sql } from "kysely";
+import { sql } from "drizzle-orm";
 import {
   encodeFunctionData,
   encodeFunctionResult,
@@ -43,25 +44,12 @@ import {
   zeroAddress,
 } from "viem";
 import { beforeEach, expect, test } from "vitest";
+import * as ponderSyncSchema from "./schema.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
-
-test("setup creates tables", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-  const tables = await database.qb.sync.introspection.getTables();
-  const tableNames = tables.map((t) => t.name);
-
-  expect(tableNames).toContain("blocks");
-  expect(tableNames).toContain("logs");
-  expect(tableNames).toContain("transactions");
-  expect(tableNames).toContain("traces");
-  expect(tableNames).toContain("transaction_receipts");
-
-  expect(tableNames).toContain("rpc_request_results");
-});
 
 test("getIntervals() empty", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
@@ -477,6 +465,7 @@ test("getChildAddresses()", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -509,6 +498,7 @@ test("getChildAddresses() empty", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -533,6 +523,7 @@ test("getChildAddresses() distinct", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -571,6 +562,7 @@ test("insertChildAddresses()", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -588,12 +580,12 @@ test("insertChildAddresses()", async (context) => {
   });
 
   const factories = await database.qb.sync
-    .selectFrom("factories")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.factories)
     .execute();
   const factoryAddresses = await database.qb.sync
-    .selectFrom("factory_addresses")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.factoryAddresses)
     .execute();
 
   expect(factories).toHaveLength(1);
@@ -603,9 +595,9 @@ test("insertChildAddresses()", async (context) => {
 test("insertLogs()", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -616,23 +608,23 @@ test("insertLogs()", async (context) => {
     amount: parseEther("1"),
     sender: ALICE,
   });
-  const rpcLogs = await _eth_getLogs(requestQueue, {
+  const rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 2,
     toBlock: 2,
   });
 
   await syncStore.insertLogs({ logs: [rpcLogs[0]!], chainId: 1 });
 
-  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
+  const logs = await database.qb.sync.select().from(ponderSyncSchema.logs);
   expect(logs).toHaveLength(1);
 });
 
 test("insertLogs() with duplicates", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -643,7 +635,7 @@ test("insertLogs() with duplicates", async (context) => {
     amount: parseEther("1"),
     sender: ALICE,
   });
-  const rpcLogs = await _eth_getLogs(requestQueue, {
+  const rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 2,
     toBlock: 2,
   });
@@ -652,29 +644,29 @@ test("insertLogs() with duplicates", async (context) => {
 
   await syncStore.insertLogs({ logs: [rpcLogs[0]!], chainId: 1 });
 
-  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
+  const logs = await database.qb.sync.select().from(ponderSyncSchema.logs);
   expect(logs).toHaveLength(1);
 });
 
 test("insertBlocks()", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
   await testClient.mine({ blocks: 1 });
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
 
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
   const blocks = await database.qb.sync
-    .selectFrom("blocks")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.blocks)
     .execute();
   expect(blocks).toHaveLength(1);
 });
@@ -682,14 +674,14 @@ test("insertBlocks()", async (context) => {
 test("insertBlocks() with duplicates", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
   await testClient.mine({ blocks: 1 });
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
 
@@ -697,8 +689,8 @@ test("insertBlocks() with duplicates", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
   const blocks = await database.qb.sync
-    .selectFrom("blocks")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.blocks)
     .execute();
   expect(blocks).toHaveLength(1);
 });
@@ -706,9 +698,9 @@ test("insertBlocks() with duplicates", async (context) => {
 test("insertTransactions()", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -720,7 +712,7 @@ test("insertTransactions()", async (context) => {
     sender: ALICE,
   });
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 2,
   });
   await syncStore.insertTransactions({
@@ -729,8 +721,8 @@ test("insertTransactions()", async (context) => {
   });
 
   const transactions = await database.qb.sync
-    .selectFrom("transactions")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.transactions)
     .execute();
   expect(transactions).toHaveLength(1);
 });
@@ -738,9 +730,9 @@ test("insertTransactions()", async (context) => {
 test("insertTransactions() with duplicates", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -752,7 +744,7 @@ test("insertTransactions() with duplicates", async (context) => {
     sender: ALICE,
   });
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 2,
   });
   await syncStore.insertTransactions({
@@ -765,8 +757,8 @@ test("insertTransactions() with duplicates", async (context) => {
   });
 
   const transactions = await database.qb.sync
-    .selectFrom("transactions")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.transactions)
     .execute();
   expect(transactions).toHaveLength(1);
 });
@@ -774,9 +766,9 @@ test("insertTransactions() with duplicates", async (context) => {
 test("insertTransactionReceipts()", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -788,7 +780,7 @@ test("insertTransactionReceipts()", async (context) => {
     sender: ALICE,
   });
 
-  const rpcTransactionReceipt = await _eth_getTransactionReceipt(requestQueue, {
+  const rpcTransactionReceipt = await _eth_getTransactionReceipt(rpc, {
     hash,
   });
 
@@ -798,8 +790,8 @@ test("insertTransactionReceipts()", async (context) => {
   });
 
   const transactionReceipts = await database.qb.sync
-    .selectFrom("transaction_receipts")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.transactionReceipts)
     .execute();
   expect(transactionReceipts).toHaveLength(1);
 });
@@ -807,9 +799,9 @@ test("insertTransactionReceipts()", async (context) => {
 test("insertTransactionReceipts() with duplicates", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -821,7 +813,7 @@ test("insertTransactionReceipts() with duplicates", async (context) => {
     sender: ALICE,
   });
 
-  const rpcTransactionReceipt = await _eth_getTransactionReceipt(requestQueue, {
+  const rpcTransactionReceipt = await _eth_getTransactionReceipt(rpc, {
     hash,
   });
 
@@ -835,8 +827,8 @@ test("insertTransactionReceipts() with duplicates", async (context) => {
   });
 
   const transactionReceipts = await database.qb.sync
-    .selectFrom("transaction_receipts")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.transactionReceipts)
     .execute();
   expect(transactionReceipts).toHaveLength(1);
 });
@@ -844,9 +836,9 @@ test("insertTransactionReceipts() with duplicates", async (context) => {
 test("insertTraces()", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -882,7 +874,7 @@ test("insertTraces()", async (context) => {
     transactionHash: hash,
   } satisfies SyncTrace;
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
 
@@ -898,8 +890,8 @@ test("insertTraces()", async (context) => {
   });
 
   const traces = await database.qb.sync
-    .selectFrom("traces")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.traces)
     .execute();
   expect(traces).toHaveLength(1);
 });
@@ -907,9 +899,9 @@ test("insertTraces()", async (context) => {
 test("insertTraces() with duplicates", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -945,7 +937,7 @@ test("insertTraces() with duplicates", async (context) => {
     transactionHash: hash,
   } satisfies SyncTrace;
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
 
@@ -971,8 +963,8 @@ test("insertTraces() with duplicates", async (context) => {
   });
 
   const traces = await database.qb.sync
-    .selectFrom("traces")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.traces)
     .execute();
   expect(traces).toHaveLength(1);
 });
@@ -980,9 +972,9 @@ test("insertTraces() with duplicates", async (context) => {
 test("getEventBlockData() returns events", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -993,12 +985,12 @@ test("getEventBlockData() returns events", async (context) => {
     amount: parseEther("1"),
     sender: ALICE,
   });
-  const rpcLogs = await _eth_getLogs(requestQueue, {
+  const rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 2,
     toBlock: 2,
   });
 
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 2,
   });
 
@@ -1039,9 +1031,9 @@ test("getEventBlockData() returns events", async (context) => {
 test("getEventBlockData() pagination", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -1051,16 +1043,17 @@ test("getEventBlockData() pagination", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
-  let rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  let rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
-  rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 2,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
@@ -1101,12 +1094,12 @@ test("insertRpcRequestResults() ", async (context) => {
   });
 
   const result = await database.qb.sync
-    .selectFrom("rpc_request_results")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.rpcRequestResults)
     .execute();
 
   expect(result).toHaveLength(1);
-  expect(result[0]!.request_hash).toBe("39d5ace8093d42c1bd00ce7781a7891a");
+  expect(result[0]!.requestHash).toBe("39d5ace8093d42c1bd00ce7781a7891a");
   expect(result[0]!.result).toBe("0x1");
 });
 
@@ -1125,21 +1118,16 @@ test("inserttRpcRequestResults() hash matches postgres", async (context) => {
   });
 
   const jsHash = await database.qb.sync
-    .selectFrom("rpc_request_results")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.rpcRequestResults)
     .execute()
-    .then((result) => result[0]!.request_hash);
+    .then((result) => result[0]!.requestHash);
 
-  const psqlHash = await database.qb.sync
-    .selectNoFrom(
-      sql`MD5(${JSON.stringify(orderObject({ method: "eth_call", params: ["0x1"] }))})`.as(
-        "request_hash",
-      ),
-    )
-    .execute()
-    .then((result) => result[0]!.request_hash);
+  const psqlHash = await database.qb.sync.execute(
+    sql`SELECT MD5(${JSON.stringify(orderObject({ method: "eth_call", params: ["0x1"] }))}) as request_hash`,
+  );
 
-  expect(jsHash).toBe(psqlHash);
+  expect(jsHash).toBe(psqlHash.rows[0]!.request_hash);
 });
 
 test("getRpcRequestResults()", async (context) => {
@@ -1174,9 +1162,9 @@ test("getRpcRequestResults()", async (context) => {
 test("getEventBlockData() pagination with multiple filters", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -1188,17 +1176,19 @@ test("getEventBlockData() pagination with multiple filters", async (context) => 
     sender: ALICE,
   });
 
-  const { sources: erc20Sources } = await buildConfigAndIndexingFunctions(
-    getErc20ConfigAndIndexingFunctions({ address }),
-  );
+  const { sources: erc20Sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
+    ...getErc20ConfigAndIndexingFunctions({ address }),
+  });
 
-  const { sources: blockSources } = await buildConfigAndIndexingFunctions(
-    getBlocksConfigAndIndexingFunctions({
+  const { sources: blockSources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
+    ...getBlocksConfigAndIndexingFunctions({
       interval: 1,
     }),
-  );
+  });
 
-  let rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  let rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
@@ -1208,7 +1198,7 @@ test("getEventBlockData() pagination with multiple filters", async (context) => 
     chainId: 1,
   });
 
-  rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 2,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
@@ -1218,7 +1208,7 @@ test("getEventBlockData() pagination with multiple filters", async (context) => 
     chainId: 1,
   });
 
-  const rpcLogs = await _eth_getLogs(requestQueue, {
+  const rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 2,
     toBlock: 2,
   });
@@ -1273,8 +1263,8 @@ test("pruneRpcRequestResult", async (context) => {
   });
 
   const requestResults = await database.qb.sync
-    .selectFrom("rpc_request_results")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.rpcRequestResults)
     .execute();
 
   expect(requestResults).toHaveLength(2);
@@ -1283,9 +1273,9 @@ test("pruneRpcRequestResult", async (context) => {
 test("pruneByChain deletes blocks, logs, traces, transactions", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -1305,7 +1295,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
 
   // block 2 (first mint)
 
-  let rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  let rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 2,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
@@ -1315,7 +1305,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
     chainId: 1,
   });
 
-  let rpcLogs = await _eth_getLogs(requestQueue, {
+  let rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 2,
     toBlock: 2,
   });
@@ -1324,7 +1314,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
     chainId: 1,
   });
 
-  let rpcTransactionReceipt = await _eth_getTransactionReceipt(requestQueue, {
+  let rpcTransactionReceipt = await _eth_getTransactionReceipt(rpc, {
     hash: hash1,
   });
 
@@ -1370,7 +1360,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
 
   // block 3 (second mint)
 
-  rpcBlock = await _eth_getBlockByNumber(requestQueue, {
+  rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 3,
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
@@ -1380,7 +1370,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
     chainId: 1,
   });
 
-  rpcLogs = await _eth_getLogs(requestQueue, {
+  rpcLogs = await _eth_getLogs(rpc, {
     fromBlock: 3,
     toBlock: 3,
   });
@@ -1389,7 +1379,7 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
     chainId: 1,
   });
 
-  rpcTransactionReceipt = await _eth_getTransactionReceipt(requestQueue, {
+  rpcTransactionReceipt = await _eth_getTransactionReceipt(rpc, {
     hash: hash1,
   });
 
@@ -1413,22 +1403,25 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
 
   await syncStore.pruneByChain({ chainId: 1 });
 
-  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
+  const logs = await database.qb.sync
+    .select()
+    .from(ponderSyncSchema.logs)
+    .execute();
   const blocks = await database.qb.sync
-    .selectFrom("blocks")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.blocks)
     .execute();
   const traces = await database.qb.sync
-    .selectFrom("traces")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.traces)
     .execute();
   const transactions = await database.qb.sync
-    .selectFrom("transactions")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.transactions)
     .execute();
   const transactionReceipts = await database.qb.sync
-    .selectFrom("transaction_receipts")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.transactionReceipts)
     .execute();
 
   expect(logs).toHaveLength(0);

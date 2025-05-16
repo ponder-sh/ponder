@@ -13,10 +13,10 @@ import {
   deployRevert,
   mintErc20,
 } from "@/_test/simulate.js";
-import { getNetwork, publicClient } from "@/_test/utils.js";
+import { getChain, publicClient } from "@/_test/utils.js";
 import type { LogEvent } from "@/internal/types.js";
+import { createRpc } from "@/rpc/index.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
-import { createRequestQueue } from "@/utils/requestQueue.js";
 import {
   type Hex,
   decodeFunctionResult,
@@ -35,9 +35,9 @@ beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
 test("request() block dependent method", async (context) => {
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -46,13 +46,12 @@ test("request() block dependent method", async (context) => {
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
-    indexingBuild: { networks: [network] },
-    requestQueues: [requestQueue],
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: {},
   });
 
-  const request = cachedViemClient.getClient(network).request;
+  const request = cachedViemClient.getClient(chain).request;
 
   const response1 = await request({
     method: "eth_getBlockByNumber",
@@ -76,9 +75,9 @@ test("request() block dependent method", async (context) => {
 });
 
 test("request() non-block dependent method", async (context) => {
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -96,13 +95,12 @@ test("request() non-block dependent method", async (context) => {
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
-    indexingBuild: { networks: [network] },
-    requestQueues: [requestQueue],
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: {},
   });
 
-  const request = cachedViemClient.getClient(network).request;
+  const request = cachedViemClient.getClient(chain).request;
 
   const response1 = await request({
     method: "eth_getTransactionByHash",
@@ -126,22 +124,21 @@ test("request() non-block dependent method", async (context) => {
 });
 
 test("request() non-cached method", async (context) => {
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
   const { syncStore } = await setupDatabaseServices(context);
   const cachedViemClient = createCachedViemClient({
     common: context.common,
-    indexingBuild: { networks: [network] },
-    requestQueues: [requestQueue],
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: {},
   });
 
-  const request = cachedViemClient.getClient(network).request;
+  const request = cachedViemClient.getClient(chain).request;
 
   const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResults");
   const getSpy = vi.spyOn(syncStore, "getRpcRequestResults");
@@ -153,9 +150,9 @@ test("request() non-cached method", async (context) => {
 });
 
 test("request() multicall", async (context) => {
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -163,13 +160,12 @@ test("request() multicall", async (context) => {
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
-    indexingBuild: { networks: [network] },
-    requestQueues: [requestQueue],
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: {},
   });
 
-  const request = cachedViemClient.getClient(network).request;
+  const request = cachedViemClient.getClient(chain).request;
 
   const { address: multicall } = await deployMulticall({ sender: ALICE });
   const { address } = await deployErc20({ sender: ALICE });
@@ -210,7 +206,7 @@ test("request() multicall", async (context) => {
 
   const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResults");
   const getSpy = vi.spyOn(syncStore, "getRpcRequestResults");
-  const requestSpy = vi.spyOn(requestQueue, "request");
+  const requestSpy = vi.spyOn(rpc, "request");
 
   let result = decodeFunctionResult({
     abi: multicall3Abi,
@@ -286,9 +282,9 @@ test("request() multicall", async (context) => {
 });
 
 test("request() multicall empty", async (context) => {
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -296,13 +292,12 @@ test("request() multicall empty", async (context) => {
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
-    indexingBuild: { networks: [network] },
-    requestQueues: [requestQueue],
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: {},
   });
 
-  const request = cachedViemClient.getClient(network).request;
+  const request = cachedViemClient.getClient(chain).request;
 
   const { address: multicall } = await deployMulticall({ sender: ALICE });
 
@@ -333,9 +328,9 @@ test("request() multicall empty", async (context) => {
 });
 
 test("prefetch() uses profile metadata", async (context) => {
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -371,14 +366,13 @@ test("prefetch() uses profile metadata", async (context) => {
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
-    indexingBuild: { networks: [network] },
-    requestQueues: [requestQueue],
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: { "Contract:Event": 1 },
   });
   cachedViemClient.event = event;
 
-  let totalSupply = await cachedViemClient.getClient(network).readContract({
+  let totalSupply = await cachedViemClient.getClient(chain).readContract({
     abi: erc20ABI,
     functionName: "totalSupply",
     address,
@@ -393,10 +387,10 @@ test("prefetch() uses profile metadata", async (context) => {
     events: [event],
   });
 
-  const requestSpy = vi.spyOn(requestQueue, "request");
+  const requestSpy = vi.spyOn(rpc, "request");
   const getSpy = vi.spyOn(syncStore, "getRpcRequestResults");
 
-  totalSupply = await cachedViemClient.getClient(network).readContract({
+  totalSupply = await cachedViemClient.getClient(chain).readContract({
     abi: erc20ABI,
     functionName: "totalSupply",
     address,
@@ -409,9 +403,9 @@ test("prefetch() uses profile metadata", async (context) => {
 });
 
 test("request() revert", async (context) => {
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -441,14 +435,13 @@ test("request() revert", async (context) => {
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
-    indexingBuild: { networks: [network] },
-    requestQueues: [requestQueue],
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: { "Contract:Event": 1 },
   });
   cachedViemClient.event = event;
 
-  const request = cachedViemClient.getClient(network).request;
+  const request = cachedViemClient.getClient(chain).request;
 
   const response1 = await request({
     method: "eth_call",

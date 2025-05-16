@@ -113,7 +113,9 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     preBuild,
     schemaBuild,
   });
-  await database.migrate(indexingBuildResult.result);
+  const crashRecoveryCheckpoint = await database.migrate(
+    indexingBuildResult.result,
+  );
 
   const apiResult = await build.executeApi({
     indexingBuild: indexingBuildResult.result,
@@ -158,8 +160,10 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     common,
     database,
     preBuild,
+    namespaceBuild: namespaceResult.result,
     schemaBuild,
     indexingBuild: indexingBuildResult.result,
+    crashRecoveryCheckpoint,
     onFatalError: () => {
       exit({ reason: "Received fatal error", code: 1 });
     },

@@ -1,9 +1,11 @@
 import { createBuild } from "@/build/index.js";
 import {
   type PonderApp,
+  VIEWS,
   createDatabase,
-  getPonderMeta,
+  getPonderMetaTable,
 } from "@/database/index.js";
+import { TABLES } from "@/database/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -13,7 +15,6 @@ import { buildTable } from "@/ui/app.js";
 import { formatEta } from "@/utils/format.js";
 import { eq, sql } from "drizzle-orm";
 import { unionAll } from "drizzle-orm/pg-core";
-import { pgSchema } from "drizzle-orm/pg-core";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 
@@ -59,29 +60,29 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
   const database = await createDatabase({
     common,
     // Note: `namespace` is not used in this command
-    namespace: "public",
+    namespace: { schema: "public", viewsSchema: undefined },
     preBuild: buildResult.result,
     schemaBuild: emptySchemaBuild,
   });
-
-  const TABLES = pgSchema("information_schema").table("tables", (t) => ({
-    table_name: t.text().notNull(),
-    table_schema: t.text().notNull(),
-  }));
 
   const ponderSchemas = await database.qb.drizzle
     .select({ schema: TABLES.table_schema })
     .from(TABLES)
     .where(eq(TABLES.table_name, "_ponder_meta"));
 
+  const ponderViewSchemas = await database.qb.drizzle
+    .select({ schema: VIEWS.table_schema })
+    .from(VIEWS)
+    .where(eq(VIEWS.table_name, "_ponder_meta"));
+
   const queries = ponderSchemas.map((row) =>
     database.qb.drizzle
       .select({
-        value: getPonderMeta(row.schema).value,
+        value: getPonderMetaTable(row.schema).value,
         schema: sql<string>`${row.schema}`.as("schema"),
       })
-      .from(getPonderMeta(row.schema))
-      .where(eq(getPonderMeta(row.schema).key, "app")),
+      .from(getPonderMetaTable(row.schema))
+      .where(eq(getPonderMetaTable(row.schema).key, "app")),
   );
 
   if (queries.length === 0) {
@@ -107,6 +108,7 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
     { title: "Active", key: "active", align: "right" },
     { title: "Last active", key: "last_active", align: "right" },
     { title: "Table count", key: "table_count", align: "right" },
+    { title: "Is view", key: "is_view", align: "right" },
   ];
 
   const rows = result
@@ -124,6 +126,9 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
           ? "---"
           : `${formatEta(Date.now() - row.value.heartbeat_at)} ago`,
       table_count: row.value.table_names.length,
+      is_view: ponderViewSchemas.some((schema) => schema.schema === row.schema)
+        ? "yes"
+        : "no",
     }));
 
   if (rows.length === 0) {

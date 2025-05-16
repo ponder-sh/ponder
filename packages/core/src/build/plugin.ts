@@ -16,7 +16,7 @@ export * from "${schemaPath}";
 export default schema;
 `;
 
-const apiModule = () => `import { createPublicClient } from "viem";
+const apiModule = () => `import { createPublicClient, custom } from "viem";
 
 if (globalThis.PONDER_INDEXING_BUILD === undefined || globalThis.PONDER_DATABASE === undefined) {
   throw new Error('Invalid dependency graph. Config, schema, and indexing function files cannot import objects from the API function file "src/api/index.ts".')
@@ -24,10 +24,16 @@ if (globalThis.PONDER_INDEXING_BUILD === undefined || globalThis.PONDER_DATABASE
 
 const publicClients = {};
 
-for (const network of globalThis.PONDER_INDEXING_BUILD.networks) {
-  publicClients[network.chainId] = createPublicClient({
-    chain: network.chain,
-    transport: () => network.transport
+for (let i = 0; i < globalThis.PONDER_INDEXING_BUILD.chains.length; i++) {
+  const chain = globalThis.PONDER_INDEXING_BUILD.chains[i];
+  const rpc = globalThis.PONDER_INDEXING_BUILD.rpcs[i];
+  publicClients[chain.name] = createPublicClient({
+    chain: chain.viemChain,
+    transport: custom({
+      request(body) {
+        return rpc.request(body);
+      }
+    }),
   })
 }
 

@@ -7,7 +7,10 @@ import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
-import type { IndexingBuild } from "@/internal/types.js";
+import type {
+  CrashRecoveryCheckpoint,
+  IndexingBuild,
+} from "@/internal/types.js";
 import { createUi } from "@/ui/index.js";
 import { createQueue } from "@/utils/queue.js";
 import { type Result, mergeResults } from "@/utils/result.js";
@@ -169,11 +172,13 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
         database = await createDatabase({
           common: { ...common, shutdown: indexingShutdown },
-          namespace,
+          namespace: { schema, viewsSchema: undefined },
           preBuild,
           schemaBuild,
         });
-        await database.migrate(indexingBuildResult.result);
+        crashRecoveryCheckpoint = await database.migrate(
+          indexingBuildResult.result,
+        );
 
         const apiResult = await build.executeApi({
           indexingBuild,
@@ -237,8 +242,10 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           common: { ...common, shutdown: indexingShutdown },
           database,
           preBuild,
+          namespaceBuild: { schema, viewsSchema: undefined },
           schemaBuild,
           indexingBuild: indexingBuildResult.result,
+          crashRecoveryCheckpoint,
           onFatalError: () => {
             exit({ reason: "Received fatal error", code: 1 });
           },
@@ -288,11 +295,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   let indexingBuild: IndexingBuild | undefined;
   let database: Database | undefined;
+  let crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
 
-  const namespace =
-    cliOptions.schema ?? process.env.DATABASE_SCHEMA ?? "public";
+  const schema = cliOptions.schema ?? process.env.DATABASE_SCHEMA ?? "public";
 
-  globalThis.PONDER_NAMESPACE_BUILD = namespace;
+  globalThis.PONDER_NAMESPACE_BUILD = { schema, viewsSchema: undefined };
 
   build.startDev({
     onReload: (kind) => {

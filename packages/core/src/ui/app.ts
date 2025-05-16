@@ -139,8 +139,8 @@ export const buildUiLines = (ui: UiState): string[] => {
     lines.push(
       ...buildTable(sync, [
         {
-          title: "Network",
-          key: "networkName",
+          title: "Chain",
+          key: "chainName",
           align: "left",
         },
         {

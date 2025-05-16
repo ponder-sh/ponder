@@ -123,7 +123,7 @@ export function buildPre({
   return {
     databaseConfig,
     logs,
-    ordering: config.ordering ?? "omnichain",
+    ordering: config.ordering ?? "multichain",
   };
 }
 

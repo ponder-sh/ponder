@@ -344,13 +344,15 @@ export const createBuild = async ({
         return { status: "error", error } as const;
       }
 
-      const namespace = cliOptions.schema ?? process.env.DATABASE_SCHEMA!;
+      const schema = cliOptions.schema ?? process.env.DATABASE_SCHEMA!;
+      const viewsSchema =
+        cliOptions.viewsSchema ?? process.env.DATABASE_VIEWS_SCHEMA;
 
-      globalThis.PONDER_NAMESPACE_BUILD = namespace;
+      globalThis.PONDER_NAMESPACE_BUILD = { schema, viewsSchema };
 
       return {
         status: "success",
-        result: namespace,
+        result: { schema, viewsSchema },
       } as const;
     },
     preCompile({ config }): Result<PreBuild> {
@@ -407,6 +409,7 @@ export const createBuild = async ({
       // Validates and build the config
       const buildConfigAndIndexingFunctionsResult =
         await safeBuildConfigAndIndexingFunctions({
+          common,
           config: configResult.config,
           rawIndexingFunctions: indexingResult.indexingFunctions,
         });
@@ -437,7 +440,8 @@ export const createBuild = async ({
         result: {
           buildId,
           sources: buildConfigAndIndexingFunctionsResult.sources,
-          networks: buildConfigAndIndexingFunctionsResult.networks,
+          chains: buildConfigAndIndexingFunctionsResult.chains,
+          rpcs: buildConfigAndIndexingFunctionsResult.rpcs,
           indexingFunctions:
             buildConfigAndIndexingFunctionsResult.indexingFunctions,
         },
