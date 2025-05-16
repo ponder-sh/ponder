@@ -1,6 +1,6 @@
 import { GraphLogo } from "./icons.js";
-import { Card, CardTitle } from "./ui/card";
-import { cn } from "./utils";
+import { Card, CardTitle } from "./ui/card.js";
+import { cn } from "./utils.js";
 
 export function Benchmarks({
   className,
