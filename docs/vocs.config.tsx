@@ -54,7 +54,8 @@ export default defineConfig({
   ],
   search: {
     boostDocument(documentId) {
-      if (documentId.startsWith("docs/0.10")) return 0.25;
+      if (documentId.startsWith("pages/docs/0.10")) return 0;
+      if (documentId.startsWith("pages/docs/api-reference")) return 0.25;
       return 1;
     },
   },
