@@ -1030,6 +1030,8 @@ export const createRealtimeSync = (
 
           args.onFatalError(error);
         }
+
+        blockWithEventData.callback(false);
       }
     },
   );
