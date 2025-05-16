@@ -52,7 +52,7 @@ export type RealtimeSync = {
   start(args: {
     syncProgress: Pick<SyncProgress, "finalized">;
     initialChildAddresses: Map<Factory, Map<Address, number>>;
-  }): Promise<Queue<boolean, BlockWithEventData>>;
+  }): Promise<Queue<void, BlockWithEventData>>;
   unfinalizedBlocks: LightBlock[];
   childAddresses: Map<Factory, Map<Address, number>>;
 };
@@ -73,7 +73,7 @@ export type BlockWithEventData = {
   logs: SyncLog[];
   traces: SyncTrace[];
   childAddresses: Map<Factory, Set<Address>>;
-  onComplete: () => void;
+  callback: (isAccepted: boolean) => void;
 };
 
 export type RealtimeSyncEvent =
@@ -242,7 +242,7 @@ export const createRealtimeSync = (
    */
   const fetchBlockEventData = async (
     block: SyncBlock,
-  ): Promise<Omit<BlockWithEventData, "onComplete">> => {
+  ): Promise<Omit<BlockWithEventData, "callback">> => {
     ////////
     // Logs
     ////////
@@ -482,7 +482,7 @@ export const createRealtimeSync = (
     transactions,
     transactionReceipts,
     childAddresses: blockChildAddresses,
-    onComplete,
+    callback,
   }: BlockWithEventData): BlockWithEventData & {
     matchedFilters: Set<Filter>;
   } => {
@@ -652,7 +652,7 @@ export const createRealtimeSync = (
       transactionReceipts,
       traces,
       childAddresses: blockChildAddresses,
-      onComplete,
+      callback,
     };
   };
 
@@ -741,9 +741,8 @@ export const createRealtimeSync = (
    */
   const fetchAndReconcileLatestBlock = async (
     block: SyncBlock,
-    onComplete: () => void,
-    // @ts-expect-error
-  ): Promise<boolean> => {
+    callback: (isAccepted: boolean) => void,
+  ): Promise<void> => {
     try {
       args.common.logger.debug({
         service: "realtime",
@@ -758,14 +757,15 @@ export const createRealtimeSync = (
           service: "realtime",
           msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
         });
-        return false;
+        callback(false);
+        return;
       }
 
       const blockWithEventData = await fetchBlockEventData(block);
 
       fetchAndReconcileLatestBlockErrorCount = 0;
 
-      return reconcileBlock({ ...blockWithEventData, onComplete });
+      return reconcileBlock({ ...blockWithEventData, callback });
     } catch (_error) {
       const error = _error as Error;
 
@@ -815,8 +815,7 @@ export const createRealtimeSync = (
    * @returns `true` if the block was accepted into the canonical chain.
    */
   const reconcileBlock = mutex(
-    // @ts-expect-error
-    async (blockWithEventData: BlockWithEventData): Promise<boolean> => {
+    async (blockWithEventData: BlockWithEventData): Promise<void> => {
       const latestBlock = getLatestUnfinalizedBlock();
       const block = blockWithEventData.block;
 
@@ -827,7 +826,8 @@ export const createRealtimeSync = (
           msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
         });
 
-        return false;
+        blockWithEventData.callback(false);
+        return;
       }
 
       try {
@@ -835,7 +835,8 @@ export const createRealtimeSync = (
         // number has not increased, a reorg must have occurred.
         if (hexToNumber(latestBlock.number) >= hexToNumber(block.number)) {
           await reconcileReorg(block);
-          return false;
+          blockWithEventData.callback(false);
+          return;
         }
 
         // Blocks are missing. They should be fetched and enqueued.
@@ -867,22 +868,21 @@ export const createRealtimeSync = (
             )}]`,
           });
 
-          reconcileBlock.clear(({ resolve }) => resolve(false));
+          reconcileBlock.clear(({ task }) => task.callback(false));
           for (const pendingBlock of pendingBlocks) {
-            reconcileBlock({ ...pendingBlock, onComplete: () => {} });
+            reconcileBlock({ ...pendingBlock, callback: () => {} });
           }
 
           // Note: awaiting will cause a deadlock
-          // TODO(kyle) this is wrong
           reconcileBlock(blockWithEventData);
-          return false;
+          return;
         }
 
         // Check if a reorg occurred by validating the chain of block hashes.
         if (block.parentHash !== latestBlock.hash) {
           await reconcileReorg(block);
-          blockWithEventData.onComplete();
-          return false;
+          blockWithEventData.callback(false);
+          return;
         }
 
         // New block is exactly one block ahead of the local chain.
@@ -989,7 +989,7 @@ export const createRealtimeSync = (
         // Reset the error state after successfully completing the happy path.
         reconcileBlockErrorCount = 0;
 
-        return true;
+        return;
       } catch (_error) {
         const error = _error as Error;
 
@@ -1016,7 +1016,7 @@ export const createRealtimeSync = (
 
         // Remove all blocks from the queue. This protects against an
         // erroneous block causing a fatal error.
-        reconcileBlock.clear(({ resolve }) => resolve(false));
+        reconcileBlock.clear(({ task }) => task.callback(false));
 
         reconcileBlockErrorCount += 1;
 
@@ -1044,7 +1044,7 @@ export const createRealtimeSync = (
         // TODO(kyle) memory leak
         const pwr = promiseWithResolvers<void>();
         const endClock = startClock();
-        const isAccepted = await fetchAndReconcileLatestBlock(block, () => {
+        await fetchAndReconcileLatestBlock(block, () => {
           pwr.resolve();
 
           args.common.metrics.ponder_realtime_latency.observe(
@@ -1053,7 +1053,7 @@ export const createRealtimeSync = (
           );
         });
 
-        if (isAccepted) return pwr.promise;
+        return pwr.promise;
       });
 
       // Note: Return the mutex for testing purposes.

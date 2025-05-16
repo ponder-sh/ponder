@@ -233,7 +233,7 @@ export async function debug({
       request: rpc.request,
       interval: [
         hexToNumber(indexingBuildResult.result.finalizedBlocks[i]!.number) + 1,
-        end + 10,
+        end,
       ],
     });
 

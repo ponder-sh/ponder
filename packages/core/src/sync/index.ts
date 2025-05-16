@@ -26,6 +26,7 @@ import type { SyncStore } from "@/sync-store/index.js";
 import {
   type Checkpoint,
   MAX_CHECKPOINT,
+  MAX_CHECKPOINT_STRING,
   ZERO_CHECKPOINT,
   ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
@@ -466,7 +467,7 @@ export const createSync = async (params: {
   // Note: `omnichainCheckpointHooks` not used in multichain ordering
   const omnichainHooks: {
     checkpoint: string;
-    onComplete: () => void;
+    callback: () => void;
   }[] = [];
 
   const onRealtimeSyncEvent = async (
@@ -547,17 +548,18 @@ export const createSync = async (params: {
             checkpoints: [{ chainId: chain.id, checkpoint }],
           });
 
-          event.onComplete();
+          event.callback(true);
         } else {
           const from = checkpoints.current;
-          const to = getOmnichainCheckpoint({ tag: "current" })!;
+          const to =
+            getOmnichainCheckpoint({ tag: "current" }) ?? MAX_CHECKPOINT_STRING;
           checkpoints.current = to;
 
           omnichainHooks.push({
             checkpoint: encodeCheckpoint(
               blockToCheckpoint(event.block, chain.id, "up"),
             ),
-            onComplete: () => event.onComplete(),
+            callback: () => event.callback(true),
           });
 
           if (to > from) {
@@ -605,9 +607,9 @@ export const createSync = async (params: {
               checkpoints,
             });
 
-            for (const { checkpoint, onComplete } of omnichainHooks) {
+            for (const { checkpoint, callback } of omnichainHooks) {
               if (checkpoint > from && checkpoint <= to) {
-                onComplete();
+                callback();
               }
             }
           } else {
