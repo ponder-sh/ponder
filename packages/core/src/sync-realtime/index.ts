@@ -1044,13 +1044,15 @@ export const createRealtimeSync = (
         // TODO(kyle) memory leak
         const pwr = promiseWithResolvers<void>();
         const endClock = startClock();
-        await fetchAndReconcileLatestBlock(block, () => {
+        await fetchAndReconcileLatestBlock(block, (isAccepted) => {
           pwr.resolve();
 
-          args.common.metrics.ponder_realtime_latency.observe(
-            { chain: args.chain.name },
-            endClock(),
-          );
+          if (isAccepted) {
+            args.common.metrics.ponder_realtime_latency.observe(
+              { chain: args.chain.name },
+              endClock(),
+            );
+          }
         });
 
         return pwr.promise;
