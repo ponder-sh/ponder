@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.2
+
+### Patch Changes
+
+- [#1751](https://github.com/ponder-sh/ponder/pull/1751) [`5c0283884e860fd6b016c6ff8b5c39d7249ef48b`](https://github.com/ponder-sh/ponder/commit/5c0283884e860fd6b016c6ff8b5c39d7249ef48b) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in `v0.10.25` that caused one -> many relations to break in graphql.
+
 ## 0.11.1
 
 ### Patch Changes
