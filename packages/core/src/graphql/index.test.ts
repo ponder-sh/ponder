@@ -608,6 +608,81 @@ test("singular with many relation", async (context) => {
   });
 });
 
+test("singular with many relation and extra one relation", async (context) => {
+  const extra = onchainTable("extra", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text(),
+  }));
+
+  const user = onchainTable("user", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text(),
+  }));
+
+  const userRelations = relations(user, ({ many }) => ({
+    heroes: many(hero),
+  }));
+
+  const hero = onchainTable("hero", (t) => ({
+    id: t.text().primaryKey(),
+    ownerId: t.text(),
+    extraId: t.text(),
+  }));
+
+  const heroRelations = relations(hero, ({ one }) => ({
+    extra: one(extra, { fields: [hero.extraId], references: [extra.id] }),
+    owner: one(user, { fields: [hero.ownerId], references: [user.id] }),
+  }));
+
+  const extraRelations = relations(extra, ({ one }) => ({
+    cuh: one(user, { fields: [extra.id], references: [user.id] }),
+  }));
+
+  const schema = {
+    extra,
+    extraRelations,
+    hero,
+    heroRelations,
+    user,
+    userRelations,
+  };
+
+  const { database, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await indexingStore.insert(schema.user).values({ id: "jake", name: "jake" });
+  await indexingStore.insert(schema.hero).values([
+    { id: "dog1", ownerId: "jake" },
+    { id: "dog2", ownerId: "jake" },
+    { id: "dog3", ownerId: "kyle" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      user(id: "jake") {
+        heroes {
+          items {
+            id
+          }
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    user: {
+      heroes: { items: [{ id: "dog1" }, { id: "dog2" }] },
+    },
+  });
+});
+
 test("multiple many relations", async (context) => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),

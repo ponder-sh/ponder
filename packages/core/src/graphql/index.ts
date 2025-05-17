@@ -266,36 +266,46 @@ export function buildGraphQLSchema({
             };
           } else if (is(relation, Many)) {
             // Search the relations of the referenced table for the corresponding `one` relation.
-            // If "relationName" is not provided, use the first `one` relation that references this table.
+            // If `relation.relationName` is not provided, use the first `one` relation that references this table.
 
             let oneRelation: One | undefined;
 
-            for (const _relation of Object.values(referencedTable.relations)) {
-              if (
-                is(_relation, One) &&
-                relation.relationName === _relation.relationName
-              ) {
-                oneRelation = _relation;
-              }
-            }
+            // Note: can find the wrong relation if `relationName` is undefined.
+            // The first relation will be found.
 
-            if (oneRelation === undefined) {
-              for (const _relation of Object.values(
+            if (relation.relationName !== undefined) {
+              for (const referencedRelation of Object.values(
                 referencedTable.relations,
               )) {
                 if (
-                  is(_relation, One) &&
-                  table.dbName === _relation.referencedTableName
+                  is(referencedRelation, One) &&
+                  relation.relationName === referencedRelation.relationName
                 ) {
-                  oneRelation = _relation;
+                  oneRelation = referencedRelation;
+                  break;
                 }
               }
             }
 
-            if (oneRelation === undefined)
+            if (oneRelation === undefined) {
+              for (const referencedRelation of Object.values(
+                referencedTable.relations,
+              )) {
+                if (
+                  is(referencedRelation, One) &&
+                  table.dbName === referencedRelation.referencedTableName
+                ) {
+                  oneRelation = referencedRelation;
+                  break;
+                }
+              }
+            }
+
+            if (oneRelation === undefined) {
               throw new Error(
                 `Internal error: Relation "${relationName}" not found in table "${referencedTable.tsName}"`,
               );
+            }
 
             const fields = oneRelation.config?.fields ?? [];
             const references = oneRelation.config?.references ?? [];
