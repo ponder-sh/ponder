@@ -104,6 +104,11 @@ export async function createViews({
   );
 
   for (const table of meta[0]!.app.table_names) {
+    // Note: drop views before creating new ones to avoid enum errors.
+    await database.qb.drizzle.execute(
+      sql.raw(`DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${table}"`),
+    );
+
     await database.qb.drizzle.execute(
       sql.raw(
         `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."${table}" AS SELECT * FROM "${cliOptions.schema}"."${table}"`,
