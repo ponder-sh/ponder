@@ -111,7 +111,7 @@ export async function createViews({
 
     await database.qb.drizzle.execute(
       sql.raw(
-        `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."${table}" AS SELECT * FROM "${cliOptions.schema}"."${table}"`,
+        `CREATE "${cliOptions.viewsSchema}"."${table}" AS SELECT * FROM "${cliOptions.schema}"."${table}"`,
       ),
     );
   }
