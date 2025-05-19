@@ -71,7 +71,7 @@ const INTERVALS = pgSchema("ponder_sync").table("intervals", (t) => ({
 for (const interval of await db.select().from(INTERVALS)) {
   const blocks: [number, number] = JSON.parse(interval.blocks.slice(1, -1));
   const chunks = getChunks({
-    interval: blocks,
+    interval: [blocks[0], blocks[1] - 1],
     maxChunkSize: Math.floor((blocks[1] - blocks[0]) / INTERVAL_CHUNKS),
   });
   const resultIntervals: [number, number][] = [];
