@@ -1,11 +1,13 @@
 import { Table, eq, getTableName, is, sql } from "drizzle-orm";
 import { type NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
+import type { PgTable } from "drizzle-orm/pg-core";
 import { customType, pgSchema } from "drizzle-orm/pg-core";
 import seedrandom from "seedrandom";
 import {
   type SimParams,
   debug,
 } from "../packages/core/src/bin/commands/debug.js";
+import { getPrimaryKeyColumns } from "../packages/core/src/drizzle/index.js";
 import { getChunks } from "../packages/core/src/utils/interval.js";
 import { promiseWithResolvers } from "../packages/core/src/utils/promiseWithResolvers.js";
 
@@ -41,9 +43,8 @@ let db = drizzle(process.env.CONNECTION_STRING!, { casing: "snake_case" });
 
 // 1. Setup database
 //   - create database using template
-//   - copy data from ponder_sync
 //   - drop intervals deterministically
-//   - copy extra data
+//   - [TODO] copy noisy data
 
 await db.execute(sql.raw(`CREATE DATABASE "${UUID}" TEMPLATE "${APP_ID}"`));
 
@@ -132,11 +133,19 @@ for (const interval of await db.select().from(INTERVALS)) {
 
 // 3. Run app
 
-process.env.DATABASE_SCHEMA = "public";
-process.env.DATABASE_URL = `${process.env.CONNECTION_STRING!}/${UUID}`;
+console.log({
+  app: APP_ID,
+  seed: SEED,
+  uuid: UUID,
+});
+
 process.env.PONDER_TELEMETRY_DISABLED = "true";
+process.env.DATABASE_URL = `${process.env.CONNECTION_STRING!}/${UUID}`;
+process.env.DATABASE_SCHEMA = "public";
 
 const pwr = promiseWithResolvers<void>();
+
+// TODO(kyle) what happens when the app errors before it finishes
 
 const kill = await debug({
   cliOptions: {
@@ -164,30 +173,88 @@ await kill!();
 
 const compareTables = async (
   db: NodePgDatabase,
+  table: PgTable,
   expected: string,
   actual: string,
 ) => {
+  const primaryKeys = getPrimaryKeyColumns(table).map((key) => key.sql);
+
   // missing or different rows
-  let rows = await db.execute(
-    sql.raw(`SELECT * FROM ${expected} EXCEPT SELECT * FROM ${actual}`),
+  const rows = await db.execute(
+    sql.raw(
+      `SELECT *, 1 as set FROM ${expected} EXCEPT SELECT *, 1 as set FROM ${actual} 
+       UNION (SELECT *, 2 as set FROM ${actual} EXCEPT SELECT *, 2 as set FROM ${expected})
+       LIMIT 25`,
+    ),
   );
+  // Note: different rows are double counted
 
   if (rows.rows.length > 0) {
-    console.error(
-      `Failed database validation for ${actual}, missing or different rows`,
+    console.error(`ERROR: Failed database validation for ${actual}`);
+
+    const result = new Map<
+      string,
+      {
+        expected: Record<string, unknown> | undefined;
+        actual: Record<string, unknown> | undefined;
+      }
+    >();
+
+    for (const row of rows.rows) {
+      const key = primaryKeys.map((key) => row[key]).join("_");
+
+      if (result.has(key)) {
+        if (row.set === 1) {
+          result.get(key)!.expected = row;
+        } else {
+          result.get(key)!.actual = row;
+        }
+      } else {
+        if (row.set === 1) {
+          result.set(key, { expected: row, actual: undefined });
+        } else {
+          result.set(key, { expected: undefined, actual: row });
+        }
+      }
+
+      // biome-ignore lint/performance/noDelete: <explanation>
+      delete row.set;
+    }
+
+    console.table(
+      Array.from(result).flatMap(([, { expected, actual }]) => {
+        return [
+          expected
+            ? {
+                type: "expected",
+                ...Object.fromEntries(
+                  Object.entries(expected).map(([key, value]) =>
+                    primaryKeys.includes(key)
+                      ? [`${key} (pk)`, value]
+                      : [key, value],
+                  ),
+                ),
+              }
+            : {
+                type: "expected",
+              },
+          actual
+            ? {
+                type: "actual",
+                ...Object.fromEntries(
+                  Object.entries(actual).map(([key, value]) =>
+                    primaryKeys.includes(key)
+                      ? [`${key} (pk)`, value]
+                      : [key, value],
+                  ),
+                ),
+              }
+            : {
+                type: "actual",
+              },
+        ];
+      }),
     );
-    console.log(rows.rows);
-    process.exit(1);
-  }
-
-  // extra rows
-  rows = await db.execute(
-    sql.raw(`SELECT * FROM ${actual} EXCEPT SELECT * FROM ${expected}`),
-  );
-
-  if (rows.rows.length > 0) {
-    console.error(`Failed database validation for ${actual}, extra rows`);
-    console.log(rows.rows);
     process.exit(1);
   }
 };
@@ -198,12 +265,13 @@ for (const key of Object.keys(schema)) {
     const table = schema[key] as Table;
     const tableName = getTableName(table);
 
-    await compareTables(db, `expected."${tableName}"`, `"${tableName}"`);
+    await compareTables(db, table, `expected."${tableName}"`, `"${tableName}"`);
   }
 }
 
 await compareTables(
   db,
+  INTERVALS,
   "ponder_sync.expected_intervals",
   "ponder_sync.intervals",
 );
