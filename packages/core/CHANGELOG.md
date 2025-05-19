@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.3
+
+### Patch Changes
+
+- [#1755](https://github.com/ponder-sh/ponder/pull/1755) [`5cb9130cc62870e440ce393b49b749c1ae838e54`](https://github.com/ponder-sh/ponder/commit/5cb9130cc62870e440ce393b49b749c1ae838e54) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug causing views with enums to error with `error: cannot change data type of view column`.
+
 ## 0.11.2
 
 ### Patch Changes
