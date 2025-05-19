@@ -5,7 +5,7 @@
   "private": true,
   "devDependencies": {
     "@types/pg": "^8.10.9",
-    "drizzle-orm": "^0.43.1",
+    "drizzle-orm": "0.41.0",
     "pg": "^8.15.6",
     "ponder": "workspace:*"
   }

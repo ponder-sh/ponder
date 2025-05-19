@@ -1,0 +1,10 @@
+node_modules
+*debug.log
+.env.*
+
+.vercel
+.DS_Store
+tmp
+
+# IDE
+.idea

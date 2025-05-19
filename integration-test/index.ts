@@ -1,8 +1,6 @@
-import { $ } from "bun";
 import { Table, eq, getTableName, is, sql } from "drizzle-orm";
 import { type NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
 import { customType, pgSchema } from "drizzle-orm/pg-core";
-import { Pool } from "pg";
 import seedrandom from "seedrandom";
 import {
   type SimParams,
@@ -12,10 +10,12 @@ import { getChunks } from "../packages/core/src/utils/interval.js";
 import { promiseWithResolvers } from "../packages/core/src/utils/promiseWithResolvers.js";
 
 // inputs
+
 const APP_DIR = "./apps/reference-erc20";
 const APP_ID = "reference-erc20";
 const SEED = "dff1a6a325d3ac4a42143e0d60aa1dc25dc69b19694dab3739eabc5c2aa5001e";
-const CONNECTION_STRING = "postgresql://kylescott@localhost:5432/integration";
+const CONNECTION_STRING = `${process.env.CONNECTION_STRING!}/${APP_ID}`;
+const UUID = "1234567890";
 
 // params
 
@@ -35,14 +35,58 @@ const SIM_PARAMS: SimParams = {
   REALTIME_FAST_FORWARD_RATE: 0.5,
   /** Probability that a block is delayed and a block on another chain is ordered first. */
   REALTIME_DELAY_RATE: 0.4,
-  FINALIZED_RATE: 0.97,
+  FINALIZED_RATE: 1,
 };
 
-// constants
-const TARGET_SCHEMA = "test";
-const TARGET_SYNC_SCHEMA = "ponder_sync";
+const db = drizzle(CONNECTION_STRING, { casing: "snake_case" });
 
-const INTERVALS = pgSchema("ponder_sync").table("intervals", (t) => ({
+// 1. Setup ponder_sync schema
+//   - create schema
+//   - copy data from ponder_sync
+//   - drop intervals deterministically
+//   - copy extra data
+
+await db.execute(sql.raw(`CREATE SCHEMA "${UUID}_sync"`));
+
+const SYNC_TABLE_NAMES = [
+  "blocks",
+  "transactions",
+  "transaction_receipts",
+  "traces",
+  "logs",
+  "factories",
+  "factory_addresses",
+  "intervals",
+  "rpc_request_results",
+];
+
+for (const table of SYNC_TABLE_NAMES) {
+  await db.execute(
+    sql.raw(
+      `CREATE TABLE "${UUID}_sync"."${table}" (LIKE "ponder_sync"."${table}" INCLUDING ALL)`,
+    ),
+  );
+
+  await db.execute(
+    sql.raw(
+      `INSERT INTO "${UUID}_sync"."${table}" OVERRIDING SYSTEM VALUE SELECT * FROM "ponder_sync"."${table}"`,
+    ),
+  );
+}
+
+await db.execute(
+  sql.raw(
+    `SELECT setval(pg_get_serial_sequence('"${UUID}_sync"."factories"', 'id'), (SELECT MAX(id) FROM "ponder_sync"."factories"))`,
+  ),
+);
+
+await db.execute(
+  sql.raw(
+    `SELECT setval(pg_get_serial_sequence('"${UUID}_sync"."factory_addresses"', 'id'), (SELECT MAX(id) FROM "ponder_sync"."factory_addresses"))`,
+  ),
+);
+
+const INTERVALS = pgSchema(`${UUID}_sync`).table("intervals", (t) => ({
   fragmentId: t.text().notNull().primaryKey(),
   chainId: t.bigint({ mode: "bigint" }).notNull(),
   blocks: customType<{ data: string }>({
@@ -51,6 +95,106 @@ const INTERVALS = pgSchema("ponder_sync").table("intervals", (t) => ({
     },
   })().notNull(),
 }));
+
+// for (const interval of await db.select().from(INTERVALS)) {
+//   const blocks: [number, number] = JSON.parse(interval.blocks.slice(1, -1));
+
+//   const chunks = getChunks({
+//     interval: blocks,
+//     maxChunkSize: Math.floor((blocks[1] - blocks[0]) / INTERVAL_CHUNKS),
+//   });
+
+//   const resultIntervals: [number, number][] = [];
+
+//   const rng = seedrandom(SEED! + interval.fragmentId);
+
+//   for (const chunk of chunks) {
+//     if (rng() > INTERVAL_EVICT_RATE) {
+//       resultIntervals.push(chunk);
+//     } else {
+//       // TODO(kyle) cannot drop all logs in interval because they may be referenced by another interval
+//       // await db.execute(
+//       //   sql.raw(
+//       //     `DELETE FROM "${UUID}_sync".blocks WHERE number >= ${chunk[0]} and number <= ${chunk[1]}`,
+//       //   ),
+//       // );
+//       // await db.execute(
+//       //   sql.raw(
+//       //     `DELETE FROM "${UUID}_sync".transactions WHERE block_number >= ${chunk[0]} and block_number <= ${chunk[1]}`,
+//       //   ),
+//       // );
+//       // await db.execute(
+//       //   sql.raw(
+//       //     `DELETE FROM "${UUID}_sync".transaction_receipts WHERE block_number >= ${chunk[0]} and block_number <= ${chunk[1]}`,
+//       //   ),
+//       // );
+//       // await db.execute(
+//       //   sql.raw(
+//       //     `DELETE FROM "${UUID}_sync".traces WHERE block_number >= ${chunk[0]} and block_number <= ${chunk[1]}`,
+//       //   ),
+//       // );
+//       // await db.execute(
+//       //   sql.raw(
+//       //     `DELETE FROM "${UUID}_sync".logs WHERE block_number >= ${chunk[0]} and block_number <= ${chunk[1]}`,
+//       //   ),
+//       // );
+//     }
+//   }
+
+//   if (resultIntervals.length === 0) {
+//     await db
+//       .delete(INTERVALS)
+//       .where(eq(INTERVALS.fragmentId, interval.fragmentId));
+//   } else {
+//     const numranges = resultIntervals
+//       .map((interval) => {
+//         const start = interval[0];
+//         const end = interval[1] + 1;
+//         return `numrange(${start}, ${end}, '[]')`;
+//       })
+//       .join(", ");
+
+//     await db
+//       .update(INTERVALS)
+//       .set({
+//         blocks: sql.raw(`nummultirange(${numranges})`),
+//       })
+//       .where(eq(INTERVALS.fragmentId, interval.fragmentId));
+//   }
+// }
+
+// 2. Write metadata
+// 3. Run app
+
+process.env.DATABASE_SCHEMA = UUID;
+process.env.DATABASE_URL = CONNECTION_STRING;
+process.env.PONDER_TELEMETRY_DISABLED = "true";
+
+const pwr = promiseWithResolvers<void>();
+
+const kill = await debug({
+  cliOptions: {
+    root: APP_DIR,
+    command: "start",
+    version: "0.0.0",
+    config: "ponder.config.ts",
+    logFormat: "pretty",
+    // logLevel: "debug",
+  },
+  params: SIM_PARAMS,
+  rpcConnectionString: process.env.CONNECTION_STRING!,
+  onReady: () => {},
+  onComplete: () => {
+    pwr.resolve();
+  },
+});
+
+// stop when no more events are possible: historical end or realtime finalized
+
+await pwr.promise;
+await kill!();
+
+// 4. Compare
 
 const compareTables = async (
   db: NodePgDatabase,
@@ -82,99 +226,6 @@ const compareTables = async (
   }
 };
 
-const pool = new Pool({ connectionString: CONNECTION_STRING });
-const db = drizzle(pool, { casing: "snake_case" });
-
-await db.execute(sql.raw(`DROP SCHEMA IF EXISTS "${TARGET_SCHEMA}" CASCADE`));
-await db.execute(
-  sql.raw(`DROP SCHEMA IF EXISTS "${TARGET_SYNC_SCHEMA}" CASCADE`),
-);
-await db.execute(sql.raw(`DROP SCHEMA IF EXISTS "${APP_ID}_expected" CASCADE`));
-
-await $`psql ${CONNECTION_STRING} -U postgres -h localhost -p 5432 -f ./db/${APP_ID}_expected.sql`.quiet();
-await $`psql ${CONNECTION_STRING} -U postgres -h localhost -p 5432 -f ./db/${APP_ID}_ponder_sync.sql`.quiet();
-
-await db.execute(
-  sql.raw(
-    `CREATE INDEX transactions_integration_idx ON "ponder_sync".transactions (chain_id, block_number)`,
-  ),
-);
-
-await db.execute(
-  sql.raw(
-    `CREATE TABLE "${TARGET_SYNC_SCHEMA}".intervals_expected AS SELECT * FROM "${TARGET_SYNC_SCHEMA}".intervals`,
-  ),
-);
-
-for (const interval of await db.select().from(INTERVALS)) {
-  const blocks: [number, number] = JSON.parse(interval.blocks.slice(1, -1));
-
-  const chunks = getChunks({
-    interval: blocks,
-    maxChunkSize: Math.floor((blocks[1] - blocks[0]) / INTERVAL_CHUNKS),
-  });
-
-  const result: [number, number][] = [];
-
-  const rng = seedrandom(SEED! + interval.fragmentId);
-
-  for (const chunk of chunks) {
-    if (rng() > INTERVAL_EVICT_RATE) {
-      result.push(chunk);
-    }
-    // TODO(kyle) drop raw data from ponder_sync
-  }
-
-  if (result.length === 0) {
-    await db
-      .delete(INTERVALS)
-      .where(eq(INTERVALS.fragmentId, interval.fragmentId));
-  } else {
-    const numranges = result
-      .map((interval) => {
-        const start = interval[0];
-        const end = interval[1] + 1;
-        return `numrange(${start}, ${end}, '[]')`;
-      })
-      .join(", ");
-
-    await db
-      .update(INTERVALS)
-      .set({
-        blocks: sql.raw(`nummultirange(${numranges})`),
-      })
-      .where(eq(INTERVALS.fragmentId, interval.fragmentId));
-  }
-}
-
-process.env.DATABASE_SCHEMA = TARGET_SCHEMA;
-process.env.DATABASE_URL = CONNECTION_STRING;
-process.env.PONDER_TELEMETRY_DISABLED = "true";
-
-const pwr = promiseWithResolvers<void>();
-
-const kill = await debug({
-  cliOptions: {
-    root: APP_DIR,
-    command: "start",
-    version: "0.0.0",
-    config: "ponder.config.ts",
-    logFormat: "pretty",
-    // logLevel: "debug",
-  },
-  params: SIM_PARAMS,
-  connectionString: CONNECTION_STRING,
-  onReady: () => {},
-  onComplete: () => {
-    pwr.resolve();
-  },
-});
-
-// stop when no more events are possible: historical end or realtime finalized
-
-await pwr.promise;
-await kill!();
-
 const schema = await import(`./${APP_DIR}/ponder.schema.ts`);
 for (const key of Object.keys(schema)) {
   if (is(schema[key], Table)) {
@@ -183,17 +234,12 @@ for (const key of Object.keys(schema)) {
 
     await compareTables(
       db,
-      `"${APP_ID}_expected"."${tableName}"`,
-      `"${TARGET_SCHEMA}"."${tableName}"`,
+      `expected."${tableName}"`,
+      `"${UUID}"."${tableName}"`,
     );
   }
 }
 
-await db.execute(sql.raw(`DROP SCHEMA IF EXISTS "${TARGET_SCHEMA}" CASCADE`));
-await db.execute(
-  sql.raw(`DROP SCHEMA IF EXISTS "${TARGET_SYNC_SCHEMA}" CASCADE`),
-);
-await db.execute(sql.raw(`DROP SCHEMA IF EXISTS "${APP_ID}_expected" CASCADE`));
+// TODO(kyle) compare intervals table (maybe all ponder_sync) ??
 
-await pool.end();
 process.exit(0);

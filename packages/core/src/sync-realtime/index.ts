@@ -1061,7 +1061,7 @@ export const createRealtimeSync = (
 
           return pwr.promise;
         },
-        onError: (error) => {
+        onError: () => {
           // TODO(kyle) handle error
         },
       });

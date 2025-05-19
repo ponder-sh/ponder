@@ -1,5 +1,4 @@
 import path from "node:path";
-import { realtimeBlockEngine, sim } from "@/_test/simulation.js";
 import { createBuild } from "@/build/index.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import { createLogger } from "@/internal/logger.js";
@@ -12,6 +11,10 @@ import { createRpc } from "@/rpc/index.js";
 import { mergeResults } from "@/utils/result.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { custom, hexToNumber } from "viem";
+import {
+  realtimeBlockEngine,
+  sim,
+} from "../../../../../integration-test/rpc/index.js";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 import { run } from "../utils/run.js";
@@ -32,13 +35,13 @@ export type SimParams = {
 export async function debug({
   cliOptions,
   params,
-  connectionString,
+  rpcConnectionString,
   onReady,
   onComplete,
 }: {
   cliOptions: CliOptions;
   params: SimParams;
-  connectionString?: string;
+  rpcConnectionString?: string;
   onReady: () => void;
   onComplete: () => void;
 }) {
@@ -197,7 +200,7 @@ export async function debug({
         },
       }),
       params,
-      connectionString,
+      rpcConnectionString,
     );
 
     indexingBuildResult.result.rpcs[i] = createRpc({
@@ -246,7 +249,7 @@ export async function debug({
   const getRealtimeBlockGenerator = await realtimeBlockEngine(
     chains,
     params,
-    connectionString,
+    rpcConnectionString,
   );
 
   for (let i = 0; i < indexingBuildResult.result.chains.length; i++) {
