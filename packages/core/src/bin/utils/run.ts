@@ -533,9 +533,16 @@ export async function run({
       );
 
       for (const table of tables) {
+        // Note: drop views before creating new ones to avoid enum errors.
         await database.qb.drizzle.execute(
           sql.raw(
-            `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
+            `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${getTableName(table)}"`,
+          ),
+        );
+
+        await database.qb.drizzle.execute(
+          sql.raw(
+            `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
           ),
         );
       }
