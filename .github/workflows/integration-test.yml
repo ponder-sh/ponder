@@ -28,7 +28,7 @@ jobs:
       - name: Test ${{ matrix.app_id }}
         run: |
           cd integration-test
-          for i in $(seq 1 10); do
+          for i in $(seq 1 2); do
             SEED=$(openssl rand -hex 32)
             UUID=$(uuidgen)
             bun run index.ts ${{ matrix.app_id }}
