@@ -2,6 +2,9 @@
   "name": "ponder-examples-with-offchain",
   "private": true,
   "type": "module",
+  "dependencies": {
+    "drizzle-orm": "0.41.0"
+  },
   "engines": {
     "node": ">=18.14"
   }

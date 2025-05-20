@@ -24,6 +24,9 @@ export type ChainConfig = Prettify<Config["chains"][string]>;
 export type BlockConfig = Prettify<Config["blocks"][string]>;
 export type DatabaseConfig = Prettify<Config["database"]>;
 
+export type { CreateConfigReturnType } from "@/config/index.js";
+export type { Factory } from "@/config/address.js";
+
 export {
   onchainTable,
   onchainEnum,

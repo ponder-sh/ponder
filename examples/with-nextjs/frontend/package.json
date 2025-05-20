@@ -15,8 +15,7 @@
     "next": "14.0.3",
     "react": "^18",
     "react-countup": "^6.5.0",
-    "react-dom": "^18",
-    "viem": "^2.21.3"
+    "react-dom": "^18"
   },
   "devDependencies": {
     "@types/node": "^20",

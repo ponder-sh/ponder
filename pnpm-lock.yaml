@@ -20,9 +20,6 @@ importers:
       drizzle-kit:
         specifier: ^0.30.6
         version: 0.30.6
-      hono:
-        specifier: 4.5.0
-        version: 4.5.0
       lint-staged:
         specifier: ^15.1.0
         version: 15.2.0
@@ -32,9 +29,6 @@ importers:
       typescript:
         specifier: 5.0.4
         version: 5.0.4
-      viem:
-        specifier: 2.21.3
-        version: 2.21.3(typescript@5.0.4)(zod@3.23.8)
 
   benchmarks:
     devDependencies:
@@ -126,9 +120,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -151,9 +142,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -176,9 +164,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -201,9 +186,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -229,9 +211,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -254,9 +233,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -279,9 +255,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -304,9 +277,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -329,9 +299,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -354,9 +321,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -379,9 +343,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -404,9 +365,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -423,18 +381,12 @@ importers:
 
   examples/reference-erc20:
     dependencies:
-      drizzle-kit:
-        specifier: 0.22.8
-        version: 0.22.8
       hono:
         specifier: ^4.5.0
         version: 4.5.0
       ponder:
         specifier: workspace:*
         version: link:../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -457,9 +409,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -482,9 +431,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -522,9 +468,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -559,9 +502,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.9.0
@@ -604,9 +544,6 @@ importers:
       react-dom:
         specifier: ^18
         version: 18.2.0(react@18.2.0)
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20
@@ -644,9 +581,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -661,16 +595,17 @@ importers:
         specifier: ^5.3.2
         version: 5.3.3
 
-  examples/with-offchain: {}
+  examples/with-offchain:
+    dependencies:
+      drizzle-orm:
+        specifier: 0.41.0
+        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(gel@2.0.2)(kysely@0.26.3)(pg@8.11.3)
 
   examples/with-offchain/offchain:
     dependencies:
       '@ponder/client':
         specifier: workspace:*
         version: link:../../../packages/client
-      drizzle-orm:
-        specifier: 0.41.0
-        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(gel@2.0.2)(kysely@0.26.3)(pg@8.11.3)
     devDependencies:
       '@types/pg':
         specifier: ^8.10.9
@@ -681,9 +616,6 @@ importers:
 
   examples/with-offchain/ponder:
     dependencies:
-      drizzle-orm:
-        specifier: 0.41.0
-        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(gel@2.0.2)(kysely@0.26.3)(pg@8.11.3)
       hono:
         specifier: ^4.5.0
         version: 4.5.0
@@ -693,9 +625,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -735,9 +664,6 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../../../packages/core
-      viem:
-        specifier: ^2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
       zod:
         specifier: ^3.23.8
         version: 3.23.8
@@ -757,15 +683,16 @@ importers:
 
   packages/client:
     dependencies:
-      drizzle-orm:
-        specifier: 0.41.0
-        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(gel@2.0.2)(kysely@0.26.3)(pg@8.11.3)
       eventsource:
         specifier: ^3.0.5
         version: 3.0.5
       superjson:
         specifier: ^2.2.2
         version: 2.2.2
+    optionalDependencies:
+      drizzle-orm:
+        specifier: 0.41.0
+        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(gel@2.0.2)(kysely@0.26.3)(pg@8.11.3)
     devDependencies:
       tsup:
         specifier: ^8.0.1
@@ -793,7 +720,7 @@ importers:
         version: 2.4.0
       '@hono/node-server':
         specifier: 1.13.3
-        version: 1.13.3(hono@4.7.9)
+        version: 1.13.3(hono@4.5.0)
       '@ponder/utils':
         specifier: workspace:*
         version: link:../utils
@@ -818,9 +745,6 @@ importers:
       dotenv:
         specifier: ^16.3.1
         version: 16.4.5
-      drizzle-orm:
-        specifier: 0.41.0
-        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(gel@2.0.2)(kysely@0.26.3)(pg@8.11.3)
       glob:
         specifier: ^10.3.10
         version: 10.4.5
@@ -878,6 +802,13 @@ importers:
       vite-tsconfig-paths:
         specifier: 4.3.1
         version: 4.3.1(typescript@5.3.3)(vite@5.0.7(@types/node@20.11.24)(lightningcss@1.30.0))
+    optionalDependencies:
+      drizzle-orm:
+        specifier: 0.41.0
+        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(gel@2.0.2)(kysely@0.26.3)(pg@8.11.3)
+      viem:
+        specifier: 2.21.3
+        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@pgsql/types':
         specifier: 16.0.0
@@ -915,6 +846,9 @@ importers:
       execa:
         specifier: ^8.0.1
         version: 8.0.1
+      hono:
+        specifier: 4.5.0
+        version: 4.5.0
       rimraf:
         specifier: ^5.0.5
         version: 5.0.5
@@ -1032,6 +966,10 @@ importers:
         version: 4.19.2
 
   packages/utils:
+    optionalDependencies:
+      viem:
+        specifier: 2.21.3
+        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.11.24
@@ -5099,10 +5037,6 @@ packages:
   dotenv@8.6.0:
     resolution: {integrity: sha512-IrPdXQsk2BbzvCBGBOTmmSH5SodmqZNt4ERAZDmW4CT+tL8VtvinqywuANaFu4bOMWki16nqf0e4oC0QIaDr/g==}
     engines: {node: '>=10'}
-
-  drizzle-kit@0.22.8:
-    resolution: {integrity: sha512-VjI4wsJjk3hSqHSa3TwBf+uvH6M6pRHyxyoVbt935GUzP9tUR/BRZ+MhEJNgryqbzN2Za1KP0eJMTgKEPsalYQ==}
-    hasBin: true
 
   drizzle-kit@0.30.1:
     resolution: {integrity: sha512-HmA/NeewvHywhJ2ENXD3KvOuM/+K2dGLJfxVfIHsGwaqKICJnS+Ke2L6UcSrSrtMJLJaT0Im1Qv4TFXfaZShyw==}
@@ -10505,9 +10439,9 @@ snapshots:
       '@repeaterjs/repeater': 3.0.6
       tslib: 2.6.2
 
-  '@hono/node-server@1.13.3(hono@4.7.9)':
+  '@hono/node-server@1.13.3(hono@4.5.0)':
     dependencies:
-      hono: 4.7.9
+      hono: 4.5.0
 
   '@hono/node-server@1.14.1(hono@4.7.9)':
     dependencies:
@@ -12570,11 +12504,6 @@ snapshots:
       typescript: 5.3.3
       zod: 3.23.8
 
-  abitype@1.0.5(typescript@5.0.4)(zod@3.23.8):
-    optionalDependencies:
-      typescript: 5.0.4
-      zod: 3.23.8
-
   abitype@1.0.5(typescript@5.3.3)(zod@3.23.8):
     optionalDependencies:
       typescript: 5.3.3
@@ -13753,14 +13682,6 @@ snapshots:
   dotenv@16.4.5: {}
 
   dotenv@8.6.0: {}
-
-  drizzle-kit@0.22.8:
-    dependencies:
-      '@esbuild-kit/esm-loader': 2.6.5
-      esbuild: 0.19.12
-      esbuild-register: 3.6.0(esbuild@0.19.12)
-    transitivePeerDependencies:
-      - supports-color
 
   drizzle-kit@0.30.1:
     dependencies:
@@ -18727,24 +18648,6 @@ snapshots:
       ws: 8.13.0
     optionalDependencies:
       typescript: 5.3.3
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-      - zod
-
-  viem@2.21.3(typescript@5.0.4)(zod@3.23.8):
-    dependencies:
-      '@adraffy/ens-normalize': 1.10.0
-      '@noble/curves': 1.4.0
-      '@noble/hashes': 1.4.0
-      '@scure/bip32': 1.4.0
-      '@scure/bip39': 1.4.0
-      abitype: 1.0.5(typescript@5.0.4)(zod@3.23.8)
-      isows: 1.0.4(ws@8.17.1)
-      webauthn-p256: 0.0.5
-      ws: 8.17.1
-    optionalDependencies:
-      typescript: 5.0.4
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate

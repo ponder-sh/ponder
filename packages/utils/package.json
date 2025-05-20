@@ -38,6 +38,9 @@
     "typescript": ">=5.0.4",
     "viem": ">=2"
   },
+  "optionalDependencies": {
+    "viem": "2.21.3"
+  },
   "peerDependenciesMeta": {
     "typescript": {
       "optional": true

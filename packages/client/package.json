@@ -33,6 +33,7 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
+    "drizzle-orm": "~0.41.0",
     "typescript": ">=5.0.4"
   },
   "peerDependenciesMeta": {
@@ -40,8 +41,10 @@
       "optional": true
     }
   },
+  "optionalDependencies": {
+    "drizzle-orm": "0.41.0"
+  },
   "dependencies": {
-    "drizzle-orm": "0.41.0",
     "eventsource": "^3.0.5",
     "superjson": "^2.2.2"
   },

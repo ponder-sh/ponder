@@ -11,8 +11,7 @@
   },
   "dependencies": {
     "ponder": "workspace:*",
-    "hono": "^4.5.0",
-    "viem": "^2.21.3"
+    "hono": "^4.5.0"
   },
   "devDependencies": {
     "@types/node": "^20.9.0",
