@@ -207,7 +207,7 @@ export const sim =
                 }
               }
             } else if ("blockHash" in body.params[0]) {
-              const number = await db
+              const block = await db
                 .select({ number: RPC_SCHEMA.blocks.number })
                 .from(RPC_SCHEMA.blocks)
                 .where(
@@ -216,7 +216,14 @@ export const sim =
                     eq(RPC_SCHEMA.blocks.hash, body.params[0].blockHash),
                   ),
                 )
-                .then((blocks) => blocks[0]!.number);
+                .then((blocks) => blocks[0]);
+
+              if (block === undefined) {
+                result = [];
+                break;
+              }
+
+              const number = block.number;
 
               const _logs = await db
                 .select({ body: RPC_SCHEMA.logs.body })

@@ -41,7 +41,7 @@ const SIM_PARAMS: SimParams = {
   REALTIME_FAST_FORWARD_RATE: 0.5,
   /** Probability that a block is delayed and a block on another chain is ordered first. */
   REALTIME_DELAY_RATE: 0.4,
-  FINALIZED_RATE: 1,
+  FINALIZED_RATE: 0.95,
 };
 
 let db = drizzle(process.env.CONNECTION_STRING!, { casing: "snake_case" });
@@ -159,7 +159,7 @@ const kill = await debug({
     version: "0.0.0",
     config: "ponder.config.ts",
     logFormat: "pretty",
-    logLevel: "warn",
+    // logLevel: "debug",
   },
   params: SIM_PARAMS,
   rpcConnectionString: process.env.CONNECTION_STRING!,

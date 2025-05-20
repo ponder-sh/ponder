@@ -62,7 +62,7 @@ type CreateRealtimeSyncParameters = {
   chain: Chain;
   rpc: Rpc;
   sources: Source[];
-  onEvent: (event: RealtimeSyncEvent) => Promise<void>;
+  onEvent: (event: RealtimeSyncEvent) => void;
   onFatalError: (error: Error) => void;
 };
 
@@ -712,7 +712,7 @@ export const createRealtimeSync = (
 
     const commonAncestor = getLatestUnfinalizedBlock();
 
-    await args.onEvent({ type: "reorg", block: commonAncestor, reorgedBlocks });
+    args.onEvent({ type: "reorg", block: commonAncestor, reorgedBlocks });
 
     args.common.logger.warn({
       service: "realtime",
@@ -757,6 +757,7 @@ export const createRealtimeSync = (
           msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
         });
 
+        callback(false);
         return;
       }
 
@@ -792,6 +793,8 @@ export const createRealtimeSync = (
         });
 
         args.onFatalError(error);
+
+        callback(false);
       }
     }
   };
@@ -823,6 +826,7 @@ export const createRealtimeSync = (
           msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
         });
 
+        blockWithEventData.callback(false);
         return;
       }
 
@@ -832,7 +836,7 @@ export const createRealtimeSync = (
         if (hexToNumber(latestBlock.number) >= hexToNumber(block.number)) {
           await reconcileReorg(block);
 
-          reconcileBlock.clear();
+          blockWithEventData.callback(false);
           return;
         }
 
@@ -865,21 +869,20 @@ export const createRealtimeSync = (
             )}]`,
           });
 
-          reconcileBlock.clear();
-
+          reconcileBlock.clear(({ task }) => task.callback(false));
           for (const pendingBlock of pendingBlocks) {
             reconcileBlock({ ...pendingBlock, callback: () => {} });
           }
 
+          // Note: awaiting will cause a deadlock
           reconcileBlock(blockWithEventData);
-
           return;
         }
 
         // Check if a reorg occurred by validating the chain of block hashes.
         if (block.parentHash !== latestBlock.hash) {
           await reconcileReorg(block);
-          reconcileBlock.clear();
+          blockWithEventData.callback(false);
           return;
         }
 
@@ -934,7 +937,7 @@ export const createRealtimeSync = (
         blockWithEventData.block.transactions =
           blockWithEventDataAndFilters.block.transactions;
 
-        await args.onEvent({
+        args.onEvent({
           type: "block",
           hasMatchedFilter:
             blockWithEventDataAndFilters.matchedFilters.size > 0,
@@ -988,10 +991,7 @@ export const createRealtimeSync = (
 
           finalizedBlock = pendingFinalizedBlock;
 
-          await args.onEvent({
-            type: "finalize",
-            block: pendingFinalizedBlock,
-          });
+          args.onEvent({ type: "finalize", block: pendingFinalizedBlock });
         }
 
         // Reset the error state after successfully completing the happy path.
@@ -1024,7 +1024,7 @@ export const createRealtimeSync = (
 
         // Remove all blocks from the queue. This protects against an
         // erroneous block causing a fatal error.
-        reconcileBlock.clear();
+        reconcileBlock.clear(({ task }) => task.callback(false));
 
         reconcileBlockErrorCount += 1;
 
@@ -1038,6 +1038,8 @@ export const createRealtimeSync = (
 
           args.onFatalError(error);
         }
+
+        blockWithEventData.callback(false);
       }
     },
   );

@@ -26,6 +26,7 @@ import type { SyncStore } from "@/sync-store/index.js";
 import {
   type Checkpoint,
   MAX_CHECKPOINT,
+  MAX_CHECKPOINT_STRING,
   ZERO_CHECKPOINT,
   ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
@@ -463,10 +464,13 @@ export const createSync = async (params: {
     finalized: ZERO_CHECKPOINT_STRING,
   };
 
-  // Note: `latencyTimers` not used in multichain ordering
-  const latencyTimers = new Map<string, () => number>();
+  // Note: `omnichainCheckpointHooks` not used in multichain ordering
+  const omnichainHooks: {
+    checkpoint: string;
+    callback: () => void;
+  }[] = [];
 
-  const onRealtimeSyncEvent = (
+  const onRealtimeSyncEvent = async (
     event: RealtimeSyncEvent,
     {
       chain,
@@ -479,7 +483,7 @@ export const createSync = async (params: {
       syncProgress: SyncProgress;
       realtimeSync: RealtimeSync;
     },
-  ): void => {
+  ): Promise<void> => {
     switch (event.type) {
       case "block": {
         const events = buildEvents({
@@ -535,35 +539,28 @@ export const createSync = async (params: {
             msg: `Sequenced ${readyEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
           });
 
-          params
-            .onRealtimeEvent({
-              type: "block",
-              chain,
-              events: readyEvents.sort((a, b) =>
-                a.checkpoint < b.checkpoint ? -1 : 1,
-              ),
-              checkpoints: [{ chainId: chain.id, checkpoint }],
-            })
-            .then(() => {
-              // update `ponder_realtime_latency` metric
-              if (event.endClock) {
-                params.common.metrics.ponder_realtime_latency.observe(
-                  { chain: chain.name },
-                  event.endClock(),
-                );
-              }
-            });
+          await params.onRealtimeEvent({
+            type: "block",
+            chain,
+            events: readyEvents.sort((a, b) =>
+              a.checkpoint < b.checkpoint ? -1 : 1,
+            ),
+            checkpoints: [{ chainId: chain.id, checkpoint }],
+          });
+
+          event.callback(true);
         } else {
           const from = checkpoints.current;
           checkpoints.current = getOmnichainCheckpoint({ tag: "current" })!;
-          const to = getOmnichainCheckpoint({ tag: "current" })!;
+          const to =
+            getOmnichainCheckpoint({ tag: "current" }) ?? MAX_CHECKPOINT_STRING;
 
-          if (event.endClock !== undefined) {
-            latencyTimers.set(
-              encodeCheckpoint(blockToCheckpoint(event.block, chain.id, "up")),
-              event.endClock,
-            );
-          }
+          omnichainHooks.push({
+            checkpoint: encodeCheckpoint(
+              blockToCheckpoint(event.block, chain.id, "up"),
+            ),
+            callback: () => event.callback(true),
+          });
 
           if (to > from) {
             // Move ready events from pending to executed
@@ -601,32 +598,20 @@ export const createSync = async (params: {
               }
             }
 
-            params
-              .onRealtimeEvent({
-                type: "block",
-                events: readyEvents.sort((a, b) =>
-                  a.checkpoint < b.checkpoint ? -1 : 1,
-                ),
-                chain,
-                checkpoints,
-              })
-              .then(() => {
-                // update `ponder_realtime_latency` metric
-                for (const [checkpoint, timer] of latencyTimers) {
-                  if (checkpoint > from && checkpoint <= to) {
-                    const chainId = Number(
-                      decodeCheckpoint(checkpoint).chainId,
-                    );
-                    const chain = params.indexingBuild.chains.find(
-                      (chain) => chain.id === chainId,
-                    )!;
-                    params.common.metrics.ponder_realtime_latency.observe(
-                      { chain: chain.name },
-                      timer(),
-                    );
-                  }
-                }
-              });
+            await params.onRealtimeEvent({
+              type: "block",
+              events: readyEvents.sort((a, b) =>
+                a.checkpoint < b.checkpoint ? -1 : 1,
+              ),
+              chain,
+              checkpoints,
+            });
+
+            for (const { checkpoint, callback } of omnichainHooks) {
+              if (checkpoint > from && checkpoint <= to) {
+                callback();
+              }
+            }
           } else {
             pendingEvents = pendingEvents.concat(decodedEvents);
           }
