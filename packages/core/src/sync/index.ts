@@ -235,10 +235,14 @@ export const getChainCheckpoint = ({
 
 export const createSync = async (params: {
   common: Common;
-  indexingBuild: Pick<IndexingBuild, "sources" | "chains" | "rpcs">;
+  indexingBuild: Pick<
+    IndexingBuild,
+    "sources" | "chains" | "rpcs" | "finalizedBlocks"
+  >;
   syncStore: SyncStore;
   onRealtimeEvent(event: RealtimeEvent): Promise<void>;
   onFatalError(error: Error): void;
+  onComplete: () => void;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   ordering: "omnichain" | "multichain";
 }): Promise<Sync> => {
@@ -248,6 +252,7 @@ export const createSync = async (params: {
       syncProgress: SyncProgress;
       historicalSync: HistoricalSync;
       realtimeSync: RealtimeSync;
+      isComplete: boolean;
     }
   >();
 
@@ -760,6 +765,7 @@ export const createSync = async (params: {
   await Promise.all(
     params.indexingBuild.chains.map(async (chain, index) => {
       const rpc = params.indexingBuild.rpcs[index]!;
+      const finalizedBlock = params.indexingBuild.finalizedBlocks[index]!;
 
       const sources = params.indexingBuild.sources.filter(
         ({ filter }) => filter.chainId === chain.id,
@@ -791,6 +797,7 @@ export const createSync = async (params: {
         chain,
         sources,
         rpc,
+        finalizedBlock,
         intervalsCache: historicalSync.intervalsCache,
       });
 
@@ -825,7 +832,16 @@ export const createSync = async (params: {
                   service: "sync",
                   msg: `Killing '${chain.name}' live indexing because the end block ${hexToNumber(syncProgress.end!.number)} has been finalized`,
                 });
-                realtimeSync.kill();
+                rpc.unsubscribe();
+                perChainSync.get(chain)!.isComplete = true;
+
+                if (
+                  Array.from(perChainSync.values()).every(
+                    ({ isComplete }) => isComplete,
+                  )
+                ) {
+                  params.onComplete();
+                }
               }
             })
             .catch((error) => {
@@ -853,6 +869,7 @@ export const createSync = async (params: {
         syncProgress,
         historicalSync,
         realtimeSync,
+        isComplete: false,
       });
 
       const perChainOnRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
@@ -909,6 +926,8 @@ export const createSync = async (params: {
         const filters = sources.map(({ filter }) => filter);
 
         if (isSyncEnd(syncProgress)) {
+          perChainSync.get(chain)!.isComplete = true;
+
           params.common.metrics.ponder_sync_is_complete.set(
             { chain: chain.name },
             1,
@@ -969,6 +988,12 @@ export const createSync = async (params: {
 
           realtimeSync.start({ syncProgress, initialChildAddresses });
         }
+      }
+
+      if (
+        Array.from(perChainSync.values()).every(({ isComplete }) => isComplete)
+      ) {
+        params.onComplete();
       }
     },
     seconds,
@@ -1513,12 +1538,14 @@ export const getLocalSyncProgress = async ({
   sources,
   chain,
   rpc,
+  finalizedBlock,
   intervalsCache,
 }: {
   common: Common;
   sources: Source[];
   chain: Chain;
   rpc: Rpc;
+  finalizedBlock: LightBlock;
   intervalsCache: HistoricalSync["intervalsCache"];
 }): Promise<SyncProgress> => {
   const syncProgress = {} as SyncProgress;
@@ -1556,27 +1583,19 @@ export const getLocalSyncProgress = async ({
     cached === undefined
       ? [
           rpc.request({ method: "eth_chainId" }),
-          _eth_getBlockByNumber(rpc, { blockTag: "latest" }),
           _eth_getBlockByNumber(rpc, { blockNumber: start }),
         ]
       : [
           rpc.request({ method: "eth_chainId" }),
-          _eth_getBlockByNumber(rpc, { blockTag: "latest" }),
           _eth_getBlockByNumber(rpc, { blockNumber: start }),
           _eth_getBlockByNumber(rpc, { blockNumber: cached }),
         ],
   );
 
-  const finalized = Math.max(
-    0,
-    hexToNumber(diagnostics[1].number) - chain.finalityBlockCount,
-  );
-  syncProgress.finalized = await _eth_getBlockByNumber(rpc, {
-    blockNumber: finalized,
-  });
-  syncProgress.start = diagnostics[2];
-  if (diagnostics.length === 4) {
-    syncProgress.current = diagnostics[3];
+  syncProgress.finalized = finalizedBlock;
+  syncProgress.start = diagnostics[1];
+  if (diagnostics.length === 3) {
+    syncProgress.current = diagnostics[2];
   }
 
   // Warn if the config has a different chainId than the remote.
@@ -1594,7 +1613,7 @@ export const getLocalSyncProgress = async ({
   // Latest `toBlock` among all `filters`
   const end = Math.max(...filters.map((filter) => filter.toBlock!));
 
-  if (end > hexToNumber(diagnostics[1].number)) {
+  if (end > hexToNumber(finalizedBlock.number)) {
     syncProgress.end = {
       number: toHex(end),
       hash: "0x",

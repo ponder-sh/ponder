@@ -39,6 +39,8 @@ export async function run({
   crashRecoveryCheckpoint,
   onFatalError,
   onReloadableError,
+  onReady,
+  onComplete,
 }: {
   common: Common;
   preBuild: PreBuild;
@@ -49,6 +51,8 @@ export async function run({
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
+  onReady: () => void;
+  onComplete: () => void;
 }) {
   await database.migrateSync();
 
@@ -69,6 +73,7 @@ export async function run({
       return onRealtimeEvent(realtimeEvent);
     },
     onFatalError,
+    onComplete,
     crashRecoveryCheckpoint,
     ordering: preBuild.ordering,
   });
@@ -409,7 +414,82 @@ export async function run({
     db: database.qb.drizzle,
   });
 
+  await database.createIndexes();
+  await database.createTriggers();
+
+  if (namespaceBuild.viewsSchema) {
+    await database.wrap({ method: "create-views" }, async () => {
+      await database.qb.drizzle.execute(
+        sql.raw(`CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.viewsSchema}"`),
+      );
+
+      const tables = Object.values(schemaBuild.schema).filter(
+        (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
+      );
+
+      for (const table of tables) {
+        // Note: drop views before creating new ones to avoid enum errors.
+        await database.qb.drizzle.execute(
+          sql.raw(
+            `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${getTableName(table)}"`,
+          ),
+        );
+
+        await database.qb.drizzle.execute(
+          sql.raw(
+            `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
+          ),
+        );
+      }
+
+      common.logger.info({
+        service: "app",
+        msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
+      });
+
+      await database.qb.drizzle.execute(
+        sql.raw(
+          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_meta"`,
+        ),
+      );
+
+      await database.qb.drizzle.execute(
+        sql.raw(
+          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_checkpoint"`,
+        ),
+      );
+
+      const trigger = `status_${namespaceBuild.viewsSchema}_trigger`;
+      const notification = "status_notify()";
+      const channel = `${namespaceBuild.viewsSchema}_status_channel`;
+
+      await database.qb.drizzle.execute(
+        sql.raw(`
+  CREATE OR REPLACE FUNCTION "${namespaceBuild.viewsSchema}".${notification}
+  RETURNS TRIGGER
+  LANGUAGE plpgsql
+  AS $$
+  BEGIN
+  NOTIFY "${channel}";
+  RETURN NULL;
+  END;
+  $$;`),
+      );
+
+      await database.qb.drizzle.execute(
+        sql.raw(`
+  CREATE OR REPLACE TRIGGER "${trigger}"
+  AFTER INSERT OR UPDATE OR DELETE
+  ON "${namespaceBuild.schema}"._ponder_checkpoint
+  FOR EACH STATEMENT
+  EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
+      );
+    });
+  }
+
   await database.setReady();
+
+  onReady();
 
   const realtimeIndexingStore = createRealtimeIndexingStore({
     common,
@@ -521,79 +601,6 @@ export async function run({
         never(event);
     }
   });
-
-  if (namespaceBuild.viewsSchema) {
-    await database.wrap({ method: "create-views" }, async () => {
-      await database.qb.drizzle.execute(
-        sql.raw(`CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.viewsSchema}"`),
-      );
-
-      const tables = Object.values(schemaBuild.schema).filter(
-        (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
-      );
-
-      for (const table of tables) {
-        // Note: drop views before creating new ones to avoid enum errors.
-        await database.qb.drizzle.execute(
-          sql.raw(
-            `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${getTableName(table)}"`,
-          ),
-        );
-
-        await database.qb.drizzle.execute(
-          sql.raw(
-            `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
-          ),
-        );
-      }
-
-      common.logger.info({
-        service: "app",
-        msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
-      });
-
-      await database.qb.drizzle.execute(
-        sql.raw(
-          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_meta"`,
-        ),
-      );
-
-      await database.qb.drizzle.execute(
-        sql.raw(
-          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_checkpoint"`,
-        ),
-      );
-
-      const trigger = `status_${namespaceBuild.viewsSchema}_trigger`;
-      const notification = "status_notify()";
-      const channel = `${namespaceBuild.viewsSchema}_status_channel`;
-
-      await database.qb.drizzle.execute(
-        sql.raw(`
-  CREATE OR REPLACE FUNCTION "${namespaceBuild.viewsSchema}".${notification}
-  RETURNS TRIGGER
-  LANGUAGE plpgsql
-  AS $$
-  BEGIN
-  NOTIFY "${channel}";
-  RETURN NULL;
-  END;
-  $$;`),
-      );
-
-      await database.qb.drizzle.execute(
-        sql.raw(`
-  CREATE OR REPLACE TRIGGER "${trigger}"
-  AFTER INSERT OR UPDATE OR DELETE
-  ON "${namespaceBuild.schema}"._ponder_checkpoint
-  FOR EACH STATEMENT
-  EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
-      );
-    });
-  }
-
-  await database.createIndexes();
-  await database.createTriggers();
 
   await sync.startRealtime();
 

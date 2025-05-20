@@ -6,13 +6,45 @@ import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
+import type { SyncBlock } from "@/internal/types.js";
+import { createRpc } from "@/rpc/index.js";
 import { mergeResults } from "@/utils/result.js";
+import { _eth_getBlockByNumber } from "@/utils/rpc.js";
+import { custom, hexToNumber } from "viem";
+import {
+  realtimeBlockEngine,
+  sim,
+} from "../../../../../integration-test/rpc/index.js";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 import { run } from "../utils/run.js";
 import { runServer } from "../utils/runServer.js";
 
-export async function start({ cliOptions }: { cliOptions: CliOptions }) {
+export type SimParams = {
+  SEED: string;
+  ERROR_RATE: number;
+  ETH_GET_LOGS_RESPONSE_LIMIT: number;
+  ETH_GET_LOGS_BLOCK_LIMIT: number;
+  REALTIME_REORG_RATE: number;
+  REALTIME_DEEP_REORG_RATE: number;
+  REALTIME_FAST_FORWARD_RATE: number;
+  REALTIME_DELAY_RATE: number;
+  FINALIZED_RATE: number;
+};
+
+export async function debug({
+  cliOptions,
+  params,
+  rpcConnectionString,
+  onReady,
+  onComplete,
+}: {
+  cliOptions: CliOptions;
+  params: SimParams;
+  rpcConnectionString?: string;
+  onReady: () => void;
+  onComplete: () => void;
+}) {
   const options = buildOptions({ cliOptions });
 
   const logger = createLogger({
@@ -156,6 +188,93 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     1,
   );
 
+  const chains: Parameters<typeof realtimeBlockEngine>[0] = new Map();
+  for (let i = 0; i < indexingBuildResult.result.chains.length; i++) {
+    const chain = indexingBuildResult.result.chains[i]!;
+    const rpc = indexingBuildResult.result.rpcs[i]!;
+
+    chain.rpc = sim(
+      custom({
+        async request(body) {
+          return rpc.request(body);
+        },
+      }),
+      params,
+      rpcConnectionString,
+    );
+
+    indexingBuildResult.result.rpcs[i] = createRpc({
+      common,
+      chain,
+      concurrency: Math.floor(
+        common.options.rpcMaxConcurrency /
+          indexingBuildResult.result.chains.length,
+      ),
+    });
+
+    const start = Math.min(
+      ...indexingBuildResult.result.sources.map(
+        ({ filter }) => filter.fromBlock ?? 0,
+      ),
+    );
+
+    const end = Math.max(
+      ...indexingBuildResult.result.sources.map(
+        ({ filter }) => filter.toBlock!,
+      ),
+    );
+
+    indexingBuildResult.result.finalizedBlocks[i] = await _eth_getBlockByNumber(
+      rpc,
+      {
+        blockNumber: start + Math.floor((end - start) * params.FINALIZED_RATE),
+      },
+    );
+
+    chains.set(chain.id, {
+      // @ts-ignore
+      request: rpc.request,
+      interval: [
+        hexToNumber(indexingBuildResult.result.finalizedBlocks[i]!.number) + 1,
+        end,
+      ],
+    });
+
+    common.logger.warn({
+      service: "sim",
+      msg: `Mocking eip1193 transport for chain '${chain.name}'`,
+    });
+  }
+
+  const getRealtimeBlockGenerator = await realtimeBlockEngine(
+    chains,
+    params,
+    rpcConnectionString,
+  );
+
+  for (let i = 0; i < indexingBuildResult.result.chains.length; i++) {
+    const chain = indexingBuildResult.result.chains[i]!;
+    const rpc = indexingBuildResult.result.rpcs[i]!;
+
+    rpc.subscribe = ({ onBlock }) => {
+      (async () => {
+        for await (const block of getRealtimeBlockGenerator(chain.id)) {
+          await onBlock(block as SyncBlock);
+        }
+        common.logger.warn({
+          service: "sim",
+          msg: `Realtime block subscription for chain '${chain.name}' completed`,
+        });
+        onComplete();
+      })();
+    };
+
+    common.logger.warn({
+      service: "sim",
+      msg: `Mocking realtime block subscription for chain '${chain.name}'`,
+    });
+  }
+
   run({
     common,
     database,
@@ -170,8 +289,8 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     onReloadableError: () => {
       exit({ reason: "Encountered indexing error", code: 1 });
     },
-    onReady: () => {},
-    onComplete: () => {},
+    onReady,
+    onComplete,
   });
 
   runServer({

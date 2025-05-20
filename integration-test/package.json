@@ -1,0 +1,16 @@
+{
+  "name": "integration-test",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/pg": "^8.10.9",
+    "@types/seedrandom": "^3.0.8",
+    "drizzle-orm": "0.41.0",
+    "pg": "^8.15.6",
+    "ponder": "workspace:*"
+  },
+  "dependencies": {
+    "seedrandom": "^3.0.5"
+  }
+}
