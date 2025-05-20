@@ -793,7 +793,7 @@ importers:
         version: 2.4.0
       '@hono/node-server':
         specifier: 1.13.3
-        version: 1.13.3(hono@4.5.0)
+        version: 1.13.3(hono@4.7.9)
       '@ponder/utils':
         specifier: workspace:*
         version: link:../utils
@@ -818,6 +818,9 @@ importers:
       dotenv:
         specifier: ^16.3.1
         version: 16.4.5
+      drizzle-orm:
+        specifier: 0.41.0
+        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(gel@2.0.2)(kysely@0.26.3)(pg@8.11.3)
       glob:
         specifier: ^10.3.10
         version: 10.4.5
@@ -875,16 +878,6 @@ importers:
       vite-tsconfig-paths:
         specifier: 4.3.1
         version: 4.3.1(typescript@5.3.3)(vite@5.0.7(@types/node@20.11.24)(lightningcss@1.30.0))
-    optionalDependencies:
-      drizzle-orm:
-        specifier: 0.41.0
-        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(gel@2.0.2)(kysely@0.26.3)(pg@8.11.3)
-      hono:
-        specifier: 4.5.0
-        version: 4.5.0
-      viem:
-        specifier: 2.21.3
-        version: 2.21.3(typescript@5.3.3)(zod@3.23.8)
     devDependencies:
       '@pgsql/types':
         specifier: 16.0.0
@@ -10512,9 +10505,9 @@ snapshots:
       '@repeaterjs/repeater': 3.0.6
       tslib: 2.6.2
 
-  '@hono/node-server@1.13.3(hono@4.5.0)':
+  '@hono/node-server@1.13.3(hono@4.7.9)':
     dependencies:
-      hono: 4.5.0
+      hono: 4.7.9
 
   '@hono/node-server@1.14.1(hono@4.7.9)':
     dependencies:

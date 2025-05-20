@@ -50,11 +50,6 @@
       "optional": true
     }
   },
-  "optionalDependencies": {
-    "drizzle-orm": "0.41.0",
-    "hono": "4.5.0",
-    "viem": "2.21.3"
-  },
   "dependencies": {
     "@babel/code-frame": "^7.23.4",
     "@commander-js/extra-typings": "^12.0.1",
