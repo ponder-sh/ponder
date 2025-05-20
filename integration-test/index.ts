@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { Table, eq, getTableName, is, sql } from "drizzle-orm";
 import { type NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
 import type { PgTable } from "drizzle-orm/pg-core";
@@ -13,10 +14,10 @@ import { promiseWithResolvers } from "../packages/core/src/utils/promiseWithReso
 
 // inputs
 
-const APP_DIR = "./apps/reference-erc20";
-const APP_ID = "reference-erc20";
-const SEED = "dff1a6a325d3ac4a42143e0d60aa1dc25dc69b19694dab3739eabc5c2aa5001e";
-const UUID = "1234567890";
+const APP_ID = process.argv[2];
+const APP_DIR = `./apps/${APP_ID}`;
+const SEED = process.env.SEED ?? crypto.randomBytes(32).toString("hex");
+const UUID = process.env.UUID ?? crypto.randomUUID();
 
 // params
 
@@ -154,7 +155,7 @@ const kill = await debug({
     version: "0.0.0",
     config: "ponder.config.ts",
     logFormat: "pretty",
-    // logLevel: "debug",
+    logLevel: "warn",
   },
   params: SIM_PARAMS,
   rpcConnectionString: process.env.CONNECTION_STRING!,

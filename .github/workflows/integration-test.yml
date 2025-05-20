@@ -1,0 +1,37 @@
+name: Integration Test
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  integration-test:
+    name: Integration Test
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        app_id:
+          - "reference-erc20"
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/setup
+      - uses: oven-sh/setup-bun@v2
+
+      - run: pnpm build
+      - run: pnpm install
+
+      - name: Test ${{ matrix.app_id }}
+        run: |
+          cd integration-test
+          for i in $(seq 1 10); do
+            SEED=$(openssl rand -hex 32)
+            UUID=$(uuidgen)
+            bun run index.ts ${{ matrix.app_id }}
+          done
+        env:
+          CONNECTION_STRING: ${{ secrets.TEST_CONNECTION_STRING }}
+          PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
