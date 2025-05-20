@@ -111,7 +111,7 @@ export type OnchainTable<
   enableRLS: () => Omit<OnchainTable<T>, "enableRLS">;
 };
 
-type BuildExtraConfigColumns<
+export type BuildExtraConfigColumns<
   columns extends Record<string, ColumnBuilderBase>,
 > = {
   [key in keyof columns]: ExtraConfigColumn & {
@@ -119,7 +119,7 @@ type BuildExtraConfigColumns<
   };
 };
 
-type PgColumnsBuilders = Omit<
+export type PgColumnsBuilders = Omit<
   _PgColumnsBuilders,
   "bigint" | "serial" | "smallserial" | "bigserial"
 > & {
@@ -213,7 +213,7 @@ export const onchainTable = <
 
 export const isPgEnumSym = Symbol.for("drizzle:isPgEnum");
 
-export interface OnchainEnum<TValues extends [string, ...string[]]> {
+export type OnchainEnum<TValues extends [string, ...string[]]> = {
   (): PgEnumColumnBuilderInitial<"", TValues>;
   <TName extends string>(
     name: TName,
@@ -227,12 +227,12 @@ export interface OnchainEnum<TValues extends [string, ...string[]]> {
   readonly schema: string | undefined;
   /** @internal */
   [isPgEnumSym]: true;
-}
+} & { [onchain]: true };
 
 export const onchainEnum = <U extends string, T extends Readonly<[U, ...U[]]>>(
   enumName: string,
   values: T | Writable<T>,
-): OnchainEnum<Writable<T>> & { [onchain]: true } => {
+): OnchainEnum<Writable<T>> => {
   const schema = globalThis?.PONDER_NAMESPACE_BUILD?.schema;
   const e = pgEnumWithSchema(enumName, values, schema);
 
@@ -344,6 +344,7 @@ function pgEnumWithSchema<U extends string, T extends Readonly<[U, ...U[]]>>(
       enumValues: values,
       schema,
       [isPgEnumSym]: true,
+      [onchain]: true,
     } as const,
   );
 
