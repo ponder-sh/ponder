@@ -12,9 +12,9 @@ jobs:
     timeout-minutes: 30
     strategy:
       fail-fast: false
-      # matrix:
-      #   app_id:
-      #     - "reference-erc20"
+      matrix:
+        app_id:
+          - "reference-erc20"
 
     steps:
       - uses: actions/checkout@v3
@@ -24,14 +24,14 @@ jobs:
       - run: pnpm build
       - run: pnpm install
 
-      # - name: Test ${{ matrix.app_id }}
-      #   run: |
-      #     cd integration-test
-      #     for i in $(seq 1 10); do
-      #       SEED=$(openssl rand -hex 32)
-      #       UUID=$(uuidgen)
-      #       bun run index.ts ${{ matrix.app_id }}
-      #     done
-      #   env:
-      #     CONNECTION_STRING: ${{ secrets.TEST_CONNECTION_STRING }}
-      #     PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
+      - name: Test ${{ matrix.app_id }}
+        run: |
+          cd integration-test
+          for i in $(seq 1 10); do
+            SEED=$(openssl rand -hex 32)
+            UUID=$(uuidgen)
+            bun run index.ts ${{ matrix.app_id }}
+          done
+        env:
+          CONNECTION_STRING: ${{ secrets.TEST_CONNECTION_STRING }}
+          PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
