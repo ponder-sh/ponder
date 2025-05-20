@@ -32,6 +32,13 @@ export {
   bigint,
 } from "@/drizzle/onchain.js";
 
+export type {
+  OnchainTable,
+  BuildExtraConfigColumns,
+  PgColumnsBuilders,
+  PrimaryKeyBuilder,
+} from "@/drizzle/onchain.js";
+
 export type { ReadonlyDrizzle } from "@/types/db.js";
 
 export { client } from "@/client/index.js";
