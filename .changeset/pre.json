@@ -10,5 +10,5 @@
     "@ponder/react": "0.11.3",
     "@ponder/utils": "0.2.7"
   },
-  "changesets": []
+  "changesets": ["hungry-guests-fix"]
 }

@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.4-next.0
+
+### Patch Changes
+
+- [`f667a070067d970095441ccd62cb7bc3af34237a`](https://github.com/ponder-sh/ponder/commit/f667a070067d970095441ccd62cb7bc3af34237a) Thanks [@kyscott18](https://github.com/kyscott18)! - peer deps
+
 ## 0.11.3
 
 ### Patch Changes
