@@ -40,6 +40,7 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
+    "drizzle-orm": "~0.41.0",
     "hono": ">=4.5",
     "typescript": ">=5.0.4",
     "viem": ">=2"
@@ -48,6 +49,11 @@
     "typescript": {
       "optional": true
     }
+  },
+  "optionalDependencies": {
+    "drizzle-orm": "0.41.0",
+    "hono": "4.5.0",
+    "viem": "2.10.0"
   },
   "dependencies": {
     "@babel/code-frame": "^7.23.4",
