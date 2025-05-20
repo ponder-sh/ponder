@@ -19,6 +19,10 @@ const APP_DIR = `./apps/${APP_ID}`;
 const SEED = process.env.SEED ?? crypto.randomBytes(32).toString("hex");
 const UUID = process.env.UUID ?? crypto.randomUUID();
 
+if (APP_ID === undefined) {
+  throw new Error("APP_ID is required");
+}
+
 // params
 
 const INTERVAL_CHUNKS = 8;

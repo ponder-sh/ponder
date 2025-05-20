@@ -6,21 +6,26 @@ let db = drizzle(process.env.CONNECTION_STRING!, { casing: "snake_case" });
 
 // inputs
 
-const APP_DIR = "./apps/reference-erc20";
-const APP_ID = "reference-erc20";
-const CONNECTION_STRING = `${process.env.CONNECTION_STRING!}/${APP_ID}`;
+const APP_ID = process.argv[2];
+const APP_DIR = `./apps/${APP_ID}`;
+
+if (APP_ID === undefined) {
+  throw new Error("APP_ID is required");
+}
 
 // 1. Create database
 await db.execute(sql.raw(`CREATE DATABASE "${APP_ID}"`));
 
-db = drizzle(CONNECTION_STRING, { casing: "snake_case" });
+db = drizzle(`${process.env.CONNECTION_STRING!}/${APP_ID}`, {
+  casing: "snake_case",
+});
 
 // 2. Create metadata schema
 
 // 3. Copy expected data
 
 process.env.DATABASE_SCHEMA = "expected";
-process.env.DATABASE_URL = CONNECTION_STRING;
+process.env.DATABASE_URL = `${process.env.CONNECTION_STRING!}/${APP_ID}`;
 process.env.PONDER_TELEMETRY_DISABLED = "true";
 
 const kill = await start({
