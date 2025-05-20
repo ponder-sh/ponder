@@ -3,14 +3,19 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "setup-rpc-cache": "bun run --bun drizzle-kit migrate",
+    "new-app": "bun run new-app.ts",
+    "test": "bun run index.ts"
+  },
+  "dependencies": {
+    "seedrandom": "^3.0.5"
+  },
   "devDependencies": {
     "@types/pg": "^8.10.9",
     "@types/seedrandom": "^3.0.8",
     "drizzle-orm": "0.41.0",
     "pg": "^8.15.6",
     "ponder": "workspace:*"
-  },
-  "dependencies": {
-    "seedrandom": "^3.0.5"
   }
 }

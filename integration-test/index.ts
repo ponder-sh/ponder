@@ -150,8 +150,6 @@ process.env.DATABASE_SCHEMA = "public";
 
 const pwr = promiseWithResolvers<void>();
 
-// TODO(kyle) what happens when the app errors before it finishes
-
 const kill = await debug({
   cliOptions: {
     root: APP_DIR,
