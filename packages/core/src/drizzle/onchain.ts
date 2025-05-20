@@ -111,7 +111,7 @@ export type OnchainTable<
   enableRLS: () => Omit<OnchainTable<T>, "enableRLS">;
 };
 
-type BuildExtraConfigColumns<
+export type BuildExtraConfigColumns<
   columns extends Record<string, ColumnBuilderBase>,
 > = {
   [key in keyof columns]: ExtraConfigColumn & {
@@ -119,7 +119,7 @@ type BuildExtraConfigColumns<
   };
 };
 
-type PgColumnsBuilders = Omit<
+export type PgColumnsBuilders = Omit<
   _PgColumnsBuilders,
   "bigint" | "serial" | "smallserial" | "bigserial"
 > & {
