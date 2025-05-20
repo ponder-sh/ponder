@@ -692,7 +692,7 @@ export const createRealtimeSync = (
         // Note: reorgedBlocks aren't removed from `unfinalizedBlocks` because we are "bailing"
         // from this attempt to reconcile the reorg, we need to reset the local chain state back
         // to what it was before we started.
-        unfinalizedBlocks = reorgedBlocks.reverse();
+        unfinalizedBlocks = reorgedBlocks;
 
         const msg = `Encountered unrecoverable '${args.chain.name}' reorg beyond finalized block ${hexToNumber(finalizedBlock.number)}`;
 
@@ -704,7 +704,7 @@ export const createRealtimeSync = (
           hash: remoteBlock.parentHash,
         });
         // Add tip to `reorgedBlocks`
-        reorgedBlocks.push(unfinalizedBlocks.pop()!);
+        reorgedBlocks.unshift(unfinalizedBlocks.pop()!);
       }
     }
 
