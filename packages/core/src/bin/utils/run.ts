@@ -21,7 +21,7 @@ import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { recordAsyncGenerator } from "@/utils/generators.js";
-import { createMutex } from "@/utils/mutex.js";
+import { mutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
 import { type TableConfig, getTableName, is, sql } from "drizzle-orm";
@@ -60,15 +60,13 @@ export async function run({
 
   const syncStore = createSyncStore({ common, database });
 
-  const realtimeMutex = createMutex();
-
   const sync = await createSync({
     common,
     indexingBuild,
     syncStore,
     onRealtimeEvent: (realtimeEvent) => {
       if (realtimeEvent.type === "reorg") {
-        realtimeMutex.clear();
+        onRealtimeEvent.clear();
       }
       return onRealtimeEvent(realtimeEvent);
     },
@@ -497,7 +495,7 @@ export async function run({
     database,
   });
 
-  const onRealtimeEvent = realtimeMutex(async (event: RealtimeEvent) => {
+  const onRealtimeEvent = mutex(async (event: RealtimeEvent) => {
     switch (event.type) {
       case "block": {
         if (event.events.length > 0) {

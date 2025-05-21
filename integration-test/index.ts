@@ -20,7 +20,7 @@ const SEED = process.env.SEED ?? crypto.randomBytes(32).toString("hex");
 const UUID = process.env.UUID ?? crypto.randomUUID();
 
 if (APP_ID === undefined) {
-  throw new Error("APP_ID is required");
+  throw new Error("App ID is required. Example: 'pnpm test [app id]'");
 }
 
 // params
@@ -258,6 +258,7 @@ const compareTables = async (
         ];
       }),
     );
+    console.log(`\nRecreate with 'SEED=${SEED} pnpm test ${APP_ID}'`);
     process.exit(1);
   }
 };

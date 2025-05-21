@@ -4,8 +4,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "setup-rpc-cache": "bun run --bun drizzle-kit migrate",
-    "new-app": "bun run new-app.ts",
+    "setup:rpc": "bun run --bun drizzle-kit migrate",
+    "setup:app": "bun run create-app.ts",
     "test": "bun run index.ts"
   },
   "dependencies": {

@@ -10,7 +10,7 @@ const APP_ID = process.argv[2];
 const APP_DIR = `./apps/${APP_ID}`;
 
 if (APP_ID === undefined) {
-  throw new Error("APP_ID is required");
+  throw new Error("App ID is required. Example: 'pnpm create:app [app id]'");
 }
 
 // 1. Create database
