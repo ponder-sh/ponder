@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.5
+
+### Patch Changes
+
+- [#1767](https://github.com/ponder-sh/ponder/pull/1767) [`6b78535`](https://github.com/ponder-sh/ponder/commit/6b785356df1d38b1a94e580966fd78b625fe3929) Thanks [@kyscott18](https://github.com/kyscott18)! - Added "debug\_" rpc method support to the `context.client` cache.
+
 ## 0.11.4
 
 ### Patch Changes
