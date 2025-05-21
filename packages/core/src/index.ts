@@ -40,6 +40,7 @@ export type {
   BuildExtraConfigColumns,
   PgColumnsBuilders,
   PrimaryKeyBuilder,
+  OnchainEnum,
 } from "@/drizzle/onchain.js";
 
 export type { ReadonlyDrizzle } from "@/types/db.js";

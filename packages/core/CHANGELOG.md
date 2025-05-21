@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.4
+
+### Patch Changes
+
+- [#1765](https://github.com/ponder-sh/ponder/pull/1765) [`a039e7be46c80a4a5ecad927b6c808a94e56b1d8`](https://github.com/ponder-sh/ponder/commit/a039e7be46c80a4a5ecad927b6c808a94e56b1d8) Thanks [@kyscott18](https://github.com/kyscott18)! - Exported more types to fix error in `ponder.schema.ts`: `error TS2742: The inferred type of '[table]' cannot be named without a reference`.
+
 ## 0.11.3
 
 ### Patch Changes
