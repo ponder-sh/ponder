@@ -51,7 +51,6 @@ import { intervalUnion } from "@/utils/interval.js";
 import { createMutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { partition } from "@/utils/partition.js";
-import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
 import { zipperMany } from "@/utils/zipper.js";
@@ -547,20 +546,19 @@ export const createSync = async (params: {
             ),
             checkpoints: [{ chainId: chain.id, checkpoint }],
           });
-
-          event.callback?.();
         } else {
           const from = checkpoints.current;
           checkpoints.current = getOmnichainCheckpoint({ tag: "current" })!;
           const to =
             getOmnichainCheckpoint({ tag: "current" }) ?? MAX_CHECKPOINT_STRING;
 
-          omnichainHooks.push({
-            checkpoint: encodeCheckpoint(
-              blockToCheckpoint(event.block, chain.id, "up"),
-            ),
-            callback: () => event.callback?.(),
-          });
+          // TODO(kyle)
+          // omnichainHooks.push({
+          //   checkpoint: encodeCheckpoint(
+          //     blockToCheckpoint(event.block, chain.id, "up"),
+          //   ),
+          //   callback: () => event.callback?.(),
+          // });
 
           if (to > from) {
             // Move ready events from pending to executed
@@ -967,19 +965,15 @@ export const createSync = async (params: {
 
           rpc.subscribe({
             onBlock: async (block) => {
-              const pwr = promiseWithResolvers<void>();
               // TODO(kyle) I think the timer is leaking memory
               const endClock = startClock();
-              const isAccepted = await realtimeSync.sync(block, () => {
+              const isAccepted = await realtimeSync.sync(block);
+
+              if (isAccepted) {
                 params.common.metrics.ponder_realtime_latency.observe(
                   { chain: chain.name },
                   endClock(),
                 );
-                pwr.resolve();
-              });
-
-              if (isAccepted) {
-                await pwr.promise;
               }
             },
             // TODO(kyle) handle error

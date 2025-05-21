@@ -58,7 +58,7 @@ export type RealtimeSync = {
    * @returns `true` if the block was accepted into the local chain,
    * `false` otherwise.
    */
-  sync(block: SyncBlock, callback: () => void): Promise<boolean>;
+  sync(block: SyncBlock): Promise<boolean>;
   /**
    * Local chain of blocks that have not been finalized.
    */
@@ -73,7 +73,6 @@ export type BlockWithEventData = {
   logs: SyncLog[];
   traces: SyncTrace[];
   childAddresses: Map<Factory, Set<Address>>;
-  callback?: () => void;
 };
 
 export type RealtimeSyncEvent =
@@ -98,7 +97,7 @@ type CreateRealtimeSyncParameters = {
   sources: Source[];
   syncProgress: Pick<SyncProgress, "finalized">;
   initialChildAddresses: Map<Factory, Map<Address, number>>;
-  onEvent: (event: RealtimeSyncEvent) => void;
+  onEvent: (event: RealtimeSyncEvent) => Promise<void>;
   onFatalError: (error: Error) => void;
 };
 
@@ -493,7 +492,6 @@ export const createRealtimeSync = (
     transactions,
     transactionReceipts,
     childAddresses: blockChildAddresses,
-    callback,
   }: BlockWithEventData): BlockWithEventData & {
     matchedFilters: Set<Filter>;
   } => {
@@ -663,7 +661,6 @@ export const createRealtimeSync = (
       transactionReceipts,
       traces,
       childAddresses: blockChildAddresses,
-      callback,
     };
   };
 
@@ -750,7 +747,6 @@ export const createRealtimeSync = (
    */
   const fetchAndReconcileLatestBlock = async (
     block: SyncBlock,
-    callback: () => void,
   ): Promise<boolean> => {
     try {
       args.common.logger.debug({
@@ -774,10 +770,10 @@ export const createRealtimeSync = (
 
       fetchAndReconcileLatestBlockErrorCount = 0;
 
-      const result = await reconcileBlock({ ...blockWithEventData, callback });
+      const result = await reconcileBlock(blockWithEventData);
 
       if (result.type === "accepted") {
-        return true;
+        return result.promise.then(() => true);
       } else if (result.type === "rejected") {
         return false;
       } else {
@@ -835,7 +831,7 @@ export const createRealtimeSync = (
     async (
       blockWithEventData: BlockWithEventData,
     ): Promise<
-      | { type: "accepted" }
+      | { type: "accepted"; promise: Promise<void> }
       | { type: "rejected" }
       | {
           type: "pending";
@@ -900,8 +896,10 @@ export const createRealtimeSync = (
 
           return {
             type: "pending",
-            promise: reconcileBlock(blockWithEventData).then(
-              (result) => result.type === "accepted",
+            promise: reconcileBlock(blockWithEventData).then((result) =>
+              result.type === "accepted"
+                ? result.promise.then(() => true)
+                : false,
             ),
           };
         }
@@ -963,7 +961,7 @@ export const createRealtimeSync = (
         blockWithEventData.block.transactions =
           blockWithEventDataAndFilters.block.transactions;
 
-        args.onEvent({
+        const promise = args.onEvent({
           type: "block",
           hasMatchedFilter:
             blockWithEventDataAndFilters.matchedFilters.size > 0,
@@ -973,7 +971,6 @@ export const createRealtimeSync = (
           transactionReceipts: blockWithEventDataAndFilters.transactionReceipts,
           traces: blockWithEventDataAndFilters.traces,
           childAddresses: blockWithEventDataAndFilters.childAddresses,
-          callback: blockWithEventDataAndFilters.callback,
         });
 
         // Determine if a new range has become finalized by evaluating if the
@@ -1023,7 +1020,7 @@ export const createRealtimeSync = (
         // Reset the error state after successfully completing the happy path.
         reconcileBlockErrorCount = 0;
 
-        return { type: "accepted" };
+        return { type: "accepted", promise };
       } catch (_error) {
         const error = _error as Error;
 
@@ -1071,8 +1068,8 @@ export const createRealtimeSync = (
   );
 
   return {
-    sync(block, callback) {
-      return fetchAndReconcileLatestBlock(block, callback);
+    sync(block) {
+      return fetchAndReconcileLatestBlock(block);
     },
     get unfinalizedBlocks() {
       return unfinalizedBlocks;
