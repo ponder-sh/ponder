@@ -1,18 +1,43 @@
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
 import { type Database, createDatabase } from "@/database/index.js";
+import type { Common } from "@/internal/common.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
+import type {
+  ApiBuild,
+  CrashRecoveryCheckpoint,
+  IndexingBuild,
+  NamespaceBuild,
+  PreBuild,
+  SchemaBuild,
+} from "@/internal/types.js";
 import { mergeResults } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 import { run } from "../utils/run.js";
 import { runServer } from "../utils/runServer.js";
 
-export async function start({ cliOptions }: { cliOptions: CliOptions }) {
+type PonderApp = {
+  common: Common;
+  preBuild: PreBuild;
+  namespaceBuild: NamespaceBuild;
+  schemaBuild: SchemaBuild;
+  indexingBuild: IndexingBuild;
+  apiBuild: ApiBuild;
+  crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
+};
+
+export async function start({
+  cliOptions,
+  onBuild,
+}: {
+  cliOptions: CliOptions;
+  onBuild?: (app: PonderApp) => Promise<PonderApp>;
+}) {
   const options = buildOptions({ cliOptions });
 
   const logger = createLogger({
@@ -156,29 +181,32 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     1,
   );
 
-  run({
+  let app: PonderApp = {
     common,
-    database,
     preBuild,
     namespaceBuild: namespaceResult.result,
     schemaBuild,
     indexingBuild: indexingBuildResult.result,
+    apiBuild: apiBuildResult.result,
     crashRecoveryCheckpoint,
+  };
+
+  if (onBuild) {
+    app = await onBuild(app);
+  }
+
+  run({
+    ...app,
+    database,
     onFatalError: () => {
       exit({ reason: "Received fatal error", code: 1 });
     },
     onReloadableError: () => {
       exit({ reason: "Encountered indexing error", code: 1 });
     },
-    onReady: () => {},
-    onComplete: () => {},
   });
 
-  runServer({
-    common,
-    database,
-    apiBuild: apiBuildResult.result,
-  });
+  runServer({ ...app, database });
 
   return shutdown.kill;
 }

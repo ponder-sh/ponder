@@ -32,8 +32,6 @@ import {
 } from "@/sync/filter.js";
 import { type SyncProgress, syncBlockToLightBlock } from "@/sync/index.js";
 import { mutex } from "@/utils/mutex.js";
-import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
-import type { Queue } from "@/utils/queue.js";
 import { range } from "@/utils/range.js";
 import {
   _debug_traceBlockByHash,
@@ -43,27 +41,29 @@ import {
   _eth_getLogs,
   _eth_getTransactionReceipt,
 } from "@/utils/rpc.js";
-import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import { type Address, type Hash, hexToNumber, zeroHash } from "viem";
 import { isFilterInBloom, zeroLogsBloom } from "./bloom.js";
 
 export type RealtimeSync = {
-  start(args: {
-    syncProgress: Pick<SyncProgress, "finalized">;
-    initialChildAddresses: Map<Factory, Map<Address, number>>;
-  }): Queue<void, BlockWithEventData>;
+  /**
+   * Fetch block event data and reconcile it into the local chain.
+   *
+   * @param block The block to reconcile.
+   * @param callback Called once the block has been fully indexed.
+   *
+   * @dev If the block was not accepted into the local chain,
+   * `callback` will not be called.
+   *
+   * @returns `true` if the block was accepted into the local chain,
+   * `false` otherwise.
+   */
+  sync(block: SyncBlock, callback: () => void): Promise<boolean>;
+  /**
+   * Local chain of blocks that have not been finalized.
+   */
   unfinalizedBlocks: LightBlock[];
   childAddresses: Map<Factory, Map<Address, number>>;
-};
-
-type CreateRealtimeSyncParameters = {
-  common: Common;
-  chain: Chain;
-  rpc: Rpc;
-  sources: Source[];
-  onEvent: (event: RealtimeSyncEvent) => void;
-  onFatalError: (error: Error) => void;
 };
 
 export type BlockWithEventData = {
@@ -73,14 +73,13 @@ export type BlockWithEventData = {
   logs: SyncLog[];
   traces: SyncTrace[];
   childAddresses: Map<Factory, Set<Address>>;
-  callback: (isAccepted: boolean) => void;
+  callback?: () => void;
 };
 
 export type RealtimeSyncEvent =
   | ({
       type: "block";
       hasMatchedFilter: boolean;
-      endClock?: () => number;
     } & BlockWithEventData)
   | {
       type: "finalize";
@@ -91,6 +90,17 @@ export type RealtimeSyncEvent =
       block: LightBlock;
       reorgedBlocks: LightBlock[];
     };
+
+type CreateRealtimeSyncParameters = {
+  common: Common;
+  chain: Chain;
+  rpc: Rpc;
+  sources: Source[];
+  syncProgress: Pick<SyncProgress, "finalized">;
+  initialChildAddresses: Map<Factory, Map<Address, number>>;
+  onEvent: (event: RealtimeSyncEvent) => void;
+  onFatalError: (error: Error) => void;
+};
 
 const MAX_LATEST_BLOCK_ATTEMPT_MS = 3 * 60 * 1000; // 3 minutes
 
@@ -106,8 +116,8 @@ export const createRealtimeSync = (
   // state
   ////////
   let isBlockReceipts = true;
-  let finalizedBlock: LightBlock;
-  let childAddresses = new Map<Factory, Map<Address, number>>();
+  let finalizedBlock: LightBlock = args.syncProgress.finalized;
+  const childAddresses = args.initialChildAddresses;
   /** Annotates `childAddresses` for efficient lookup by block number */
   const childAddressesPerBlock = new Map<
     number,
@@ -740,8 +750,8 @@ export const createRealtimeSync = (
    */
   const fetchAndReconcileLatestBlock = async (
     block: SyncBlock,
-    callback: (isAccepted: boolean) => void,
-  ) => {
+    callback: () => void,
+  ): Promise<boolean> => {
     try {
       args.common.logger.debug({
         service: "realtime",
@@ -757,15 +767,22 @@ export const createRealtimeSync = (
           msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
         });
 
-        callback(false);
-        return;
+        return false;
       }
 
       const blockWithEventData = await fetchBlockEventData(block);
 
       fetchAndReconcileLatestBlockErrorCount = 0;
 
-      return reconcileBlock({ ...blockWithEventData, callback });
+      const result = await reconcileBlock({ ...blockWithEventData, callback });
+
+      if (result.type === "accepted") {
+        return true;
+      } else if (result.type === "rejected") {
+        return false;
+      } else {
+        return result.promise;
+      }
     } catch (_error) {
       const error = _error as Error;
 
@@ -793,9 +810,9 @@ export const createRealtimeSync = (
         });
 
         args.onFatalError(error);
-
-        callback(false);
       }
+
+      return false;
     }
   };
 
@@ -815,7 +832,16 @@ export const createRealtimeSync = (
    * processed serially.
    */
   const reconcileBlock = mutex(
-    async (blockWithEventData: BlockWithEventData) => {
+    async (
+      blockWithEventData: BlockWithEventData,
+    ): Promise<
+      | { type: "accepted" }
+      | { type: "rejected" }
+      | {
+          type: "pending";
+          promise: Promise<boolean>;
+        }
+    > => {
       const latestBlock = getLatestUnfinalizedBlock();
       const block = blockWithEventData.block;
 
@@ -826,8 +852,7 @@ export const createRealtimeSync = (
           msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
         });
 
-        blockWithEventData.callback(false);
-        return;
+        return { type: "rejected" };
       }
 
       try {
@@ -836,8 +861,7 @@ export const createRealtimeSync = (
         if (hexToNumber(latestBlock.number) >= hexToNumber(block.number)) {
           await reconcileReorg(block);
 
-          blockWithEventData.callback(false);
-          return;
+          return { type: "rejected" };
         }
 
         // Blocks are missing. They should be fetched and enqueued.
@@ -869,21 +893,23 @@ export const createRealtimeSync = (
             )}]`,
           });
 
-          reconcileBlock.clear(({ task }) => task.callback(false));
+          reconcileBlock.clear(({ resolve }) => resolve({ type: "rejected" }));
           for (const pendingBlock of pendingBlocks) {
-            reconcileBlock({ ...pendingBlock, callback: () => {} });
+            reconcileBlock(pendingBlock);
           }
 
-          // Note: awaiting will cause a deadlock
-          reconcileBlock(blockWithEventData);
-          return;
+          return {
+            type: "pending",
+            promise: reconcileBlock(blockWithEventData).then(
+              (result) => result.type === "accepted",
+            ),
+          };
         }
 
         // Check if a reorg occurred by validating the chain of block hashes.
         if (block.parentHash !== latestBlock.hash) {
           await reconcileReorg(block);
-          blockWithEventData.callback(false);
-          return;
+          return { type: "rejected" };
         }
 
         // New block is exactly one block ahead of the local chain.
@@ -997,7 +1023,7 @@ export const createRealtimeSync = (
         // Reset the error state after successfully completing the happy path.
         reconcileBlockErrorCount = 0;
 
-        return;
+        return { type: "accepted" };
       } catch (_error) {
         const error = _error as Error;
 
@@ -1024,7 +1050,7 @@ export const createRealtimeSync = (
 
         // Remove all blocks from the queue. This protects against an
         // erroneous block causing a fatal error.
-        reconcileBlock.clear(({ task }) => task.callback(false));
+        reconcileBlock.clear(({ resolve }) => resolve({ type: "rejected" }));
 
         reconcileBlockErrorCount += 1;
 
@@ -1039,41 +1065,14 @@ export const createRealtimeSync = (
           args.onFatalError(error);
         }
 
-        blockWithEventData.callback(false);
+        return { type: "rejected" };
       }
     },
   );
 
   return {
-    start(startArgs) {
-      finalizedBlock = startArgs.syncProgress.finalized;
-      childAddresses = startArgs.initialChildAddresses;
-
-      args.rpc.subscribe({
-        onBlock: async (block) => {
-          // TODO(kyle) memory leak
-          const pwr = promiseWithResolvers<void>();
-          const endClock = startClock();
-          await fetchAndReconcileLatestBlock(block, (isAccepted) => {
-            pwr.resolve();
-
-            if (isAccepted) {
-              args.common.metrics.ponder_realtime_latency.observe(
-                { chain: args.chain.name },
-                endClock(),
-              );
-            }
-          });
-
-          return pwr.promise;
-        },
-        onError: () => {
-          // TODO(kyle) handle error
-        },
-      });
-
-      // Note: Return the mutex for testing purposes.
-      return reconcileBlock;
+    sync(block, callback) {
+      return fetchAndReconcileLatestBlock(block, callback);
     },
     get unfinalizedBlocks() {
       return unfinalizedBlocks;

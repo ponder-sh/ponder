@@ -4,13 +4,26 @@ import { type NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { customType, pgSchema } from "drizzle-orm/pg-core";
 import seedrandom from "seedrandom";
-import {
-  type SimParams,
-  debug,
-} from "../packages/core/src/bin/commands/debug.js";
+import { custom, hexToNumber } from "viem";
+import { start } from "../packages/core/src/bin/commands/start.js";
 import { getPrimaryKeyColumns } from "../packages/core/src/drizzle/index.js";
+import { createRpc } from "../packages/core/src/rpc/index.js";
 import { getChunks } from "../packages/core/src/utils/interval.js";
 import { promiseWithResolvers } from "../packages/core/src/utils/promiseWithResolvers.js";
+import { _eth_getBlockByNumber } from "../packages/core/src/utils/rpc.js";
+import { realtimeBlockEngine, sim } from "./rpc/index.js";
+
+export type SimParams = {
+  SEED: string;
+  ERROR_RATE: number;
+  ETH_GET_LOGS_RESPONSE_LIMIT: number;
+  ETH_GET_LOGS_BLOCK_LIMIT: number;
+  REALTIME_REORG_RATE: number;
+  REALTIME_DEEP_REORG_RATE: number;
+  REALTIME_FAST_FORWARD_RATE: number;
+  REALTIME_DELAY_RATE: number;
+  FINALIZED_RATE: number;
+};
 
 // inputs
 
@@ -150,7 +163,7 @@ process.env.DATABASE_SCHEMA = "public";
 
 const pwr = promiseWithResolvers<void>();
 
-const kill = await debug({
+const kill = await start({
   cliOptions: {
     root: APP_DIR,
     command: "start",
@@ -159,11 +172,92 @@ const kill = await debug({
     logFormat: "pretty",
     // logLevel: "debug",
   },
-  params: SIM_PARAMS,
-  rpcConnectionString: process.env.CONNECTION_STRING!,
-  onReady: () => {},
-  onComplete: () => {
-    pwr.resolve();
+  onBuild: async (app) => {
+    const chains: Parameters<typeof realtimeBlockEngine>[0] = new Map();
+    for (let i = 0; i < app.indexingBuild.chains.length; i++) {
+      const chain = app.indexingBuild.chains[i]!;
+      const rpc = app.indexingBuild.rpcs[i]!;
+
+      // replace rpc with simulated transport
+
+      chain.rpc = sim(
+        custom({
+          async request(body) {
+            return rpc.request(body);
+          },
+        }),
+        SIM_PARAMS,
+        process.env.CONNECTION_STRING!,
+      );
+
+      app.indexingBuild.rpcs[i] = createRpc({
+        common: app.common,
+        chain,
+        concurrency: Math.floor(
+          app.common.options.rpcMaxConcurrency /
+            app.indexingBuild.chains.length,
+        ),
+      });
+
+      const start = Math.min(
+        ...app.indexingBuild.sources.map(({ filter }) => filter.fromBlock ?? 0),
+      );
+
+      const end = Math.max(
+        ...app.indexingBuild.sources.map(({ filter }) => filter.toBlock!),
+      );
+
+      app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(rpc, {
+        blockNumber:
+          start + Math.floor((end - start) * SIM_PARAMS.FINALIZED_RATE),
+      });
+
+      chains.set(chain.id, {
+        // @ts-ignore
+        request: rpc.request,
+        interval: [
+          hexToNumber(app.indexingBuild.finalizedBlocks[i]!.number) + 1,
+          end,
+        ],
+      });
+
+      app.common.logger.warn({
+        service: "sim",
+        msg: `Mocking eip1193 transport for chain '${chain.name}'`,
+      });
+    }
+
+    const getRealtimeBlockGenerator = await realtimeBlockEngine(
+      chains,
+      SIM_PARAMS,
+      process.env.CONNECTION_STRING!,
+    );
+
+    for (let i = 0; i < app.indexingBuild.chains.length; i++) {
+      const chain = app.indexingBuild.chains[i]!;
+      const rpc = app.indexingBuild.rpcs[i]!;
+
+      rpc.subscribe = ({ onBlock }) => {
+        (async () => {
+          for await (const block of getRealtimeBlockGenerator(chain.id)) {
+            // @ts-ignore
+            await onBlock(block);
+          }
+          app.common.logger.warn({
+            service: "sim",
+            msg: `Realtime block subscription for chain '${chain.name}' completed`,
+          });
+          pwr.resolve();
+        })();
+      };
+
+      app.common.logger.warn({
+        service: "sim",
+        msg: `Mocking realtime block subscription for chain '${chain.name}'`,
+      });
+    }
+
+    return app;
   },
 });
 

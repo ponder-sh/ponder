@@ -35,24 +35,20 @@ export async function run({
   namespaceBuild,
   schemaBuild,
   indexingBuild,
-  database,
   crashRecoveryCheckpoint,
+  database,
   onFatalError,
   onReloadableError,
-  onReady,
-  onComplete,
 }: {
   common: Common;
   preBuild: PreBuild;
   namespaceBuild: NamespaceBuild;
   schemaBuild: SchemaBuild;
   indexingBuild: IndexingBuild;
-  database: Database;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
+  database: Database;
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
-  onReady: () => void;
-  onComplete: () => void;
 }) {
   await database.migrateSync();
 
@@ -71,7 +67,6 @@ export async function run({
       return onRealtimeEvent(realtimeEvent);
     },
     onFatalError,
-    onComplete,
     crashRecoveryCheckpoint,
     ordering: preBuild.ordering,
   });
@@ -486,8 +481,6 @@ export async function run({
   }
 
   await database.setReady();
-
-  onReady();
 
   const realtimeIndexingStore = createRealtimeIndexingStore({
     common,

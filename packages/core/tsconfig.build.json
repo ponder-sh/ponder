@@ -1,12 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "include": ["src/**/*.ts"],
-  "exclude": [
-    "src/**/*.test.ts",
-    "src/**/*.test-d.ts",
-    "src/_test",
-    "src/bin/commands/debug.ts"
-  ],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test-d.ts", "src/_test"],
   "compilerOptions": {
     "outDir": "./dist/esm",
     "declarationDir": "./dist/types",
