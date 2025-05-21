@@ -33,7 +33,7 @@ export type Db<schema extends Schema> = {
   /**
    * Find a row
    *
-   * - Docs: https://ponder.sh/docs/indexing/write-to-the-database#find
+   * - Docs: https://ponder.sh/docs/indexing/write#find
    *
    * @example
    * ```ts twoslash
@@ -48,7 +48,7 @@ export type Db<schema extends Schema> = {
   /**
    * Create new rows
    *
-   * - Docs: https://ponder.sh/docs/indexing/write-to-the-database#insert
+   * - Docs: https://ponder.sh/docs/indexing/write#insert
    *
    * @example
    * ```ts twoslash
@@ -82,7 +82,7 @@ export type Db<schema extends Schema> = {
   /**
    * Update a row
    *
-   * - Docs: https://ponder.sh/docs/indexing/write-to-the-database#update
+   * - Docs: https://ponder.sh/docs/indexing/write#update
    *
    * @example
    * ```ts twoslash
@@ -105,7 +105,7 @@ export type Db<schema extends Schema> = {
   /**
    * Delete a row
    *
-   * - Docs: https://ponder.sh/docs/indexing/write-to-the-database#delete
+   * - Docs: https://ponder.sh/docs/indexing/write#delete
    *
    * @example
    * ```ts twoslash
@@ -120,7 +120,7 @@ export type Db<schema extends Schema> = {
   /**
    * Access the raw drizzle object
    *
-   * - Docs: https://ponder.sh/docs/indexing/write-to-the-database#raw-sql
+   * - Docs: https://ponder.sh/docs/indexing/write#raw-sql
    */
   sql: Prettify<Omit<Drizzle<schema>, "refreshMaterializedView" | "_">>;
 };
@@ -185,7 +185,7 @@ export type Insert = <
   /**
    * Create new rows
    *
-   * - Docs: https://ponder.sh/docs/indexing/write-to-the-database#insert
+   * - Docs: https://ponder.sh/docs/indexing/write#insert
    *
    * @example
    * ```ts twoslash
@@ -207,7 +207,7 @@ export type Insert = <
     /**
      * Create new rows, cancelling the insert if there is a conflict
      *
-     * - Docs: https://ponder.sh/docs/indexing/write-to-the-database#upsert--conflict-resolution
+     * - Docs: https://ponder.sh/docs/indexing/write#onconflictdonothing
      * @example
      * ```ts twoslash
      * await db.insert(table).values({ id: 10, name: "joe" }).onConflictDoNothing();
@@ -220,7 +220,7 @@ export type Insert = <
     /**
      * Create new rows, updating the row if there is a conflict
      *
-     * - Docs: https://ponder.sh/docs/indexing/write-to-the-database#upsert--conflict-resolution
+     * - Docs: https://ponder.sh/docs/indexing/write#onconflictdoupdate
      *
      * @example
      * ```ts twoslash
@@ -262,7 +262,7 @@ export type Update = <
   /**
    * Update a row
    *
-   * - Docs: https://ponder.sh/docs/indexing/write-to-the-database#update
+   * - Docs: https://ponder.sh/docs/indexing/write#update
    *
    * @example
    * ```ts twoslash

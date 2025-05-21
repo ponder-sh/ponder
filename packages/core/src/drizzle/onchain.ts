@@ -130,7 +130,7 @@ export type PgColumnsBuilders = Omit<
   /**
    * Create a column for hex strings.
    *
-   * - Docs: https://ponder.sh/docs/api-reference/schema#onchaintable
+   * - Docs: https://ponder.sh/docs/api-reference/ponder/schema#onchaintable
    *
    * @example
    * import { hex, onchainTable } from "ponder";
@@ -143,7 +143,7 @@ export type PgColumnsBuilders = Omit<
   /**
    * Create a column for Ethereum integers
    *
-   * - Docs: https://ponder.sh/docs/api-reference/schema#onchaintable
+   * - Docs: https://ponder.sh/docs/api-reference/ponder/schema#onchaintable
    *
    * @example
    * import { bigint, onchainTable } from "ponder";
@@ -156,7 +156,7 @@ export type PgColumnsBuilders = Omit<
   /**
    * Create a column for Ethereum bytes
    *
-   * - Docs: https://ponder.sh/docs/api-reference/schema#onchaintable
+   * - Docs: https://ponder.sh/docs/api-reference/ponder/schema#onchaintable
    *
    * @example
    * import { bytes, onchainTable } from "ponder";
@@ -171,7 +171,7 @@ export type PgColumnsBuilders = Omit<
 /**
  * Create an onchain table.
  *
- * - Docs: https://ponder.sh/docs/api-reference/schema#onchaintable
+ * - Docs: https://ponder.sh/docs/api-reference/ponder/schema#onchaintable
  *
  * @example
  * import { onchainTable } from "ponder";

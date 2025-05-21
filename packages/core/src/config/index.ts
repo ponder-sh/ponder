@@ -81,7 +81,7 @@ type FunctionCallConfig = {
   /*
    * Enable call trace indexing for this contract.
    *
-   * - Docs: https://ponder.sh/docs/indexing/call-traces
+   * - Docs: https://ponder.sh/docs/guides/call-traces
    */
   includeCallTraces?: boolean;
 };
