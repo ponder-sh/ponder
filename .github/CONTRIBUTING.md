@@ -8,16 +8,23 @@ If you want to contribute, but aren't sure where to start, reach out in Ponder's
 
 This guide is intended to help you get started with contributing. By following these steps, you will understand the development process and workflow.
 
-- [Fork the repository](#fork-the-repository)
-- [Install Node.js and pnpm](#install-nodejs-and-pnpm)
-- [Install Foundry](#install-foundry)
-- [Install dependencies](#install-dependencies)
-- [Build packages](#build-packages)
-- [Run the test suite](#run-the-test-suite)
-- [Write documentation](#write-documentation)
-- [Submit a pull request](#submit-a-pull-request)
-- [Versioning and releases](#versioning-and-releases)
-- [That's it!](#thats-it)
+- [Contributing](#contributing)
+  - [Get started](#get-started)
+  - [Fork the repository](#fork-the-repository)
+  - [Install Node.js and pnpm](#install-nodejs-and-pnpm)
+  - [Install Foundry](#install-foundry)
+  - [Install dependencies](#install-dependencies)
+  - [Build packages](#build-packages)
+  - [Run the test suite](#run-the-test-suite)
+    - [Running tests](#running-tests)
+    - [Run tests against Postgres](#run-tests-against-postgres)
+  - [Write documentation](#write-documentation)
+  - [Submit a pull request](#submit-a-pull-request)
+  - [Versioning and releases](#versioning-and-releases)
+    - [Changesets workflow](#changesets-workflow)
+    - [Prereleases](#prereleases)
+    - [Releases](#releases)
+  - [That's it!](#thats-it)
 
 <br>
 
@@ -173,6 +180,10 @@ Ponder is still in alpha, so all changes should be marked as a patch.
 3. The changesets CLI will generate a Markdown file in `.changeset/` that includes the details you provided. Commit this file to your PR branch (e.g. `git commit -m "chore: changeset"`).
 4. When you push this commit to remote, a GitHub bot will detect the changeset and add a comment to your PR with a preview of the changelog.
 5. Merge your PR. The changesets Github Action workflow will open (or update) a PR with the title `"chore: version packages"`. The changes in your PR **will not be released** until this PR is merged.
+
+### Prereleases
+
+If you want to do a release before merging code to main, follow the steps above, creating a changeset but stop before merging your pr. Instead, trigger the `snapshot.yml` workflow. This will create a [snapshot](https://github.com/changesets/changesets/blob/main/docs/snapshot-releases.md) release available on npm with an automatically generated tag in the name (i.e `0.11.4-kjs/drizzle-20250516152012`).
 
 ### Releases
 
