@@ -62,7 +62,7 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
 
 ## Client
 
-The `context.client` object is a custom [Viem Client](https://viem.sh/docs/clients/intro.html) that caches requests by block number.
+The `context.client` object is a custom [Viem Client](https://viem.sh/docs/clients/intro.html) that caches RPC responses.
 
 ```ts [src/index.ts]
 import { ponder } from "ponder:registry";
@@ -102,11 +102,9 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
   ```
 :::
 
-### Transport
-
-`context.client` uses the transports you specify in the chains section of `ponder.config.ts`.
-
 ### Supported actions
+
+The `context.client` object supports most Viem actions.
 
 | name                        | description                                                                                         | Viem docs                                                                                      |
 | :-------------------------- | :-------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------- |
@@ -131,6 +129,23 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
 | getEnsName                  | Gets primary name for specified address.                                                            | [getEnsName](https://viem.sh/docs/ens/actions/getEnsName)                                      |
 | getEnsResolver              | Gets resolver for ENS name.                                                                         | [getEnsResolver](https://viem.sh/docs/ens/actions/getEnsResolver)                              |
 | getEnsText                  | Gets a text record for specified ENS name.                                                          | [getEnsText](https://viem.sh/docs/ens/actions/getEnsText)                                      |
+
+### Direct RPC requests
+
+Use the `context.client.request` method to make direct RPC requests. This low-level approach can be useful for advanced RPC request patterns that are not supported by the actions above.
+
+```ts [src/index.ts]
+import { ponder } from "ponder:registry";
+
+ponder.on("ENS:NewOwner", async ({ event, context }) => {
+  const traces = await context.client.request({ // [!code focus]
+    method: 'debug_traceTransaction', // [!code focus]
+    params: [event.transaction.hash, { tracer: "callTracer" }] // [!code focus]
+  }); // [!code focus]
+
+  // ...
+});
+```
 
 ### Block number
 
@@ -171,7 +186,9 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
 
 ### Caching
 
-To avoid wasteful RPC requests, all RPC requests made using `context.client` are cached in the database. When an indexing function calls a method with a specific set of arguments for the first time, it will make an RPC request. Any subsequent calls to the same method with the same arguments will be served from the cache.
+Most RPC requests made using `context.client` are cached in the database. When an indexing function calls a method with a specific set of arguments for the first time, it will make an RPC request. Any subsequent calls to the same method with the same arguments will be served from the cache.
+
+See the [full list](https://github.com/ponder-sh/ponder/blob/main/packages/core/src/indexing/client.ts#L73-L121) of cache-enabled RPC methods in the source code.
 
 ## Contract addresses & ABIs
 
