@@ -174,6 +174,10 @@ Ponder is still in alpha, so all changes should be marked as a patch.
 4. When you push this commit to remote, a GitHub bot will detect the changeset and add a comment to your PR with a preview of the changelog.
 5. Merge your PR. The changesets Github Action workflow will open (or update) a PR with the title `"chore: version packages"`. The changes in your PR **will not be released** until this PR is merged.
 
+### Prereleases
+
+If you want to do a release before merging code to main, follow the steps above, creating a changeset but stop before merging your pr. Instead, trigger the `snapshot.yml` workflow. This will create a [snapshot](https://github.com/changesets/changesets/blob/main/docs/snapshot-releases.md) release available on npm with an automatically generated tag in the name (i.e `0.11.4-kjs/drizzle-20250516152012`).
+
 ### Releases
 
 When you're ready to release, merge the `"chore: version packages"` PR into `main`. This will trigger the changesets Github Action workflow to build packages, publish to NPM, and create a new GitHub release.
