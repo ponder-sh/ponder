@@ -1,158 +1,106 @@
 import { ponder } from "ponder:registry";
-import { state, table } from "ponder:schema";
+import { table } from "ponder:schema";
+import { ZERO_CHECKPOINT_STRING } from "../../../../packages/core/src/utils/checkpoint";
 import config from "../ponder.config";
 
-// TODO(kyle) build indexing functions based on `ponder.config.ts`
-// TODO(kyle) add content assertions
+let checkpoint: string;
 
 for (const name of Object.keys(config.contracts)) {
-  ponder.on(
-    `${name as keyof typeof config.contracts}:setup`,
-    async ({ context }) => {
-      const { serial } = await context.db
-        .insert(state)
-        .values({
-          chainId: context.chain.id,
-          serial: 0,
-        })
-        .onConflictDoUpdate({});
+  ponder.on(`${name}:setup`, async ({ context }) => {
+    checkpoint = ZERO_CHECKPOINT_STRING;
 
-      await context.db.insert(table).values({
-        chainId: context.chain.id,
-        id: `${name as keyof typeof config.contracts}:setup`,
-        name: `${name as keyof typeof config.contracts}:setup`,
-        serial,
-      });
-    },
-  );
+    await context.db.insert(table).values({
+      chainId: context.chain.id,
+      name: `${name}:setup`,
+      checkpoint,
+    });
+  });
 
-  ponder.on(
-    `${name as keyof typeof config.contracts}:Transfer`,
-    async ({ event, context }) => {
-      const { serial } = await context.db
-        .update(state, { chainId: context.chain.id })
-        .set((row) => ({
-          serial: row.serial + 1,
-        }));
+  ponder.on(`${name}:Transfer`, async ({ event, context }) => {
+    if (event.id < checkpoint) throw new Error("Out of order event");
 
-      await context.db.insert(table).values({
-        chainId: context.chain.id,
-        id: event.id,
-        name: `${name as keyof typeof config.contracts}:Transfer`,
-        serial,
-      });
-    },
-  );
+    checkpoint = event.id;
 
-  ponder.on(
-    `${name as keyof typeof config.contracts}.transfer()`,
-    async ({ event, context }) => {
-      const { serial } = await context.db
-        .update(state, { chainId: context.chain.id })
-        .set((row) => ({
-          serial: row.serial + 1,
-        }));
+    await context.db.insert(table).values({
+      chainId: context.chain.id,
+      name: `${name}:Transfer`,
+      checkpoint,
+    });
+  });
 
-      await context.db.insert(table).values({
-        chainId: context.chain.id,
-        id: event.id,
-        name: `${name as keyof typeof config.contracts}.transfer()`,
-        serial,
-      });
-    },
-  );
+  ponder.on(`${name}.transfer()`, async ({ event, context }) => {
+    if (event.id < checkpoint) throw new Error("Out of order event");
+
+    checkpoint = event.id;
+
+    await context.db.insert(table).values({
+      chainId: context.chain.id,
+      name: `${name}.transfer()`,
+      checkpoint,
+    });
+  });
 }
 
 for (const name of Object.keys(config.accounts)) {
-  ponder.on(
-    `${name as keyof typeof config.accounts}:transaction:from`,
-    async ({ event, context }) => {
-      const { serial } = await context.db
-        .update(state, { chainId: context.chain.id })
-        .set((row) => ({
-          serial: row.serial + 1,
-        }));
+  ponder.on(`${name}:transaction:from`, async ({ event, context }) => {
+    if (event.id < checkpoint) throw new Error("Out of order event");
 
-      await context.db.insert(table).values({
-        chainId: context.chain.id,
-        id: event.id,
-        name: `${name as keyof typeof config.accounts}:transaction:from`,
-        serial,
-      });
-    },
-  );
+    checkpoint = event.id;
 
-  ponder.on(
-    `${name as keyof typeof config.accounts}:transaction:to`,
-    async ({ event, context }) => {
-      const { serial } = await context.db
-        .update(state, { chainId: context.chain.id })
-        .set((row) => ({
-          serial: row.serial + 1,
-        }));
+    await context.db.insert(table).values({
+      chainId: context.chain.id,
+      name: `${name}:transaction:from`,
+      checkpoint,
+    });
+  });
 
-      await context.db.insert(table).values({
-        chainId: context.chain.id,
-        id: event.id,
-        name: `${name as keyof typeof config.accounts}:transaction:to`,
-        serial,
-      });
-    },
-  );
+  ponder.on(`${name}:transaction:to`, async ({ event, context }) => {
+    if (event.id < checkpoint) throw new Error("Out of order event");
 
-  ponder.on(
-    `${name as keyof typeof config.accounts}:transfer:from`,
-    async ({ event, context }) => {
-      const { serial } = await context.db
-        .update(state, { chainId: context.chain.id })
-        .set((row) => ({
-          serial: row.serial + 1,
-        }));
+    checkpoint = event.id;
 
-      await context.db.insert(table).values({
-        chainId: context.chain.id,
-        id: event.id,
-        name: `${name as keyof typeof config.accounts}:transfer:from`,
-        serial,
-      });
-    },
-  );
+    await context.db.insert(table).values({
+      chainId: context.chain.id,
+      name: `${name}:transaction:to`,
+      checkpoint,
+    });
+  });
 
-  ponder.on(
-    `${name as keyof typeof config.accounts}:transfer:to`,
-    async ({ event, context }) => {
-      const { serial } = await context.db
-        .update(state, { chainId: context.chain.id })
-        .set((row) => ({
-          serial: row.serial + 1,
-        }));
+  ponder.on(`${name}:transfer:from`, async ({ event, context }) => {
+    if (event.id < checkpoint) throw new Error("Out of order event");
 
-      await context.db.insert(table).values({
-        chainId: context.chain.id,
-        id: event.id,
-        name: `${name as keyof typeof config.accounts}:transfer:to`,
-        serial,
-      });
-    },
-  );
+    checkpoint = event.id;
+
+    await context.db.insert(table).values({
+      chainId: context.chain.id,
+      name: `${name}:transfer:from`,
+      checkpoint,
+    });
+  });
+
+  ponder.on(`${name}:transfer:to`, async ({ event, context }) => {
+    if (event.id < checkpoint) throw new Error("Out of order event");
+
+    checkpoint = event.id;
+
+    await context.db.insert(table).values({
+      chainId: context.chain.id,
+      name: `${name}:transfer:to`,
+      checkpoint,
+    });
+  });
 }
 
 for (const name of Object.keys(config.blocks)) {
-  ponder.on(
-    `${name as keyof typeof config.blocks}:block`,
-    async ({ event, context }) => {
-      const { serial } = await context.db
-        .update(state, { chainId: context.chain.id })
-        .set((row) => ({
-          serial: row.serial + 1,
-        }));
+  ponder.on(`${name}:block`, async ({ event, context }) => {
+    if (event.id < checkpoint) throw new Error("Out of order event");
 
-      await context.db.insert(table).values({
-        chainId: context.chain.id,
-        id: event.id,
-        name: `${name as keyof typeof config.blocks}:block`,
-        serial,
-      });
-    },
-  );
+    checkpoint = event.id;
+
+    await context.db.insert(table).values({
+      chainId: context.chain.id,
+      name: `${name}:block`,
+      checkpoint,
+    });
+  });
 }

@@ -73,9 +73,7 @@ const resolveOutcome = <T>(
   ]!;
 };
 
-const RANDOM = true;
-
-export default RANDOM
+export default process.env.SEED
   ? createConfig({
       ordering: resolveOutcome(["omnichain", "multichain"], "ordering"),
       chains: {
