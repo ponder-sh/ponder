@@ -1,6 +1,6 @@
 {
   "name": "@ponder/react",
-  "version": "0.11.5",
+  "version": "0.11.6",
   "description": "React hooks for Ponder",
   "license": "MIT",
   "repository": {
@@ -37,7 +37,7 @@
     "superjson": "^2.2.2"
   },
   "peerDependencies": {
-    "@ponder/client": ">=0.11.5",
+    "@ponder/client": ">=0.11.6",
     "@tanstack/react-query": ">=5.0.0",
     "react": ">=18",
     "typescript": ">=5.0.4"

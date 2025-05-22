@@ -1,5 +1,13 @@
 # ponder
 
+## 0.11.6
+
+### Patch Changes
+
+- [#1763](https://github.com/ponder-sh/ponder/pull/1763) [`16736b2`](https://github.com/ponder-sh/ponder/commit/16736b2ce30498f3bea9abdcbab66b6216cc3925) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an event ordering bug for deep reorg retries.
+
+- [#1774](https://github.com/ponder-sh/ponder/pull/1774) [`a069bd8`](https://github.com/ponder-sh/ponder/commit/a069bd8d984a8958df81c6d0249423d91483fda0) Thanks [@scottrepreneur](https://github.com/scottrepreneur)! - Fixed broken docs links.
+
 ## 0.11.5
 
 ### Patch Changes
