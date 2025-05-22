@@ -852,6 +852,9 @@ export const createSync = async (params: {
             { chain: chain.name },
             1,
           );
+          if (pendingEvents.length > 0) {
+            console.log("FUCK", pendingEvents.length);
+          }
         } else {
           params.common.metrics.ponder_sync_is_realtime.set(
             { chain: chain.name },
