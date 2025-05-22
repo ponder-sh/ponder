@@ -26,5 +26,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           snapshot=$(git branch --show-current | tr -cs '[:alnum:]-' '-' | tr '[:upper:]' '[:lower:]' | sed 's/-$//')
+          npm config set "//registry.npmjs.org/:_authToken" "$NPM_TOKEN"
           pnpm changeset version --no-git-tag --snapshot $snapshot
           pnpm changeset publish --no-git-tag --snapshot $snapshot --tag $snapshot
