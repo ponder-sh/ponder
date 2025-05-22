@@ -36,6 +36,7 @@ export type SimParams = {
 
 // inputs
 
+const DATABASE_URL = process.env.DATABASE_URL!;
 const APP_ID = process.argv[2];
 const APP_DIR = `./apps/${APP_ID}`;
 const SEED = process.env.SEED ?? crypto.randomBytes(32).toString("hex");
@@ -48,7 +49,7 @@ if (APP_ID === undefined) {
 // params
 
 const INTERVAL_CHUNKS = 8;
-const INTERVAL_EVICT_RATE = 0;
+const INTERVAL_EVICT_RATE = 0.25;
 const SUPER_ASSESSMENT_FILTER_RATE = 0.5;
 
 const SIM_PARAMS: SimParams = {
@@ -64,10 +65,10 @@ const SIM_PARAMS: SimParams = {
   REALTIME_FAST_FORWARD_RATE: 0.5,
   /** Probability that a block is delayed and a block on another chain is ordered first. */
   REALTIME_DELAY_RATE: 0.4,
-  FINALIZED_RATE: 1,
+  FINALIZED_RATE: 0.95,
 };
 
-let db = drizzle(process.env.DATABASE_URL!, { casing: "snake_case" });
+let db = drizzle(DATABASE_URL!, { casing: "snake_case" });
 
 // 1. Setup database
 //   - create database using template
@@ -76,7 +77,7 @@ let db = drizzle(process.env.DATABASE_URL!, { casing: "snake_case" });
 
 await db.execute(sql.raw(`CREATE DATABASE "${UUID}" TEMPLATE "${APP_ID}"`));
 
-db = drizzle(`${process.env.DATABASE_URL!}/${UUID}`, {
+db = drizzle(`${DATABASE_URL!}/${UUID}`, {
   casing: "snake_case",
 });
 
@@ -96,66 +97,66 @@ const INTERVALS = pgSchema("ponder_sync").table("intervals", (t) => ({
   })().notNull(),
 }));
 
-// for (const interval of await db.select().from(INTERVALS)) {
-//   const blocks: [number, number] = JSON.parse(interval.blocks.slice(1, -1));
-//   const chunks = getChunks({
-//     interval: [blocks[0], blocks[1] - 1],
-//     maxChunkSize: Math.floor((blocks[1] - blocks[0]) / INTERVAL_CHUNKS),
-//   });
-//   const resultIntervals: [number, number][] = [];
-//   const rng = seedrandom(SEED! + interval.fragmentId);
-//   for (const chunk of chunks) {
-//     if (rng() > INTERVAL_EVICT_RATE) {
-//       resultIntervals.push(chunk);
-//     } else {
-//       // TODO(kyle) cannot drop all logs in interval because they may be referenced by another interval
-//       // await db.execute(
-//       //   sql.raw(
-//       //     `DELETE FROM ponder_sync.blocks WHERE number >= ${chunk[0]} and number <= ${chunk[1]}`,
-//       //   ),
-//       // );
-//       // await db.execute(
-//       //   sql.raw(
-//       //     `DELETE FROM ponder_sync.transactions WHERE block_number >= ${chunk[0]} and block_number <= ${chunk[1]}`,
-//       //   ),
-//       // );
-//       // await db.execute(
-//       //   sql.raw(
-//       //     `DELETE FROM ponder_sync.transaction_receipts WHERE block_number >= ${chunk[0]} and block_number <= ${chunk[1]}`,
-//       //   ),
-//       // );
-//       // await db.execute(
-//       //   sql.raw(
-//       //     `DELETE FROM ponder_sync.traces WHERE block_number >= ${chunk[0]} and block_number <= ${chunk[1]}`,
-//       //   ),
-//       // );
-//       // await db.execute(
-//       //   sql.raw(
-//       //     `DELETE FROM ponder_sync.logs WHERE block_number >= ${chunk[0]} and block_number <= ${chunk[1]}`,
-//       //   ),
-//       // );
-//     }
-//   }
-//   if (resultIntervals.length === 0) {
-//     await db
-//       .delete(INTERVALS)
-//       .where(eq(INTERVALS.fragmentId, interval.fragmentId));
-//   } else {
-//     const numranges = resultIntervals
-//       .map((interval) => {
-//         const start = interval[0];
-//         const end = interval[1] + 1;
-//         return `numrange(${start}, ${end}, '[]')`;
-//       })
-//       .join(", ");
-//     await db
-//       .update(INTERVALS)
-//       .set({
-//         blocks: sql.raw(`nummultirange(${numranges})`),
-//       })
-//       .where(eq(INTERVALS.fragmentId, interval.fragmentId));
-//   }
-// }
+for (const interval of await db.select().from(INTERVALS)) {
+  const blocks: [number, number] = JSON.parse(interval.blocks.slice(1, -1));
+  const chunks = getChunks({
+    interval: [blocks[0], blocks[1] - 1],
+    maxChunkSize: Math.floor((blocks[1] - blocks[0]) / INTERVAL_CHUNKS),
+  });
+  const resultIntervals: [number, number][] = [];
+  const rng = seedrandom(SEED! + interval.fragmentId);
+  for (const chunk of chunks) {
+    if (rng() > INTERVAL_EVICT_RATE) {
+      resultIntervals.push(chunk);
+    } else {
+      // TODO(kyle) cannot drop all logs in interval because they may be referenced by another interval
+      // await db.execute(
+      //   sql.raw(
+      //     `DELETE FROM ponder_sync.blocks WHERE number >= ${chunk[0]} and number <= ${chunk[1]}`,
+      //   ),
+      // );
+      // await db.execute(
+      //   sql.raw(
+      //     `DELETE FROM ponder_sync.transactions WHERE block_number >= ${chunk[0]} and block_number <= ${chunk[1]}`,
+      //   ),
+      // );
+      // await db.execute(
+      //   sql.raw(
+      //     `DELETE FROM ponder_sync.transaction_receipts WHERE block_number >= ${chunk[0]} and block_number <= ${chunk[1]}`,
+      //   ),
+      // );
+      // await db.execute(
+      //   sql.raw(
+      //     `DELETE FROM ponder_sync.traces WHERE block_number >= ${chunk[0]} and block_number <= ${chunk[1]}`,
+      //   ),
+      // );
+      // await db.execute(
+      //   sql.raw(
+      //     `DELETE FROM ponder_sync.logs WHERE block_number >= ${chunk[0]} and block_number <= ${chunk[1]}`,
+      //   ),
+      // );
+    }
+  }
+  if (resultIntervals.length === 0) {
+    await db
+      .delete(INTERVALS)
+      .where(eq(INTERVALS.fragmentId, interval.fragmentId));
+  } else {
+    const numranges = resultIntervals
+      .map((interval) => {
+        const start = interval[0];
+        const end = interval[1] + 1;
+        return `numrange(${start}, ${end}, '[]')`;
+      })
+      .join(", ");
+    await db
+      .update(INTERVALS)
+      .set({
+        blocks: sql.raw(`nummultirange(${numranges})`),
+      })
+      .where(eq(INTERVALS.fragmentId, interval.fragmentId));
+  }
+}
 
 // 2. Write metadata
 
@@ -168,7 +169,7 @@ console.log({
 });
 
 process.env.PONDER_TELEMETRY_DISABLED = "true";
-process.env.DATABASE_URL = `${process.env.DATABASE_URL!}/${UUID}`;
+process.env.DATABASE_URL = `${DATABASE_URL!}/${UUID}`;
 process.env.DATABASE_SCHEMA = "public";
 
 const pwr = promiseWithResolvers<void>();
@@ -180,7 +181,7 @@ const kill = await start({
     version: "0.0.0",
     config: "ponder.config.ts",
     logFormat: "pretty",
-    // logLevel: "debug",
+    logLevel: "debug",
   },
   onBuild: async (app) => {
     if (APP_ID === "super-assessment") {
@@ -429,27 +430,6 @@ const kill = await start({
       const chain = app.indexingBuild.chains[i]!;
       const rpc = app.indexingBuild.rpcs[i]!;
 
-      // replace rpc with simulated transport
-
-      chain.rpc = sim(
-        custom({
-          async request(body) {
-            return rpc.request(body);
-          },
-        }),
-        SIM_PARAMS,
-        process.env.DATABASE_URL!,
-      );
-
-      app.indexingBuild.rpcs[i] = createRpc({
-        common: app.common,
-        chain,
-        concurrency: Math.floor(
-          app.common.options.rpcMaxConcurrency /
-            app.indexingBuild.chains.length,
-        ),
-      });
-
       const start = Math.min(
         ...app.indexingBuild.sources.map(({ filter }) => filter.fromBlock ?? 0),
       );
@@ -461,6 +441,27 @@ const kill = await start({
       app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(rpc, {
         blockNumber:
           start + Math.floor((end - start) * SIM_PARAMS.FINALIZED_RATE),
+      });
+
+      // replace rpc with simulated transport
+
+      chain.rpc = sim(
+        custom({
+          async request(body) {
+            return rpc.request(body);
+          },
+        }),
+        SIM_PARAMS,
+        DATABASE_URL!,
+      );
+
+      app.indexingBuild.rpcs[i] = createRpc({
+        common: app.common,
+        chain,
+        concurrency: Math.floor(
+          app.common.options.rpcMaxConcurrency /
+            app.indexingBuild.chains.length,
+        ),
       });
 
       chains.set(chain.id, {
@@ -481,7 +482,7 @@ const kill = await start({
     const getRealtimeBlockGenerator = await realtimeBlockEngine(
       chains,
       SIM_PARAMS,
-      process.env.DATABASE_URL!,
+      DATABASE_URL!,
     );
 
     for (let i = 0; i < app.indexingBuild.chains.length; i++) {
@@ -514,7 +515,7 @@ const kill = await start({
 
 // stop when no more events are possible: historical end or realtime finalized
 
-// await pwr.promise;
+await pwr.promise;
 await kill!();
 
 // 4. Compare
@@ -608,15 +609,15 @@ const compareTables = async (
   }
 };
 
-// const schema = await import(`./${APP_DIR}/ponder.schema.ts`);
-// for (const key of Object.keys(schema)) {
-//   if (is(schema[key], Table)) {
-//     const table = schema[key] as Table;
-//     const tableName = getTableName(table);
+const schema = await import(`./${APP_DIR}/ponder.schema.ts`);
+for (const key of Object.keys(schema)) {
+  if (is(schema[key], Table)) {
+    const table = schema[key] as Table;
+    const tableName = getTableName(table);
 
-//     await compareTables(db, table, `expected."${tableName}"`, `"${tableName}"`);
-//   }
-// }
+    await compareTables(db, table, `expected."${tableName}"`, `"${tableName}"`);
+  }
+}
 
 // await compareTables(
 //   db,
