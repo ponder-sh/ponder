@@ -844,7 +844,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
             // Note: ponder <=0.8 will evaluate this as true because the version is undefined
             if (previousApp.version !== VERSION) {
               const error = new NonRetryableError(
-                `Schema '${namespace.schema}' was previously used by a Ponder app with a different minor version. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/getting-started/database#database-schema`,
+                `Schema '${namespace.schema}' was previously used by a Ponder app with a different minor version. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/database#database-schema`,
               );
               error.stack = undefined;
               throw error;
@@ -855,7 +855,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
               previousApp.build_id !== buildId
             ) {
               const error = new NonRetryableError(
-                `Schema '${namespace.schema}' was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/getting-started/database#database-schema`,
+                `Schema '${namespace.schema}' was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/database#database-schema`,
               );
               error.stack = undefined;
               throw error;

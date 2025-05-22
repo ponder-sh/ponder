@@ -277,7 +277,7 @@ export const createBuild = async ({
 
       if (!fs.existsSync(common.options.apiFile)) {
         const error = new BuildError(
-          `API function file not found. Create a file at ${common.options.apiFile}. Read more: https://ponder.sh/docs/query/api-functions`,
+          `API endpoint file not found. Create a file at ${common.options.apiFile}. Read more: https://ponder.sh/docs/api-reference/ponder/api-endpoints`,
         );
         error.stack = undefined;
         common.logger.error({
@@ -310,7 +310,7 @@ export const createBuild = async ({
 
       if (!(app instanceof Hono || app?.constructor?.name === "Hono")) {
         const error = new BuildError(
-          "API function file does not export a Hono instance as the default export. Read more: https://ponder.sh/docs/query/api-functions",
+          "API endpoint file does not export a Hono instance as the default export. Read more: https://ponder.sh/docs/api-reference/ponder/api-endpoints",
         );
         error.stack = undefined;
         common.logger.error({
@@ -333,7 +333,7 @@ export const createBuild = async ({
         process.env.DATABASE_SCHEMA === undefined
       ) {
         const error = new BuildError(
-          "Database schema required. Specify with 'DATABASE_SCHEMA' env var or '--schema' CLI flag. Read more: https://ponder.sh/docs/getting-started/database#database-schema",
+          "Database schema required. Specify with 'DATABASE_SCHEMA' env var or '--schema' CLI flag. Read more: https://ponder.sh/docs/database#database-schema",
         );
         error.stack = undefined;
         common.logger.error({
