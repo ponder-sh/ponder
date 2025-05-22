@@ -3,4 +3,4 @@
 "eslint-config-ponder": patch
 ---
 
-Update the docs links
+Fixed broken docs links.
