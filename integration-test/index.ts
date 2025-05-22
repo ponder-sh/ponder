@@ -40,6 +40,7 @@ if (APP_ID === undefined) {
 
 const INTERVAL_CHUNKS = 8;
 const INTERVAL_EVICT_RATE = 0;
+const SUPER_ASSESSMENT_FILTER_RATE = 0.5;
 
 const SIM_PARAMS: SimParams = {
   SEED,
@@ -173,6 +174,42 @@ const kill = await start({
     // logLevel: "debug",
   },
   onBuild: async (app) => {
+    if (APP_ID === "super-assessment") {
+      // TODO(kyle) remove some filters
+
+      const r = seedrandom(`${SEED!}super-assessment`);
+
+      app.indexingBuild.sources = app.indexingBuild.sources.filter(() => {
+        if (r() < SUPER_ASSESSMENT_FILTER_RATE) {
+          return false;
+        }
+        return true;
+      });
+
+      const chainsWithSources: typeof app.indexingBuild.chains = [];
+      const rpcsWithSources: typeof app.indexingBuild.rpcs = [];
+      const finalizedBlocksWithSources: typeof app.indexingBuild.finalizedBlocks =
+        [];
+
+      for (let i = 0; i < app.indexingBuild.chains.length; i++) {
+        const chain = app.indexingBuild.chains[i]!;
+        const rpc = app.indexingBuild.rpcs[i]!;
+        const finalizedBlock = app.indexingBuild.finalizedBlocks[i]!;
+        const hasSources = app.indexingBuild.sources.some(
+          (source) => source.chain.name === chain.name,
+        );
+        if (hasSources) {
+          chainsWithSources.push(chain);
+          rpcsWithSources.push(rpc);
+          finalizedBlocksWithSources.push(finalizedBlock);
+        }
+      }
+
+      app.indexingBuild.chains = chainsWithSources;
+      app.indexingBuild.rpcs = rpcsWithSources;
+      app.indexingBuild.finalizedBlocks = finalizedBlocksWithSources;
+    }
+
     const chains: Parameters<typeof realtimeBlockEngine>[0] = new Map();
     for (let i = 0; i < app.indexingBuild.chains.length; i++) {
       const chain = app.indexingBuild.chains[i]!;
