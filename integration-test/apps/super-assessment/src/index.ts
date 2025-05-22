@@ -12,7 +12,7 @@ for (const name of Object.keys(config.contracts)) {
     await context.db.insert(table).values({
       chainId: context.chain.id,
       name: `${name}:setup`,
-      checkpoint,
+      id: checkpoint,
     });
   });
 
@@ -24,7 +24,7 @@ for (const name of Object.keys(config.contracts)) {
     await context.db.insert(table).values({
       chainId: context.chain.id,
       name: `${name}:Transfer`,
-      checkpoint,
+      id: checkpoint,
     });
   });
 
@@ -36,7 +36,7 @@ for (const name of Object.keys(config.contracts)) {
     await context.db.insert(table).values({
       chainId: context.chain.id,
       name: `${name}.transfer()`,
-      checkpoint,
+      id: checkpoint,
     });
   });
 }
@@ -50,7 +50,7 @@ for (const name of Object.keys(config.accounts)) {
     await context.db.insert(table).values({
       chainId: context.chain.id,
       name: `${name}:transaction:from`,
-      checkpoint,
+      id: checkpoint,
     });
   });
 
@@ -62,7 +62,7 @@ for (const name of Object.keys(config.accounts)) {
     await context.db.insert(table).values({
       chainId: context.chain.id,
       name: `${name}:transaction:to`,
-      checkpoint,
+      id: checkpoint,
     });
   });
 
@@ -74,7 +74,7 @@ for (const name of Object.keys(config.accounts)) {
     await context.db.insert(table).values({
       chainId: context.chain.id,
       name: `${name}:transfer:from`,
-      checkpoint,
+      id: checkpoint,
     });
   });
 
@@ -86,7 +86,7 @@ for (const name of Object.keys(config.accounts)) {
     await context.db.insert(table).values({
       chainId: context.chain.id,
       name: `${name}:transfer:to`,
-      checkpoint,
+      id: checkpoint,
     });
   });
 }
@@ -100,7 +100,7 @@ for (const name of Object.keys(config.blocks)) {
     await context.db.insert(table).values({
       chainId: context.chain.id,
       name: `${name}:block`,
-      checkpoint,
+      id: checkpoint,
     });
   });
 }

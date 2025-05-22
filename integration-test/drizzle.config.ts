@@ -2,7 +2,7 @@ import { defineConfig } from "drizzle-kit";
 
 export default defineConfig({
   dbCredentials: {
-    url: process.env.CONNECTION_STRING!,
+    url: `${process.env.DATABASE_URL!}/postgres`,
   },
   dialect: "postgresql",
   schema: "./rpc/schema.ts",

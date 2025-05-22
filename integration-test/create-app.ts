@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { start } from "../packages/core/src/bin/commands/start.js";
 
-let db = drizzle(process.env.CONNECTION_STRING!, { casing: "snake_case" });
+let db = drizzle(process.env.DATABASE_URL!, { casing: "snake_case" });
 
 // inputs
 
@@ -16,7 +16,7 @@ if (APP_ID === undefined) {
 // 1. Create database
 await db.execute(sql.raw(`CREATE DATABASE "${APP_ID}"`));
 
-db = drizzle(`${process.env.CONNECTION_STRING!}/${APP_ID}`, {
+db = drizzle(`${process.env.DATABASE_URL!}/${APP_ID}`, {
   casing: "snake_case",
 });
 
@@ -25,7 +25,7 @@ db = drizzle(`${process.env.CONNECTION_STRING!}/${APP_ID}`, {
 // 3. Copy expected data
 
 process.env.DATABASE_SCHEMA = "expected";
-process.env.DATABASE_URL = `${process.env.CONNECTION_STRING!}/${APP_ID}`;
+process.env.DATABASE_URL = `${process.env.DATABASE_URL!}/${APP_ID}`;
 process.env.PONDER_TELEMETRY_DISABLED = "true";
 
 const kill = await start({

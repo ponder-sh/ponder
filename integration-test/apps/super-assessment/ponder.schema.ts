@@ -5,9 +5,9 @@ export const table = onchainTable(
   (t) => ({
     chainId: t.int8({ mode: "number" }).notNull(),
     name: t.text().notNull(),
-    checkpoint: t.varchar({ length: 75 }).notNull(),
+    id: t.varchar({ length: 75 }).notNull(),
   }),
   (table) => ({
-    pk: primaryKey({ columns: [table.name, table.checkpoint] }),
+    pk: primaryKey({ columns: [table.name, table.id] }),
   }),
 );

@@ -67,7 +67,7 @@ const SIM_PARAMS: SimParams = {
   FINALIZED_RATE: 1,
 };
 
-let db = drizzle(process.env.CONNECTION_STRING!, { casing: "snake_case" });
+let db = drizzle(process.env.DATABASE_URL!, { casing: "snake_case" });
 
 // 1. Setup database
 //   - create database using template
@@ -76,7 +76,7 @@ let db = drizzle(process.env.CONNECTION_STRING!, { casing: "snake_case" });
 
 await db.execute(sql.raw(`CREATE DATABASE "${UUID}" TEMPLATE "${APP_ID}"`));
 
-db = drizzle(`${process.env.CONNECTION_STRING!}/${UUID}`, {
+db = drizzle(`${process.env.DATABASE_URL!}/${UUID}`, {
   casing: "snake_case",
 });
 
@@ -168,7 +168,7 @@ console.log({
 });
 
 process.env.PONDER_TELEMETRY_DISABLED = "true";
-process.env.DATABASE_URL = `${process.env.CONNECTION_STRING!}/${UUID}`;
+process.env.DATABASE_URL = `${process.env.DATABASE_URL!}/${UUID}`;
 process.env.DATABASE_SCHEMA = "public";
 
 const pwr = promiseWithResolvers<void>();
@@ -219,7 +219,7 @@ const kill = await start({
       const expected = pgSchema("expected").table("events", (t) => ({
         chainId: t.bigint({ mode: "number" }).notNull(),
         name: t.text().notNull(),
-        checkpoint: t.varchar({ length: 75 }).notNull(),
+        id: t.varchar({ length: 75 }).notNull(),
       }));
 
       await db.execute(sql.raw("CREATE SCHEMA expected"));
@@ -228,7 +228,9 @@ const kill = await start({
           `CREATE TABLE expected.events (
             chain_id BIGINT NOT NULL,
             name TEXT NOT NULL,
-            checkpoint VARCHAR(75) NOT NULL)`,
+            id VARCHAR(75) NOT NULL,
+            CONSTRAINT "events_pk" PRIMARY KEY("name","id")
+          )`,
         ),
       );
       for (const { filter, name } of app.indexingBuild.sources) {
@@ -248,7 +250,7 @@ const kill = await start({
               .select({
                 chainId: sql.raw(filter.chainId).as("chain_id"),
                 name: sql.raw(`'${name}:block'`).as("name"),
-                checkpoint: blockCheckpoint.as("checkpoint"),
+                id: blockCheckpoint.as("id"),
               })
               .from(PONDER_SYNC.blocks)
               .where(
@@ -280,7 +282,7 @@ const kill = await start({
                 name: sql
                   .raw(`'${name}:transaction:${isFrom ? "from" : "to"}'`)
                   .as("name"),
-                checkpoint: transactionCheckpoint.as("checkpoint"),
+                id: transactionCheckpoint.as("id"),
               })
               .from(PONDER_SYNC.transactions)
               .innerJoin(
@@ -322,7 +324,7 @@ const kill = await start({
               .select({
                 chainId: sql.raw(filter.chainId).as("chain_id"),
                 name: sql.raw(`'${name}.transfer()'`).as("name"),
-                checkpoint: traceCheckpoint.as("checkpoint"),
+                id: traceCheckpoint.as("id"),
               })
               .from(PONDER_SYNC.traces)
               .innerJoin(
@@ -358,7 +360,7 @@ const kill = await start({
               .select({
                 chainId: sql.raw(filter.chainId).as("chain_id"),
                 name: sql.raw(`'${name}:Transfer'`).as("name"),
-                checkpoint: logCheckpoint.as("checkpoint"),
+                id: logCheckpoint.as("id"),
               })
               .from(PONDER_SYNC.logs)
               .innerJoin(
@@ -397,7 +399,7 @@ const kill = await start({
                 name: sql
                   .raw(`'${name}:transfer:${isFrom ? "from" : "to"}'`)
                   .as("name"),
-                checkpoint: transferCheckpoint.as("checkpoint"),
+                id: transferCheckpoint.as("id"),
               })
               .from(PONDER_SYNC.traces)
               .innerJoin(
@@ -436,7 +438,7 @@ const kill = await start({
           },
         }),
         SIM_PARAMS,
-        process.env.CONNECTION_STRING!,
+        process.env.DATABASE_URL!,
       );
 
       app.indexingBuild.rpcs[i] = createRpc({
@@ -479,7 +481,7 @@ const kill = await start({
     const getRealtimeBlockGenerator = await realtimeBlockEngine(
       chains,
       SIM_PARAMS,
-      process.env.CONNECTION_STRING!,
+      process.env.DATABASE_URL!,
     );
 
     for (let i = 0; i < app.indexingBuild.chains.length; i++) {

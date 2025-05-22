@@ -34,5 +34,7 @@ jobs:
             bun run index.ts ${{ matrix.app_id }}
           done
         env:
-          CONNECTION_STRING: ${{ secrets.TEST_CONNECTION_STRING }}
+          DATABASE_URL: ${{ secrets.TEST_CONNECTION_STRING }}
           PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
+          PGDATABASE: postgres
+          PGSSLMODE: disable
