@@ -39,7 +39,7 @@ import { decodeFragment } from "../packages/core/src/sync/fragments.js";
 import { getChunks } from "../packages/core/src/utils/interval.js";
 import { promiseWithResolvers } from "../packages/core/src/utils/promiseWithResolvers.js";
 import { _eth_getBlockByNumber } from "../packages/core/src/utils/rpc.js";
-import { realtimeBlockEngine, sim } from "./rpc/index.js";
+import { realtimeBlockEngine, sim } from "./rpc-sim.js";
 import { metadata } from "./schema.js";
 
 // inputs
@@ -101,6 +101,7 @@ export const SIM_PARAMS = {
   //   "shutdown",
   // ),
   // REALTIME_SHUTDOWN_RATE: pick([0, 0.001, 0.002], "realtime-shutdown-rate"),
+  ORDERING: pick(["omnichain"], "ordering"),
 };
 
 const db = drizzle(DATABASE_URL!, { casing: "snake_case" });
@@ -568,6 +569,8 @@ process.env.DATABASE_SCHEMA = "public";
 const pwr = promiseWithResolvers<void>();
 
 export const onBuild = async (app: PonderApp) => {
+  app.preBuild.ordering = SIM_PARAMS.ORDERING;
+
   if (APP_ID === "super-assessment") {
     app.indexingBuild.sources = app.indexingBuild.sources.filter(() => {
       if (seedrandom(SEED)() < SIM_PARAMS.SUPER_ASSESSMENT_FILTER_RATE) {

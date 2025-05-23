@@ -3,7 +3,6 @@ import { createConfig } from "ponder";
 import { weth9Abi } from "./abis/weth9Abi";
 
 export default createConfig({
-  ordering: "omnichain",
   chains: {
     mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1 },
     base: { id: 8453, rpc: process.env.PONDER_RPC_URL_8453 },

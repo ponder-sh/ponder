@@ -12,9 +12,10 @@ import {
   hexToNumber,
   toHex,
 } from "viem";
-import { zeroLogsBloom } from "../../packages/core/src/sync-realtime/bloom.js";
-import { SEED, SIM_PARAMS } from "../index.js";
-import * as RPC_SCHEMA from "../schema.js";
+import { zeroLogsBloom } from "../packages/core/src/sync-realtime/bloom.js";
+import { promiseWithResolvers } from "../packages/core/src/utils/promiseWithResolvers.js";
+import { SEED, SIM_PARAMS } from "./index.js";
+import * as RPC_SCHEMA from "./schema.js";
 
 const PONDER_RPC_METHODS = [
   "eth_getBlockByNumber",
@@ -451,7 +452,7 @@ export const realtimeBlockEngine = async (
     : undefined;
 
   const blocks = new Map<number, RpcBlock[]>();
-  const isChainDone = new Map<number, boolean>();
+  const incomplete = new Set<number>();
 
   // TODO(kyle) block not found error
 
@@ -502,14 +503,14 @@ export const realtimeBlockEngine = async (
   };
 
   const simulate = async (chainId: number): Promise<RpcBlock | undefined> => {
-    if (isChainDone.get(chainId)!) return undefined;
+    if (incomplete.has(chainId) === false) return undefined;
 
     let block = blocks.get(chainId)![blocks.get(chainId)!.length - 1]!;
     const isEnd =
       chains.get(chainId)!.interval[1] === hexToNumber(block.number!);
 
     if (isEnd) {
-      isChainDone.set(chainId, true);
+      incomplete.delete(chainId);
       return block;
     }
 
@@ -544,19 +545,44 @@ export const realtimeBlockEngine = async (
   };
 
   for (const [chainId, { interval }] of chains) {
-    isChainDone.set(chainId, false);
+    incomplete.add(chainId);
     blocks.set(chainId, [await getBlock(chainId, interval[0])]);
     blocks.get(chainId)!.push(await getNextBlock(chainId));
   }
 
-  return async function* (chainId: number) {
+  if (SIM_PARAMS.ORDERING === "multichain") {
     // Note: better interchain determinism is possible for "multichain" ordering
     // if we only allow one chain to yield at a time.
 
-    while (true) {
-      const next = await simulate(chainId);
-      if (next === undefined) return;
-      yield next;
-    }
-  };
+    const random = seedrandom(`${SEED}_leader`);
+    let pwr = promiseWithResolvers<void>();
+    let leader =
+      Array.from(incomplete)[Math.floor(random() * incomplete.size)]!;
+    return async function* (chainId: number) {
+      while (true) {
+        if (leader === undefined || leader === chainId) {
+          const next = await simulate(chainId);
+
+          if (next) yield next;
+
+          leader =
+            Array.from(incomplete)[Math.floor(random() * incomplete.size)]!;
+          pwr.resolve();
+          pwr = promiseWithResolvers<void>();
+
+          if (next === undefined) return;
+        } else {
+          await pwr.promise;
+        }
+      }
+    };
+  } else {
+    return async function* (chainId: number) {
+      while (true) {
+        const next = await simulate(chainId);
+        if (next === undefined) return;
+        yield next;
+      }
+    };
+  }
 };
