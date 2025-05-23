@@ -255,15 +255,19 @@ export const sim =
               throw new Error("Invariant broken. Invalid eth_getLogs request.");
             }
 
-            // TODO(kyle) lowercase address
             if ("address" in body.params[0] && body.params[0].address) {
               if (Array.isArray(body.params[0].address)) {
                 logs = logs.filter((log) =>
-                  (body.params[0].address as Address[]).includes(log.address),
+                  (body.params[0].address as Address[]).some(
+                    (address) =>
+                      address.toLowerCase() === log.address.toLowerCase(),
+                  ),
                 );
               } else {
                 logs = logs.filter(
-                  (log) => body.params[0].address === log.address,
+                  (log) =>
+                    body.params[0].address.toLowerCase() ===
+                    log.address.toLowerCase(),
                 );
               }
             }
@@ -273,14 +277,12 @@ export const sim =
                 if (Array.isArray(body.params[0].topics[i])) {
                   logs = logs.filter((log) =>
                     (body.params[0].topics[i] as Hash[]).includes(
-                      // @ts-expect-error
-                      log[`topic${i}`],
+                      log.topics[i]!,
                     ),
                   );
                 } else if (body.params[0].topics[i] !== null) {
                   logs = logs.filter(
-                    // @ts-expect-error
-                    (log) => body.params[0].topics[i] === log[`topic${i}`],
+                    (log) => body.params[0].topics[i] === log.topics[i]!,
                   );
                 }
               }
