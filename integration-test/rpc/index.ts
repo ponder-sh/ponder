@@ -422,7 +422,10 @@ export const sim =
         throw new Error("Simulation invariant broken. Result is undefined.");
       }
 
-      if (body.method === "eth_getLogs") {
+      if (
+        body.method === "eth_getLogs" &&
+        body.params[0].blockHash === undefined
+      ) {
         if (
           (result as unknown[]).length > SIM_PARAMS.ETH_GET_LOGS_RESPONSE_LIMIT
         ) {
@@ -596,6 +599,9 @@ export const realtimeBlockEngine = async (
     } else {
       await startPwr.promise;
     }
+
+    // Omnichain mode requires more thoughtful ordering here to avoid deadlock.
+    // If a block for every chain is yielded, guaranteed to not deadlock.
 
     while (true) {
       const next = await simulate();
