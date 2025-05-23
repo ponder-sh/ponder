@@ -21,7 +21,10 @@ import { customType, pgSchema } from "drizzle-orm/pg-core";
 import seedrandom from "seedrandom";
 import { custom, hexToNumber } from "viem";
 import packageJson from "../packages/core/package.json" assert { type: "json" };
-import { start } from "../packages/core/src/bin/commands/start.js";
+import {
+  type PonderApp,
+  start,
+} from "../packages/core/src/bin/commands/start.js";
 import { getPrimaryKeyColumns } from "../packages/core/src/drizzle/index.js";
 import { createRpc } from "../packages/core/src/rpc/index.js";
 import {
@@ -68,7 +71,7 @@ export const SIM_PARAMS = {
     "super-assessment-filter-rate",
   ),
   ETH_GET_LOGS_RESPONSE_LIMIT: pick(
-    [100, 1000, 10_000, Number.POSITIVE_INFINITY],
+    [1000, 10_000, Number.POSITIVE_INFINITY],
     "eth-get-logs-response-limit",
   ),
   ETH_GET_LOGS_BLOCK_LIMIT: pick(
@@ -86,6 +89,15 @@ export const SIM_PARAMS = {
   ),
   REALTIME_DELAY_RATE: pick([0, 0.4, 0.8], "realtime-delay-rate"),
   FINALIZED_RATE: pick([0, 0.8, 0.9, 0.95, 1], "finalized-rate"),
+  // SHUTDOWN_TIMER: pick(
+  //   [
+  //     undefined,
+  //     () => new Promise((resolve) => setTimeout(resolve, 1000)),
+  //     () => new Promise((resolve) => setTimeout(resolve, 5000)),
+  //   ],
+  //   "shutdown",
+  // ),
+  // REALTIME_SHUTDOWN_RATE: pick([0, 0.001, 0.002], "realtime-shutdown-rate"),
 };
 
 const db = drizzle(DATABASE_URL!, { casing: "snake_case" });
@@ -552,343 +564,361 @@ process.env.DATABASE_SCHEMA = "public";
 
 const pwr = promiseWithResolvers<void>();
 
-const kill = await start({
-  cliOptions: {
-    ...program.optsWithGlobals(),
-    command: "start",
-    version: "0.0.0",
-    root: APP_DIR,
-    config: "ponder.config.ts",
-  },
-  onBuild: async (app) => {
-    if (APP_ID === "super-assessment") {
-      app.indexingBuild.sources = app.indexingBuild.sources.filter(() => {
-        if (seedrandom(SEED)() < SIM_PARAMS.SUPER_ASSESSMENT_FILTER_RATE) {
-          return false;
-        }
-        return true;
-      });
-
-      const chainsWithSources: typeof app.indexingBuild.chains = [];
-      const rpcsWithSources: typeof app.indexingBuild.rpcs = [];
-      const finalizedBlocksWithSources: typeof app.indexingBuild.finalizedBlocks =
-        [];
-
-      for (let i = 0; i < app.indexingBuild.chains.length; i++) {
-        const chain = app.indexingBuild.chains[i]!;
-        const rpc = app.indexingBuild.rpcs[i]!;
-        const finalizedBlock = app.indexingBuild.finalizedBlocks[i]!;
-        const hasSources = app.indexingBuild.sources.some(
-          (source) => source.chain.name === chain.name,
-        );
-        if (hasSources) {
-          chainsWithSources.push(chain);
-          rpcsWithSources.push(rpc);
-          finalizedBlocksWithSources.push(finalizedBlock);
-        }
+export const onBuild = async (app: PonderApp) => {
+  if (APP_ID === "super-assessment") {
+    app.indexingBuild.sources = app.indexingBuild.sources.filter(() => {
+      if (seedrandom(SEED)() < SIM_PARAMS.SUPER_ASSESSMENT_FILTER_RATE) {
+        return false;
       }
+      return true;
+    });
 
-      app.indexingBuild.chains = chainsWithSources;
-      app.indexingBuild.rpcs = rpcsWithSources;
-      app.indexingBuild.finalizedBlocks = finalizedBlocksWithSources;
+    const chainsWithSources: typeof app.indexingBuild.chains = [];
+    const rpcsWithSources: typeof app.indexingBuild.rpcs = [];
+    const finalizedBlocksWithSources: typeof app.indexingBuild.finalizedBlocks =
+      [];
 
-      const expected = pgSchema("expected").table("events", (t) => ({
-        chainId: t.bigint({ mode: "number" }).notNull(),
-        name: t.text().notNull(),
-        id: t.varchar({ length: 75 }).notNull(),
-      }));
-
-      await appDb.execute(sql.raw("CREATE SCHEMA expected"));
-      await appDb.execute(
-        sql.raw(
-          `CREATE TABLE expected.events (
-            chain_id BIGINT NOT NULL,
-            name TEXT NOT NULL,
-            id VARCHAR(75) NOT NULL,
-            CONSTRAINT "events_pk" PRIMARY KEY("name","id")
-          )`,
-        ),
+    for (let i = 0; i < app.indexingBuild.chains.length; i++) {
+      const chain = app.indexingBuild.chains[i]!;
+      const rpc = app.indexingBuild.rpcs[i]!;
+      const finalizedBlock = app.indexingBuild.finalizedBlocks[i]!;
+      const hasSources = app.indexingBuild.sources.some(
+        (source) => source.chain.name === chain.name,
       );
-      for (const { filter, name } of app.indexingBuild.sources) {
-        switch (filter.type) {
-          case "block": {
-            const blockCheckpoint = sql.raw(
-              `
-            (lpad(blocks.timestamp::text, 10, '0') ||
-            lpad(blocks.chain_id::text, 16, '0') ||
-            lpad(blocks.number::text, 16, '0') ||
-            '9999999999999999' ||
-            '5' ||
-            '0000000000000000')`,
+      if (hasSources) {
+        chainsWithSources.push(chain);
+        rpcsWithSources.push(rpc);
+        finalizedBlocksWithSources.push(finalizedBlock);
+      }
+    }
+
+    app.indexingBuild.chains = chainsWithSources;
+    app.indexingBuild.rpcs = rpcsWithSources;
+    app.indexingBuild.finalizedBlocks = finalizedBlocksWithSources;
+
+    const expected = pgSchema("expected").table("events", (t) => ({
+      chainId: t.bigint({ mode: "number" }).notNull(),
+      name: t.text().notNull(),
+      id: t.varchar({ length: 75 }).notNull(),
+    }));
+
+    await appDb.execute(sql.raw("CREATE SCHEMA expected"));
+    await appDb.execute(
+      sql.raw(
+        `CREATE TABLE expected.events (
+          chain_id BIGINT NOT NULL,
+          name TEXT NOT NULL,
+          id VARCHAR(75) NOT NULL,
+          CONSTRAINT "events_pk" PRIMARY KEY("name","id")
+        )`,
+      ),
+    );
+    for (const { filter, name } of app.indexingBuild.sources) {
+      switch (filter.type) {
+        case "block": {
+          const blockCheckpoint = sql.raw(
+            `
+          (lpad(blocks.timestamp::text, 10, '0') ||
+          lpad(blocks.chain_id::text, 16, '0') ||
+          lpad(blocks.number::text, 16, '0') ||
+          '9999999999999999' ||
+          '5' ||
+          '0000000000000000')`,
+          );
+
+          const blocksQuery = appDb
+            .select({
+              chainId: sql.raw(filter.chainId).as("chain_id"),
+              name: sql.raw(`'${name}:block'`).as("name"),
+              id: blockCheckpoint.as("id"),
+            })
+            .from(PONDER_SYNC.blocks)
+            .where(
+              and(
+                eq(PONDER_SYNC.blocks.chainId, filter.chainId),
+                blockFilter(filter),
+              ),
             );
 
-            const blocksQuery = appDb
-              .select({
-                chainId: sql.raw(filter.chainId).as("chain_id"),
-                name: sql.raw(`'${name}:block'`).as("name"),
-                id: blockCheckpoint.as("id"),
-              })
-              .from(PONDER_SYNC.blocks)
-              .where(
-                and(
-                  eq(PONDER_SYNC.blocks.chainId, filter.chainId),
-                  blockFilter(filter),
+          await appDb.insert(expected).select(blocksQuery);
+
+          break;
+        }
+        case "transaction": {
+          const transactionCheckpoint = sql.raw(
+            `
+          (lpad(blocks.timestamp::text, 10, '0') ||
+          lpad(transactions.chain_id::text, 16, '0') ||
+          lpad(transactions.block_number::text, 16, '0') ||
+          lpad(transactions.transaction_index::text, 16, '0') ||
+          '2' ||
+          '0000000000000000')`,
+          );
+
+          const isFrom = filter.toAddress === undefined;
+          const transactionsQuery = appDb
+            .select({
+              chainId: sql.raw(filter.chainId).as("chain_id"),
+              name: sql
+                .raw(`'${name}:transaction:${isFrom ? "from" : "to"}'`)
+                .as("name"),
+              id: transactionCheckpoint.as("id"),
+            })
+            .from(PONDER_SYNC.transactions)
+            .innerJoin(
+              PONDER_SYNC.blocks,
+              and(
+                eq(
+                  PONDER_SYNC.blocks.chainId,
+                  PONDER_SYNC.transactions.chainId,
                 ),
-              );
-
-            await appDb.insert(expected).select(blocksQuery);
-
-            break;
-          }
-          case "transaction": {
-            const transactionCheckpoint = sql.raw(
-              `
-            (lpad(blocks.timestamp::text, 10, '0') ||
-            lpad(transactions.chain_id::text, 16, '0') ||
-            lpad(transactions.block_number::text, 16, '0') ||
-            lpad(transactions.transaction_index::text, 16, '0') ||
-            '2' ||
-            '0000000000000000')`,
+                eq(
+                  PONDER_SYNC.blocks.number,
+                  PONDER_SYNC.transactions.blockNumber,
+                ),
+              ),
+            )
+            .where(
+              and(
+                eq(PONDER_SYNC.transactions.chainId, filter.chainId),
+                transactionFilter(filter),
+              ),
             );
 
-            const isFrom = filter.toAddress === undefined;
-            const transactionsQuery = appDb
-              .select({
-                chainId: sql.raw(filter.chainId).as("chain_id"),
-                name: sql
-                  .raw(`'${name}:transaction:${isFrom ? "from" : "to"}'`)
-                  .as("name"),
-                id: transactionCheckpoint.as("id"),
-              })
-              .from(PONDER_SYNC.transactions)
-              .innerJoin(
-                PONDER_SYNC.blocks,
-                and(
-                  eq(
-                    PONDER_SYNC.blocks.chainId,
-                    PONDER_SYNC.transactions.chainId,
-                  ),
-                  eq(
-                    PONDER_SYNC.blocks.number,
-                    PONDER_SYNC.transactions.blockNumber,
-                  ),
-                ),
-              )
-              .where(
-                and(
-                  eq(PONDER_SYNC.transactions.chainId, filter.chainId),
-                  transactionFilter(filter),
-                ),
-              );
+          await appDb.insert(expected).select(transactionsQuery);
 
-            await appDb.insert(expected).select(transactionsQuery);
+          break;
+        }
+        case "trace": {
+          const traceCheckpoint = sql.raw(
+            `
+          (lpad(blocks.timestamp::text, 10, '0') ||
+          lpad(traces.chain_id::text, 16, '0') ||
+          lpad(traces.block_number::text, 16, '0') ||
+          lpad(traces.transaction_index::text, 16, '0') ||
+          '7' ||
+          lpad(traces.trace_index::text, 16, '0'))`,
+          );
 
-            break;
-          }
-          case "trace": {
-            const traceCheckpoint = sql.raw(
-              `
+          const tracesQuery = appDb
+            .select({
+              chainId: sql.raw(filter.chainId).as("chain_id"),
+              name: sql.raw(`'${name}.transfer()'`).as("name"),
+              id: traceCheckpoint.as("id"),
+            })
+            .from(PONDER_SYNC.traces)
+            .innerJoin(
+              PONDER_SYNC.blocks,
+              and(
+                eq(PONDER_SYNC.blocks.chainId, PONDER_SYNC.traces.chainId),
+                eq(PONDER_SYNC.blocks.number, PONDER_SYNC.traces.blockNumber),
+              ),
+            )
+            .where(
+              and(
+                eq(PONDER_SYNC.traces.chainId, filter.chainId),
+                traceFilter(filter),
+              ),
+            );
+
+          await appDb.insert(expected).select(tracesQuery);
+
+          break;
+        }
+        case "log": {
+          const logCheckpoint = sql.raw(
+            `
+          (lpad(blocks.timestamp::text, 10, '0') ||
+          lpad(logs.chain_id::text, 16, '0') ||
+          lpad(logs.block_number::text, 16, '0') ||
+          lpad(logs.transaction_index::text, 16, '0') ||
+          '5' ||
+          lpad(logs.log_index::text, 16, '0'))`,
+          );
+
+          const logsQuery = appDb
+            .select({
+              chainId: sql.raw(filter.chainId).as("chain_id"),
+              name: sql.raw(`'${name}:Transfer'`).as("name"),
+              id: logCheckpoint.as("id"),
+            })
+            .from(PONDER_SYNC.logs)
+            .innerJoin(
+              PONDER_SYNC.blocks,
+              and(
+                eq(PONDER_SYNC.blocks.chainId, PONDER_SYNC.logs.chainId),
+                eq(PONDER_SYNC.blocks.number, PONDER_SYNC.logs.blockNumber),
+              ),
+            )
+            .where(
+              and(
+                eq(PONDER_SYNC.logs.chainId, filter.chainId),
+                logFilter(filter),
+              ),
+            );
+
+          await appDb.insert(expected).select(logsQuery);
+
+          break;
+        }
+        case "transfer": {
+          const transferCheckpoint = sql.raw(
+            `
             (lpad(blocks.timestamp::text, 10, '0') ||
             lpad(traces.chain_id::text, 16, '0') ||
             lpad(traces.block_number::text, 16, '0') ||
             lpad(traces.transaction_index::text, 16, '0') ||
             '7' ||
             lpad(traces.trace_index::text, 16, '0'))`,
+          );
+
+          const isFrom = filter.toAddress === undefined;
+          const transfersQuery = appDb
+            .select({
+              chainId: sql.raw(filter.chainId).as("chain_id"),
+              name: sql
+                .raw(`'${name}:transfer:${isFrom ? "from" : "to"}'`)
+                .as("name"),
+              id: transferCheckpoint.as("id"),
+            })
+            .from(PONDER_SYNC.traces)
+            .innerJoin(
+              PONDER_SYNC.blocks,
+              and(
+                eq(PONDER_SYNC.blocks.chainId, PONDER_SYNC.traces.chainId),
+                eq(PONDER_SYNC.blocks.number, PONDER_SYNC.traces.blockNumber),
+              ),
+            )
+            .where(
+              and(
+                eq(PONDER_SYNC.traces.chainId, filter.chainId),
+                transferFilter(filter),
+              ),
             );
 
-            const tracesQuery = appDb
-              .select({
-                chainId: sql.raw(filter.chainId).as("chain_id"),
-                name: sql.raw(`'${name}.transfer()'`).as("name"),
-                id: traceCheckpoint.as("id"),
-              })
-              .from(PONDER_SYNC.traces)
-              .innerJoin(
-                PONDER_SYNC.blocks,
-                and(
-                  eq(PONDER_SYNC.blocks.chainId, PONDER_SYNC.traces.chainId),
-                  eq(PONDER_SYNC.blocks.number, PONDER_SYNC.traces.blockNumber),
-                ),
-              )
-              .where(
-                and(
-                  eq(PONDER_SYNC.traces.chainId, filter.chainId),
-                  traceFilter(filter),
-                ),
-              );
+          await appDb.insert(expected).select(transfersQuery);
 
-            await appDb.insert(expected).select(tracesQuery);
-
-            break;
-          }
-          case "log": {
-            const logCheckpoint = sql.raw(
-              `
-            (lpad(blocks.timestamp::text, 10, '0') ||
-            lpad(logs.chain_id::text, 16, '0') ||
-            lpad(logs.block_number::text, 16, '0') ||
-            lpad(logs.transaction_index::text, 16, '0') ||
-            '5' ||
-            lpad(logs.log_index::text, 16, '0'))`,
-            );
-
-            const logsQuery = appDb
-              .select({
-                chainId: sql.raw(filter.chainId).as("chain_id"),
-                name: sql.raw(`'${name}:Transfer'`).as("name"),
-                id: logCheckpoint.as("id"),
-              })
-              .from(PONDER_SYNC.logs)
-              .innerJoin(
-                PONDER_SYNC.blocks,
-                and(
-                  eq(PONDER_SYNC.blocks.chainId, PONDER_SYNC.logs.chainId),
-                  eq(PONDER_SYNC.blocks.number, PONDER_SYNC.logs.blockNumber),
-                ),
-              )
-              .where(
-                and(
-                  eq(PONDER_SYNC.logs.chainId, filter.chainId),
-                  logFilter(filter),
-                ),
-              );
-
-            await appDb.insert(expected).select(logsQuery);
-
-            break;
-          }
-          case "transfer": {
-            const transferCheckpoint = sql.raw(
-              `
-              (lpad(blocks.timestamp::text, 10, '0') ||
-              lpad(traces.chain_id::text, 16, '0') ||
-              lpad(traces.block_number::text, 16, '0') ||
-              lpad(traces.transaction_index::text, 16, '0') ||
-              '7' ||
-              lpad(traces.trace_index::text, 16, '0'))`,
-            );
-
-            const isFrom = filter.toAddress === undefined;
-            const transfersQuery = appDb
-              .select({
-                chainId: sql.raw(filter.chainId).as("chain_id"),
-                name: sql
-                  .raw(`'${name}:transfer:${isFrom ? "from" : "to"}'`)
-                  .as("name"),
-                id: transferCheckpoint.as("id"),
-              })
-              .from(PONDER_SYNC.traces)
-              .innerJoin(
-                PONDER_SYNC.blocks,
-                and(
-                  eq(PONDER_SYNC.blocks.chainId, PONDER_SYNC.traces.chainId),
-                  eq(PONDER_SYNC.blocks.number, PONDER_SYNC.traces.blockNumber),
-                ),
-              )
-              .where(
-                and(
-                  eq(PONDER_SYNC.traces.chainId, filter.chainId),
-                  transferFilter(filter),
-                ),
-              );
-
-            await appDb.insert(expected).select(transfersQuery);
-
-            break;
-          }
+          break;
         }
       }
     }
+  }
 
-    const chains: Parameters<typeof realtimeBlockEngine>[0] = new Map();
-    for (let i = 0; i < app.indexingBuild.chains.length; i++) {
-      const chain = app.indexingBuild.chains[i]!;
-      const rpc = app.indexingBuild.rpcs[i]!;
+  const chains: Parameters<typeof realtimeBlockEngine>[0] = new Map();
+  for (let i = 0; i < app.indexingBuild.chains.length; i++) {
+    const chain = app.indexingBuild.chains[i]!;
+    const rpc = app.indexingBuild.rpcs[i]!;
 
-      const start = Math.min(
-        ...app.indexingBuild.sources.map(({ filter }) => filter.fromBlock ?? 0),
-      );
+    const start = Math.min(
+      ...app.indexingBuild.sources.map(({ filter }) => filter.fromBlock ?? 0),
+    );
 
-      const end = Math.max(
-        ...app.indexingBuild.sources.map(({ filter }) => filter.toBlock!),
-      );
+    const end = Math.max(
+      ...app.indexingBuild.sources.map(({ filter }) => filter.toBlock!),
+    );
 
-      app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(rpc, {
-        blockNumber:
-          start + Math.floor((end - start) * SIM_PARAMS.FINALIZED_RATE),
-      });
+    app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(rpc, {
+      blockNumber:
+        start + Math.floor((end - start) * SIM_PARAMS.FINALIZED_RATE),
+    });
 
-      // TODO(kyle) delete unfinalized data
+    // TODO(kyle) delete unfinalized data
 
-      // replace rpc with simulated transport
+    // replace rpc with simulated transport
 
-      chain.rpc = sim(
-        custom({
-          async request(body) {
-            return rpc.request(body);
-          },
-        }),
-        DATABASE_URL!,
-      );
-
-      app.indexingBuild.rpcs[i] = createRpc({
-        common: app.common,
-        chain,
-        concurrency: Math.floor(
-          app.common.options.rpcMaxConcurrency /
-            app.indexingBuild.chains.length,
-        ),
-      });
-
-      chains.set(chain.id, {
-        // @ts-ignore
-        request: rpc.request,
-        interval: [
-          hexToNumber(app.indexingBuild.finalizedBlocks[i]!.number) + 1,
-          end,
-        ],
-      });
-
-      app.common.logger.warn({
-        service: "sim",
-        msg: `Mocking eip1193 transport for chain '${chain.name}'`,
-      });
-    }
-
-    const getRealtimeBlockGenerator = await realtimeBlockEngine(
-      chains,
+    chain.rpc = sim(
+      custom({
+        async request(body) {
+          return rpc.request(body);
+        },
+      }),
       DATABASE_URL!,
     );
 
-    for (let i = 0; i < app.indexingBuild.chains.length; i++) {
-      const chain = app.indexingBuild.chains[i]!;
-      const rpc = app.indexingBuild.rpcs[i]!;
+    app.indexingBuild.rpcs[i] = createRpc({
+      common: app.common,
+      chain,
+      concurrency: Math.floor(
+        app.common.options.rpcMaxConcurrency / app.indexingBuild.chains.length,
+      ),
+    });
 
-      rpc.subscribe = ({ onBlock }) => {
-        (async () => {
-          for await (const block of getRealtimeBlockGenerator(chain.id)) {
-            // @ts-ignore
-            await onBlock(block);
-          }
-          app.common.logger.warn({
-            service: "sim",
-            msg: `Realtime block subscription for chain '${chain.name}' completed`,
-          });
-          pwr.resolve();
-        })();
-      };
+    chains.set(chain.id, {
+      // @ts-ignore
+      request: rpc.request,
+      interval: [
+        hexToNumber(app.indexingBuild.finalizedBlocks[i]!.number) + 1,
+        end,
+      ],
+    });
 
-      app.common.logger.warn({
-        service: "sim",
-        msg: `Mocking realtime block subscription for chain '${chain.name}'`,
-      });
-    }
+    app.common.logger.warn({
+      service: "sim",
+      msg: `Mocking eip1193 transport for chain '${chain.name}'`,
+    });
+  }
 
-    return app;
+  const getRealtimeBlockGenerator = await realtimeBlockEngine(
+    chains,
+    DATABASE_URL!,
+  );
+
+  for (let i = 0; i < app.indexingBuild.chains.length; i++) {
+    const chain = app.indexingBuild.chains[i]!;
+    const rpc = app.indexingBuild.rpcs[i]!;
+
+    rpc.subscribe = ({ onBlock }) => {
+      (async () => {
+        for await (const block of getRealtimeBlockGenerator(chain.id)) {
+          // @ts-ignore
+          await onBlock(block);
+        }
+        app.common.logger.warn({
+          service: "sim",
+          msg: `Realtime block subscription for chain '${chain.name}' completed`,
+        });
+        pwr.resolve();
+      })();
+    };
+
+    app.common.logger.warn({
+      service: "sim",
+      msg: `Mocking realtime block subscription for chain '${chain.name}'`,
+    });
+  }
+
+  return app;
+};
+
+let kill = await start({
+  cliOptions: {
+    ...program.optsWithGlobals(),
+    command: "start",
+    version: packageJson.version,
+    root: APP_DIR,
+    config: "ponder.config.ts",
   },
+  onBuild,
 });
 
-// stop when no more events are possible: historical end or realtime finalized
+export const restart = async () => {
+  await kill!();
+  kill = await start({
+    cliOptions: {
+      ...program.optsWithGlobals(),
+      command: "start",
+      version: packageJson.version,
+      root: APP_DIR,
+      config: "ponder.config.ts",
+    },
+    onBuild,
+  });
+};
+
+// if (SIM_PARAMS.SHUTDOWN_TIMER) {
+//   await SIM_PARAMS.SHUTDOWN_TIMER();
+//   await restart();
+// }
 
 await pwr.promise;
 await kill!();

@@ -21,7 +21,7 @@ import { createExit } from "../utils/exit.js";
 import { run } from "../utils/run.js";
 import { runServer } from "../utils/runServer.js";
 
-type PonderApp = {
+export type PonderApp = {
   common: Common;
   preBuild: PreBuild;
   namespaceBuild: NamespaceBuild;
