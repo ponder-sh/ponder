@@ -670,7 +670,7 @@ importers:
         version: link:../../../packages/client
       drizzle-orm:
         specifier: 0.41.0
-        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.0)
+        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.0)
     devDependencies:
       '@types/pg':
         specifier: ^8.10.9
@@ -683,7 +683,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 0.41.0
-        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(gel@2.0.2)(kysely@0.26.3)(pg@8.11.3)
+        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.11.3)
       hono:
         specifier: ^4.5.0
         version: 4.5.0
@@ -756,32 +756,40 @@ importers:
         version: 5.3.3
 
   integration-test:
-    dependencies:
-      seedrandom:
-        specifier: ^3.0.5
-        version: 3.0.5
     devDependencies:
+      '@commander-js/extra-typings':
+        specifier: ^12.0.1
+        version: 12.0.1(commander@12.0.0)
+      '@types/bun':
+        specifier: ^1.2.14
+        version: 1.2.14
       '@types/pg':
         specifier: ^8.10.9
         version: 8.10.9
       '@types/seedrandom':
         specifier: ^3.0.8
         version: 3.0.8
+      commander:
+        specifier: ^12.0.0
+        version: 12.0.0
       drizzle-orm:
         specifier: 0.41.0
-        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.0)
+        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.0)
       pg:
         specifier: ^8.15.6
         version: 8.16.0
       ponder:
         specifier: workspace:*
         version: link:../packages/core
+      seedrandom:
+        specifier: ^3.0.5
+        version: 3.0.5
 
   packages/client:
     dependencies:
       drizzle-orm:
         specifier: 0.41.0
-        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.0)
+        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.0)
       eventsource:
         specifier: ^3.0.5
         version: 3.0.5
@@ -842,7 +850,7 @@ importers:
         version: 16.4.5
       drizzle-orm:
         specifier: 0.41.0
-        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(gel@2.0.2)(kysely@0.26.3)(pg@8.11.3)
+        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.11.3)
       glob:
         specifier: ^10.3.10
         version: 10.4.5
@@ -3557,6 +3565,9 @@ packages:
   '@types/bn.js@5.1.5':
     resolution: {integrity: sha512-V46N0zwKRF5Q00AZ6hWtN0T8gGmDUaUzLWQvHFo5yThtVwK/VCenFY3wXVbOvNfajEpsTfQM4IN9k/d6gUVX3A==}
 
+  '@types/bun@1.2.14':
+    resolution: {integrity: sha512-VsFZKs8oKHzI7zwvECiAJ5oSorWndIWEVhfbYqZd4HI/45kzW7PN2Rr5biAzvGvRuNmYLSANY+H59ubHq8xw7Q==}
+
   '@types/cli-progress@3.11.5':
     resolution: {integrity: sha512-D4PbNRbviKyppS5ivBGyFO29POlySLmA2HyUFE4p5QGazAMM3CwkKWcvTl8gvElSuxRh6FPKL8XmidX873ou4g==}
 
@@ -4372,6 +4383,9 @@ packages:
 
   builtins@5.0.1:
     resolution: {integrity: sha512-qwVpFEHNfhYJIzNRBvd2C1kyo6jz3ZSMPyyuR47OPdiKWlbYnZNyDWuyR175qDnAJLiCo5fBBqPb3RiXgWlkOQ==}
+
+  bun-types@1.2.14:
+    resolution: {integrity: sha512-Kuh4Ub28ucMRWeiUUWMHsT9Wcbr4H3kLIO72RZZElSDxSu7vpetRvxIUDUaW6QtaIeixIpm7OXtNnZPf82EzwA==}
 
   bundle-require@3.1.2:
     resolution: {integrity: sha512-Of6l6JBAxiyQ5axFxUM6dYeP/W7X2Sozeo/4EYB9sJhL+dqL7TKjg+shwxp6jlu/6ZSERfsYtIpSJ1/x3XkAEA==}
@@ -12020,6 +12034,10 @@ snapshots:
     dependencies:
       '@types/node': 20.11.24
 
+  '@types/bun@1.2.14':
+    dependencies:
+      bun-types: 1.2.14
+
   '@types/cli-progress@3.11.5':
     dependencies:
       '@types/node': 20.11.24
@@ -13033,6 +13051,10 @@ snapshots:
     dependencies:
       semver: 7.7.1
 
+  bun-types@1.2.14:
+    dependencies:
+      '@types/node': 20.11.24
+
   bundle-require@3.1.2(esbuild@0.16.17):
     dependencies:
       esbuild: 0.16.17
@@ -13829,20 +13851,22 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(gel@2.0.2)(kysely@0.26.3)(pg@8.11.3):
+  drizzle-orm@0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.11.3):
     optionalDependencies:
       '@electric-sql/pglite': 0.2.13
       '@opentelemetry/api': 1.7.0
       '@types/pg': 8.10.9
+      bun-types: 1.2.14
       gel: 2.0.2
       kysely: 0.26.3
       pg: 8.11.3
 
-  drizzle-orm@0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.0):
+  drizzle-orm@0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.0):
     optionalDependencies:
       '@electric-sql/pglite': 0.2.13
       '@opentelemetry/api': 1.7.0
       '@types/pg': 8.10.9
+      bun-types: 1.2.14
       gel: 2.0.2
       kysely: 0.26.3
       pg: 8.16.0

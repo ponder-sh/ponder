@@ -1,3 +1,5 @@
+CREATE SCHEMA "rpc_cache";
+--> statement-breakpoint
 CREATE TABLE "rpc_cache"."eth_getBlockReceipts" (
 	"chain_id" bigint NOT NULL,
 	"block_number" bigint NOT NULL,

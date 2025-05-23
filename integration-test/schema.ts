@@ -1,4 +1,16 @@
-import { pgSchema, primaryKey } from "drizzle-orm/pg-core";
+import { pgSchema, pgTable, primaryKey } from "drizzle-orm/pg-core";
+
+export const metadata = pgTable("metadata", (t) => ({
+  id: t.uuid().primaryKey(),
+  seed: t.text().notNull(),
+  app: t.text().notNull(),
+  commit: t.text().notNull(),
+  branch: t.text().notNull(),
+  version: t.text().notNull(),
+  time: t.timestamp().notNull(),
+  ci: t.boolean().notNull(),
+  success: t.boolean().notNull(),
+}));
 
 export const rpcCache = pgSchema("rpc_cache");
 

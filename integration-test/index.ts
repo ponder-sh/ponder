@@ -1,11 +1,13 @@
 import crypto from "node:crypto";
-import { Table, eq, getTableName, is, sql } from "drizzle-orm";
+import { $ } from "bun";
+import { Command } from "commander";
+import { Table, and, eq, getTableName, is, sql } from "drizzle-orm";
 import { type NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { customType, pgSchema } from "drizzle-orm/pg-core";
-import { and } from "ponder";
 import seedrandom from "seedrandom";
 import { custom, hexToNumber } from "viem";
+import packageJson from "../packages/core/package.json" assert { type: "json" };
 import { start } from "../packages/core/src/bin/commands/start.js";
 import { getPrimaryKeyColumns } from "../packages/core/src/drizzle/index.js";
 import { createRpc } from "../packages/core/src/rpc/index.js";
@@ -21,6 +23,7 @@ import { getChunks } from "../packages/core/src/utils/interval.js";
 import { promiseWithResolvers } from "../packages/core/src/utils/promiseWithResolvers.js";
 import { _eth_getBlockByNumber } from "../packages/core/src/utils/rpc.js";
 import { realtimeBlockEngine, sim } from "./rpc/index.js";
+import { metadata } from "./schema.js";
 
 // inputs
 
@@ -42,40 +45,36 @@ export const pick = <T>(possibilities: T[] | readonly T[], tag: string): T => {
   ]!;
 };
 
-export const ERROR_RATE = pick([0, 0.02, 0.05, 0.1, 0.2], "error-rate");
-export const INTERVAL_CHUNKS = 8;
-export const INTERVAL_EVICT_RATE = pick(
-  [0, 0.25, 0.5, 0.75, 1],
-  "interval-evict-rate",
-);
-export const SUPER_ASSESSMENT_FILTER_RATE = pick(
-  [0, 0.25, 0.5, 0.75, 1],
-  "super-assessment-filter-rate",
-);
-export const ETH_GET_LOGS_RESPONSE_LIMIT = pick(
-  [100, 1000, 10_000, Number.POSITIVE_INFINITY],
-  "eth-get-logs-response-limit",
-);
-export const ETH_GET_LOGS_BLOCK_LIMIT = pick(
-  [100, 1000, 10_000, Number.POSITIVE_INFINITY],
-  "eth-get-logs-block-limit",
-);
-export const REALTIME_REORG_RATE = pick(
-  [0, 0.02, 0.05, 0.1],
-  "realtime-reorg-rate",
-);
-export const REALTIME_DEEP_REORG_RATE = pick(
-  [0, 0.02, 0.05, 0.1],
-  "realtime-deep-reorg-rate",
-);
-export const REALTIME_FAST_FORWARD_RATE = pick(
-  [0, 0.25, 0.5, 0.75],
-  "realtime-fast-forward-rate",
-);
-export const REALTIME_DELAY_RATE = pick([0, 0.4, 0.8], "realtime-delay-rate");
-export const FINALIZED_RATE = pick([0, 0.8, 0.9, 0.95, 1], "finalized-rate");
+export const SIM_PARAMS = {
+  ERROR_RATE: pick([0, 0.02, 0.05, 0.1, 0.2], "error-rate"),
+  INTERVAL_CHUNKS: 8,
+  INTERVAL_EVICT_RATE: pick([0, 0.25, 0.5, 0.75, 1], "interval-evict-rate"),
+  SUPER_ASSESSMENT_FILTER_RATE: pick(
+    [0, 0.25, 0.5, 0.75],
+    "super-assessment-filter-rate",
+  ),
+  ETH_GET_LOGS_RESPONSE_LIMIT: pick(
+    [100, 1000, 10_000, Number.POSITIVE_INFINITY],
+    "eth-get-logs-response-limit",
+  ),
+  ETH_GET_LOGS_BLOCK_LIMIT: pick(
+    [100, 1000, 10_000, Number.POSITIVE_INFINITY],
+    "eth-get-logs-block-limit",
+  ),
+  REALTIME_REORG_RATE: pick([0, 0.02, 0.05, 0.1], "realtime-reorg-rate"),
+  REALTIME_DEEP_REORG_RATE: pick(
+    [0, 0.02, 0.05, 0.1],
+    "realtime-deep-reorg-rate",
+  ),
+  REALTIME_FAST_FORWARD_RATE: pick(
+    [0, 0.25, 0.5, 0.75],
+    "realtime-fast-forward-rate",
+  ),
+  REALTIME_DELAY_RATE: pick([0, 0.4, 0.8], "realtime-delay-rate"),
+  FINALIZED_RATE: pick([0, 0.8, 0.9, 0.95, 1], "finalized-rate"),
+};
 
-let db = drizzle(DATABASE_URL!, { casing: "snake_case" });
+const db = drizzle(DATABASE_URL!, { casing: "snake_case" });
 
 // 1. Setup database
 //   - create database using template
@@ -84,9 +83,9 @@ let db = drizzle(DATABASE_URL!, { casing: "snake_case" });
 
 await db.execute(sql.raw(`CREATE DATABASE "${UUID}" TEMPLATE "${APP_ID}"`));
 
-db = drizzle(`${DATABASE_URL!}/${UUID}`, { casing: "snake_case" });
+const appDb = drizzle(`${DATABASE_URL!}/${UUID}`, { casing: "snake_case" });
 
-await db.execute(
+await appDb.execute(
   sql.raw(
     "CREATE TABLE ponder_sync.expected_intervals AS SELECT * FROM ponder_sync.intervals",
   ),
@@ -102,41 +101,43 @@ const INTERVALS = pgSchema("ponder_sync").table("intervals", (t) => ({
   })().notNull(),
 }));
 
-for (const interval of await db.select().from(INTERVALS)) {
+for (const interval of await appDb.select().from(INTERVALS)) {
   // TODO(kyle) support multiple intervals
   const blocks: [number, number] = JSON.parse(interval.blocks.slice(1, -1));
   const chunks = getChunks({
     interval: [blocks[0], blocks[1] - 1],
-    maxChunkSize: Math.floor((blocks[1] - blocks[0]) / INTERVAL_CHUNKS),
+    maxChunkSize: Math.floor(
+      (blocks[1] - blocks[0]) / SIM_PARAMS.INTERVAL_CHUNKS,
+    ),
   });
   const resultIntervals: [number, number][] = [];
   const rng = seedrandom(SEED! + interval.fragmentId);
   for (const chunk of chunks) {
-    if (rng() > INTERVAL_EVICT_RATE) {
+    if (rng() > SIM_PARAMS.INTERVAL_EVICT_RATE) {
       resultIntervals.push(chunk);
     } else {
       // TODO(kyle) cannot drop all logs in interval because they may be referenced by another interval
-      // await db.execute(
+      // await appDb.execute(
       //   sql.raw(
       //     `DELETE FROM ponder_sync.blocks WHERE number >= ${chunk[0]} and number <= ${chunk[1]}`,
       //   ),
       // );
-      // await db.execute(
+      // await appDb.execute(
       //   sql.raw(
       //     `DELETE FROM ponder_sync.transactions WHERE block_number >= ${chunk[0]} and block_number <= ${chunk[1]}`,
       //   ),
       // );
-      // await db.execute(
+      // await appDb.execute(
       //   sql.raw(
       //     `DELETE FROM ponder_sync.transaction_receipts WHERE block_number >= ${chunk[0]} and block_number <= ${chunk[1]}`,
       //   ),
       // );
-      // await db.execute(
+      // await appDb.execute(
       //   sql.raw(
       //     `DELETE FROM ponder_sync.traces WHERE block_number >= ${chunk[0]} and block_number <= ${chunk[1]}`,
       //   ),
       // );
-      // await db.execute(
+      // await appDb.execute(
       //   sql.raw(
       //     `DELETE FROM ponder_sync.logs WHERE block_number >= ${chunk[0]} and block_number <= ${chunk[1]}`,
       //   ),
@@ -144,7 +145,7 @@ for (const interval of await db.select().from(INTERVALS)) {
     }
   }
   if (resultIntervals.length === 0) {
-    await db
+    await appDb
       .delete(INTERVALS)
       .where(eq(INTERVALS.fragmentId, interval.fragmentId));
   } else {
@@ -155,7 +156,7 @@ for (const interval of await db.select().from(INTERVALS)) {
         return `numrange(${start}, ${end}, '[]')`;
       })
       .join(", ");
-    await db
+    await appDb
       .update(INTERVALS)
       .set({
         blocks: sql.raw(`nummultirange(${numranges})`),
@@ -164,7 +165,25 @@ for (const interval of await db.select().from(INTERVALS)) {
   }
 }
 
+// conditional for each table for each fragment
+// drop where not conditional
+
 // 2. Write metadata
+
+const branch = await $`git rev-parse --abbrev-ref HEAD`.text();
+const commit = await $`git rev-parse HEAD`.text();
+
+await db.insert(metadata).values({
+  id: UUID,
+  seed: SEED,
+  app: APP_ID,
+  commit: branch.trim(),
+  branch: commit.trim(),
+  version: packageJson.version,
+  ci: process.env.CI === "true",
+  time: sql`now()`,
+  success: false,
+});
 
 // 3. Run app
 
@@ -172,7 +191,28 @@ console.log({
   app: APP_ID,
   seed: SEED,
   uuid: UUID,
+  ...SIM_PARAMS,
 });
+
+const program = new Command()
+  .option(
+    "-v, --debug",
+    "Enable debug logs, e.g. realtime blocks, internal events",
+  )
+  .option(
+    "-vv, --trace",
+    "Enable trace logs, e.g. db queries, indexing checkpoints",
+  )
+  .option(
+    "--log-level <LEVEL>",
+    'Minimum log level ("error", "warn", "info", "debug", or "trace", default: "info")',
+  )
+  .option(
+    "--log-format <FORMAT>",
+    'The log format ("pretty" or "json")',
+    "pretty",
+  )
+  .parse(process.argv);
 
 process.env.PONDER_TELEMETRY_DISABLED = "true";
 process.env.DATABASE_URL = `${DATABASE_URL!}/${UUID}`;
@@ -182,19 +222,16 @@ const pwr = promiseWithResolvers<void>();
 
 const kill = await start({
   cliOptions: {
-    root: APP_DIR,
+    ...program.optsWithGlobals(),
     command: "start",
     version: "0.0.0",
+    root: APP_DIR,
     config: "ponder.config.ts",
-    logFormat: "pretty",
-    // logLevel: "debug",
   },
   onBuild: async (app) => {
     if (APP_ID === "super-assessment") {
-      const r = seedrandom(SEED);
-
       app.indexingBuild.sources = app.indexingBuild.sources.filter(() => {
-        if (r() < SUPER_ASSESSMENT_FILTER_RATE) {
+        if (seedrandom(SEED)() < SIM_PARAMS.SUPER_ASSESSMENT_FILTER_RATE) {
           return false;
         }
         return true;
@@ -229,8 +266,8 @@ const kill = await start({
         id: t.varchar({ length: 75 }).notNull(),
       }));
 
-      await db.execute(sql.raw("CREATE SCHEMA expected"));
-      await db.execute(
+      await appDb.execute(sql.raw("CREATE SCHEMA expected"));
+      await appDb.execute(
         sql.raw(
           `CREATE TABLE expected.events (
             chain_id BIGINT NOT NULL,
@@ -253,7 +290,7 @@ const kill = await start({
             '0000000000000000')`,
             );
 
-            const blocksQuery = db
+            const blocksQuery = appDb
               .select({
                 chainId: sql.raw(filter.chainId).as("chain_id"),
                 name: sql.raw(`'${name}:block'`).as("name"),
@@ -267,7 +304,7 @@ const kill = await start({
                 ),
               );
 
-            await db.insert(expected).select(blocksQuery);
+            await appDb.insert(expected).select(blocksQuery);
 
             break;
           }
@@ -283,7 +320,7 @@ const kill = await start({
             );
 
             const isFrom = filter.toAddress === undefined;
-            const transactionsQuery = db
+            const transactionsQuery = appDb
               .select({
                 chainId: sql.raw(filter.chainId).as("chain_id"),
                 name: sql
@@ -312,7 +349,7 @@ const kill = await start({
                 ),
               );
 
-            await db.insert(expected).select(transactionsQuery);
+            await appDb.insert(expected).select(transactionsQuery);
 
             break;
           }
@@ -327,7 +364,7 @@ const kill = await start({
             lpad(traces.trace_index::text, 16, '0'))`,
             );
 
-            const tracesQuery = db
+            const tracesQuery = appDb
               .select({
                 chainId: sql.raw(filter.chainId).as("chain_id"),
                 name: sql.raw(`'${name}.transfer()'`).as("name"),
@@ -348,7 +385,7 @@ const kill = await start({
                 ),
               );
 
-            await db.insert(expected).select(tracesQuery);
+            await appDb.insert(expected).select(tracesQuery);
 
             break;
           }
@@ -363,7 +400,7 @@ const kill = await start({
             lpad(logs.log_index::text, 16, '0'))`,
             );
 
-            const logsQuery = db
+            const logsQuery = appDb
               .select({
                 chainId: sql.raw(filter.chainId).as("chain_id"),
                 name: sql.raw(`'${name}:Transfer'`).as("name"),
@@ -384,7 +421,7 @@ const kill = await start({
                 ),
               );
 
-            await db.insert(expected).select(logsQuery);
+            await appDb.insert(expected).select(logsQuery);
 
             break;
           }
@@ -400,7 +437,7 @@ const kill = await start({
             );
 
             const isFrom = filter.toAddress === undefined;
-            const transfersQuery = db
+            const transfersQuery = appDb
               .select({
                 chainId: sql.raw(filter.chainId).as("chain_id"),
                 name: sql
@@ -423,7 +460,7 @@ const kill = await start({
                 ),
               );
 
-            await db.insert(expected).select(transfersQuery);
+            await appDb.insert(expected).select(transfersQuery);
 
             break;
           }
@@ -445,7 +482,8 @@ const kill = await start({
       );
 
       app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(rpc, {
-        blockNumber: start + Math.floor((end - start) * FINALIZED_RATE),
+        blockNumber:
+          start + Math.floor((end - start) * SIM_PARAMS.FINALIZED_RATE),
       });
 
       // replace rpc with simulated transport
@@ -618,15 +656,22 @@ for (const key of Object.keys(schema)) {
     const table = schema[key] as Table;
     const tableName = getTableName(table);
 
-    await compareTables(db, table, `expected."${tableName}"`, `"${tableName}"`);
+    await compareTables(
+      appDb,
+      table,
+      `expected."${tableName}"`,
+      `"${tableName}"`,
+    );
   }
 }
 
 // await compareTables(
-//   db,
+//   appDb,
 //   INTERVALS,
 //   "ponder_sync.expected_intervals",
 //   "ponder_sync.intervals",
 // );
+
+await db.update(metadata).set({ success: true }).where(eq(metadata.id, UUID));
 
 process.exit(0);

@@ -17,17 +17,8 @@ import {
   type PromiseWithResolvers,
   promiseWithResolvers,
 } from "../../packages/core/src/utils/promiseWithResolvers.js";
-import {
-  ERROR_RATE,
-  ETH_GET_LOGS_BLOCK_LIMIT,
-  ETH_GET_LOGS_RESPONSE_LIMIT,
-  REALTIME_DEEP_REORG_RATE,
-  REALTIME_DELAY_RATE,
-  REALTIME_FAST_FORWARD_RATE,
-  REALTIME_REORG_RATE,
-  SEED,
-} from "../index.js";
-import * as RPC_SCHEMA from "./schema.js";
+import { SEED, SIM_PARAMS } from "../index.js";
+import * as RPC_SCHEMA from "../schema.js";
 
 const PONDER_RPC_METHODS = [
   "eth_getBlockByNumber",
@@ -79,7 +70,7 @@ export const sim =
 
       requestCount.set(id, nonce + 1);
 
-      if (seedrandom(SEED + id + nonce)() < ERROR_RATE) {
+      if (seedrandom(SEED + id + nonce)() < SIM_PARAMS.ERROR_RATE) {
         throw new Error("Simulated error");
       }
 
@@ -109,9 +100,11 @@ export const sim =
         if ("fromBlock" in body.params[0] && "toBlock" in body.params[0]) {
           const { fromBlock, toBlock } = body.params[0];
           const range = +toBlock - +fromBlock;
-          if (range > ETH_GET_LOGS_BLOCK_LIMIT) {
+          if (range > SIM_PARAMS.ETH_GET_LOGS_BLOCK_LIMIT) {
             // cloudflare error message
-            throw new Error(`Max range: ${ETH_GET_LOGS_BLOCK_LIMIT}`);
+            throw new Error(
+              `Max range: ${SIM_PARAMS.ETH_GET_LOGS_BLOCK_LIMIT}`,
+            );
           }
         }
       }
@@ -417,7 +410,9 @@ export const sim =
       }
 
       if (body.method === "eth_getLogs") {
-        if ((result as unknown[]).length > ETH_GET_LOGS_RESPONSE_LIMIT) {
+        if (
+          (result as unknown[]).length > SIM_PARAMS.ETH_GET_LOGS_RESPONSE_LIMIT
+        ) {
           // optimism error message
           throw new Error("backend response too large");
         }
@@ -515,7 +510,10 @@ export const realtimeBlockEngine = async (
     );
     let chainId: number;
     for (let i = 0; i < orderedChainIds.length; i++) {
-      if (random() < REALTIME_DELAY_RATE || i === orderedChainIds.length - 1) {
+      if (
+        random() < SIM_PARAMS.REALTIME_DELAY_RATE ||
+        i === orderedChainIds.length - 1
+      ) {
         chainId = orderedChainIds[i]!;
         break;
       }
@@ -540,19 +538,19 @@ export const realtimeBlockEngine = async (
 
     random = seedrandom(SEED + chainId + nextBlock.number);
 
-    if (random() < REALTIME_FAST_FORWARD_RATE) {
+    if (random() < SIM_PARAMS.REALTIME_FAST_FORWARD_RATE) {
       return simulate();
     }
 
     const r = random();
-    if (r < REALTIME_REORG_RATE) {
-      if (r < REALTIME_REORG_RATE / 2) {
+    if (r < SIM_PARAMS.REALTIME_REORG_RATE) {
+      if (r < SIM_PARAMS.REALTIME_REORG_RATE / 2) {
         block = blocks.get(chainId)![blocks.get(chainId)!.length - 3]!;
       } else {
         const hash = `0x${crypto.randomBytes(32).toString("hex")}` as Hash;
         block = { ...block, hash, logsBloom: zeroLogsBloom };
       }
-    } else if (random() < REALTIME_DEEP_REORG_RATE) {
+    } else if (random() < SIM_PARAMS.REALTIME_DEEP_REORG_RATE) {
       block = blocks.get(chainId)![1]!;
       const hash = `0x${crypto.randomBytes(32).toString("hex")}` as Hash;
       block = { ...block, hash, logsBloom: zeroLogsBloom };
