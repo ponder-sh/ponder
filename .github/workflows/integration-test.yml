@@ -16,6 +16,7 @@ jobs:
       matrix:
         app_id:
           - "reference-erc20"
+          - "feature-multichain"
 
     steps:
       - uses: actions/checkout@v3
@@ -36,5 +37,8 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.TEST_CONNECTION_STRING }}
           PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
+          PONDER_RPC_URL_10: ${{ secrets.PONDER_RPC_URL_10 }}
+          PONDER_RPC_URL_137: ${{ secrets.PONDER_RPC_URL_137 }}
+          PONDER_RPC_URL_8453: ${{ secrets.PONDER_RPC_URL_8453 }}
           PGDATABASE: postgres
           PGSSLMODE: disable

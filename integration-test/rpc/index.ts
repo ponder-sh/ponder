@@ -13,10 +13,6 @@ import {
   toHex,
 } from "viem";
 import { zeroLogsBloom } from "../../packages/core/src/sync-realtime/bloom.js";
-import {
-  type PromiseWithResolvers,
-  promiseWithResolvers,
-} from "../../packages/core/src/utils/promiseWithResolvers.js";
 import { SEED, SIM_PARAMS } from "../index.js";
 import * as RPC_SCHEMA from "../schema.js";
 
@@ -505,61 +501,29 @@ export const realtimeBlockEngine = async (
     return getBlock(chainId, blockNumber);
   };
 
-  const simulate = async (): Promise<
-    { chainId: number; block: RpcBlock } | undefined
-  > => {
-    if (Array.from(isChainDone.values()).every((v) => v)) return undefined;
+  const simulate = async (chainId: number): Promise<RpcBlock | undefined> => {
+    if (isChainDone.get(chainId)!) return undefined;
 
-    const latestBlocks: [number, RpcBlock][] = [];
-    for (const [chainId, _blocks] of blocks) {
-      latestBlocks.push([chainId, _blocks[_blocks.length - 1]!]);
-    }
-
-    const orderedChainIds = latestBlocks
-      .sort((a, b) =>
-        hexToNumber(a[1].timestamp) < hexToNumber(b[1].timestamp) ? -1 : 1,
-      )
-      .map(([chainId]) => chainId);
-
-    let random = seedrandom(
-      SEED + latestBlocks.map((b) => b[1].number).join(""),
-    );
-    let chainId: number;
-    for (let i = 0; i < orderedChainIds.length; i++) {
-      if (
-        random() < SIM_PARAMS.REALTIME_DELAY_RATE ||
-        i === orderedChainIds.length - 1
-      ) {
-        chainId = orderedChainIds[i]!;
-        break;
-      }
-    }
-
-    // @ts-ignore
-    if (chainId === undefined) {
-      throw "never";
-    }
-
-    let block = latestBlocks.find((b) => b[0] === chainId)![1];
+    let block = blocks.get(chainId)![blocks.get(chainId)!.length - 1]!;
     const isEnd =
       chains.get(chainId)!.interval[1] === hexToNumber(block.number!);
 
     if (isEnd) {
       isChainDone.set(chainId, true);
-      return { chainId, block };
+      return block;
     }
 
     const nextBlock = await getNextBlock(chainId);
     blocks.get(chainId)!.push(nextBlock);
 
-    random = seedrandom(SEED + chainId + nextBlock.number);
+    const random = seedrandom(SEED + chainId + nextBlock.number);
 
     // if (random() < SIM_PARAMS.REALTIME_SHUTDOWN_RATE) {
     //   await restart();
     // }
 
     if (random() < SIM_PARAMS.REALTIME_FAST_FORWARD_RATE) {
-      return simulate();
+      return simulate(chainId);
     }
 
     const r = random();
@@ -576,45 +540,23 @@ export const realtimeBlockEngine = async (
       block = { ...block, hash, logsBloom: zeroLogsBloom };
     }
 
-    return { chainId, block };
+    return block;
   };
 
-  const startPwr = promiseWithResolvers<void>();
-  const pwr = new Map<number, PromiseWithResolvers<RpcBlock>>();
-  let startCount = 0;
-
   for (const [chainId, { interval }] of chains) {
-    pwr.set(chainId, promiseWithResolvers<RpcBlock>());
-
     isChainDone.set(chainId, false);
     blocks.set(chainId, [await getBlock(chainId, interval[0])]);
     blocks.get(chainId)!.push(await getNextBlock(chainId));
   }
 
   return async function* (chainId: number) {
-    startCount += 1;
-
-    if (startCount === chains.size) {
-      startPwr.resolve();
-    } else {
-      await startPwr.promise;
-    }
-
-    // Omnichain mode requires more thoughtful ordering here to avoid deadlock.
-    // If a block for every chain is yielded, guaranteed to not deadlock.
+    // Note: better interchain determinism is possible for "multichain" ordering
+    // if we only allow one chain to yield at a time.
 
     while (true) {
-      const next = await simulate();
-
+      const next = await simulate(chainId);
       if (next === undefined) return;
-
-      if (chainId === next.chainId) {
-        yield next.block;
-      } else {
-        pwr.get(next.chainId)!.resolve(next.block);
-        pwr.set(next.chainId, promiseWithResolvers<RpcBlock>());
-        yield await pwr.get(chainId)!.promise;
-      }
+      yield next;
     }
   };
 };

@@ -65,7 +65,10 @@ export const pick = <T>(possibilities: T[] | readonly T[], tag: string): T => {
 export const SIM_PARAMS = {
   ERROR_RATE: pick([0, 0.02, 0.05, 0.1, 0.2], "error-rate"),
   INTERVAL_CHUNKS: 8,
-  INTERVAL_EVICT_RATE: pick([0, 0.25, 0.5, 0.75, 1], "interval-evict-rate"),
+  INTERVAL_EVICT_RATE: pick(
+    [0, 0, 0, 0, 0, 0.25, 0.5, 0.75, 1],
+    "interval-evict-rate",
+  ),
   SUPER_ASSESSMENT_FILTER_RATE: pick(
     [0, 0.25, 0.5, 0.75],
     "super-assessment-filter-rate",
@@ -810,11 +813,15 @@ export const onBuild = async (app: PonderApp) => {
     const rpc = app.indexingBuild.rpcs[i]!;
 
     const start = Math.min(
-      ...app.indexingBuild.sources.map(({ filter }) => filter.fromBlock ?? 0),
+      ...app.indexingBuild.sources
+        .filter(({ filter }) => filter.chainId === chain.id)
+        .map(({ filter }) => filter.fromBlock ?? 0),
     );
 
     const end = Math.max(
-      ...app.indexingBuild.sources.map(({ filter }) => filter.toBlock!),
+      ...app.indexingBuild.sources
+        .filter(({ filter }) => filter.chainId === chain.id)
+        .map(({ filter }) => filter.toBlock!),
     );
 
     app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(rpc, {
@@ -863,6 +870,7 @@ export const onBuild = async (app: PonderApp) => {
     DATABASE_URL!,
   );
 
+  let finishCount = 0;
   for (let i = 0; i < app.indexingBuild.chains.length; i++) {
     const chain = app.indexingBuild.chains[i]!;
     const rpc = app.indexingBuild.rpcs[i]!;
@@ -877,7 +885,10 @@ export const onBuild = async (app: PonderApp) => {
           service: "sim",
           msg: `Realtime block subscription for chain '${chain.name}' completed`,
         });
-        pwr.resolve();
+        finishCount += 1;
+        if (finishCount === app.indexingBuild.chains.length) {
+          pwr.resolve();
+        }
       })();
     };
 

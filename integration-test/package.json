@@ -6,7 +6,7 @@
   "scripts": {
     "generate": "bun run --bun drizzle-kit generate",
     "migrate": "bun run --bun drizzle-kit migrate",
-    "setup": "bun run create-app.ts",
+    "create:app": "bun run create-app.ts",
     "test": "bun run index.ts"
   },
   "devDependencies": {
