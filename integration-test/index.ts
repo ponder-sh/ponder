@@ -22,25 +22,13 @@ import { promiseWithResolvers } from "../packages/core/src/utils/promiseWithReso
 import { _eth_getBlockByNumber } from "../packages/core/src/utils/rpc.js";
 import { realtimeBlockEngine, sim } from "./rpc/index.js";
 
-export type SimParams = {
-  SEED: string;
-  ERROR_RATE: number;
-  ETH_GET_LOGS_RESPONSE_LIMIT: number;
-  ETH_GET_LOGS_BLOCK_LIMIT: number;
-  REALTIME_REORG_RATE: number;
-  REALTIME_DEEP_REORG_RATE: number;
-  REALTIME_FAST_FORWARD_RATE: number;
-  REALTIME_DELAY_RATE: number;
-  FINALIZED_RATE: number;
-};
-
 // inputs
 
 const DATABASE_URL = process.env.DATABASE_URL!;
 const APP_ID = process.argv[2];
 const APP_DIR = `./apps/${APP_ID}`;
-const SEED = process.env.SEED ?? crypto.randomBytes(32).toString("hex");
-const UUID = process.env.UUID ?? crypto.randomUUID();
+export const SEED = process.env.SEED ?? crypto.randomBytes(32).toString("hex");
+export const UUID = process.env.UUID ?? crypto.randomUUID();
 
 if (APP_ID === undefined) {
   throw new Error("App ID is required. Example: 'pnpm test [app id]'");
@@ -48,25 +36,44 @@ if (APP_ID === undefined) {
 
 // params
 
-const INTERVAL_CHUNKS = 8;
-const INTERVAL_EVICT_RATE = 0.25;
-const SUPER_ASSESSMENT_FILTER_RATE = 0.5;
-
-const SIM_PARAMS: SimParams = {
-  SEED,
-  ERROR_RATE: 0.01,
-  ETH_GET_LOGS_RESPONSE_LIMIT: Number.POSITIVE_INFINITY,
-  ETH_GET_LOGS_BLOCK_LIMIT: 20_000,
-  /** Probability of a reorg. */
-  REALTIME_REORG_RATE: 0.05,
-  /** Probability of a deep reorg. */
-  REALTIME_DEEP_REORG_RATE: 0.02,
-  /** Probability that the chain fast forwards and skips a block. */
-  REALTIME_FAST_FORWARD_RATE: 0.5,
-  /** Probability that a block is delayed and a block on another chain is ordered first. */
-  REALTIME_DELAY_RATE: 0.4,
-  FINALIZED_RATE: 0.95,
+export const pick = <T>(possibilities: T[] | readonly T[], tag: string): T => {
+  return possibilities[
+    Math.floor(possibilities.length * seedrandom(SEED + tag)())
+  ]!;
 };
+
+export const ERROR_RATE = pick([0, 0.02, 0.05, 0.1, 0.2], "error-rate");
+export const INTERVAL_CHUNKS = 8;
+export const INTERVAL_EVICT_RATE = pick(
+  [0, 0.25, 0.5, 0.75, 1],
+  "interval-evict-rate",
+);
+export const SUPER_ASSESSMENT_FILTER_RATE = pick(
+  [0, 0.25, 0.5, 0.75, 1],
+  "super-assessment-filter-rate",
+);
+export const ETH_GET_LOGS_RESPONSE_LIMIT = pick(
+  [100, 1000, 10_000, Number.POSITIVE_INFINITY],
+  "eth-get-logs-response-limit",
+);
+export const ETH_GET_LOGS_BLOCK_LIMIT = pick(
+  [100, 1000, 10_000, Number.POSITIVE_INFINITY],
+  "eth-get-logs-block-limit",
+);
+export const REALTIME_REORG_RATE = pick(
+  [0, 0.02, 0.05, 0.1],
+  "realtime-reorg-rate",
+);
+export const REALTIME_DEEP_REORG_RATE = pick(
+  [0, 0.02, 0.05, 0.1],
+  "realtime-deep-reorg-rate",
+);
+export const REALTIME_FAST_FORWARD_RATE = pick(
+  [0, 0.25, 0.5, 0.75],
+  "realtime-fast-forward-rate",
+);
+export const REALTIME_DELAY_RATE = pick([0, 0.4, 0.8], "realtime-delay-rate");
+export const FINALIZED_RATE = pick([0, 0.8, 0.9, 0.95, 1], "finalized-rate");
 
 let db = drizzle(DATABASE_URL!, { casing: "snake_case" });
 
@@ -77,9 +84,7 @@ let db = drizzle(DATABASE_URL!, { casing: "snake_case" });
 
 await db.execute(sql.raw(`CREATE DATABASE "${UUID}" TEMPLATE "${APP_ID}"`));
 
-db = drizzle(`${DATABASE_URL!}/${UUID}`, {
-  casing: "snake_case",
-});
+db = drizzle(`${DATABASE_URL!}/${UUID}`, { casing: "snake_case" });
 
 await db.execute(
   sql.raw(
@@ -98,6 +103,7 @@ const INTERVALS = pgSchema("ponder_sync").table("intervals", (t) => ({
 }));
 
 for (const interval of await db.select().from(INTERVALS)) {
+  // TODO(kyle) support multiple intervals
   const blocks: [number, number] = JSON.parse(interval.blocks.slice(1, -1));
   const chunks = getChunks({
     interval: [blocks[0], blocks[1] - 1],
@@ -181,7 +187,7 @@ const kill = await start({
     version: "0.0.0",
     config: "ponder.config.ts",
     logFormat: "pretty",
-    logLevel: "debug",
+    // logLevel: "debug",
   },
   onBuild: async (app) => {
     if (APP_ID === "super-assessment") {
@@ -439,8 +445,7 @@ const kill = await start({
       );
 
       app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(rpc, {
-        blockNumber:
-          start + Math.floor((end - start) * SIM_PARAMS.FINALIZED_RATE),
+        blockNumber: start + Math.floor((end - start) * FINALIZED_RATE),
       });
 
       // replace rpc with simulated transport
@@ -451,7 +456,6 @@ const kill = await start({
             return rpc.request(body);
           },
         }),
-        SIM_PARAMS,
         DATABASE_URL!,
       );
 
@@ -481,7 +485,6 @@ const kill = await start({
 
     const getRealtimeBlockGenerator = await realtimeBlockEngine(
       chains,
-      SIM_PARAMS,
       DATABASE_URL!,
     );
 

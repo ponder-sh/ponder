@@ -1,6 +1,6 @@
 import { createConfig, factory } from "ponder";
-import seedrandom from "seedrandom";
 import { type Address, parseAbi, parseAbiItem, zeroAddress } from "viem";
+import { pick } from "../../index.js";
 
 const possibleMainnetBlocks = [
   {
@@ -60,22 +60,9 @@ const possibleContractFilters = [
   },
 ] as const;
 
-const resolveOutcome = <T>(
-  possibilities: T[] | readonly T[],
-  tag: string,
-  chain?: string,
-): T => {
-  return possibilities[
-    Math.floor(
-      possibilities.length *
-        seedrandom(process.env.SEED + tag + (chain ?? ""))(),
-    )
-  ]!;
-};
-
 export default process.env.SEED
   ? createConfig({
-      ordering: resolveOutcome(["omnichain", "multichain"], "ordering"),
+      ordering: pick(["omnichain", "multichain"], "ordering"),
       chains: {
         mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1 },
         base: { id: 8453, rpc: process.env.PONDER_RPC_URL_8453 },
@@ -89,7 +76,7 @@ export default process.env.SEED
           ]),
           chain: {
             mainnet: {
-              address: resolveOutcome(
+              address: pick(
                 [
                   "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
                   [
@@ -104,28 +91,21 @@ export default process.env.SEED
                     parameter: "pair",
                   }),
                 ],
-                "contractAddress",
-                "mainnet",
+                "contract_address_mainnet",
               ),
-              includeCallTraces: resolveOutcome(
+              includeCallTraces: pick(
                 [true, false],
-                "includeCallTraces",
-                "mainnet",
+                "contract_includeCallTraces_mainnet",
               ),
-              includeTransactionReceipts: resolveOutcome(
+              includeTransactionReceipts: pick(
                 [true, false],
-                "includeTransactionReceipts",
-                "mainnet",
+                "contract_includeTransactionReceipts_mainnet",
               ),
-              filter: resolveOutcome(
-                possibleContractFilters,
-                "filter",
-                "mainnet",
-              ),
-              ...resolveOutcome(possibleMainnetBlocks, "blocks", "mainnet"),
+              filter: pick(possibleContractFilters, "contract_filter_mainnet"),
+              ...pick(possibleMainnetBlocks, "contract_blocks_mainnet"),
             },
             base: {
-              address: resolveOutcome(
+              address: pick(
                 [
                   "0x4200000000000000000000000000000000000006",
                   [
@@ -140,24 +120,21 @@ export default process.env.SEED
                     parameter: "pair",
                   }),
                 ],
-                "contractAddress",
-                "base",
+                "contract_address_base",
               ),
-              includeCallTraces: resolveOutcome(
+              includeCallTraces: pick(
                 [true, false],
-                "includeCallTraces",
-                "base",
+                "contract_includeCallTraces_base",
               ),
-              includeTransactionReceipts: resolveOutcome(
+              includeTransactionReceipts: pick(
                 [true, false],
-                "includeTransactionReceipts",
-                "base",
+                "contract_includeTransactionReceipts_base",
               ),
-              filter: resolveOutcome(possibleContractFilters, "filter", "base"),
-              ...resolveOutcome(possibleBaseBlocks, "blocks", "base"),
+              filter: pick(possibleContractFilters, "contract_filter_base"),
+              ...pick(possibleBaseBlocks, "contract_blocks_base"),
             },
             optimism: {
-              address: resolveOutcome(
+              address: pick(
                 [
                   "0x4200000000000000000000000000000000000006",
                   [
@@ -172,25 +149,18 @@ export default process.env.SEED
                     parameter: "pair",
                   }),
                 ],
-                "contractAddress",
-                "optimism",
+                "contract_address_optimism",
               ),
-              includeCallTraces: resolveOutcome(
+              includeCallTraces: pick(
                 [true, false],
-                "includeCallTraces",
-                "optimism",
+                "contract_includeCallTraces_optimism",
               ),
-              includeTransactionReceipts: resolveOutcome(
+              includeTransactionReceipts: pick(
                 [true, false],
-                "includeTransactionReceipts",
-                "optimism",
+                "contract_includeTransactionReceipts_optimism",
               ),
-              filter: resolveOutcome(
-                possibleContractFilters,
-                "filter",
-                "optimism",
-              ),
-              ...resolveOutcome(possibleOptimismBlocks, "blocks", "optimism"),
+              filter: pick(possibleContractFilters, "contract_filter_optimism"),
+              ...pick(possibleOptimismBlocks, "contract_blocks_optimism"),
             },
           },
         },
@@ -200,7 +170,7 @@ export default process.env.SEED
           address: zeroAddress,
           chain: {
             mainnet: {
-              address: resolveOutcome(
+              address: pick(
                 [
                   "0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5",
                   [
@@ -215,18 +185,16 @@ export default process.env.SEED
                     parameter: "pair",
                   }),
                 ],
-                "address",
-                "mainnet",
+                "account_address_mainnet",
               ),
-              includeTransactionReceipts: resolveOutcome(
+              includeTransactionReceipts: pick(
                 [true, false],
-                "includeTransactionReceipts",
-                "mainnet",
+                "account_includeTransactionReceipts_mainnet",
               ),
-              ...resolveOutcome(possibleMainnetBlocks, "blocks", "mainnet"),
+              ...pick(possibleMainnetBlocks, "account_blocks_mainnet"),
             },
             base: {
-              address: resolveOutcome(
+              address: pick(
                 [
                   "0x3304E22DDaa22bCdC5fCa2269b418046aE7b566A",
                   [
@@ -241,18 +209,16 @@ export default process.env.SEED
                     parameter: "pair",
                   }),
                 ],
-                "address",
-                "base",
+                "account_address_base",
               ),
-              includeTransactionReceipts: resolveOutcome(
+              includeTransactionReceipts: pick(
                 [true, false],
-                "includeTransactionReceipts",
-                "base",
+                "account_includeTransactionReceipts_base",
               ),
-              ...resolveOutcome(possibleBaseBlocks, "blocks", "base"),
+              ...pick(possibleBaseBlocks, "account_blocks_base"),
             },
             optimism: {
-              address: resolveOutcome(
+              address: pick(
                 [
                   "0xacD03D601e5bB1B275Bb94076fF46ED9D753435A",
                   [
@@ -267,15 +233,13 @@ export default process.env.SEED
                     parameter: "pair",
                   }),
                 ],
-                "address",
-                "optimism",
+                "account_address_optimism",
               ),
-              includeTransactionReceipts: resolveOutcome(
+              includeTransactionReceipts: pick(
                 [true, false],
-                "includeTransactionReceipts",
-                "optimism",
+                "account_includeTransactionReceipts_optimism",
               ),
-              ...resolveOutcome(possibleOptimismBlocks, "blocks", "optimism"),
+              ...pick(possibleOptimismBlocks, "account_blocks_optimism"),
             },
           },
         },
@@ -284,16 +248,16 @@ export default process.env.SEED
         b: {
           chain: {
             mainnet: {
-              interval: resolveOutcome([50, 88, 152], "interval", "mainnet"),
-              ...resolveOutcome(possibleMainnetBlocks, "blocks", "mainnet"),
+              interval: pick([50, 88, 152], "block_interval_mainnet"),
+              ...pick(possibleMainnetBlocks, "block_blocks_mainnet"),
             },
             base: {
-              interval: resolveOutcome([50, 88, 152], "interval", "base"),
-              ...resolveOutcome(possibleBaseBlocks, "blocks", "base"),
+              interval: pick([50, 88, 152], "block_interval_base"),
+              ...pick(possibleBaseBlocks, "block_blocks_base"),
             },
             optimism: {
-              interval: resolveOutcome([50, 88, 152], "interval", "optimism"),
-              ...resolveOutcome(possibleOptimismBlocks, "blocks", "optimism"),
+              interval: pick([50, 88, 152], "block_interval_optimism"),
+              ...pick(possibleOptimismBlocks, "block_blocks_optimism"),
             },
           },
         },
