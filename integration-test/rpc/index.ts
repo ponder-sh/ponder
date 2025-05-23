@@ -190,7 +190,15 @@ export const sim =
                 if (_logs) {
                   logs.push(...(_logs.body as RpcLog[]));
                 } else {
-                  const rpcLogs = await _request(body);
+                  const rpcLogs = await _request({
+                    method: "eth_getLogs",
+                    params: [
+                      {
+                        fromBlock: toHex(block),
+                        toBlock: toHex(block),
+                      },
+                    ],
+                  });
                   // @ts-expect-error
                   logs.push(...rpcLogs);
                   await db.insert(RPC_SCHEMA.logs).values({
@@ -212,6 +220,7 @@ export const sim =
                 )
                 .then((blocks) => blocks[0]);
 
+              // block won't be in db if it's a reorg
               if (block === undefined) {
                 result = [];
                 break;
@@ -264,11 +273,13 @@ export const sim =
                 if (Array.isArray(body.params[0].topics[i])) {
                   logs = logs.filter((log) =>
                     (body.params[0].topics[i] as Hash[]).includes(
+                      // @ts-expect-error
                       log[`topic${i}`],
                     ),
                   );
                 } else if (body.params[0].topics[i] !== null) {
                   logs = logs.filter(
+                    // @ts-expect-error
                     (log) => body.params[0].topics[i] === log[`topic${i}`],
                   );
                 }
