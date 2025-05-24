@@ -1,6 +1,14 @@
 import { createConfig, factory } from "ponder";
+import seedrandom from "seedrandom";
 import { type Address, parseAbi, parseAbiItem, zeroAddress } from "viem";
-import { pick } from "../../index.js";
+
+// Note this is copied from index.ts to avoid circular dependency that vite
+// cannot currently handle.
+const pick = <T>(possibilities: T[] | readonly T[], tag: string): T => {
+  return possibilities[
+    Math.floor(possibilities.length * seedrandom(process.env.SEED + tag)())
+  ]!;
+};
 
 const possibleMainnetBlocks = [
   {

@@ -1164,7 +1164,6 @@ const addressFilter = (
     | LogFilter["address"]
     | TransactionFilter["fromAddress"]
     | TransactionFilter["toAddress"],
-  // column: "address" | "from" | "to",
   column: PgColumn,
 ): SQL => {
   // `factory` filtering is handled in-memory

@@ -9,14 +9,16 @@ import {
   exists,
   getTableName,
   gte,
+  inArray,
   is,
+  isNull,
   lte,
   not,
   or,
   sql,
 } from "drizzle-orm";
 import { type NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
-import type { PgTable } from "drizzle-orm/pg-core";
+import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import { customType, pgSchema } from "drizzle-orm/pg-core";
 import seedrandom from "seedrandom";
 import { custom, hexToNumber } from "viem";
@@ -26,16 +28,14 @@ import {
   start,
 } from "../packages/core/src/bin/commands/start.js";
 import { getPrimaryKeyColumns } from "../packages/core/src/drizzle/index.js";
+import type { FragmentAddress } from "../packages/core/src/internal/types.js";
 import { createRpc } from "../packages/core/src/rpc/index.js";
-import {
-  blockFilter,
-  logFilter,
-  traceFilter,
-  transactionFilter,
-  transferFilter,
-} from "../packages/core/src/sync-store/index.js";
 import * as PONDER_SYNC from "../packages/core/src/sync-store/schema.js";
-import { decodeFragment } from "../packages/core/src/sync/fragments.js";
+import {
+  decodeFragment,
+  getFragments,
+  isFragmentAddressFactory,
+} from "../packages/core/src/sync/fragments.js";
 import { getChunks } from "../packages/core/src/utils/interval.js";
 import { promiseWithResolvers } from "../packages/core/src/utils/promiseWithResolvers.js";
 import { _eth_getBlockByNumber } from "../packages/core/src/utils/rpc.js";
@@ -137,128 +137,156 @@ const transactionReceiptConditions: SQL[] = [];
 const traceConditions: SQL[] = [];
 const logConditions: SQL[] = [];
 
-for (const interval of await appDb.select().from(INTERVALS)) {
-  // TODO(kyle) support multiple intervals
-  const blocks: [number, number] = JSON.parse(interval.blocks.slice(1, -1));
-  const chunks = getChunks({
-    interval: [blocks[0], blocks[1] - 1],
-    maxChunkSize: Math.floor(
-      (blocks[1] - blocks[0]) / SIM_PARAMS.INTERVAL_CHUNKS,
-    ),
-  });
-
-  const resultIntervals: [number, number][] = [];
-  const rng = seedrandom(SEED! + interval.fragmentId);
-  for (const chunk of chunks) {
-    if (rng() > SIM_PARAMS.INTERVAL_EVICT_RATE) {
-      resultIntervals.push(chunk);
-
-      const fragment = decodeFragment(interval.fragmentId);
-      switch (fragment.type) {
-        case "block": {
-          blockConditions.push(
-            and(
-              eq(PONDER_SYNC.blocks.chainId, fragment.chainId),
-              sql`(blocks.number - ${fragment.offset}) % ${fragment.interval} = 0`,
-              gte(PONDER_SYNC.blocks.number, BigInt(chunk[0])),
-              lte(PONDER_SYNC.blocks.number, BigInt(chunk[1])),
-            )!,
-          );
-
-          break;
-        }
-        case "transaction": {
-          const condition = and(
-            eq(PONDER_SYNC.transactions.chainId, fragment.chainId),
-            // TODO(kyle) fromAddress
-            // TODO(kyle) toAddress
-            gte(PONDER_SYNC.transactions.blockNumber, BigInt(chunk[0])),
-            lte(PONDER_SYNC.transactions.blockNumber, BigInt(chunk[1])),
-          )!;
-
-          blockConditions.push(
-            exists(
+const getAddressCondition = <
+  table extends
+    | typeof PONDER_SYNC.logs
+    | typeof PONDER_SYNC.traces
+    | typeof PONDER_SYNC.transactions,
+>(
+  address: FragmentAddress,
+  table: table,
+  column: keyof table,
+): SQL => {
+  const addressColumn = table[column] as PgColumn;
+  if (isFragmentAddressFactory(address)) {
+    return inArray(
+      addressColumn,
+      appDb
+        .select({ address: PONDER_SYNC.factoryAddresses.address })
+        .from(PONDER_SYNC.factoryAddresses)
+        .where(
+          and(
+            gte(table.blockNumber, PONDER_SYNC.factoryAddresses.blockNumber),
+            eq(
+              PONDER_SYNC.factoryAddresses.factoryId,
               appDb
-                .select()
-                .from(PONDER_SYNC.transactions)
-                .where(
-                  and(
-                    condition,
-                    eq(
-                      PONDER_SYNC.transactions.chainId,
-                      PONDER_SYNC.blocks.chainId,
-                    ),
-                    eq(
-                      PONDER_SYNC.transactions.blockNumber,
-                      PONDER_SYNC.blocks.number,
+                .select({ id: PONDER_SYNC.factories.id })
+                .from(PONDER_SYNC.factories)
+                .where(eq(PONDER_SYNC.factories.factory, address)),
+            ),
+          ),
+        ),
+    );
+  } else if (typeof address === "string") {
+    return eq(addressColumn, address);
+  } else {
+    return sql`true`;
+  }
+};
+
+if (APP_ID !== "super-assessment") {
+  for (const interval of await appDb.select().from(INTERVALS)) {
+    // TODO(kyle) support multiple intervals
+    const blocks: [number, number] = JSON.parse(interval.blocks.slice(1, -1));
+    const chunks = getChunks({
+      interval: [blocks[0], blocks[1] - 1],
+      maxChunkSize: Math.floor(
+        (blocks[1] - blocks[0]) / SIM_PARAMS.INTERVAL_CHUNKS,
+      ),
+    });
+
+    const resultIntervals: [number, number][] = [];
+    const rng = seedrandom(SEED! + interval.fragmentId);
+    for (const chunk of chunks) {
+      if (rng() > SIM_PARAMS.INTERVAL_EVICT_RATE) {
+        resultIntervals.push(chunk);
+
+        const fragment = decodeFragment(interval.fragmentId);
+        switch (fragment.type) {
+          case "block": {
+            blockConditions.push(
+              and(
+                eq(PONDER_SYNC.blocks.chainId, BigInt(fragment.chainId)),
+                sql`(blocks.number - ${fragment.offset}) % ${fragment.interval} = 0`,
+                gte(PONDER_SYNC.blocks.number, BigInt(chunk[0])),
+                lte(PONDER_SYNC.blocks.number, BigInt(chunk[1])),
+              )!,
+            );
+
+            break;
+          }
+          case "transaction": {
+            const condition = and(
+              eq(PONDER_SYNC.transactions.chainId, BigInt(fragment.chainId)),
+              getAddressCondition(
+                fragment.fromAddress,
+                PONDER_SYNC.transactions,
+                "from",
+              ),
+              getAddressCondition(
+                fragment.toAddress,
+                PONDER_SYNC.transactions,
+                "to",
+              ),
+              gte(PONDER_SYNC.transactions.blockNumber, BigInt(chunk[0])),
+              lte(PONDER_SYNC.transactions.blockNumber, BigInt(chunk[1])),
+            )!;
+
+            blockConditions.push(
+              exists(
+                appDb
+                  .select()
+                  .from(PONDER_SYNC.transactions)
+                  .where(
+                    and(
+                      condition,
+                      eq(
+                        PONDER_SYNC.transactions.chainId,
+                        PONDER_SYNC.blocks.chainId,
+                      ),
+                      eq(
+                        PONDER_SYNC.transactions.blockNumber,
+                        PONDER_SYNC.blocks.number,
+                      ),
                     ),
                   ),
-                ),
-            ),
-          );
-          transactionConditions.push(condition);
-          transactionReceiptConditions.push(condition);
+              ),
+            );
+            transactionConditions.push(condition);
+            transactionReceiptConditions.push(condition);
 
-          break;
-        }
-        case "trace": {
-          // Note: `includeReverted` and `callType` not supported
-          const condition = and(
-            eq(PONDER_SYNC.traces.chainId, fragment.chainId),
-            // TODO(kyle) fromAddress
-            // TODO(kyle) toAddress
-            fragment.functionSelector
-              ? eq(
-                  sql`substring(traces.input from 1 for 10)`,
-                  fragment.functionSelector,
-                )
-              : undefined,
-            gte(PONDER_SYNC.traces.blockNumber, BigInt(chunk[0])),
-            lte(PONDER_SYNC.traces.blockNumber, BigInt(chunk[1])),
-          )!;
+            break;
+          }
+          case "trace": {
+            // Note: `includeReverted` and `callType` not supported
+            const condition = and(
+              eq(PONDER_SYNC.traces.chainId, BigInt(fragment.chainId)),
+              getAddressCondition(
+                fragment.fromAddress,
+                PONDER_SYNC.traces,
+                "from",
+              ),
+              getAddressCondition(fragment.toAddress, PONDER_SYNC.traces, "to"),
+              fragment.functionSelector
+                ? eq(
+                    sql`substring(traces.input from 1 for 10)`,
+                    fragment.functionSelector,
+                  )
+                : undefined,
+              gte(PONDER_SYNC.traces.blockNumber, BigInt(chunk[0])),
+              lte(PONDER_SYNC.traces.blockNumber, BigInt(chunk[1])),
+            )!;
 
-          blockConditions.push(
-            exists(
-              appDb
-                .select()
-                .from(PONDER_SYNC.traces)
-                .where(
-                  and(
-                    condition,
-                    eq(PONDER_SYNC.traces.chainId, PONDER_SYNC.blocks.chainId),
-                    eq(
-                      PONDER_SYNC.traces.blockNumber,
-                      PONDER_SYNC.blocks.number,
+            blockConditions.push(
+              exists(
+                appDb
+                  .select()
+                  .from(PONDER_SYNC.traces)
+                  .where(
+                    and(
+                      condition,
+                      eq(
+                        PONDER_SYNC.traces.chainId,
+                        PONDER_SYNC.blocks.chainId,
+                      ),
+                      eq(
+                        PONDER_SYNC.traces.blockNumber,
+                        PONDER_SYNC.blocks.number,
+                      ),
                     ),
                   ),
-                ),
-            ),
-          );
-          transactionConditions.push(
-            exists(
-              appDb
-                .select()
-                .from(PONDER_SYNC.traces)
-                .where(
-                  and(
-                    condition,
-                    eq(
-                      PONDER_SYNC.traces.chainId,
-                      PONDER_SYNC.transactions.chainId,
-                    ),
-                    eq(
-                      PONDER_SYNC.traces.blockNumber,
-                      PONDER_SYNC.transactions.blockNumber,
-                    ),
-                    eq(
-                      PONDER_SYNC.traces.transactionIndex,
-                      PONDER_SYNC.transactions.transactionIndex,
-                    ),
-                  ),
-                ),
-            ),
-          );
-          if (fragment.includeTransactionReceipts) {
+              ),
+            );
             transactionConditions.push(
               exists(
                 appDb
@@ -269,85 +297,92 @@ for (const interval of await appDb.select().from(INTERVALS)) {
                       condition,
                       eq(
                         PONDER_SYNC.traces.chainId,
-                        PONDER_SYNC.transactionReceipts.chainId,
+                        PONDER_SYNC.transactions.chainId,
                       ),
                       eq(
                         PONDER_SYNC.traces.blockNumber,
-                        PONDER_SYNC.transactionReceipts.blockNumber,
+                        PONDER_SYNC.transactions.blockNumber,
                       ),
                       eq(
                         PONDER_SYNC.traces.transactionIndex,
-                        PONDER_SYNC.transactionReceipts.transactionIndex,
+                        PONDER_SYNC.transactions.transactionIndex,
                       ),
                     ),
                   ),
               ),
             );
+            if (fragment.includeTransactionReceipts) {
+              transactionConditions.push(
+                exists(
+                  appDb
+                    .select()
+                    .from(PONDER_SYNC.traces)
+                    .where(
+                      and(
+                        condition,
+                        eq(
+                          PONDER_SYNC.traces.chainId,
+                          PONDER_SYNC.transactionReceipts.chainId,
+                        ),
+                        eq(
+                          PONDER_SYNC.traces.blockNumber,
+                          PONDER_SYNC.transactionReceipts.blockNumber,
+                        ),
+                        eq(
+                          PONDER_SYNC.traces.transactionIndex,
+                          PONDER_SYNC.transactionReceipts.transactionIndex,
+                        ),
+                      ),
+                    ),
+                ),
+              );
+            }
+            traceConditions.push(condition);
+
+            break;
           }
-          traceConditions.push(condition);
+          case "log": {
+            const condition = and(
+              eq(PONDER_SYNC.logs.chainId, BigInt(fragment.chainId)),
+              getAddressCondition(
+                fragment.address,
+                PONDER_SYNC.logs,
+                "address",
+              ),
+              fragment.topic0
+                ? eq(PONDER_SYNC.logs.topic0, fragment.topic0)
+                : undefined,
+              fragment.topic1
+                ? eq(PONDER_SYNC.logs.topic1, fragment.topic1)
+                : undefined,
+              fragment.topic2
+                ? eq(PONDER_SYNC.logs.topic2, fragment.topic2)
+                : undefined,
+              fragment.topic3
+                ? eq(PONDER_SYNC.logs.topic3, fragment.topic3)
+                : undefined,
+              gte(PONDER_SYNC.logs.blockNumber, BigInt(chunk[0])),
+              lte(PONDER_SYNC.logs.blockNumber, BigInt(chunk[1])),
+            )!;
 
-          break;
-        }
-        case "log": {
-          const condition = and(
-            eq(PONDER_SYNC.logs.chainId, fragment.chainId),
-            // TODO(kyle) address
-            fragment.topic0
-              ? eq(PONDER_SYNC.logs.topic0, fragment.topic0)
-              : undefined,
-            fragment.topic1
-              ? eq(PONDER_SYNC.logs.topic1, fragment.topic1)
-              : undefined,
-            fragment.topic2
-              ? eq(PONDER_SYNC.logs.topic2, fragment.topic2)
-              : undefined,
-            fragment.topic3
-              ? eq(PONDER_SYNC.logs.topic3, fragment.topic3)
-              : undefined,
-            gte(PONDER_SYNC.logs.blockNumber, BigInt(chunk[0])),
-            lte(PONDER_SYNC.logs.blockNumber, BigInt(chunk[1])),
-          )!;
-
-          blockConditions.push(
-            exists(
-              appDb
-                .select()
-                .from(PONDER_SYNC.logs)
-                .where(
-                  and(
-                    condition,
-                    eq(PONDER_SYNC.logs.chainId, PONDER_SYNC.blocks.chainId),
-                    eq(PONDER_SYNC.logs.blockNumber, PONDER_SYNC.blocks.number),
-                  ),
-                ),
-            ),
-          );
-          transactionConditions.push(
-            exists(
-              appDb
-                .select()
-                .from(PONDER_SYNC.logs)
-                .where(
-                  and(
-                    condition,
-                    eq(
-                      PONDER_SYNC.logs.chainId,
-                      PONDER_SYNC.transactions.chainId,
-                    ),
-                    eq(
-                      PONDER_SYNC.logs.blockNumber,
-                      PONDER_SYNC.transactions.blockNumber,
-                    ),
-                    eq(
-                      PONDER_SYNC.logs.transactionIndex,
-                      PONDER_SYNC.transactions.transactionIndex,
+            blockConditions.push(
+              exists(
+                appDb
+                  .select()
+                  .from(PONDER_SYNC.logs)
+                  .where(
+                    and(
+                      condition,
+                      eq(PONDER_SYNC.logs.chainId, PONDER_SYNC.blocks.chainId),
+                      eq(
+                        PONDER_SYNC.logs.blockNumber,
+                        PONDER_SYNC.blocks.number,
+                      ),
                     ),
                   ),
-                ),
-            ),
-          );
-          if (fragment.includeTransactionReceipts) {
-            transactionReceiptConditions.push(
+              ),
+            );
+            transactionConditions.push(
               exists(
                 appDb
                   .select()
@@ -357,77 +392,84 @@ for (const interval of await appDb.select().from(INTERVALS)) {
                       condition,
                       eq(
                         PONDER_SYNC.logs.chainId,
-                        PONDER_SYNC.transactionReceipts.chainId,
+                        PONDER_SYNC.transactions.chainId,
                       ),
                       eq(
                         PONDER_SYNC.logs.blockNumber,
-                        PONDER_SYNC.transactionReceipts.blockNumber,
+                        PONDER_SYNC.transactions.blockNumber,
                       ),
                       eq(
                         PONDER_SYNC.logs.transactionIndex,
-                        PONDER_SYNC.transactionReceipts.transactionIndex,
+                        PONDER_SYNC.transactions.transactionIndex,
                       ),
                     ),
                   ),
               ),
             );
+            if (fragment.includeTransactionReceipts) {
+              transactionReceiptConditions.push(
+                exists(
+                  appDb
+                    .select()
+                    .from(PONDER_SYNC.logs)
+                    .where(
+                      and(
+                        condition,
+                        eq(
+                          PONDER_SYNC.logs.chainId,
+                          PONDER_SYNC.transactionReceipts.chainId,
+                        ),
+                        eq(
+                          PONDER_SYNC.logs.blockNumber,
+                          PONDER_SYNC.transactionReceipts.blockNumber,
+                        ),
+                        eq(
+                          PONDER_SYNC.logs.transactionIndex,
+                          PONDER_SYNC.transactionReceipts.transactionIndex,
+                        ),
+                      ),
+                    ),
+                ),
+              );
+            }
+            logConditions.push(condition!);
+
+            break;
           }
-          logConditions.push(condition!);
+          case "transfer": {
+            // Note: `includeReverted` not supported
+            const condition = and(
+              eq(PONDER_SYNC.traces.chainId, BigInt(fragment.chainId)),
+              getAddressCondition(
+                fragment.fromAddress,
+                PONDER_SYNC.traces,
+                "from",
+              ),
+              getAddressCondition(fragment.toAddress, PONDER_SYNC.traces, "to"),
+              gte(PONDER_SYNC.traces.blockNumber, BigInt(chunk[0])),
+              lte(PONDER_SYNC.traces.blockNumber, BigInt(chunk[1])),
+            )!;
 
-          break;
-        }
-        case "transfer": {
-          // Note: `includeReverted` not supported
-          const condition = and(
-            eq(PONDER_SYNC.traces.chainId, fragment.chainId),
-            // TODO(kyle) fromAddress
-            // TODO(kyle) toAddress
-            gte(PONDER_SYNC.traces.blockNumber, BigInt(chunk[0])),
-            lte(PONDER_SYNC.traces.blockNumber, BigInt(chunk[1])),
-          )!;
-
-          blockConditions.push(
-            exists(
-              appDb
-                .select()
-                .from(PONDER_SYNC.traces)
-                .where(
-                  and(
-                    condition,
-                    eq(PONDER_SYNC.traces.chainId, PONDER_SYNC.blocks.chainId),
-                    eq(
-                      PONDER_SYNC.traces.blockNumber,
-                      PONDER_SYNC.blocks.number,
+            blockConditions.push(
+              exists(
+                appDb
+                  .select()
+                  .from(PONDER_SYNC.traces)
+                  .where(
+                    and(
+                      condition,
+                      eq(
+                        PONDER_SYNC.traces.chainId,
+                        PONDER_SYNC.blocks.chainId,
+                      ),
+                      eq(
+                        PONDER_SYNC.traces.blockNumber,
+                        PONDER_SYNC.blocks.number,
+                      ),
                     ),
                   ),
-                ),
-            ),
-          );
-          transactionConditions.push(
-            exists(
-              appDb
-                .select()
-                .from(PONDER_SYNC.traces)
-                .where(
-                  and(
-                    condition,
-                    eq(
-                      PONDER_SYNC.traces.chainId,
-                      PONDER_SYNC.transactions.chainId,
-                    ),
-                    eq(
-                      PONDER_SYNC.traces.blockNumber,
-                      PONDER_SYNC.transactions.blockNumber,
-                    ),
-                    eq(
-                      PONDER_SYNC.traces.transactionIndex,
-                      PONDER_SYNC.transactions.transactionIndex,
-                    ),
-                  ),
-                ),
-            ),
-          );
-          if (fragment.includeTransactionReceipts) {
+              ),
+            );
             transactionConditions.push(
               exists(
                 appDb
@@ -438,45 +480,71 @@ for (const interval of await appDb.select().from(INTERVALS)) {
                       condition,
                       eq(
                         PONDER_SYNC.traces.chainId,
-                        PONDER_SYNC.transactionReceipts.chainId,
+                        PONDER_SYNC.transactions.chainId,
                       ),
                       eq(
                         PONDER_SYNC.traces.blockNumber,
-                        PONDER_SYNC.transactionReceipts.blockNumber,
+                        PONDER_SYNC.transactions.blockNumber,
                       ),
                       eq(
                         PONDER_SYNC.traces.transactionIndex,
-                        PONDER_SYNC.transactionReceipts.transactionIndex,
+                        PONDER_SYNC.transactions.transactionIndex,
                       ),
                     ),
                   ),
               ),
             );
-          }
-          traceConditions.push(condition);
+            if (fragment.includeTransactionReceipts) {
+              transactionConditions.push(
+                exists(
+                  appDb
+                    .select()
+                    .from(PONDER_SYNC.traces)
+                    .where(
+                      and(
+                        condition,
+                        eq(
+                          PONDER_SYNC.traces.chainId,
+                          PONDER_SYNC.transactionReceipts.chainId,
+                        ),
+                        eq(
+                          PONDER_SYNC.traces.blockNumber,
+                          PONDER_SYNC.transactionReceipts.blockNumber,
+                        ),
+                        eq(
+                          PONDER_SYNC.traces.transactionIndex,
+                          PONDER_SYNC.transactionReceipts.transactionIndex,
+                        ),
+                      ),
+                    ),
+                ),
+              );
+            }
+            traceConditions.push(condition);
 
-          break;
+            break;
+          }
         }
       }
     }
-  }
 
-  if (resultIntervals.length === 0) {
-    await appDb
-      .delete(INTERVALS)
-      .where(eq(INTERVALS.fragmentId, interval.fragmentId));
-  } else {
-    const numranges = resultIntervals
-      .map((interval) => {
-        const start = interval[0];
-        const end = interval[1] + 1;
-        return `numrange(${start}, ${end}, '[]')`;
-      })
-      .join(", ");
-    await appDb
-      .update(INTERVALS)
-      .set({ blocks: sql.raw(`nummultirange(${numranges})`) })
-      .where(eq(INTERVALS.fragmentId, interval.fragmentId));
+    if (resultIntervals.length === 0) {
+      await appDb
+        .delete(INTERVALS)
+        .where(eq(INTERVALS.fragmentId, interval.fragmentId));
+    } else {
+      const numranges = resultIntervals
+        .map((interval) => {
+          const start = interval[0];
+          const end = interval[1] + 1;
+          return `numrange(${start}, ${end}, '[]')`;
+        })
+        .join(", ");
+      await appDb
+        .update(INTERVALS)
+        .set({ blocks: sql.raw(`nummultirange(${numranges})`) })
+        .where(eq(INTERVALS.fragmentId, interval.fragmentId));
+    }
   }
 }
 
@@ -565,10 +633,11 @@ const program = new Command()
 process.env.PONDER_TELEMETRY_DISABLED = "true";
 process.env.DATABASE_URL = `${DATABASE_URL!}/${UUID}`;
 process.env.DATABASE_SCHEMA = "public";
+process.env.SEED = SEED;
 
 const pwr = promiseWithResolvers<void>();
 
-export const onBuild = async (app: PonderApp) => {
+const onBuild = async (app: PonderApp) => {
   app.preBuild.ordering = SIM_PARAMS.ORDERING;
 
   if (APP_ID === "super-assessment") {
@@ -620,191 +689,268 @@ export const onBuild = async (app: PonderApp) => {
       ),
     );
     for (const { filter, name } of app.indexingBuild.sources) {
-      switch (filter.type) {
-        case "block": {
-          const blockCheckpoint = sql.raw(
-            `
-          (lpad(blocks.timestamp::text, 10, '0') ||
-          lpad(blocks.chain_id::text, 16, '0') ||
-          lpad(blocks.number::text, 16, '0') ||
-          '9999999999999999' ||
-          '5' ||
-          '0000000000000000')`,
-          );
+      const blockConditions = [
+        filter.fromBlock
+          ? gte(PONDER_SYNC.blocks.number, BigInt(filter.fromBlock))
+          : undefined,
+        filter.toBlock
+          ? lte(PONDER_SYNC.blocks.number, BigInt(filter.toBlock))
+          : undefined,
+      ];
 
-          const blocksQuery = appDb
-            .select({
-              chainId: sql.raw(filter.chainId).as("chain_id"),
-              name: sql.raw(`'${name}:block'`).as("name"),
-              id: blockCheckpoint.as("id"),
-            })
-            .from(PONDER_SYNC.blocks)
-            .where(
-              and(
-                eq(PONDER_SYNC.blocks.chainId, filter.chainId),
-                blockFilter(filter),
-              ),
+      for (const { fragment } of getFragments(filter)) {
+        switch (fragment.type) {
+          case "block": {
+            const blockCheckpoint = sql.raw(
+              `
+            (lpad(blocks.timestamp::text, 10, '0') ||
+            lpad(blocks.chain_id::text, 16, '0') ||
+            lpad(blocks.number::text, 16, '0') ||
+            '9999999999999999' ||
+            '5' ||
+            '0000000000000000')`,
             );
 
-          await appDb.insert(expected).select(blocksQuery);
-
-          break;
-        }
-        case "transaction": {
-          const transactionCheckpoint = sql.raw(
-            `
-          (lpad(blocks.timestamp::text, 10, '0') ||
-          lpad(transactions.chain_id::text, 16, '0') ||
-          lpad(transactions.block_number::text, 16, '0') ||
-          lpad(transactions.transaction_index::text, 16, '0') ||
-          '2' ||
-          '0000000000000000')`,
-          );
-
-          const isFrom = filter.toAddress === undefined;
-          const transactionsQuery = appDb
-            .select({
-              chainId: sql.raw(filter.chainId).as("chain_id"),
-              name: sql
-                .raw(`'${name}:transaction:${isFrom ? "from" : "to"}'`)
-                .as("name"),
-              id: transactionCheckpoint.as("id"),
-            })
-            .from(PONDER_SYNC.transactions)
-            .innerJoin(
-              PONDER_SYNC.blocks,
-              and(
-                eq(
-                  PONDER_SYNC.blocks.chainId,
-                  PONDER_SYNC.transactions.chainId,
+            const blocksQuery = appDb
+              .select({
+                chainId: sql.raw(fragment.chainId).as("chain_id"),
+                name: sql.raw(`'${name}:block'`).as("name"),
+                id: blockCheckpoint.as("id"),
+              })
+              .from(PONDER_SYNC.blocks)
+              .where(
+                and(
+                  eq(PONDER_SYNC.blocks.chainId, BigInt(fragment.chainId)),
+                  sql`(blocks.number - ${fragment.offset}) % ${fragment.interval} = 0`,
+                  ...blockConditions,
                 ),
-                eq(
-                  PONDER_SYNC.blocks.number,
-                  PONDER_SYNC.transactions.blockNumber,
+              );
+
+            await appDb.insert(expected).select(blocksQuery);
+
+            break;
+          }
+          case "transaction": {
+            const transactionCheckpoint = sql.raw(
+              `
+            (lpad(blocks.timestamp::text, 10, '0') ||
+            lpad(transactions.chain_id::text, 16, '0') ||
+            lpad(transactions.block_number::text, 16, '0') ||
+            lpad(transactions.transaction_index::text, 16, '0') ||
+            '2' ||
+            '0000000000000000')`,
+            );
+
+            const isFrom = fragment.toAddress === undefined;
+            const transactionsQuery = appDb
+              .select({
+                chainId: sql.raw(fragment.chainId).as("chain_id"),
+                name: sql
+                  .raw(`'${name}:transaction:${isFrom ? "from" : "to"}'`)
+                  .as("name"),
+                id: transactionCheckpoint.as("id"),
+              })
+              .from(PONDER_SYNC.transactions)
+              .innerJoin(
+                PONDER_SYNC.blocks,
+                and(
+                  eq(
+                    PONDER_SYNC.blocks.chainId,
+                    PONDER_SYNC.transactions.chainId,
+                  ),
+                  eq(
+                    PONDER_SYNC.blocks.number,
+                    PONDER_SYNC.transactions.blockNumber,
+                  ),
                 ),
-              ),
-            )
-            .where(
-              and(
-                eq(PONDER_SYNC.transactions.chainId, filter.chainId),
-                transactionFilter(filter),
-              ),
-            );
+              )
+              .where(
+                and(
+                  eq(
+                    PONDER_SYNC.transactions.chainId,
+                    BigInt(fragment.chainId),
+                  ),
+                  getAddressCondition(
+                    fragment.fromAddress,
+                    PONDER_SYNC.transactions,
+                    "from",
+                  ),
+                  getAddressCondition(
+                    fragment.toAddress,
+                    PONDER_SYNC.transactions,
+                    "to",
+                  ),
+                  ...blockConditions,
+                ),
+              );
 
-          await appDb.insert(expected).select(transactionsQuery);
+            await appDb.insert(expected).select(transactionsQuery);
 
-          break;
-        }
-        case "trace": {
-          const traceCheckpoint = sql.raw(
-            `
-          (lpad(blocks.timestamp::text, 10, '0') ||
-          lpad(traces.chain_id::text, 16, '0') ||
-          lpad(traces.block_number::text, 16, '0') ||
-          lpad(traces.transaction_index::text, 16, '0') ||
-          '7' ||
-          lpad(traces.trace_index::text, 16, '0'))`,
-          );
-
-          const tracesQuery = appDb
-            .select({
-              chainId: sql.raw(filter.chainId).as("chain_id"),
-              name: sql.raw(`'${name}.transfer()'`).as("name"),
-              id: traceCheckpoint.as("id"),
-            })
-            .from(PONDER_SYNC.traces)
-            .innerJoin(
-              PONDER_SYNC.blocks,
-              and(
-                eq(PONDER_SYNC.blocks.chainId, PONDER_SYNC.traces.chainId),
-                eq(PONDER_SYNC.blocks.number, PONDER_SYNC.traces.blockNumber),
-              ),
-            )
-            .where(
-              and(
-                eq(PONDER_SYNC.traces.chainId, filter.chainId),
-                traceFilter(filter),
-              ),
-            );
-
-          await appDb.insert(expected).select(tracesQuery);
-
-          break;
-        }
-        case "log": {
-          const logCheckpoint = sql.raw(
-            `
-          (lpad(blocks.timestamp::text, 10, '0') ||
-          lpad(logs.chain_id::text, 16, '0') ||
-          lpad(logs.block_number::text, 16, '0') ||
-          lpad(logs.transaction_index::text, 16, '0') ||
-          '5' ||
-          lpad(logs.log_index::text, 16, '0'))`,
-          );
-
-          const logsQuery = appDb
-            .select({
-              chainId: sql.raw(filter.chainId).as("chain_id"),
-              name: sql.raw(`'${name}:Transfer'`).as("name"),
-              id: logCheckpoint.as("id"),
-            })
-            .from(PONDER_SYNC.logs)
-            .innerJoin(
-              PONDER_SYNC.blocks,
-              and(
-                eq(PONDER_SYNC.blocks.chainId, PONDER_SYNC.logs.chainId),
-                eq(PONDER_SYNC.blocks.number, PONDER_SYNC.logs.blockNumber),
-              ),
-            )
-            .where(
-              and(
-                eq(PONDER_SYNC.logs.chainId, filter.chainId),
-                logFilter(filter),
-              ),
-            );
-
-          await appDb.insert(expected).select(logsQuery);
-
-          break;
-        }
-        case "transfer": {
-          const transferCheckpoint = sql.raw(
-            `
+            break;
+          }
+          case "trace": {
+            const traceCheckpoint = sql.raw(
+              `
             (lpad(blocks.timestamp::text, 10, '0') ||
             lpad(traces.chain_id::text, 16, '0') ||
             lpad(traces.block_number::text, 16, '0') ||
             lpad(traces.transaction_index::text, 16, '0') ||
             '7' ||
             lpad(traces.trace_index::text, 16, '0'))`,
-          );
-
-          const isFrom = filter.toAddress === undefined;
-          const transfersQuery = appDb
-            .select({
-              chainId: sql.raw(filter.chainId).as("chain_id"),
-              name: sql
-                .raw(`'${name}:transfer:${isFrom ? "from" : "to"}'`)
-                .as("name"),
-              id: transferCheckpoint.as("id"),
-            })
-            .from(PONDER_SYNC.traces)
-            .innerJoin(
-              PONDER_SYNC.blocks,
-              and(
-                eq(PONDER_SYNC.blocks.chainId, PONDER_SYNC.traces.chainId),
-                eq(PONDER_SYNC.blocks.number, PONDER_SYNC.traces.blockNumber),
-              ),
-            )
-            .where(
-              and(
-                eq(PONDER_SYNC.traces.chainId, filter.chainId),
-                transferFilter(filter),
-              ),
             );
 
-          await appDb.insert(expected).select(transfersQuery);
+            const tracesQuery = appDb
+              .select({
+                chainId: sql.raw(fragment.chainId).as("chain_id"),
+                name: sql.raw(`'${name}.transfer()'`).as("name"),
+                id: traceCheckpoint.as("id"),
+              })
+              .from(PONDER_SYNC.traces)
+              .innerJoin(
+                PONDER_SYNC.blocks,
+                and(
+                  eq(PONDER_SYNC.blocks.chainId, PONDER_SYNC.traces.chainId),
+                  eq(PONDER_SYNC.blocks.number, PONDER_SYNC.traces.blockNumber),
+                ),
+              )
+              .where(
+                and(
+                  eq(PONDER_SYNC.traces.chainId, BigInt(fragment.chainId)),
+                  getAddressCondition(
+                    fragment.fromAddress,
+                    PONDER_SYNC.traces,
+                    "from",
+                  ),
+                  getAddressCondition(
+                    fragment.toAddress,
+                    PONDER_SYNC.traces,
+                    "to",
+                  ),
+                  filter.includeReverted
+                    ? undefined
+                    : isNull(PONDER_SYNC.traces.error),
+                  filter.callType
+                    ? eq(PONDER_SYNC.traces.type, filter.callType)
+                    : undefined,
+                  fragment.functionSelector
+                    ? eq(
+                        sql`substring(traces.input from 1 for 10)`,
+                        fragment.functionSelector,
+                      )
+                    : undefined,
+                  ...blockConditions,
+                ),
+              );
 
-          break;
+            await appDb.insert(expected).select(tracesQuery);
+
+            break;
+          }
+          case "log": {
+            const logCheckpoint = sql.raw(
+              `
+            (lpad(blocks.timestamp::text, 10, '0') ||
+            lpad(logs.chain_id::text, 16, '0') ||
+            lpad(logs.block_number::text, 16, '0') ||
+            lpad(logs.transaction_index::text, 16, '0') ||
+            '5' ||
+            lpad(logs.log_index::text, 16, '0'))`,
+            );
+
+            const logsQuery = appDb
+              .select({
+                chainId: sql.raw(fragment.chainId).as("chain_id"),
+                name: sql.raw(`'${name}:Transfer'`).as("name"),
+                id: logCheckpoint.as("id"),
+              })
+              .from(PONDER_SYNC.logs)
+              .innerJoin(
+                PONDER_SYNC.blocks,
+                and(
+                  eq(PONDER_SYNC.blocks.chainId, PONDER_SYNC.logs.chainId),
+                  eq(PONDER_SYNC.blocks.number, PONDER_SYNC.logs.blockNumber),
+                ),
+              )
+              .where(
+                and(
+                  eq(PONDER_SYNC.logs.chainId, BigInt(fragment.chainId)),
+                  getAddressCondition(
+                    fragment.address,
+                    PONDER_SYNC.logs,
+                    "address",
+                  ),
+                  fragment.topic0
+                    ? eq(PONDER_SYNC.logs.topic0, fragment.topic0)
+                    : undefined,
+                  fragment.topic1
+                    ? eq(PONDER_SYNC.logs.topic1, fragment.topic1)
+                    : undefined,
+                  fragment.topic2
+                    ? eq(PONDER_SYNC.logs.topic2, fragment.topic2)
+                    : undefined,
+                  fragment.topic3
+                    ? eq(PONDER_SYNC.logs.topic3, fragment.topic3)
+                    : undefined,
+                  ...blockConditions,
+                ),
+              );
+
+            await appDb.insert(expected).select(logsQuery);
+
+            break;
+          }
+          case "transfer": {
+            const transferCheckpoint = sql.raw(
+              `
+              (lpad(blocks.timestamp::text, 10, '0') ||
+              lpad(traces.chain_id::text, 16, '0') ||
+              lpad(traces.block_number::text, 16, '0') ||
+              lpad(traces.transaction_index::text, 16, '0') ||
+              '7' ||
+              lpad(traces.trace_index::text, 16, '0'))`,
+            );
+
+            const isFrom = fragment.toAddress === undefined;
+            const transfersQuery = appDb
+              .select({
+                chainId: sql.raw(fragment.chainId).as("chain_id"),
+                name: sql
+                  .raw(`'${name}:transfer:${isFrom ? "from" : "to"}'`)
+                  .as("name"),
+                id: transferCheckpoint.as("id"),
+              })
+              .from(PONDER_SYNC.traces)
+              .innerJoin(
+                PONDER_SYNC.blocks,
+                and(
+                  eq(PONDER_SYNC.blocks.chainId, PONDER_SYNC.traces.chainId),
+                  eq(PONDER_SYNC.blocks.number, PONDER_SYNC.traces.blockNumber),
+                ),
+              )
+              .where(
+                and(
+                  eq(PONDER_SYNC.traces.chainId, BigInt(fragment.chainId)),
+                  getAddressCondition(
+                    fragment.fromAddress,
+                    PONDER_SYNC.traces,
+                    "from",
+                  ),
+                  getAddressCondition(
+                    fragment.toAddress,
+                    PONDER_SYNC.traces,
+                    "to",
+                  ),
+                  filter.includeReverted
+                    ? undefined
+                    : isNull(PONDER_SYNC.traces.error),
+                  ...blockConditions,
+                ),
+              );
+
+            await appDb.insert(expected).select(transfersQuery);
+
+            break;
+          }
         }
       }
     }
