@@ -979,8 +979,9 @@ export const createSync = async (params: {
                 );
               }
             },
-            // TODO(kyle) handle error
-            onError: () => {},
+            onError: (error) => {
+              realtimeSync.onError(error);
+            },
           });
         }
       }

@@ -59,6 +59,7 @@ export type RealtimeSync = {
    * `false` otherwise.
    */
   sync(block: SyncBlock): Promise<boolean>;
+  onError(error: Error): void;
   /**
    * Local chain of blocks that have not been finalized.
    */
@@ -780,34 +781,7 @@ export const createRealtimeSync = (
         return result.promise;
       }
     } catch (_error) {
-      const error = _error as Error;
-
-      if (args.common.shutdown.isKilled) {
-        throw new ShutdownError();
-      }
-
-      args.common.logger.warn({
-        service: "realtime",
-        msg: `Failed to fetch latest '${args.chain.name}' block`,
-        error,
-      });
-
-      fetchAndReconcileLatestBlockErrorCount += 1;
-
-      // After a certain number of attempts, emit a fatal error.
-      if (
-        fetchAndReconcileLatestBlockErrorCount * args.chain.pollingInterval >
-        MAX_LATEST_BLOCK_ATTEMPT_MS
-      ) {
-        args.common.logger.error({
-          service: "realtime",
-          msg: `Fatal error: Unable to fetch latest '${args.chain.name}' block after ${ERROR_TIMEOUT.length} attempts.`,
-          error,
-        });
-
-        args.onFatalError(error);
-      }
-
+      onError(_error as Error);
       return false;
     }
   };
@@ -1067,10 +1041,39 @@ export const createRealtimeSync = (
     },
   );
 
+  const onError = (error: Error) => {
+    if (args.common.shutdown.isKilled) {
+      throw new ShutdownError();
+    }
+
+    args.common.logger.warn({
+      service: "realtime",
+      msg: `Failed to fetch latest '${args.chain.name}' block`,
+      error,
+    });
+
+    fetchAndReconcileLatestBlockErrorCount += 1;
+
+    // After a certain number of attempts, emit a fatal error.
+    if (
+      fetchAndReconcileLatestBlockErrorCount * args.chain.pollingInterval >
+      MAX_LATEST_BLOCK_ATTEMPT_MS
+    ) {
+      args.common.logger.error({
+        service: "realtime",
+        msg: `Fatal error: Unable to fetch latest '${args.chain.name}' block after ${ERROR_TIMEOUT.length} attempts.`,
+        error,
+      });
+
+      args.onFatalError(error);
+    }
+  };
+
   return {
     sync(block) {
       return fetchAndReconcileLatestBlock(block);
     },
+    onError,
     get unfinalizedBlocks() {
       return unfinalizedBlocks;
     },
