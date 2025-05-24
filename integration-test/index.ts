@@ -1080,7 +1080,17 @@ export const restart = async () => {
 //   await restart();
 // }
 
-await pwr.promise;
+if (SIM_PARAMS.FINALIZED_RATE === 1) {
+  while (true) {
+    try {
+      const result = await fetch("http://localhost:42069/ready");
+      if (result.status === 200) break;
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+} else {
+  await pwr.promise;
+}
 await kill!();
 
 // 4. Compare
