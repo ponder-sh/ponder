@@ -26,11 +26,11 @@ import type { SyncStore } from "@/sync-store/index.js";
 import {
   type Checkpoint,
   MAX_CHECKPOINT,
-  MAX_CHECKPOINT_STRING,
   ZERO_CHECKPOINT,
   ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
   encodeCheckpoint,
+  max,
   min,
 } from "@/utils/checkpoint.js";
 import { formatPercentage } from "@/utils/format.js";
@@ -204,24 +204,26 @@ export const splitEvents = (
   return result;
 };
 
-/** Returns the checkpoint for a given block tag. */
-export const getChainCheckpoint = ({
+/**
+ * Returns the checkpoint for a given block tag.
+ */
+export const getChainCheckpoint = <
+  tag extends "start" | "current" | "finalized" | "end",
+>({
   syncProgress,
   chain,
   tag,
 }: {
   syncProgress: SyncProgress;
   chain: Chain;
-  tag: "start" | "current" | "finalized" | "end";
-}): string | undefined => {
+  tag: tag;
+}): tag extends "end" ? string | undefined : string => {
   if (tag === "end" && syncProgress.end === undefined) {
-    return undefined;
+    return undefined as tag extends "end" ? string | undefined : string;
   }
 
-  if (tag === "current" && isSyncEnd(syncProgress)) {
-    return undefined;
-  }
-
+  // Note: `current` is guaranteed to be defined because it is only used once the historical
+  // backfill is complete.
   const block = syncProgress[tag]!;
   return encodeCheckpoint(
     blockToCheckpoint(
@@ -231,7 +233,7 @@ export const getChainCheckpoint = ({
       // a closed interval (includes endpoints), so "start" should be inclusive.
       tag === "start" ? "down" : "up",
     ),
-  );
+  ) as tag extends "end" ? string | undefined : string;
 };
 
 export const createSync = async (params: {
@@ -255,41 +257,71 @@ export const createSync = async (params: {
     }
   >();
 
-  const getMultichainCheckpoint = ({
+  /**
+   * Compute the checkpoint for a single chain.
+   */
+  const getMultichainCheckpoint = <
+    tag extends "start" | "end" | "current" | "finalized",
+  >({
     tag,
     chain,
-  }: { tag: "start" | "end" | "current" | "finalized"; chain: Chain }):
-    | string
-    | undefined => {
+  }: { tag: tag; chain: Chain }): tag extends "end"
+    ? string | undefined
+    : string => {
     const syncProgress = perChainSync.get(chain)!.syncProgress;
     return getChainCheckpoint({ syncProgress, chain, tag });
   };
 
-  const getOmnichainCheckpoint = ({
+  /**
+   * Compute the checkpoint across all chains.
+   */
+  const getOmnichainCheckpoint = <
+    tag extends "start" | "end" | "current" | "finalized",
+  >({
     tag,
-  }: { tag: "start" | "end" | "current" | "finalized" }):
-    | string
-    | undefined => {
+  }: { tag: tag }): tag extends "end" ? string | undefined : string => {
     const checkpoints = Array.from(perChainSync.entries()).map(
       ([chain, { syncProgress }]) =>
         getChainCheckpoint({ syncProgress, chain, tag }),
     );
 
-    if (tag === "end" && checkpoints.some((c) => c === undefined)) {
-      return undefined;
+    if (tag === "end") {
+      if (checkpoints.some((c) => c === undefined)) {
+        return undefined as tag extends "end" ? string | undefined : string;
+      }
+      // Note: `max` is used here because `end` is an upper bound.
+      return max(...checkpoints) as tag extends "end"
+        ? string | undefined
+        : string;
     }
 
-    if (tag === "current" && checkpoints.every((c) => c === undefined)) {
-      return undefined;
+    // Note: extra logic is needed for `current` because completed chains
+    // shouldn't be included in the minimum checkpoint. However, when all
+    // chains are completed, the minimum checkpoint should be computed across
+    // all chains.
+    if (tag === "current") {
+      const isComplete = Array.from(perChainSync.values()).map(
+        ({ syncProgress }) => isSyncEnd(syncProgress),
+      );
+      if (isComplete.every((c) => c)) {
+        return min(...checkpoints) as tag extends "end"
+          ? string | undefined
+          : string;
+      }
+      return min(
+        ...checkpoints.filter((_, i) => isComplete[i] === false),
+      ) as tag extends "end" ? string | undefined : string;
     }
 
-    return min(...checkpoints);
+    return min(...checkpoints) as tag extends "end"
+      ? string | undefined
+      : string;
   };
 
   async function* getEvents() {
     const to = min(
-      getOmnichainCheckpoint({ tag: "finalized" })!,
-      getOmnichainCheckpoint({ tag: "end" })!,
+      getOmnichainCheckpoint({ tag: "finalized" }),
+      getOmnichainCheckpoint({ tag: "end" }),
     );
 
     const eventGenerators = Array.from(perChainSync.entries()).map(
@@ -523,11 +555,10 @@ export const createSync = async (params: {
 
         if (params.ordering === "multichain") {
           // Note: `checkpoints.current` not used in multichain ordering
-          const checkpoint =
-            getMultichainCheckpoint({
-              tag: "current",
-              chain,
-            }) ?? MAX_CHECKPOINT_STRING;
+          const checkpoint = getMultichainCheckpoint({
+            tag: "current",
+            chain,
+          })!;
 
           const readyEvents = decodedEvents.concat(pendingEvents);
           pendingEvents = [];
@@ -548,9 +579,8 @@ export const createSync = async (params: {
           });
         } else {
           const from = checkpoints.current;
-          checkpoints.current = getOmnichainCheckpoint({ tag: "current" })!;
-          const to =
-            getOmnichainCheckpoint({ tag: "current" }) ?? MAX_CHECKPOINT_STRING;
+          checkpoints.current = getOmnichainCheckpoint({ tag: "current" });
+          const to = getOmnichainCheckpoint({ tag: "current" });
 
           // TODO(kyle)
           // omnichainHooks.push({
@@ -620,16 +650,16 @@ export const createSync = async (params: {
 
       case "finalize": {
         const from = checkpoints.finalized;
-        checkpoints.finalized = getOmnichainCheckpoint({ tag: "finalized" })!;
-        const to = getOmnichainCheckpoint({ tag: "finalized" })!;
+        checkpoints.finalized = getOmnichainCheckpoint({ tag: "finalized" });
+        const to = getOmnichainCheckpoint({ tag: "finalized" });
 
         if (
           params.ordering === "omnichain" &&
-          getChainCheckpoint({ syncProgress, chain, tag: "finalized" })! >
-            getOmnichainCheckpoint({ tag: "current" })!
+          getChainCheckpoint({ syncProgress, chain, tag: "finalized" }) >
+            getOmnichainCheckpoint({ tag: "current" })
         ) {
           const chainId = Number(
-            decodeCheckpoint(getOmnichainCheckpoint({ tag: "current" })!)
+            decodeCheckpoint(getOmnichainCheckpoint({ tag: "current" }))
               .chainId,
           );
           const chain = params.indexingBuild.chains.find(
@@ -714,8 +744,8 @@ export const createSync = async (params: {
           });
         } else {
           const from = checkpoints.current;
-          checkpoints.current = getOmnichainCheckpoint({ tag: "current" })!;
-          const to = getOmnichainCheckpoint({ tag: "current" })!;
+          checkpoints.current = getOmnichainCheckpoint({ tag: "current" });
+          const to = getOmnichainCheckpoint({ tag: "current" });
 
           // Move events from executed to pending
 
@@ -810,7 +840,7 @@ export const createSync = async (params: {
 
     seconds[chain.name] = {
       start: Number(
-        decodeCheckpoint(getOmnichainCheckpoint({ tag: "start" })!)
+        decodeCheckpoint(getOmnichainCheckpoint({ tag: "start" }))
           .blockTimestamp,
       ),
       end: Number(
@@ -852,9 +882,6 @@ export const createSync = async (params: {
             { chain: chain.name },
             1,
           );
-          if (pendingEvents.length > 0) {
-            console.log("FUCK", pendingEvents.length);
-          }
         } else {
           params.common.metrics.ponder_sync_is_realtime.set(
             { chain: chain.name },
