@@ -1090,9 +1090,12 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).trigg
 
             const result = await tx.execute(
               sql.raw(`
-WITH reverted1 AS (
+WITH operations AS (
+  SELECT MIN(operation_id) as min_operation FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE checkpoint > '${checkpoint}'
+), reverted1 AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE checkpoint > '${checkpoint}' RETURNING *
+  WHERE operation_id >= (SELECT min_operation FROM operations) RETURNING *
 ), reverted2 AS (
   SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1
   GROUP BY ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}

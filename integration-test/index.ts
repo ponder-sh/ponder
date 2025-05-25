@@ -101,7 +101,7 @@ export const SIM_PARAMS = {
   //   "shutdown",
   // ),
   // REALTIME_SHUTDOWN_RATE: pick([0, 0.001, 0.002], "realtime-shutdown-rate"),
-  ORDERING: pick(["omnichain"], "ordering"),
+  ORDERING: pick(["multichain"], "ordering"),
 };
 
 const db = drizzle(DATABASE_URL!, { casing: "snake_case" });

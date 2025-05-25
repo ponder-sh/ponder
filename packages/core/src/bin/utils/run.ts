@@ -61,9 +61,6 @@ export async function run({
     indexingBuild,
     syncStore,
     onRealtimeEvent: (realtimeEvent) => {
-      if (realtimeEvent.type === "reorg") {
-        onRealtimeEvent.clear();
-      }
       return onRealtimeEvent(realtimeEvent);
     },
     onFatalError,

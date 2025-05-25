@@ -560,7 +560,9 @@ export const createSync = async (params: {
             chain,
           })!;
 
-          const readyEvents = decodedEvents.concat(pendingEvents);
+          const readyEvents = decodedEvents
+            .concat(pendingEvents)
+            .sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
           pendingEvents = [];
           executedEvents = executedEvents.concat(readyEvents);
 
@@ -572,9 +574,7 @@ export const createSync = async (params: {
           await params.onRealtimeEvent({
             type: "block",
             chain,
-            events: readyEvents.sort((a, b) =>
-              a.checkpoint < b.checkpoint ? -1 : 1,
-            ),
+            events: readyEvents,
             checkpoints: [{ chainId: chain.id, checkpoint }],
           });
         } else {
@@ -595,7 +595,8 @@ export const createSync = async (params: {
 
             const readyEvents = pendingEvents
               .concat(decodedEvents)
-              .filter(({ checkpoint }) => checkpoint < to);
+              .filter(({ checkpoint }) => checkpoint < to)
+              .sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
             pendingEvents = pendingEvents
               .concat(decodedEvents)
               .filter(({ checkpoint }) => checkpoint > to);
@@ -628,9 +629,7 @@ export const createSync = async (params: {
 
             await params.onRealtimeEvent({
               type: "block",
-              events: readyEvents.sort((a, b) =>
-                a.checkpoint < b.checkpoint ? -1 : 1,
-              ),
+              events: readyEvents,
               chain,
               checkpoints,
             });
@@ -677,11 +676,7 @@ export const createSync = async (params: {
 
         // Raise event to parent function (runtime)
         if (to > from) {
-          params.onRealtimeEvent({
-            type: "finalize",
-            chain,
-            checkpoint: to,
-          });
+          params.onRealtimeEvent({ type: "finalize", chain, checkpoint: to });
         }
 
         break;
@@ -724,24 +719,19 @@ export const createSync = async (params: {
 
           // Move events from executed to pending
 
-          const events = executedEvents.filter(
-            (e) => e.checkpoint > checkpoint,
-          );
-          executedEvents = executedEvents.filter(
+          let reorgedEvents: Event[];
+          [executedEvents, reorgedEvents] = partition(
+            executedEvents,
             (e) => e.checkpoint < checkpoint,
           );
-          pendingEvents = pendingEvents.concat(events);
+          pendingEvents = pendingEvents.concat(reorgedEvents);
 
           params.common.logger.debug({
             service: "sync",
-            msg: `Rescheduled ${events.length} reorged events`,
+            msg: `Rescheduled ${reorgedEvents.length} reorged events`,
           });
 
-          params.onRealtimeEvent({
-            type: "reorg",
-            chain,
-            checkpoint,
-          });
+          params.onRealtimeEvent({ type: "reorg", chain, checkpoint });
         } else {
           const from = checkpoints.current;
           checkpoints.current = getOmnichainCheckpoint({ tag: "current" });
@@ -749,21 +739,20 @@ export const createSync = async (params: {
 
           // Move events from executed to pending
 
-          const events = executedEvents.filter((e) => e.checkpoint > to);
-          executedEvents = executedEvents.filter((e) => e.checkpoint < to);
-          pendingEvents = pendingEvents.concat(events);
+          let reorgedEvents: Event[];
+          [executedEvents, reorgedEvents] = partition(
+            executedEvents,
+            (e) => e.checkpoint < to,
+          );
+          pendingEvents = pendingEvents.concat(reorgedEvents);
 
           params.common.logger.debug({
             service: "sync",
-            msg: `Rescheduled ${events.length} reorged events`,
+            msg: `Rescheduled ${reorgedEvents.length} reorged events`,
           });
 
           if (to < from) {
-            params.onRealtimeEvent({
-              type: "reorg",
-              chain,
-              checkpoint: to,
-            });
+            params.onRealtimeEvent({ type: "reorg", chain, checkpoint: to });
           }
         }
 
