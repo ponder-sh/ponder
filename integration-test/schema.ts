@@ -39,10 +39,10 @@ export const blockReceipts = rpcCache.table(
   "eth_getBlockReceipts",
   (t) => ({
     chainId: t.bigint({ mode: "number" }).notNull(),
-    blockNumber: t.bigint({ mode: "number" }).notNull(),
+    blockHash: t.text().notNull(),
     body: t.jsonb().notNull(),
   }),
-  (table) => [primaryKey({ columns: [table.chainId, table.blockNumber] })],
+  (table) => [primaryKey({ columns: [table.chainId, table.blockHash] })],
 );
 
 export const traces = rpcCache.table(

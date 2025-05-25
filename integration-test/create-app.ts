@@ -66,3 +66,7 @@ while (true) {
 }
 
 await kill!();
+
+if (APP_ID === "super-assessment") {
+  await db.execute(sql.raw("DROP SCHEMA expected CASCADE"));
+}

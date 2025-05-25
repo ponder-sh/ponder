@@ -16,12 +16,12 @@ const possibleMainnetBlocks = [
     endBlock: 13_001_000,
   },
   {
-    startBlock: 19_000_000,
-    endBlock: 19_001_000,
+    startBlock: 22_546_000,
+    endBlock: 22_547_000,
   },
   {
-    startBlock: 19_000_500,
-    endBlock: 19_001_500,
+    startBlock: 22_546_500,
+    endBlock: 22_547_500,
   },
 ] as const;
 const possibleBaseBlocks = [
@@ -30,12 +30,12 @@ const possibleBaseBlocks = [
     endBlock: 10_501_000,
   },
   {
-    startBlock: 19_000_000,
-    endBlock: 19_001_000,
+    startBlock: 30_617_500,
+    endBlock: 30_618_500,
   },
   {
-    startBlock: 19_000_500,
-    endBlock: 19_001_500,
+    startBlock: 30_618_000,
+    endBlock: 30_619_000,
   },
 ] as const;
 const possibleOptimismBlocks = [
@@ -44,12 +44,12 @@ const possibleOptimismBlocks = [
     endBlock: 133_001_000,
   },
   {
-    startBlock: 120_000_000,
-    endBlock: 120_001_000,
+    startBlock: 136_212_500,
+    endBlock: 136_213_500,
   },
   {
-    startBlock: 120_000_500,
-    endBlock: 120_001_500,
+    startBlock: 136_213_000,
+    endBlock: 136_214_000,
   },
 ] as const;
 const possibleContractFilters = [

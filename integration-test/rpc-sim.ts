@@ -321,16 +321,14 @@ export const sim =
             break;
           }
           case "eth_getBlockReceipts": {
+            // Note: this assumes all eth_getBlockReceipts requests use block hash.
             const receipt = await db
               .select()
               .from(RPC_SCHEMA.blockReceipts)
               .where(
                 and(
                   eq(RPC_SCHEMA.blockReceipts.chainId, chain!.id),
-                  eq(
-                    RPC_SCHEMA.blockReceipts.blockNumber,
-                    hexToNumber(body.params[0]),
-                  ),
+                  eq(RPC_SCHEMA.blockReceipts.blockHash, body.params[0]),
                 ),
               )
               .then((receipts) => receipts[0]);
@@ -346,7 +344,7 @@ export const sim =
 
               await db.insert(RPC_SCHEMA.blockReceipts).values({
                 chainId: chain!.id,
-                blockNumber: hexToNumber(body.params[0]),
+                blockHash: body.params[0],
                 body: result,
               });
             }
@@ -362,23 +360,24 @@ export const sim =
                   eq(RPC_SCHEMA.traces.chainId, chain!.id),
                   eq(RPC_SCHEMA.traces.number, hexToNumber(body.params[0])),
                 ),
-              );
+              )
+              .then((traces) => traces[0]);
 
-            if (traces.length > 0) {
-              result = traces.map((trace) => trace.body);
+            if (traces) {
+              result = traces.body;
             } else {
               result = await _request(body);
               await db.insert(RPC_SCHEMA.traces).values({
                 chainId: chain!.id,
                 number: hexToNumber(body.params[0]),
-                body: result,
+                body: JSON.stringify(result).replace(/\0/g, ""),
               });
             }
 
             break;
           }
           case "debug_traceBlockByHash": {
-            const number = await db
+            const block = await db
               .select({ number: RPC_SCHEMA.blocks.number })
               .from(RPC_SCHEMA.blocks)
               .where(
@@ -387,7 +386,15 @@ export const sim =
                   eq(RPC_SCHEMA.blocks.hash, body.params[0]),
                 ),
               )
-              .then((blocks) => blocks[0]!.number);
+              .then((blocks) => blocks[0]);
+
+            // block won't be in db if it's a reorg
+            if (block === undefined) {
+              result = [];
+              break;
+            }
+
+            const number = block.number;
 
             const traces = await db
               .select({ body: RPC_SCHEMA.traces.body })
@@ -397,16 +404,17 @@ export const sim =
                   eq(RPC_SCHEMA.traces.chainId, chain!.id),
                   eq(RPC_SCHEMA.traces.number, number),
                 ),
-              );
+              )
+              .then((traces) => traces[0]);
 
-            if (traces.length > 0) {
-              result = traces.map((trace) => trace.body);
+            if (traces) {
+              result = traces.body;
             } else {
               result = await _request(body);
               await db.insert(RPC_SCHEMA.traces).values({
                 chainId: chain!.id,
                 number,
-                body: result,
+                body: JSON.stringify(result).replace(/\0/g, ""),
               });
             }
 
@@ -533,12 +541,12 @@ export const realtimeBlockEngine = async (
         block = blocks.get(chainId)![blocks.get(chainId)!.length - 3]!;
       } else {
         const hash = `0x${crypto.randomBytes(32).toString("hex")}` as Hash;
-        block = { ...block, hash, logsBloom: zeroLogsBloom };
+        block = { ...block, hash, logsBloom: zeroLogsBloom, transactions: [] };
       }
     } else if (random() < SIM_PARAMS.REALTIME_DEEP_REORG_RATE) {
       block = blocks.get(chainId)![1]!;
       const hash = `0x${crypto.randomBytes(32).toString("hex")}` as Hash;
-      block = { ...block, hash, logsBloom: zeroLogsBloom };
+      block = { ...block, hash, logsBloom: zeroLogsBloom, transactions: [] };
     }
 
     return block;

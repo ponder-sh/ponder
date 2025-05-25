@@ -8,9 +8,11 @@ import {
   eq,
   exists,
   getTableName,
+  gt,
   gte,
   inArray,
   is,
+  isNotNull,
   isNull,
   lte,
   not,
@@ -36,7 +38,11 @@ import {
   getFragments,
   isFragmentAddressFactory,
 } from "../packages/core/src/sync/fragments.js";
-import { getChunks } from "../packages/core/src/utils/interval.js";
+import { ZERO_CHECKPOINT_STRING } from "../packages/core/src/utils/checkpoint";
+import {
+  getChunks,
+  intervalUnion,
+} from "../packages/core/src/utils/interval.js";
 import { promiseWithResolvers } from "../packages/core/src/utils/promiseWithResolvers.js";
 import { _eth_getBlockByNumber } from "../packages/core/src/utils/rpc.js";
 import { realtimeBlockEngine, sim } from "./rpc-sim.js";
@@ -546,40 +552,40 @@ if (APP_ID !== "super-assessment") {
         .where(eq(INTERVALS.fragmentId, interval.fragmentId));
     }
   }
-}
 
-if (blockConditions.length > 0) {
-  await appDb.delete(PONDER_SYNC.blocks).where(not(or(...blockConditions)!));
-} else {
-  await appDb.delete(PONDER_SYNC.blocks);
-}
+  if (blockConditions.length > 0) {
+    await appDb.delete(PONDER_SYNC.blocks).where(not(or(...blockConditions)!));
+  } else {
+    await appDb.delete(PONDER_SYNC.blocks);
+  }
 
-if (transactionConditions.length > 0) {
-  await appDb
-    .delete(PONDER_SYNC.transactions)
-    .where(not(or(...transactionConditions)!));
-} else {
-  await appDb.delete(PONDER_SYNC.transactions);
-}
+  if (transactionConditions.length > 0) {
+    await appDb
+      .delete(PONDER_SYNC.transactions)
+      .where(not(or(...transactionConditions)!));
+  } else {
+    await appDb.delete(PONDER_SYNC.transactions);
+  }
 
-if (transactionReceiptConditions.length > 0) {
-  await appDb
-    .delete(PONDER_SYNC.transactionReceipts)
-    .where(not(or(...transactionReceiptConditions)!));
-} else {
-  await appDb.delete(PONDER_SYNC.transactionReceipts);
-}
+  if (transactionReceiptConditions.length > 0) {
+    await appDb
+      .delete(PONDER_SYNC.transactionReceipts)
+      .where(not(or(...transactionReceiptConditions)!));
+  } else {
+    await appDb.delete(PONDER_SYNC.transactionReceipts);
+  }
 
-if (traceConditions.length > 0) {
-  await appDb.delete(PONDER_SYNC.traces).where(not(or(...traceConditions)!));
-} else {
-  await appDb.delete(PONDER_SYNC.traces);
-}
+  if (traceConditions.length > 0) {
+    await appDb.delete(PONDER_SYNC.traces).where(not(or(...traceConditions)!));
+  } else {
+    await appDb.delete(PONDER_SYNC.traces);
+  }
 
-if (logConditions.length > 0) {
-  await appDb.delete(PONDER_SYNC.logs).where(not(or(...logConditions)!));
-} else {
-  await appDb.delete(PONDER_SYNC.logs);
+  if (logConditions.length > 0) {
+    await appDb.delete(PONDER_SYNC.logs).where(not(or(...logConditions)!));
+  } else {
+    await appDb.delete(PONDER_SYNC.logs);
+  }
 }
 
 // TODO(kyle) delete factories
@@ -684,11 +690,12 @@ const onBuild = async (app: PonderApp) => {
           chain_id BIGINT NOT NULL,
           name TEXT NOT NULL,
           id VARCHAR(75) NOT NULL,
-          CONSTRAINT "events_pk" PRIMARY KEY("name","id")
+          CONSTRAINT "events_pk" PRIMARY KEY("name","id", "chain_id")
         )`,
       ),
     );
-    for (const { filter, name } of app.indexingBuild.sources) {
+    for (const source of app.indexingBuild.sources) {
+      const filter = source.filter;
       const blockConditions = [
         filter.fromBlock
           ? gte(PONDER_SYNC.blocks.number, BigInt(filter.fromBlock))
@@ -697,6 +704,17 @@ const onBuild = async (app: PonderApp) => {
           ? lte(PONDER_SYNC.blocks.number, BigInt(filter.toBlock))
           : undefined,
       ];
+
+      if (source.type === "contract") {
+        await appDb
+          .insert(expected)
+          .values({
+            chainId: filter.chainId,
+            name: `${source.name}:setup`,
+            id: ZERO_CHECKPOINT_STRING,
+          })
+          .onConflictDoNothing();
+      }
 
       for (const { fragment } of getFragments(filter)) {
         switch (fragment.type) {
@@ -714,7 +732,7 @@ const onBuild = async (app: PonderApp) => {
             const blocksQuery = appDb
               .select({
                 chainId: sql.raw(fragment.chainId).as("chain_id"),
-                name: sql.raw(`'${name}:block'`).as("name"),
+                name: sql.raw(`'${source.name}:block'`).as("name"),
                 id: blockCheckpoint.as("id"),
               })
               .from(PONDER_SYNC.blocks)
@@ -741,12 +759,12 @@ const onBuild = async (app: PonderApp) => {
             '0000000000000000')`,
             );
 
-            const isFrom = fragment.toAddress === undefined;
+            const isFrom = fragment.toAddress === null;
             const transactionsQuery = appDb
               .select({
                 chainId: sql.raw(fragment.chainId).as("chain_id"),
                 name: sql
-                  .raw(`'${name}:transaction:${isFrom ? "from" : "to"}'`)
+                  .raw(`'${source.name}:transaction:${isFrom ? "from" : "to"}'`)
                   .as("name"),
                 id: transactionCheckpoint.as("id"),
               })
@@ -802,7 +820,7 @@ const onBuild = async (app: PonderApp) => {
             const tracesQuery = appDb
               .select({
                 chainId: sql.raw(fragment.chainId).as("chain_id"),
-                name: sql.raw(`'${name}.transfer()'`).as("name"),
+                name: sql.raw(`'${source.name}.transfer()'`).as("name"),
                 id: traceCheckpoint.as("id"),
               })
               .from(PONDER_SYNC.traces)
@@ -860,7 +878,7 @@ const onBuild = async (app: PonderApp) => {
             const logsQuery = appDb
               .select({
                 chainId: sql.raw(fragment.chainId).as("chain_id"),
-                name: sql.raw(`'${name}:Transfer'`).as("name"),
+                name: sql.raw(`'${source.name}:Transfer'`).as("name"),
                 id: logCheckpoint.as("id"),
               })
               .from(PONDER_SYNC.logs)
@@ -910,12 +928,12 @@ const onBuild = async (app: PonderApp) => {
               lpad(traces.trace_index::text, 16, '0'))`,
             );
 
-            const isFrom = fragment.toAddress === undefined;
+            const isFrom = fragment.toAddress === null;
             const transfersQuery = appDb
               .select({
                 chainId: sql.raw(fragment.chainId).as("chain_id"),
                 name: sql
-                  .raw(`'${name}:transfer:${isFrom ? "from" : "to"}'`)
+                  .raw(`'${source.name}:transfer:${isFrom ? "from" : "to"}'`)
                   .as("name"),
                 id: transferCheckpoint.as("id"),
               })
@@ -940,6 +958,8 @@ const onBuild = async (app: PonderApp) => {
                     PONDER_SYNC.traces,
                     "to",
                   ),
+                  isNotNull(PONDER_SYNC.traces.value),
+                  gt(PONDER_SYNC.traces.value, 0n),
                   filter.includeReverted
                     ? undefined
                     : isNull(PONDER_SYNC.traces.error),
@@ -961,17 +981,14 @@ const onBuild = async (app: PonderApp) => {
     const chain = app.indexingBuild.chains[i]!;
     const rpc = app.indexingBuild.rpcs[i]!;
 
-    const start = Math.min(
-      ...app.indexingBuild.sources
+    const intervals = intervalUnion(
+      app.indexingBuild.sources
         .filter(({ filter }) => filter.chainId === chain.id)
-        .map(({ filter }) => filter.fromBlock ?? 0),
+        .map(({ filter }) => [filter.fromBlock, filter.toBlock]!),
     );
 
-    const end = Math.max(
-      ...app.indexingBuild.sources
-        .filter(({ filter }) => filter.chainId === chain.id)
-        .map(({ filter }) => filter.toBlock!),
-    );
+    const start = intervals[intervals.length - 1]![0];
+    const end = intervals[intervals.length - 1]![1];
 
     app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(rpc, {
       blockNumber:
@@ -1186,6 +1203,8 @@ const compareTables = async (
 
 const schema = await import(`./${APP_DIR}/ponder.schema.ts`);
 for (const key of Object.keys(schema)) {
+  if (APP_ID === "super-assessment" && key === "checkpoints") continue;
+
   if (is(schema[key], Table)) {
     const table = schema[key] as Table;
     const tableName = getTableName(table);
