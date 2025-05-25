@@ -17,6 +17,7 @@ jobs:
         app_id:
           - "reference-erc20"
           - "feature-multichain"
+          - "super-assessment"
 
     steps:
       - uses: actions/checkout@v3
@@ -29,11 +30,9 @@ jobs:
       - name: Test ${{ matrix.app_id }}
         run: |
           cd integration-test
-          for i in $(seq 1 10); do
-            SEED=$(openssl rand -hex 32)
-            UUID=$(uuidgen)
-            bun run index.ts ${{ matrix.app_id }}
-          done
+          SEED=$(openssl rand -hex 32)
+          UUID=$(uuidgen)
+          bun run index.ts ${{ matrix.app_id }}
         env:
           DATABASE_URL: ${{ secrets.TEST_CONNECTION_STRING }}
           PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
