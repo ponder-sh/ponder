@@ -32,7 +32,7 @@ jobs:
           cd integration-test
           SEED=$(openssl rand -hex 32)
           UUID=$(uuidgen)
-          bun run index.ts ${{ matrix.app_id }}
+          bun run src/index.ts ${{ matrix.app_id }}
         env:
           DATABASE_URL: ${{ secrets.TEST_CONNECTION_STRING }}
           PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
