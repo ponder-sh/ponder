@@ -23,7 +23,7 @@ import { type NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import seedrandom from "seedrandom";
-import { type RpcBlock, custom, hexToNumber } from "viem";
+import { type Address, type RpcBlock, custom, hexToNumber } from "viem";
 import packageJson from "../../packages/core/package.json" assert {
   type: "json",
 };
@@ -32,7 +32,10 @@ import {
   start,
 } from "../../packages/core/src/bin/commands/start.js";
 import { getPrimaryKeyColumns } from "../../packages/core/src/drizzle/index.js";
-import type { FragmentAddress } from "../../packages/core/src/internal/types.js";
+import type {
+  Factory,
+  FragmentAddress,
+} from "../../packages/core/src/internal/types.js";
 import { createRpc } from "../../packages/core/src/rpc/index.js";
 import * as PONDER_SYNC from "../../packages/core/src/sync-store/schema.js";
 import {
@@ -142,12 +145,15 @@ const getAddressCondition = <
     | typeof PONDER_SYNC.traces
     | typeof PONDER_SYNC.transactions,
 >(
-  address: FragmentAddress,
+  fragmentAddress: FragmentAddress,
   table: table,
   column: keyof table,
+  filterAddress?: Address | Address[] | Factory | undefined,
 ): SQL => {
   const addressColumn = table[column] as PgColumn;
-  if (isFragmentAddressFactory(address)) {
+  if (isFragmentAddressFactory(fragmentAddress)) {
+    if (filterAddress === undefined) return sql`true`;
+
     return inArray(
       addressColumn,
       appDb
@@ -156,19 +162,20 @@ const getAddressCondition = <
         .where(
           and(
             gte(table.blockNumber, PONDER_SYNC.factoryAddresses.blockNumber),
-            // TODO(kyle) fix
-            // eq(
-            //   PONDER_SYNC.factoryAddresses.factoryId,
-            //   appDb
-            //     .select({ id: PONDER_SYNC.factories.id })
-            //     .from(PONDER_SYNC.factories)
-            //     .where(eq(PONDER_SYNC.factories.factory, address)),
-            // ),
+            eq(
+              PONDER_SYNC.factoryAddresses.factoryId,
+              appDb
+                .select({ id: PONDER_SYNC.factories.id })
+                .from(PONDER_SYNC.factories)
+                .where(
+                  eq(PONDER_SYNC.factories.factory, filterAddress as Factory),
+                ),
+            ),
           ),
         ),
     );
-  } else if (typeof address === "string") {
-    return eq(addressColumn, address);
+  } else if (typeof fragmentAddress === "string") {
+    return eq(addressColumn, fragmentAddress);
   } else {
     return sql`true`;
   }
@@ -343,11 +350,13 @@ const onBuild = async (app: PonderApp) => {
                 fragment.fromAddress,
                 PONDER_SYNC.transactions,
                 "from",
+                filter.fromAddress,
               ),
               getAddressCondition(
                 fragment.toAddress,
                 PONDER_SYNC.transactions,
                 "to",
+                filter.toAddress,
               ),
               eq(PONDER_SYNC.transactionReceipts.status, "0x1"),
               ...blockConditions,
@@ -468,8 +477,14 @@ const onBuild = async (app: PonderApp) => {
                 fragment.fromAddress,
                 PONDER_SYNC.traces,
                 "from",
+                filter.fromAddress,
               ),
-              getAddressCondition(fragment.toAddress, PONDER_SYNC.traces, "to"),
+              getAddressCondition(
+                fragment.toAddress,
+                PONDER_SYNC.traces,
+                "to",
+                filter.toAddress,
+              ),
               filter.includeReverted
                 ? undefined
                 : isNull(PONDER_SYNC.traces.error),
@@ -588,6 +603,7 @@ const onBuild = async (app: PonderApp) => {
                 fragment.address,
                 PONDER_SYNC.logs,
                 "address",
+                filter.address,
               ),
               fragment.topic0
                 ? eq(PONDER_SYNC.logs.topic0, fragment.topic0)
@@ -704,8 +720,14 @@ const onBuild = async (app: PonderApp) => {
                 fragment.fromAddress,
                 PONDER_SYNC.traces,
                 "from",
+                filter.fromAddress,
               ),
-              getAddressCondition(fragment.toAddress, PONDER_SYNC.traces, "to"),
+              getAddressCondition(
+                fragment.toAddress,
+                PONDER_SYNC.traces,
+                "to",
+                filter.toAddress,
+              ),
               isNotNull(PONDER_SYNC.traces.value),
               gt(PONDER_SYNC.traces.value, 0n),
               filter.includeReverted
@@ -820,7 +842,6 @@ const onBuild = async (app: PonderApp) => {
   // remove uncached data
 
   for (const interval of await appDb.select().from(PONDER_SYNC.intervals)) {
-    // TODO(kyle) how to recover address from factory?
     const intervals: [number, number][] = JSON.parse(
       `[${interval.blocks.slice(1, -1)}]`,
     );
