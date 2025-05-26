@@ -9,15 +9,16 @@ let db = drizzle(process.env.DATABASE_URL!, { casing: "snake_case" });
 
 const APP_ID = process.argv[2];
 const APP_DIR = `./apps/${APP_ID}`;
+const UUID = process.env.UUID ?? crypto.randomUUID();
 
 if (APP_ID === undefined) {
-  throw new Error("App ID is required. Example: 'pnpm create:app [app id]'");
+  throw new Error("App ID is required. Example: 'pnpm benchmark [app id]'");
 }
 
 // 1. Create database
-await db.execute(sql.raw(`CREATE DATABASE "${APP_ID}"`));
+await db.execute(sql.raw(`CREATE DATABASE "${UUID}" TEMPLATE "${APP_ID}"`));
 
-db = drizzle(`${process.env.DATABASE_URL!}/${APP_ID}`, {
+db = drizzle(`${process.env.DATABASE_URL!}/${UUID}`, {
   casing: "snake_case",
 });
 
@@ -43,9 +44,11 @@ const program = new Command()
   )
   .parse(process.argv);
 
-process.env.DATABASE_SCHEMA = "expected";
-process.env.DATABASE_URL = `${process.env.DATABASE_URL!}/${APP_ID}`;
+process.env.DATABASE_SCHEMA = "public";
+process.env.DATABASE_URL = `${process.env.DATABASE_URL!}/${UUID}`;
 process.env.PONDER_TELEMETRY_DISABLED = "true";
+
+const t = performance.now();
 
 const kill = await start({
   cliOptions: {
@@ -65,10 +68,8 @@ while (true) {
   await new Promise((resolve) => setTimeout(resolve, 100));
 }
 
-await kill!();
+console.log(`Completed in ${performance.now() - t}ms`);
 
-if (APP_ID === "super-assessment") {
-  await db.execute(sql.raw("DROP SCHEMA expected CASCADE"));
-}
+await kill!();
 
 process.exit(0);

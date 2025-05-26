@@ -1,17 +1,19 @@
-import { onchainTable, primaryKey } from "ponder";
+import { pgSchema, primaryKey } from "drizzle-orm/pg-core";
 
-export const checkpoints = onchainTable("checkpoints", (t) => ({
-  chainId: t.int8({ mode: "number" }).primaryKey(),
+export const expected = pgSchema("expected");
+
+export const checkpoints = expected.table("checkpoints", (t) => ({
+  chainId: t.bigint({ mode: "number" }).primaryKey(),
   id: t.varchar({ length: 75 }).notNull(),
 }));
 
-export const blocks = onchainTable(
+export const blocks = expected.table(
   "blocks",
   (t) => ({
     name: t.text().notNull(),
     id: t.varchar({ length: 75 }).notNull(),
-    chainId: t.int8({ mode: "number" }).notNull(),
-    number: t.int8({ mode: "number" }).notNull(),
+    chainId: t.bigint({ mode: "number" }).notNull(),
+    number: t.bigint({ mode: "number" }).notNull(),
     hash: t.text().notNull(),
   }),
   (table) => ({
@@ -19,13 +21,13 @@ export const blocks = onchainTable(
   }),
 );
 
-export const transactions = onchainTable(
+export const transactions = expected.table(
   "transactions",
   (t) => ({
     name: t.text().notNull(),
     id: t.varchar({ length: 75 }).notNull(),
-    chainId: t.int8({ mode: "number" }).notNull(),
-    transactionIndex: t.int8({ mode: "number" }).notNull(),
+    chainId: t.bigint({ mode: "number" }).notNull(),
+    transactionIndex: t.bigint({ mode: "number" }).notNull(),
     hash: t.text().notNull(),
   }),
   (table) => ({
@@ -33,13 +35,13 @@ export const transactions = onchainTable(
   }),
 );
 
-export const transactionReceipts = onchainTable(
+export const transactionReceipts = expected.table(
   "transaction_receipts",
   (t) => ({
     name: t.text().notNull(),
     id: t.varchar({ length: 75 }).notNull(),
-    chainId: t.int8({ mode: "number" }).notNull(),
-    transactionIndex: t.int8({ mode: "number" }).notNull(),
+    chainId: t.bigint({ mode: "number" }).notNull(),
+    transactionIndex: t.bigint({ mode: "number" }).notNull(),
     hash: t.text().notNull(),
   }),
   (table) => ({
@@ -47,26 +49,26 @@ export const transactionReceipts = onchainTable(
   }),
 );
 
-export const traces = onchainTable(
+export const traces = expected.table(
   "traces",
   (t) => ({
     name: t.text().notNull(),
     id: t.varchar({ length: 75 }).notNull(),
-    chainId: t.int8({ mode: "number" }).notNull(),
-    traceIndex: t.int8({ mode: "number" }).notNull(),
+    chainId: t.bigint({ mode: "number" }).notNull(),
+    traceIndex: t.bigint({ mode: "number" }).notNull(),
   }),
   (table) => ({
     pk: primaryKey({ columns: [table.name, table.id] }),
   }),
 );
 
-export const logs = onchainTable(
+export const logs = expected.table(
   "logs",
   (t) => ({
     name: t.text().notNull(),
     id: t.varchar({ length: 75 }).notNull(),
-    chainId: t.int8({ mode: "number" }).notNull(),
-    logIndex: t.int8({ mode: "number" }).notNull(),
+    chainId: t.bigint({ mode: "number" }).notNull(),
+    logIndex: t.bigint({ mode: "number" }).notNull(),
   }),
   (table) => ({
     pk: primaryKey({ columns: [table.name, table.id] }),

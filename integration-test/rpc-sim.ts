@@ -516,6 +516,8 @@ export const realtimeBlockEngine = async (
     let block = blocks.get(chainId)![blocks.get(chainId)!.length - 1]!;
     const isEnd =
       chains.get(chainId)!.interval[1] === hexToNumber(block.number!);
+    const isNextEnd =
+      chains.get(chainId)!.interval[1] === hexToNumber(block.number!) + 1;
 
     if (isEnd) {
       incomplete.delete(chainId);
@@ -524,6 +526,10 @@ export const realtimeBlockEngine = async (
 
     const nextBlock = await getNextBlock(chainId);
     blocks.get(chainId)!.push(nextBlock);
+
+    if (isNextEnd) {
+      return block;
+    }
 
     const random = seedrandom(SEED + chainId + nextBlock.number);
 
