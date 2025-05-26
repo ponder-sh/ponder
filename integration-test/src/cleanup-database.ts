@@ -9,11 +9,11 @@ const databases = await db
   .from(metadata)
   .where(
     and(
-      eq(metadata.success, true),
+      // eq(metadata.success, true),
       sql`${metadata.time} < NOW() - INTERVAL '1 day'`,
     ),
   );
 
 for (const database of databases) {
-  await db.execute(sql.raw(`DROP DATABASE "${database.id}"`));
+  await db.execute(sql.raw(`DROP DATABASE IF EXISTS "${database.id}"`));
 }
