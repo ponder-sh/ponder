@@ -23,14 +23,17 @@ import { type NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import { customType, pgSchema } from "drizzle-orm/pg-core";
 import seedrandom from "seedrandom";
-import { custom, hexToNumber } from "viem";
+import { type Address, custom, hexToNumber } from "viem";
 import packageJson from "../packages/core/package.json" assert { type: "json" };
 import {
   type PonderApp,
   start,
 } from "../packages/core/src/bin/commands/start.js";
 import { getPrimaryKeyColumns } from "../packages/core/src/drizzle/index.js";
-import type { FragmentAddress } from "../packages/core/src/internal/types.js";
+import type {
+  Factory,
+  FragmentAddress,
+} from "../packages/core/src/internal/types.js";
 import { createRpc } from "../packages/core/src/rpc/index.js";
 import * as PONDER_SYNC from "../packages/core/src/sync-store/schema.js";
 import {
@@ -163,13 +166,14 @@ const getAddressCondition = <
         .where(
           and(
             gte(table.blockNumber, PONDER_SYNC.factoryAddresses.blockNumber),
-            eq(
-              PONDER_SYNC.factoryAddresses.factoryId,
-              appDb
-                .select({ id: PONDER_SYNC.factories.id })
-                .from(PONDER_SYNC.factories)
-                .where(eq(PONDER_SYNC.factories.factory, address)),
-            ),
+            // TODO(kyle) fix
+            // eq(
+            //   PONDER_SYNC.factoryAddresses.factoryId,
+            //   appDb
+            //     .select({ id: PONDER_SYNC.factories.id })
+            //     .from(PONDER_SYNC.factories)
+            //     .where(eq(PONDER_SYNC.factories.factory, address)),
+            // ),
           ),
         ),
     );
@@ -183,6 +187,7 @@ const getAddressCondition = <
 if (APP_ID !== "super-assessment") {
   for (const interval of await appDb.select().from(INTERVALS)) {
     // TODO(kyle) support multiple intervals
+    // TODO(kyle) how to recover address from factory?
     const blocks: [number, number] = JSON.parse(interval.blocks.slice(1, -1));
     const chunks = getChunks({
       interval: [blocks[0], blocks[1] - 1],
@@ -782,6 +787,23 @@ const onBuild = async (app: PonderApp) => {
                   ),
                 ),
               )
+              .innerJoin(
+                PONDER_SYNC.transactionReceipts,
+                and(
+                  eq(
+                    PONDER_SYNC.transactionReceipts.chainId,
+                    PONDER_SYNC.transactions.chainId,
+                  ),
+                  eq(
+                    PONDER_SYNC.transactionReceipts.blockNumber,
+                    PONDER_SYNC.transactions.blockNumber,
+                  ),
+                  eq(
+                    PONDER_SYNC.transactionReceipts.transactionIndex,
+                    PONDER_SYNC.transactions.transactionIndex,
+                  ),
+                ),
+              )
               .where(
                 and(
                   eq(
@@ -798,6 +820,7 @@ const onBuild = async (app: PonderApp) => {
                     PONDER_SYNC.transactions,
                     "to",
                   ),
+                  eq(PONDER_SYNC.transactionReceipts.status, "0x1"),
                   ...blockConditions,
                 ),
               );
@@ -990,10 +1013,12 @@ const onBuild = async (app: PonderApp) => {
     const start = intervals[intervals.length - 1]![0];
     const end = intervals[intervals.length - 1]![1];
 
-    app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(rpc, {
-      blockNumber:
-        start + Math.floor((end - start) * SIM_PARAMS.FINALIZED_RATE),
-    });
+    if (SIM_PARAMS.FINALIZED_RATE !== 1) {
+      app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(rpc, {
+        blockNumber:
+          start + Math.floor((end - start) * SIM_PARAMS.FINALIZED_RATE),
+      });
+    }
 
     // TODO(kyle) delete unfinalized data
 
