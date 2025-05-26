@@ -98,7 +98,9 @@ type CreateRealtimeSyncParameters = {
   sources: Source[];
   syncProgress: Pick<SyncProgress, "finalized">;
   initialChildAddresses: Map<Factory, Map<Address, number>>;
-  onEvent: (event: RealtimeSyncEvent) => Promise<void>;
+  onEvent: (
+    event: RealtimeSyncEvent,
+  ) => Promise<{ promise: Promise<void> } | void>;
   onFatalError: (error: Error) => void;
 };
 
@@ -935,17 +937,20 @@ export const createRealtimeSync = (
         blockWithEventData.block.transactions =
           blockWithEventDataAndFilters.block.transactions;
 
-        const promise = args.onEvent({
-          type: "block",
-          hasMatchedFilter:
-            blockWithEventDataAndFilters.matchedFilters.size > 0,
-          block: blockWithEventDataAndFilters.block,
-          logs: blockWithEventDataAndFilters.logs,
-          transactions: blockWithEventDataAndFilters.transactions,
-          transactionReceipts: blockWithEventDataAndFilters.transactionReceipts,
-          traces: blockWithEventDataAndFilters.traces,
-          childAddresses: blockWithEventDataAndFilters.childAddresses,
-        });
+        const promise = args
+          .onEvent({
+            type: "block",
+            hasMatchedFilter:
+              blockWithEventDataAndFilters.matchedFilters.size > 0,
+            block: blockWithEventDataAndFilters.block,
+            logs: blockWithEventDataAndFilters.logs,
+            transactions: blockWithEventDataAndFilters.transactions,
+            transactionReceipts:
+              blockWithEventDataAndFilters.transactionReceipts,
+            traces: blockWithEventDataAndFilters.traces,
+            childAddresses: blockWithEventDataAndFilters.childAddresses,
+          })
+          .then((result) => result?.promise);
 
         // Determine if a new range has become finalized by evaluating if the
         // latest block number is 2 * finalityBlockCount >= finalized block number.

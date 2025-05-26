@@ -51,6 +51,7 @@ import { intervalUnion } from "@/utils/interval.js";
 import { createMutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { partition } from "@/utils/partition.js";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
 import { zipperMany } from "@/utils/zipper.js";
@@ -297,14 +298,14 @@ export const createSync = async (params: {
 
     // Note: extra logic is needed for `current` because completed chains
     // shouldn't be included in the minimum checkpoint. However, when all
-    // chains are completed, the minimum checkpoint should be computed across
+    // chains are completed, the maximum checkpoint should be computed across
     // all chains.
     if (tag === "current") {
       const isComplete = Array.from(perChainSync.values()).map(
         ({ syncProgress }) => isSyncEnd(syncProgress),
       );
       if (isComplete.every((c) => c)) {
-        return min(...checkpoints) as tag extends "end"
+        return max(...checkpoints) as tag extends "end"
           ? string | undefined
           : string;
       }
@@ -513,7 +514,7 @@ export const createSync = async (params: {
       syncProgress: SyncProgress;
       realtimeSync: RealtimeSync;
     },
-  ): Promise<void> => {
+  ): Promise<{ promise: Promise<void> } | void> => {
     switch (event.type) {
       case "block": {
         const events = buildEvents({
@@ -582,13 +583,13 @@ export const createSync = async (params: {
           checkpoints.current = getOmnichainCheckpoint({ tag: "current" });
           const to = getOmnichainCheckpoint({ tag: "current" });
 
-          // TODO(kyle)
-          // omnichainHooks.push({
-          //   checkpoint: encodeCheckpoint(
-          //     blockToCheckpoint(event.block, chain.id, "up"),
-          //   ),
-          //   callback: () => event.callback?.(),
-          // });
+          const pwr = promiseWithResolvers<void>();
+          omnichainHooks.push({
+            checkpoint: encodeCheckpoint(
+              blockToCheckpoint(event.block, chain.id, "down"),
+            ),
+            callback: () => pwr.resolve(),
+          });
 
           if (to > from) {
             // Move ready events from pending to executed
@@ -642,6 +643,8 @@ export const createSync = async (params: {
           } else {
             pendingEvents = pendingEvents.concat(decodedEvents);
           }
+
+          return { promise: pwr.promise };
         }
 
         break;
@@ -938,7 +941,7 @@ export const createSync = async (params: {
             onEvent: realtimeMutex(async (event) => {
               try {
                 await perChainOnRealtimeSyncEvent(event);
-                await onRealtimeSyncEvent(event, {
+                const result = await onRealtimeSyncEvent(event, {
                   chain,
                   sources,
                   syncProgress,
@@ -963,6 +966,8 @@ export const createSync = async (params: {
                   });
                   rpc.unsubscribe();
                 }
+
+                return result;
               } catch (error) {
                 params.common.logger.error({
                   service: "sync",
@@ -977,14 +982,18 @@ export const createSync = async (params: {
 
           perChainSync.get(chain)!.realtimeSync = realtimeSync;
 
+          let childCount = 0;
+          for (const [, childAddresses] of initialChildAddresses) {
+            childCount += childAddresses.size;
+          }
+
           params.common.logger.debug({
             service: "sync",
-            msg: `Initialized '${chain.name}' realtime sync with ${initialChildAddresses.size} factory child addresses`,
+            msg: `Initialized '${chain.name}' realtime sync with ${childCount} factory child addresses`,
           });
 
           rpc.subscribe({
             onBlock: async (block) => {
-              // TODO(kyle) I think the timer is leaking memory
               const endClock = startClock();
               const isAccepted = await realtimeSync.sync(block);
 
