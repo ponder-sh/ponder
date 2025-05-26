@@ -36,7 +36,7 @@ export type Rpc = {
     parameters: TParameters,
   ) => Promise<RequestReturnType<TParameters["method"]>>;
   subscribe: (params: {
-    onBlock: (block: SyncBlock) => Promise<void>;
+    onBlock: (block: SyncBlock) => Promise<boolean>;
     onError: (error: Error) => void;
   }) => void;
   unsubscribe: () => void;

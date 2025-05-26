@@ -1003,6 +1003,8 @@ export const createSync = async (params: {
                   endClock(),
                 );
               }
+
+              return isAccepted;
             },
             onError: (error) => {
               realtimeSync.onError(error);

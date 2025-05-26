@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { metadata } from "./schema.js";
+import { metadata } from "../schema.js";
 
 const db = drizzle(process.env.DATABASE_URL!, { casing: "snake_case" });
 

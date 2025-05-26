@@ -116,10 +116,10 @@ const format = (log: Log) => {
       prettyLog.push(`${log.error.name}: ${log.error.message}`);
     }
 
-    if ("where" in log.error) {
+    if (typeof log.error === "object" && "where" in log.error) {
       prettyLog.push(`where: ${log.error.where as string}`);
     }
-    if ("meta" in log.error) {
+    if (typeof log.error === "object" && "meta" in log.error) {
       prettyLog.push(log.error.meta as string);
     }
   }

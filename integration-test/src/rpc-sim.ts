@@ -12,10 +12,10 @@ import {
   hexToNumber,
   toHex,
 } from "viem";
-import { zeroLogsBloom } from "../packages/core/src/sync-realtime/bloom.js";
-import { promiseWithResolvers } from "../packages/core/src/utils/promiseWithResolvers.js";
+import { zeroLogsBloom } from "../../packages/core/src/sync-realtime/bloom.js";
+import { promiseWithResolvers } from "../../packages/core/src/utils/promiseWithResolvers.js";
+import * as RPC_SCHEMA from "../schema.js";
 import { SEED, SIM_PARAMS } from "./index.js";
-import * as RPC_SCHEMA from "./schema.js";
 
 const PONDER_RPC_METHODS = [
   "eth_getBlockByNumber",

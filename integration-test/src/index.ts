@@ -23,30 +23,32 @@ import { type NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import seedrandom from "seedrandom";
-import { custom, hexToNumber } from "viem";
-import packageJson from "../packages/core/package.json" assert { type: "json" };
+import { type RpcBlock, custom, hexToNumber } from "viem";
+import packageJson from "../../packages/core/package.json" assert {
+  type: "json",
+};
 import {
   type PonderApp,
   start,
-} from "../packages/core/src/bin/commands/start.js";
-import { getPrimaryKeyColumns } from "../packages/core/src/drizzle/index.js";
-import type { FragmentAddress } from "../packages/core/src/internal/types.js";
-import { createRpc } from "../packages/core/src/rpc/index.js";
-import * as PONDER_SYNC from "../packages/core/src/sync-store/schema.js";
+} from "../../packages/core/src/bin/commands/start.js";
+import { getPrimaryKeyColumns } from "../../packages/core/src/drizzle/index.js";
+import type { FragmentAddress } from "../../packages/core/src/internal/types.js";
+import { createRpc } from "../../packages/core/src/rpc/index.js";
+import * as PONDER_SYNC from "../../packages/core/src/sync-store/schema.js";
 import {
   decodeFragment,
   getFragments,
   isFragmentAddressFactory,
-} from "../packages/core/src/sync/fragments.js";
+} from "../../packages/core/src/sync/fragments.js";
 import {
   getChunks,
   intervalUnion,
-} from "../packages/core/src/utils/interval.js";
-import { promiseWithResolvers } from "../packages/core/src/utils/promiseWithResolvers.js";
-import { _eth_getBlockByNumber } from "../packages/core/src/utils/rpc.js";
-import * as SUPER_ASSESSMENT from "./apps/super-assessment/schema.js";
+} from "../../packages/core/src/utils/interval.js";
+import { promiseWithResolvers } from "../../packages/core/src/utils/promiseWithResolvers.js";
+import { _eth_getBlockByNumber } from "../../packages/core/src/utils/rpc.js";
+import * as SUPER_ASSESSMENT from "../apps/super-assessment/schema.js";
+import { metadata } from "../schema.js";
 import { realtimeBlockEngine, sim } from "./rpc-sim.js";
-import { metadata } from "./schema.js";
 import { getJoinConditions } from "./sql.js";
 
 // inputs
@@ -1247,10 +1249,19 @@ const onBuild = async (app: PonderApp) => {
 
     rpc.subscribe = ({ onBlock }) => {
       (async () => {
-        for await (const block of getRealtimeBlockGenerator(chain.id)) {
+        let block: RpcBlock;
+        let isAccepted: boolean;
+
+        for await (block of getRealtimeBlockGenerator(chain.id)) {
           // @ts-ignore
-          await onBlock(block);
+          isAccepted = await onBlock(block);
         }
+        // Note: last block must be accepted before shutdown
+        while (isAccepted! === false) {
+          // @ts-ignore
+          isAccepted = await onBlock(block);
+        }
+
         app.common.logger.warn({
           service: "sim",
           msg: `Realtime block subscription for chain '${chain.name}' completed`,
@@ -1312,6 +1323,7 @@ if (SIM_PARAMS.FINALIZED_RATE === 1) {
 } else {
   await pwr.promise;
 }
+
 await kill!();
 
 // 4. Compare
@@ -1405,7 +1417,7 @@ const compareTables = async (
   }
 };
 
-const schema = await import(`./${APP_DIR}/ponder.schema.ts`);
+const schema = await import(`../apps/${APP_ID}/ponder.schema.ts`);
 for (const key of Object.keys(schema)) {
   if (APP_ID === "super-assessment" && key === "checkpoints") continue;
 

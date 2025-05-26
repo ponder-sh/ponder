@@ -6,9 +6,9 @@
   "scripts": {
     "generate": "bun run --bun drizzle-kit generate",
     "migrate": "bun run --bun drizzle-kit migrate",
-    "create:app": "bun run create-app.ts",
-    "test": "bun run index.ts",
-    "benchmark": "bun run benchmark.ts"
+    "create:app": "bun run src/create-app.ts",
+    "test": "bun run src/index.ts",
+    "benchmark": "bun run src/benchmark.ts"
   },
   "devDependencies": {
     "@commander-js/extra-typings": "^12.0.1",
