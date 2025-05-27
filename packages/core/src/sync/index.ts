@@ -994,11 +994,18 @@ export const createSync = async (params: {
 
           rpc.subscribe({
             onBlock: async (block) => {
+              const arrivalMs = Date.now();
+
               const endClock = startClock();
               const syncResult = await realtimeSync.sync(block);
 
               if (syncResult.type === "accepted") {
                 syncResult.blockPromise.then(() => {
+                  params.common.metrics.ponder_realtime_block_arrival_latency.observe(
+                    { chain: chain.name },
+                    arrivalMs - hexToNumber(block.timestamp) * 1_000,
+                  );
+
                   params.common.metrics.ponder_realtime_latency.observe(
                     { chain: chain.name },
                     endClock(),

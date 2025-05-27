@@ -67,6 +67,7 @@ export class MetricsService {
 
   ponder_realtime_reorg_total: prometheus.Counter<"chain">;
   ponder_realtime_latency: prometheus.Histogram<"chain">;
+  ponder_realtime_block_arrival_latency: prometheus.Histogram<"chain">;
 
   ponder_database_method_duration: prometheus.Histogram<"service" | "method">;
   ponder_database_method_error_total: prometheus.Counter<"service" | "method">;
@@ -279,6 +280,13 @@ export class MetricsService {
     this.ponder_realtime_latency = new prometheus.Histogram({
       name: "ponder_realtime_latency",
       help: "Time elapsed between receiving a block and fully processing it",
+      labelNames: ["chain"] as const,
+      buckets: httpRequestDurationMs,
+      registers: [this.registry],
+    });
+    this.ponder_realtime_block_arrival_latency = new prometheus.Histogram({
+      name: "ponder_realtime_block_arrival_latency",
+      help: "Time elapsed between mining a block and being received by the realtime sync",
       labelNames: ["chain"] as const,
       buckets: httpRequestDurationMs,
       registers: [this.registry],
