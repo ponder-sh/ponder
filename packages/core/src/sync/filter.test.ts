@@ -16,7 +16,7 @@ import {
   getErc20ConfigAndIndexingFunctions,
   getPairWithFactoryConfigAndIndexingFunctions,
 } from "@/_test/utils.js";
-import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
+import { buildConfigAndIndexingFunctions } from "@/build/config.js";
 import type {
   BlockFilter,
   LogFactory,

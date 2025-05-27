@@ -15,7 +15,7 @@ import { beforeEach, expect, test } from "vitest";
 import {
   buildConfigAndIndexingFunctions,
   safeBuildConfigAndIndexingFunctions,
-} from "./configAndIndexingFunctions.js";
+} from "./config.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);

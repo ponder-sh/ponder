@@ -13,7 +13,7 @@ import {
   getErc20ConfigAndIndexingFunctions,
   testClient,
 } from "@/_test/utils.js";
-import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
+import { buildConfigAndIndexingFunctions } from "@/build/config.js";
 import type { BlockFilter, Event, Filter, Fragment } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";

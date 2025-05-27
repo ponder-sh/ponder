@@ -9,7 +9,7 @@ import {
 } from "@/_test/setup.js";
 import { deployErc20, deployMulticall, mintErc20 } from "@/_test/simulate.js";
 import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
-import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
+import { buildConfigAndIndexingFunctions } from "@/build/config.js";
 import { onchainTable } from "@/drizzle/onchain.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import type { Event, LogEvent, RawEvent } from "@/internal/types.js";
