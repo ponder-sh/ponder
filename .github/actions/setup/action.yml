@@ -9,7 +9,6 @@ runs:
       uses: pnpm/action-setup@v3
       with:
         version: 9.10.0
-        dest: ~/${{ runner.name }}/setup-pnpm
 
     - name: Set up node
       uses: actions/setup-node@v3
