@@ -434,6 +434,62 @@ test("getLocalEventGenerator() pagination", async (context) => {
   expect(events.length).toBeGreaterThan(1);
 });
 
+test("getLocalEventGenerator() pagination with zero interval", async (context) => {
+  const { syncStore } = await setupDatabaseServices(context);
+  const chain = getChain();
+  const rpc = createRpc({ chain, common: context.common });
+
+  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
+    config,
+    rawIndexingFunctions,
+  });
+
+  await testClient.mine({ blocks: 2 });
+
+  const historicalSync = await createHistoricalSync({
+    common: context.common,
+    chain,
+    syncStore,
+    sources,
+    rpc,
+    onFatalError: () => {},
+  });
+
+  const syncProgress = await getLocalSyncProgress({
+    common: context.common,
+    sources,
+    chain,
+    rpc,
+    finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 0 }),
+    intervalsCache: historicalSync.intervalsCache,
+  });
+
+  const syncGenerator = getLocalSyncGenerator({
+    common: context.common,
+    chain,
+    syncProgress,
+    historicalSync,
+  });
+
+  const eventGenerator = getLocalEventGenerator({
+    common: context.common,
+    chain,
+    syncStore,
+    sources,
+    localSyncGenerator: syncGenerator,
+    from: getChainCheckpoint({ syncProgress, chain, tag: "start" })!,
+    to: getChainCheckpoint({ syncProgress, chain, tag: "finalized" })!,
+    limit: 1,
+  });
+
+  const events = await drainAsyncGenerator(eventGenerator);
+  expect(events.length).toBe(1);
+});
+
 test("getLocalSyncGenerator()", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
