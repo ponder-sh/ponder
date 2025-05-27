@@ -8,19 +8,18 @@ on:
 jobs:
   integration-test:
     name: Integration Test
-    # runs-on: self-hosted
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         app_id:
-          # - "assessment"
-          # - "feature-multichain"
-          # - "project-uniswap-v3-flash"
+          - "assessment"
+          - "feature-multichain"
+          - "project-uniswap-v3-flash"
           - "reference-erc20"
-          # - "super-assessment"
-          # - "uniswap-v4"
+          - "super-assessment"
+          - "uniswap-v4"
         iteration: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
     steps:
@@ -34,10 +33,10 @@ jobs:
       - name: Test ${{ matrix.app_id }} ${{ matrix.iteration }}
         run: |
           cd integration-test
-           for i in $(seq 1 3); do
+           for i in $(seq 1 2); do
             SEED=$(openssl rand -hex 32)
             UUID=$(uuidgen)
-            pnpm test ${{ matrix.app_id }} -- --log-level error
+            pnpm test ${{ matrix.app_id }} -- --log-level warn
           done
         env:
           DATABASE_URL: ${{ secrets.TEST_CONNECTION_STRING }}
