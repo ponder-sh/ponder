@@ -1,20 +1,17 @@
 import type { Config } from "@/config/index.js";
-import {
-  getFinalityBlockCount,
-  getRpcUrlsForClient,
-  isRpcUrlPublic,
-} from "@/config/networks.js";
+import type { Common } from "@/internal/common.js";
 import { BuildError } from "@/internal/errors.js";
 import type {
   AccountSource,
   BlockSource,
+  Chain,
   ContractSource,
   IndexingFunctions,
-  Network,
   RawIndexingFunctions,
   Source,
   SyncBlock,
 } from "@/internal/types.js";
+import { type Rpc, createRpc } from "@/rpc/index.js";
 import { buildAbiEvents, buildAbiFunctions, buildTopics } from "@/sync/abi.js";
 import {
   defaultBlockFilterInclude,
@@ -24,8 +21,9 @@ import {
   defaultTransactionReceiptInclude,
   defaultTransferFilterInclude,
 } from "@/sync/filter.js";
-import { chains } from "@/utils/chains.js";
+import { chains as viemChains } from "@/utils/chains.js";
 import { dedupe } from "@/utils/dedupe.js";
+import { getFinalityBlockCount } from "@/utils/finality.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { BlockNotFoundError, type Hex, type LogTopic, hexToNumber } from "viem";
 import { buildLogFactory } from "./factory.js";
@@ -34,51 +32,52 @@ const flattenSources = <
   T extends Config["contracts"] | Config["accounts"] | Config["blocks"],
 >(
   config: T,
-): (Omit<T[string], "network"> & { name: string; network: string })[] => {
+): (Omit<T[string], "chain"> & { name: string; chain: string })[] => {
   return Object.entries(config).flatMap(
     ([name, source]: [string, T[string]]) => {
-      if (typeof source.network === "string") {
+      if (typeof source.chain === "string") {
         return {
           name,
           ...source,
         };
       } else {
-        return Object.entries(source.network).map(
-          ([network, sourceOverride]) => {
-            const { network: _network, ...base } = source;
+        return Object.entries(source.chain).map(([chain, sourceOverride]) => {
+          const { chain: _chain, ...base } = source;
 
-            return {
-              name,
-              network,
-              ...base,
-              ...sourceOverride,
-            };
-          },
-        );
+          return {
+            name,
+            chain,
+            ...base,
+            ...sourceOverride,
+          };
+        });
       }
     },
   );
 };
 
 export async function buildConfigAndIndexingFunctions({
+  common,
   config,
   rawIndexingFunctions,
 }: {
+  common: Common;
   config: Config;
   rawIndexingFunctions: RawIndexingFunctions;
 }): Promise<{
-  networks: Network[];
+  chains: Chain[];
+  rpcs: Rpc[];
   sources: Source[];
   indexingFunctions: IndexingFunctions;
   logs: { level: "warn" | "info" | "debug"; msg: string }[];
 }> {
   const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
 
-  const perNetworkLatestBlockNumber = new Map<string, Promise<number>>();
+  const perChainLatestBlockNumber = new Map<string, Promise<number>>();
 
   const resolveBlockNumber = async (
     blockNumberOrTag: number | "latest" | undefined,
-    network: Network,
+    chain: Chain,
   ) => {
     if (blockNumberOrTag === undefined) {
       return undefined;
@@ -88,10 +87,11 @@ export async function buildConfigAndIndexingFunctions({
       return undefined;
     }
     if (blockNumberOrTag === "latest") {
-      if (perNetworkLatestBlockNumber.has(network.name)) {
-        return perNetworkLatestBlockNumber.get(network.name)!;
+      if (perChainLatestBlockNumber.has(chain.name)) {
+        return perChainLatestBlockNumber.get(chain.name)!;
       } else {
-        const blockPromise = network.transport
+        const rpc = rpcs[chains.findIndex((c) => c.name === chain.name)]!;
+        const blockPromise = rpc
           .request({
             method: "eth_getBlockByNumber",
             params: ["latest", false],
@@ -103,56 +103,99 @@ export async function buildConfigAndIndexingFunctions({
           })
           .catch((e) => {
             throw new Error(
-              `Unable to fetch "latest" block for network '${network.name}':\n${e.message}`,
+              `Unable to fetch "latest" block for chain '${chain.name}':\n${e.message}`,
             );
           });
-        perNetworkLatestBlockNumber.set(network.name, blockPromise);
+        perChainLatestBlockNumber.set(chain.name, blockPromise);
         return blockPromise;
       }
     }
     return blockNumberOrTag;
   };
 
-  const networks: Network[] = await Promise.all(
-    Object.entries(config.networks).map(async ([networkName, network]) => {
-      const { chainId, transport } = network;
+  const chains: Chain[] = await Promise.all(
+    Object.entries(config.chains).map(async ([chainName, chain]) => {
+      const matchedChain = Object.values(viemChains).find((c) =>
+        "id" in c ? c.id === chain.id : false,
+      );
 
-      const defaultChain =
-        Object.values(chains).find((c) =>
-          "id" in c ? c.id === chainId : false,
-        ) ?? chains.mainnet!;
-      const chain = { ...defaultChain, name: networkName, id: chainId };
-
-      // Note: This can throw.
-      const rpcUrls = await getRpcUrlsForClient({ transport, chain });
-      rpcUrls.forEach((rpcUrl) => {
-        if (isRpcUrlPublic(rpcUrl)) {
-          logs.push({
-            level: "warn",
-            msg: `Network '${networkName}' is using a public RPC URL (${rpcUrl}). Most apps require an RPC URL with a higher rate limit.`,
-          });
+      if (chain.rpc === undefined) {
+        if (matchedChain === undefined) {
+          throw new Error(
+            `Chain "${chainName}" with id ${chain.id} has no RPC defined and no default RPC URL was found in 'viem/chains'.`,
+          );
         }
-      });
 
-      if (
-        network.pollingInterval !== undefined &&
-        network.pollingInterval! < 100
-      ) {
+        chain.rpc = matchedChain.rpcUrls.default.http as string[];
+      }
+
+      if (typeof chain.rpc === "string" || Array.isArray(chain.rpc)) {
+        const rpcs = Array.isArray(chain.rpc) ? chain.rpc : [chain.rpc];
+
+        if (rpcs.length === 0) {
+          throw new Error(
+            `Chain "${chainName}" with id ${chain.id} has no RPC URLs.`,
+          );
+        }
+
+        if (matchedChain) {
+          for (const rpc of rpcs) {
+            for (const http of matchedChain.rpcUrls.default.http) {
+              if (http === rpc) {
+                logs.push({
+                  level: "warn",
+                  msg: `Chain '${chainName}' is using a public RPC URL (${http}). Most apps require an RPC URL with a higher rate limit.`,
+                });
+                break;
+              }
+            }
+            for (const ws of matchedChain.rpcUrls.default.webSocket ?? []) {
+              if (ws === rpc) {
+                logs.push({
+                  level: "warn",
+                  msg: `Chain '${chainName}' is using a public RPC URL (${ws}). Most apps require an RPC URL with a higher rate limit.`,
+                });
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (chain.pollingInterval !== undefined && chain.pollingInterval! < 100) {
         throw new Error(
-          `Invalid 'pollingInterval' for network '${networkName}. Expected 100 milliseconds or greater, got ${network.pollingInterval} milliseconds.`,
+          `Invalid 'pollingInterval' for chain '${chainName}. Expected 100 milliseconds or greater, got ${chain.pollingInterval} milliseconds.`,
         );
       }
 
       return {
-        name: networkName,
-        chainId,
-        chain,
-        transport: network.transport({ chain }),
-        maxRequestsPerSecond: network.maxRequestsPerSecond ?? 50,
-        pollingInterval: network.pollingInterval ?? 1_000,
-        finalityBlockCount: getFinalityBlockCount({ chainId }),
-        disableCache: network.disableCache ?? false,
-      } satisfies Network;
+        id: chain.id,
+        name: chainName,
+        rpc: chain.rpc,
+        maxRequestsPerSecond: chain.maxRequestsPerSecond ?? 50,
+        pollingInterval: chain.pollingInterval ?? 1_000,
+        finalityBlockCount: getFinalityBlockCount({ chain: matchedChain }),
+        disableCache: chain.disableCache ?? false,
+        viemChain: matchedChain,
+      } satisfies Chain;
+    }),
+  );
+
+  const chainIds = new Set<number>();
+  for (const chain of chains) {
+    if (chainIds.has(chain.id)) {
+      throw new Error(
+        `Invalid id for chain "${chain.name}". ${chain.id} is already in use.`,
+      );
+    }
+    chainIds.add(chain.id);
+  }
+
+  const rpcs = chains.map((chain) =>
+    createRpc({
+      common,
+      chain,
+      concurrency: Math.floor(common.options.rpcMaxConcurrency / chains.length),
     }),
   );
 
@@ -249,27 +292,27 @@ export async function buildConfigAndIndexingFunctions({
     ...flattenSources(config.accounts ?? {}),
     ...flattenSources(config.blocks ?? {}),
   ]) {
-    if (source.network === null || source.network === undefined) {
+    if (source.chain === null || source.chain === undefined) {
       throw new Error(
-        `Validation failed: Network for '${source.name}' is null or undefined. Expected one of [${networks
+        `Validation failed: Chain for '${source.name}' is null or undefined. Expected one of [${chains
           .map((n) => `'${n.name}'`)
           .join(", ")}].`,
       );
     }
 
-    const network = networks.find((n) => n.name === source.network);
-    if (!network) {
+    const chain = chains.find((n) => n.name === source.chain);
+    if (!chain) {
       throw new Error(
-        `Validation failed: Invalid network for '${
+        `Validation failed: Invalid chain for '${
           source.name
-        }'. Got '${source.network}', expected one of [${networks
+        }'. Got '${source.chain}', expected one of [${chains
           .map((n) => `'${n.name}'`)
           .join(", ")}].`,
       );
     }
 
-    const startBlock = await resolveBlockNumber(source.startBlock, network);
-    const endBlock = await resolveBlockNumber(source.endBlock, network);
+    const startBlock = await resolveBlockNumber(source.startBlock, chain);
+    const endBlock = await resolveBlockNumber(source.endBlock, chain);
 
     if (
       startBlock !== undefined &&
@@ -328,7 +371,7 @@ export async function buildConfigAndIndexingFunctions({
     await Promise.all(
       flattenSources(config.contracts ?? {}).map(
         async (source): Promise<ContractSource[]> => {
-          const network = networks.find((n) => n.name === source.network)!;
+          const chain = chains.find((n) => n.name === source.chain)!;
 
           // Get indexing function that were registered for this contract
           const registeredLogEvents: string[] = [];
@@ -457,11 +500,8 @@ export async function buildConfigAndIndexingFunctions({
             });
           }
 
-          const fromBlock = await resolveBlockNumber(
-            source.startBlock,
-            network,
-          );
-          const toBlock = await resolveBlockNumber(source.endBlock, network);
+          const fromBlock = await resolveBlockNumber(source.startBlock, chain);
+          const toBlock = await resolveBlockNumber(source.endBlock, chain);
 
           const contractMetadata = {
             type: "contract",
@@ -469,7 +509,7 @@ export async function buildConfigAndIndexingFunctions({
             abiEvents,
             abiFunctions,
             name: source.name,
-            network,
+            chain,
           } as const;
 
           const resolvedAddress = source?.address;
@@ -488,7 +528,7 @@ export async function buildConfigAndIndexingFunctions({
 
             // Note that this can throw.
             const logFactory = buildLogFactory({
-              chainId: network.chainId,
+              chainId: chain.id,
               ...resolvedAddress,
               fromBlock: factoryFromBlock,
               toBlock: factoryToBlock,
@@ -500,7 +540,7 @@ export async function buildConfigAndIndexingFunctions({
                   ...contractMetadata,
                   filter: {
                     type: "log",
-                    chainId: network.chainId,
+                    chainId: chain.id,
                     address: logFactory,
                     topic0: topics.topic0,
                     topic1: topics.topic1,
@@ -524,7 +564,7 @@ export async function buildConfigAndIndexingFunctions({
                   ...contractMetadata,
                   filter: {
                     type: "trace",
-                    chainId: network.chainId,
+                    chainId: chain.id,
                     fromAddress: undefined,
                     toAddress: logFactory,
                     callType: "CALL",
@@ -573,7 +613,7 @@ export async function buildConfigAndIndexingFunctions({
                 ...contractMetadata,
                 filter: {
                   type: "log",
-                  chainId: network.chainId,
+                  chainId: chain.id,
                   address: validatedAddress,
                   topic0: topics.topic0,
                   topic1: topics.topic1,
@@ -597,7 +637,7 @@ export async function buildConfigAndIndexingFunctions({
                 ...contractMetadata,
                 filter: {
                   type: "trace",
-                  chainId: network.chainId,
+                  chainId: chain.id,
                   fromAddress: undefined,
                   toAddress: Array.isArray(validatedAddress)
                     ? validatedAddress
@@ -645,13 +685,10 @@ export async function buildConfigAndIndexingFunctions({
     await Promise.all(
       flattenSources(config.accounts ?? {}).map(
         async (source): Promise<AccountSource[]> => {
-          const network = networks.find((n) => n.name === source.network)!;
+          const chain = chains.find((n) => n.name === source.chain)!;
 
-          const fromBlock = await resolveBlockNumber(
-            source.startBlock,
-            network,
-          );
-          const toBlock = await resolveBlockNumber(source.endBlock, network);
+          const fromBlock = await resolveBlockNumber(source.startBlock, chain);
+          const toBlock = await resolveBlockNumber(source.endBlock, chain);
 
           const resolvedAddress = source?.address;
 
@@ -675,7 +712,7 @@ export async function buildConfigAndIndexingFunctions({
 
             // Note that this can throw.
             const logFactory = buildLogFactory({
-              chainId: network.chainId,
+              chainId: chain.id,
               ...resolvedAddress,
               fromBlock: factoryFromBlock,
               toBlock: factoryToBlock,
@@ -685,10 +722,10 @@ export async function buildConfigAndIndexingFunctions({
               {
                 type: "account",
                 name: source.name,
-                network,
+                chain,
                 filter: {
                   type: "transaction",
-                  chainId: network.chainId,
+                  chainId: chain.id,
                   fromAddress: undefined,
                   toAddress: logFactory,
                   includeReverted: false,
@@ -700,10 +737,10 @@ export async function buildConfigAndIndexingFunctions({
               {
                 type: "account",
                 name: source.name,
-                network,
+                chain,
                 filter: {
                   type: "transaction",
-                  chainId: network.chainId,
+                  chainId: chain.id,
                   fromAddress: logFactory,
                   toAddress: undefined,
                   includeReverted: false,
@@ -715,10 +752,10 @@ export async function buildConfigAndIndexingFunctions({
               {
                 type: "account",
                 name: source.name,
-                network,
+                chain,
                 filter: {
                   type: "transfer",
-                  chainId: network.chainId,
+                  chainId: chain.id,
                   fromAddress: undefined,
                   toAddress: logFactory,
                   includeReverted: false,
@@ -734,10 +771,10 @@ export async function buildConfigAndIndexingFunctions({
               {
                 type: "account",
                 name: source.name,
-                network,
+                chain,
                 filter: {
                   type: "transfer",
-                  chainId: network.chainId,
+                  chainId: chain.id,
                   fromAddress: logFactory,
                   toAddress: undefined,
                   includeReverted: false,
@@ -779,10 +816,10 @@ export async function buildConfigAndIndexingFunctions({
             {
               type: "account",
               name: source.name,
-              network,
+              chain,
               filter: {
                 type: "transaction",
-                chainId: network.chainId,
+                chainId: chain.id,
                 fromAddress: undefined,
                 toAddress: validatedAddress,
                 includeReverted: false,
@@ -794,10 +831,10 @@ export async function buildConfigAndIndexingFunctions({
             {
               type: "account",
               name: source.name,
-              network,
+              chain,
               filter: {
                 type: "transaction",
-                chainId: network.chainId,
+                chainId: chain.id,
                 fromAddress: validatedAddress,
                 toAddress: undefined,
                 includeReverted: false,
@@ -809,10 +846,10 @@ export async function buildConfigAndIndexingFunctions({
             {
               type: "account",
               name: source.name,
-              network,
+              chain,
               filter: {
                 type: "transfer",
-                chainId: network.chainId,
+                chainId: chain.id,
                 fromAddress: undefined,
                 toAddress: validatedAddress,
                 includeReverted: false,
@@ -828,10 +865,10 @@ export async function buildConfigAndIndexingFunctions({
             {
               type: "account",
               name: source.name,
-              network,
+              chain,
               filter: {
                 type: "transfer",
-                chainId: network.chainId,
+                chainId: chain.id,
                 fromAddress: validatedAddress,
                 toAddress: undefined,
                 includeReverted: false,
@@ -874,7 +911,7 @@ export async function buildConfigAndIndexingFunctions({
   const blockSources: BlockSource[] = (
     await Promise.all(
       flattenSources(config.blocks ?? {}).map(async (source) => {
-        const network = networks.find((n) => n.name === source.network)!;
+        const chain = chains.find((n) => n.name === source.chain)!;
 
         const intervalMaybeNan = source.interval ?? 1;
         const interval = Number.isNaN(intervalMaybeNan) ? 0 : intervalMaybeNan;
@@ -885,16 +922,16 @@ export async function buildConfigAndIndexingFunctions({
           );
         }
 
-        const fromBlock = await resolveBlockNumber(source.startBlock, network);
-        const toBlock = await resolveBlockNumber(source.endBlock, network);
+        const fromBlock = await resolveBlockNumber(source.startBlock, chain);
+        const toBlock = await resolveBlockNumber(source.endBlock, chain);
 
         return {
           type: "block",
           name: source.name,
-          network,
+          chain,
           filter: {
             type: "block",
-            chainId: network.chainId,
+            chainId: chain.id,
             interval: interval,
             offset: (fromBlock ?? 0) % interval,
             fromBlock,
@@ -920,19 +957,27 @@ export async function buildConfigAndIndexingFunctions({
 
   const sources = [...contractSources, ...accountSources, ...blockSources];
 
-  // Filter out any networks that don't have any sources registered.
-  const networksWithSources = networks.filter((network) => {
+  // Filter out any chains that don't have any sources registered.
+  const chainsWithSources: Chain[] = [];
+  const rpcsWithoutSources: Rpc[] = [];
+
+  for (let i = 0; i < chains.length; i++) {
+    const chain = chains[i]!;
+    const rpc = rpcs[i]!;
     const hasSources = sources.some(
-      (source) => source.network.name === network.name,
+      (source) => source.chain.name === chain.name,
     );
-    if (!hasSources) {
+
+    if (hasSources) {
+      chainsWithSources.push(chain);
+      rpcsWithoutSources.push(rpc);
+    } else {
       logs.push({
         level: "warn",
-        msg: `No sources registered for network '${network.name}'`,
+        msg: `No sources registered for chain '${chain.name}'`,
       });
     }
-    return hasSources;
-  });
+  }
 
   if (Object.keys(indexingFunctions).length === 0) {
     throw new Error(
@@ -941,7 +986,8 @@ export async function buildConfigAndIndexingFunctions({
   }
 
   return {
-    networks: networksWithSources,
+    chains: chainsWithSources,
+    rpcs: rpcsWithoutSources,
     sources,
     indexingFunctions,
     logs,
@@ -949,14 +995,17 @@ export async function buildConfigAndIndexingFunctions({
 }
 
 export async function safeBuildConfigAndIndexingFunctions({
+  common,
   config,
   rawIndexingFunctions,
 }: {
+  common: Common;
   config: Config;
   rawIndexingFunctions: RawIndexingFunctions;
 }) {
   try {
     const result = await buildConfigAndIndexingFunctions({
+      common,
       config,
       rawIndexingFunctions,
     });
@@ -964,7 +1013,8 @@ export async function safeBuildConfigAndIndexingFunctions({
     return {
       status: "success",
       sources: result.sources,
-      networks: result.networks,
+      chains: result.chains,
+      rpcs: result.rpcs,
       indexingFunctions: result.indexingFunctions,
       logs: result.logs,
     } as const;

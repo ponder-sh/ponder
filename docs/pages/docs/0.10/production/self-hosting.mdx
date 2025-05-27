@@ -1,0 +1,62 @@
+# Self-hosting [Host a Ponder app on your own infrastructure]
+
+In general, hosting a Ponder app is similar to hosting an ordinary Node.js web server. This section describes the key Ponder-specific quirks to consider when self-hosting in production.
+
+## Database connection
+
+Ponder works best with a Postgres database running in the same private network. Set the `DATABASE_URL` environment variable to the connection string of your Postgres database, or manually override the `database.connectionString` option in `ponder.config.ts`.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  database: { // [!code focus]
+    kind: "postgres", // [!code focus]
+    connectionString: "postgres://user:password@mycloud.internal:5432/database", // [!code focus]
+  }, // [!code focus]
+  // ...
+});
+```
+
+:::info
+Your app will likely have performance issues if the roundtrip database latency
+is greater than **50ms**. This is common when using a database in a different region or network.
+:::
+
+## Database schema
+
+Ponder uses **database schemas** to isolate deployments. Each deployment must use a different schema.
+
+Use the `DATABASE_SCHEMA` environment variable or the `--schema` CLI argument to specify which database schema a deployment should use. [Read more](/docs/0.10/database#database-schema) about database schema selection rules.
+
+It typically makes sense to automate the database schema for each deployment. Here are a few common options.
+
+- Kubernetes pod name
+- Git branch name or commit hash
+- Railway deployment ID
+
+## Health checks & probes
+
+Use the `/health` and `/ready` endpoints to configure health checks or [probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/).
+
+- **`/health`**: Returns status code `200` immediately after the process starts.
+- **`/ready`**: Returns status code `200` once indexing progress has reached realtime across all chains. During the historical backfill, the endpoint returns status code `503`.
+
+## Crash recovery
+
+If a Ponder app running `ponder start` crashes and restarts using the same database schema, it will attempt to resume indexing where it left off. [Read more](/docs/0.10/api-reference/ponder/database) about the instance lifecycle and crash recovery mechanism.
+
+## Advanced
+
+### Scale the HTTP server
+
+If a `ponder start` instance receives a large volume of HTTP traffic (e.g. GraphQL requests), the HTTP server will contend with the indexing engine for CPU and memory resources. This can lead to degraded indexing performance and might ultimately crash the instance.
+
+To solve this problem, you can use `ponder serve` to run standalone instances of the HTTP server without the indexing engine. Here are a few things to keep in mind.
+
+- The `ponder serve` instance should use the same [database schema](#database-schema) as the `ponder start` instance that you'd like to scale.
+- If one `ponder serve` instance is not enough, it's safe to run multiple replicas behind a proxy.
+
+### Database maintenance
+
+The `ponder db` CLI entrypoint offers a set of commands useful for observing and maintaining your database. [Read more](/docs/0.10/api-reference/ponder/cli).

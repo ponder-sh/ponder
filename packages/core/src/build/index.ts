@@ -51,9 +51,7 @@ type ApiResult = Result<{ app: Hono }>;
 
 export type Build = {
   executeConfig: () => Promise<ConfigResult>;
-  executeSchema: (params: {
-    namespace: NamespaceBuild;
-  }) => Promise<SchemaResult>;
+  executeSchema: () => Promise<SchemaResult>;
   executeIndexingFunctions: () => Promise<IndexingResult>;
   executeApi: (params: {
     indexingBuild: IndexingBuild;
@@ -193,8 +191,7 @@ export const createBuild = async ({
         result: { config, contentHash },
       } as const;
     },
-    async executeSchema({ namespace }): Promise<SchemaResult> {
-      globalThis.PONDER_NAMESPACE_BUILD = namespace;
+    async executeSchema(): Promise<SchemaResult> {
       const executeResult = await executeFile({
         file: common.options.schemaFile,
       });
@@ -224,6 +221,7 @@ export const createBuild = async ({
       const files = glob.sync(indexingPattern, {
         ignore: apiPattern,
       });
+
       const executeResults = await Promise.all(
         files.map(async (file) => ({
           ...(await executeFile({ file })),
@@ -279,7 +277,7 @@ export const createBuild = async ({
 
       if (!fs.existsSync(common.options.apiFile)) {
         const error = new BuildError(
-          `API function file not found. Create a file at ${common.options.apiFile}. Read more: https://ponder.sh/docs/query/api-functions`,
+          `API endpoint file not found. Create a file at ${common.options.apiFile}. Read more: https://ponder.sh/docs/api-reference/ponder/api-endpoints`,
         );
         error.stack = undefined;
         common.logger.error({
@@ -290,9 +288,6 @@ export const createBuild = async ({
 
         return { status: "error", error };
       }
-
-      viteNodeRunner.moduleCache.invalidateDepTree(glob.sync(apiPattern));
-      viteNodeRunner.moduleCache.deleteByModuleId("ponder:api");
 
       const executeResult = await executeFile({
         file: common.options.apiFile,
@@ -315,7 +310,7 @@ export const createBuild = async ({
 
       if (!(app instanceof Hono || app?.constructor?.name === "Hono")) {
         const error = new BuildError(
-          "API function file does not export a Hono instance as the default export. Read more: https://ponder.sh/docs/query/api-functions",
+          "API endpoint file does not export a Hono instance as the default export. Read more: https://ponder.sh/docs/api-reference/ponder/api-endpoints",
         );
         error.stack = undefined;
         common.logger.error({
@@ -338,7 +333,7 @@ export const createBuild = async ({
         process.env.DATABASE_SCHEMA === undefined
       ) {
         const error = new BuildError(
-          "Database schema required. Specify with 'DATABASE_SCHEMA' env var or '--schema' CLI flag. Read more: https://ponder.sh/docs/getting-started/database#database-schema",
+          "Database schema required. Specify with 'DATABASE_SCHEMA' env var or '--schema' CLI flag. Read more: https://ponder.sh/docs/database#database-schema",
         );
         error.stack = undefined;
         common.logger.error({
@@ -348,9 +343,16 @@ export const createBuild = async ({
         });
         return { status: "error", error } as const;
       }
+
+      const schema = cliOptions.schema ?? process.env.DATABASE_SCHEMA!;
+      const viewsSchema =
+        cliOptions.viewsSchema ?? process.env.DATABASE_VIEWS_SCHEMA;
+
+      globalThis.PONDER_NAMESPACE_BUILD = { schema, viewsSchema };
+
       return {
         status: "success",
-        result: cliOptions.schema ?? process.env.DATABASE_SCHEMA!,
+        result: { schema, viewsSchema },
       } as const;
     },
     preCompile({ config }): Result<PreBuild> {
@@ -407,6 +409,7 @@ export const createBuild = async ({
       // Validates and build the config
       const buildConfigAndIndexingFunctionsResult =
         await safeBuildConfigAndIndexingFunctions({
+          common,
           config: configResult.config,
           rawIndexingFunctions: indexingResult.indexingFunctions,
         });
@@ -437,7 +440,8 @@ export const createBuild = async ({
         result: {
           buildId,
           sources: buildConfigAndIndexingFunctionsResult.sources,
-          networks: buildConfigAndIndexingFunctionsResult.networks,
+          chains: buildConfigAndIndexingFunctionsResult.chains,
+          rpcs: buildConfigAndIndexingFunctionsResult.rpcs,
           indexingFunctions:
             buildConfigAndIndexingFunctionsResult.indexingFunctions,
         },

@@ -13,7 +13,7 @@ Visit [ponder.sh](https://ponder.sh) for documentation, guides, and the API refe
 
 ## Support
 
-Join [Ponder's telegram chat](https://t.me/ponder_sh) for support, feedback, and general chatter.
+Join [Ponder's telegram chat](https://t.me/pondersh) for support, feedback, and general chatter.
 
 ## Features
 
@@ -55,7 +55,7 @@ pnpm dev
 yarn dev
 ```
 
-### 3. Add contracts & networks
+### 3. Add contracts & chains
 
 Ponder fetches event logs for the contracts added to `ponder.config.ts`, and passes those events to the indexing functions you write.
 
@@ -63,21 +63,19 @@ Ponder fetches event logs for the contracts added to `ponder.config.ts`, and pas
 // ponder.config.ts
 
 import { createConfig } from "ponder";
-import { http } from "viem";
- 
 import { BaseRegistrarAbi } from "./abis/BaseRegistrar";
  
 export default createConfig({
-  networks: {
+  chains: {
     mainnet: { 
-      chainId: 1,
-      transport: http("https://eth-mainnet.g.alchemy.com/v2/...")
+      id: 1,
+      rpc: "https://eth-mainnet.g.alchemy.com/v2/...",
     },
   },
   contracts: {
     BaseRegistrar: {
       abi: BaseRegistrarAbi,
-      network: "mainnet",
+      chain: "mainnet",
       address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
       startBlock: 9380410,
     },
@@ -122,7 +120,7 @@ ponder.on("BaseRegistrar:NameRegistered", async ({ event, context }) => {
 });
 ```
 
-See the [create & update records](https://ponder.sh/docs/indexing/create-update-records) docs for a detailed guide on writing indexing functions.
+See the [create & update records](https://ponder.sh/docs/indexing/write) docs for a detailed guide on writing indexing functions.
 
 ### 6. Query the GraphQL API
 
@@ -178,8 +176,8 @@ Ponder is MIT-licensed open-source software.
 
 [ci-badge]: https://github.com/ponder-sh/ponder/actions/workflows/main.yml/badge.svg
 [ci-url]: https://github.com/ponder-sh/ponder/actions/workflows/main.yml
-[tg-badge]: https://img.shields.io/endpoint?color=neon&logo=telegram&label=Chat&url=https%3A%2F%2Fmogyo.ro%2Fquart-apis%2Ftgmembercount%3Fchat_id%3Dponder_sh
-[tg-url]: https://t.me/ponder_sh
+[tg-badge]: https://img.shields.io/endpoint?color=neon&logo=telegram&label=chat&url=https%3A%2F%2Ftg.sumanjay.workers.dev%2Fpondersh
+[tg-url]: https://t.me/pondersh
 [license-badge]: https://img.shields.io/npm/l/ponder?label=License
 [license-url]: https://github.com/ponder-sh/ponder/blob/main/LICENSE
 [version-badge]: https://img.shields.io/npm/v/ponder

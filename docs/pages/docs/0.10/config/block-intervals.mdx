@@ -1,0 +1,129 @@
+import { Callout } from "vocs/components";
+
+# Block intervals [Run logic on a regular schedule]
+
+To run indexing logic on a **regular schedule**, use the `blocks` field in `ponder.config.ts`. Block intervals are useful for aggregations, time-series logic, and bulk updates using raw SQL.
+
+This guide describes each configuration option and suggests patterns for common use cases. Visit the config [API reference](/docs/0.10/api-reference/ponder/config) for more information.
+
+## Example
+
+This config instructs the indexing engine to run an indexing function every 10 blocks starting at the start block – `1000`, `1010`, `1020`, and so on.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+import { http } from "viem";
+
+export default createConfig({
+  networks: {
+    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
+  },
+  blocks: {
+    ChainlinkOracleUpdate: {
+      network: "mainnet",
+      interval: 10, // Every 10 blocks
+      startBlock: 1000,
+    },
+  },
+});
+```
+
+Now, we can register an indexing function for the `ChainlinkOracleUpdate:block` event. This example reads the latest price from the Chainlink oracle contract and inserts a row into the `priceTimeline` table.
+
+```ts [src/index.ts]
+import { ponder } from "ponder:registry";
+import { priceTimeline } from "ponder:schema";
+import { ChainlinkOracleAbi } from "../abis/ChainlinkOracle.ts";
+
+ponder.on("ChainlinkOracleUpdate:block", async ({ event, context }) => {
+  // Fetch the price at the current block height (1000, 1010, 1020, etc.)
+  const latestPrice = await context.client.readContract({
+    abi: ChainlinkOracleAbi,
+    address: "0xD10aBbC76679a20055E167BB80A24ac851b37056",
+    functionName: "latestAnswer",
+  });
+
+  // Insert a row into the price timeline table
+  await context.db.insert(priceTimeline).values({
+    id: event.id,
+    timestamp: event.block.timestamp,
+    price: latestPrice,
+  });
+});
+```
+
+## Name
+
+Every block interval must have a name, provided as a key to the `blocks` object. The name must be unique across `blocks`, `contracts`, and `accounts`.
+
+Use a descriptive name to indicate the purpose of the block interval.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  networks: { /* ... */ },
+  blocks: {
+    ChainlinkOracleUpdate: { // [!code focus]
+      network: "mainnet",
+      interval: 10,
+      startBlock: 19783636,
+    },
+  },
+});
+```
+
+## Interval
+
+Use the `interval` option to specify how often the indexing function should run. A block interval with a start block of `100` and a interval of `10` will index blocks `100`, `110`, `120`, `130`, and so on.
+
+### Block time
+
+It's often easier to think about a _time_ interval instead of a _block_ interval. To convert between the two, divide the time interval by the network's average block time.
+
+For example, if the block time is 3 seconds and you want to run an indexing function once per day:
+
+```ts
+// 24 hours per day, 60 minutes per hour, 60 seconds per minute
+const secondsInterval = 24 * 60 * 60;
+// 3 seconds per block
+const blockTime = 3;
+// 28800 blocks per day
+const blockInterval = secondsInterval / blockTime;
+```
+
+To find the block time of a specific chain, check the chain's documentation website or block explorer. Most Etherscan deployments have a [`/chart/blocktime`](https://polygonscan.com/chart/blocktime) page.
+
+## Network
+
+The `network` option for block intervals works the same way as it does for contracts. You can specify a different `interval`, `startBlock` and `endBlock` for each network.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  networks: { /* ... */ },
+  blocks: {
+    PointsAggregation: {
+      network: {
+        mainnet: {
+          startBlock: 19783636, // [!code focus]
+          interval: (60 * 60) / 12, // Every 60 minutes (12s block time) // [!code focus]
+        }, 
+        optimism: { 
+          startBlock: 119534316, // [!code focus]
+          interval: (60 * 60) / 2, // Every 60 minutes (2s block time) // [!code focus]
+        },
+      },
+    },
+  },
+});
+```
+
+[Read more](/docs/0.10/config/contracts#network) in the contracts guide.
+
+## Block range
+
+The `startBlock` and `endBlock` options for block intervals work the same way as it does for contracts.
+
+[Read more](/docs/0.10/config/contracts#block-range) in the contracts guide.

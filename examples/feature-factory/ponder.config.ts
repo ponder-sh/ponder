@@ -1,8 +1,6 @@
 import { parseAbiItem } from "abitype";
 import { createConfig, factory } from "ponder";
 
-import { http } from "viem";
-
 import { LlamaCoreAbi } from "./abis/LlamaCoreAbi";
 import { LlamaPolicyAbi } from "./abis/LlamaPolicyAbi";
 
@@ -11,15 +9,15 @@ const llamaFactoryEvent = parseAbiItem(
 );
 
 export default createConfig({
-  networks: {
+  chains: {
     sepolia: {
-      chainId: 11155111,
-      transport: http(process.env.PONDER_RPC_URL_11155111),
+      id: 11155111,
+      rpc: process.env.PONDER_RPC_URL_11155111,
     },
   },
   contracts: {
     LlamaCore: {
-      network: "sepolia",
+      chain: "sepolia",
       abi: LlamaCoreAbi,
       address: factory({
         address: "0xFf5d4E226D9A3496EECE31083a8F493edd79AbEB",
@@ -29,7 +27,7 @@ export default createConfig({
       startBlock: 4121269,
     },
     LlamaPolicy: {
-      network: "sepolia",
+      chain: "sepolia",
       abi: LlamaPolicyAbi,
       address: factory({
         address: "0xFf5d4E226D9A3496EECE31083a8F493edd79AbEB",

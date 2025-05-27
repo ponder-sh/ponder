@@ -75,7 +75,7 @@ test("create subgraph thegraph", async () => {
   );
 });
 
-test("create subgraph satsuma", async () => {
+test.skip("create subgraph satsuma", async () => {
   const rootDir = path.join(tempDir, "subgraph-id");
 
   await run({

@@ -155,6 +155,16 @@ test("insert", async (context) => {
     { address: "0x0000000000000000000000000000000000000003", balance: 0n },
   ]);
 
+  result = await indexingStore
+    .insert(schema.account)
+    .values([
+      { address: "0x0000000000000000000000000000000000000001", balance: 44n },
+      { address: "0x0000000000000000000000000000000000000001", balance: 44n },
+    ])
+    .onConflictDoNothing();
+
+  expect(result).toStrictEqual([null, null]);
+
   result = await indexingStore.find(schema.account, {
     address: "0x0000000000000000000000000000000000000001",
   });

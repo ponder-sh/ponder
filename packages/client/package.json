@@ -1,6 +1,6 @@
 {
   "name": "@ponder/client",
-  "version": "0.10.9",
+  "version": "0.11.6",
   "description": "",
   "license": "MIT",
   "type": "module",
@@ -41,7 +41,7 @@
     }
   },
   "dependencies": {
-    "drizzle-orm": "0.39.3",
+    "drizzle-orm": "0.41.0",
     "eventsource": "^3.0.5",
     "superjson": "^2.2.2"
   },

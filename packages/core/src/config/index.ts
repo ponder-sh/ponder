@@ -8,7 +8,7 @@ import type { GetEventFilter } from "./eventFilter.js";
 export type Config = {
   database?: DatabaseConfig;
   ordering?: "omnichain" | "multichain";
-  networks: { [networkName: string]: NetworkConfig<unknown> };
+  chains: { [chainName: string]: ChainConfig<unknown> };
   contracts: { [contractName: string]: GetContract };
   accounts: { [accountName: string]: AccountConfig<unknown> };
   blocks: {
@@ -16,17 +16,17 @@ export type Config = {
   };
 };
 
-export type CreateConfigReturnType<networks, contracts, accounts, blocks> = {
+export type CreateConfigReturnType<chains, contracts, accounts, blocks> = {
   database?: DatabaseConfig;
   ordering?: "omnichain" | "multichain";
-  networks: networks;
+  chains: chains;
   contracts: contracts;
   accounts: accounts;
   blocks: blocks;
 };
 
 export const createConfig = <
-  const networks,
+  const chains,
   const contracts = {},
   const accounts = {},
   const blocks = {},
@@ -34,13 +34,13 @@ export const createConfig = <
   database?: DatabaseConfig;
   ordering?: "omnichain" | "multichain";
   // TODO: add jsdoc to these properties.
-  networks: NetworksConfig<Narrow<networks>>;
-  contracts?: ContractsConfig<networks, Narrow<contracts>>;
-  accounts?: AccountsConfig<networks, Narrow<accounts>>;
-  blocks?: BlockFiltersConfig<networks, blocks>;
-}): CreateConfigReturnType<networks, contracts, accounts, blocks> =>
+  chains: ChainsConfig<Narrow<chains>>;
+  contracts?: ContractsConfig<chains, Narrow<contracts>>;
+  accounts?: AccountsConfig<chains, Narrow<accounts>>;
+  blocks?: BlockFiltersConfig<chains, blocks>;
+}): CreateConfigReturnType<chains, contracts, accounts, blocks> =>
   config as Prettify<
-    CreateConfigReturnType<networks, contracts, accounts, blocks>
+    CreateConfigReturnType<chains, contracts, accounts, blocks>
   >;
 
 // database
@@ -81,33 +81,18 @@ type FunctionCallConfig = {
   /*
    * Enable call trace indexing for this contract.
    *
-   * - Docs: https://ponder.sh/docs/indexing/call-traces
+   * - Docs: https://ponder.sh/docs/guides/call-traces
    */
   includeCallTraces?: boolean;
 };
 
-// network
+// chain
 
-type NetworkConfig<network> = {
-  /** Chain ID of the network. */
-  chainId: network extends { chainId: infer chainId extends number }
-    ? chainId | number
-    : number;
-  /** A viem `http`, `webSocket`, or `fallback` [Transport](https://viem.sh/docs/clients/transports/http.html).
-   *
-   * __To avoid rate limiting, include a custom RPC URL.__ Usage:
-   *
-   * ```ts
-   * import { http } from "viem";
-   *
-   * const network = {
-   *    name: "mainnet",
-   *    chainId: 1,
-   *    transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
-   * }
-   * ```
-   */
-  transport: Transport;
+type ChainConfig<chain> = {
+  /** Chain ID of the chain. */
+  id: chain extends { id: infer id extends number } ? id | number : number;
+  /** RPC url. */
+  rpc: string | string[] | Transport | undefined;
   /** Polling interval (in ms). Default: `1_000`. */
   pollingInterval?: number;
   /** Maximum number of RPC requests per second. Default: `50`. */
@@ -116,10 +101,10 @@ type NetworkConfig<network> = {
   disableCache?: boolean;
 };
 
-type NetworksConfig<networks> = {} extends networks
+type ChainsConfig<chains> = {} extends chains
   ? {}
   : {
-      [networkName in keyof networks]: NetworkConfig<networks[networkName]>;
+      [chainName in keyof chains]: ChainConfig<chains[chainName]>;
     };
 
 // contracts
@@ -129,22 +114,22 @@ type AbiConfig<abi extends Abi | readonly unknown[]> = {
   abi: abi;
 };
 
-type GetContractNetwork<
-  networks,
+type GetContractChain<
+  chains,
   abi extends Abi,
   ///
-  allNetworkNames extends string = [keyof networks] extends [never]
+  allChainNames extends string = [keyof chains] extends [never]
     ? string
-    : keyof networks & string,
+    : keyof chains & string,
 > = {
   /**
-   * Network that this contract is deployed to. Must match a network name in `networks`.
+   * Chain that this contract is deployed to. Must match a chain name in `chains`.
    * Any filter information overrides the values in the higher level "contracts" property.
    */
-  network:
-    | allNetworkNames
+  chain:
+    | allChainNames
     | {
-        [name in allNetworkNames]?: Prettify<
+        [name in allChainNames]?: Prettify<
           AddressConfig &
             GetEventFilter<abi> &
             TransactionReceiptConfig &
@@ -154,9 +139,9 @@ type GetContractNetwork<
       };
 };
 
-type ContractConfig<networks, abi extends Abi> = Prettify<
+type ContractConfig<chains, abi extends Abi> = Prettify<
   AbiConfig<abi> &
-    GetContractNetwork<networks, abi> &
+    GetContractChain<chains, abi> &
     AddressConfig &
     GetEventFilter<abi> &
     TransactionReceiptConfig &
@@ -164,54 +149,54 @@ type ContractConfig<networks, abi extends Abi> = Prettify<
     BlockConfig
 >;
 
-type GetContract<networks = unknown, contract = unknown> = contract extends {
+type GetContract<chains = unknown, contract = unknown> = contract extends {
   abi: infer abi extends Abi;
 }
   ? // 1. Contract has a valid abi
-    ContractConfig<networks, abi>
+    ContractConfig<chains, abi>
   : // 2. Contract has an invalid abi
-    ContractConfig<networks, Abi>;
+    ContractConfig<chains, Abi>;
 
-type ContractsConfig<networks, contracts> = {} extends contracts
+type ContractsConfig<chains, contracts> = {} extends contracts
   ? // contracts empty, return empty
     {}
   : {
-      [name in keyof contracts]: GetContract<networks, contracts[name]>;
+      [name in keyof contracts]: GetContract<chains, contracts[name]>;
     };
 
 // accounts
 
-type GetAccountNetwork<
-  networks,
+type GetAccountChain<
+  chains,
   ///
-  allNetworkNames extends string = [keyof networks] extends [never]
+  allChainNames extends string = [keyof chains] extends [never]
     ? string
-    : keyof networks & string,
+    : keyof chains & string,
 > = {
   /**
-   * Network that this account is deployed to. Must match a network name in `networks`.
+   * Chain that this account is deployed to. Must match a chain name in `chains`.
    * Any filter information overrides the values in the higher level "accounts" property.
    */
-  network:
-    | allNetworkNames
+  chain:
+    | allChainNames
     | {
-        [name in allNetworkNames]?: Prettify<
+        [name in allChainNames]?: Prettify<
           AddressConfig & TransactionReceiptConfig & BlockConfig
         >;
       };
 };
 
-type AccountConfig<networks> = Prettify<
-  GetAccountNetwork<networks> &
+type AccountConfig<chains> = Prettify<
+  GetAccountChain<chains> &
     Required<AddressConfig> &
     TransactionReceiptConfig &
     BlockConfig
 >;
 
-type AccountsConfig<networks, accounts> = {} extends accounts
+type AccountsConfig<chains, accounts> = {} extends accounts
   ? {}
   : {
-      [name in keyof accounts]: AccountConfig<networks>;
+      [name in keyof accounts]: AccountConfig<chains>;
     };
 
 // blocks
@@ -225,24 +210,21 @@ type BlockFilterConfig = {
 };
 
 type GetBlockFilter<
-  networks,
+  chains,
   ///
-  allNetworkNames extends string = [keyof networks] extends [never]
+  allChainNames extends string = [keyof chains] extends [never]
     ? string
-    : keyof networks & string,
+    : keyof chains & string,
 > = BlockFilterConfig & {
-  network:
-    | allNetworkNames
+  chain:
+    | allChainNames
     | {
-        [name in allNetworkNames]?: BlockFilterConfig;
+        [name in allChainNames]?: BlockFilterConfig;
       };
 };
 
-type BlockFiltersConfig<
-  networks = unknown,
-  blocks = unknown,
-> = {} extends blocks
+type BlockFiltersConfig<chains = unknown, blocks = unknown> = {} extends blocks
   ? {}
   : {
-      [name in keyof blocks]: GetBlockFilter<networks>;
+      [name in keyof blocks]: GetBlockFilter<chains>;
     };

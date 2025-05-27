@@ -6,6 +6,7 @@ import {
 } from "@/_test/setup.js";
 import type { Database } from "@/database/index.js";
 import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
+import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { relations } from "drizzle-orm";
 import { type GraphQLType, execute, parse } from "graphql";
 import { toBytes } from "viem";
@@ -23,7 +24,7 @@ function buildContextValue(database: Database) {
   return {
     drizzle,
     getDataLoader,
-    getStatus: () => database.getStatus(),
+    getCheckpoints: () => database.getCheckpoints(),
   };
 }
 
@@ -39,14 +40,30 @@ test("metadata", async (context) => {
 
   const graphqlSchema = buildGraphQLSchema({ schema });
 
-  await database.setStatus({
-    [1]: {
-      ready: true,
-      block: {
-        number: 10,
-        timestamp: 20,
+  await database.setCheckpoints({
+    checkpoints: [
+      {
+        chainId: 1,
+        chainName: "mainnet",
+        latestCheckpoint: encodeCheckpoint({
+          blockNumber: 10n,
+          chainId: 1n,
+          blockTimestamp: 20n,
+          transactionIndex: 0n,
+          eventType: EVENT_TYPES.blocks,
+          eventIndex: 0n,
+        }),
+        safeCheckpoint: encodeCheckpoint({
+          blockNumber: 10n,
+          chainId: 1n,
+          blockTimestamp: 20n,
+          transactionIndex: 0n,
+          eventType: EVENT_TYPES.blocks,
+          eventIndex: 0n,
+        }),
       },
-    },
+    ],
+    db: database.qb.drizzle,
   });
 
   const result = await query(`
@@ -61,8 +78,8 @@ test("metadata", async (context) => {
   expect(result.data).toMatchObject({
     _meta: {
       status: {
-        1: {
-          ready: true,
+        mainnet: {
+          id: 1,
           block: {
             number: 10,
             timestamp: 20,
@@ -589,6 +606,170 @@ test("singular with many relation", async (context) => {
       pets: { items: [{ id: "dog1" }, { id: "dog2" }] },
     },
   });
+});
+
+test("singular with many relation and extra one relation", async (context) => {
+  const extra = onchainTable("extra", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text(),
+  }));
+
+  const user = onchainTable("user", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text(),
+  }));
+
+  const userRelations = relations(user, ({ many }) => ({
+    heroes: many(hero),
+  }));
+
+  const hero = onchainTable("hero", (t) => ({
+    id: t.text().primaryKey(),
+    ownerId: t.text(),
+    extraId: t.text(),
+  }));
+
+  const heroRelations = relations(hero, ({ one }) => ({
+    extra: one(extra, { fields: [hero.extraId], references: [extra.id] }),
+    owner: one(user, { fields: [hero.ownerId], references: [user.id] }),
+  }));
+
+  const extraRelations = relations(extra, ({ one }) => ({
+    cuh: one(user, { fields: [extra.id], references: [user.id] }),
+  }));
+
+  const schema = {
+    extra,
+    extraRelations,
+    hero,
+    heroRelations,
+    user,
+    userRelations,
+  };
+
+  const { database, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await indexingStore.insert(schema.user).values({ id: "jake", name: "jake" });
+  await indexingStore.insert(schema.hero).values([
+    { id: "dog1", ownerId: "jake" },
+    { id: "dog2", ownerId: "jake" },
+    { id: "dog3", ownerId: "kyle" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      user(id: "jake") {
+        heroes {
+          items {
+            id
+          }
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    user: {
+      heroes: { items: [{ id: "dog1" }, { id: "dog2" }] },
+    },
+  });
+});
+
+test("multiple many relations", async (context) => {
+  const person = onchainTable("person", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text(),
+  }));
+
+  const personRelations = relations(person, ({ many }) => ({
+    pets1: many(pet, { relationName: "owner1_relation" }),
+    pets2: many(pet, { relationName: "owner2_relation" }),
+  }));
+
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    owner1: t.text(),
+    owner2: t.text(),
+  }));
+
+  const petRelations = relations(pet, ({ one }) => ({
+    owner1Relation: one(person, {
+      fields: [pet.owner1],
+      relationName: "owner1_relation",
+      references: [person.id],
+    }),
+    owner2Relation: one(person, {
+      fields: [pet.owner2],
+      relationName: "owner2_relation",
+      references: [person.id],
+    }),
+  }));
+
+  const schema = { person, personRelations, pet, petRelations };
+
+  const { database, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await indexingStore
+    .insert(schema.person)
+    .values({ id: "jake", name: "jake" });
+  await indexingStore.insert(schema.pet).values([
+    { id: "dog1", owner1: "jake", owner2: "jim" },
+    { id: "dog2", owner1: "jake", owner2: "kyle" },
+    { id: "dog3", owner1: "kyle", owner2: "jim" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      person(id: "jake") {
+       pets1 {
+          items {
+            id
+          }
+        }
+        pets2 {
+          items {
+            id
+          }
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchInlineSnapshot(`
+    {
+      "person": {
+        "pets1": {
+          "items": [
+            {
+              "id": "dog1",
+            },
+            {
+              "id": "dog2",
+            },
+          ],
+        },
+        "pets2": {
+          "items": [],
+        },
+      },
+    }
+  `);
 });
 
 test("singular with many relation using filter", async (context) => {

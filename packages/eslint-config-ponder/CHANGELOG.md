@@ -1,5 +1,59 @@
 # eslint-config-ponder
 
+## 0.11.6
+
+### Patch Changes
+
+- [#1774](https://github.com/ponder-sh/ponder/pull/1774) [`a069bd8`](https://github.com/ponder-sh/ponder/commit/a069bd8d984a8958df81c6d0249423d91483fda0) Thanks [@scottrepreneur](https://github.com/scottrepreneur)! - Fixed broken docs links.
+
+## 0.11.5
+
+## 0.11.4
+
+## 0.11.3
+
+## 0.11.2
+
+## 0.11.1
+
+## 0.11.0
+
+## 0.10.27
+
+## 0.10.26
+
+## 0.10.25
+
+## 0.10.24
+
+## 0.10.23
+
+## 0.10.22
+
+## 0.10.21
+
+## 0.10.20
+
+## 0.10.19
+
+## 0.10.18
+
+## 0.10.17
+
+## 0.10.16
+
+## 0.10.15
+
+## 0.10.14
+
+## 0.10.13
+
+## 0.10.12
+
+## 0.10.11
+
+## 0.10.10
+
 ## 0.10.9
 
 ## 0.10.8

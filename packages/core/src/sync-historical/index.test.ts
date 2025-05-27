@@ -19,13 +19,14 @@ import {
 import {
   getAccountsConfigAndIndexingFunctions,
   getBlocksConfigAndIndexingFunctions,
+  getChain,
   getErc20ConfigAndIndexingFunctions,
-  getNetwork,
   getPairWithFactoryConfigAndIndexingFunctions,
   testClient,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
-import { createRequestQueue } from "@/utils/requestQueue.js";
+import { createRpc } from "@/rpc/index.js";
+import * as ponderSyncSchema from "@/sync-store/schema.js";
 import {
   encodeFunctionData,
   encodeFunctionResult,
@@ -44,9 +45,9 @@ beforeEach(setupCleanup);
 test("createHistoricalSync()", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -54,16 +55,17 @@ test("createHistoricalSync()", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -73,9 +75,9 @@ test("createHistoricalSync()", async (context) => {
 test("sync() with log filter", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -91,28 +93,32 @@ test("sync() with log filter", async (context) => {
     address,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
 
-  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
+  const logs = await database.qb.sync
+    .select()
+    .from(ponderSyncSchema.logs)
+    .execute();
 
   expect(logs).toHaveLength(1);
 
   const intervals = await database.qb.sync
-    .selectFrom("intervals")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.intervals)
     .execute();
 
   expect(intervals).toHaveLength(1);
@@ -121,9 +127,9 @@ test("sync() with log filter", async (context) => {
 test("sync() with log filter and transaction receipts", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -140,31 +146,32 @@ test("sync() with log filter and transaction receipts", async (context) => {
     includeTransactionReceipts: true,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
 
   const transactionReceipts = await database.qb.sync
-    .selectFrom("transaction_receipts")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.transactionReceipts)
     .execute();
 
   expect(transactionReceipts).toHaveLength(1);
 
   const intervals = await database.qb.sync
-    .selectFrom("intervals")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.intervals)
     .execute();
 
   expect(intervals).toHaveLength(1);
@@ -173,9 +180,9 @@ test("sync() with log filter and transaction receipts", async (context) => {
 test("sync() with block filter", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -183,6 +190,7 @@ test("sync() with block filter", async (context) => {
     interval: 1,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -191,25 +199,25 @@ test("sync() with block filter", async (context) => {
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 3]);
 
   const blocks = await database.qb.sync
-    .selectFrom("blocks")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.blocks)
     .execute();
 
   expect(blocks).toHaveLength(3);
 
   const intervals = await database.qb.sync
-    .selectFrom("intervals")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.intervals)
     .execute();
 
   expect(intervals).toHaveLength(1);
@@ -218,9 +226,9 @@ test("sync() with block filter", async (context) => {
 test("sync() with log factory", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -239,33 +247,37 @@ test("sync() with log factory", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 3]);
 
-  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
+  const logs = await database.qb.sync
+    .select()
+    .from(ponderSyncSchema.logs)
+    .execute();
   const factories = await database.qb.sync
-    .selectFrom("factories")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.factories)
     .execute();
 
   expect(logs).toHaveLength(1);
   expect(factories).toHaveLength(1);
 
   const intervals = await database.qb.sync
-    .selectFrom("intervals")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.intervals)
     .execute();
 
   expect(intervals).toHaveLength(1);
@@ -274,9 +286,9 @@ test("sync() with log factory", async (context) => {
 test("sync() with trace filter", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -299,6 +311,7 @@ test("sync() with trace filter", async (context) => {
     includeCallTraces: true,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -334,16 +347,16 @@ test("sync() with trace filter", async (context) => {
       }
     }
 
-    return requestQueue.request(request);
+    return rpc.request(request);
   };
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources: sources.filter(({ filter }) => filter.type === "trace"),
     syncStore,
-    requestQueue: {
-      ...requestQueue,
+    rpc: {
+      ...rpc,
       // @ts-ignore
       request,
     },
@@ -353,15 +366,15 @@ test("sync() with trace filter", async (context) => {
   await historicalSync.sync([1, 3]);
 
   const traces = await database.qb.sync
-    .selectFrom("traces")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.traces)
     .execute();
 
   expect(traces).toHaveLength(1);
 
   const intervals = await database.qb.sync
-    .selectFrom("intervals")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.intervals)
     .execute();
 
   expect(intervals).toHaveLength(1);
@@ -370,9 +383,9 @@ test("sync() with trace filter", async (context) => {
 test("sync() with transaction filter", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -388,38 +401,39 @@ test("sync() with transaction filter", async (context) => {
     });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources: sources.filter(({ filter }) => filter.type === "transaction"),
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 1]);
 
   const transactions = await database.qb.sync
-    .selectFrom("transactions")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.transactions)
     .execute();
 
   expect(transactions).toHaveLength(1);
 
   const transactionReceipts = await database.qb.sync
-    .selectFrom("transaction_receipts")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.transactionReceipts)
     .execute();
 
   expect(transactionReceipts).toHaveLength(1);
 
   const intervals = await database.qb.sync
-    .selectFrom("intervals")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.intervals)
     .execute();
 
   // transaction:from and transaction:to
@@ -429,9 +443,9 @@ test("sync() with transaction filter", async (context) => {
 test("sync() with transfer filter", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -447,6 +461,7 @@ test("sync() with transfer filter", async (context) => {
     });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
@@ -472,16 +487,16 @@ test("sync() with transfer filter", async (context) => {
       }
     }
 
-    return requestQueue.request(request);
+    return rpc.request(request);
   };
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources: sources.filter(({ filter }) => filter.type === "transfer"),
     syncStore,
-    requestQueue: {
-      ...requestQueue,
+    rpc: {
+      ...rpc,
       // @ts-ignore
       request,
     },
@@ -491,15 +506,15 @@ test("sync() with transfer filter", async (context) => {
   await historicalSync.sync([1, 1]);
 
   const transactions = await database.qb.sync
-    .selectFrom("transactions")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.transactions)
     .execute();
 
   expect(transactions).toHaveLength(1);
 
   const intervals = await database.qb.sync
-    .selectFrom("intervals")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.intervals)
     .execute();
 
   // transfer:from and transfer:to
@@ -509,9 +524,9 @@ test("sync() with transfer filter", async (context) => {
 test("sync() with many filters", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -524,11 +539,13 @@ test("sync() with many filters", async (context) => {
   });
 
   const { sources: erc20Sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     ...getErc20ConfigAndIndexingFunctions({
       address,
     }),
   });
   const { sources: blockSources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     ...getBlocksConfigAndIndexingFunctions({
       interval: 1,
     }),
@@ -536,27 +553,30 @@ test("sync() with many filters", async (context) => {
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources: [...erc20Sources, ...blockSources],
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
 
-  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
+  const logs = await database.qb.sync
+    .select()
+    .from(ponderSyncSchema.logs)
+    .execute();
   expect(logs).toHaveLength(1);
 
   const blocks = await database.qb.sync
-    .selectFrom("blocks")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.blocks)
     .execute();
   expect(blocks).toHaveLength(2);
 
   const intervals = await database.qb.sync
-    .selectFrom("intervals")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.intervals)
     .execute();
 
   expect(intervals).toHaveLength(2);
@@ -565,9 +585,9 @@ test("sync() with many filters", async (context) => {
 test("sync() with cache", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -583,16 +603,17 @@ test("sync() with cache", async (context) => {
     address,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   let historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -600,14 +621,14 @@ test("sync() with cache", async (context) => {
 
   // re-instantiate `historicalSync` to reset the cached intervals
 
-  const spy = vi.spyOn(requestQueue, "request");
+  const spy = vi.spyOn(rpc, "request");
 
   historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -618,9 +639,9 @@ test("sync() with cache", async (context) => {
 test("sync() with partial cache", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -636,16 +657,17 @@ test("sync() with partial cache", async (context) => {
     address,
   });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   let historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -653,17 +675,17 @@ test("sync() with partial cache", async (context) => {
 
   // re-instantiate `historicalSync` to reset the cached intervals
 
-  let spy = vi.spyOn(requestQueue, "request");
+  let spy = vi.spyOn(rpc, "request");
 
   // @ts-ignore
   sources[0]!.filter.address = [sources[0]!.filter.address, zeroAddress];
 
   historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -688,14 +710,14 @@ test("sync() with partial cache", async (context) => {
 
   // re-instantiate `historicalSync` to reset the cached intervals
 
-  spy = vi.spyOn(requestQueue, "request");
+  spy = vi.spyOn(rpc, "request");
 
   historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
@@ -724,9 +746,9 @@ test("sync() with partial cache", async (context) => {
 test("syncBlock() with cache", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -739,11 +761,13 @@ test("syncBlock() with cache", async (context) => {
   });
 
   const { sources: erc20Sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     ...getErc20ConfigAndIndexingFunctions({
       address,
     }),
   });
   const { sources: blockSources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     ...getBlocksConfigAndIndexingFunctions({
       interval: 1,
     }),
@@ -751,14 +775,14 @@ test("syncBlock() with cache", async (context) => {
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources: [...erc20Sources, ...blockSources],
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
-  const spy = vi.spyOn(requestQueue, "request");
+  const spy = vi.spyOn(rpc, "request");
 
   await historicalSync.sync([1, 2]);
 
@@ -770,9 +794,9 @@ test("syncBlock() with cache", async (context) => {
 test("syncAddress() handles many addresses", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 
-  const network = getNetwork();
-  const requestQueue = createRequestQueue({
-    network,
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
     common: context.common,
   });
 
@@ -798,25 +822,29 @@ test("syncAddress() handles many addresses", async (context) => {
       address,
     });
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
   });
 
   const historicalSync = await createHistoricalSync({
     common: context.common,
-    network,
+    chain,
     sources,
     syncStore,
-    requestQueue,
+    rpc,
     onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 13]);
 
-  const logs = await database.qb.sync.selectFrom("logs").selectAll().execute();
+  const logs = await database.qb.sync
+    .select()
+    .from(ponderSyncSchema.logs)
+    .execute();
   const factories = await database.qb.sync
-    .selectFrom("factory_addresses")
-    .selectAll()
+    .select()
+    .from(ponderSyncSchema.factoryAddresses)
     .execute();
   expect(logs).toHaveLength(1);
   expect(factories).toHaveLength(11);

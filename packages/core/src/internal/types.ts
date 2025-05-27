@@ -1,4 +1,5 @@
 import type { SqlStatements } from "@/drizzle/kit/index.js";
+import type { Rpc } from "@/rpc/index.js";
 import type { AbiEvents, AbiFunctions } from "@/sync/abi.js";
 import type {
   Block,
@@ -8,7 +9,7 @@ import type {
   TransactionReceipt,
   Transfer,
 } from "@/types/eth.js";
-import type { Prettify } from "@/types/utils.js";
+import type { MakeOptional, Prettify } from "@/types/utils.js";
 import type { Trace as DebugTrace } from "@/utils/debug.js";
 import type { PGliteOptions } from "@/utils/pglite.js";
 import type { PGlite } from "@electric-sql/pglite";
@@ -18,13 +19,13 @@ import type {
   Abi,
   Address,
   BlockTag,
-  Chain,
   Hex,
   LogTopic,
   RpcBlock,
   RpcTransaction,
   RpcTransactionReceipt,
   Transport,
+  Chain as ViemChain,
   Log as ViemLog,
 } from "viem";
 
@@ -281,30 +282,30 @@ export type ContractMetadata = {
   abiEvents: AbiEvents;
   abiFunctions: AbiFunctions;
   name: string;
-  network: Network;
+  chain: Chain;
 };
 export type AccountMetadata = {
   type: "account";
   name: string;
-  network: Network;
+  chain: Chain;
 };
 export type BlockMetadata = {
   type: "block";
   name: string;
-  network: Network;
+  chain: Chain;
 };
 
-// Network
+// Chain
 
-export type Network = {
+export type Chain = {
   name: string;
-  chainId: number;
-  transport: ReturnType<Transport>;
-  chain: Chain;
+  id: number;
+  rpc: string | string[] | Transport;
   pollingInterval: number;
   maxRequestsPerSecond: number;
   finalityBlockCount: number;
   disableCache: boolean;
+  viemChain: ViemChain | undefined;
 };
 
 // Schema
@@ -315,7 +316,10 @@ export type Schema = { [name: string]: unknown };
 // Build artifacts
 
 /** Database schema name. */
-export type NamespaceBuild = string;
+export type NamespaceBuild = {
+  schema: string;
+  viewsSchema: string | undefined;
+};
 
 /** Consolidated CLI, env vars, and config. */
 export type PreBuild = {
@@ -336,8 +340,10 @@ export type IndexingBuild = {
   buildId: string;
   /** Sources to index. */
   sources: Source[];
-  /** Networks to index. */
-  networks: Network[];
+  /** Chains to index. */
+  chains: Chain[];
+  /** RPCs for all `chains`. */
+  rpcs: Rpc[];
   /** Event callbacks for all `sources`.  */
   indexingFunctions: IndexingFunctions;
 };
@@ -351,25 +357,35 @@ export type ApiBuild = {
   app: Hono;
 };
 
+// Crash recovery
+
+export type CrashRecoveryCheckpoint =
+  | {
+      chainId: number;
+      checkpoint: string;
+    }[]
+  | undefined;
+
 // Status
 
-/** Closest-to-tip indexed block per network. */
 export type Status = {
-  [network: string]: {
-    block: { number: number; timestamp: number } | null;
-    ready: boolean;
+  [chainName: string]: {
+    id: number;
+    block: { number: number; timestamp: number };
   };
 };
 
 // Seconds
 
 export type Seconds = {
-  [network: string]: { start: number; end: number; cached: number };
+  [chain: string]: { start: number; end: number; cached: number };
 };
 
 // Blockchain data
 
-export type SyncBlock = RpcBlock<Exclude<BlockTag, "pending">, true>;
+export type SyncBlock = Prettify<
+  MakeOptional<RpcBlock<Exclude<BlockTag, "pending">, true>, "size">
+>;
 export type SyncLog = ViemLog<Hex, Hex, false>;
 export type SyncTransaction = RpcTransaction<false>;
 export type SyncTransactionReceipt = RpcTransactionReceipt;
@@ -441,7 +457,7 @@ export type LogEvent = {
 
   event: {
     id: string;
-    args: any;
+    args: { [key: string]: unknown } | readonly unknown[] | undefined;
     log: Log;
     block: Block;
     transaction: Transaction;
@@ -507,8 +523,8 @@ export type TraceEvent = {
 
   event: {
     id: string;
-    args: any;
-    result: any;
+    args: { [key: string]: unknown } | readonly unknown[] | undefined;
+    result: { [key: string]: unknown } | readonly unknown[] | undefined;
     trace: Trace;
     block: Block;
     transaction: Transaction;

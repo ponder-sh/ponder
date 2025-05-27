@@ -1,8 +1,9 @@
 import type { Database } from "@/database/index.js";
 import type { OnchainTable } from "@/drizzle/onchain.js";
 import { normalizeColumn } from "@/indexing-store/utils.js";
-import type { Schema } from "@/internal/types.js";
+import type { Schema, Status } from "@/internal/types.js";
 import type { Drizzle, ReadonlyDrizzle } from "@/types/db.js";
+import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import { deserialize, serialize } from "@/utils/serialize.js";
 import DataLoader from "dataloader";
@@ -68,7 +69,7 @@ import { GraphQLJSON } from "./json.js";
 type Parent = Record<string, any>;
 type Context = {
   getDataLoader: ReturnType<typeof buildDataLoaderCache>;
-  getStatus: Database["getStatus"];
+  getCheckpoints: Database["getCheckpoints"];
   drizzle: Drizzle<{ [key: string]: OnchainTable }>;
 };
 
@@ -265,17 +266,46 @@ export function buildGraphQLSchema({
             };
           } else if (is(relation, Many)) {
             // Search the relations of the referenced table for the corresponding `one` relation.
-            // If "relationName" is not provided, use the first `one` relation that references this table.
-            const oneRelation = Object.values(referencedTable.relations).find(
-              (relation) =>
-                relation.relationName === relationName ||
-                (is(relation, One) &&
-                  relation.referencedTableName === table.dbName),
-            ) as One | undefined;
-            if (!oneRelation)
+            // If `relation.relationName` is not provided, use the first `one` relation that references this table.
+
+            let oneRelation: One | undefined;
+
+            // Note: can find the wrong relation if `relationName` is undefined.
+            // The first relation will be found.
+
+            if (relation.relationName !== undefined) {
+              for (const referencedRelation of Object.values(
+                referencedTable.relations,
+              )) {
+                if (
+                  is(referencedRelation, One) &&
+                  relation.relationName === referencedRelation.relationName
+                ) {
+                  oneRelation = referencedRelation;
+                  break;
+                }
+              }
+            }
+
+            if (oneRelation === undefined) {
+              for (const referencedRelation of Object.values(
+                referencedTable.relations,
+              )) {
+                if (
+                  is(referencedRelation, One) &&
+                  table.dbName === referencedRelation.referencedTableName
+                ) {
+                  oneRelation = referencedRelation;
+                  break;
+                }
+              }
+            }
+
+            if (oneRelation === undefined) {
               throw new Error(
                 `Internal error: Relation "${relationName}" not found in table "${referencedTable.tsName}"`,
               );
+            }
 
             const fields = oneRelation.config?.fields ?? [];
             const references = oneRelation.config?.references ?? [];
@@ -398,7 +428,20 @@ export function buildGraphQLSchema({
   queryFields._meta = {
     type: GraphQLMeta,
     resolve: async (_source, _args, context) => {
-      const status = await context.getStatus();
+      const checkpoints = await context.getCheckpoints();
+      const status: Status = {};
+      for (const { chainName, chainId, latestCheckpoint } of checkpoints) {
+        status[chainName] = {
+          id: chainId,
+          block: {
+            number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
+            timestamp: Number(
+              decodeCheckpoint(latestCheckpoint).blockTimestamp,
+            ),
+          },
+        };
+      }
+
       return { status };
     },
   };

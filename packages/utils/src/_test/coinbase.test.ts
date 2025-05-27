@@ -50,6 +50,7 @@ test(
 
     expect(retry).toStrictEqual({
       shouldRetry: true,
+      isSuggestedRange: true,
       ranges: [
         {
           fromBlock: numberToHex(fromBlock),

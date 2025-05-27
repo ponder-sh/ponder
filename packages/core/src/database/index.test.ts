@@ -14,8 +14,13 @@ import { wait } from "@/utils/wait.js";
 import { and, eq, sql } from "drizzle-orm";
 import { index } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
-import { beforeEach, expect, test } from "vitest";
-import { type Database, createDatabase, getPonderMeta } from "./index.js";
+import { beforeEach, expect, test, vi } from "vitest";
+import {
+  type Database,
+  TABLES,
+  createDatabase,
+  getPonderMetaTable,
+} from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -32,7 +37,10 @@ function createCheckpoint(checkpoint: Partial<Checkpoint>): string {
 test("migrate() succeeds with empty schema", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -78,7 +86,10 @@ test("migrate() with empty schema creates tables and enums", async (context) => 
 
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -106,7 +117,10 @@ test("migrate() with empty schema creates tables and enums", async (context) => 
 test("migrate() throws with schema used", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -122,7 +136,10 @@ test("migrate() throws with schema used", async (context) => {
 
   const databaseTwo = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -151,7 +168,10 @@ test("migrate() throws with schema used after waiting for lock", async (context)
 
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -162,14 +182,12 @@ test("migrate() throws with schema used after waiting for lock", async (context)
   });
   await database.migrate({ buildId: "abc" });
 
-  await database.finalize({
-    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-    db: database.qb.drizzle,
-  });
-
   const databaseTwo = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -191,7 +209,10 @@ test("migrate() throws with schema used after waiting for lock", async (context)
 test("migrate() succeeds with crash recovery", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -202,19 +223,16 @@ test("migrate() succeeds with crash recovery", async (context) => {
   });
 
   await database.migrate({ buildId: "abc" });
-
-  await database.finalize({
-    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-    db: database.qb.drizzle,
-  });
-
   await context.common.shutdown.kill();
 
   context.common.shutdown = createShutdown();
 
   const databaseTwo = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -228,7 +246,7 @@ test("migrate() succeeds with crash recovery", async (context) => {
 
   const metadata = await databaseTwo.qb.drizzle
     .select()
-    .from(getPonderMeta("public"));
+    .from(getPonderMetaTable("public"));
 
   expect(metadata).toHaveLength(1);
 
@@ -246,7 +264,10 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
 
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -263,7 +284,10 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
 
   const databaseTwo = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -278,10 +302,71 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
   await context.common.shutdown.kill();
 });
 
-test("recoverCheckpoint() with crash recovery reverts rows", async (context) => {
+test("migrateSync()", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({ schema: { account } }).statements,
+    },
+  });
+
+  await database.migrateSync();
+
+  // Note: this is a hack to avoid trying to update the metadata table on shutdown
+  context.common.options.command = "list";
+
+  await context.common.shutdown.kill();
+});
+
+// Note: this test doesn't do anything because we don't have a migration using the
+// new design yet.
+test.skip("migrateSync() handles concurrent migrations", async (context) => {
+  if (context.databaseConfig.kind !== "postgres") return;
+
+  const database = await createDatabase({
+    common: context.common,
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({ schema: { account } }).statements,
+    },
+  });
+
+  // The second migration should error, then retry and succeed
+  const spy = vi.spyOn(database.qb.sync, "transaction");
+
+  await Promise.all([database.migrateSync(), database.migrateSync()]);
+
+  // transaction gets called when perfoming a migration
+  expect(spy).toHaveBeenCalledTimes(3);
+
+  // Note: this is a hack to avoid trying to update the metadata table on shutdown
+  context.common.options.command = "list";
+
+  await context.common.shutdown.kill();
+});
+
+test("migrate() with crash recovery reverts rows", async (context) => {
+  const database = await createDatabase({
+    common: context.common,
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -297,6 +382,8 @@ test("recoverCheckpoint() with crash recovery reverts rows", async (context) => 
 
   await database.createTriggers();
 
+  await database.setReady();
+
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     schemaBuild: { schema: { account } },
@@ -307,7 +394,7 @@ test("recoverCheckpoint() with crash recovery reverts rows", async (context) => 
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
     db: database.qb.drizzle,
   });
@@ -316,13 +403,20 @@ test("recoverCheckpoint() with crash recovery reverts rows", async (context) => 
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     db: database.qb.drizzle,
   });
 
-  await database.finalize({
-    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+  await database.setCheckpoints({
+    checkpoints: [
+      {
+        chainId: 1,
+        chainName: "mainnet",
+        latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+        safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+      },
+    ],
     db: database.qb.drizzle,
   });
 
@@ -332,7 +426,10 @@ test("recoverCheckpoint() with crash recovery reverts rows", async (context) => 
 
   const databaseTwo = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -342,12 +439,16 @@ test("recoverCheckpoint() with crash recovery reverts rows", async (context) => 
     },
   });
 
-  await databaseTwo.migrate({ buildId: "abc" });
-  const checkpoint = await databaseTwo.recoverCheckpoint();
+  const checkpoint = await databaseTwo.migrate({ buildId: "abc" });
 
-  expect(checkpoint).toStrictEqual(
-    createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-  );
+  expect(checkpoint).toMatchInlineSnapshot(`
+    [
+      {
+        "chainId": 1,
+        "checkpoint": "000000000000000000000000010000000000000010000000000000000000000000000000000",
+      },
+    ]
+  `);
 
   const rows = await databaseTwo.qb.drizzle
     .execute(sql`SELECT * from "account"`)
@@ -358,14 +459,14 @@ test("recoverCheckpoint() with crash recovery reverts rows", async (context) => 
 
   const metadata = await databaseTwo.qb.drizzle
     .select()
-    .from(getPonderMeta("public"));
+    .from(getPonderMetaTable("public"));
 
   expect(metadata).toHaveLength(1);
 
   await context.common.shutdown.kill();
 });
 
-test("recoverCheckpoint() with crash recovery drops indexes and triggers", async (context) => {
+test("migrate() with crash recovery drops indexes and triggers", async (context) => {
   const account = onchainTable(
     "account",
     (p) => ({
@@ -379,7 +480,10 @@ test("recoverCheckpoint() with crash recovery drops indexes and triggers", async
 
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -391,12 +495,21 @@ test("recoverCheckpoint() with crash recovery drops indexes and triggers", async
 
   await database.migrate({ buildId: "abc" });
 
-  await database.finalize({
-    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+  await database.createIndexes();
+
+  await database.setCheckpoints({
+    checkpoints: [
+      {
+        chainId: 1,
+        chainName: "mainnet",
+        latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+        safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+      },
+    ],
     db: database.qb.drizzle,
   });
 
-  await database.createIndexes();
+  await database.setReady();
 
   await context.common.shutdown.kill();
 
@@ -404,7 +517,10 @@ test("recoverCheckpoint() with crash recovery drops indexes and triggers", async
 
   const databaseTwo = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -415,7 +531,6 @@ test("recoverCheckpoint() with crash recovery drops indexes and triggers", async
   });
 
   await databaseTwo.migrate({ buildId: "abc" });
-  await databaseTwo.recoverCheckpoint();
 
   const indexNames = await getUserIndexNames(databaseTwo, "public", "account");
 
@@ -430,7 +545,10 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
 
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -444,14 +562,14 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
 
   const row = await database.qb.drizzle
     .select()
-    .from(getPonderMeta("public"))
+    .from(getPonderMetaTable("public"))
     .then((result) => result[0]!.value);
 
   await wait(500);
 
   const rowAfterHeartbeat = await database.qb.drizzle
     .select()
-    .from(getPonderMeta("public"))
+    .from(getPonderMetaTable("public"))
     .then((result) => result[0]!.value);
 
   expect(BigInt(rowAfterHeartbeat!.heartbeat_at)).toBeGreaterThan(
@@ -464,7 +582,10 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
 test("finalize()", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -490,7 +611,7 @@ test("finalize()", async (context) => {
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
     db: database.qb.drizzle,
   });
@@ -503,7 +624,7 @@ test("finalize()", async (context) => {
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     db: database.qb.drizzle,
   });
@@ -518,17 +639,6 @@ test("finalize()", async (context) => {
   const rows = await database.qb.drizzle.select().from(getReorgTable(account));
 
   expect(rows).toHaveLength(2);
-
-  // metadata
-
-  const metadata = await database.qb.drizzle
-    .select()
-    .from(getPonderMeta("public"))
-    .then((result) => result[0]!.value);
-
-  expect(metadata.checkpoint).toStrictEqual(
-    createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-  );
 
   await context.common.shutdown.kill();
 });
@@ -547,7 +657,10 @@ test("createIndexes()", async (context) => {
 
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -569,7 +682,10 @@ test("createIndexes()", async (context) => {
 test("createTriggers()", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -612,7 +728,10 @@ test("createTriggers()", async (context) => {
 test("createTriggers() duplicate", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -629,10 +748,13 @@ test("createTriggers() duplicate", async (context) => {
   await context.common.shutdown.kill();
 });
 
-test("complete()", async (context) => {
+test("commitBlock()", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -655,7 +777,7 @@ test("complete()", async (context) => {
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     db: database.qb.drizzle,
   });
@@ -680,7 +802,10 @@ test("complete()", async (context) => {
 test("revert()", async (context) => {
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -706,7 +831,7 @@ test("revert()", async (context) => {
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
     db: database.qb.drizzle,
   });
@@ -719,14 +844,14 @@ test("revert()", async (context) => {
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     db: database.qb.drizzle,
   });
 
   await indexingStore.delete(account, { address: zeroAddress });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     db: database.qb.drizzle,
   });
@@ -761,7 +886,10 @@ test("revert() with composite primary key", async (context) => {
 
   const database = await createDatabase({
     common: context.common,
-    namespace: "public",
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
     },
@@ -785,14 +913,14 @@ test("revert() with composite primary key", async (context) => {
 
   await indexingStore.insert(test).values({ a: 1, b: 1 });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     db: database.qb.drizzle,
   });
 
   await indexingStore.update(test, { a: 1, b: 1 }).set({ c: 1 });
 
-  await database.complete({
+  await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 12n }),
     db: database.qb.drizzle,
   });
@@ -812,62 +940,15 @@ test("revert() with composite primary key", async (context) => {
   await context.common.shutdown.kill();
 });
 
-test("getStatus() empty", async (context) => {
-  const database = await createDatabase({
-    common: context.common,
-    namespace: "public",
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-    },
-    schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
-    },
-  });
-
-  await database.migrate({ buildId: "abc" });
-
-  const status = await database.getStatus();
-
-  expect(status).toBe(null);
-
-  await context.common.shutdown.kill();
-});
-
-test("setStatus()", async (context) => {
-  const database = await createDatabase({
-    common: context.common,
-    namespace: "public",
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-    },
-    schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
-    },
-  });
-
-  await database.migrate({ buildId: "abc" });
-
-  await database.setStatus({
-    [1]: { block: { number: 10, timestamp: 10 }, ready: false },
-  });
-
-  const status = await database.getStatus();
-
-  expect(status).toStrictEqual({
-    [1]: { block: { number: 10, timestamp: 10 }, ready: false },
-  });
-
-  await context.common.shutdown.kill();
-});
-
 async function getUserTableNames(database: Database, namespace: string) {
   const rows = await database.qb.drizzle
-    .select({ name: sql<string>`table_name`.as("name") })
-    .from(sql`information_schema.tables`)
+    .select({ name: TABLES.table_name })
+    .from(TABLES)
     .where(
-      and(eq(sql`table_schema`, namespace), eq(sql`table_type`, "BASE TABLE")),
+      and(
+        eq(TABLES.table_schema, namespace),
+        eq(TABLES.table_type, "BASE TABLE"),
+      ),
     );
 
   return rows.map(({ name }) => name);

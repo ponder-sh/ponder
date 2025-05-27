@@ -72,9 +72,7 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const schemaResult = await build.executeSchema({
-    namespace: namespaceResult.result,
-  });
+  const schemaResult = await build.executeSchema();
   if (schemaResult.status === "error") {
     await exit({ reason: "Failed intial build", code: 1 });
     return;
@@ -115,7 +113,9 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     preBuild,
     schemaBuild,
   });
-  await database.migrate(indexingBuildResult.result);
+  const crashRecoveryCheckpoint = await database.migrate(
+    indexingBuildResult.result,
+  );
 
   const apiResult = await build.executeApi({
     indexingBuild: indexingBuildResult.result,
@@ -160,8 +160,10 @@ export async function start({ cliOptions }: { cliOptions: CliOptions }) {
     common,
     database,
     preBuild,
+    namespaceBuild: namespaceResult.result,
     schemaBuild,
     indexingBuild: indexingBuildResult.result,
+    crashRecoveryCheckpoint,
     onFatalError: () => {
       exit({ reason: "Received fatal error", code: 1 });
     },

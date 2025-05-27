@@ -1,11 +1,105 @@
----
-title: "Migration Guide"
-description: "A guide for migrating to new versions of Ponder."
----
+# Migration guide [Upgrade to a new version of Ponder]
 
-import { FileTree, Steps, Tabs, Callout } from "nextra/components";
+## 0.11
 
-# Migration guide
+### Breaking changes
+
+#### Renamed `networks` → `chains`
+
+The `networks` field in `ponder.config.ts` was renamed and redesigned.
+
+- `networks` → `chains`
+- `chainId` → `id`
+- `transport` → `rpc`
+
+The new `rpc` field accepts one or more RPC endpoints directly, or a Viem Transport for backwards compatibility. When multiple RPC URLS are provided, Ponder load balances across them.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+import { http } from "viem";
+
+export default createConfig({
+  networks: { // [!code --]
+    mainnet: { // [!code --]
+      chainId: 1, // [!code --]
+      transport: http("https://eth-mainnet.g.alchemy.com/v2/your-api-key"), // [!code --]
+    }, // [!code --]
+  }, // [!code --]
+  chains: { // [!code ++]
+    mainnet: { // [!code ++]
+      id: 1, // [!code ++]
+      rpc: "https://eth-mainnet.g.alchemy.com/v2/your-api-key", // [!code ++]
+    }, // [!code ++]
+  }, // [!code ++]
+  contracts: {
+    Erc20: {
+      network: "mainnet", // [!code --]
+      chain: "mainnet", // [!code ++]
+      // ...
+    }
+  }
+});
+```
+
+#### Renamed `context.network` → `context.chain`
+
+The indexing function context object `context.network` was renamed to `context.chain`.
+
+#### Renamed API functions → API endpoints
+
+**API functions** were renamed to **API endpoints** throughout the documentation.
+
+#### `publicClients` now keyed by chain name
+
+The [`publicClients`](/docs/query/api-endpoints#rpc-requests) object (available in API endpoints) is now keyed by chain name, not chain ID.
+
+#### `/status` response type
+
+The response type for the `/status` endpoint and related functions from `@ponder/client` and `@ponder/react` has changed.
+
+```ts
+type Status = {
+  [chainName: string]: {
+    ready: boolean; // [!code --]
+    id: number; // [!code ++]
+    block: { number: number; timestamp: number };
+  };
+};
+```
+
+#### Default `multichain` ordering
+
+The default event ordering strategy was changed from `omnichain` to `multichain`. [Read more](/docs/api-reference/ponder/config#ordering) about event ordering.
+
+### New features
+
+#### Database views pattern
+
+This release introduces a new pattern for querying Ponder tables directly in Postgres. [Read more](/docs/production/self-hosting#views-pattern) about the views pattern.
+
+:::steps
+
+##### Update start command
+
+To enable the views pattern on platforms like Railway, update the start command to include the new `--views-schema` flag.
+
+```bash [Start command]
+pnpm start --schema $RAILWAY_DEPLOYMENT_ID # [!code --]
+pnpm start --schema $RAILWAY_DEPLOYMENT_ID --views-schema my_project # [!code ++]
+```
+
+Whenever a deployment becomes *ready* (historical indexing finishes), it will create views in the specified schema that "point" to its tables.
+
+##### Query views schema
+
+With this configuration, downstream applications can query the views schema directly. The views will always point at the latest deployment's tables.
+
+```sql
+SELECT * FROM my_project.accounts;
+```
+
+:::
+
 
 ## 0.10
 
@@ -23,33 +117,17 @@ import { FileTree, Steps, Tabs, Callout } from "nextra/components";
 
 The `event.log.id` and `event.trace.id` properties were removed. Replace each occurence with the new `event.id` property (described below), or update the table definition to use a compound primary key that better represents the business logic / domain.
 
-<div className="code-columns">
-
-{/* prettier-ignore */}
-```ts filename="Before" {7}
+```ts [src/index.ts]
 import { ponder } from "ponder:registry";
 import { transferEvent } from "ponder:registry";
 
 ponder.on("ERC20:Transfer", ({ event, context }) => {
   await context.db
     .insert(transferEvent)
-    .values({ id: event.log.id });
+    .values({ id: event.log.id }); // [!code --]
+    .values({ id: event.id }); // [!code ++]
 });
 ```
-
-{/* prettier-ignore */}
-```ts filename="After" {7}
-import { ponder } from "ponder:registry";
-import { transferEvent } from "ponder:registry";
-
-ponder.on("ERC20:Transfer", ({ event, context }) => {
-  await context.db
-    .insert(transferEvent)
-    .values({ id: event.id });
-});
-```
-
-</div>
 
 #### Removed `event.name`
 
@@ -76,13 +154,13 @@ This release fixes two performance issues related to the ad-hoc RPC request cach
 
 ### Breaking changes
 
-#### API function file is required
+#### API endpoints file is required
 
-The API function file `src/api/index.ts` is now required. The GraphQL API is no longer served by default.
+The Hono / API endpoints file `src/api/index.ts` is now required. The GraphQL API is no longer served by default.
 
 To achieve the same functionality as `<=0.8`, copy the following code into `src/api/index.ts`.
 
-```ts filename="src/api/index.ts"
+```ts [src/api/index.ts]
 import { db } from "ponder:api";
 import schema from "ponder:schema";
 import { Hono } from "hono";
@@ -98,13 +176,12 @@ export default app;
 
 #### Removed `ponder.get()`, `post()`, `use()`
 
-This release makes the API layer less opinionated. Just default export a normal Hono `App` object from the `src/api/index.ts` file, and Ponder will serve it.
+This release makes custom API endpoints less opinionated. Just default export a normal Hono `App` object from the `src/api/index.ts` file, and Ponder will serve it.
 
 The `ponder.get()`, `post()`, `use()` methods were removed. Now, use Hono's built-in routing system.
 
-<div className="code-columns">
-
-```ts filename="src/api/index.ts (<=0.8)"
+:::code-group
+```ts [src/api/index.ts (0.8 and below)]
 import { ponder } from "ponder:registry";
 
 ponder.get("/hello", (c) => {
@@ -112,7 +189,7 @@ ponder.get("/hello", (c) => {
 });
 ```
 
-```ts filename="src/api/index.ts (0.9)"
+```ts [src/api/index.ts (0.9)]
 import { Hono } from "hono";
 
 const app = new Hono();
@@ -124,14 +201,14 @@ app.get("/hello", (c) => {
 export default app;
 ```
 
-</div>
+:::
 
 #### Removed `c.db`
 
 The `c.db` object was removed from the Hono context. Now, use the `"ponder:api"` virtual module to access the readonly Drizzle database object.
 
-```ts filename="src/api/index.ts" {1,10}
-import { db } from "ponder:api";
+```ts [src/api/index.ts]
+import { db } from "ponder:api"; // [!code focus]
 import schema from "ponder:schema";
 import { Hono } from "hono";
 
@@ -140,11 +217,11 @@ const app = new Hono();
 app.get("/account/:address", async (c) => {
   const address = c.req.param("address");
 
-  const account = await db
-    .select()
-    .from(schema.accounts)
-    .where(eq(schema.accounts.address, address))
-    .limit(1);
+  const account = await db // [!code focus]
+    .select() // [!code focus]
+    .from(schema.accounts) // [!code focus]
+    .where(eq(schema.accounts.address, address)) // [!code focus]
+    .limit(1); // [!code focus]
 
   return c.json(account);
 });
@@ -156,18 +233,18 @@ export default app;
 
 #### SQL client
 
-The `@ponder/client` package provides a new experience for querying a Ponder app over HTTP. It's an SQL-based alternative to the GraphQL API. [Read more](/docs/query/client).
+The `@ponder/client` package provides a new experience for querying a Ponder app over HTTP. It's an SQL-based alternative to the GraphQL API. [Read more](/docs/query/sql-client).
 
 #### `@ponder/react`
 
-The `@ponder/react` package uses Tanstack Query to
+The `@ponder/react` package uses `@ponder/client` and Tanstack Query to provide reactive live queries. [Read more](/docs/query/sql-client#guide-react).
 
-#### `publicClients` in API functions
+#### `publicClients`
 
-API function files now have access to a new `"ponder:api"` virtual module. This module contains the `db` object and a new `publicClients` object, which contains a Viem [Public Client](https://viem.sh/docs/clients/public) for each network. These clients use the transports defined in `ponder.config.ts`.
+Custom API endpoint files now have access to a new `"ponder:api"` virtual module. This module contains the `db` object and a new `publicClients` object, which contains a Viem [Public Client](https://viem.sh/docs/clients/public) for each network. These clients use the transports defined in `ponder.config.ts`.
 
-```ts filename="src/api/index.ts" {1,11}
-import { publicClients, db } from "ponder:api";
+```ts [src/api/index.ts] {1,11}
+import { publicClients, db } from "ponder:api"; // [!code focus]
 import schema from "ponder:schema";
 import { Hono } from "hono";
 
@@ -177,7 +254,7 @@ app.get("/account/:chainId/:address", async (c) => {
   const chainId = c.req.param("chainId");
   const address = c.req.param("address");
 
-  const balance = await publicClients[chainId].getBalance({ address });
+  const balance = await publicClients[chainId].getBalance({ address }); // [!code focus]
 
   const account = await db.query.accounts.findFirst({
     where: eq(schema.accounts.address, address),
@@ -189,134 +266,78 @@ app.get("/account/:chainId/:address", async (c) => {
 export default app;
 ```
 
-#### Event filters
+#### Custom log filters
 
-The `contracts.filter` property now supports multiple filters, and requires argument values. [Read more](/docs/contracts-and-networks#event-filter).
+The `contracts.filter` property now supports multiple log filters, and requires argument values. [Read more](/docs/config/contracts#filter).
 
 ## 0.8
 
-<Callout type="warning">
-  This release includes an irreversible migration to the `ponder_sync` schema (RPC request cache). Once you run a `0.8` app against a database, you can no longer run `<=0.7` apps against the same database.
-</Callout>
+### Breaking changes
 
-### Database management
+:::warning
+This release includes an irreversible migration to the `ponder_sync` schema (RPC request cache). Once you run a `0.8` app against a database, you can no longer run `<=0.7` apps against the same database.
+:::
+
+#### Database management
 
 Ponder now requires the database schema to be explicitly specified with an environment variable or CLI flag. **`onchainSchema()` is removed.**
 
-<div className="code-columns">
-
-```bash filename=".env.local"
+```bash [.env.local]
 DATABASE_SCHEMA=my_schema
 ```
 
-```bash filename="shell"
+```bash [shell]
 ponder start --schema my_schema
 ```
 
-</div>
-
-<Callout type="info">
-  Each deployment/instance of a Ponder app must have it's own schema, with some
-  exceptions for `ponder dev` and crash recovery. [Read
-  more](/docs/getting-started/database#database-schema).
-</Callout>
+:::info
+Each deployment/instance of a Ponder app must have it's own schema, with some exceptions for `ponder dev` and crash recovery. [Read more](/docs/database#database-schema).
+:::
 
 #### Railway
 
-Railway users should [update the start command](/docs/production/deploy#create-a-ponder-app-service) to include a database schema.
+Railway users should [update the start command](/docs/production/railway#create-a-ponder-app-service) to include a database schema.
 
-{/* prettier-ignore */}
-<Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tabs.Tab>
-```text filename="Start command"
+::::code-group
+```bash [pnpm]
 pnpm start --schema $RAILWAY_DEPLOYMENT_ID
 ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```text filename="Start command"
+
+```bash [yarn]
 yarn start --schema $RAILWAY_DEPLOYMENT_ID
 ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```text filename="Start command"
+
+```bash [npm]
 npm run start -- --schema $RAILWAY_DEPLOYMENT_ID
 ```
-</Tabs.Tab>
-</Tabs>
-
-#### `ponder db list`
-
-A new command was added for more visibility into which database schemas are being used.
-
-```bash filename="shell"
-$ ponder db list
-
-│ Schema        │ Active   │ Last active    │ Table count │
-├───────────────┼──────────┼────────────────┼─────────────┤
-│ indexer_prod  │      yes │            --- │          10 │
-│ test          │       no │    26m 58s ago │          10 │
-│ demo          │       no │      1 day ago │           5 │
-```
-
-### New features
-
-#### Account indexing
-
-A new event source `accounts` is available. Accounts can be used to index transactions and native transfers to and from an address. [Read more](/docs/accounts).
-
-#### `ponder:schema` alias
-
-The `ponder:schema` virtual module was added. It is an alias for `ponder.schema.ts`.
-
-```diff filename="src/index.ts"
-- import { accounts } from "../ponder.schema";
-+ import { accounts } from "ponder:schema";
-```
-
-It also contains a default export of all the exported table objects from `ponder.schema.ts`.
-
-{/* prettier-ignore */}
-```ts filename="src/index.ts" {1,3}
-import schema from "ponder:schema";
- 
-const row = await db.insert(schema.accounts).values({
-  address: "0x7Df1", balance: 0n
-});
-```
-
-### Breaking changes
+::::
 
 #### `@ponder/core` → `ponder`
 
 New versions will be published to `ponder` and not `@ponder/core`.
 
-{/* prettier-ignore */}
-<Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tabs.Tab>
-```bash filename="shell"
+:::code-group
+```bash [pnpm]
 pnpm remove @ponder/core
 pnpm add ponder
 ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
+
+```bash [yarn]
 yarn remove @ponder/core
 yarn add ponder
 ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
+
+```bash [npm]
 npm remove @ponder/core
 npm add ponder
 ```
-</Tabs.Tab>
-</Tabs>
+:::
 
 #### `@/generated` → `ponder:registry`
 
 The virtual module `@/generated` was replaced with `ponder:registry`.
 
-```diff filename="src/index.ts"
+```diff [src/index.ts]
 - import { ponder } from "@/generated";
 + import { ponder } from "ponder:registry";
 ```
@@ -325,65 +346,59 @@ The virtual module `@/generated` was replaced with `ponder:registry`.
 
 The `factory()` function replaces the `factory` property in the contract config. The result should be passed to the `address` property.
 
-<div className="code-columns">
+:::code-group
 
-```ts filename="ponder.config.ts (<=0.7)" {6-10}
+```ts [ponder.config.ts (0.7 and below)]
 import { createConfig } from "@ponder/core";
 
 export default createConfig({
   contracts: {
     uniswap: {
-      factory: {
-        address: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
-        event: getAbiItem({ abi: UniswapV3FactoryAbi, name: "PoolCreated" }),
-        parameter: "pool",
-      },
+      factory: { // [!code focus]
+        address: "0x1F98431c8aD98523631AE4a59f267346ea31F984", // [!code focus]
+        event: getAbiItem({ abi: UniswapV3FactoryAbi, name: "PoolCreated" }), // [!code focus]
+        parameter: "pool", // [!code focus]
+      }, // [!code focus]
     },
   },
 });
 ```
 
-{/* prettier-ignore */}
-```ts filename="ponder.config.ts (0.8)" {6-10}
-import { createConfig, factory } from "ponder";
+```ts [ponder.config.ts (0.8)]
+import { createConfig, factory } from "ponder"; // [!code focus]
 
 export default createConfig({
   contracts: {
     uniswap: {
-      address: factory({
-        address: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
-        event: getAbiItem({ abi: UniswapV3FactoryAbi, name: "PoolCreated" }),
-        parameter: "pool",
-      }),
+      address: factory({ // [!code focus]
+        address: "0x1F98431c8aD98523631AE4a59f267346ea31F984", // [!code focus]
+        event: getAbiItem({ abi: UniswapV3FactoryAbi, name: "PoolCreated" }), // [!code focus]
+        parameter: "pool", // [!code focus]
+      }), // [!code focus]
     },
   },
 });
 ```
 
-</div>
+:::
 
 #### `ponder-env.d.ts`
 
-A new `ponder-env.d.ts` is required. The new file uses [triple slash directives](https://www.typescriptlang.org/docs/handbook/triple-slash-directives.html#-reference-types-) for (hopefully) less frequent updates.
+This release updates the `ponder-env.d.ts` file. The new file uses [triple slash directives](https://www.typescriptlang.org/docs/handbook/triple-slash-directives.html#-reference-types-) for less frequent updates.
 
-{/* prettier-ignore */}
-<Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tabs.Tab>
-```bash filename="shell"
+:::code-group
+```bash [pnpm]
 pnpm codegen
 ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
+
+```bash [yarn]
 yarn codegen
 ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
+
+```bash [npm]
 npm run codegen
 ```
-</Tabs.Tab>
-</Tabs>
+:::
 
 #### Removed `transactionReceipt.logs`
 
@@ -406,57 +421,91 @@ The following properties were removed from the `event` object.
 
 All of the data is still available on other properties of the `event` object, such as `event.transaction.hash` or `event.block.number`.
 
+
+### New features
+
+#### Account indexing
+
+A new event source `accounts` is available. Accounts can be used to index transactions and native transfers to and from an address. [Read more](/docs/config/accounts).
+
+#### `ponder:schema` alias
+
+The `ponder:schema` virtual module was added. It is an alias for `ponder.schema.ts`.
+
+```diff [src/index.ts]
+- import { accounts } from "../ponder.schema";
++ import { accounts } from "ponder:schema";
+```
+
+It also contains a default export of all the exported table objects from `ponder.schema.ts`.
+
+```ts [src/index.ts] {1,3}
+import schema from "ponder:schema";
+ 
+const row = await db.insert(schema.accounts).values({
+  address: "0x7Df1", balance: 0n
+});
+```
+
+#### `ponder db list`
+
+A new command was added for more visibility into which database schemas are being used.
+
+```bash [shell]
+$ ponder db list
+
+│ Schema        │ Active   │ Last active    │ Table count │
+├───────────────┼──────────┼────────────────┼─────────────┤
+│ indexer_prod  │      yes │            --- │          10 │
+│ test          │       no │    26m 58s ago │          10 │
+│ demo          │       no │      1 day ago │           5 │
+```
+
 ## 0.7
 
-The `0.7` release includes several breaking changes.
+### Breaking changes
 
-### Install & run codegen
+This release includes several breaking changes.
 
-{/* prettier-ignore */}
-<Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tabs.Tab>
-```bash filename="shell"
+::::steps
+
+#### Install & run codegen
+
+:::code-group
+```bash [pnpm]
 pnpm add @ponder/core@0.7
 ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
+
+```bash [yarn]
 yarn add @ponder/core@0.7
 ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
+
+```bash [npm]
 npm add @ponder/core@0.7
 ```
-</Tabs.Tab>
-</Tabs>
+:::
 
 To ensure strong type safety during the migration, regenerate `ponder-env.d.ts`.
 
-{/* prettier-ignore */}
-<Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tabs.Tab>
-```bash filename="shell"
+:::code-group
+```bash [pnpm]
 pnpm codegen
 ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
+
+```bash [yarn]
 yarn codegen
 ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
+
+```bash [npm]
 npm run codegen
 ```
-</Tabs.Tab>
-</Tabs>
+:::
 
-### Migrate `ponder.schema.ts`
+#### Migrate `ponder.schema.ts`
 
 Here's a table defined with the new schema definition API, which uses [Drizzle](https://orm.drizzle.team/docs/overview) under the hood.
 
-```ts filename="ponder.schema.ts (after)"
+```ts [ponder.schema.ts (after)]
 import { onchainTable } from "@ponder/core";
 
 export const accounts = onchainTable("account", (t) => ({
@@ -484,7 +533,7 @@ The new `onchainTable` function adds several new capabilities.
 
 Here's a more advanced example with indexes and a composite primary key.
 
-```ts filename="ponder.schema.ts"
+```ts [ponder.schema.ts]
 import { onchainTable, index, primaryKey } from "@ponder/core";
 
 export const transferEvents = onchainTable(
@@ -522,14 +571,13 @@ export const approvalEvent = onchainTable("approval_event", (t) => ({
 }));
 ```
 
-### Migrate indexing functions
+#### Migrate indexing functions
 
 This release updates the indexing function database API to offer a unified SQL experience based on Drizzle.
 
 Here's an indexing function defined with the new API, which uses the table objects exported from `ponder.schema.ts`.
 
-{/* prettier-ignore */}
-```ts filename="src/index.ts"
+```ts [src/index.ts]
 import { ponder } from "@/generated";
 import { account } from "../ponder.schema";
 
@@ -555,9 +603,9 @@ Key changes:
 
 Here is a simple migration example to familiarize yourself with the API.
 
-<div className="code-columns">
+:::code-group
 
-```ts filename="src/index.ts (<=0.6)"
+```ts [src/index.ts (0.6 and below)]
 // Create a single allowance
 await context.db.Allowance.create({
   id: event.log.id,
@@ -569,8 +617,7 @@ await context.db.Allowance.create({
 });
 ```
 
-{/* prettier-ignore */}
-```ts filename="src/index.ts (0.7)"
+```ts [src/index.ts (0.7)]
 import { allowance } from "../ponder.schema";
 
 // Create a single allowance
@@ -584,11 +631,11 @@ await context.db
   });
 ```
 
-</div>
+:::
 
 Here is a reference for how to migrate each method.
 
-```ts filename="src/index.ts"
+```ts [src/index.ts]
 // create -> insert
 await context.db.Account.create({
   id: event.args.from,
@@ -653,10 +700,9 @@ await context.db.sql
 
 Finally, another migration example for an ERC20 Transfer indexing function using `upsert`.
 
-<div className="code-columns">
+:::code-group
 
-{/* prettier-ignore */}
-```ts filename="src/index.ts"
+```ts [src/index.ts (0.6 and below)]
 import { ponder } from "@/generated";
 
 ponder.on("ERC20:Transfer", async ({ event, context }) => {
@@ -675,8 +721,7 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
 });
 ```
 
-{/* prettier-ignore */}
-```ts filename="src/index.ts"
+```ts [src/index.ts (0.7)]
 import { ponder } from "@/generated";
 import { account } from "../ponder.schema";
 
@@ -694,13 +739,21 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
 });
 ```
 
-</div>
+:::
 
-#### Direct SQL API
+#### Migrate API functions
 
-The `context.db.sql` interface replaces the rigid `findMany` method and supports any valid SQL `select` query.
+- Removed `c.tables` in favor of importing table objects from `ponder.schema.ts`
 
-```ts filename="src/index.ts"
+::::
+
+### New features
+
+#### Arbitrary SQL within indexing functions
+
+The new `context.db.sql` interface replaces the rigid `findMany` method and supports any valid SQL `select` query.
+
+```ts [src/index.ts]
 import { desc } from "@ponder/core";
 import { account } from "../ponder.schema";
 
@@ -713,95 +766,88 @@ ponder.on("...", ({ event, context }) => {
 });
 ```
 
-### Migrate API functions
-
-- Removed `c.tables` in favor of importing table objects from `ponder.schema.ts`
-
 ## 0.6.0
 
-### Updated `viem` to `>=2`
+### Breaking changes
+
+#### Updated `viem` to `>=2`
 
 This release updates the `viem` peer dependency requirement to `>=2`. The `context.client` action `getBytecode` was renamed to `getCode`.
 
-{/* prettier-ignore */}
-<Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tabs.Tab>
-```bash filename="shell"
+:::code-group
+```bash [pnpm]
 pnpm add viem@latest
 ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
+
+```bash [yarn]
 yarn add viem@latest
 ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
+
+```bash [npm]
 npm install viem@latest
 ```
-</Tabs.Tab>
-</Tabs>
+:::
 
-### Simplified Postgres schema pattern
+#### Simplified Postgres schema pattern
 
 Starting with this release, the indexed tables, reorg tables, and metadata table for a Ponder app are contained in one Postgres schema, specified by the user in `ponder.config.ts` (defaults to `public`). This means the shared `ponder` schema is no longer used. (Note: The `ponder_sync` schema is still in use).
 
 This release also removes the view publishing pattern and the `publishSchema` option from `ponder.config.ts`, which may disrupt production setups using horizontal scaling or direct SQL. If you relied on the publish pattern, please [get in touch on Telegram](https://t.me/kevinkoste) and we'll work to get you unblocked.
 
-### Added `/ready`, updated `/health`
+### New features
+
+#### Added `/ready`, updated `/health`
 
 The new `/ready` endpoint returns an HTTP `200` response once the app **is ready to serve requests**. This means that historical indexing is complete and the app is indexing events in realtime.
 
 The existing `/health` endpoint now returns an HTTP `200` response as soon as the process starts. (This release removes the `maxHealthcheckDuration` option, which previously governed the behavior of `/health`.)
 
-For Railway users, we now recommend using `/ready` as the health check endpoint to enable zero downtime deployments. If your app takes a while to sync, be sure to set the healthcheck timeout accordingly. Read the [Railway deployment guide](/docs/production/deploy#railway) for more details.
+For Railway users, we now recommend using `/ready` as the health check endpoint to enable zero downtime deployments. If your app takes a while to sync, be sure to set the healthcheck timeout accordingly. Read the [Railway deployment guide](/docs/production/railway#create-a-ponder-app-service) for more details.
 
-### Metrics updates
-
-Please see the [changelog](https://github.com/ponder-sh/ponder/blob/main/packages/core/CHANGELOG.md#060) for specifics.
 
 ## 0.5.0
 
-### `hono` peer dependency
+### Breaking changes
 
-**Breaking:** This release adds [Hono](https://hono.dev) as a peer dependency. After upgrading, install `hono` in your project.
+#### `hono` peer dependency
 
-{/* prettier-ignore */}
-<Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tabs.Tab>
-```bash filename="shell"
+This release adds [Hono](https://hono.dev) as a peer dependency. After upgrading, install `hono` in your project.
+
+:::code-group
+```bash [pnpm]
 pnpm add hono@latest
 ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
+
+```bash [yarn]
 yarn add hono@latest
 ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash filename="shell"
+
+```bash [npm]
 npm install hono@latest
 ```
-</Tabs.Tab>
-</Tabs>
+:::
 
-### Introduced API functions
+### New features
 
-This release added support for API functions. [Read more](/docs/query/api-functions).
+#### Introduced custom API endpoints
+
+This release added support for API functions. [Read more](/docs/query/api-endpoints).
 
 ## 0.4.0
 
-This release changes the location of database tables when using both SQLite and Postgres.
+### Breaking changes
 
-It **does not** require any changes to your application code, and does not bust the sync cache for SQLite or Postgres.
+This release changes the location of database tables when using both SQLite and Postgres. It **does not** require any changes to your application code, and does not bust the sync cache for SQLite or Postgres.
+
+#### New database layout
 
 Please read the new docs on [direct SQL](/docs/query/direct-sql) for a detailed overview.
 
-### SQLite
+**SQLite**
 
 Ponder now uses the `.ponder/sqlite/public.db` file for indexed tables. Before, the tables were present as views in the `.ponder/sqlite/ponder.db`. Now, the`.ponder/sqlite/ponder.db` file is only used internally by Ponder.
 
-### Postgres
+**Postgres**
 
 Ponder now creates a table in the `public` schema for each table in `ponder.schema.ts`. Before, Ponder created them as views in the `ponder` schema.
 
@@ -810,15 +856,15 @@ Isolation while running multiple Ponder instances against the same database also
 This also changes the zero-downtime behavior on platforms like Railway. For more information on how this works in `0.4`, please reference:
 
 - [Direct SQL](/docs/query/direct-sql)
-- [Zero-downtime deployments](/docs/production/zero-downtime)
+- [Zero-downtime deployments](/docs/production/self-hosting#database-schema)
 
-### Postgres table cleanup
+**Postgres table cleanup**
 
-After upgrading to `0.4.x`, you can run the following Postgres SQL script to clean up stale tables and views created by `0.3.x` Ponder apps.
+After upgrading to `0.4`, you can run the following Postgres SQL script to clean up stale tables and views created by `0.3` Ponder apps.
 
 **Note:** This script could obviously be destructive, so please read it carefully before executing.
 
-```sql
+```sql [cleanup.sql]
 DO $$
 DECLARE
     view_name TEXT;
@@ -846,15 +892,15 @@ END $$;
 
 ## 0.3.0
 
-No breaking API changes.
+### Breaking changes
 
-### Moved SQLite directory
+#### Moved SQLite directory
 
 **Note:** This release busted the SQLite sync cache.
 
 The SQLite database was moved from the `.ponder/store` directory to `.ponder/sqlite`. The old `.ponder/store` directory will still be used by older versions.
 
-### Moved Postgres sync tables
+#### Moved Postgres sync tables
 
 Similar to SQLite, the sync tables for Postgres were moved from the `public` schema to `ponder_sync`. Now, Ponder does not use the `public` schema whatsoever.
 
@@ -862,30 +908,36 @@ This change did NOT bust the sync cache; the tables were actually moved. This pr
 
 ## 0.2.0
 
-### Replaced `p.bytes()` with `p.hex()`
+### Breaking changes
+
+#### Replaced `p.bytes()` with `p.hex()`
 
 Removed `p.bytes()` in favor of a new `p.hex()` primitive column type. `p.hex()` is suitable for Ethereum addresses and other hex-encoded data, including EVM `bytes` types. `p.hex()` values are stored as `bytea` (Postgres) or `blob` (SQLite). To migrate, replace each occurence of `p.bytes()` in `ponder.schema.ts` with `p.hex()`, and ensure that any values you pass into hex columns are valid hexadecimal strings. The GraphQL API returns `p.hex()` values as hexadecimal strings, and allows sorting/filtering on `p.hex()` columns using the numeric comparison operators (`gt`, `gte`, `le`, `lte`).
 
-### Cursor pagination
+### New features
+
+#### Cursor pagination
 
 Updated the GraphQL API to use cursor pagination instead of offset pagination. Note that this change also affects the `findMany` database method. See the [GraphQL pagination docs](/docs/query/graphql#pagination) for more details.
 
-## 0.1.0
+## 0.1
 
-Config
+### Breaking changes
+
+#### Config
 
 - In general, `ponder.config.ts` now has much more static validation using TypeScript. This includes network names in `contracts`, ABI event names for the contract `event` and `factory` options, and more.
 - The `networks` and `contracts` fields were changed from an array to an object. The network or contract name is now specified using an object property name. The `name` field for both networks and contracts was removed.
 - The `filter` field has been removed. To index all events matching a specific signature across all contract addresses, add a contract that specifies the `event` field without specifying an `address`.
 - The `abi` field now requires an ABI object that has been asserted as const (cannot use a file path). See the ABIType documentation for more details.
 
-Schema
+#### Schema
 
 - The schema definition API was rebuilt from scratch to use a TypeScript file `ponder.schema.ts` instead of `schema.graphql`. The `ponder.schema.ts` file has static validation using TypeScript.
 - Note that it is possible to convert a `schema.graphql` file into a `ponder.schema.ts` file without introducing any breaking changes to the autogenerated GraphQL API schema.
 - Please see the `design your schema` guide for an overview of the new API.
 
-Indexing functions
+#### Indexing functions
 
 - `event.params` was renamed to `event.args` to better match Ethereum terminology norms.
 - If a contract uses the `event` option, only the specified events will be available for registration. Before, all events in the ABI were available.
@@ -894,15 +946,15 @@ Indexing functions
 - The `context.contracts` object now contains the contract addresses and ABIs specified in`ponder.config.ts`, typed as strictly as possible. (You should not need to copy addresses and ABIs around anymore, just use `context.contracts`).
 - A new `context.network` object was added which contains the network name and chain ID that the current event is from.
 
-Multi-chain indexing
+#### Multi-chain indexing
 
 - The contract `network` field `ponder.config.ts` was upgraded to support an object of network-specific overrides. This is a much better DX for indexing the same contract on multiple chains.
 - The options that you can specify per-network are `address`, `event`, `startBlock`, `endBlock`, and `factory`.
 - When you add a contract on multiple networks, Ponder will sync the contract on each network you specify. Any indexing functions you register for the contract will now process events across all networks.
-- The `context.network` object is typed according to the networks that the current contract runs on, so you can write network-specific logic like `if (context.network.name === “optimism”) { …`
+- The `context.network` object is typed according to the networks that the current contract runs on, so you can write network-specific logic like `if (context.network.name === "optimism") { …`
 
-Vite
+#### Vite
 
 - Ponder now uses Vite to transform and load your code. This means you can import files from outside the project root directory.
-- Vite’s module graph makes it possible to invalidate project files granularly, only reloading the specific parts of your app that need to be updated when a specific file changes. For example, if you save a change to one of your ABI files, `ponder.config.ts` will reload because it imports that file, but your schema will not reload.
+- Vite's module graph makes it possible to invalidate project files granularly, only reloading the specific parts of your app that need to be updated when a specific file changes. For example, if you save a change to one of your ABI files, `ponder.config.ts` will reload because it imports that file, but your schema will not reload.
 - This update also unblocks a path towards concurrent indexing and granular caching of indexing function results.

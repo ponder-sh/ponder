@@ -12,7 +12,7 @@ import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 /**
  * Middleware for GraphQL with an interactive web view.
  *
- * - Docs: https://ponder.sh/docs/query/api-functions#register-graphql-middleware
+ * - Docs: https://ponder.sh/docs/api-reference/ponder/api-endpoints#graphql
  *
  * @example
  * import { db } from "ponder:api";
@@ -57,7 +57,7 @@ export const graphql = (
 
       return {
         getDataLoader,
-        getStatus: () => globalThis.PONDER_DATABASE.getStatus(),
+        getCheckpoints: () => globalThis.PONDER_DATABASE.getCheckpoints(),
         drizzle: db,
       };
     },

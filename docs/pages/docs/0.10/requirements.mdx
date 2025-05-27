@@ -1,0 +1,31 @@
+# Requirements [Get Ponder running on your machine]
+
+The `create-ponder` CLI is the easiest way to [get started](/docs/0.10/get-started) with Ponder. If it runs without error, your system likely meets the requirements.
+
+## System requirements
+
+- macOS, Linux, or Windows (including WSL).
+- [Node.js](https://nodejs.org/en) 18.18 or later.
+- [PostgreSQL](https://www.postgresql.org/download/) version 14, 15, 16 or 17.
+
+## TypeScript
+
+Ponder uses advanced TypeScript features to offer end-to-end type safety without code generation. We **strongly** recommend taking the time to set up a working TypeScript development environment – it will pay dividends in the long run.
+
+### Requirements
+
+- TypeScript `>=5.0.4`, viem `>=2`, and hono `>=4.5`
+- ABIs must be asserted `as const` following [ABIType guidelines](https://abitype.dev/guide/get-started#usage)
+- The `ponder-env.d.ts` file must be present and up to date
+
+### `ponder-env.d.ts`
+
+This file powers Ponder's zero-codegen type system. It contains a declaration for the `ponder:registry` virtual module which exports types derived from `ponder.config.ts` and `ponder.schema.ts`.
+
+After upgrading to a new version of `ponder`, the dev server might make changes to `ponder-env.d.ts`. When this happens, please accept and commit the changes.
+
+### VSCode
+
+By default, VSCode's TypeScript language features use an internal version of TypeScript. Sometimes, this version does not meet Ponder's requirement of `>=5.0.4`.
+
+To change VSCode's TypeScript version, run `TypeScript: Select TypeScript version..."` from the command palette and select `Use Workspace Version` or [update VSCode's version](https://stackoverflow.com/questions/39668731/what-typescript-version-is-visual-studio-code-using-how-to-update-it).

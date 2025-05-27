@@ -1,0 +1,163 @@
+# `@ponder/client` [API reference]
+
+:::tip
+This is a low-level reference. For an introduction, visit the
+[SQL client](/docs/0.10/query/sql-client) page.
+:::
+
+The `@ponder/client` package provides a typed SQL client for querying your Ponder database from client applications.
+
+## Installation
+
+:::code-group
+
+```bash [pnpm]
+pnpm add @ponder/client
+```
+
+```bash [yarn]
+yarn add @ponder/client
+```
+
+```bash [npm]
+npm add @ponder/client
+```
+
+:::
+
+## `createClient`
+
+Create a client object connected to a Ponder server.
+
+#### Usage
+
+```ts [Client project]
+import { createClient } from "@ponder/client";
+import * as schema from "../../ponder/ponder.schema";
+
+const client = createClient("https://.../sql", { schema });
+
+export { client, schema };
+```
+
+#### Parameters
+
+| Parameter        | Type     | Description                                                |
+| ---------------- | -------- | ---------------------------------------------------------- |
+| `baseUrl`        | `string` | Ponder server URL where the `client` middleware is running |
+| `options.schema` | `Schema` | The schema exported by `ponder.schema.ts`                  |
+
+#### Returns
+
+Returns a `Client` object with methods for querying the database.
+
+## `client.db`
+
+Build a SQL query using Drizzle and execute it over HTTP.
+
+#### Usage
+
+```ts [Client project]
+import { client, schema } from "../lib/ponder";
+import { eq } from "@ponder/client";
+
+const result = await client.db.select().from(schema.account).limit(10);
+
+const filteredResults = await client.db
+  .select()
+  .from(schema.account)
+  .where(eq(schema.account.id, "0x123..."));
+```
+
+#### Returns
+
+Returns an array of objects according to the query.
+
+## `client.live`
+
+Subscribe to live updates from the database using server-sent events (SSE).
+
+#### Usage
+
+```ts [Client project]
+import { client, schema } from "../lib/ponder";
+
+const { unsubscribe } = client.live(
+  (db) => db.select().from(schema.account),
+  (result) => {
+    console.log("Updated accounts:", result);
+  },
+  (error) => {
+    console.error("Subscription error:", error);
+  }
+);
+
+// Later, to stop receiving updates:
+unsubscribe();
+```
+
+#### Parameters
+
+| Parameter | Type                                | Description                                          |
+| --------- | ----------------------------------- | ---------------------------------------------------- |
+| `queryFn` | `(db: ClientDb) => Promise<Result>` | A query builder callback using the `db` argument     |
+| `onData`  | `(result: Result) => void`          | Callback that receives each new query result         |
+| `onError` | `(error: Error) => void`            | Optional callback that handles any errors that occur |
+
+#### Returns
+
+Returns an object with an `unsubscribe` method that can be called to stop receiving updates.
+
+#### Implementation notes
+
+- Each `createClient` instance multiplexes all live queries over a single SSE connection.
+- The server notifies the client whenever a new block gets indexed. If a query result is no longer valid, the client immediately refetches it to receive the latest result.
+
+## `client.getStatus`
+
+Fetch the indexing progress of each chain.
+
+#### Usage
+
+```ts [Client project]
+import { client, schema } from "../lib/ponder";
+
+const status = await client.getStatus();
+
+console.log("Mainnet indexing status:", status.mainnet);
+```
+
+#### Returns
+
+Returns a Promise that resolves to an object containing the indexing status of each network.
+
+```ts
+type Status = {
+  [network: string]: {
+    block: { number: number; timestamp: number } | null;
+    ready: boolean;
+  };
+};
+```
+
+## Drizzle utility functions
+
+The `@ponder/client` package exports all relevant Drizzle utility functions ([full list](https://github.com/ponder-sh/ponder/blob/main/packages/client/src/index.ts#L176)). You shouldn't need to install `drizzle-orm` separately.
+
+#### Usage
+
+```ts [Client project]
+import { client, schema } from "../lib/ponder";
+import { eq, gte, and, desc } from "@ponder/client"; // [!code focus]
+
+const result = await client.db
+  .select()
+  .from(schema.transfers)
+  .where(
+    and(
+      gte(schema.transfers.value, 1000000n),
+      eq(schema.transfers.from, "0x123...")
+    )
+  )
+  .orderBy(desc(schema.transfers.blockNumber));
+```

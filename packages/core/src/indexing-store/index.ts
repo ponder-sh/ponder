@@ -29,7 +29,7 @@ export const parseSqlError = (e: any): Error => {
   ) {
     error = new BigIntSerializationError(error.message);
     error.meta.push(
-      "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/utilities/replace-bigints",
+      "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/api-reference/ponder-utils#replacebigints",
     );
   }
 

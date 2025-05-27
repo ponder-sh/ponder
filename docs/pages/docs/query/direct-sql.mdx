@@ -1,145 +1,81 @@
----
-title: "Direct SQL"
-description: "How to query the Ponder database"
----
+# Direct SQL [Query indexed data directly in Postgres]
 
-import { Callout, FileTree, Steps } from "nextra/components";
+It's often useful to query Ponder tables directly in Postgres.
 
-# Direct SQL queries
+:::info
+Direct SQL is more complex than querying over HTTP with GraphQL or the SQL client. If either of those options are sufficient for your use case, consider using them instead.
+:::
 
-This guide describes how to query the database directly using psql or Drizzle.
+## Limitations
 
-<Callout type="warning">
-  Don't write to onchain tables from external clients. Only write to onchain
-  tables from indexing functions.
-</Callout>
+As a rule of thumb, the _only_ supported operation is `SELECT` queries against Ponder tables.
 
-<Callout type="info">
-  Direct SQL queries against PGlite are
-  [possible](https://github.com/supabase-community/pg-gateway?tab=readme-ov-file#pglite),
-  but the methods described here do not work out of the box.
-</Callout>
+- **Direct SQL queries are read-only**. Direct SQL queries should not insert, update, or delete rows from Ponder tables.
+- **Direct SQL with zero-downtime deployments requires additional setup**. [Read more](/docs/production/self-hosting) about the views pattern in the production guide.
+- **Triggers on Ponder tables are not supported**.
 
-## psql
+## Database schema
 
-You can also use [psql](https://www.postgresql.org/docs/current/app-psql.html), a terminal-based Postgres front-end, to query the database from the command line.
+Ponder uses **database schemas** to isolate deployments. [Read more](/docs/production/self-hosting#database-schema) in the self-hosting guide.
 
-<Steps>
+Direct SQL queries should target the database schema corresponding to a specific deployment. Or, if your project uses the [views pattern](/docs/production/self-hosting#views-pattern) (**recommended**), queries should target the views schema.
 
-### Connection string
+Here are a few strategies to configure the database schema.
 
-Connect using the same connection string that your Ponder app uses.
+### Manual / hard-coded
 
-```bash filename="shell"
-psql 'postgresql://username:password@localhost:5432/your_database'
+The easiest way to target a specific database schema is to specify it manually in each SQL query. This works well for projects using the views pattern, because the schema changes less frequently.
+
+```sql [Direct SQL query]
+SELECT *
+FROM my_ponder_project.accounts -- Database schema specified
+ORDER BY created_at ASC
+LIMIT 100;
 ```
 
-### Display tables
+### Search path
 
-Use the `\dt` command to list all tables in the `public` schema. If you are using a schema other than `public`, include the pattern.
+:::info
+[Read more](https://www.postgresql.org/docs/current/ddl-schemas.html#DDL-SCHEMAS-PATH) about the schema search path in the Postgres documentation.
+:::
 
-<div className="code-columns">
+Another approach is to write direct SQL queries using unqualified table names (no database schema specified), then update the `search_path` setting to include the target database schema.
 
-```bash filename="psql"
-\dt
+```sql [Set search path]
+SET search_path TO my_ponder_project, "$user", public;
 ```
 
-```bash filename="psql"
-\dt my_schema.*
-```
+### Drizzle (`setDatabaseSchema`)
 
-</div>
+If you're writing direct SQL queries using Drizzle (e.g. from a downstream Node.js application), you can use the `setDatabaseSchema` utility function to target a specific database schema.
 
-The `reorg` tables are used by Ponder internally during reorg reconciliation, and the `_ponder_meta` table is used to store metadata about the database state.
+This function mutates a Drizzle schema such that any queries built using that schema will target the specified database schema. [Read more](https://orm.drizzle.team/docs/schemas) in the Drizzle documentation.
 
-```plaintext filename="psql (result)"
-                    List of relations
- Schema | Name                        | Type  | Owner
---------+-----------------------------+-------+----------
- public | accounts                    | table | username
- public | transfer_events             | table | username
- public | _ponder_meta                | table | username
- public | _ponder_status              | table | username
- public | _reorg__accounts            | table | username
- public | _reorg__transfer_events     | table | username
-(5 rows)
-```
+:::code-group
 
-### Select rows
-
-Select a few rows from the `accounts` table.
-
-```sql filename="psql"
-SELECT * FROM accounts LIMIT 5;
-```
-
-```plaintext filename="psql (result)"
-                  address                   |         balance         |
---------------------------------------------+-------------------------+
- 0xf73fe15cfb88ea3c7f301f16ade3c02564aca407 | 10000000000000000000000 |
- 0xb0659bc97ed61b37d6b140f3e12a41d471781714 | 20000000000000000000000 |
- 0x52932f5b2767d917c3134140168f2176c94e8b2c | 10000000000000000000000 |
- 0xfb7ca75b3ce099120602b5ab7104cff030ee43f8 |                       0 |
- 0x9ccc6c5a9d25429f55ad9af6363c1c4f16b179ad |  7000000000000000000000 |
-(5 rows)
-```
-
-### Aggregate data
-
-Find the total number of transfers sent to each account.
-
-```sql filename="psql"
-SELECT "to", COUNT(*) AS transfer_count
-  FROM transfer_events
-  GROUP BY "to"
-  ORDER BY transfer_count DESC
-  LIMIT 5;
-```
-
-```plaintext filename="psql (result)"
-                     to                     | transfer_count
---------------------------------------------+----------------
- 0x5d752f322befb038991579972e912b02f61a3dda |           2342
- 0x1337f7970e8399ccbc625647fce58a9dada5aa66 |            313
- 0x9726041047644626468922598128349778349982 |            306
- 0x27239549dd40e1d60f5b80b0c4196923745b1fd2 |            256
- 0x450638daf0caedbdd9f8cb4a41fa1b24788b123e |            238
-(5 rows)
-```
-
-</Steps>
-
-## Drizzle
-
-<Callout type="warning">
-  As of `0.8`, the `onchainTable` objects are not automatically aware of the
-  database schema that your instance is using. To get this working, you'll need
-  to specify the schema using `setDatabaseSchema()`.
-</Callout>
-
-The `onchainTable` objects exported by `ponder.schema.ts` are valid Drizzle table objects. You can import them from TypeScript files outside the Ponder `src/` directory and use them with the Drizzle query builder.
-
-Here's a script that creates a Drizzle client and runs a query against the Ponder tables in the specified schema. Be sure to connect to the database using the same `DATABASE_URL` as the Ponder app.
-
-```ts filename="query.ts"
-import { setDatabaseSchema } from "@ponder/client";
+```ts [Drizzle]
 import { drizzle } from "drizzle-orm/node-postgres";
-import * as _schema from "../../ponder/ponder.schema";
+import * as schema_ from "../../ponder/ponder.schema"; // [!code focus]
 
-const schema = setDatabaseSchema(_schema, "my_schema");
+const schema = setDatabaseSchema(schema_, "target_schema"); // [!code focus]
 
 const db = drizzle(process.env.DATABASE_URL, { schema, casing: "snake_case" });
 
-// Select
 const oldAccounts = await db
   .select()
   .from(schema.accounts)
   .orderBy(asc(schema.accounts.createdAt))
   .limit(100);
 
-// Query
-const whalesWithTransfers = await db.query.accounts.findMany({
-  where: (accounts, { eq }) => eq(accounts.balance, 1_000_000n),
-  with: { transferEvents: true },
-});
 ```
+
+```sql [Generated SQL]
+SELECT *
+FROM target_schema.accounts -- Database schema specified
+ORDER BY created_at ASC
+LIMIT 100;
+```
+
+:::
+
+

@@ -2,13 +2,13 @@ import type { Common } from "@/internal/common.js";
 import { ShutdownError } from "@/internal/errors.js";
 import type {
   BlockFilter,
+  Chain,
   Factory,
   Filter,
   FilterWithoutBlocks,
   Fragment,
   LogFactory,
   LogFilter,
-  Network,
   Source,
   SyncBlock,
   SyncLog,
@@ -18,6 +18,7 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import type { Rpc } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
   getChildAddress,
@@ -39,7 +40,6 @@ import {
   intervalRange,
   intervalUnion,
 } from "@/utils/interval.js";
-import type { RequestQueue } from "@/utils/requestQueue.js";
 import {
   _debug_traceBlockByNumber,
   _eth_getBlockByNumber,
@@ -71,8 +71,8 @@ type CreateHistoricalSyncParameters = {
   common: Common;
   sources: Source[];
   syncStore: SyncStore;
-  network: Network;
-  requestQueue: RequestQueue;
+  chain: Chain;
+  rpc: Rpc;
   onFatalError: (error: Error) => void;
 };
 
@@ -133,7 +133,7 @@ export const createHistoricalSync = async (
     Filter,
     { fragment: Fragment; intervals: Interval[] }[]
   >;
-  if (args.network.disableCache) {
+  if (args.chain.disableCache) {
     intervalsCache = new Map();
     for (const { filter } of args.sources) {
       intervalsCache.set(filter, []);
@@ -228,7 +228,7 @@ export const createHistoricalSync = async (
     const logs = await Promise.all(
       intervals.flatMap((interval) =>
         addressBatches.map((address) =>
-          _eth_getLogs(args.requestQueue, {
+          _eth_getLogs(args.rpc, {
             address,
             topics,
             fromBlock: interval[0],
@@ -255,7 +255,7 @@ export const createHistoricalSync = async (
             args.common.logger.debug({
               service: "sync",
               msg: `Caught eth_getLogs error on '${
-                args.network.name
+                args.chain.name
               }', updating recommended range to ${range}.`,
             });
 
@@ -305,7 +305,7 @@ export const createHistoricalSync = async (
    *
    * @param number Block to be extracted
    *
-   * Note: This function could more accurately skip network requests by taking
+   * Note: This function could more accurately skip chain requests by taking
    * advantage of `syncStore.hasBlock` and `syncStore.hasTransaction`.
    */
   const syncBlock = async (number: number): Promise<SyncBlock> => {
@@ -320,7 +320,7 @@ export const createHistoricalSync = async (
     if (blockCache.has(number)) {
       block = await blockCache.get(number)!;
     } else {
-      const _block = _eth_getBlockByNumber(args.requestQueue, {
+      const _block = _eth_getBlockByNumber(args.rpc, {
         blockNumber: toHex(number),
       });
       blockCache.set(number, _block);
@@ -341,7 +341,7 @@ export const createHistoricalSync = async (
     if (traceCache.has(block)) {
       return await traceCache.get(block)!;
     } else {
-      const traces = _debug_traceBlockByNumber(args.requestQueue, {
+      const traces = _debug_traceBlockByNumber(args.rpc, {
         blockNumber: block,
       });
       traceCache.set(block, traces);
@@ -375,7 +375,7 @@ export const createHistoricalSync = async (
       args.common.logger.warn({
         service: "sync",
         msg: `Caught eth_getBlockReceipts error on '${
-          args.network.name
+          args.chain.name
         }', switching to eth_getTransactionReceipt method.`,
         error,
       });
@@ -406,7 +406,7 @@ export const createHistoricalSync = async (
     if (transactionReceiptsCache.has(transaction)) {
       return await transactionReceiptsCache.get(transaction)!;
     } else {
-      const receipt = _eth_getTransactionReceipt(args.requestQueue, {
+      const receipt = _eth_getTransactionReceipt(args.rpc, {
         hash: transaction,
       });
       transactionReceiptsCache.set(transaction, receipt);
@@ -418,7 +418,7 @@ export const createHistoricalSync = async (
     if (blockReceiptsCache.has(block)) {
       return await blockReceiptsCache.get(block)!;
     } else {
-      const blockReceipts = _eth_getBlockReceipts(args.requestQueue, {
+      const blockReceipts = _eth_getBlockReceipts(args.rpc, {
         blockHash: block,
       });
       blockReceiptsCache.set(block, blockReceipts);
@@ -449,7 +449,7 @@ export const createHistoricalSync = async (
     await args.syncStore.insertChildAddresses({
       factory,
       childAddresses,
-      chainId: args.network.chainId,
+      chainId: args.chain.id,
     });
   };
 
@@ -512,7 +512,7 @@ export const createHistoricalSync = async (
       });
     }
 
-    await args.syncStore.insertLogs({ logs, chainId: args.network.chainId });
+    await args.syncStore.insertLogs({ logs, chainId: args.chain.id });
 
     const blocks = await Promise.all(
       logs.map((log) => syncBlock(hexToNumber(log.blockNumber))),
@@ -529,18 +529,24 @@ export const createHistoricalSync = async (
         );
       }
 
-      if (
-        block.transactions.find((t) => t.hash === log.transactionHash) ===
-        undefined
-      ) {
+      const transaction = block.transactions.find(
+        (t) => t.hash === log.transactionHash,
+      );
+      if (transaction === undefined) {
         if (log.transactionHash === zeroHash) {
           args.common.logger.warn({
             service: "sync",
-            msg: `Detected log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
+            msg: `Detected log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some chains like ZKsync.`,
           });
         } else {
           throw new Error(
             `Detected inconsistent RPC responses. 'log.transactionHash' ${log.transactionHash} not found in 'block.transactions' ${block.hash}`,
+          );
+        }
+      } else {
+        if (transaction!.transactionIndex !== log.transactionIndex) {
+          throw new Error(
+            `Detected inconsistent RPC responses. 'log.transactionIndex' ${log.transactionIndex} not found in 'block.transactions' ${block.hash}`,
           );
         }
       }
@@ -561,7 +567,7 @@ export const createHistoricalSync = async (
               if (log.transactionHash === zeroHash) {
                 args.common.logger.warn({
                   service: "sync",
-                  msg: `Detected log with empty transaction hash in block ${log.blockHash} at log index ${hexToNumber(log.logIndex)}. This is expected for some networks like ZKsync.`,
+                  msg: `Detected log with empty transaction hash in block ${log.blockHash} at log index ${hexToNumber(log.logIndex)}. This is expected for some chains like ZKsync.`,
                 });
               } else {
                 blockTransactionHashes.add(log.transactionHash);
@@ -575,7 +581,7 @@ export const createHistoricalSync = async (
 
       await args.syncStore.insertTransactionReceipts({
         transactionReceipts,
-        chainId: args.network.chainId,
+        chainId: args.chain.id,
       });
     }
   };
@@ -665,7 +671,7 @@ export const createHistoricalSync = async (
 
     await args.syncStore.insertTransactionReceipts({
       transactionReceipts,
-      chainId: args.network.chainId,
+      chainId: args.chain.id,
     });
   };
 
@@ -763,7 +769,7 @@ export const createHistoricalSync = async (
 
     await args.syncStore.insertTraces({
       traces,
-      chainId: args.network.chainId,
+      chainId: args.chain.id,
     });
 
     if (shouldGetTransactionReceipt(filter)) {
@@ -780,7 +786,7 @@ export const createHistoricalSync = async (
 
       await args.syncStore.insertTransactionReceipts({
         transactionReceipts,
-        chainId: args.network.chainId,
+        chainId: args.chain.id,
       });
     }
   };
@@ -934,7 +940,7 @@ export const createHistoricalSync = async (
 
             args.common.logger.error({
               service: "sync",
-              msg: `Fatal error: Unable to sync '${args.network.name}' from ${interval[0]} to ${interval[1]}.`,
+              msg: `Fatal error: Unable to sync '${args.chain.name}' from ${interval[0]} to ${interval[1]}.`,
               error,
             });
 
@@ -950,23 +956,23 @@ export const createHistoricalSync = async (
       const blocks = await Promise.all(blockCache.values());
 
       await Promise.all([
-        args.syncStore.insertBlocks({ blocks, chainId: args.network.chainId }),
+        args.syncStore.insertBlocks({ blocks, chainId: args.chain.id }),
         args.syncStore.insertTransactions({
           transactions: blocks.flatMap((block) =>
             block.transactions.filter(({ hash }) =>
               transactionsCache.has(hash),
             ),
           ),
-          chainId: args.network.chainId,
+          chainId: args.chain.id,
         }),
       ]);
 
       // Add corresponding intervals to the sync-store
       // Note: this should happen after so the database doesn't become corrupted
-      if (args.network.disableCache === false) {
+      if (args.chain.disableCache === false) {
         await args.syncStore.insertIntervals({
           intervals: intervalsToSync,
-          chainId: args.network.chainId,
+          chainId: args.chain.id,
         });
       }
 

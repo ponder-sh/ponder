@@ -1,138 +1,95 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss" important;
 
-/* CODE COLUMNS */
-.code-columns {
-  display: flex;
-  flex-direction: row;
-  gap: 0rem 1.5rem;
-  margin-top: 1.5rem;
-}
-.code-columns > div {
-  width: calc(50% - 0.75rem);
-  margin-top: 0rem;
-}
-@media (max-width: 768px) {
-  .code-columns {
-    flex-direction: column;
-    gap: 1.5rem 0rem;
-  }
-  .code-columns > div {
-    width: unset;
-  }
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-ponder-50: #39dff2;
+  --color-ponder-100: #35cddf;
+  --color-ponder-200: #30bccc;
+  --color-ponder-300: #2caab9;
+  --color-ponder-400: #2aa3b1;
+  --color-ponder-500: #238793;
+  --color-ponder-600: #1e7580;
+  --color-ponder-700: #1a646c;
+  --color-ponder-800: #155259;
+  --color-ponder-900: #114146;
+  --color-ponder-950: #0c2f33;
 }
 
-/* EXCALIDRAW DIAGRAM */
-.excalidraw {
-  width: 100%;
-  height: unset;
-  margin-top: 24px;
-  margin-bottom: 8px;
+/* CONTENT & SIDEBAR WIDTH */
+/* Probably a better way to do this */
+:root {
+  /* Default: 300px */
+  --vocs-sidebar_width: 260px;
+  /* Default: 70ch */
+  --vocs-content_width: calc(74ch + (var(--vocs-content_horizontalPadding) * 2));
 }
-.dark .excalidraw {
-  filter: invert(100%) hue-rotate(180deg);
-}
-.dark .excalidraw path:first-of-type {
-  fill: #eee;
-}
-
-/* PONDER LOGO */
-.logo {
-  height: 16px;
-}
-.dark .logo path:first-of-type {
-  fill: #fffbf5;
-}
-
-/* CAPTION */
-.caption {
-  color: #6b7280;
-  font-size: smaller;
-}
-.dark .caption {
-  color: #737373;
-}
-.caption > p {
-  line-height: 1.5rem;
-}
-
-/* NAV SPACING OVERRIDES */
-@media (min-width: 768px) {
-  .nextra-nav-container > nav {
-    gap: 22px;
-  }
-}
-
-/* NEXTRA STEPS H4 SUPPORT */
-.nextra-steps h4 {
-  counter-increment: step;
-  &:before {
-    @apply absolute w-[33px] h-[33px];
-    @apply border-4 border-[#ffffff] dark:border-[#111111] bg-gray-100 dark:bg-neutral-800;
-    @apply rounded-full text-neutral-400 text-base font-normal text-center -indent-px;
-    @apply mt-[-1px] ml-[-41px];
-    content: counter(step);
-  }
-}
-
-/* NEXTRA SIDEBAR */
-.nextra-menu-desktop {
-  gap: 2px;
-}
-.nextra-menu-desktop li a {
-  padding-top: 4px;
-  padding-bottom: 4px;
-}
-.nextra-menu-desktop ul {
-  gap: 2px;
-}
-/* this targets the separator bars (not currently used) */
-/* .nextra-menu-desktop ._my-4 {
-  margin-top: 11px;
-  margin-bottom: 0px;
-} */
-.nextra-menu-desktop ._mt-5 {
-  margin-top: 10px;
-  margin-bottom: 2px;
-}
-
-/* LINK OVERRIDES */
-._underline {
-  text-decoration-line: none;
-  transition-property: color;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
-}
-._underline:hover {
-  color: #39dff2;
+:root.dark {
+  /* Default: 300px */
+  --vocs-sidebar_width: 260px;
+  /* Default: 70ch */
+  --vocs-content_width: calc(74ch + (var(--vocs-content_horizontalPadding) * 2));
 }
 
 /* HERO TEXTURE */
 .hero-texture {
-  background:
-    radial-gradient(
+  background: radial-gradient(
       91.96% 91.96% at 50% 91.96%,
       rgba(0, 0, 0, 0) 0%,
       #fff 100%
-    ),
-    url("/hero.png") lightgray 50% / cover no-repeat;
+    ), url("/hero.png") lightgray 50% / cover no-repeat;
 }
 .dark .hero-texture {
-  background:
-    radial-gradient(
+  background: radial-gradient(
       91.96% 91.96% at 50% 91.96%,
       rgba(0, 0, 0, 0) -20%,
       #111 100%
-    ),
-    url("/hero.png") lightgray 50% / cover no-repeat;
+    ), url("/hero.png") lightgray 50% / cover no-repeat;
 }
 
-/* MISC NEXTRA OVERRIDES */
-._list-decimal, ._list-disc {
-  margin-top: 12px;
+/* LOGO SIZING */
+.vocs_NavLogo_logoImage {
+  height: 28%; /* Default: 50% */
+}
+.vocs_DesktopTopNav_logo > a {
+  margin-top: 1.5px !important;
+}
+.vocs_Sidebar_logo {
+  padding-top: 2px !important;
+  padding-bottom: 2px;
 }
 
-._list-decimal, ._list-disc > li {
-  line-height: 1.75rem;
+/* TOP NAV BORDER */
+.vocs_DocsLayout_gutterTop_sticky {
+  border-bottom: 1px solid var(--vocs-color_border);
+}
+.vocs_DocsLayout_gutterTop_sticky .vocs_MobileTopNav {
+  border-bottom: none;
+}
+
+/* TOP NAV ALIGNMENT */
+.vocs_DesktopTopNav {
+  padding-right: var(--vocs-space_24);
+}
+
+/* SEARCH BAR */
+.vocs_DesktopTopNav_withLogo {
+  justify-content: end;
+  gap: 0.625rem;
+}
+.vocs_DesktopSearch_search {
+  height: var(--vocs-space_32);
+}
+
+/* LEFT SIDEBAR */
+div.vocs_Sidebar_item {
+  cursor: default;
+}
+div.vocs_Sidebar_item:hover {
+  color: var(--vocs-color_text2);
+}
+
+/* BLOG POSTS */
+.vocs_BlogPosts {
+  min-height: calc(100vh - 60px - 77px - 108px);
 }

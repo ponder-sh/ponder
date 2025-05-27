@@ -23,9 +23,25 @@ export async function* mergeAsyncGenerators<T>(
       generators.splice(index, 1);
       promises.splice(index, 1);
     } else {
-      yield result.value;
       promises[index] = generators[index]!.next();
+      yield result.value;
     }
+  }
+}
+
+/**
+ * Maps the results of an async generator.
+ *
+ * @param generators - The generator to map.
+ * @param fn - The function to map the generator.
+ * @returns An async generator that yields mapped results from the input generator.
+ */
+export async function* mapAsyncGenerator<T, R>(
+  generators: AsyncGenerator<T>,
+  fn: (value: T) => R,
+): AsyncGenerator<R> {
+  for await (const value of generators) {
+    yield fn(value);
   }
 }
 

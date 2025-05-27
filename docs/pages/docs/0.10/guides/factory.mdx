@@ -1,0 +1,195 @@
+import { Callout } from "vocs/components";
+
+# Factory pattern [Collect a dynamic list of addresses]
+
+The factory pattern makes it possible to index a dynamic list of contracts. You can think of the `factory()` function as returning a list of addresses that updates whenever a log is found that matches the configuration.
+
+## Basic usage
+
+To configure a factory, use the `factory()` function as the `address` value in a contract or account. 
+
+```ts [ponder.config.ts]
+import { createConfig, factory } from "ponder"; // [!code focus]
+import { parseAbiItem } from "viem";
+import { SudoswapPoolAbi } from "./abis/SudoswapPool";
+
+export default createConfig({
+  networks: { /* ... */ },
+  contracts: {
+    SudoswapPool: {
+      abi: SudoswapPoolAbi,
+      network: "mainnet",
+      address: factory({ // [!code focus]
+        // Address of the factory contract. // [!code focus]
+        address: "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4", // [!code focus]
+        // Event from the factory contract ABI which contains the child address. // [!code focus]
+        event: parseAbiItem("event NewPair(address poolAddress)"), // [!code focus]
+        // Name of the event parameter containing the child address. // [!code focus]
+        parameter: "poolAddress", // [!code focus]
+      }), // [!code focus]
+      startBlock: 14645816,
+    },
+  },
+});
+```
+
+The indexing functions you register for a contract (or account) that uses `factory()` will process events for _all_ contracts (or accounts) found by the factory configuration.
+
+Visit the [contracts](/docs/0.10/config/contracts) and [accounts](/docs/0.10/config/accounts) guides to learn more.
+
+## Index the factory contract itself
+
+It's often useful to register an indexing function for the factory event itself, e.g. to run setup logic for each child contract.
+
+To index the factory contract itself, add a new entry to `contracts`. This entry should be a normal contract with a single address.
+
+:::code-group
+
+```ts [ponder.config.ts]
+import { createConfig, factory } from "ponder";
+import { parseAbiItem } from "viem";
+import { SudoswapPoolAbi } from "./abis/SudoswapPool";
+import { SudoswapFactoryAbi } from "./abis/SudoswapFactory";
+
+export default createConfig({
+  networks: { /* ... */ },
+  contracts: {
+    SudoswapFactory: { // [!code focus]
+      abi: SudoswapFactoryAbi, // [!code focus]
+      network: "mainnet", // [!code focus]
+      address: "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4", // [!code focus]
+      startBlock: 14645816, // [!code focus]
+    }, // [!code focus]
+    SudoswapPool: {
+      abi: SudoswapPoolAbi,
+      network: "mainnet",
+      address: factory({
+        address: "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4",
+        event: parseAbiItem("event NewPair(address poolAddress)"),
+        parameter: "poolAddress",
+      }),
+      startBlock: 14645816,
+    },
+  },
+});
+```
+
+```ts [src/index.ts]
+import { ponder } from "ponder:registry";
+
+// This function will run whenever a new child contract is created. // [!code focus]
+ponder.on("SudoswapFactory:NewPair", async ({ event }) => { // [!code focus]
+  // Address of the child contract that was created. // [!code focus]
+  event.args.poolAddress; // [!code focus]
+  //        ^? string // [!code focus]
+}); // [!code focus]
+
+ponder.on("SudoswapPool:Transfer", async ({ event }) => {
+  // Address of the child contract that emitted the event.
+  event.log.address;
+  //        ^? string
+});
+```
+:::
+
+
+## Multiple factories, same child
+
+Sometimes, multiple factory contracts 1) have the same factory event signature and 2) create the same kind of child contract.
+
+In these cases, you can pass a list of factory contract addresses to the `factory()` function, and the list of child addresses across all factories will be merged into a single list.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+import { parseAbiItem } from "viem";
+import { SudoswapPoolAbi } from "./abis/SudoswapPool";
+
+export default createConfig({
+  networks: { /* ... */ },
+  contracts: {
+    SudoswapPool: {
+      abi: SudoswapPoolAbi,
+      network: "mainnet",
+      address: factory({
+        // A list of factory contract addresses that all create SudoswapPool contracts. // [!code focus]
+        address: [ // [!code focus]
+          "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4", // [!code focus]
+          "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4", // [!code focus]
+        ], // [!code focus]
+        event: parseAbiItem("event NewPair(address poolAddress)"),
+        parameter: "poolAddress",
+      }),
+    },
+  },
+});
+```
+
+## Usage with non-factory contracts
+
+
+
+The factory pattern is simply a primitive that extracts a list of addresses from event logs. The contract does not have to be a "factory" in the EVM/Solidity sense (it doesn't need to create other contracts).
+
+For example, the `ENSRegistry` contract emits the `NewResolver` event whenever a name's resolver gets set or changed. We can use this event with the factory pattern to index all resolvers that have ever been used.
+
+```ts [ponder.config.ts]
+import { createConfig, factory } from "ponder";
+import { parseAbiItem } from "viem";
+import { ENSResolverAbi } from "./abis/ENSResolver";
+
+export default createConfig({
+  networks: { /* ... */ },
+  contracts: {
+    ENSResolver: {
+      abi: ENSResolverAbi,
+      network: "mainnet",
+      address: factory({
+        // ENS Registry address
+        address: "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e",
+        event: parseAbiItem("event NewResolver(bytes32 indexed node, address resolver)"),
+        parameter: "resolver",
+      }),
+    },
+  },
+});
+```
+
+## How it works
+  
+1. Fetch logs emitted by the factory contract that match the configuration using `eth_getLogs` in bulk.
+2. Decode each log using the provided `event` ABI item and extract the child address from it using the `parameter` name.
+3. Fetch the requested data for each child contract – usually, more logs using `eth_getLogs` in bulk.
+
+## Performance
+
+As of version `0.10`, the factory pattern introduces negligible overhead to the indexing process.
+
+## Limitations
+
+### Event signature requirements
+
+The factory contract must emit an event log announcing the creation of each new child contract that contains the new child contract address as a named parameter (with type `"address"`). The parameter can be either indexed or non-indexed. Here are a few factory event signatures with their eligibility explained:
+
+```solidity
+// ✅ Eligible. The parameter "child" has type "address" and is non-indexed.
+event ChildContractCreated(address child);
+
+// ✅ Eligible. The parameter "pool" has type "address" and is indexed.
+event PoolCreated(address indexed deployer, address indexed pool, uint256 fee);
+
+// ❌ Not eligible. The parameter "contracts" is an array type, which is not supported.
+// Always emit a separate event for each child contract, even if they are created in a batch.
+event ContractsCreated(address[] contracts);
+
+// ❌ Not eligible. The parameter "child" is a struct/tuple, which is not supported.
+struct ChildContract {
+  address addr;
+}
+event ChildCreated(ChildContract child);
+```
+
+### Nested factory patterns
+
+Ponder does not support factory patterns that are nested beyond a single layer.
+
+

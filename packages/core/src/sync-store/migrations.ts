@@ -1,4 +1,3 @@
-import type { Common } from "@/internal/common.js";
 import type { Kysely, Migration, MigrationProvider } from "kysely";
 import { sql } from "kysely";
 import { maxUint256 } from "viem";
@@ -1278,8 +1277,8 @@ GROUP BY fragment_id, chain_id
   "2025_02_19_0_primary_key": {
     async up(db) {
       // 1. drop unused indexes
-      // 2. drop primary key
-      // 3. update column types
+      // 2. update column types
+      // 3. drop primary key
       // 4. drop unused columns
       // 5. rename tables and columns
       // 6. create new primary key
@@ -1288,6 +1287,8 @@ GROUP BY fragment_id, chain_id
       console.log(
         `${new Date().toISOString()} [ponder_sync migration] started 2025_02_19_0_primary_key`,
       );
+
+      await db.executeQuery(sql`SET statement_timeout = 3600000;`.compile(db));
 
       await db.schema.dropIndex("logAddressIndex").ifExists().execute();
       await db.schema.dropIndex("logBlockHashIndex").ifExists().execute();
@@ -1327,24 +1328,6 @@ GROUP BY fragment_id, chain_id
       console.log(
         `${new Date().toISOString()} [ponder_sync migration] dropped indexes`,
       );
-
-      await db.schema.alterTable("logs").dropConstraint("logs_pkey").execute();
-      await db.schema
-        .alterTable("blocks")
-        .dropConstraint("blocks_pkey")
-        .execute();
-      await db.schema
-        .alterTable("transactions")
-        .dropConstraint("transactions_pkey")
-        .execute();
-      await db.schema
-        .alterTable("transactionReceipts")
-        .dropConstraint("transactionReceipts_pkey")
-        .execute();
-      await db.schema
-        .alterTable("traces")
-        .dropConstraint("traces_pkey")
-        .execute();
 
       await db.schema
         .alterTable("logs")
@@ -1395,11 +1378,30 @@ GROUP BY fragment_id, chain_id
         .alterColumn("chain_id", (qb) => qb.setDataType("bigint"))
         .execute();
 
+      await db.deleteFrom("logs").where("checkpoint", "=", null).execute();
+
       console.log(
         `${new Date().toISOString()} [ponder_sync migration] updated column types`,
       );
 
-      await db.deleteFrom("logs").where("checkpoint", "=", null).execute();
+      await db.schema.alterTable("logs").dropConstraint("logs_pkey").execute();
+      await db.schema
+        .alterTable("blocks")
+        .dropConstraint("blocks_pkey")
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .dropConstraint("transactions_pkey")
+        .execute();
+      await db.schema
+        .alterTable("transactionReceipts")
+        .dropConstraint("transactionReceipts_pkey")
+        .execute();
+      await db.schema
+        .alterTable("traces")
+        .dropConstraint("traces_pkey")
+        .execute();
+
       await db.schema.alterTable("logs").dropColumn("checkpoint").execute();
       await db.schema.alterTable("logs").dropColumn("id").execute();
       await db.schema.alterTable("blocks").dropColumn("checkpoint").execute();
@@ -1665,6 +1667,7 @@ GROUP BY fragment_id, chain_id
       console.log(
         `${new Date().toISOString()} [ponder_sync migration] started 2025_02_26_0_factories`,
       );
+      await db.executeQuery(sql`SET statement_timeout = 3600000;`.compile(db));
 
       // drop any intervals that contain a factory address
       await db
@@ -1718,11 +1721,8 @@ GROUP BY fragment_id, chain_id
       console.log(
         `${new Date().toISOString()} [ponder_sync migration] started 2025_02_26_1_rpc_request_results`,
       );
+      await db.executeQuery(sql`SET statement_timeout = 3600000;`.compile(db));
 
-      await db.schema
-        .alterTable("rpc_request_results")
-        .dropConstraint("rpc_request_result_primary_key")
-        .execute();
       await db.schema
         .alterTable("rpc_request_results")
         .addColumn("request_hash_temp", "text")
@@ -1730,6 +1730,10 @@ GROUP BY fragment_id, chain_id
       await db
         .updateTable("rpc_request_results")
         .set({ request_hash_temp: sql`request_hash` })
+        .execute();
+      await db.schema
+        .alterTable("rpc_request_results")
+        .dropConstraint("rpc_request_result_primary_key")
         .execute();
       await db.schema
         .alterTable("rpc_request_results")
@@ -1788,91 +1792,3 @@ class StaticMigrationProvider implements MigrationProvider {
 }
 
 export const migrationProvider = new StaticMigrationProvider();
-
-export async function moveLegacyTables({
-  common,
-  db,
-  newSchemaName,
-}: {
-  common: Common;
-  db: Kysely<any>;
-  newSchemaName: string;
-}) {
-  // If the database has ponder migration tables present in the public schema,
-  // move them to the new schema.
-  let hasLegacyMigrations = false;
-  try {
-    const { rows } = await db.executeQuery<{ name: string }>(
-      sql`SELECT * FROM public.kysely_migration LIMIT 1`.compile(db),
-    );
-    if (rows[0]?.name === "2023_05_15_0_initial") hasLegacyMigrations = true;
-  } catch (e) {
-    const error = e as Error;
-    if (!error.message.includes("does not exist")) throw error;
-  }
-
-  if (!hasLegacyMigrations) return;
-
-  common.logger.warn({
-    service: "database",
-    msg: "Detected legacy sync migrations. Moving tables from 'public' schema to 'ponder_sync'.",
-  });
-
-  async function moveOrDeleteTable(tableName: string) {
-    try {
-      await db.schema
-        .alterTable(`public.${tableName}`)
-        .setSchema(newSchemaName)
-        .execute();
-    } catch (e) {
-      const error = e as Error;
-      switch (error.message) {
-        case `relation "${tableName}" already exists in schema "${newSchemaName}"`: {
-          await db.schema
-            .dropTable(`public.${tableName}`)
-            .execute()
-            // Ignore errors if this fails.
-            .catch(() => {});
-          break;
-        }
-        case `relation "public.${tableName}" does not exist`: {
-          break;
-        }
-        default: {
-          common.logger.warn({
-            service: "database",
-            msg: `Failed to migrate table "${tableName}" to "ponder_sync" schema: ${error.message}`,
-          });
-        }
-      }
-    }
-
-    common.logger.warn({
-      service: "database",
-      msg: `Successfully moved 'public.${tableName}' table to 'ponder_sync' schema.`,
-    });
-  }
-
-  const tableNames = [
-    "kysely_migration",
-    "kysely_migration_lock",
-    "blocks",
-    "logs",
-    "transactions",
-    "rpcRequestResults",
-    // Note that logFilterIntervals has a constraint that uses logFilters,
-    // so the order here matters. Same story with factoryLogFilterIntervals.
-    "logFilterIntervals",
-    "logFilters",
-    "factoryLogFilterIntervals",
-    "factories",
-    // Old ones that are no longer being used, but should still be moved
-    // so that older migrations work as expected.
-    "contractReadResults",
-    "logFilterCachedRanges",
-  ];
-
-  for (const tableName of tableNames) {
-    await moveOrDeleteTable(tableName);
-  }
-}

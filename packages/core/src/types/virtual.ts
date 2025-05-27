@@ -6,7 +6,7 @@ import type {
   SafeEventNames,
   SafeFunctionNames,
 } from "@/config/utilityTypes.js";
-import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
+import type { ReadonlyClient } from "@/indexing/client.js";
 import type { Schema } from "@/internal/types.js";
 import type {
   Block,
@@ -158,7 +158,7 @@ export namespace Virtual {
 
   type ContextContractProperty = Exclude<
     keyof Config["contracts"][string],
-    "abi" | "network" | "filter" | "factory"
+    "abi" | "chain" | "filter" | "factory"
   >;
 
   type ExtractOverridenProperty<
@@ -167,7 +167,7 @@ export namespace Virtual {
     ///
     base = Extract<contract, { [p in property]: unknown }>[property],
     override = Extract<
-      contract["network"][keyof contract["network"]],
+      contract["chain"][keyof contract["chain"]],
       { [p in property]: unknown }
     >[property],
   > = ([base] extends [never] ? undefined : base) | override;
@@ -178,14 +178,14 @@ export namespace Virtual {
     name extends EventNames<config>,
     ///
     sourceName extends ExtractSourceName<name> = ExtractSourceName<name>,
-    sourceNetwork = sourceName extends sourceName
+    sourceChain = sourceName extends sourceName
       ?
-          | (unknown extends config["contracts"][sourceName]["network"]
+          | (unknown extends config["contracts"][sourceName]["chain"]
               ? never
-              : config["contracts"][sourceName]["network"])
-          | (unknown extends config["blocks"][sourceName]["network"]
+              : config["contracts"][sourceName]["chain"])
+          | (unknown extends config["blocks"][sourceName]["chain"]
               ? never
-              : config["blocks"][sourceName]["network"])
+              : config["blocks"][sourceName]["chain"])
       : never,
   > = {
     contracts: {
@@ -205,21 +205,20 @@ export namespace Virtual {
         >;
       };
     };
-    network: sourceNetwork extends string
-      ? // 1. No network overriding
+    chain: sourceChain extends string
+      ? // 1. No chain overriding
         {
-          name: sourceNetwork;
-          chainId: config["networks"][sourceNetwork]["chainId"];
+          name: sourceChain;
+          id: config["chains"][sourceChain]["id"];
         }
-      : // 2. Network overrides
+      : // 2. Chain overrides
         {
-          [key in keyof sourceNetwork]: {
+          [key in keyof sourceChain]: {
             name: key;
-            chainId: config["networks"][key &
-              keyof config["networks"]]["chainId"];
+            id: config["chains"][key & keyof config["chains"]]["id"];
           };
-        }[keyof sourceNetwork];
-    client: Prettify<ReadOnlyClient>;
+        }[keyof sourceChain];
+    client: Prettify<ReadonlyClient>;
     db: Db<schema>;
   };
 

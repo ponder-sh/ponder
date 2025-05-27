@@ -26,22 +26,28 @@ export const validateQuery = async (
   const Parser = await import(/* webpackIgnore: true */ "pg-query-emscripten");
   const crypto = await import(/* webpackIgnore: true */ "node:crypto");
 
+  if (sql.length > 5_000) {
+    throw new Error("Invalid query");
+  }
+
   const hash = crypto
     .createHash("sha256")
     .update(sql)
     .digest("hex")
     .slice(0, 10);
 
-  if (ALLOW_CACHE.has(hash)) {
-    const result = ALLOW_CACHE.get(hash)!;
+  if (shouldValidateInnerNode) {
+    if (ALLOW_CACHE.has(hash)) {
+      const result = ALLOW_CACHE.get(hash)!;
 
-    ALLOW_CACHE.delete(hash);
-    ALLOW_CACHE.set(hash, result);
+      ALLOW_CACHE.delete(hash);
+      ALLOW_CACHE.set(hash, result);
 
-    if (result) return;
-    throw new Error("Invalid query");
-  } else {
-    ALLOW_CACHE.set(hash, false);
+      if (result) return;
+      throw new Error("Invalid query");
+    } else {
+      ALLOW_CACHE.set(hash, false);
+    }
   }
 
   const { parse } = await Parser.default();
@@ -88,10 +94,12 @@ export const validateQuery = async (
 
   validate(stmt.stmt);
 
-  ALLOW_CACHE.set(hash, true);
-  if (ALLOW_CACHE.size > 1_000_000) {
-    const firstKey = ALLOW_CACHE.keys().next().value;
-    if (firstKey) ALLOW_CACHE.delete(firstKey);
+  if (shouldValidateInnerNode) {
+    ALLOW_CACHE.set(hash, true);
+    if (ALLOW_CACHE.size > 1_000_000) {
+      const firstKey = ALLOW_CACHE.keys().next().value;
+      if (firstKey) ALLOW_CACHE.delete(firstKey);
+    }
   }
 };
 
@@ -535,6 +543,7 @@ const ALLOWED_FUNCTIONS = new Set([
   "json_array",
   "json_object_agg",
   "json_array_agg",
+  "json_build_array",
 ]);
 
 const FUNC_CALL_VALIDATOR: ValidatorNode<"FuncCall"> = {

@@ -1,5 +1,29 @@
 # @ponder/utils
 
+## 0.2.7
+
+### Patch Changes
+
+- [#1749](https://github.com/ponder-sh/ponder/pull/1749) [`5507be933867f74b16db6e842897b6545f2e7567`](https://github.com/ponder-sh/ponder/commit/5507be933867f74b16db6e842897b6545f2e7567) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for merkle.io.
+
+## 0.2.6
+
+### Patch Changes
+
+- [#1714](https://github.com/ponder-sh/ponder/pull/1714) [`27886fef0788e7ee1c25221087ecd6af05ea6197`](https://github.com/ponder-sh/ponder/commit/27886fef0788e7ee1c25221087ecd6af05ea6197) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated eth_getLogs retry helper to support somnia chain.
+
+## 0.2.5
+
+### Patch Changes
+
+- [#1710](https://github.com/ponder-sh/ponder/pull/1710) [`e9b0fb99772baff7d3008a9dd1c8383e6182df59`](https://github.com/ponder-sh/ponder/commit/e9b0fb99772baff7d3008a9dd1c8383e6182df59) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated eth_getLogs retry helper to support swell chain.
+
+## 0.2.4
+
+### Patch Changes
+
+- [#1709](https://github.com/ponder-sh/ponder/pull/1709) [`4157106917d81df2809616a19297c7e80a70f1f5`](https://github.com/ponder-sh/ponder/commit/4157106917d81df2809616a19297c7e80a70f1f5) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed eth_getLogs error handling for thirdweb that was causing the error: `Log response size exceeded. Maximum allowed number of requested blocks is 1000`.
+
 ## 0.2.3
 
 ### Patch Changes
@@ -42,7 +66,7 @@
 
 ### Patch Changes
 
-- [`4ef2d6212e59b4c4ba0723e78a1c204db3d94542`](https://github.com/ponder-sh/ponder/commit/4ef2d6212e59b4c4ba0723e78a1c204db3d94542) Thanks [@0xOlias](https://github.com/0xOlias)! - Added `replaceBigInts` utility function to `@ponder/utils` (re-exported from `@ponder/core`). [Read more](https://ponder.sh/docs/utilities/replace-bigints).
+- [`4ef2d6212e59b4c4ba0723e78a1c204db3d94542`](https://github.com/ponder-sh/ponder/commit/4ef2d6212e59b4c4ba0723e78a1c204db3d94542) Thanks [@0xOlias](https://github.com/0xOlias)! - Added `replaceBigInts` utility function to `@ponder/utils` (re-exported from `@ponder/core`). [Read more](https://ponder.sh/docs/api-reference/ponder-utils#replacebigints).
 
 ## 0.1.5
 

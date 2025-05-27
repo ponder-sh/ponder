@@ -1,5 +1,183 @@
 # ponder
 
+## 0.11.6
+
+### Patch Changes
+
+- [#1763](https://github.com/ponder-sh/ponder/pull/1763) [`16736b2`](https://github.com/ponder-sh/ponder/commit/16736b2ce30498f3bea9abdcbab66b6216cc3925) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an event ordering bug for deep reorg retries.
+
+- [#1774](https://github.com/ponder-sh/ponder/pull/1774) [`a069bd8`](https://github.com/ponder-sh/ponder/commit/a069bd8d984a8958df81c6d0249423d91483fda0) Thanks [@scottrepreneur](https://github.com/scottrepreneur)! - Fixed broken docs links.
+
+## 0.11.5
+
+### Patch Changes
+
+- [#1767](https://github.com/ponder-sh/ponder/pull/1767) [`6b78535`](https://github.com/ponder-sh/ponder/commit/6b785356df1d38b1a94e580966fd78b625fe3929) Thanks [@kyscott18](https://github.com/kyscott18)! - Added "debug\_" rpc method support to the `context.client` cache.
+
+## 0.11.4
+
+### Patch Changes
+
+- [#1765](https://github.com/ponder-sh/ponder/pull/1765) [`a039e7be46c80a4a5ecad927b6c808a94e56b1d8`](https://github.com/ponder-sh/ponder/commit/a039e7be46c80a4a5ecad927b6c808a94e56b1d8) Thanks [@kyscott18](https://github.com/kyscott18)! - Exported more types to fix error in `ponder.schema.ts`: `error TS2742: The inferred type of '[table]' cannot be named without a reference`.
+
+## 0.11.3
+
+### Patch Changes
+
+- [#1755](https://github.com/ponder-sh/ponder/pull/1755) [`5cb9130cc62870e440ce393b49b749c1ae838e54`](https://github.com/ponder-sh/ponder/commit/5cb9130cc62870e440ce393b49b749c1ae838e54) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug causing views with enums to error with `error: cannot change data type of view column`.
+
+## 0.11.2
+
+### Patch Changes
+
+- [#1751](https://github.com/ponder-sh/ponder/pull/1751) [`5c0283884e860fd6b016c6ff8b5c39d7249ef48b`](https://github.com/ponder-sh/ponder/commit/5c0283884e860fd6b016c6ff8b5c39d7249ef48b) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in `v0.10.25` that caused one -> many relations to break in graphql.
+
+## 0.11.1
+
+### Patch Changes
+
+- Updated dependencies [[`5507be933867f74b16db6e842897b6545f2e7567`](https://github.com/ponder-sh/ponder/commit/5507be933867f74b16db6e842897b6545f2e7567)]:
+  - @ponder/utils@0.2.7
+
+## 0.11.0
+
+### Minor Changes
+
+- [#1736](https://github.com/ponder-sh/ponder/pull/1736) [`8c012a3168af5a6f28d166279082a9fc0a672d8e`](https://github.com/ponder-sh/ponder/commit/8c012a3168af5a6f28d166279082a9fc0a672d8e) Thanks [@kyscott18](https://github.com/kyscott18)! - Released `0.11`. Visit the [migration guide](https://ponder.sh/docs/migration-guide#011) for details.
+
+## 0.10.27
+
+### Patch Changes
+
+- [#1737](https://github.com/ponder-sh/ponder/pull/1737) [`7db4e4b848db4cd5f09dff6a24ec9a5b6a978b29`](https://github.com/ponder-sh/ponder/commit/7db4e4b848db4cd5f09dff6a24ec9a5b6a978b29) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug causing duplicate events after the warning "Encountered unrecoverable '[chain]' reorg".
+
+## 0.10.26
+
+### Patch Changes
+
+- [#1721](https://github.com/ponder-sh/ponder/pull/1721) [`149872c4b4d1b62e0f0caf441db305761d1ba171`](https://github.com/ponder-sh/ponder/commit/149872c4b4d1b62e0f0caf441db305761d1ba171) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved log for lagging networks.
+
+## 0.10.25
+
+### Patch Changes
+
+- [#1725](https://github.com/ponder-sh/ponder/pull/1725) [`f8cb9634a67bd75098f86fc57585c400b8dd70e8`](https://github.com/ponder-sh/ponder/commit/f8cb9634a67bd75098f86fc57585c400b8dd70e8) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed graphql resolver for `many` relations.
+
+## 0.10.24
+
+### Patch Changes
+
+- [#1719](https://github.com/ponder-sh/ponder/pull/1719) [`69ce57fb1987a6bc5e960feae38ebcc81064964e`](https://github.com/ponder-sh/ponder/commit/69ce57fb1987a6bc5e960feae38ebcc81064964e) Thanks [@kyscott18](https://github.com/kyscott18)! - Added more rpc response validation. Fixed inconsistent logs and transactions for some degraded rpc providers leading `event.transaction` being undefined.
+
+## 0.10.23
+
+### Patch Changes
+
+- [#1716](https://github.com/ponder-sh/ponder/pull/1716) [`610388dbd11dbf472a2727fe30ada71ec43f0a3e`](https://github.com/ponder-sh/ponder/commit/610388dbd11dbf472a2727fe30ada71ec43f0a3e) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug causing events from sources with factories to be missed.
+
+  Any users that were affected by this bug can removed corrupted `ponder_sync` rows with the query:
+
+  ```sql
+  DELETE FROM ponder_sync.intervals WHERE fragment_id like '%offset%' OR fragment_id like '%topic%';
+  ```
+
+- [#1717](https://github.com/ponder-sh/ponder/pull/1717) [`abb8f9d710360d23ef79269709f006aa2572ce4f`](https://github.com/ponder-sh/ponder/commit/abb8f9d710360d23ef79269709f006aa2572ce4f) Thanks [@typedarray](https://github.com/typedarray)! - Fixed an issue where the historical sync would sometimes fail with the error "RangeError: Invalid array length" when indexing very large factory contracts.
+
+- [#1712](https://github.com/ponder-sh/ponder/pull/1712) [`4670b7eb5ed10b2ca51aca0ea0b7fcb0e2eeaac4`](https://github.com/ponder-sh/ponder/commit/4670b7eb5ed10b2ca51aca0ea0b7fcb0e2eeaac4) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue where the `0.10` database migration to `ponder_sync` failed on databases where logical replication was enabled.
+
+## 0.10.22
+
+### Patch Changes
+
+- Updated dependencies [[`27886fef0788e7ee1c25221087ecd6af05ea6197`](https://github.com/ponder-sh/ponder/commit/27886fef0788e7ee1c25221087ecd6af05ea6197)]:
+  - @ponder/utils@0.2.6
+
+## 0.10.21
+
+### Patch Changes
+
+- Updated dependencies [[`e9b0fb99772baff7d3008a9dd1c8383e6182df59`](https://github.com/ponder-sh/ponder/commit/e9b0fb99772baff7d3008a9dd1c8383e6182df59)]:
+  - @ponder/utils@0.2.5
+
+## 0.10.20
+
+### Patch Changes
+
+- [#1701](https://github.com/ponder-sh/ponder/pull/1701) [`1f547d61d8821e10ae7f22cbd2b60d86ba4a727a`](https://github.com/ponder-sh/ponder/commit/1f547d61d8821e10ae7f22cbd2b60d86ba4a727a) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Fixed "Invalid Query" error when using `@ponder/client` queries using `findMany` or `findFirst` that include the `with` option (relational queries).
+
+- Updated dependencies [[`4157106917d81df2809616a19297c7e80a70f1f5`](https://github.com/ponder-sh/ponder/commit/4157106917d81df2809616a19297c7e80a70f1f5)]:
+  - @ponder/utils@0.2.4
+
+## 0.10.19
+
+### Patch Changes
+
+- [#1702](https://github.com/ponder-sh/ponder/pull/1702) [`da5c3052f40799cd234f4917f62e032a0354d759`](https://github.com/ponder-sh/ponder/commit/da5c3052f40799cd234f4917f62e032a0354d759) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with reorg handling that would sometimes cause a duplicate event after the log `Error: Encountered unrecoverable 'arbitrum' reorg beyond finalized block 330098801`.
+
+## 0.10.18
+
+### Patch Changes
+
+- [#1685](https://github.com/ponder-sh/ponder/pull/1685) [`cb23aab8ff5337c98bdaeaad954319012c1a72fd`](https://github.com/ponder-sh/ponder/commit/cb23aab8ff5337c98bdaeaad954319012c1a72fd) Thanks [@typedarray](https://github.com/typedarray)! - Fixed `Cannot convert undefined to a BigInt` error by allowing `block.size` to be `undefined`. Fixes indexing on some chains including Somnia network.
+
+- [#1688](https://github.com/ponder-sh/ponder/pull/1688) [`26c818c337f6300eb5a186c827d37766d6e5c766`](https://github.com/ponder-sh/ponder/commit/26c818c337f6300eb5a186c827d37766d6e5c766) Thanks [@typedarray](https://github.com/typedarray)! - Increased statement timeout for `CREATE INDEX` statements from 2 minutes to 60 minutes.
+
+## 0.10.17
+
+### Patch Changes
+
+- [#1680](https://github.com/ponder-sh/ponder/pull/1680) [`c1b6a4de54d33cb229f2248b7b41e37cbf57d449`](https://github.com/ponder-sh/ponder/commit/c1b6a4de54d33cb229f2248b7b41e37cbf57d449) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved import rules between config, schema, indexing functions, and api function files.
+
+- [#1684](https://github.com/ponder-sh/ponder/pull/1684) [`92e1358cbf8817aea425a8c5e683ddfb1a9bc02d`](https://github.com/ponder-sh/ponder/commit/92e1358cbf8817aea425a8c5e683ddfb1a9bc02d) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug affecting logs and traces with no args that would cause the error `TypeError: Cannot convert undefined or null to object`.
+
+## 0.10.16
+
+### Patch Changes
+
+- [`6b8cc2d5bdcbc0c7f2fe048cac4353eed79f180a`](https://github.com/ponder-sh/ponder/commit/6b8cc2d5bdcbc0c7f2fe048cac4353eed79f180a) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved realtime sync robustness against unrecoverable reorgs.
+
+## 0.10.15
+
+### Patch Changes
+
+- [#1628](https://github.com/ponder-sh/ponder/pull/1628) [`4bc64795ebf265cc75f7ba816fe96920fab4e7a1`](https://github.com/ponder-sh/ponder/commit/4bc64795ebf265cc75f7ba816fe96920fab4e7a1) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `ponder_indexing_rpc_action_duration`, `ponder_indexing_rpc_prefetch_total`, and `ponder_indexing_rpc_requests_total` metrics.
+
+- [#1676](https://github.com/ponder-sh/ponder/pull/1676) [`cfdf1423bc64829bfadbc6fa12e631a1047a03a7`](https://github.com/ponder-sh/ponder/commit/cfdf1423bc64829bfadbc6fa12e631a1047a03a7) Thanks [@kyscott18](https://github.com/kyscott18)! - Improve sql query validation.
+
+- [#1628](https://github.com/ponder-sh/ponder/pull/1628) [`4bc64795ebf265cc75f7ba816fe96920fab4e7a1`](https://github.com/ponder-sh/ponder/commit/4bc64795ebf265cc75f7ba816fe96920fab4e7a1) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved `context.client.readContract()` and `context.client.multicall()` performance.
+
+- [#1675](https://github.com/ponder-sh/ponder/pull/1675) [`e921162a2b16bc0415a80d381ce9df0bf13ac016`](https://github.com/ponder-sh/ponder/commit/e921162a2b16bc0415a80d381ce9df0bf13ac016) Thanks [@kyscott18](https://github.com/kyscott18)! - Improve rpc request performance by skipping retries for reverted requests.
+
+## 0.10.14
+
+### Patch Changes
+
+- [#1672](https://github.com/ponder-sh/ponder/pull/1672) [`7abdc96849ccbd4d72be731616d464cddfd03079`](https://github.com/ponder-sh/ponder/commit/7abdc96849ccbd4d72be731616d464cddfd03079) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with `insert().onConflictDoNothing()` that would cause an error "Cannot read properties of undefined".
+
+## 0.10.13
+
+### Patch Changes
+
+- [#1663](https://github.com/ponder-sh/ponder/pull/1663) [`c6c603fa7f0c07ddc307dfb199dd2ee92f36bb0e`](https://github.com/ponder-sh/ponder/commit/c6c603fa7f0c07ddc307dfb199dd2ee92f36bb0e) Thanks [@kyscott18](https://github.com/kyscott18)! - Increased `idle_in_transaction_session_timeout` to 1 hour.
+
+## 0.10.12
+
+### Patch Changes
+
+- [#1658](https://github.com/ponder-sh/ponder/pull/1658) [`7e4fe861fb4a6788d7d272da2434409d1979ac51`](https://github.com/ponder-sh/ponder/commit/7e4fe861fb4a6788d7d272da2434409d1979ac51) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that would cause errors similar to `error: invalid input syntax for type numeric: "{"1"}"`.
+
+## 0.10.11
+
+### Patch Changes
+
+- [#1653](https://github.com/ponder-sh/ponder/pull/1653) [`4447771a45dc81887586845801becf83cfdb6387`](https://github.com/ponder-sh/ponder/commit/4447771a45dc81887586845801becf83cfdb6387) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated drizzle-orm from v0.39.3 to v0.41.0.
+
+## 0.10.10
+
+### Patch Changes
+
+- [#1654](https://github.com/ponder-sh/ponder/pull/1654) [`3dde8fdbf40a14ae04f491943062122cb2dea107`](https://github.com/ponder-sh/ponder/commit/3dde8fdbf40a14ae04f491943062122cb2dea107) Thanks [@kyscott18](https://github.com/kyscott18)! - Increased statement timeout for ponder_sync migrations to 60 minutes.
+
 ## 0.10.9
 
 ### Patch Changes
