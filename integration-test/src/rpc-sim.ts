@@ -38,6 +38,10 @@ export const sim =
   ({ chain }) => {
     const requestCount = new Map<string, number>();
 
+    if (chain === undefined) {
+      throw new Error("`chain` undefined");
+    }
+
     const _request = transport({ chain }).request;
     const db = connectionString
       ? drizzle(connectionString, {

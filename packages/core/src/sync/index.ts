@@ -722,11 +722,20 @@ export const createSync = async (params: {
 
           // Move events from executed to pending
 
-          let reorgedEvents: Event[];
-          [executedEvents, reorgedEvents] = partition(
-            executedEvents,
-            (e) => e.checkpoint < checkpoint,
+          const reorgedEventsIndex = executedEvents.findIndex(
+            (e) =>
+              e.chainId === chain.id &&
+              e.event.block.number > hexToBigInt(event.block.number),
           );
+
+          let reorgedEvents: Event[];
+          if (reorgedEventsIndex === -1) {
+            reorgedEvents = [];
+          } else {
+            reorgedEvents = executedEvents.slice(reorgedEventsIndex);
+            executedEvents = executedEvents.slice(0, reorgedEventsIndex);
+          }
+
           pendingEvents = pendingEvents.concat(reorgedEvents);
 
           params.common.logger.debug({
@@ -742,11 +751,20 @@ export const createSync = async (params: {
 
           // Move events from executed to pending
 
-          let reorgedEvents: Event[];
-          [executedEvents, reorgedEvents] = partition(
-            executedEvents,
-            (e) => e.checkpoint < to,
+          const reorgedEventsIndex = executedEvents.findIndex(
+            (e) =>
+              e.chainId === chain.id &&
+              e.event.block.number > hexToBigInt(event.block.number),
           );
+
+          let reorgedEvents: Event[];
+          if (reorgedEventsIndex === -1) {
+            reorgedEvents = [];
+          } else {
+            reorgedEvents = executedEvents.slice(reorgedEventsIndex);
+            executedEvents = executedEvents.slice(0, reorgedEventsIndex);
+          }
+
           pendingEvents = pendingEvents.concat(reorgedEvents);
 
           params.common.logger.debug({
@@ -1275,7 +1293,7 @@ export async function* getLocalEventGenerator(params: {
       }
     }
 
-    while (cursor < Math.min(syncCursor, toBlock)) {
+    while (cursor <= Math.min(syncCursor, toBlock)) {
       const { blockData, cursor: queryCursor } =
         await params.syncStore.getEventBlockData({
           filters: params.sources.map(({ filter }) => filter),

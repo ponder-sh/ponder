@@ -36,7 +36,7 @@ jobs:
            for i in $(seq 1 4); do
             SEED=$(openssl rand -hex 32)
             UUID=$(uuidgen)
-            bun run src/index.ts ${{ matrix.app_id }}
+            pnpm test ${{ matrix.app_id }} -- --log-level error
           done
         env:
           DATABASE_URL: ${{ secrets.TEST_CONNECTION_STRING }}

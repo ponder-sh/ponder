@@ -1092,7 +1092,8 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).trigg
               sql.raw(`
 WITH operations AS (
   SELECT MIN(operation_id) as min_operation FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE checkpoint > '${checkpoint}'
+  WHERE SUBSTRING(checkpoint, 27, 16)::numeric > ${String(decodeCheckpoint(checkpoint).blockNumber)}
+  AND SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
 ), reverted1 AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE operation_id >= (SELECT min_operation FROM operations) RETURNING *
