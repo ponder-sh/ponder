@@ -130,13 +130,16 @@ export const sim =
               result = block.body;
             } else {
               result = await _request(body);
-              await db.insert(RPC_SCHEMA.blocks).values({
-                chainId: chain!.id,
-                number: hexToNumber(body.params[0]),
-                // @ts-expect-error
-                hash: result.hash,
-                body: result,
-              });
+              await db
+                .insert(RPC_SCHEMA.blocks)
+                .values({
+                  chainId: chain!.id,
+                  number: hexToNumber(body.params[0]),
+                  // @ts-expect-error
+                  hash: result.hash,
+                  body: result,
+                })
+                .onConflictDoNothing();
             }
 
             break;
@@ -157,13 +160,16 @@ export const sim =
               result = block.body;
             } else {
               result = await _request(body);
-              await db.insert(RPC_SCHEMA.blocks).values({
-                chainId: chain!.id,
-                // @ts-expect-error
-                number: hexToNumber(result.number),
-                hash: body.params[0],
-                body: result,
-              });
+              await db
+                .insert(RPC_SCHEMA.blocks)
+                .values({
+                  chainId: chain!.id,
+                  // @ts-expect-error
+                  number: hexToNumber(result.number),
+                  hash: body.params[0],
+                  body: result,
+                })
+                .onConflictDoNothing();
             }
 
             break;
@@ -202,11 +208,14 @@ export const sim =
                   });
                   // @ts-expect-error
                   logs.push(...rpcLogs);
-                  await db.insert(RPC_SCHEMA.logs).values({
-                    chainId: chain!.id,
-                    blockNumber: block,
-                    body: rpcLogs,
-                  });
+                  await db
+                    .insert(RPC_SCHEMA.logs)
+                    .values({
+                      chainId: chain!.id,
+                      blockNumber: block,
+                      body: rpcLogs,
+                    })
+                    .onConflictDoNothing();
                 }
               }
             } else if ("blockHash" in body.params[0]) {
@@ -246,11 +255,14 @@ export const sim =
                 const rpcLogs = await _request(body);
                 // @ts-expect-error
                 logs.push(...rpcLogs);
-                await db.insert(RPC_SCHEMA.logs).values({
-                  chainId: chain!.id,
-                  blockNumber: number,
-                  body: rpcLogs,
-                });
+                await db
+                  .insert(RPC_SCHEMA.logs)
+                  .values({
+                    chainId: chain!.id,
+                    blockNumber: number,
+                    body: rpcLogs,
+                  })
+                  .onConflictDoNothing();
               }
             } else {
               throw new Error("Invariant broken. Invalid eth_getLogs request.");
@@ -315,11 +327,14 @@ export const sim =
               // @ts-ignore
               result.logs = undefined;
 
-              await db.insert(RPC_SCHEMA.transactionReceipts).values({
-                chainId: chain!.id,
-                transactionHash: body.params[0],
-                body: result,
-              });
+              await db
+                .insert(RPC_SCHEMA.transactionReceipts)
+                .values({
+                  chainId: chain!.id,
+                  transactionHash: body.params[0],
+                  body: result,
+                })
+                .onConflictDoNothing();
             }
 
             break;
@@ -346,11 +361,14 @@ export const sim =
                 receipt.logs = undefined;
               }
 
-              await db.insert(RPC_SCHEMA.blockReceipts).values({
-                chainId: chain!.id,
-                blockHash: body.params[0],
-                body: result,
-              });
+              await db
+                .insert(RPC_SCHEMA.blockReceipts)
+                .values({
+                  chainId: chain!.id,
+                  blockHash: body.params[0],
+                  body: result,
+                })
+                .onConflictDoNothing();
             }
 
             break;
@@ -371,11 +389,14 @@ export const sim =
               result = traces.body;
             } else {
               result = await _request(body);
-              await db.insert(RPC_SCHEMA.traces).values({
-                chainId: chain!.id,
-                number: hexToNumber(body.params[0]),
-                body: JSON.stringify(result).replace(/\0/g, ""),
-              });
+              await db
+                .insert(RPC_SCHEMA.traces)
+                .values({
+                  chainId: chain!.id,
+                  number: hexToNumber(body.params[0]),
+                  body: JSON.stringify(result).replace(/\0/g, ""),
+                })
+                .onConflictDoNothing();
             }
 
             break;
@@ -415,11 +436,14 @@ export const sim =
               result = traces.body;
             } else {
               result = await _request(body);
-              await db.insert(RPC_SCHEMA.traces).values({
-                chainId: chain!.id,
-                number,
-                body: JSON.stringify(result).replace(/\0/g, ""),
-              });
+              await db
+                .insert(RPC_SCHEMA.traces)
+                .values({
+                  chainId: chain!.id,
+                  number,
+                  body: JSON.stringify(result).replace(/\0/g, ""),
+                })
+                .onConflictDoNothing();
             }
 
             break;
@@ -495,13 +519,16 @@ export const realtimeBlockEngine = async (
       });
 
       if (db) {
-        await db.insert(RPC_SCHEMA.blocks).values({
-          chainId,
-          number: blockNumber,
-          // @ts-expect-error
-          hash: result.hash,
-          body: result,
-        });
+        await db
+          .insert(RPC_SCHEMA.blocks)
+          .values({
+            chainId,
+            number: blockNumber,
+            // @ts-expect-error
+            hash: result.hash,
+            body: result,
+          })
+          .onConflictDoNothing();
       }
 
       return result as RpcBlock;
