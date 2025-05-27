@@ -353,9 +353,7 @@ test("executeSetup() context.client", async (context) => {
 
   const indexingFunctions = {
     "Erc20:setup": async ({ context }: { context: Context }) => {
-      await context.client.getBalance({
-        address: BOB,
-      });
+      await context.client.getBalance({ address: BOB });
     },
   };
 
@@ -388,7 +386,7 @@ test("executeSetup() context.client", async (context) => {
   expect(getBalanceSpy).toHaveBeenCalledOnce();
   expect(getBalanceSpy).toHaveBeenCalledWith({
     method: "eth_getBalance",
-    params: ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "latest"],
+    params: ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "0x0"],
   });
 });
 
