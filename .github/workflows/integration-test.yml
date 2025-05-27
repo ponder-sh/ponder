@@ -9,6 +9,7 @@ jobs:
   integration-test:
     name: Integration Test
     # runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
