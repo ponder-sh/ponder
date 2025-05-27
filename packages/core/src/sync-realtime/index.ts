@@ -255,7 +255,7 @@ export const createRealtimeSync = (
    */
   const fetchBlockEventData = async (
     block: SyncBlock,
-  ): Promise<Omit<BlockWithEventData, "callback">> => {
+  ): Promise<BlockWithEventData> => {
     ////////
     // Logs
     ////////
