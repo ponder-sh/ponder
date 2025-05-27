@@ -267,6 +267,53 @@ test("isTransactionFilterMatched()", async (context) => {
   expect(isMatched).toBe(false);
 });
 
+test("isTransactionFilterMatched() with null transaction.to", async (context) => {
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  await transferEth({
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { config, rawIndexingFunctions } =
+    getAccountsConfigAndIndexingFunctions({
+      address: ALICE,
+    });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
+    config,
+    rawIndexingFunctions,
+  });
+
+  // transaction:to
+  const filter = sources[1]!.filter as TransactionFilter<undefined, undefined>;
+  filter.toAddress = BOB.toLowerCase() as Address;
+
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
+    blockNumber: 1,
+  });
+
+  let isMatched = isTransactionFilterMatched({
+    filter,
+    transaction: rpcBlock.transactions[0]!,
+  });
+  expect(isMatched).toBe(true);
+
+  rpcBlock.transactions[0]!.to = null;
+
+  isMatched = isTransactionFilterMatched({
+    filter,
+    transaction: rpcBlock.transactions[0]!,
+  });
+  expect(isMatched).toBe(false);
+});
+
 test("isTransferFilterMatched()", async (context) => {
   const chain = getChain();
   const requestQueue = createRpc({
