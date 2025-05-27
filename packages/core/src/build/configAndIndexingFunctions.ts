@@ -330,11 +330,11 @@ export async function buildConfigAndIndexingFunctions({
       !Array.isArray(source.address)
     ) {
       const factoryStartBlock =
-        (await resolveBlockNumber(source.address.startBlock, network)) ??
+        (await resolveBlockNumber(source.address.startBlock, chain)) ??
         startBlock;
 
       const factoryEndBlock =
-        (await resolveBlockNumber(source.address.startBlock, network)) ??
+        (await resolveBlockNumber(source.address.startBlock, chain)) ??
         endBlock;
 
       if (
@@ -519,11 +519,11 @@ export async function buildConfigAndIndexingFunctions({
             !Array.isArray(resolvedAddress)
           ) {
             const factoryFromBlock =
-              (await resolveBlockNumber(resolvedAddress.startBlock, network)) ??
+              (await resolveBlockNumber(resolvedAddress.startBlock, chain)) ??
               fromBlock;
 
             const factoryToBlock =
-              (await resolveBlockNumber(resolvedAddress.endBlock, network)) ??
+              (await resolveBlockNumber(resolvedAddress.endBlock, chain)) ??
               toBlock;
 
             // Note that this can throw.
@@ -703,11 +703,11 @@ export async function buildConfigAndIndexingFunctions({
             !Array.isArray(resolvedAddress)
           ) {
             const factoryFromBlock =
-              (await resolveBlockNumber(resolvedAddress.startBlock, network)) ??
+              (await resolveBlockNumber(resolvedAddress.startBlock, chain)) ??
               fromBlock;
 
             const factoryToBlock =
-              (await resolveBlockNumber(resolvedAddress.endBlock, network)) ??
+              (await resolveBlockNumber(resolvedAddress.endBlock, chain)) ??
               toBlock;
 
             // Note that this can throw.

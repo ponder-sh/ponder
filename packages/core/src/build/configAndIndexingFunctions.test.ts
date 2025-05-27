@@ -736,14 +736,14 @@ test("buildConfigAndIndexingFunctions() block source", async (context) => {
   expect(sources[0]?.filter.toBlock).toBe(16370020);
 });
 
-test("buildConfigAndIndexingFunctions() coerces undefined factory interval to source interval", async () => {
+test("buildConfigAndIndexingFunctions() coerces undefined factory interval to source interval", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpc: "http://127.0.0.1:8545" },
     },
     contracts: {
       a: {
-        network: { mainnet: {} },
+        chain: { mainnet: {} },
         address: factory({
           address: address2,
           event: eventFactory,
@@ -757,6 +757,7 @@ test("buildConfigAndIndexingFunctions() coerces undefined factory interval to so
   });
 
   const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
@@ -771,14 +772,14 @@ test("buildConfigAndIndexingFunctions() coerces undefined factory interval to so
   );
 });
 
-test("buildConfigAndIndexingFunctions() validates factory interval", async () => {
+test("buildConfigAndIndexingFunctions() validates factory interval", async (context) => {
   const config = createConfig({
-    networks: {
-      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    chains: {
+      mainnet: { id: 1, rpc: "http://127.0.0.1:8545" },
     },
     contracts: {
       a: {
-        network: { mainnet: {} },
+        chain: { mainnet: {} },
         address: factory({
           address: address2,
           event: eventFactory,
@@ -793,6 +794,7 @@ test("buildConfigAndIndexingFunctions() validates factory interval", async () =>
   });
 
   const result = await safeBuildConfigAndIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
