@@ -889,33 +889,33 @@ export const createRealtimeSync = (
         // New block is exactly one block ahead of the local chain.
         // Attempt to ingest it.
 
-        const blockWithEventDataAndFilters =
+        const blockWithFilteredEventData =
           filterBlockEventData(blockWithEventData);
 
         if (
-          blockWithEventDataAndFilters.logs.length > 0 ||
-          blockWithEventDataAndFilters.traces.length > 0 ||
-          blockWithEventDataAndFilters.transactions.length > 0
+          blockWithFilteredEventData.logs.length > 0 ||
+          blockWithFilteredEventData.traces.length > 0 ||
+          blockWithFilteredEventData.transactions.length > 0
         ) {
           const _text: string[] = [];
 
-          if (blockWithEventDataAndFilters.logs.length === 1) {
+          if (blockWithFilteredEventData.logs.length === 1) {
             _text.push("1 log");
-          } else if (blockWithEventDataAndFilters.logs.length > 1) {
-            _text.push(`${blockWithEventDataAndFilters.logs.length} logs`);
+          } else if (blockWithFilteredEventData.logs.length > 1) {
+            _text.push(`${blockWithFilteredEventData.logs.length} logs`);
           }
 
-          if (blockWithEventDataAndFilters.traces.length === 1) {
+          if (blockWithFilteredEventData.traces.length === 1) {
             _text.push("1 trace");
-          } else if (blockWithEventDataAndFilters.traces.length > 1) {
-            _text.push(`${blockWithEventDataAndFilters.traces.length} traces`);
+          } else if (blockWithFilteredEventData.traces.length > 1) {
+            _text.push(`${blockWithFilteredEventData.traces.length} traces`);
           }
 
-          if (blockWithEventDataAndFilters.transactions.length === 1) {
+          if (blockWithFilteredEventData.transactions.length === 1) {
             _text.push("1 transaction");
-          } else if (blockWithEventDataAndFilters.transactions.length > 1) {
+          } else if (blockWithFilteredEventData.transactions.length > 1) {
             _text.push(
-              `${blockWithEventDataAndFilters.transactions.length} transactions`,
+              `${blockWithFilteredEventData.transactions.length} transactions`,
             );
           }
 
@@ -935,20 +935,19 @@ export const createRealtimeSync = (
 
         // Make sure `transactions` can be garbage collected
         blockWithEventData.block.transactions =
-          blockWithEventDataAndFilters.block.transactions;
+          blockWithFilteredEventData.block.transactions;
 
         const promise = args
           .onEvent({
             type: "block",
             hasMatchedFilter:
-              blockWithEventDataAndFilters.matchedFilters.size > 0,
-            block: blockWithEventDataAndFilters.block,
-            logs: blockWithEventDataAndFilters.logs,
-            transactions: blockWithEventDataAndFilters.transactions,
-            transactionReceipts:
-              blockWithEventDataAndFilters.transactionReceipts,
-            traces: blockWithEventDataAndFilters.traces,
-            childAddresses: blockWithEventDataAndFilters.childAddresses,
+              blockWithFilteredEventData.matchedFilters.size > 0,
+            block: blockWithFilteredEventData.block,
+            logs: blockWithFilteredEventData.logs,
+            transactions: blockWithFilteredEventData.transactions,
+            transactionReceipts: blockWithFilteredEventData.transactionReceipts,
+            traces: blockWithFilteredEventData.traces,
+            childAddresses: blockWithFilteredEventData.childAddresses,
           })
           .then((result) => result?.promise);
 
