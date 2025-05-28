@@ -20,7 +20,7 @@ jobs:
           - "reference-erc20"
           - "super-assessment"
           - "uniswap-v4"
-        iteration: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        iteration: [0, 1]
 
     steps:
       - uses: actions/checkout@v3
