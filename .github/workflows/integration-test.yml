@@ -16,11 +16,11 @@ jobs:
         app_id:
           - "assessment"
           - "feature-multichain"
-          # - "project-uniswap-v3-flash"
+          - "project-uniswap-v3-flash"
           - "reference-erc20"
-          # - "super-assessment"
+          - "super-assessment"
           - "uniswap-v4"
-        iteration: [0, 1, 2, 3]
+        iteration: [0, 1]
 
     steps:
       - uses: actions/checkout@v3
@@ -51,5 +51,5 @@ jobs:
           PONDER_RPC_URL_84532: ${{ secrets.PONDER_RPC_URL_84532 }}
           PONDER_RPC_URL_11155111: ${{ secrets.PONDER_RPC_URL_11155111 }}
           PONDER_RPC_URL_11155420: ${{ secrets.PONDER_RPC_URL_11155420 }}
-          PGSSLMODE: require
-          PGDATABASE: neondb
+          PGDATABASE: postgres
+          PGSSLMODE: disable
