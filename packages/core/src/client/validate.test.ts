@@ -1,7 +1,28 @@
 import { eq, onchainTable, relations } from "@/index.js";
 import { createClient } from "@ponder/client";
 import { expect, test } from "vitest";
-import { validateQuery } from "./validate.js";
+import { findTableNames, validateQuery } from "./validate.js";
+
+test("findTableNames", async () => {
+  let tableNames = await findTableNames(
+    "SELECT col FROM users JOIN metadata ON users.id = metadata.id;",
+  );
+
+  expect(tableNames).toMatchInlineSnapshot(`
+    Set {
+      "users",
+      "metadata",
+    }
+  `);
+
+  tableNames = await findTableNames("UPDATE users SET col = $1;");
+
+  expect(tableNames).toMatchInlineSnapshot(`
+    Set {
+      "users",
+    }
+  `);
+});
 
 test("validateQuery()", async () => {
   await validateQuery("SELECT * FROM users;");
