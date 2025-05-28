@@ -314,6 +314,7 @@ export const createIndexingCache = ({
   const spillover: Map<Table, Set<string>> = new Map();
   /** Profiling data about access patterns for each event. */
   const profile: Profile = new Map();
+  const hasTempTable = new Set<Table>();
 
   const tables = Object.values(schema).filter(
     (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
@@ -617,8 +618,12 @@ export const createIndexingCache = ({
 
           const endClock = startClock();
 
-          // @ts-ignore
-          await client.query(createTempTableQuery);
+          if (hasTempTable.has(table) === false) {
+            // @ts-ignore
+            await client.query(createTempTableQuery);
+            hasTempTable.add(table);
+          }
+
           // @ts-ignore
           await client.query("SAVEPOINT flush");
 
@@ -709,6 +714,8 @@ export const createIndexingCache = ({
       }
     },
     async prefetch({ events, db }) {
+      hasTempTable.clear();
+
       if (isCacheComplete) {
         if (cacheBytes < common.options.indexingCacheMaxBytes) {
           return;
