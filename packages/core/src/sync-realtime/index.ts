@@ -50,10 +50,8 @@ export type RealtimeSync = {
    * Fetch block event data and reconcile it into the local chain.
    *
    * @param block The block to reconcile.
-   * @param callback Called once the block has been fully indexed.
    *
-   * @dev If the block was not accepted into the local chain,
-   * `callback` will not be called.
+   * @dev The promise resolves once the block has been fully indexed.
    *
    * @returns `true` if the block was accepted into the local chain,
    * `false` otherwise.
@@ -780,7 +778,7 @@ export const createRealtimeSync = (
       } else if (result.type === "rejected") {
         return false;
       } else {
-        return result.promise;
+        return result.promise.then((result) => result === "accepted");
       }
     } catch (_error) {
       onError(_error as Error);
@@ -802,17 +800,21 @@ export const createRealtimeSync = (
    *
    * @dev This mutex only runs one at a time, every block is
    * processed serially.
+   *
+   * @returns
+   * - `rejected` for case 1 and 2.
+   * - `pending` for case 3 with a promise that resolves once the block is
+   *   accepted or rejected.
+   * - `accepted` for case 4 with a promise that resolves once
+   *   the block has been fully indexed.
    */
   const reconcileBlock = mutex(
     async (
       blockWithEventData: BlockWithEventData,
     ): Promise<
-      | { type: "accepted"; promise: Promise<void> }
       | { type: "rejected" }
-      | {
-          type: "pending";
-          promise: Promise<boolean>;
-        }
+      | { type: "pending"; promise: Promise<"accepted" | "rejected"> }
+      | { type: "accepted"; promise: Promise<void> }
     > => {
       const latestBlock = getLatestUnfinalizedBlock();
       const block = blockWithEventData.block;
@@ -874,8 +876,8 @@ export const createRealtimeSync = (
             type: "pending",
             promise: reconcileBlock(blockWithEventData).then((result) =>
               result.type === "accepted"
-                ? result.promise.then(() => true)
-                : false,
+                ? result.promise.then(() => "accepted")
+                : "rejected",
             ),
           };
         }
