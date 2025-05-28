@@ -51,6 +51,5 @@ jobs:
           PONDER_RPC_URL_84532: ${{ secrets.PONDER_RPC_URL_84532 }}
           PONDER_RPC_URL_11155111: ${{ secrets.PONDER_RPC_URL_11155111 }}
           PONDER_RPC_URL_11155420: ${{ secrets.PONDER_RPC_URL_11155420 }}
-          PGDATABASE: postgres
           PGSSLMODE: require
           PGDATABASE: neondb
