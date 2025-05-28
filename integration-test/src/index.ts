@@ -1224,6 +1224,12 @@ const onBuild = async (app: PonderApp) => {
 
     // TODO(kyle) delete unfinalized data
 
+    // if (SIM_PARAMS.FINALIZED_RATE === 0) {
+    //   await appDb
+    //     .delete(PONDER_SYNC.intervals)
+    //     .where(eq(PONDER_SYNC.intervals.chainId, BigInt(chain.id)));
+    // }
+
     // replace rpc with simulated transport
 
     chain.rpc = sim(

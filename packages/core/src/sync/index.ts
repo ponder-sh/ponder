@@ -675,6 +675,7 @@ export const createSync = async (params: {
 
         // Remove all finalized data
 
+        // TODO(kyle) think
         executedEvents = executedEvents.filter((e) => e.checkpoint > to);
 
         // Raise event to parent function (runtime)
@@ -689,24 +690,6 @@ export const createSync = async (params: {
         // Remove all reorged data
 
         let reorgedEvents = 0;
-
-        const isReorgedEvent = ({ chainId, event: { block } }: Event) => {
-          if (
-            chainId === chain.id &&
-            Number(block.number) > hexToNumber(event.block.number)
-          ) {
-            reorgedEvents++;
-            return true;
-          }
-          return false;
-        };
-
-        pendingEvents = pendingEvents.filter(
-          (e) => isReorgedEvent(e) === false,
-        );
-        executedEvents = executedEvents.filter(
-          (e) => isReorgedEvent(e) === false,
-        );
 
         params.common.logger.debug({
           service: "sync",
@@ -776,6 +759,24 @@ export const createSync = async (params: {
             params.onRealtimeEvent({ type: "reorg", chain, checkpoint: to });
           }
         }
+
+        const isReorgedEvent = ({ chainId, event: { block } }: Event) => {
+          if (
+            chainId === chain.id &&
+            Number(block.number) > hexToNumber(event.block.number)
+          ) {
+            reorgedEvents++;
+            return true;
+          }
+          return false;
+        };
+
+        pendingEvents = pendingEvents.filter(
+          (e) => isReorgedEvent(e) === false,
+        );
+        executedEvents = executedEvents.filter(
+          (e) => isReorgedEvent(e) === false,
+        );
 
         break;
       }
