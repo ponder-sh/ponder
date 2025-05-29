@@ -35,6 +35,34 @@ export default createConfig({
 
 The indexing functions you register for a contract (or account) that uses `factory()` will process events for _all_ contracts (or accounts) found by the factory configuration.
 
+You can also specify `startBlock` and `endBlock` of the factory. The `startBlock` option specifies the block number to begin collecting factory childs from. The `endBlock` option specifies the block number to stop collecting factory childs at. Both options default to contract's `startBlock` and `endBlock` respectively. 
+
+This allows to specify the factory block interval independently from the contract configuration, e.g. to collect all existing pools and start indexing in realtime. 
+
+```ts [ponder.config.ts]
+import { createConfig, factory } from "ponder"; // [!code focus]
+import { parseAbiItem } from "viem";
+import { SudoswapPoolAbi } from "./abis/SudoswapPool";
+
+export default createConfig({
+  chains: { /* ... */ },
+  contracts: {
+    SudoswapPool: {
+      abi: SudoswapPoolAbi,
+      chain: "mainnet",
+      address: factory({ // [!code focus]
+        address: "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4", 
+        event: parseAbiItem("event NewPair(address poolAddress)"),
+        parameter: "poolAddress",
+        startBlock: 0, // [!code focus]
+        endBlock: "latest" // [!code focus]
+      }), // [!code focus]
+      startBlock: "latest", // [!code focus]
+    },
+  },
+});
+```
+
 Visit the [contracts](/docs/config/contracts) and [accounts](/docs/config/accounts) guides to learn more.
 
 ## Index the factory contract itself
