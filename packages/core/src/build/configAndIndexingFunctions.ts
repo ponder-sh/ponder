@@ -323,6 +323,48 @@ export async function buildConfigAndIndexingFunctions({
         `Validation failed: Start block for '${source.name}' is after end block (${startBlock} > ${endBlock}).`,
       );
     }
+
+    if (
+      "address" in source &&
+      typeof source.address === "object" &&
+      !Array.isArray(source.address)
+    ) {
+      const factoryStartBlock =
+        (await resolveBlockNumber(source.address.startBlock, chain)) ??
+        startBlock;
+
+      const factoryEndBlock =
+        (await resolveBlockNumber(source.address.startBlock, chain)) ??
+        endBlock;
+
+      if (
+        factoryStartBlock !== undefined &&
+        (startBlock === undefined || factoryStartBlock > startBlock)
+      ) {
+        throw new Error(
+          `Validation failed: Start block for '${source.name}' is before start block of factory address (${factoryStartBlock} > ${startBlock}).`,
+        );
+      }
+
+      if (
+        endBlock !== undefined &&
+        (factoryEndBlock === undefined || factoryEndBlock > endBlock)
+      ) {
+        throw new Error(
+          `Validation failed: End block for ${source.name}  is before end block of factory address (${factoryEndBlock} > ${endBlock}).`,
+        );
+      }
+
+      if (
+        factoryStartBlock !== undefined &&
+        factoryEndBlock !== undefined &&
+        factoryEndBlock < factoryStartBlock
+      ) {
+        throw new Error(
+          `Validation failed: Start block for '${source.name}' factory address is after end block (${factoryStartBlock} > ${factoryEndBlock}).`,
+        );
+      }
+    }
   }
 
   const contractSources: ContractSource[] = (
@@ -476,12 +518,20 @@ export async function buildConfigAndIndexingFunctions({
             typeof resolvedAddress === "object" &&
             !Array.isArray(resolvedAddress)
           ) {
+            const factoryFromBlock =
+              (await resolveBlockNumber(resolvedAddress.startBlock, chain)) ??
+              fromBlock;
+
+            const factoryToBlock =
+              (await resolveBlockNumber(resolvedAddress.endBlock, chain)) ??
+              toBlock;
+
             // Note that this can throw.
             const logFactory = buildLogFactory({
               chainId: chain.id,
               ...resolvedAddress,
-              fromBlock,
-              toBlock,
+              fromBlock: factoryFromBlock,
+              toBlock: factoryToBlock,
             });
 
             const logSources = topicsArray.map(
@@ -652,12 +702,20 @@ export async function buildConfigAndIndexingFunctions({
             typeof resolvedAddress === "object" &&
             !Array.isArray(resolvedAddress)
           ) {
+            const factoryFromBlock =
+              (await resolveBlockNumber(resolvedAddress.startBlock, chain)) ??
+              fromBlock;
+
+            const factoryToBlock =
+              (await resolveBlockNumber(resolvedAddress.endBlock, chain)) ??
+              toBlock;
+
             // Note that this can throw.
             const logFactory = buildLogFactory({
               chainId: chain.id,
               ...resolvedAddress,
-              fromBlock,
-              toBlock,
+              fromBlock: factoryFromBlock,
+              toBlock: factoryToBlock,
             });
 
             return [
