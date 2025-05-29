@@ -20,7 +20,7 @@ jobs:
           - "reference-erc20"
           - "super-assessment"
           - "uniswap-v4"
-        iteration: [0, 1]
+        iteration: [0, 1, 2, 3, 4]
 
     steps:
       - uses: actions/checkout@v3
@@ -33,11 +33,9 @@ jobs:
       - name: Test ${{ matrix.app_id }} ${{ matrix.iteration }}
         run: |
           cd integration-test
-           for i in $(seq 1 2); do
-            SEED=$(openssl rand -hex 32)
-            UUID=$(uuidgen)
-            pnpm test ${{ matrix.app_id }} -- --log-level warn
-          done
+          SEED=$(openssl rand -hex 32)
+          UUID=$(uuidgen)
+          pnpm test ${{ matrix.app_id }} -- --log-level warn
         env:
           DATABASE_URL: ${{ secrets.TEST_CONNECTION_STRING }}
           PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
