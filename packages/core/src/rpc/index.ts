@@ -1,6 +1,7 @@
 import url from "node:url";
 import type { Common } from "@/internal/common.js";
 import type { Chain, SyncBlock } from "@/internal/types.js";
+import type { RealtimeSync } from "@/sync-realtime/index.js";
 import { createQueue } from "@/utils/queue.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
@@ -36,7 +37,7 @@ export type Rpc = {
     parameters: TParameters,
   ) => Promise<RequestReturnType<TParameters["method"]>>;
   subscribe: (params: {
-    onBlock: (block: SyncBlock) => Promise<boolean>;
+    onBlock: (block: SyncBlock) => ReturnType<RealtimeSync["sync"]>;
     onError: (error: Error) => void;
   }) => void;
   unsubscribe: () => void;

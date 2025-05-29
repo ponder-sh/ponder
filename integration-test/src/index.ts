@@ -94,10 +94,7 @@ export const SIM_PARAMS = {
     "eth-get-logs-block-limit",
   ),
   REALTIME_REORG_RATE: pick([0, 0.02, 0.05, 0.1], "realtime-reorg-rate"),
-  REALTIME_DEEP_REORG_RATE: pick(
-    [0, 0.02, 0.05, 0.1],
-    "realtime-deep-reorg-rate",
-  ),
+  REALTIME_DEEP_REORG_RATE: pick([0, 0.02, 0.04], "realtime-deep-reorg-rate"),
   REALTIME_FAST_FORWARD_RATE: pick(
     [0, 0.25, 0.5, 0.75],
     "realtime-fast-forward-rate",
@@ -1280,13 +1277,35 @@ const onBuild = async (app: PonderApp) => {
         let isAccepted: boolean;
 
         for await (block of getRealtimeBlockGenerator(chain.id)) {
-          // @ts-ignore
-          isAccepted = await onBlock(block);
+          isAccepted = await onBlock(block).then(async (result) => {
+            if (result.type === "accepted") {
+              await result.blockPromise;
+              return true;
+            }
+
+            if (result.type === "reorg") {
+              await result.reorgPromise;
+              return false;
+            }
+
+            return false;
+          });
         }
         // Note: last block must be accepted before shutdown
         while (isAccepted! === false) {
-          // @ts-ignore
-          isAccepted = await onBlock(block);
+          isAccepted = await onBlock(block!).then(async (result) => {
+            if (result.type === "accepted") {
+              await result.blockPromise;
+              return true;
+            }
+
+            if (result.type === "reorg") {
+              await result.reorgPromise;
+              return false;
+            }
+
+            return false;
+          });
         }
 
         app.common.logger.warn({

@@ -49,14 +49,9 @@ export type RealtimeSync = {
   /**
    * Fetch block event data and reconcile it into the local chain.
    *
-   * @param block The block to reconcile.
-   *
-   * @dev The promise resolves once the block has been fully indexed.
-   *
-   * @returns `true` if the block was accepted into the local chain,
-   * `false` otherwise.
+   * @param block - The block to reconcile.
    */
-  sync(block: SyncBlock): Promise<boolean>;
+  sync(block: SyncBlock): Promise<SyncResult>;
   onError(error: Error): void;
   /**
    * Local chain of blocks that have not been finalized.
@@ -64,6 +59,19 @@ export type RealtimeSync = {
   unfinalizedBlocks: LightBlock[];
   childAddresses: Map<Factory, Map<Address, number>>;
 };
+
+/**
+ * @dev Each "promise" property resolves when the corresponding
+ * event is fully processed.
+ */
+type SyncResult =
+  | { type: "rejected" }
+  | { type: "reorg"; reorgPromise: Promise<void> }
+  | {
+      type: "accepted";
+      blockPromise: Promise<void>;
+      finalizePromise?: Promise<void>;
+    };
 
 export type BlockWithEventData = {
   block: SyncBlock;
@@ -96,9 +104,12 @@ type CreateRealtimeSyncParameters = {
   sources: Source[];
   syncProgress: Pick<SyncProgress, "finalized">;
   initialChildAddresses: Map<Factory, Map<Address, number>>;
-  onEvent: (
-    event: RealtimeSyncEvent,
-  ) => Promise<{ promise: Promise<void> } | void>;
+  /**
+   * Handle a realtime sync event.
+   *
+   * @returns An unchained promise that resolves when the event is fully processed.
+   */
+  onEvent: (event: RealtimeSyncEvent) => Promise<{ promise: Promise<void> }>;
   onFatalError: (error: Error) => void;
 };
 
@@ -748,7 +759,7 @@ export const createRealtimeSync = (
    */
   const fetchAndReconcileLatestBlock = async (
     block: SyncBlock,
-  ): Promise<boolean> => {
+  ): Promise<SyncResult> => {
     try {
       args.common.logger.debug({
         service: "realtime",
@@ -764,7 +775,7 @@ export const createRealtimeSync = (
           msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
         });
 
-        return false;
+        return { type: "rejected" };
       }
 
       const blockWithEventData = await fetchBlockEventData(block);
@@ -773,17 +784,21 @@ export const createRealtimeSync = (
 
       const result = await reconcileBlock(blockWithEventData);
 
-      if (result.type === "accepted") {
-        return result.promise.then(() => true);
-      } else if (result.type === "rejected") {
-        return false;
-      } else {
-        return result.promise.then((result) => result === "accepted");
-      }
+      return resolvePending(result);
     } catch (_error) {
       onError(_error as Error);
-      return false;
+      return { type: "rejected" };
     }
+  };
+
+  const resolvePending = async (
+    result: Awaited<ReturnType<typeof reconcileBlock>>,
+  ): Promise<SyncResult> => {
+    if (result.type === "pending") {
+      return result.promise.then(resolvePending);
+    }
+
+    return result;
   };
 
   /**
@@ -803,18 +818,17 @@ export const createRealtimeSync = (
    *
    * @returns
    * - `rejected` for case 1 and 2.
+   * - `reorg` for case 2 with a promise that resolves once the reorg is applied.
    * - `pending` for case 3 with a promise that resolves once the block is
-   *   accepted or rejected.
-   * - `accepted` for case 4 with a promise that resolves once
-   *   the block has been fully indexed.
+   *   settled as `rejected`, `accepted`, or `reorg`.
+   * - `accepted` for case 4 with promises for the "block" and "finalize" events
+   *   that resolve when each event is applied.
    */
   const reconcileBlock = mutex(
     async (
       blockWithEventData: BlockWithEventData,
     ): Promise<
-      | { type: "rejected" }
-      | { type: "pending"; promise: Promise<"accepted" | "rejected"> }
-      | { type: "accepted"; promise: Promise<void> }
+      SyncResult | { type: "pending"; promise: Promise<SyncResult> }
     > => {
       const latestBlock = getLatestUnfinalizedBlock();
       const block = blockWithEventData.block;
@@ -857,7 +871,7 @@ export const createRealtimeSync = (
             ),
           );
 
-          args.common.logger.debug({
+          args.common.logger.info({
             service: "realtime",
             msg: `Fetched ${missingBlockRange.length} missing '${
               args.chain.name
@@ -874,11 +888,7 @@ export const createRealtimeSync = (
 
           return {
             type: "pending",
-            promise: reconcileBlock(blockWithEventData).then((result) =>
-              result.type === "accepted"
-                ? result.promise.then(() => "accepted")
-                : "rejected",
-            ),
+            promise: reconcileBlock(blockWithEventData).then(resolvePending),
           };
         }
 
@@ -939,25 +949,23 @@ export const createRealtimeSync = (
         blockWithEventData.block.transactions =
           blockWithFilteredEventData.block.transactions;
 
-        const promise = args
-          .onEvent({
-            type: "block",
-            hasMatchedFilter:
-              blockWithFilteredEventData.matchedFilters.size > 0,
-            block: blockWithFilteredEventData.block,
-            logs: blockWithFilteredEventData.logs,
-            transactions: blockWithFilteredEventData.transactions,
-            transactionReceipts: blockWithFilteredEventData.transactionReceipts,
-            traces: blockWithFilteredEventData.traces,
-            childAddresses: blockWithFilteredEventData.childAddresses,
-          })
-          .then((result) => result?.promise);
+        const blockPromise = args.onEvent({
+          type: "block",
+          hasMatchedFilter: blockWithFilteredEventData.matchedFilters.size > 0,
+          block: blockWithFilteredEventData.block,
+          logs: blockWithFilteredEventData.logs,
+          transactions: blockWithFilteredEventData.transactions,
+          transactionReceipts: blockWithFilteredEventData.transactionReceipts,
+          traces: blockWithFilteredEventData.traces,
+          childAddresses: blockWithFilteredEventData.childAddresses,
+        });
 
         // Determine if a new range has become finalized by evaluating if the
         // latest block number is 2 * finalityBlockCount >= finalized block number.
         // Essentially, there is a range the width of finalityBlockCount that is entirely
         // finalized.
 
+        let finalizePromise: Promise<{ promise: Promise<void> }> | undefined;
         const blockMovesFinality =
           hexToNumber(block.number) >=
           hexToNumber(finalizedBlock.number) +
@@ -994,13 +1002,20 @@ export const createRealtimeSync = (
 
           finalizedBlock = pendingFinalizedBlock;
 
-          args.onEvent({ type: "finalize", block: pendingFinalizedBlock });
+          finalizePromise = args.onEvent({
+            type: "finalize",
+            block: pendingFinalizedBlock,
+          });
         }
 
         // Reset the error state after successfully completing the happy path.
         reconcileBlockErrorCount = 0;
 
-        return { type: "accepted", promise };
+        return {
+          type: "accepted",
+          blockPromise: blockPromise.then((result) => result.promise),
+          finalizePromise: finalizePromise?.then((result) => result.promise),
+        };
       } catch (_error) {
         const error = _error as Error;
 

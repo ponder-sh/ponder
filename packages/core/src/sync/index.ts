@@ -425,7 +425,7 @@ export const createSync = async (params: {
         ) {
           from = crashRecoveryCheckpoint;
         } else {
-          from = getMultichainCheckpoint({ tag: "start", chain })!;
+          from = getMultichainCheckpoint({ tag: "start", chain });
         }
 
         const localEventGenerator = getLocalEventGenerator({
@@ -436,8 +436,8 @@ export const createSync = async (params: {
           localSyncGenerator,
           from,
           to: min(
-            getMultichainCheckpoint({ tag: "finalized", chain })!,
-            getMultichainCheckpoint({ tag: "end", chain })!,
+            getMultichainCheckpoint({ tag: "finalized", chain }),
+            getMultichainCheckpoint({ tag: "end", chain }),
           ),
           limit:
             Math.round(
@@ -496,7 +496,7 @@ export const createSync = async (params: {
   };
 
   // Note: `omnichainCheckpointHooks` not used in multichain ordering
-  const omnichainHooks: {
+  let omnichainHooks: {
     checkpoint: string;
     callback: () => void;
   }[] = [];
@@ -514,7 +514,7 @@ export const createSync = async (params: {
       syncProgress: SyncProgress;
       realtimeSync: RealtimeSync;
     },
-  ): Promise<{ promise: Promise<void> } | void> => {
+  ): Promise<void> => {
     switch (event.type) {
       case "block": {
         const events = buildEvents({
@@ -556,10 +556,7 @@ export const createSync = async (params: {
 
         if (params.ordering === "multichain") {
           // Note: `checkpoints.current` not used in multichain ordering
-          const checkpoint = getMultichainCheckpoint({
-            tag: "current",
-            chain,
-          })!;
+          const checkpoint = getMultichainCheckpoint({ tag: "current", chain });
 
           const readyEvents = decodedEvents
             .concat(pendingEvents)
@@ -635,16 +632,21 @@ export const createSync = async (params: {
               checkpoints,
             });
 
-            for (const { checkpoint, callback } of omnichainHooks) {
-              if (checkpoint > from && checkpoint <= to) {
-                callback();
-              }
+            const completedHooks = omnichainHooks.filter(
+              ({ checkpoint }) => checkpoint > from && checkpoint <= to,
+            );
+            omnichainHooks = omnichainHooks.filter(
+              ({ checkpoint }) =>
+                (checkpoint > from && checkpoint <= to) === false,
+            );
+            for (const { callback } of completedHooks) {
+              callback();
             }
           } else {
             pendingEvents = pendingEvents.concat(decodedEvents);
           }
 
-          return { promise: pwr.promise };
+          return pwr.promise;
         }
 
         break;
@@ -675,8 +677,15 @@ export const createSync = async (params: {
 
         // Remove all finalized data
 
-        // TODO(kyle) think
-        executedEvents = executedEvents.filter((e) => e.checkpoint > to);
+        const finalizedEventsIndex = executedEvents.findLastIndex(
+          (e) =>
+            e.chainId === Number(decodeCheckpoint(to).chainId) &&
+            e.event.block.number <= decodeCheckpoint(to).blockNumber,
+        );
+
+        if (finalizedEventsIndex !== -1) {
+          executedEvents = executedEvents.slice(finalizedEventsIndex + 1);
+        }
 
         // Raise event to parent function (runtime)
         if (to > from) {
@@ -698,25 +707,23 @@ export const createSync = async (params: {
 
         if (params.ordering === "multichain") {
           // Note: `checkpoints.current` not used in multichain ordering
-          const checkpoint = getMultichainCheckpoint({
-            tag: "current",
-            chain,
-          })!;
+          const checkpoint = getMultichainCheckpoint({ tag: "current", chain });
 
           // Move events from executed to pending
 
-          const reorgedEventsIndex = executedEvents.findIndex(
+          const safeEventsIndex = executedEvents.findLastIndex(
             (e) =>
-              e.chainId === chain.id &&
-              e.event.block.number > hexToBigInt(event.block.number),
+              e.chainId === Number(decodeCheckpoint(checkpoint).chainId) &&
+              e.event.block.number <= decodeCheckpoint(checkpoint).blockNumber,
           );
 
           let reorgedEvents: Event[];
-          if (reorgedEventsIndex === -1) {
-            reorgedEvents = [];
+          if (safeEventsIndex === -1) {
+            reorgedEvents = executedEvents;
+            executedEvents = [];
           } else {
-            reorgedEvents = executedEvents.slice(reorgedEventsIndex);
-            executedEvents = executedEvents.slice(0, reorgedEventsIndex);
+            reorgedEvents = executedEvents.slice(safeEventsIndex + 1);
+            executedEvents = executedEvents.slice(0, safeEventsIndex + 1);
           }
 
           pendingEvents = pendingEvents.concat(reorgedEvents);
@@ -734,18 +741,19 @@ export const createSync = async (params: {
 
           // Move events from executed to pending
 
-          const reorgedEventsIndex = executedEvents.findIndex(
+          const safeEventsIndex = executedEvents.findLastIndex(
             (e) =>
-              e.chainId === chain.id &&
-              e.event.block.number > hexToBigInt(event.block.number),
+              e.chainId === Number(decodeCheckpoint(to).chainId) &&
+              e.event.block.number <= decodeCheckpoint(to).blockNumber,
           );
 
           let reorgedEvents: Event[];
-          if (reorgedEventsIndex === -1) {
-            reorgedEvents = [];
+          if (safeEventsIndex === -1) {
+            reorgedEvents = executedEvents;
+            executedEvents = [];
           } else {
-            reorgedEvents = executedEvents.slice(reorgedEventsIndex);
-            executedEvents = executedEvents.slice(0, reorgedEventsIndex);
+            reorgedEvents = executedEvents.slice(safeEventsIndex + 1);
+            executedEvents = executedEvents.slice(0, safeEventsIndex + 1);
           }
 
           pendingEvents = pendingEvents.concat(reorgedEvents);
@@ -960,7 +968,9 @@ export const createSync = async (params: {
             onEvent: realtimeMutex(async (event) => {
               try {
                 await perChainOnRealtimeSyncEvent(event);
-                const result = await onRealtimeSyncEvent(event, {
+                // Note: `promise` resolves when the event is fully processed, however,
+                // awaiting it will cause a deadlock in "omnichain" ordering.
+                const promise = onRealtimeSyncEvent(event, {
                   chain,
                   sources,
                   syncProgress,
@@ -986,7 +996,7 @@ export const createSync = async (params: {
                   rpc.unsubscribe();
                 }
 
-                return result;
+                return { promise };
               } catch (error) {
                 params.common.logger.error({
                   service: "sync",
@@ -994,6 +1004,7 @@ export const createSync = async (params: {
                   error: error as Error,
                 });
                 params.onFatalError(error as Error);
+                return { promise: Promise.resolve() };
               }
             }),
             onFatalError: params.onFatalError,
@@ -1014,16 +1025,18 @@ export const createSync = async (params: {
           rpc.subscribe({
             onBlock: async (block) => {
               const endClock = startClock();
-              const isAccepted = await realtimeSync.sync(block);
+              const syncResult = await realtimeSync.sync(block);
 
-              if (isAccepted) {
-                params.common.metrics.ponder_realtime_latency.observe(
-                  { chain: chain.name },
-                  endClock(),
-                );
+              if (syncResult.type === "accepted") {
+                syncResult.blockPromise.then(() => {
+                  params.common.metrics.ponder_realtime_latency.observe(
+                    { chain: chain.name },
+                    endClock(),
+                  );
+                });
               }
 
-              return isAccepted;
+              return syncResult;
             },
             onError: (error) => {
               realtimeSync.onError(error);
@@ -1034,10 +1047,10 @@ export const createSync = async (params: {
     },
     seconds,
     getStartCheckpoint(chain) {
-      return getMultichainCheckpoint({ tag: "start", chain })!;
+      return getMultichainCheckpoint({ tag: "start", chain });
     },
     getFinalizedCheckpoint(chain) {
-      return getMultichainCheckpoint({ tag: "finalized", chain })!;
+      return getMultichainCheckpoint({ tag: "finalized", chain });
     },
   };
 };
