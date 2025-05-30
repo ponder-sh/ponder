@@ -38,12 +38,7 @@ const flattenSources = <
 ): (Omit<T[string], "chain"> & { name: string; chain: string })[] => {
   return Object.entries(config).flatMap(
     ([name, source]: [string, T[string]]) => {
-      if (typeof source.chain === "string") {
-        return {
-          name,
-          ...source,
-        };
-      } else {
+      if (typeof source.chain === "object") {
         return Object.entries(source.chain).map(([chain, sourceOverride]) => {
           const { chain: _chain, ...base } = source;
 
@@ -54,6 +49,12 @@ const flattenSources = <
             ...sourceOverride,
           };
         });
+      } else {
+        // Handles string, null, or undefined
+        return {
+          name,
+          ...source,
+        };
       }
     },
   );
@@ -324,7 +325,9 @@ export async function buildConfigAndIndexingFunctions({
       throw new Error(
         `Validation failed: Chain for '${source.name}' is null or undefined. Expected one of [${chains
           .map((n) => `'${n.name}'`)
-          .join(", ")}].`,
+          .join(
+            ", ",
+          )}]. Did you forget to change 'network' to 'chain' when migrating to 0.11?`,
       );
     }
 
