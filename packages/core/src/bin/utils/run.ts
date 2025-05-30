@@ -21,7 +21,7 @@ import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { recordAsyncGenerator } from "@/utils/generators.js";
-import { createMutex } from "@/utils/mutex.js";
+import { mutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
 import { type TableConfig, getTableName, is, sql } from "drizzle-orm";
@@ -35,8 +35,8 @@ export async function run({
   namespaceBuild,
   schemaBuild,
   indexingBuild,
-  database,
   crashRecoveryCheckpoint,
+  database,
   onFatalError,
   onReloadableError,
 }: {
@@ -45,8 +45,8 @@ export async function run({
   namespaceBuild: NamespaceBuild;
   schemaBuild: SchemaBuild;
   indexingBuild: IndexingBuild;
-  database: Database;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
+  database: Database;
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
 }) {
@@ -56,16 +56,11 @@ export async function run({
 
   const syncStore = createSyncStore({ common, database });
 
-  const realtimeMutex = createMutex();
-
   const sync = await createSync({
     common,
     indexingBuild,
     syncStore,
     onRealtimeEvent: (realtimeEvent) => {
-      if (realtimeEvent.type === "reorg") {
-        realtimeMutex.clear();
-      }
       return onRealtimeEvent(realtimeEvent);
     },
     onFatalError,
@@ -409,6 +404,79 @@ export async function run({
     db: database.qb.drizzle,
   });
 
+  await database.createIndexes();
+  await database.createTriggers();
+
+  if (namespaceBuild.viewsSchema) {
+    await database.wrap({ method: "create-views" }, async () => {
+      await database.qb.drizzle.execute(
+        sql.raw(`CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.viewsSchema}"`),
+      );
+
+      const tables = Object.values(schemaBuild.schema).filter(
+        (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
+      );
+
+      for (const table of tables) {
+        // Note: drop views before creating new ones to avoid enum errors.
+        await database.qb.drizzle.execute(
+          sql.raw(
+            `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${getTableName(table)}"`,
+          ),
+        );
+
+        await database.qb.drizzle.execute(
+          sql.raw(
+            `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
+          ),
+        );
+      }
+
+      common.logger.info({
+        service: "app",
+        msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
+      });
+
+      await database.qb.drizzle.execute(
+        sql.raw(
+          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_meta"`,
+        ),
+      );
+
+      await database.qb.drizzle.execute(
+        sql.raw(
+          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_checkpoint"`,
+        ),
+      );
+
+      const trigger = `status_${namespaceBuild.viewsSchema}_trigger`;
+      const notification = "status_notify()";
+      const channel = `${namespaceBuild.viewsSchema}_status_channel`;
+
+      await database.qb.drizzle.execute(
+        sql.raw(`
+  CREATE OR REPLACE FUNCTION "${namespaceBuild.viewsSchema}".${notification}
+  RETURNS TRIGGER
+  LANGUAGE plpgsql
+  AS $$
+  BEGIN
+  NOTIFY "${channel}";
+  RETURN NULL;
+  END;
+  $$;`),
+      );
+
+      await database.qb.drizzle.execute(
+        sql.raw(`
+  CREATE OR REPLACE TRIGGER "${trigger}"
+  AFTER INSERT OR UPDATE OR DELETE
+  ON "${namespaceBuild.schema}"._ponder_checkpoint
+  FOR EACH STATEMENT
+  EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
+      );
+    });
+  }
+
   await database.setReady();
 
   const realtimeIndexingStore = createRealtimeIndexingStore({
@@ -417,7 +485,7 @@ export async function run({
     database,
   });
 
-  const onRealtimeEvent = realtimeMutex(async (event: RealtimeEvent) => {
+  const onRealtimeEvent = mutex(async (event: RealtimeEvent) => {
     switch (event.type) {
       case "block": {
         if (event.events.length > 0) {
@@ -521,79 +589,6 @@ export async function run({
         never(event);
     }
   });
-
-  if (namespaceBuild.viewsSchema) {
-    await database.wrap({ method: "create-views" }, async () => {
-      await database.qb.drizzle.execute(
-        sql.raw(`CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.viewsSchema}"`),
-      );
-
-      const tables = Object.values(schemaBuild.schema).filter(
-        (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
-      );
-
-      for (const table of tables) {
-        // Note: drop views before creating new ones to avoid enum errors.
-        await database.qb.drizzle.execute(
-          sql.raw(
-            `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${getTableName(table)}"`,
-          ),
-        );
-
-        await database.qb.drizzle.execute(
-          sql.raw(
-            `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
-          ),
-        );
-      }
-
-      common.logger.info({
-        service: "app",
-        msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
-      });
-
-      await database.qb.drizzle.execute(
-        sql.raw(
-          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_meta"`,
-        ),
-      );
-
-      await database.qb.drizzle.execute(
-        sql.raw(
-          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_checkpoint"`,
-        ),
-      );
-
-      const trigger = `status_${namespaceBuild.viewsSchema}_trigger`;
-      const notification = "status_notify()";
-      const channel = `${namespaceBuild.viewsSchema}_status_channel`;
-
-      await database.qb.drizzle.execute(
-        sql.raw(`
-  CREATE OR REPLACE FUNCTION "${namespaceBuild.viewsSchema}".${notification}
-  RETURNS TRIGGER
-  LANGUAGE plpgsql
-  AS $$
-  BEGIN
-  NOTIFY "${channel}";
-  RETURN NULL;
-  END;
-  $$;`),
-      );
-
-      await database.qb.drizzle.execute(
-        sql.raw(`
-  CREATE OR REPLACE TRIGGER "${trigger}"
-  AFTER INSERT OR UPDATE OR DELETE
-  ON "${namespaceBuild.schema}"._ponder_checkpoint
-  FOR EACH STATEMENT
-  EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
-      );
-    });
-  }
-
-  await database.createIndexes();
-  await database.createTriggers();
 
   await sync.startRealtime();
 

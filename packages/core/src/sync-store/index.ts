@@ -1164,7 +1164,6 @@ const addressFilter = (
     | LogFilter["address"]
     | TransactionFilter["fromAddress"]
     | TransactionFilter["toAddress"],
-  // column: "address" | "from" | "to",
   column: PgColumn,
 ): SQL => {
   // `factory` filtering is handled in-memory
@@ -1176,7 +1175,7 @@ const addressFilter = (
   return sql`true`;
 };
 
-const logFilter = (filter: LogFilter): SQL => {
+export const logFilter = (filter: LogFilter): SQL => {
   const conditions: SQL[] = [];
 
   for (const idx of [0, 1, 2, 3] as const) {
@@ -1207,8 +1206,7 @@ const logFilter = (filter: LogFilter): SQL => {
   return and(...conditions)!;
 };
 
-// @ts-expect-error
-const blockFilter = (filter: BlockFilter): SQL => {
+export const blockFilter = (filter: BlockFilter): SQL => {
   const conditions: SQL[] = [];
 
   conditions.push(
@@ -1229,8 +1227,7 @@ const blockFilter = (filter: BlockFilter): SQL => {
   return and(...conditions)!;
 };
 
-// @ts-expect-error
-const transactionFilter = (filter: TransactionFilter): SQL => {
+export const transactionFilter = (filter: TransactionFilter): SQL => {
   const conditions: SQL[] = [];
 
   conditions.push(
@@ -1254,7 +1251,7 @@ const transactionFilter = (filter: TransactionFilter): SQL => {
   return and(...conditions)!;
 };
 
-const transferFilter = (filter: TransferFilter): SQL => {
+export const transferFilter = (filter: TransferFilter): SQL => {
   const conditions: SQL[] = [];
 
   conditions.push(
@@ -1280,7 +1277,7 @@ const transferFilter = (filter: TransferFilter): SQL => {
   return and(...conditions)!;
 };
 
-const traceFilter = (filter: TraceFilter): SQL => {
+export const traceFilter = (filter: TraceFilter): SQL => {
   const conditions: SQL[] = [];
 
   conditions.push(

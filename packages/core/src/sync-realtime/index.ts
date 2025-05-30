@@ -32,7 +32,6 @@ import {
 } from "@/sync/filter.js";
 import { type SyncProgress, syncBlockToLightBlock } from "@/sync/index.js";
 import { mutex } from "@/utils/mutex.js";
-import type { Queue } from "@/utils/queue.js";
 import { range } from "@/utils/range.js";
 import {
   _debug_traceBlockByHash,
@@ -42,29 +41,37 @@ import {
   _eth_getLogs,
   _eth_getTransactionReceipt,
 } from "@/utils/rpc.js";
-import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import { type Address, type Hash, hexToNumber, zeroHash } from "viem";
 import { isFilterInBloom, zeroLogsBloom } from "./bloom.js";
 
 export type RealtimeSync = {
-  start(args: {
-    syncProgress: Pick<SyncProgress, "finalized">;
-    initialChildAddresses: Map<Factory, Map<Address, number>>;
-  }): Promise<Queue<void, BlockWithEventData>>;
+  /**
+   * Fetch block event data and reconcile it into the local chain.
+   *
+   * @param block - The block to reconcile.
+   */
+  sync(block: SyncBlock): Promise<SyncResult>;
+  onError(error: Error): void;
+  /**
+   * Local chain of blocks that have not been finalized.
+   */
   unfinalizedBlocks: LightBlock[];
   childAddresses: Map<Factory, Map<Address, number>>;
-  kill: () => void;
 };
 
-type CreateRealtimeSyncParameters = {
-  common: Common;
-  chain: Chain;
-  rpc: Rpc;
-  sources: Source[];
-  onEvent: (event: RealtimeSyncEvent) => Promise<void>;
-  onFatalError: (error: Error) => void;
-};
+/**
+ * @dev Each "promise" property resolves when the corresponding
+ * event is fully processed.
+ */
+type SyncResult =
+  | { type: "rejected" }
+  | { type: "reorg"; reorgPromise: Promise<void> }
+  | {
+      type: "accepted";
+      blockPromise: Promise<void>;
+      finalizePromise?: Promise<void>;
+    };
 
 export type BlockWithEventData = {
   block: SyncBlock;
@@ -79,7 +86,6 @@ export type RealtimeSyncEvent =
   | ({
       type: "block";
       hasMatchedFilter: boolean;
-      endClock?: () => number;
     } & BlockWithEventData)
   | {
       type: "finalize";
@@ -90,6 +96,22 @@ export type RealtimeSyncEvent =
       block: LightBlock;
       reorgedBlocks: LightBlock[];
     };
+
+type CreateRealtimeSyncParameters = {
+  common: Common;
+  chain: Chain;
+  rpc: Rpc;
+  sources: Source[];
+  syncProgress: Pick<SyncProgress, "finalized">;
+  initialChildAddresses: Map<Factory, Map<Address, number>>;
+  /**
+   * Handle a realtime sync event.
+   *
+   * @returns An unchained promise that resolves when the event is fully processed.
+   */
+  onEvent: (event: RealtimeSyncEvent) => Promise<{ promise: Promise<void> }>;
+  onFatalError: (error: Error) => void;
+};
 
 const MAX_LATEST_BLOCK_ATTEMPT_MS = 3 * 60 * 1000; // 3 minutes
 
@@ -105,8 +127,8 @@ export const createRealtimeSync = (
   // state
   ////////
   let isBlockReceipts = true;
-  let finalizedBlock: LightBlock;
-  let childAddresses = new Map<Factory, Map<Address, number>>();
+  let finalizedBlock: LightBlock = args.syncProgress.finalized;
+  const childAddresses = args.initialChildAddresses;
   /** Annotates `childAddresses` for efficient lookup by block number */
   const childAddressesPerBlock = new Map<
     number,
@@ -121,7 +143,6 @@ export const createRealtimeSync = (
   let unfinalizedBlocks: LightBlock[] = [];
   let fetchAndReconcileLatestBlockErrorCount = 0;
   let reconcileBlockErrorCount = 0;
-  let interval: NodeJS.Timeout | undefined;
 
   const factories: Factory[] = [];
   const logFilters: LogFilter[] = [];
@@ -710,7 +731,7 @@ export const createRealtimeSync = (
 
     const commonAncestor = getLatestUnfinalizedBlock();
 
-    await args.onEvent({ type: "reorg", block: commonAncestor, reorgedBlocks });
+    args.onEvent({ type: "reorg", block: commonAncestor, reorgedBlocks });
 
     args.common.logger.warn({
       service: "realtime",
@@ -736,12 +757,10 @@ export const createRealtimeSync = (
   /**
    * Start syncing the latest block.
    */
-  const fetchAndReconcileLatestBlock = async () => {
+  const fetchAndReconcileLatestBlock = async (
+    block: SyncBlock,
+  ): Promise<SyncResult> => {
     try {
-      const block = await _eth_getBlockByNumber(args.rpc, {
-        blockTag: "latest",
-      });
-
       args.common.logger.debug({
         service: "realtime",
         msg: `Received latest '${args.chain.name}' block ${hexToNumber(block.number)}`,
@@ -756,45 +775,30 @@ export const createRealtimeSync = (
           msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
         });
 
-        return;
+        return { type: "rejected" };
       }
-
-      const endClock = startClock();
 
       const blockWithEventData = await fetchBlockEventData(block);
 
       fetchAndReconcileLatestBlockErrorCount = 0;
 
-      return reconcileBlock({ ...blockWithEventData, endClock });
+      const result = await reconcileBlock(blockWithEventData);
+
+      return resolvePending(result);
     } catch (_error) {
-      const error = _error as Error;
-
-      if (args.common.shutdown.isKilled) {
-        throw new ShutdownError();
-      }
-
-      args.common.logger.warn({
-        service: "realtime",
-        msg: `Failed to fetch latest '${args.chain.name}' block`,
-        error,
-      });
-
-      fetchAndReconcileLatestBlockErrorCount += 1;
-
-      // After a certain number of attempts, emit a fatal error.
-      if (
-        fetchAndReconcileLatestBlockErrorCount * args.chain.pollingInterval >
-        MAX_LATEST_BLOCK_ATTEMPT_MS
-      ) {
-        args.common.logger.error({
-          service: "realtime",
-          msg: `Fatal error: Unable to fetch latest '${args.chain.name}' block after ${ERROR_TIMEOUT.length} attempts.`,
-          error,
-        });
-
-        args.onFatalError(error);
-      }
+      onError(_error as Error);
+      return { type: "rejected" };
     }
+  };
+
+  const resolvePending = async (
+    result: Awaited<ReturnType<typeof reconcileBlock>>,
+  ): Promise<SyncResult> => {
+    if (result.type === "pending") {
+      return result.promise.then(resolvePending);
+    }
+
+    return result;
   };
 
   /**
@@ -811,14 +815,23 @@ export const createRealtimeSync = (
    *
    * @dev This mutex only runs one at a time, every block is
    * processed serially.
+   *
+   * @returns
+   * - `rejected` for case 1 and 2.
+   * - `reorg` for case 2 with a promise that resolves once the reorg is applied.
+   * - `pending` for case 3 with a promise that resolves once the block is
+   *   settled as `rejected`, `accepted`, or `reorg`.
+   * - `accepted` for case 4 with promises for the "block" and "finalize" events
+   *   that resolve when each event is applied.
    */
   const reconcileBlock = mutex(
-    async ({
-      block,
-      endClock,
-      ...rest
-    }: BlockWithEventData & { endClock?: () => number }) => {
+    async (
+      blockWithEventData: BlockWithEventData,
+    ): Promise<
+      SyncResult | { type: "pending"; promise: Promise<SyncResult> }
+    > => {
       const latestBlock = getLatestUnfinalizedBlock();
+      const block = blockWithEventData.block;
 
       // We already saw and handled this block. No-op.
       if (latestBlock.hash === block.hash) {
@@ -827,7 +840,7 @@ export const createRealtimeSync = (
           msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
         });
 
-        return;
+        return { type: "rejected" };
       }
 
       try {
@@ -836,8 +849,7 @@ export const createRealtimeSync = (
         if (hexToNumber(latestBlock.number) >= hexToNumber(block.number)) {
           await reconcileReorg(block);
 
-          reconcileBlock.clear();
-          return;
+          return { type: "rejected" };
         }
 
         // Blocks are missing. They should be fetched and enqueued.
@@ -859,7 +871,7 @@ export const createRealtimeSync = (
             ),
           );
 
-          args.common.logger.debug({
+          args.common.logger.info({
             service: "realtime",
             msg: `Fetched ${missingBlockRange.length} missing '${
               args.chain.name
@@ -869,53 +881,53 @@ export const createRealtimeSync = (
             )}]`,
           });
 
-          reconcileBlock.clear();
-
+          reconcileBlock.clear(({ resolve }) => resolve({ type: "rejected" }));
           for (const pendingBlock of pendingBlocks) {
             reconcileBlock(pendingBlock);
           }
 
-          reconcileBlock({ block, endClock, ...rest });
-
-          return;
+          return {
+            type: "pending",
+            promise: reconcileBlock(blockWithEventData).then(resolvePending),
+          };
         }
 
         // Check if a reorg occurred by validating the chain of block hashes.
         if (block.parentHash !== latestBlock.hash) {
           await reconcileReorg(block);
-          reconcileBlock.clear();
-          return;
+          return { type: "rejected" };
         }
 
         // New block is exactly one block ahead of the local chain.
         // Attempt to ingest it.
 
-        const blockWithEventData = filterBlockEventData({ block, ...rest });
+        const blockWithFilteredEventData =
+          filterBlockEventData(blockWithEventData);
 
         if (
-          blockWithEventData.logs.length > 0 ||
-          blockWithEventData.traces.length > 0 ||
-          blockWithEventData.transactions.length > 0
+          blockWithFilteredEventData.logs.length > 0 ||
+          blockWithFilteredEventData.traces.length > 0 ||
+          blockWithFilteredEventData.transactions.length > 0
         ) {
           const _text: string[] = [];
 
-          if (blockWithEventData.logs.length === 1) {
+          if (blockWithFilteredEventData.logs.length === 1) {
             _text.push("1 log");
-          } else if (blockWithEventData.logs.length > 1) {
-            _text.push(`${blockWithEventData.logs.length} logs`);
+          } else if (blockWithFilteredEventData.logs.length > 1) {
+            _text.push(`${blockWithFilteredEventData.logs.length} logs`);
           }
 
-          if (blockWithEventData.traces.length === 1) {
+          if (blockWithFilteredEventData.traces.length === 1) {
             _text.push("1 trace");
-          } else if (blockWithEventData.traces.length > 1) {
-            _text.push(`${blockWithEventData.traces.length} traces`);
+          } else if (blockWithFilteredEventData.traces.length > 1) {
+            _text.push(`${blockWithFilteredEventData.traces.length} traces`);
           }
 
-          if (blockWithEventData.transactions.length === 1) {
+          if (blockWithFilteredEventData.transactions.length === 1) {
             _text.push("1 transaction");
-          } else if (blockWithEventData.transactions.length > 1) {
+          } else if (blockWithFilteredEventData.transactions.length > 1) {
             _text.push(
-              `${blockWithEventData.transactions.length} transactions`,
+              `${blockWithFilteredEventData.transactions.length} transactions`,
             );
           }
 
@@ -934,19 +946,18 @@ export const createRealtimeSync = (
         unfinalizedBlocks.push(syncBlockToLightBlock(block));
 
         // Make sure `transactions` can be garbage collected
-        // @ts-ignore
-        block.transactions = undefined;
+        blockWithEventData.block.transactions =
+          blockWithFilteredEventData.block.transactions;
 
-        await args.onEvent({
+        const blockPromise = args.onEvent({
           type: "block",
-          hasMatchedFilter: blockWithEventData.matchedFilters.size > 0,
-          block: blockWithEventData.block,
-          logs: blockWithEventData.logs,
-          transactions: blockWithEventData.transactions,
-          transactionReceipts: blockWithEventData.transactionReceipts,
-          traces: blockWithEventData.traces,
-          childAddresses: blockWithEventData.childAddresses,
-          endClock,
+          hasMatchedFilter: blockWithFilteredEventData.matchedFilters.size > 0,
+          block: blockWithFilteredEventData.block,
+          logs: blockWithFilteredEventData.logs,
+          transactions: blockWithFilteredEventData.transactions,
+          transactionReceipts: blockWithFilteredEventData.transactionReceipts,
+          traces: blockWithFilteredEventData.traces,
+          childAddresses: blockWithFilteredEventData.childAddresses,
         });
 
         // Determine if a new range has become finalized by evaluating if the
@@ -954,6 +965,7 @@ export const createRealtimeSync = (
         // Essentially, there is a range the width of finalityBlockCount that is entirely
         // finalized.
 
+        let finalizePromise: Promise<{ promise: Promise<void> }> | undefined;
         const blockMovesFinality =
           hexToNumber(block.number) >=
           hexToNumber(finalizedBlock.number) +
@@ -990,7 +1002,7 @@ export const createRealtimeSync = (
 
           finalizedBlock = pendingFinalizedBlock;
 
-          await args.onEvent({
+          finalizePromise = args.onEvent({
             type: "finalize",
             block: pendingFinalizedBlock,
           });
@@ -999,7 +1011,11 @@ export const createRealtimeSync = (
         // Reset the error state after successfully completing the happy path.
         reconcileBlockErrorCount = 0;
 
-        return;
+        return {
+          type: "accepted",
+          blockPromise: blockPromise.then((result) => result.promise),
+          finalizePromise: finalizePromise?.then((result) => result.promise),
+        };
       } catch (_error) {
         const error = _error as Error;
 
@@ -1026,7 +1042,7 @@ export const createRealtimeSync = (
 
         // Remove all blocks from the queue. This protects against an
         // erroneous block causing a fatal error.
-        reconcileBlock.clear();
+        reconcileBlock.clear(({ resolve }) => resolve({ type: "rejected" }));
 
         reconcileBlockErrorCount += 1;
 
@@ -1040,35 +1056,50 @@ export const createRealtimeSync = (
 
           args.onFatalError(error);
         }
+
+        return { type: "rejected" };
       }
     },
   );
 
-  return {
-    start(startArgs) {
-      finalizedBlock = startArgs.syncProgress.finalized;
-      childAddresses = startArgs.initialChildAddresses;
+  const onError = (error: Error) => {
+    if (args.common.shutdown.isKilled) {
+      throw new ShutdownError();
+    }
 
-      interval = setInterval(
-        fetchAndReconcileLatestBlock,
-        args.chain.pollingInterval,
-      );
+    args.common.logger.warn({
+      service: "realtime",
+      msg: `Failed to fetch latest '${args.chain.name}' block`,
+      error,
+    });
 
-      args.common.shutdown.add(() => {
-        clearInterval(interval);
+    fetchAndReconcileLatestBlockErrorCount += 1;
+
+    // After a certain number of attempts, emit a fatal error.
+    if (
+      fetchAndReconcileLatestBlockErrorCount * args.chain.pollingInterval >
+      MAX_LATEST_BLOCK_ATTEMPT_MS
+    ) {
+      args.common.logger.error({
+        service: "realtime",
+        msg: `Fatal error: Unable to fetch latest '${args.chain.name}' block after ${ERROR_TIMEOUT.length} attempts.`,
+        error,
       });
 
-      // Note: Return the mutex for testing purposes.
-      return fetchAndReconcileLatestBlock().then(() => reconcileBlock);
+      args.onFatalError(error);
+    }
+  };
+
+  return {
+    sync(block) {
+      return fetchAndReconcileLatestBlock(block);
     },
+    onError,
     get unfinalizedBlocks() {
       return unfinalizedBlocks;
     },
     get childAddresses() {
       return childAddresses;
-    },
-    async kill() {
-      clearInterval(interval);
     },
   };
 };

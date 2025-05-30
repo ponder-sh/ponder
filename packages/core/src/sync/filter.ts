@@ -203,10 +203,9 @@ export const isTransactionFilterMatched = ({
 
   if (
     isAddressFactory(filter.toAddress) === false &&
-    transaction.to !== null &&
     isValueMatched(
       filter.toAddress as Address | Address[] | undefined,
-      transaction.to,
+      transaction.to ?? undefined,
     ) === false
   ) {
     return false;

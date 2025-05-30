@@ -159,7 +159,7 @@ export const checkpointMin = (...checkpoints: Checkpoint[]) =>
 
 export const LATEST = MAX_CHECKPOINT_STRING;
 
-/** Compute the minimum checkpoint, filtering out undefined */
+/** Compute the minimum checkpoint, filtering out undefined. */
 export const min = (...checkpoints: (string | undefined)[]) => {
   return checkpoints.reduce((acc, cur) => {
     if (cur === undefined) return acc;
@@ -167,4 +167,14 @@ export const min = (...checkpoints: (string | undefined)[]) => {
     if (acc < cur) return acc;
     return cur;
   })!;
+};
+
+/** Compute the maximum checkpoint, filtering out undefined. */
+export const max = (...checkpoints: (string | undefined)[]) => {
+  return checkpoints.reduce((acc, cur) => {
+    if (cur === undefined) return acc;
+    if (acc === undefined) return cur;
+    if (acc > cur) return acc;
+    return cur;
+  });
 };

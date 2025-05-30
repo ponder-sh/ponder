@@ -9,7 +9,7 @@ import {
 } from "@/_test/setup.js";
 import { deployErc20, deployMulticall, mintErc20 } from "@/_test/simulate.js";
 import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
-import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
+import { buildConfigAndIndexingFunctions } from "@/build/config.js";
 import { onchainTable } from "@/drizzle/onchain.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import type { Event, LogEvent, RawEvent } from "@/internal/types.js";
@@ -353,9 +353,7 @@ test("executeSetup() context.client", async (context) => {
 
   const indexingFunctions = {
     "Erc20:setup": async ({ context }: { context: Context }) => {
-      await context.client.getBalance({
-        address: BOB,
-      });
+      await context.client.getBalance({ address: BOB });
     },
   };
 
@@ -388,7 +386,7 @@ test("executeSetup() context.client", async (context) => {
   expect(getBalanceSpy).toHaveBeenCalledOnce();
   expect(getBalanceSpy).toHaveBeenCalledWith({
     method: "eth_getBalance",
-    params: ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "latest"],
+    params: ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "0x0"],
   });
 });
 
