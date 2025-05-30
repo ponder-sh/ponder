@@ -35,14 +35,14 @@ const addLatency = (bucket: Bucket, latency: number) => {
     bucket.latencies.length;
 };
 
-const addRequestMetadata = (bucket: Bucket) => {
+const addRequestTimestamp = (bucket: Bucket) => {
   const timestamp = Date.now() / 1000;
   bucket.requestTimestamps.push(timestamp);
   while (timestamp - bucket.requestTimestamps[0]! > 5) {
     bucket.requestTimestamps.shift()!;
   }
 };
-const getRps = (bucket: Bucket) => {
+const getRPS = (bucket: Bucket) => {
   const timestamp = Date.now() / 1000;
   while (
     bucket.requestTimestamps.length > 0 &&
@@ -60,7 +60,7 @@ const getRps = (bucket: Bucket) => {
   return bucket.requestTimestamps.length / t;
 };
 const isRPSSafe = (bucket: Bucket) => {
-  return getRps(bucket) < bucket.maxRPS;
+  return getRPS(bucket) < bucket.maxRPS;
 };
 const isAvailable = (bucket: Bucket) => {
   return (
@@ -197,7 +197,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
       const bucket = bucket_ !== undefined ? bucket_ : await getBucket();
 
       try {
-        addRequestMetadata(bucket);
+        addRequestTimestamp(bucket);
         const response = await bucket.request(body);
 
         // Record latency
