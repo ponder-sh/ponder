@@ -1,7 +1,7 @@
 import { eq, onchainTable, relations } from "@/index.js";
 import { createClient } from "@ponder/client";
 import { expect, test } from "vitest";
-import { findTableNames, validateQuery } from "./validate.js";
+import { findTableNames, validateQuery } from "./parse.js";
 
 test("findTableNames", async () => {
   let tableNames = await findTableNames(
@@ -20,6 +20,16 @@ test("findTableNames", async () => {
   expect(tableNames).toMatchInlineSnapshot(`
     Set {
       "users",
+    }
+  `);
+
+  tableNames = await findTableNames(
+    "DELETE FROM user_schema.table WHERE id = $1;",
+  );
+
+  expect(tableNames).toMatchInlineSnapshot(`
+    Set {
+      "table",
     }
   `);
 });

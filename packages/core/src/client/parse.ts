@@ -11,6 +11,7 @@ type ValidatorNode<
 const getNodeType = (node: Node) => Object.keys(node)[0]!;
 
 const ALLOW_CACHE = new Map<string, boolean>();
+const TABLE_NAMES_CACHE = new Map<string, Set<string>>();
 
 /**
  * Validate a SQL query.
@@ -111,9 +112,25 @@ export const validateQuery = async (
 export const findTableNames = async (sql: string) => {
   // @ts-ignore
   const Parser = await import(/* webpackIgnore: true */ "pg-query-emscripten");
+  const crypto = await import(/* webpackIgnore: true */ "node:crypto");
 
   if (sql.length > 5_000) {
     throw new Error("Invalid query");
+  }
+
+  const hash = crypto
+    .createHash("sha256")
+    .update(sql)
+    .digest("hex")
+    .slice(0, 10);
+
+  if (TABLE_NAMES_CACHE.has(hash)) {
+    const result = TABLE_NAMES_CACHE.get(hash)!;
+
+    TABLE_NAMES_CACHE.delete(hash);
+    TABLE_NAMES_CACHE.set(hash, result);
+
+    return result;
   }
 
   const { parse } = await Parser.default();
@@ -142,7 +159,6 @@ export const findTableNames = async (sql: string) => {
 
   const find = (node: Node) => {
     if (FIND_LIST.has(getNodeType(node)) === false) {
-      console.log(node);
       throw new Error(`${getNodeType(node)} not supported`);
     }
 
@@ -161,6 +177,12 @@ export const findTableNames = async (sql: string) => {
 
   const tableNames = new Set<string>();
   find(stmt.stmt);
+
+  TABLE_NAMES_CACHE.set(hash, tableNames);
+  if (TABLE_NAMES_CACHE.size > 1_000_000) {
+    const firstKey = TABLE_NAMES_CACHE.keys().next().value;
+    if (firstKey) TABLE_NAMES_CACHE.delete(firstKey);
+  }
 
   return tableNames;
 };

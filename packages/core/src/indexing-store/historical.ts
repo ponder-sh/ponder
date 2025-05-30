@@ -1,4 +1,4 @@
-import { findTableNames, validateQuery } from "@/client/validate.js";
+import { findTableNames, validateQuery } from "@/client/parse.js";
 import type { Common } from "@/internal/common.js";
 import { RecordNotFoundError } from "@/internal/errors.js";
 import type { Schema, SchemaBuild } from "@/internal/types.js";
