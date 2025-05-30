@@ -23,6 +23,7 @@ const MAX_RPS = 500;
 const RPS_INCREASE_FACTOR = 1.2;
 const RPS_DECREASE_FACTOR = 0.7;
 const SUCCESS_WINDOW_SIZE = 100;
+const RPS_INCREASE_QUALIFIER = 0.8;
 
 const addLatency = (bucket: Bucket, latency: number) => {
   bucket.latencies.push(latency);
@@ -73,7 +74,10 @@ const isAvailable = (bucket: Bucket) => {
 };
 
 const increaseMaxRPS = (bucket: Bucket) => {
-  if (bucket.successfulRequests >= SUCCESS_WINDOW_SIZE) {
+  if (
+    bucket.successfulRequests >= SUCCESS_WINDOW_SIZE &&
+    getRPS(bucket) > bucket.maxRPS * RPS_INCREASE_QUALIFIER
+  ) {
     const newMaxRPS = Math.min(bucket.maxRPS * RPS_INCREASE_FACTOR, MAX_RPS);
     console.log(
       `Bucket ${bucket.index} increasing max RPS from ${bucket.maxRPS.toFixed(2)} to ${newMaxRPS.toFixed(2)} after ${bucket.successfulRequests} successful requests`,
