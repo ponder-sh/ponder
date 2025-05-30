@@ -3,6 +3,11 @@ import { createConfig } from "ponder";
 import { PoolManagerAbi } from "./abis/PoolManager";
 
 export default createConfig({
+  database: {
+    kind: "postgres",
+    connectionString: process.env.PONDER_DATABASE_URL,
+    poolConfig: { max: 11 },
+  },
   chains: {
     mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1 },
     unichain: { id: 130, rpc: process.env.PONDER_RPC_URL_130 },

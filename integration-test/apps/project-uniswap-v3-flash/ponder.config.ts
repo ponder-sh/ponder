@@ -4,6 +4,11 @@ import { UniswapV3FactoryAbi } from "./abis/UniswapV3FactoryAbi";
 import { UniswapV3PoolAbi } from "./abis/UniswapV3PoolAbi";
 
 export default createConfig({
+  database: {
+    kind: "postgres",
+    connectionString: process.env.PONDER_DATABASE_URL,
+    poolConfig: { max: 11 },
+  },
   chains: {
     mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1 },
   },

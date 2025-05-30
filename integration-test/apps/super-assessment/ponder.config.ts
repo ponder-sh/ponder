@@ -70,6 +70,11 @@ const possibleContractFilters = [
 
 export default process.env.SEED
   ? createConfig({
+      database: {
+        kind: "postgres",
+        connectionString: process.env.PONDER_DATABASE_URL,
+        poolConfig: { max: 11 },
+      },
       chains: {
         mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1 },
         base: { id: 8453, rpc: process.env.PONDER_RPC_URL_8453 },
