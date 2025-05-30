@@ -738,6 +738,75 @@ test("buildConfigAndIndexingFunctions() block source", async (context) => {
   expect(sources[0]?.filter.toBlock).toBe(16370020);
 });
 
+test("buildConfigAndIndexingFunctions() coerces undefined factory interval to source interval", async (context) => {
+  const config = createConfig({
+    chains: {
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+    },
+    contracts: {
+      a: {
+        chain: { mainnet: {} },
+        address: factory({
+          address: address2,
+          event: eventFactory,
+          parameter: "child",
+        }),
+        abi: [event0, event1],
+        startBlock: 16370000,
+        endBlock: 16370100,
+      },
+    },
+  });
+
+  const { sources } = await buildConfigAndIndexingFunctions({
+    common: context.common,
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+  });
+
+  expect(
+    ((sources[0]!.filter as LogFilter).address as LogFactory).fromBlock ===
+      16370000,
+  );
+  expect(
+    ((sources[0]!.filter as LogFilter).address as LogFactory).toBlock ===
+      16370100,
+  );
+});
+
+test("buildConfigAndIndexingFunctions() validates factory interval", async (context) => {
+  const config = createConfig({
+    chains: {
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+    },
+    contracts: {
+      a: {
+        chain: { mainnet: {} },
+        address: factory({
+          address: address2,
+          event: eventFactory,
+          parameter: "child",
+          startBlock: 16370050,
+        }),
+        abi: [event0, event1],
+        startBlock: 16370000,
+        endBlock: 16370100,
+      },
+    },
+  });
+
+  const result = await safeBuildConfigAndIndexingFunctions({
+    common: context.common,
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+  });
+
+  expect(result.status).toBe("error");
+  expect(result.error?.message).toBe(
+    "Validation failed: Start block for 'a' is before start block of factory address (16370050 > 16370000).",
+  );
+});
+
 test("buildConfigAndIndexingFunctions() returns chain, rpc, and finalized block", async (context) => {
   const config = createConfig({
     chains: {
