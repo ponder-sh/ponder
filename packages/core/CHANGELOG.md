@@ -1,5 +1,15 @@
 # ponder
 
+## 0.11.9
+
+### Patch Changes
+
+- [#1791](https://github.com/ponder-sh/ponder/pull/1791) [`db7f3af`](https://github.com/ponder-sh/ponder/commit/db7f3af8ebeeadcfd96ad40f411cd1e8561b497b) Thanks [@kyscott18](https://github.com/kyscott18)! - Added validations against updating primary key columns in `db.update().set()` and `db.insert().values().onConflictDoNothing()`.
+
+- [#1789](https://github.com/ponder-sh/ponder/pull/1789) [`621fed0`](https://github.com/ponder-sh/ponder/commit/621fed0856ee239d5ce3cadea71fd1a255fc3324) Thanks [@typedarray](https://github.com/typedarray)! - Moved 0.10 migration logs to debug level.
+
+- [#1787](https://github.com/ponder-sh/ponder/pull/1787) [`1d3b5b8`](https://github.com/ponder-sh/ponder/commit/1d3b5b856f77fdd93f12a744790b1e9358c454f5) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in `v0.9.21` that caused the dev ui to leave out some data.
+
 ## 0.11.8
 
 ### Patch Changes
