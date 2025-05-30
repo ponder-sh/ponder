@@ -35,6 +35,7 @@ import {
   getTableColumns,
   getTableName,
   is,
+  lte,
   sql,
 } from "drizzle-orm";
 import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
@@ -1089,15 +1090,9 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).trigg
 
             const result = await tx.execute(
               sql.raw(`
-WITH operations AS (
-  SELECT MAX(operation_id) as max_operation FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE SUBSTRING(checkpoint, 27, 16)::numeric <= ${String(decodeCheckpoint(checkpoint).blockNumber)}
-  AND SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
-), reverted1 AS (
-  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE (SELECT max_operation FROM operations) IS NULL 
-  OR operation_id > (SELECT max_operation FROM operations)
-  RETURNING *
+WITH reverted1 AS (
+ DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE checkpoint > '${checkpoint}' RETURNING *
 ), reverted2 AS (
   SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1
   GROUP BY ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}
@@ -1149,18 +1144,11 @@ WITH operations AS (
         { method: "finalize", includeTraceLogs: true },
         async () => {
           await Promise.all(
-            tables.map(async (table) => {
-              await db.execute(
-                sql.raw(`
-                WITH operations AS (
-                  SELECT MAX(operation_id) as max_operation FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-                  WHERE SUBSTRING(checkpoint, 27, 16)::numeric <= ${String(decodeCheckpoint(checkpoint).blockNumber)}
-                  AND SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
-                )
-                DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-                WHERE operation_id <= (SELECT max_operation FROM operations)`),
-              );
-            }),
+            tables.map((table) =>
+              db
+                .delete(getReorgTable(table))
+                .where(lte(getReorgTable(table).checkpoint, checkpoint)),
+            ),
           );
         },
       );

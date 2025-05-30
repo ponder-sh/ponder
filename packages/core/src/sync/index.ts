@@ -677,15 +677,7 @@ export const createSync = async (params: {
 
         // Remove all finalized data
 
-        const finalizedEventsIndex = executedEvents.findLastIndex(
-          (e) =>
-            e.chainId === Number(decodeCheckpoint(to).chainId) &&
-            e.event.block.number <= decodeCheckpoint(to).blockNumber,
-        );
-
-        if (finalizedEventsIndex !== -1) {
-          executedEvents = executedEvents.slice(finalizedEventsIndex + 1);
-        }
+        executedEvents = executedEvents.filter((e) => e.checkpoint > to);
 
         // Raise event to parent function (runtime)
         if (to > from) {
@@ -711,21 +703,12 @@ export const createSync = async (params: {
 
           // Move events from executed to pending
 
-          const safeEventsIndex = executedEvents.findLastIndex(
-            (e) =>
-              e.chainId === Number(decodeCheckpoint(checkpoint).chainId) &&
-              e.event.block.number <= decodeCheckpoint(checkpoint).blockNumber,
+          const reorgedEvents = executedEvents.filter(
+            (e) => e.checkpoint > checkpoint,
           );
-
-          let reorgedEvents: Event[];
-          if (safeEventsIndex === -1) {
-            reorgedEvents = executedEvents;
-            executedEvents = [];
-          } else {
-            reorgedEvents = executedEvents.slice(safeEventsIndex + 1);
-            executedEvents = executedEvents.slice(0, safeEventsIndex + 1);
-          }
-
+          executedEvents = executedEvents.filter(
+            (e) => e.checkpoint < checkpoint,
+          );
           pendingEvents = pendingEvents.concat(reorgedEvents);
 
           params.common.logger.debug({
@@ -741,21 +724,8 @@ export const createSync = async (params: {
 
           // Move events from executed to pending
 
-          const safeEventsIndex = executedEvents.findLastIndex(
-            (e) =>
-              e.chainId === Number(decodeCheckpoint(to).chainId) &&
-              e.event.block.number <= decodeCheckpoint(to).blockNumber,
-          );
-
-          let reorgedEvents: Event[];
-          if (safeEventsIndex === -1) {
-            reorgedEvents = executedEvents;
-            executedEvents = [];
-          } else {
-            reorgedEvents = executedEvents.slice(safeEventsIndex + 1);
-            executedEvents = executedEvents.slice(0, safeEventsIndex + 1);
-          }
-
+          const reorgedEvents = executedEvents.filter((e) => e.checkpoint > to);
+          executedEvents = executedEvents.filter((e) => e.checkpoint < to);
           pendingEvents = pendingEvents.concat(reorgedEvents);
 
           params.common.logger.debug({
