@@ -62,6 +62,15 @@ const getRps = (bucket: Bucket) => {
 const isRPSSafe = (bucket: Bucket) => {
   return getRps(bucket) < bucket.maxRPS;
 };
+const isAvailable = (bucket: Bucket) => {
+  return (
+    bucket.isActive &&
+    // if bucket just activated, let active connections go down and open only one connection for probing
+    (!bucket.isJustActivated || bucket.activeConnections === 0) &&
+    // if bucket below maxRPS
+    isRPSSafe(bucket)
+  );
+};
 
 const increaseMaxRPS = (bucket: Bucket) => {
   if (bucket.successfulRequests >= SUCCESS_WINDOW_SIZE) {
@@ -97,8 +106,8 @@ type Bucket = {
   successfulRequests: number;
   maxRPS: number;
 
-  totalSuccessfulRequests: 0;
-  totalFailedRequests: 0;
+  totalSuccessfulRequests: number;
+  totalFailedRequests: number;
 } & ReturnType<Transport>;
 
 export const dynamicLB = (_transports: Transport[]): Transport => {
@@ -118,6 +127,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
 
       latencies: [] as number[],
       expectedLatency: 0,
+
       requestTimestamps: [] as number[],
       successfulRequests: 0,
       maxRPS: INITIAL_MAX_RPS,
@@ -155,37 +165,27 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
     };
 
     const getBucket = async (): Promise<Bucket> => {
-      const activeBuckets = buckets.filter(
-        (b) =>
-          b.isActive &&
-          (!b.isJustActivated || b.activeConnections === 0) &&
-          isRPSSafe(b),
-      );
+      const availableBuckets = buckets.filter((b) => isAvailable(b));
 
-      if (activeBuckets.length === 0) {
+      if (availableBuckets.length === 0) {
         const rpsSafePromise = new Promise<void>((resolve) => {
           const checkRPSSafe = () => {
-            const safeBucket = buckets.find(
-              (b) =>
-                b.isActive &&
-                (!b.isJustActivated || b.activeConnections === 0) &&
-                isRPSSafe(b),
-            );
-            if (safeBucket) {
+            const availableBucket = buckets.find((b) => isAvailable(b));
+            if (availableBucket) {
               resolve();
             } else {
-              setTimeout(checkRPSSafe, 100); // Check every 100ms
+              setTimeout(checkRPSSafe, 10); // Check every 10ms
             }
           };
           checkRPSSafe();
         });
 
-        await Promise.race([Promise.race(activationPromises), rpsSafePromise]);
+        await rpsSafePromise;
 
-        return await new Promise((res) => setTimeout(res, 1)).then(getBucket);
+        return getBucket();
       }
 
-      const fastestBucket = activeBuckets.reduce((fastest, current) => {
+      const fastestBucket = availableBuckets.reduce((fastest, current) => {
         const currentLatency = current.expectedLatency;
         const fastestLatency = fastest.expectedLatency;
 
@@ -193,7 +193,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
           return current;
         }
         return fastest;
-      }, activeBuckets[0]!);
+      }, availableBuckets[0]!);
 
       fastestBucket.activeConnections++;
       return fastestBucket;
@@ -206,12 +206,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
     ): Promise<unknown> => {
       const startTime = performance.now();
 
-      let bucket: Bucket;
-      if (bucket_ === undefined) {
-        bucket = await getBucket();
-      } else {
-        bucket = bucket_;
-      }
+      const bucket = bucket_ !== undefined ? bucket_ : await getBucket();
 
       try {
         addRequestMetadata(bucket);
@@ -317,7 +312,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
       request: async (body) => {
         const pwr = promiseWithResolvers();
         queue.push({ body, pwr });
-        await dispatch();
+        dispatch();
         return pwr.promise;
       },
       retryCount: 0,
