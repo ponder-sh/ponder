@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.8
+
+### Patch Changes
+
+- [#1785](https://github.com/ponder-sh/ponder/pull/1785) [`acee346`](https://github.com/ponder-sh/ponder/commit/acee34601710394e0e2094e35c9c0a4757042c2f) Thanks [@typedarray](https://github.com/typedarray)! - Improved validation error message for common 0.11 migration mistake.
+
 ## 0.11.7
 
 ### Patch Changes
