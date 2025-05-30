@@ -376,7 +376,7 @@ export const validateTransactionsAndBlock = (block: SyncBlock) => {
  * @dev Allows `block.logsBloom` to be `zeroLogsBloom`.
  */
 export const validateLogsAndBlock = (logs: SyncLog[], block: SyncBlock) => {
-  const logIds = new Set<string>();
+  const logIndexes = new Set<string>();
   const transactionByIndex = new Map<Hex, SyncTransaction>(
     block.transactions.map((transaction) => [
       transaction.transactionIndex,
@@ -409,13 +409,12 @@ export const validateLogsAndBlock = (logs: SyncLog[], block: SyncBlock) => {
       }
     }
 
-    const id = `${log.blockNumber}-${log.logIndex}`;
-    if (logIds.has(id)) {
+    if (logIndexes.has(log.logIndex)) {
       throw new Error(
         `Detected invalid eth_getLogs response. Duplicate log index ${log.logIndex} for block ${log.blockHash}.`,
       );
     } else {
-      logIds.add(id);
+      logIndexes.add(log.logIndex);
     }
 
     if (block.logsBloom === zeroLogsBloom) continue;

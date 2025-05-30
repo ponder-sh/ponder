@@ -516,8 +516,7 @@ export const createHistoricalSync = async (
     );
 
     // Validate that logs point to the valid transaction hash in the block
-    for (let i = 0; i < logs.length; i++) {
-      const block = blocks[i]!;
+    for (const block of blocks) {
       const logs = logsPerBlock.get(hexToNumber(block.number))!;
 
       validateTransactionsAndBlock(block);
