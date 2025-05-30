@@ -157,6 +157,36 @@ test("buildConfigAndIndexingFunctions() creates a source for each chain for mult
   expect(sources.length).toBe(2);
 });
 
+test("buildConfigAndIndexingFunctions() throw useful error for common 0.11 migration mistakes", async (context) => {
+  const rawIndexingFunctions = [{ name: "a:Event0", fn: () => {} }];
+
+  const config = createConfig({
+    chains: {
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      optimism: { id: 10, rpc: `http://127.0.0.1:8545/${poolId}` },
+    },
+    contracts: {
+      a: {
+        // @ts-expect-error
+        network: { mainnet: {}, optimism: {} },
+        abi: [event0],
+      },
+    },
+  });
+
+  const result = await safeBuildConfigAndIndexingFunctions({
+    common: context.common,
+    // @ts-expect-error
+    config,
+    rawIndexingFunctions,
+  });
+
+  expect(result.status).toBe("error");
+  expect(result.error?.message).toBe(
+    "Validation failed: Chain for 'a' is null or undefined. Expected one of ['mainnet', 'optimism']. Did you forget to change 'network' to 'chain' when migrating to 0.11?",
+  );
+});
+
 test("buildConfigAndIndexingFunctions() builds topics for event filter", async (context) => {
   const config = createConfig({
     chains: {
