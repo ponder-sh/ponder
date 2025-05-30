@@ -8,8 +8,8 @@ import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import {
   type GetLogsRetryHelperParameters,
+  dynamicLB,
   getLogsRetryHelper,
-  loadBalance,
 } from "@ponder/utils";
 import {
   http,
@@ -70,7 +70,7 @@ export const createRpc = ({
       throw new Error(`Unsupported RPC URL protocol: ${protocol}`);
     }
   } else if (Array.isArray(chain.rpc)) {
-    request = loadBalance(
+    request = dynamicLB(
       chain.rpc.map((rpc) => {
         const protocol = new url.URL(rpc).protocol;
         if (protocol === "https:" || protocol === "http:") {
