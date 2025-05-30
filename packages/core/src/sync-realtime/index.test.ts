@@ -65,7 +65,7 @@ test("createRealtimeSync()", async (context) => {
     chain,
     rpc,
     sources,
-    onEvent: vi.fn(() => Promise.resolve()),
+    onEvent: vi.fn(() => Promise.resolve({ promise: Promise.resolve() })),
     onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     initialChildAddresses: new Map(),
@@ -97,7 +97,7 @@ test("start() handles block", async (context) => {
     chain,
     rpc,
     sources,
-    onEvent: vi.fn(() => Promise.resolve()),
+    onEvent: vi.fn(() => Promise.resolve({ promise: Promise.resolve() })),
     onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     initialChildAddresses: new Map(),
@@ -106,9 +106,9 @@ test("start() handles block", async (context) => {
   await testClient.mine({ blocks: 1 });
   const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
-  const isAccepted = await realtimeSync.sync(block);
+  const syncResult = await realtimeSync.sync(block);
 
-  expect(isAccepted).toBe(true);
+  expect(syncResult.type).toBe("accepted");
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 });
@@ -136,7 +136,7 @@ test("sync() no-op when receiving same block twice", async (context) => {
     chain,
     rpc,
     sources,
-    onEvent: vi.fn(() => Promise.resolve()),
+    onEvent: vi.fn(() => Promise.resolve({ promise: Promise.resolve() })),
     onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     initialChildAddresses: new Map(),
@@ -146,9 +146,9 @@ test("sync() no-op when receiving same block twice", async (context) => {
   const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
   await realtimeSync.sync(block);
-  const isAccepted = await realtimeSync.sync(block);
+  const syncResult = await realtimeSync.sync(block);
 
-  expect(isAccepted).toBe(false);
+  expect(syncResult.type).toBe("rejected");
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 });
 
@@ -175,7 +175,7 @@ test("sync() gets missing block", async (context) => {
     chain,
     rpc,
     sources,
-    onEvent: vi.fn(() => Promise.resolve()),
+    onEvent: vi.fn(() => Promise.resolve({ promise: Promise.resolve() })),
     onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     initialChildAddresses: new Map(),
@@ -184,9 +184,9 @@ test("sync() gets missing block", async (context) => {
   await testClient.mine({ blocks: 2 });
   const block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
 
-  const isAccepted = await realtimeSync.sync(block);
+  const syncResult = await realtimeSync.sync(block);
 
-  expect(isAccepted).toBe(true);
+  expect(syncResult.type).toBe("accepted");
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
 });
 
@@ -213,7 +213,7 @@ test("sync() catches error", async (context) => {
     chain,
     rpc,
     sources,
-    onEvent: vi.fn(() => Promise.resolve()),
+    onEvent: vi.fn(() => Promise.resolve({ promise: Promise.resolve() })),
     onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     initialChildAddresses: new Map(),
@@ -225,9 +225,9 @@ test("sync() catches error", async (context) => {
   const requestSpy = vi.spyOn(rpc, "request");
   requestSpy.mockRejectedValueOnce(new Error());
 
-  const isAccepted = await realtimeSync.sync(block);
+  const syncResult = await realtimeSync.sync(block);
 
-  expect(isAccepted).toBe(false);
+  expect(syncResult.type).toBe("rejected");
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
 });
@@ -260,6 +260,7 @@ test("handleBlock() block event with log", async (context) => {
 
   const onEvent = vi.fn(async (_data) => {
     data.push(_data);
+    return { promise: Promise.resolve() };
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
@@ -277,9 +278,7 @@ test("handleBlock() block event with log", async (context) => {
 
   const block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
 
-  const isAccepted = await realtimeSync.sync(block);
-
-  expect(isAccepted).toBe(true);
+  await realtimeSync.sync(block);
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 
@@ -337,6 +336,7 @@ test("handleBlock() block event with log factory", async (context) => {
 
   const onEvent = vi.fn(async (_data) => {
     data.push(_data);
+    return { promise: Promise.resolve() };
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
@@ -436,6 +436,7 @@ test("handleBlock() block event with block", async (context) => {
 
   const onEvent = vi.fn(async (_data) => {
     data.push(_data);
+    return { promise: Promise.resolve() };
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -503,6 +504,7 @@ test("handleBlock() block event with transaction", async (context) => {
 
   const onEvent = vi.fn(async (_data) => {
     data.push(_data);
+    return { promise: Promise.resolve() };
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -592,6 +594,7 @@ test("handleBlock() block event with transfer", async (context) => {
 
   const onEvent = vi.fn(async (_data) => {
     data.push(_data);
+    return { promise: Promise.resolve() };
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -724,6 +727,7 @@ test("handleBlock() block event with trace", async (context) => {
 
   const onEvent = vi.fn(async (_data) => {
     data.push(_data);
+    return { promise: Promise.resolve() };
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
@@ -801,6 +805,7 @@ test("handleBlock() finalize event", async (context) => {
 
   const onEvent = vi.fn(async (_data) => {
     if (_data.type === "finalize") data.push(_data);
+    return { promise: Promise.resolve() };
   });
 
   const realtimeSync = createRealtimeSync({
@@ -863,7 +868,7 @@ test("handleReorg() finds common ancestor", async (context) => {
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
 
-  const onEvent = vi.fn(() => Promise.resolve());
+  const onEvent = vi.fn(() => Promise.resolve({ promise: Promise.resolve() }));
 
   const realtimeSync = createRealtimeSync({
     common,
@@ -930,7 +935,7 @@ test("handleReorg() throws error for deep reorg", async (context) => {
     chain,
     rpc,
     sources,
-    onEvent: vi.fn(() => Promise.resolve()),
+    onEvent: vi.fn(() => Promise.resolve({ promise: Promise.resolve() })),
     onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     initialChildAddresses: new Map(),
