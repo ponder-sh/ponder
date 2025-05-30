@@ -10,30 +10,101 @@ import {
   promiseWithResolvers,
 } from "./utils/promiseWithResolvers.js";
 
+const INITIAL_RETRY_DELAY = 2_000;
+const MAX_RETRY_DELAY = 30_000;
+const BACKOFF_FACTOR = 2;
+const DEFAULT_TIMEOUT = 10_000;
+const LATENCY_WINDOW_SIZE = 500;
+
+// RPS management
+const INITIAL_MAX_RPS = 50;
+const MIN_RPS = 1;
+const MAX_RPS = 500;
+const RPS_INCREASE_FACTOR = 1.2;
+const RPS_DECREASE_FACTOR = 0.7;
+const SUCCESS_WINDOW_SIZE = 100;
+
+const addLatency = (bucket: Bucket, latency: number) => {
+  bucket.latencies.push(latency);
+  if (bucket.latencies.length > LATENCY_WINDOW_SIZE) {
+    bucket.latencies.shift();
+  }
+
+  bucket.expectedLatency =
+    bucket.latencies.reduce((sum, lat) => sum + lat, 0) /
+    bucket.latencies.length;
+};
+
+const addRequestMetadata = (bucket: Bucket) => {
+  const timestamp = Date.now() / 1000;
+  bucket.requests.push(timestamp);
+  while (timestamp - bucket.requests[0]! > 5) {
+    bucket.requests.shift()!;
+  }
+};
+const getRps = (bucket: Bucket) => {
+  const timestamp = Date.now() / 1000;
+  while (bucket.requests.length > 0 && timestamp - bucket.requests[0]! > 5) {
+    bucket.requests.shift()!;
+  }
+
+  if (bucket.requests.length === 0) return 0;
+
+  const t =
+    bucket.requests[bucket.requests.length - 1]! - bucket.requests[0]! + 1;
+  return bucket.requests.length / t;
+};
+
+const isRPSSafe = (bucket: Bucket) => {
+  return getRps(bucket) < bucket.maxRPS;
+};
+
+const increaseMaxRPS = (bucket: Bucket) => {
+  if (bucket.successfulRequests >= SUCCESS_WINDOW_SIZE) {
+    const newMaxRPS = Math.min(bucket.maxRPS * RPS_INCREASE_FACTOR, MAX_RPS);
+    console.log(
+      `Bucket ${bucket.index} increasing max RPS from ${bucket.maxRPS.toFixed(2)} to ${newMaxRPS.toFixed(2)} after ${bucket.successfulRequests} successful requests`,
+    );
+    bucket.maxRPS = newMaxRPS;
+    bucket.successfulRequests = 0;
+  }
+};
+
+const decreaseMaxRPS = (bucket: Bucket) => {
+  const newMaxRPS = Math.max(bucket.maxRPS * RPS_DECREASE_FACTOR, MIN_RPS);
+  console.log(
+    `Bucket ${bucket.index} decreasing max RPS from ${bucket.maxRPS.toFixed(2)} to ${newMaxRPS.toFixed(2)} due to rate limit`,
+  );
+  bucket.maxRPS = newMaxRPS;
+  bucket.successfulRequests = 0;
+};
+
+type Bucket = {
+  index: number;
+  retryDelay: number;
+
+  activeConnections: number;
+  isActive: boolean;
+  isJustActivated: boolean;
+
+  latencies: number[];
+  expectedLatency: number;
+  requests: number[];
+  successfulRequests: number;
+  maxRPS: number;
+
+  totalSuccessfulRequests: 0;
+  totalFailedRequests: 0;
+} & ReturnType<Transport>;
+
 export const dynamicLB = (_transports: Transport[]): Transport => {
-  const RPC_USAGE = Array.from({ length: _transports.length }, () => ({
-    s: 0,
-    l: 0,
-  })) as { s: number; l: number }[];
-
   return ({ chain, retryCount, timeout }) => {
-    const INITIAL_RETRY_DELAY = 2_000;
-    const MAX_RETRY_DELAY = 30_000;
-    const BACKOFF_FACTOR = 2;
-    const DEFAULT_TIMEOUT = 10_000;
-    const LATENCY_WINDOW_SIZE = 500;
+    const queue: {
+      body: EIP1193Parameters;
+      pwr: PromiseWithResolvers<unknown>;
+    }[] = [];
 
-    // RPS management
-    const INITIAL_MAX_RPS = 50;
-    const MIN_RPS = 1;
-    const MAX_RPS = 500;
-    const RPS_INCREASE_FACTOR = 1.2;
-    const RPS_DECREASE_FACTOR = 0.7;
-    const SUCCESS_WINDOW_SIZE = 100;
-
-    const queue: [EIP1193Parameters, PromiseWithResolvers<unknown>][] = [];
-
-    const buckets = _transports.map((transport, index) => ({
+    const buckets: Bucket[] = _transports.map((transport, index) => ({
       index,
       retryDelay: 0,
 
@@ -47,64 +118,9 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
       successfulRequests: 0,
       maxRPS: INITIAL_MAX_RPS,
 
-      getExpectedLatency() {
-        return this.expectedLatency;
-      },
-      addLatency(latency: number) {
-        this.latencies.push(latency);
-        if (this.latencies.length > LATENCY_WINDOW_SIZE) {
-          this.latencies.shift();
-        }
+      totalSuccessfulRequests: 0,
+      totalFailedRequests: 0,
 
-        this.expectedLatency =
-          this.latencies.reduce((sum, lat) => sum + lat, 0) /
-          this.latencies.length;
-        RPC_USAGE[this.index]!.l = this.expectedLatency;
-      },
-
-      addRequestTimestamp() {
-        const timestamp = Date.now() / 1000;
-        this.requests.push(timestamp);
-        while (timestamp - this.requests[0]! > 5) {
-          this.requests.shift()!;
-        }
-      },
-      getRps() {
-        const timestamp = Date.now() / 1000;
-        while (this.requests.length > 0 && timestamp - this.requests[0]! > 5) {
-          this.requests.shift()!;
-        }
-
-        if (this.requests.length === 0) return 0;
-
-        const t =
-          this.requests[this.requests.length - 1]! - this.requests[0]! + 1;
-        return this.requests.length / t;
-      },
-      isRPSSafe() {
-        return this.getRps() < this.maxRPS;
-      },
-      increaseMaxRPS() {
-        if (this.successfulRequests >= SUCCESS_WINDOW_SIZE) {
-          const newMaxRPS = Math.min(
-            this.maxRPS * RPS_INCREASE_FACTOR,
-            MAX_RPS,
-          );
-          console.log(
-            `Bucket ${this.index} increasing max RPS from ${this.maxRPS.toFixed(2)} to ${newMaxRPS.toFixed(2)} after ${this.successfulRequests} successful requests`,
-          );
-          this.maxRPS = newMaxRPS;
-          this.successfulRequests = 0;
-        }
-      },
-      decreaseMaxRPS() {
-        const newMaxRPS = Math.max(this.maxRPS * RPS_DECREASE_FACTOR, MIN_RPS);
-        console.log(
-          `Bucket ${this.index} decreasing max RPS from ${this.maxRPS.toFixed(2)} to ${newMaxRPS.toFixed(2)} due to rate limit`,
-        );
-        this.maxRPS = newMaxRPS;
-        this.successfulRequests = 0;
-      },
       ...transport({
         retryCount: 0,
         timeout: timeout ?? DEFAULT_TIMEOUT,
@@ -139,7 +155,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
         (b) =>
           b.isActive &&
           (!b.isJustActivated || b.activeConnections === 0) &&
-          b.isRPSSafe(),
+          isRPSSafe(b),
       );
 
       if (activeBuckets.length === 0) {
@@ -149,7 +165,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
               (b) =>
                 b.isActive &&
                 (!b.isJustActivated || b.activeConnections === 0) &&
-                (b as (typeof buckets)[0]).isRPSSafe(),
+                isRPSSafe(b as (typeof buckets)[0]),
             );
             if (safeBucket) {
               resolve();
@@ -166,8 +182,8 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
       }
 
       const fastestBucket = activeBuckets.reduce((fastest, current) => {
-        const currentLatency = current.getExpectedLatency();
-        const fastestLatency = fastest.getExpectedLatency();
+        const currentLatency = current.expectedLatency;
+        const fastestLatency = fastest.expectedLatency;
 
         if (currentLatency < fastestLatency) {
           return current;
@@ -194,17 +210,17 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
       }
 
       try {
-        bucket.addRequestTimestamp();
+        addRequestMetadata(bucket);
         const response = await bucket.request(body);
 
         // Record latency
         const latency = performance.now() - startTime;
-        bucket.addLatency(latency);
+        addLatency(bucket, latency);
 
         // Update RPS metadata
-        RPC_USAGE[bucket.index]!.s += 1;
+        bucket.totalSuccessfulRequests++;
         bucket.successfulRequests++;
-        bucket.increaseMaxRPS();
+        increaseMaxRPS(bucket);
 
         if (bucket.isJustActivated) {
           bucket.isJustActivated = false;
@@ -217,12 +233,14 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
       } catch (error) {
         const err = error as any;
 
+        bucket.totalFailedRequests++;
+
         if (err.code === 429 || err.status === 429) {
           if (bucket.isActive) {
             bucket.isActive = false;
             bucket.isJustActivated = false;
 
-            bucket.decreaseMaxRPS();
+            decreaseMaxRPS(bucket);
 
             bucket.retryDelay =
               bucket.retryDelay === 0
@@ -236,7 +254,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
             bucket.isActive = false;
             bucket.isJustActivated = false;
 
-            bucket.decreaseMaxRPS();
+            decreaseMaxRPS(bucket);
 
             bucket.retryDelay = INITIAL_RETRY_DELAY;
 
@@ -259,15 +277,22 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
 
       const bucket = await getBucket();
 
-      const [body, { reject, resolve }] = queue.shift()!;
+      const {
+        body,
+        pwr: { reject, resolve },
+      } = queue.shift()!;
       await fetch(body, 1, bucket).then(resolve).catch(reject);
     };
 
     const printRPCUsage = () => {
-      const totalRequests = RPC_USAGE.reduce((acc, cur) => acc + cur.s, 0);
-      const usage = RPC_USAGE.map(
-        ({ s, l }, index) =>
-          `RPC ${index}: ${s} (${((s * 100) / totalRequests).toFixed(2)} %); expected latency: ${l}`,
+      const totalSuccessfulRequests_ = buckets.reduce(
+        (acc, cur) => acc + cur.totalSuccessfulRequests,
+        0,
+      );
+
+      const usage = buckets.map(
+        (b) =>
+          `RPC ${b.index}: ${b.totalSuccessfulRequests} (${((b.totalSuccessfulRequests * 100) / totalSuccessfulRequests_).toFixed(2)} %); expected latency: ${b.expectedLatency}`,
       );
       console.log(
         "======================= RPC USAGE SUMMARY =======================",
@@ -286,10 +311,10 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
       key: "dynamicLB",
       name: "dynamic load balance",
       request: async (body) => {
-        const p = promiseWithResolvers();
-        queue.push([body, p]);
+        const pwr = promiseWithResolvers();
+        queue.push({ body, pwr });
         await dispatch();
-        return p.promise;
+        return pwr.promise;
       },
       retryCount: 0,
       timeout: 0,
