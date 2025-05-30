@@ -244,7 +244,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
           }
         }
 
-        if (tryCount === retryCount ?? 0) {
+        if (tryCount === (retryCount ?? 0)) {
           throw error;
         } else {
           return fetch(body, tryCount + 1, undefined);
