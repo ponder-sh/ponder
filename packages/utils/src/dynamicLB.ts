@@ -37,24 +37,28 @@ const addLatency = (bucket: Bucket, latency: number) => {
 
 const addRequestMetadata = (bucket: Bucket) => {
   const timestamp = Date.now() / 1000;
-  bucket.requests.push(timestamp);
-  while (timestamp - bucket.requests[0]! > 5) {
-    bucket.requests.shift()!;
+  bucket.requestTimestamps.push(timestamp);
+  while (timestamp - bucket.requestTimestamps[0]! > 5) {
+    bucket.requestTimestamps.shift()!;
   }
 };
 const getRps = (bucket: Bucket) => {
   const timestamp = Date.now() / 1000;
-  while (bucket.requests.length > 0 && timestamp - bucket.requests[0]! > 5) {
-    bucket.requests.shift()!;
+  while (
+    bucket.requestTimestamps.length > 0 &&
+    timestamp - bucket.requestTimestamps[0]! > 5
+  ) {
+    bucket.requestTimestamps.shift()!;
   }
 
-  if (bucket.requests.length === 0) return 0;
+  if (bucket.requestTimestamps.length === 0) return 0;
 
   const t =
-    bucket.requests[bucket.requests.length - 1]! - bucket.requests[0]! + 1;
-  return bucket.requests.length / t;
+    bucket.requestTimestamps[bucket.requestTimestamps.length - 1]! -
+    bucket.requestTimestamps[0]! +
+    1;
+  return bucket.requestTimestamps.length / t;
 };
-
 const isRPSSafe = (bucket: Bucket) => {
   return getRps(bucket) < bucket.maxRPS;
 };
@@ -69,7 +73,6 @@ const increaseMaxRPS = (bucket: Bucket) => {
     bucket.successfulRequests = 0;
   }
 };
-
 const decreaseMaxRPS = (bucket: Bucket) => {
   const newMaxRPS = Math.max(bucket.maxRPS * RPS_DECREASE_FACTOR, MIN_RPS);
   console.log(
@@ -89,7 +92,8 @@ type Bucket = {
 
   latencies: number[];
   expectedLatency: number;
-  requests: number[];
+
+  requestTimestamps: number[];
   successfulRequests: number;
   maxRPS: number;
 
@@ -114,7 +118,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
 
       latencies: [] as number[],
       expectedLatency: 0,
-      requests: [] as number[],
+      requestTimestamps: [] as number[],
       successfulRequests: 0,
       maxRPS: INITIAL_MAX_RPS,
 
@@ -130,7 +134,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
 
     const activationPromises: Promise<void>[] = [];
 
-    const scheduleBucketActivation = (bucket: (typeof buckets)[0]) => {
+    const scheduleBucketActivation = (bucket: Bucket) => {
       const promise = new Promise<void>((resolve) => {
         setTimeout(() => {
           bucket.isActive = true;
@@ -150,7 +154,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
       });
     };
 
-    const getBucket = async (): Promise<(typeof buckets)[0]> => {
+    const getBucket = async (): Promise<Bucket> => {
       const activeBuckets = buckets.filter(
         (b) =>
           b.isActive &&
@@ -165,7 +169,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
               (b) =>
                 b.isActive &&
                 (!b.isJustActivated || b.activeConnections === 0) &&
-                isRPSSafe(b as (typeof buckets)[0]),
+                isRPSSafe(b),
             );
             if (safeBucket) {
               resolve();
@@ -198,11 +202,11 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
     const fetch = async (
       body: any,
       tryCount: number,
-      bucket_: (typeof buckets)[0] | undefined,
+      bucket_: Bucket | undefined,
     ): Promise<unknown> => {
       const startTime = performance.now();
 
-      let bucket: (typeof buckets)[0];
+      let bucket: Bucket;
       if (bucket_ === undefined) {
         bucket = await getBucket();
       } else {
