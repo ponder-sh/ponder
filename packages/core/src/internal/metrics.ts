@@ -564,14 +564,14 @@ export async function getIndexingProgress(metrics: MetricsService) {
   }
 
   const events = indexingCompletedEventsMetric.map((m) => {
-    const eventName = truncate(m.labels.event as string);
     const count = m.value;
 
-    const durationSum = indexingDurationSum[eventName] ?? 0;
-    const durationCount = indexingDurationCount[eventName] ?? 0;
+    const durationSum = indexingDurationSum[m.labels.event as string] ?? 0;
+    const durationCount = indexingDurationCount[m.labels.event as string] ?? 0;
     const averageDuration =
       durationCount === 0 ? 0 : durationSum / durationCount;
 
+    const eventName = truncate(m.labels.event as string);
     return { eventName, count, averageDuration };
   });
 
