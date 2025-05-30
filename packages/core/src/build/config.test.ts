@@ -741,7 +741,7 @@ test("buildConfigAndIndexingFunctions() block source", async (context) => {
 test("buildConfigAndIndexingFunctions() coerces undefined factory interval to source interval", async (context) => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: "http://127.0.0.1:8545" },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
     },
     contracts: {
       a: {
@@ -777,7 +777,7 @@ test("buildConfigAndIndexingFunctions() coerces undefined factory interval to so
 test("buildConfigAndIndexingFunctions() validates factory interval", async (context) => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: "http://127.0.0.1:8545" },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
     },
     contracts: {
       a: {
