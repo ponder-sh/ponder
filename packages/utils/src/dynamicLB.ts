@@ -25,7 +25,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
 
     // RPS management
     const INITIAL_MAX_RPS = 50;
-    const MIN_RPS = 10;
+    const MIN_RPS = 1;
     const MAX_RPS = 500;
     const RPS_INCREASE_FACTOR = 1.2;
     const RPS_DECREASE_FACTOR = 0.7;
@@ -105,7 +105,11 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
         this.maxRPS = newMaxRPS;
         this.successfulRequests = 0;
       },
-      ...transport({ retryCount: 0, timeout: DEFAULT_TIMEOUT, chain }),
+      ...transport({
+        retryCount: 0,
+        timeout: timeout ?? DEFAULT_TIMEOUT,
+        chain,
+      }),
     }));
 
     const activationPromises: Promise<void>[] = [];
@@ -227,14 +231,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
 
             scheduleBucketActivation(bucket);
           }
-
-          // Retry
-          return fetch(body, tryCount + 1, undefined);
-        }
-
-        console.log(`Error ${bucket.index} bucket`);
-
-        if (err instanceof TimeoutError) {
+        } else if (err instanceof TimeoutError) {
           if (bucket.isActive) {
             bucket.isActive = false;
             bucket.isJustActivated = false;
@@ -245,10 +242,13 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
 
             scheduleBucketActivation(bucket);
           }
-          return fetch(body, tryCount + 1, undefined);
         }
 
-        throw error;
+        if (tryCount === retryCount ?? 0) {
+          throw error;
+        } else {
+          return fetch(body, tryCount + 1, undefined);
+        }
       } finally {
         bucket.activeConnections--;
       }
@@ -280,7 +280,6 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
       );
     };
 
-    // Print RPC usage every second
     setInterval(printRPCUsage, 5000);
 
     return createTransport({
@@ -292,8 +291,8 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
         await dispatch();
         return p.promise;
       },
-      retryCount,
-      timeout,
+      retryCount: 0,
+      timeout: 0,
       type: "dynamicLB",
     } as TransportConfig);
   };
