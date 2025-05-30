@@ -1,3 +1,4 @@
+import { ALICE } from "@/_test/constants.js";
 import {
   setupCleanup,
   setupCommon,
@@ -7,6 +8,7 @@ import {
 import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
 import {
   BigIntSerializationError,
+  NonRetryableError,
   NotNullConstraintError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
@@ -278,6 +280,50 @@ test("update", async (context) => {
     address: zeroAddress,
     balance: 22n,
   });
+});
+
+test("update throw error when primary key is updated", async (context) => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    database,
+    schemaBuild: { schema },
+  });
+
+  // setup
+
+  await indexingStore
+    .insert(schema.account)
+    .values({ address: zeroAddress, balance: 10n });
+
+  // no function
+
+  let error: any = await indexingStore
+    .update(schema.account, { address: zeroAddress })
+    // @ts-expect-error
+    .set({ address: ALICE })
+    .catch((error) => error);
+
+  expect(error).toBeInstanceOf(NonRetryableError);
+
+  // function
+
+  error = await indexingStore
+    .update(schema.account, { address: zeroAddress })
+    .set(() => ({ address: ALICE }))
+    .catch((error) => error);
+
+  expect(error).toBeInstanceOf(NonRetryableError);
 });
 
 test("delete", async (context) => {

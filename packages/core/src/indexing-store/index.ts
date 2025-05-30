@@ -1,8 +1,10 @@
+import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { onchain } from "@/drizzle/onchain.js";
 import {
   BigIntSerializationError,
   CheckConstraintError,
   InvalidStoreMethodError,
+  NonRetryableError,
   NotNullConstraintError,
   UndefinedTableError,
   UniqueConstraintError,
@@ -34,6 +36,19 @@ export const parseSqlError = (e: any): Error => {
   }
 
   return error;
+};
+
+export const validateUpdateSet = (table: Table, set: Object): Object => {
+  const primaryKeys = getPrimaryKeyColumns(table);
+
+  for (const { js } of primaryKeys) {
+    if (js in set) {
+      throw new NonRetryableError(
+        `Primary key column '${js}' cannot be updated`,
+      );
+    }
+  }
+  return set;
 };
 
 /** Throw an error if `table` is not an `onchainTable`. */
