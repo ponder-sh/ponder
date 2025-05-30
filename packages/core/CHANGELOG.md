@@ -1,5 +1,19 @@
 # ponder
 
+## 0.11.7
+
+### Patch Changes
+
+- [#1762](https://github.com/ponder-sh/ponder/pull/1762) [`9072b07`](https://github.com/ponder-sh/ponder/commit/9072b0733c0216d3e8e9b9fd1649aece85f7efb3) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed several bugs that caused events to be missed.
+
+- [#1629](https://github.com/ponder-sh/ponder/pull/1629) [`074a138`](https://github.com/ponder-sh/ponder/commit/074a13829091f286e951a1f88bb2cfb33120fcea) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Introduced the feature of specifying factory block range independent from source block range.
+
+- [#1762](https://github.com/ponder-sh/ponder/pull/1762) [`9072b07`](https://github.com/ponder-sh/ponder/commit/9072b0733c0216d3e8e9b9fd1649aece85f7efb3) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused `[account]:transaction:to` indexing functions to process extra events.
+
+- [#1762](https://github.com/ponder-sh/ponder/pull/1762) [`9072b07`](https://github.com/ponder-sh/ponder/commit/9072b0733c0216d3e8e9b9fd1649aece85f7efb3) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `ponder_realtime_block_arrival_latency` metric.
+
+- [#1762](https://github.com/ponder-sh/ponder/pull/1762) [`9072b07`](https://github.com/ponder-sh/ponder/commit/9072b0733c0216d3e8e9b9fd1649aece85f7efb3) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with `ponder_realtime_latency` overreporting with `omnichain` ordering.
+
 ## 0.11.6
 
 ### Patch Changes
