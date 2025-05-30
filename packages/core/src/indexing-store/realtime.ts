@@ -11,6 +11,7 @@ import {
   type IndexingStore,
   checkOnchainTable,
   parseSqlError,
+  validateUpdateSet,
 } from "./index.js";
 import { getCacheKey, getWhereCondition } from "./utils.js";
 
@@ -103,6 +104,7 @@ export const createRealtimeIndexingStore = ({
 
                 if (typeof valuesU === "object") {
                   try {
+                    const set = validateUpdateSet(table, valuesU);
                     return await database.qb.drizzle
                       .insert(table)
                       .values(values)
@@ -111,7 +113,7 @@ export const createRealtimeIndexingStore = ({
                           // @ts-ignore
                           ({ js }) => table[js],
                         ),
-                        set: valuesU,
+                        set,
                       })
                       .returning()
                       .then((res) => (Array.isArray(values) ? res : res[0]));
@@ -139,10 +141,11 @@ export const createRealtimeIndexingStore = ({
                       }
                     } else {
                       try {
+                        const set = validateUpdateSet(table, valuesU(row));
                         rows.push(
                           await database.qb.drizzle
                             .update(table)
-                            .set(valuesU(row))
+                            .set(set)
                             .where(getWhereCondition(table, value))
                             .returning()
                             .then((res) => res[0]),
@@ -168,9 +171,10 @@ export const createRealtimeIndexingStore = ({
                     }
                   } else {
                     try {
+                      const set = validateUpdateSet(table, valuesU(row));
                       return await database.qb.drizzle
                         .update(table)
-                        .set(valuesU(row))
+                        .set(set)
                         .where(getWhereCondition(table, values))
                         .returning()
                         .then((res) => res[0]);
@@ -243,9 +247,10 @@ export const createRealtimeIndexingStore = ({
               }
 
               try {
+                const set = validateUpdateSet(table, values(row));
                 return await database.qb.drizzle
                   .update(table)
-                  .set(values(row))
+                  .set(set)
                   .where(getWhereCondition(table, key))
                   .returning()
                   .then((res) => res[0]);
@@ -254,9 +259,10 @@ export const createRealtimeIndexingStore = ({
               }
             } else {
               try {
+                const set = validateUpdateSet(table, values);
                 return await database.qb.drizzle
                   .update(table)
-                  .set(values)
+                  .set(set)
                   .where(getWhereCondition(table, key))
                   .returning()
                   .then((res) => res[0]);
