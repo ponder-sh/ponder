@@ -142,26 +142,14 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
       }),
     }));
 
-    const activationPromises: Promise<void>[] = [];
-
     const scheduleBucketActivation = (bucket: Bucket) => {
-      const promise = new Promise<void>((resolve) => {
-        setTimeout(() => {
-          bucket.isActive = true;
-          bucket.isJustActivated = true;
-          console.log(
-            `Bucket ${bucket.index} reactivated after ${bucket.retryDelay}ms delay`,
-          );
-          resolve();
-        }, bucket.retryDelay);
-      });
-      activationPromises.push(promise);
-      promise.then(() => {
-        const index = activationPromises.indexOf(promise);
-        if (index > -1) {
-          activationPromises.splice(index, 1);
-        }
-      });
+      setTimeout(() => {
+        bucket.isActive = true;
+        bucket.isJustActivated = true;
+        console.log(
+          `Bucket ${bucket.index} reactivated after ${bucket.retryDelay}ms delay`,
+        );
+      }, bucket.retryDelay);
     };
 
     const getBucket = async (): Promise<Bucket> => {
@@ -283,6 +271,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
       await fetch(body, 1, bucket).then(resolve).catch(reject);
     };
 
+    // Purely for debugging
     const printRPCUsage = () => {
       const totalSuccessfulRequests_ = buckets.reduce(
         (acc, cur) => acc + cur.totalSuccessfulRequests,
