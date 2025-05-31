@@ -1,4 +1,4 @@
-import type { Node, RawStmt } from "@pgsql/types";
+import type { Node, RangeVar, RawStmt } from "@pgsql/types";
 
 type ValidatorNode<
   node extends Node extends infer T ? (T extends T ? keyof T : never) : never,
@@ -11,6 +11,7 @@ type ValidatorNode<
 const getNodeType = (node: Node) => Object.keys(node)[0]!;
 
 const ALLOW_CACHE = new Map<string, boolean>();
+const TABLE_NAMES_CACHE = new Map<string, Set<string>>();
 
 /**
  * Validate a SQL query.
@@ -101,6 +102,89 @@ export const validateQuery = async (
       if (firstKey) ALLOW_CACHE.delete(firstKey);
     }
   }
+};
+
+/**
+ * Find all table names in a SQL query.
+ *
+ * @param sql - SQL query
+ */
+export const findTableNames = async (sql: string) => {
+  // @ts-ignore
+  const Parser = await import(/* webpackIgnore: true */ "pg-query-emscripten");
+  const crypto = await import(/* webpackIgnore: true */ "node:crypto");
+
+  if (sql.length > 5_000) {
+    throw new Error("Invalid query");
+  }
+
+  const hash = crypto
+    .createHash("sha256")
+    .update(sql)
+    .digest("hex")
+    .slice(0, 10);
+
+  if (TABLE_NAMES_CACHE.has(hash)) {
+    const result = TABLE_NAMES_CACHE.get(hash)!;
+
+    TABLE_NAMES_CACHE.delete(hash);
+    TABLE_NAMES_CACHE.set(hash, result);
+
+    return result;
+  }
+
+  const { parse } = await Parser.default();
+  const parseResult = parse(sql) as {
+    parse_tree: { stmts: RawStmt[] };
+    error: string | null;
+  };
+
+  if (parseResult.error !== null) {
+    throw new Error(parseResult.error);
+  }
+
+  if (parseResult.parse_tree.stmts.length === 0) {
+    throw new Error("Invalid query");
+  }
+
+  if (parseResult.parse_tree.stmts.length > 1) {
+    throw new Error("Multiple statements not supported");
+  }
+
+  const stmt = parseResult.parse_tree.stmts[0]!;
+
+  if (stmt.stmt === undefined) {
+    throw new Error("Invalid query");
+  }
+
+  const find = (node: Node) => {
+    if (FIND_LIST.has(getNodeType(node)) === false) {
+      throw new Error(`${getNodeType(node)} not supported`);
+    }
+
+    if (getNodeType(node) === "RangeVar") {
+      const tableName = (node as { RangeVar: RangeVar }).RangeVar.relname;
+      if (tableName) tableNames.add(tableName);
+    }
+
+    for (const child of FIND_LIST.get(getNodeType(node))!.children(
+      // @ts-ignore
+      node[getNodeType(node)],
+    )) {
+      find(child);
+    }
+  };
+
+  const tableNames = new Set<string>();
+  find(stmt.stmt);
+
+  TABLE_NAMES_CACHE.set(hash, tableNames);
+  if (TABLE_NAMES_CACHE.size > 1_000_000) {
+    const firstKey = TABLE_NAMES_CACHE.keys().next().value;
+    if (firstKey) TABLE_NAMES_CACHE.delete(firstKey);
+  }
+
+  return tableNames;
 };
 
 // https://github.com/launchql/pgsql-parser/blob/f1df82ed4358e47c682e007bc5aa306b58f25514/packages/types/src/types.ts#L38
@@ -850,6 +934,37 @@ const ALLOW_LIST = new Map(
     JSON_ARRAY_AGG_VALIDATOR,
     SELECT_STMT_VALIDATOR,
     COMMENT_STMT_VALIDATOR,
+  ].map((node) => [node.node, node]),
+);
+
+const UPDATE_STMT_VALIDATOR: ValidatorNode<"UpdateStmt"> = {
+  node: "UpdateStmt",
+  children: (node) => [
+    ...(node.relation ? [{ RangeVar: node.relation }] : []),
+    ...(node.targetList ?? []),
+    ...(node.whereClause ? [node.whereClause] : []),
+    ...(node.fromClause ?? []),
+    ...(node.returningList ?? []),
+    ...(node.withClause ? [{ WithClause: node.withClause }] : []),
+  ],
+};
+
+const DELETE_STMT_VALIDATOR: ValidatorNode<"DeleteStmt"> = {
+  node: "DeleteStmt",
+  children: (node) => [
+    ...(node.relation ? [{ RangeVar: node.relation }] : []),
+    ...(node.usingClause ?? []),
+    ...(node.whereClause ? [node.whereClause] : []),
+    ...(node.returningList ?? []),
+    ...(node.withClause ? [{ WithClause: node.withClause }] : []),
+  ],
+};
+
+const FIND_LIST = new Map(
+  [
+    ...Array.from(ALLOW_LIST.values()),
+    UPDATE_STMT_VALIDATOR,
+    DELETE_STMT_VALIDATOR,
   ].map((node) => [node.node, node]),
 );
 

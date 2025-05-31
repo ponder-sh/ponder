@@ -7,7 +7,7 @@ import type { PgSession } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
 import superjson from "superjson";
-import { validateQuery } from "./validate.js";
+import { validateQuery } from "./parse.js";
 
 /**
  * Middleware for `@ponder/client`.

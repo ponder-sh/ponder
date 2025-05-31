@@ -72,8 +72,13 @@ export type IndexingCache = {
   }) => boolean | Promise<boolean>;
   /**
    * Writes all temporary data to the database.
+   *
+   * @param params.tableNames - If provided, only flush the tables in the set.
    */
-  flush: (params: { client: PoolClient | PGlite }) => Promise<void>;
+  flush: (params: {
+    client: PoolClient | PGlite;
+    tableNames?: Set<string>;
+  }) => Promise<void>;
   /**
    * Predict and load rows that will be accessed in the next event batch.
    */
@@ -466,12 +471,19 @@ export const createIndexingCache = ({
 
       return inInsertBuffer || inUpdateBuffer || inDb;
     },
-    async flush({ client }) {
+    async flush({ client, tableNames }) {
       const copy = getCopyHelper({ client });
 
       const shouldRecordBytes = isCacheComplete;
 
       for (const table of cache.keys()) {
+        if (
+          tableNames !== undefined &&
+          tableNames.has(getTableName(table)) === false
+        ) {
+          continue;
+        }
+
         const tableCache = cache.get(table)!;
 
         const insertValues = Array.from(insertBuffer.get(table)!.values());
@@ -588,17 +600,20 @@ export const createIndexingCache = ({
               }"."${getTableName(table)}"
               WITH NO DATA;
             `;
-          const updateQuery = `
+          const updateQuery = ` 
+              WITH source AS (
+                DELETE FROM "${getTableName(table)}"
+                RETURNING *
+              )
               UPDATE "${
                 getTableConfig(table).schema ?? "public"
               }"."${getTableName(table)}" as target
               SET ${set}
-              FROM "${getTableName(table)}" as source
+              FROM source
               WHERE ${primaryKeys
                 .map(({ sql }) => `target."${sql}" = source."${sql}"`)
                 .join(" AND ")};
             `;
-          const truncateQuery = `TRUNCATE TABLE "${getTableName(table)}" CASCADE`;
 
           const endClock = startClock();
 
@@ -662,8 +677,6 @@ export const createIndexingCache = ({
 
           // @ts-ignore
           await client.query(updateQuery);
-          // @ts-ignore
-          await client.query(truncateQuery);
 
           common.metrics.ponder_indexing_cache_query_duration.observe(
             {
