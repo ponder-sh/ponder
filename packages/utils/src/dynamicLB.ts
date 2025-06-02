@@ -15,6 +15,8 @@ const MAX_RETRY_DELAY = 30_000;
 const BACKOFF_FACTOR = 2;
 const DEFAULT_TIMEOUT = 10_000;
 const LATENCY_WINDOW_SIZE = 500;
+const LATENCY_SWITCH_QUALIFIER = 0.9;
+const EPSILON = 0.1;
 
 // RPS management
 const INITIAL_MAX_RPS = 50;
@@ -25,15 +27,24 @@ const RPS_DECREASE_FACTOR = 0.7;
 const RPS_INCREASE_QUALIFIER = 0.8;
 const SUCCESS_WINDOW_SIZE = 100;
 
-const addLatency = (bucket: Bucket, latency: number) => {
-  bucket.latencies.push(latency);
-  if (bucket.latencies.length > LATENCY_WINDOW_SIZE) {
-    bucket.latencies.shift();
+const addLatency = (bucket: Bucket, latency: number, success: boolean) => {
+  bucket.latencyMetadata.latencies.push({ value: latency, success });
+  bucket.latencyMetadata.latencySum += latency;
+  if (success) {
+    bucket.latencyMetadata.successfulLatencies++;
+  }
+
+  if (bucket.latencyMetadata.latencies.length > LATENCY_WINDOW_SIZE) {
+    const record = bucket.latencyMetadata.latencies.shift()!;
+    bucket.latencyMetadata.latencySum -= record.value;
+    if (record.success) {
+      bucket.latencyMetadata.successfulLatencies--;
+    }
   }
 
   bucket.expectedLatency =
-    bucket.latencies.reduce((sum, lat) => sum + lat, 0) /
-    bucket.latencies.length;
+    bucket.latencyMetadata.latencySum /
+    bucket.latencyMetadata.successfulLatencies;
 };
 
 const addRequestTimestamp = (bucket: Bucket) => {
@@ -103,7 +114,11 @@ type Bucket = {
   isActive: boolean;
   isJustActivated: boolean;
 
-  latencies: number[];
+  latencyMetadata: {
+    latencies: { value: number; success: boolean }[];
+    successfulLatencies: number;
+    latencySum: number;
+  };
   expectedLatency: number;
 
   requestTimestamps: number[];
@@ -129,10 +144,14 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
       isActive: true,
       isJustActivated: false,
 
-      latencies: [] as number[],
-      expectedLatency: 0,
+      latencyMetadata: {
+        latencies: [],
+        successfulLatencies: 0,
+        latencySum: 0,
+      },
+      expectedLatency: 200,
 
-      requestTimestamps: [] as number[],
+      requestTimestamps: [],
       successfulRequests: 0,
       maxRPS: INITIAL_MAX_RPS,
 
@@ -177,18 +196,30 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
         return getBucket();
       }
 
+      if (Math.random() < EPSILON) {
+        const randomBucket =
+          availableBuckets[
+            Math.floor(Math.random() * availableBuckets.length)
+          ]!;
+        randomBucket.activeConnections++;
+        return randomBucket;
+      }
+
       const fastestBucket = availableBuckets.reduce((fastest, current) => {
         const currentLatency = current.expectedLatency;
         const fastestLatency = fastest.expectedLatency;
 
-        if (currentLatency < fastestLatency) {
+        if (currentLatency < fastestLatency * LATENCY_SWITCH_QUALIFIER) {
           return current;
-        } else if (
-          currentLatency === fastestLatency &&
+        }
+
+        if (
+          currentLatency <= fastestLatency &&
           current.activeConnections < fastest.activeConnections
         ) {
           return current;
         }
+
         return fastest;
       }, availableBuckets[0]!);
 
@@ -205,7 +236,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
 
         // Record latency
         const latency = performance.now() - startTime;
-        addLatency(bucket, latency);
+        addLatency(bucket, latency, true);
 
         // Update RPS metadata
         bucket.totalSuccessfulRequests++;
@@ -223,9 +254,16 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
       } catch (error) {
         const err = error as any;
 
+        const latency = performance.now() - startTime;
+        addLatency(bucket, latency, false);
+
         bucket.totalFailedRequests++;
 
-        if (err.code === 429 || err.status === 429) {
+        if (
+          err.code === 429 ||
+          err.status === 429 ||
+          err instanceof TimeoutError
+        ) {
           if (bucket.isActive) {
             bucket.isActive = false;
             bucket.isJustActivated = false;
@@ -233,20 +271,9 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
             decreaseMaxRPS(bucket);
 
             bucket.retryDelay =
-              bucket.retryDelay === 0
+              bucket.retryDelay === 0 || err instanceof TimeoutError
                 ? INITIAL_RETRY_DELAY
                 : Math.min(bucket.retryDelay * BACKOFF_FACTOR, MAX_RETRY_DELAY);
-
-            scheduleBucketActivation(bucket);
-          }
-        } else if (err instanceof TimeoutError) {
-          if (bucket.isActive) {
-            bucket.isActive = false;
-            bucket.isJustActivated = false;
-
-            decreaseMaxRPS(bucket);
-
-            bucket.retryDelay = INITIAL_RETRY_DELAY;
 
             scheduleBucketActivation(bucket);
           }
