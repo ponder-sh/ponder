@@ -22,8 +22,8 @@ const MIN_RPS = 1;
 const MAX_RPS = 500;
 const RPS_INCREASE_FACTOR = 1.2;
 const RPS_DECREASE_FACTOR = 0.7;
-const SUCCESS_WINDOW_SIZE = 100;
 const RPS_INCREASE_QUALIFIER = 0.8;
+const SUCCESS_WINDOW_SIZE = 100;
 
 const addLatency = (bucket: Bucket, latency: number) => {
   bucket.latencies.push(latency);
@@ -183,6 +183,11 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
 
         if (currentLatency < fastestLatency) {
           return current;
+        } else if (
+          currentLatency === fastestLatency &&
+          current.activeConnections < fastest.activeConnections
+        ) {
+          return current;
         }
         return fastest;
       }, availableBuckets[0]!);
@@ -191,14 +196,8 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
       return fastestBucket;
     };
 
-    const fetch = async (
-      body: any,
-      tryCount: number,
-      bucket_: Bucket | undefined,
-    ): Promise<unknown> => {
+    const fetch = async (body: any, bucket: Bucket): Promise<unknown> => {
       const startTime = performance.now();
-
-      const bucket = bucket_ !== undefined ? bucket_ : await getBucket();
 
       try {
         addRequestTimestamp(bucket);
@@ -253,11 +252,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
           }
         }
 
-        if (tryCount === (retryCount ?? 0)) {
-          throw error;
-        } else {
-          return fetch(body, tryCount + 1, undefined);
-        }
+        throw error;
       } finally {
         bucket.activeConnections--;
       }
@@ -272,7 +267,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
         body,
         pwr: { reject, resolve },
       } = queue.shift()!;
-      await fetch(body, 1, bucket).then(resolve).catch(reject);
+      await fetch(body, bucket).then(resolve).catch(reject);
     };
 
     // Purely for debugging
@@ -308,7 +303,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
         dispatch();
         return pwr.promise;
       },
-      retryCount: 0,
+      retryCount,
       timeout: 0,
       type: "dynamicLB",
     } as TransportConfig);
