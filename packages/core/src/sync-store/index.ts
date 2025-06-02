@@ -847,10 +847,8 @@ export const createSyncStore = ({
 
             internalTransaction.blockNumber = Number(transaction.blockNumber);
             lazyChecksumAddress(internalTransaction, "from");
-            // internalTransaction.from = checksumAddress(transaction.from);
             if (transaction.to !== null) {
               lazyChecksumAddress(internalTransaction, "to");
-              // internalTransaction.to = checksumAddress(transaction.to);
             }
 
             if (transaction.type === "0x0") {
@@ -898,19 +896,10 @@ export const createSyncStore = ({
                 internalTransactionReceipt,
                 "contractAddress",
               );
-              // internalTransactionReceipt.contractAddress = checksumAddress(
-              //   transactionReceipt.contractAddress,
-              // );
             }
             lazyChecksumAddress(internalTransactionReceipt, "from");
-            // internalTransactionReceipt.from = checksumAddress(
-            //   transactionReceipt.from,
-            // );
             if (transactionReceipt.to !== null) {
               lazyChecksumAddress(internalTransactionReceipt, "to");
-              // internalTransactionReceipt.to = checksumAddress(
-              //   transactionReceipt.to,
-              // );
             }
             internalTransactionReceipt.status =
               transactionReceipt.status === "0x1"
@@ -942,7 +931,6 @@ export const createSyncStore = ({
 
             internalLog.blockNumber = Number(log.blockNumber);
             lazyChecksumAddress(internalLog, "address");
-            // internalLog.address = checksumAddress(log.address);
             internalLog.removed = false;
             internalLog.topics = [
               // @ts-ignore
@@ -974,10 +962,8 @@ export const createSyncStore = ({
             internalTrace.blockNumber = Number(trace.blockNumber);
 
             lazyChecksumAddress(internalTrace, "from");
-            // internalTrace.from = checksumAddress(trace.from);
             if (trace.to !== null) {
               lazyChecksumAddress(internalTrace, "to");
-              // internalTrace.to = checksumAddress(trace.to);
             }
 
             if (trace.output === null) {
@@ -997,7 +983,6 @@ export const createSyncStore = ({
           }
 
           lazyChecksumAddress(block, "miner");
-          // block.miner = checksumAddress(block.miner);
 
           blockData.push({
             block,
