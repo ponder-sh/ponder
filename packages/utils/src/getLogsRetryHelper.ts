@@ -45,13 +45,7 @@ export const getLogsRetryHelper = ({
     /requested too many blocks from (\d+) to (\d+), maximum is set to (\d+)/,
   );
   if (match !== null) {
-    // subtract 1 because block ranges are inclusive (from–to), so max must be X - 1
-    const maxRange = BigInt(match[3]!) - 1n;
-
-    const ranges = chunk({
-      params,
-      range: maxRange,
-    });
+    const ranges = chunk({ params, range: BigInt(match[3]!) - 1n });
 
     if (isRangeUnchanged(params, ranges)) {
       return { shouldRetry: false } as const;
@@ -542,10 +536,7 @@ const isRangeUnchanged = (
 const chunk = ({
   params,
   range,
-}: {
-  params: GetLogsRetryHelperParameters["params"];
-  range: bigint;
-}) => {
+}: { params: GetLogsRetryHelperParameters["params"]; range: bigint }) => {
   const ranges: { fromBlock: Hex; toBlock: Hex }[] = [];
 
   const fromBlock = hexToBigInt(params[0].fromBlock);
