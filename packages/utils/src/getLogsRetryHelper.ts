@@ -40,6 +40,30 @@ export const getLogsRetryHelper = ({
   const sError = JSON.stringify(error);
   let match: RegExpMatchArray | null;
 
+  // avalanche
+  match = sError.match(
+    /requested too many blocks from (\d+) to (\d+), maximum is set to (\d+)/,
+  );
+  if (match !== null) {
+    // subtract 1 because block ranges are inclusive (from–to), so max must be X - 1
+    const maxRange = BigInt(match[3]!) - 1n;
+
+    const ranges = chunk({
+      params,
+      range: maxRange,
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+      isSuggestedRange: true,
+    } as const;
+  }
+
   // Cloudflare
   match = sError.match(/Max range: (\d+)/);
   if (match !== null) {
@@ -518,7 +542,10 @@ const isRangeUnchanged = (
 const chunk = ({
   params,
   range,
-}: { params: GetLogsRetryHelperParameters["params"]; range: bigint }) => {
+}: {
+  params: GetLogsRetryHelperParameters["params"];
+  range: bigint;
+}) => {
   const ranges: { fromBlock: Hex; toBlock: Hex }[] = [];
 
   const fromBlock = hexToBigInt(params[0].fromBlock);
