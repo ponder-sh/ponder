@@ -6,7 +6,7 @@ import type {
   SyncTransactionReceipt,
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
-import { isInBloom, zeroLogsBloom } from "@/sync-realtime/bloom.js";
+import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import {
   type Address,
@@ -417,30 +417,10 @@ export const validateLogsAndBlock = (logs: SyncLog[], block: SyncBlock) => {
       logIndexes.add(log.logIndex);
     }
 
-    if (block.logsBloom === zeroLogsBloom) continue;
-
-    const error = new Error(
-      `Detected inconsistent RPC responses. Log at index ${log.logIndex} is not in 'block.logsBloom' for block ${block.hash}.`,
-    );
-
-    if (isInBloom(block.logsBloom, log.address) === false) {
-      throw error;
-    }
-
-    if (log.topics[0] && isInBloom(block.logsBloom, log.topics[0]) === false) {
-      throw error;
-    }
-
-    if (log.topics[1] && isInBloom(block.logsBloom, log.topics[1]) === false) {
-      throw error;
-    }
-
-    if (log.topics[2] && isInBloom(block.logsBloom, log.topics[2]) === false) {
-      throw error;
-    }
-
-    if (log.topics[3] && isInBloom(block.logsBloom, log.topics[3]) === false) {
-      throw error;
+    if (block.logsBloom !== zeroLogsBloom && logs.length === 0) {
+      throw new Error(
+        "Detected invalid eth_getLogs response. `block.logsBloom` is not empty but zero logs were returned.",
+      );
     }
   }
 };

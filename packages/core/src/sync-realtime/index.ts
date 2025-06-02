@@ -47,7 +47,7 @@ import {
 } from "@/utils/rpc.js";
 import { wait } from "@/utils/wait.js";
 import { type Address, type Hash, hexToNumber, zeroHash } from "viem";
-import { isFilterInBloom, zeroLogsBloom } from "./bloom.js";
+import { isFilterInBloom, isInBloom, zeroLogsBloom } from "./bloom.js";
 
 export type RealtimeSync = {
   /**
@@ -283,10 +283,54 @@ export const createRealtimeSync = (
 
       validateLogsAndBlock(logs, block);
 
+      // Note: Exact `logsBloom` validations were considered too strict to add to `validateLogsAndBlock`.
+      let isInvalidLogsBloom = false;
+      for (const log of logs) {
+        if (isInBloom(block.logsBloom, log.address) === false) {
+          isInvalidLogsBloom = true;
+        }
+
+        if (
+          log.topics[0] &&
+          isInBloom(block.logsBloom, log.topics[0]) === false
+        ) {
+          isInvalidLogsBloom = true;
+        }
+
+        if (
+          log.topics[1] &&
+          isInBloom(block.logsBloom, log.topics[1]) === false
+        ) {
+          isInvalidLogsBloom = true;
+        }
+
+        if (
+          log.topics[2] &&
+          isInBloom(block.logsBloom, log.topics[2]) === false
+        ) {
+          isInvalidLogsBloom = true;
+        }
+
+        if (
+          log.topics[3] &&
+          isInBloom(block.logsBloom, log.topics[3]) === false
+        ) {
+          isInvalidLogsBloom = true;
+        }
+
+        if (isInvalidLogsBloom) {
+          args.common.logger.warn({
+            service: "realtime",
+            msg: `Detected inconsistent RPC responses. Log at index ${log.logIndex} is not in 'block.logsBloom' for block ${block.hash}.`,
+          });
+          break;
+        }
+      }
+
       for (const log of logs) {
         if (log.transactionHash === zeroHash) {
           args.common.logger.warn({
-            service: "sync",
+            service: "realtime",
             msg: `Detected '${args.chain.name}' log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some chains like ZKsync.`,
           });
         }
