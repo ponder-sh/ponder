@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.2.8
+
+### Patch Changes
+
+- [#1792](https://github.com/ponder-sh/ponder/pull/1792) [`58cb1c5`](https://github.com/ponder-sh/ponder/commit/58cb1c5ab6c867bbf8e86b28cb8848607282166b) Thanks [@iHiteshAgrawal](https://github.com/iHiteshAgrawal)! - Added support for Avalanche.
+
 ## 0.2.7
 
 ### Patch Changes
