@@ -1,5 +1,13 @@
 # ponder
 
+## 0.11.11
+
+### Patch Changes
+
+- [#1795](https://github.com/ponder-sh/ponder/pull/1795) [`dadf613`](https://github.com/ponder-sh/ponder/commit/dadf613d100c313dfe3a273a3731819aea30a912) Thanks [@kyscott18](https://github.com/kyscott18)! - Improve address checksum performance.
+
+- [#1799](https://github.com/ponder-sh/ponder/pull/1799) [`8c15cc9`](https://github.com/ponder-sh/ponder/commit/8c15cc97f6b1b1950157ad993a78f379d0e090e1) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved type inference issues, specifically for apps exporting type declarations.
+
 ## 0.11.10
 
 ### Patch Changes
