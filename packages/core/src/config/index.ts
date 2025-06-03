@@ -95,7 +95,10 @@ type ChainConfig<chain> = {
   rpc: string | string[] | Transport | undefined;
   /** Polling interval (in ms). Default: `1_000`. */
   pollingInterval?: number;
-  /** Maximum number of RPC requests per second. Default: `50`. */
+  /**
+   * Maximum number of RPC requests per second.
+   * @deprecated Handled automatically instead.
+   */
   maxRequestsPerSecond?: number;
   /** Disable RPC request caching. Default: `false`. */
   disableCache?: boolean;
