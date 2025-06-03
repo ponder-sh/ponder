@@ -15,7 +15,9 @@ const MAX_RETRY_DELAY = 30_000;
 const BACKOFF_FACTOR = 2;
 const DEFAULT_TIMEOUT = 10_000;
 const LATENCY_WINDOW_SIZE = 500;
-const LATENCY_SWITCH_QUALIFIER = 0.9;
+/** Hurdle rate for switching to a faster bucket. */
+const LATENCY_HURDLE_RATE = 0.1;
+/** Exploration rate. */
 const EPSILON = 0.1;
 
 // RPS management
@@ -26,6 +28,30 @@ const RPS_INCREASE_FACTOR = 1.2;
 const RPS_DECREASE_FACTOR = 0.7;
 const RPS_INCREASE_QUALIFIER = 0.8;
 const SUCCESS_WINDOW_SIZE = 100;
+
+type Bucket = {
+  index: number;
+  retryDelay: number;
+
+  activeConnections: number;
+  isActive: boolean;
+  isJustActivated: boolean;
+
+  latencyMetadata: {
+    latencies: { value: number; success: boolean }[];
+
+    successfulLatencies: number;
+    latencySum: number;
+  };
+  expectedLatency: number;
+
+  requestTimestamps: number[];
+  consecutiveSuccessfulRequests: number;
+  rpsLimit: number;
+
+  totalSuccessfulRequests: number;
+  totalFailedRequests: number;
+} & ReturnType<Transport>;
 
 const addLatency = (bucket: Bucket, latency: number, success: boolean) => {
   bucket.latencyMetadata.latencies.push({ value: latency, success });
@@ -54,6 +80,7 @@ const addRequestTimestamp = (bucket: Bucket) => {
     bucket.requestTimestamps.shift()!;
   }
 };
+
 const getRPS = (bucket: Bucket) => {
   const timestamp = Date.now() / 1000;
   while (
@@ -71,9 +98,11 @@ const getRPS = (bucket: Bucket) => {
     1;
   return bucket.requestTimestamps.length / t;
 };
+
 const isRPSSafe = (bucket: Bucket) => {
-  return getRPS(bucket) < bucket.maxRPS;
+  return getRPS(bucket) < bucket.rpsLimit;
 };
+
 const isAvailable = (bucket: Bucket) => {
   return (
     bucket.isActive &&
@@ -86,48 +115,29 @@ const isAvailable = (bucket: Bucket) => {
 
 const increaseMaxRPS = (bucket: Bucket) => {
   if (
-    bucket.successfulRequests >= SUCCESS_WINDOW_SIZE &&
-    getRPS(bucket) > bucket.maxRPS * RPS_INCREASE_QUALIFIER
+    bucket.consecutiveSuccessfulRequests >= SUCCESS_WINDOW_SIZE &&
+    getRPS(bucket) > bucket.rpsLimit * RPS_INCREASE_QUALIFIER
   ) {
-    const newMaxRPS = Math.min(bucket.maxRPS * RPS_INCREASE_FACTOR, MAX_RPS);
-    console.log(
-      `Bucket ${bucket.index} increasing max RPS from ${bucket.maxRPS.toFixed(2)} to ${newMaxRPS.toFixed(2)} after ${bucket.successfulRequests} successful requests`,
+    const newRPSLimit = Math.min(
+      bucket.rpsLimit * RPS_INCREASE_FACTOR,
+      MAX_RPS,
     );
-    bucket.maxRPS = newMaxRPS;
-    bucket.successfulRequests = 0;
+    console.log(
+      `Bucket ${bucket.index} increasing max RPS from ${bucket.rpsLimit.toFixed(2)} to ${newRPSLimit.toFixed(2)} after ${bucket.consecutiveSuccessfulRequests} consecutive successful requests`,
+    );
+    bucket.rpsLimit = newRPSLimit;
+    bucket.consecutiveSuccessfulRequests = 0;
   }
 };
+
 const decreaseMaxRPS = (bucket: Bucket) => {
-  const newMaxRPS = Math.max(bucket.maxRPS * RPS_DECREASE_FACTOR, MIN_RPS);
+  const newRPSLimit = Math.max(bucket.rpsLimit * RPS_DECREASE_FACTOR, MIN_RPS);
   console.log(
-    `Bucket ${bucket.index} decreasing max RPS from ${bucket.maxRPS.toFixed(2)} to ${newMaxRPS.toFixed(2)} due to rate limit`,
+    `Bucket ${bucket.index} decreasing max RPS from ${bucket.rpsLimit.toFixed(2)} to ${newRPSLimit.toFixed(2)} due to rate limit`,
   );
-  bucket.maxRPS = newMaxRPS;
-  bucket.successfulRequests = 0;
+  bucket.rpsLimit = newRPSLimit;
+  bucket.consecutiveSuccessfulRequests = 0;
 };
-
-type Bucket = {
-  index: number;
-  retryDelay: number;
-
-  activeConnections: number;
-  isActive: boolean;
-  isJustActivated: boolean;
-
-  latencyMetadata: {
-    latencies: { value: number; success: boolean }[];
-    successfulLatencies: number;
-    latencySum: number;
-  };
-  expectedLatency: number;
-
-  requestTimestamps: number[];
-  successfulRequests: number;
-  maxRPS: number;
-
-  totalSuccessfulRequests: number;
-  totalFailedRequests: number;
-} & ReturnType<Transport>;
 
 export const dynamicLB = (_transports: Transport[]): Transport => {
   return ({ chain, retryCount, timeout }) => {
@@ -152,8 +162,8 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
       expectedLatency: 200,
 
       requestTimestamps: [],
-      successfulRequests: 0,
-      maxRPS: INITIAL_MAX_RPS,
+      consecutiveSuccessfulRequests: 0,
+      rpsLimit: INITIAL_MAX_RPS,
 
       totalSuccessfulRequests: 0,
       totalFailedRequests: 0,
@@ -209,7 +219,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
         const currentLatency = current.expectedLatency;
         const fastestLatency = fastest.expectedLatency;
 
-        if (currentLatency < fastestLatency * LATENCY_SWITCH_QUALIFIER) {
+        if (currentLatency < fastestLatency * (1 - LATENCY_HURDLE_RATE)) {
           return current;
         }
 
@@ -240,7 +250,7 @@ export const dynamicLB = (_transports: Transport[]): Transport => {
 
         // Update RPS metadata
         bucket.totalSuccessfulRequests++;
-        bucket.successfulRequests++;
+        bucket.consecutiveSuccessfulRequests++;
         increaseMaxRPS(bucket);
 
         if (bucket.isJustActivated) {
