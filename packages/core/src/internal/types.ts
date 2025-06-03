@@ -301,6 +301,7 @@ export type Chain = {
   name: string;
   id: number;
   rpc: string | string[] | Transport;
+  ws: string | undefined;
   pollingInterval: number;
   maxRequestsPerSecond: number;
   finalityBlockCount: number;

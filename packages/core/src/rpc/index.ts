@@ -3,7 +3,7 @@ import type { Common } from "@/internal/common.js";
 import type { Chain, SyncBlock } from "@/internal/types.js";
 import type { RealtimeSync } from "@/sync-realtime/index.js";
 import { createQueue } from "@/utils/queue.js";
-import { _eth_getBlockByNumber } from "@/utils/rpc.js";
+import { _eth_getBlockByHash, _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import {
@@ -22,6 +22,7 @@ import {
   type PublicRpcSchema,
   type RpcError,
   TimeoutError,
+  type WebSocketTransport,
   isHex,
   webSocket,
 } from "viem";
@@ -234,6 +235,26 @@ export const createRpc = ({
         timeout: 5_000,
       }).request,
     ];
+  }
+
+  let ws_subscribe:
+    | NonNullable<ReturnType<WebSocketTransport>["value"]>["subscribe"]
+    | undefined = undefined;
+
+  if (typeof chain.ws === "string") {
+    const protocol = new url.URL(chain.rpc).protocol;
+
+    if (protocol === "wss:" || protocol === "ws:") {
+      ws_subscribe = webSocket(chain.ws)({
+        chain: chain.viemChain,
+        retryCount: 0,
+        timeout: 5_000,
+      }).value?.subscribe;
+    } else {
+      throw new Error(
+        `Inconsistent RPC URL protocol: ${protocol}. Expected wss or ws.`,
+      );
+    }
   }
 
   const buckets: Bucket[] = request.map((request, index) => ({
@@ -450,15 +471,28 @@ export const createRpc = ({
     // @ts-ignore
     request: queue.add,
     subscribe({ onBlock, onError }) {
-      interval = setInterval(() => {
-        _eth_getBlockByNumber(rpc, { blockTag: "latest" })
-          .then(onBlock)
-          .catch(onError);
-      }, chain.pollingInterval);
-
-      common.shutdown.add(() => {
-        clearInterval(interval);
-      });
+      if (ws_subscribe === undefined) {
+        interval = setInterval(() => {
+          _eth_getBlockByNumber(rpc, { blockTag: "latest" })
+            .then(onBlock)
+            .catch(onError);
+        }, chain.pollingInterval);
+        common.shutdown.add(() => {
+          clearInterval(interval);
+        });
+      } else {
+        ws_subscribe({
+          params: ["newHeads"],
+          onData: (data) => {
+            _eth_getBlockByHash(rpc, { hash: data.result.hash })
+              .then(onBlock)
+              .catch(onError);
+          },
+          onError: () => {
+            // TODO: handle error
+          },
+        });
+      }
     },
     unsubscribe() {
       clearInterval(interval);
