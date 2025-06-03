@@ -24,6 +24,10 @@ export type ChainConfig = Prettify<Config["chains"][string]>;
 export type BlockConfig = Prettify<Config["blocks"][string]>;
 export type DatabaseConfig = Prettify<Config["database"]>;
 
+export type { CreateConfigReturnType } from "@/config/index.js";
+export type { GetEventFilter } from "@/config/eventFilter.js";
+export type { AddressConfig } from "@/config/address.js";
+
 export {
   onchainTable,
   onchainEnum,
@@ -31,6 +35,21 @@ export {
   hex,
   bigint,
 } from "@/drizzle/onchain.js";
+
+export type {
+  AnyPgColumn,
+  PgColumn,
+  ExtraConfigColumn,
+  PgColumnBuilder,
+  PgColumnBuilderBase,
+  PgEnumColumnBuilder,
+  PgEnumColumnBuilderInitial,
+  PgTable,
+  PgTableExtraConfig,
+  PgTableWithColumns,
+  PgTextConfig,
+  TableConfig,
+} from "drizzle-orm/pg-core";
 
 export type {
   OnchainTable,
