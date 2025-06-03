@@ -163,6 +163,13 @@ export const buildUiLines = (ui: UiState): string[] => {
           align: "right",
           format: (_, row) => row.rps.toFixed(1),
         },
+        {
+          title: "RPC Load (%)",
+          key: "rpcLoad",
+          align: "right",
+          format: (_, row) =>
+            row.rpcLoad.map((v: number) => Math.round(v)).join("|"),
+        },
       ]),
     );
   }

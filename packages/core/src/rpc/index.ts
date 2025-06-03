@@ -182,6 +182,10 @@ export const createRpc = ({
   concurrency = 25,
 }: { common: Common; chain: Chain; concurrency?: number }): Rpc => {
   let request: EIP1193RequestFn[];
+  common.metrics.rpc_usage[chain.name] = Array.from({
+    length: Array.isArray(chain.rpc) ? chain.rpc.length : 1,
+  }).map(() => ({ failedRequests: 0, totalRequests: 0 }));
+
   if (typeof chain.rpc === "string") {
     const protocol = new url.URL(chain.rpc).protocol;
     if (protocol === "https:" || protocol === "http:") {
@@ -336,6 +340,7 @@ export const createRpc = ({
           });
 
           addRequestTimestamp(bucket);
+          common.metrics.rpc_usage[chain.name]![bucket.index]!.totalRequests++;
           const response = await bucket.request(body);
           // TODO(kyle) can response be undefined
 
@@ -365,6 +370,7 @@ export const createRpc = ({
           return response as RequestReturnType<typeof body.method>;
         } catch (e) {
           const error = e as Error;
+          common.metrics.rpc_usage[chain.name]![bucket.index]!.failedRequests++;
 
           if (
             body.method === "eth_getLogs" &&
