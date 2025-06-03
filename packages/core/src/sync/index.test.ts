@@ -1614,6 +1614,7 @@ test("historical events match realtime events", async (context) => {
           null,
         ],
         "transactionIndex": 0,
+        Symbol(nodejs.util.inspect.custom): [Function],
       },
     ]
   `);
