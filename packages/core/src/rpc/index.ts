@@ -21,6 +21,7 @@ import {
   ParseRpcError,
   type PublicRpcSchema,
   type RpcError,
+  SocketClosedError,
   TimeoutError,
   type WebSocketTransport,
   isHex,
@@ -245,7 +246,7 @@ export const createRpc = ({
     const protocol = new url.URL(chain.ws).protocol;
 
     if (protocol === "wss:" || protocol === "ws:") {
-      ws_subscribe = webSocket(chain.ws)({
+      ws_subscribe = webSocket(chain.ws, { keepAlive: true, reconnect: true })({
         chain: chain.viemChain,
         retryCount: 0,
         timeout: 5_000,
@@ -490,7 +491,10 @@ export const createRpc = ({
           },
           onError: (err) => {
             const error = err as Error;
-            console.log(error);
+            if (error instanceof SocketClosedError) {
+              console.log("SOCKET CLOSED ERROR");
+              // Need to resubscribe
+            }
           },
         });
       }
