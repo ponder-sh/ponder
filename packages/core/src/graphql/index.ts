@@ -424,7 +424,7 @@ export function buildGraphQLSchema({
     type: GraphQLMeta,
     resolve: async (_source, _args, context) => {
       // Note: This is done to avoid non-browser compatible dependencies
-      const checkpoints = (await globalThis.PONDER_DATABASE.readonlyQB
+      const checkpoints = (await context.qb
         .execute(sql`SELECT * from _ponder_checkpoint`)
         .then((res) => res.rows)) as ReturnType<
         typeof getPonderCheckpointTable
