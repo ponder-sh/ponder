@@ -83,7 +83,9 @@ export default createConfig({
 
 Use the `rpc` field to provide one or more RPC endpoints for each chain.
 
-If you provide multiple endpoints, Ponder intelligently balances requests across them and uses fallback logic to improve reliability.
+If you provide multiple endpoints, Ponder intelligently balances requests across them, and uses fallback logic to improve reliability. 
+
+The indexing engine dynamically manages RPC request rates based on the provider's rate limits and network conditions for both multiple and singular endpoints. 
 
 ```ts [ponder.config.ts]
 import { createConfig } from "ponder";
@@ -145,27 +147,6 @@ export default createConfig({
       pollingInterval: 2_000, // 2 seconds [!code focus]
     },
   },
-});
-```
-
-## Requests per second
-
-Use `maxRequestsPerSecond` to set an upper bound on the number of RPC requests the indexing engine will make in a 1-second bucket. The default is `50`.
-
-If you are running a large historical backfill, try increasing `maxRequestsPerSecond` until you start hitting rate limits. In practice, the indexing engine applies a soft cap of ~250 to avoid resource contention issues.
-
-```ts [ponder.config.ts]
-import { createConfig } from "ponder";
-
-export default createConfig({
-  chains: {
-    mainnet: {
-      id: 1,
-      rpc: process.env.PONDER_RPC_URL_1,
-      maxRequestsPerSecond: 200, // [!code focus]
-    },
-  },
-  // ...
 });
 ```
 
