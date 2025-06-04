@@ -45,17 +45,14 @@ export type Rpc = {
 
 const RETRY_COUNT = 9;
 const BASE_DURATION = 125;
-
-const INITIAL_RETRY_DELAY = 2_000;
-const MAX_RETRY_DELAY = 30_000;
-const BACKOFF_FACTOR = 2;
+const INITIAL_REACTIVATION_DELAY = 100;
+const MAX_REACTIVATION_DELAY = 5_000;
+const BACKOFF_FACTOR = 1.5;
 const LATENCY_WINDOW_SIZE = 500;
 /** Hurdle rate for switching to a faster bucket. */
 const LATENCY_HURDLE_RATE = 0.1;
 /** Exploration rate. */
 const EPSILON = 0.1;
-
-// RPS management
 const INITIAL_MAX_RPS = 50;
 const MIN_RPS = 1;
 const MAX_RPS = 500;
@@ -66,11 +63,14 @@ const SUCCESS_WINDOW_SIZE = 100;
 
 type Bucket = {
   index: number;
-  retryDelay: number;
-
+  /** Reactivation delay in milliseconds. */
+  reactivationDelay: number;
+  /** Number of active connections. */
   activeConnections: number;
+  /** Is the bucket available to send requests. */
   isActive: boolean;
-  isJustActivated: boolean;
+  /** Is the bucket recently activated and yet to complete successful requests. */
+  isWarmingUp: boolean;
 
   latencyMetadata: {
     latencies: { value: number; success: boolean }[];
@@ -81,11 +81,10 @@ type Bucket = {
   expectedLatency: number;
 
   requestTimestamps: number[];
+  /** Number of consecutive successful requests. */
   consecutiveSuccessfulRequests: number;
+  /** Maximum requests per second (dynamic). */
   rpsLimit: number;
-
-  totalSuccessfulRequests: number;
-  totalFailedRequests: number;
 
   request: EIP1193RequestFn;
 };
@@ -118,6 +117,10 @@ const addRequestTimestamp = (bucket: Bucket) => {
   }
 };
 
+/**
+ * Calculate the requests per second for a bucket
+ * using historical request timestamps.
+ */
 const getRPS = (bucket: Bucket) => {
   const timestamp = Date.now() / 1000;
   while (
@@ -136,18 +139,17 @@ const getRPS = (bucket: Bucket) => {
   return bucket.requestTimestamps.length / t;
 };
 
-const isRPSSafe = (bucket: Bucket) => {
-  return getRPS(bucket) < bucket.rpsLimit;
-};
-
+/**
+ * Return `true` if the bucket is available to send a request.
+ */
 const isAvailable = (bucket: Bucket) => {
-  return (
-    bucket.isActive &&
-    // if bucket just activated, let active connections go down and open only one connection for probing
-    (!bucket.isJustActivated || bucket.activeConnections === 0) &&
-    // if bucket below maxRPS
-    isRPSSafe(bucket)
-  );
+  if (bucket.isActive && getRPS(bucket) < bucket.rpsLimit) return true;
+
+  if (bucket.isActive && bucket.isWarmingUp && bucket.activeConnections < 3) {
+    return true;
+  }
+
+  return false;
 };
 
 const increaseMaxRPS = (bucket: Bucket) => {
@@ -159,9 +161,6 @@ const increaseMaxRPS = (bucket: Bucket) => {
       bucket.rpsLimit * RPS_INCREASE_FACTOR,
       MAX_RPS,
     );
-    // console.log(
-    //   `Bucket ${bucket.index} increasing max RPS from ${bucket.rpsLimit.toFixed(2)} to ${newRPSLimit.toFixed(2)} after ${bucket.consecutiveSuccessfulRequests} consecutive successful requests`,
-    // );
     bucket.rpsLimit = newRPSLimit;
     bucket.consecutiveSuccessfulRequests = 0;
   }
@@ -169,9 +168,6 @@ const increaseMaxRPS = (bucket: Bucket) => {
 
 const decreaseMaxRPS = (bucket: Bucket) => {
   const newRPSLimit = Math.max(bucket.rpsLimit * RPS_DECREASE_FACTOR, MIN_RPS);
-  // console.log(
-  //   `Bucket ${bucket.index} decreasing max RPS from ${bucket.rpsLimit.toFixed(2)} to ${newRPSLimit.toFixed(2)} due to rate limit`,
-  // );
   bucket.rpsLimit = newRPSLimit;
   bucket.consecutiveSuccessfulRequests = 0;
 };
@@ -236,39 +232,36 @@ export const createRpc = ({
     ];
   }
 
-  const buckets: Bucket[] = request.map((request, index) => ({
-    index,
-    retryDelay: 0,
+  const buckets = request.map(
+    (request, index) =>
+      ({
+        index,
+        reactivationDelay: INITIAL_REACTIVATION_DELAY,
 
-    activeConnections: 0,
-    isActive: true,
-    isJustActivated: false,
+        activeConnections: 0,
+        isActive: true,
+        isWarmingUp: false,
 
-    latencyMetadata: {
-      latencies: [],
-      successfulLatencies: 0,
-      latencySum: 0,
-    },
-    expectedLatency: 200,
+        latencyMetadata: {
+          latencies: [],
+          successfulLatencies: 0,
+          latencySum: 0,
+        },
+        expectedLatency: 200,
 
-    requestTimestamps: [],
-    consecutiveSuccessfulRequests: 0,
-    rpsLimit: INITIAL_MAX_RPS,
+        requestTimestamps: [],
+        consecutiveSuccessfulRequests: 0,
+        rpsLimit: INITIAL_MAX_RPS,
 
-    totalSuccessfulRequests: 0,
-    totalFailedRequests: 0,
-
-    request,
-  }));
+        request,
+      }) satisfies Bucket,
+  );
 
   const scheduleBucketActivation = (bucket: Bucket) => {
     setTimeout(() => {
       bucket.isActive = true;
-      bucket.isJustActivated = true;
-      // console.log(
-      //   `Bucket ${bucket.index} reactivated after ${bucket.retryDelay}ms delay`,
-      // );
-    }, bucket.retryDelay);
+      bucket.isWarmingUp = true;
+    }, bucket.reactivationDelay);
   };
 
   const getBucket = async (): Promise<Bucket> => {
@@ -281,7 +274,7 @@ export const createRpc = ({
           if (availableBucket) {
             resolve();
           } else {
-            setTimeout(checkRPSSafe, 10); // Check every 10ms
+            setTimeout(checkRPSSafe, 5);
           }
         };
         checkRPSSafe();
@@ -327,7 +320,6 @@ export const createRpc = ({
   >({
     initialStart: true,
     concurrency,
-    // @ts-ignore
     worker: async (body) => {
       for (let i = 0; i <= RETRY_COUNT; i++) {
         const bucket = await getBucket();
@@ -355,17 +347,11 @@ export const createRpc = ({
 
           addLatency(bucket, stopClock(), true);
 
-          // Update RPS metadata
-          bucket.totalSuccessfulRequests++;
           bucket.consecutiveSuccessfulRequests++;
           increaseMaxRPS(bucket);
 
-          if (bucket.isJustActivated) {
-            bucket.isJustActivated = false;
-          }
-          if (bucket.isActive && bucket.retryDelay > 0) {
-            bucket.retryDelay = 0;
-          }
+          bucket.isWarmingUp = false;
+          bucket.reactivationDelay = INITIAL_REACTIVATION_DELAY;
 
           return response as RequestReturnType<typeof body.method>;
         } catch (e) {
@@ -386,7 +372,6 @@ export const createRpc = ({
           }
 
           addLatency(bucket, stopClock(), false);
-          bucket.totalFailedRequests++;
 
           if (
             // @ts-ignore
@@ -397,19 +382,19 @@ export const createRpc = ({
           ) {
             if (bucket.isActive) {
               bucket.isActive = false;
-              bucket.isJustActivated = false;
+              bucket.isWarmingUp = false;
 
               decreaseMaxRPS(bucket);
 
-              bucket.retryDelay =
-                bucket.retryDelay === 0 || error instanceof TimeoutError
-                  ? INITIAL_RETRY_DELAY
-                  : Math.min(
-                      bucket.retryDelay * BACKOFF_FACTOR,
-                      MAX_RETRY_DELAY,
-                    );
-
               scheduleBucketActivation(bucket);
+
+              bucket.reactivationDelay =
+                error instanceof TimeoutError
+                  ? INITIAL_REACTIVATION_DELAY
+                  : Math.min(
+                      bucket.reactivationDelay * BACKOFF_FACTOR,
+                      MAX_REACTIVATION_DELAY,
+                    );
             }
           }
 
@@ -441,6 +426,8 @@ export const createRpc = ({
           bucket.activeConnections--;
         }
       }
+
+      throw "unreachable";
     },
   });
 
