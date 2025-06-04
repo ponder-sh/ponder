@@ -1,4 +1,3 @@
-import type { getPonderCheckpointTable } from "@/database/index.js";
 import type { QB } from "@/database/queryBuilder.js";
 import type { OnchainTable } from "@/drizzle/onchain.js";
 import { normalizeColumn } from "@/indexing-store/utils.js";
@@ -425,19 +424,24 @@ export function buildGraphQLSchema({
     resolve: async (_source, _args, context) => {
       // Note: This is done to avoid non-browser compatible dependencies
       const checkpoints = (await context.qb
-        .execute(sql`SELECT * from _ponder_checkpoint`)
-        .then((res) => res.rows)) as ReturnType<
-        typeof getPonderCheckpointTable
-      >["$inferSelect"][];
+        .execute(
+          sql`SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint`,
+        )
+        .then((res) => res.rows)) as {
+        chain_name: string;
+        chain_id: number;
+        latest_checkpoint: string;
+        safe_checkpoint: string;
+      }[];
 
       const status: Status = {};
-      for (const { chainName, chainId, latestCheckpoint } of checkpoints) {
-        status[chainName] = {
-          id: chainId,
+      for (const { chain_name, chain_id, latest_checkpoint } of checkpoints) {
+        status[chain_name] = {
+          id: chain_id,
           block: {
-            number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
+            number: Number(decodeCheckpoint(latest_checkpoint).blockNumber),
             timestamp: Number(
-              decodeCheckpoint(latestCheckpoint).blockTimestamp,
+              decodeCheckpoint(latest_checkpoint).blockTimestamp,
             ),
           },
         };
