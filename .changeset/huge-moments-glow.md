@@ -2,4 +2,4 @@
 "ponder": patch
 ---
 
-Improved rpc load balancing and rate limiting.
+Added dynamic rpc load balancing and rate limiting. Deprecated `maxRequestsPerSecond`.

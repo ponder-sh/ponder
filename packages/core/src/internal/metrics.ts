@@ -431,7 +431,7 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
     progress: number;
     eta: number | undefined;
     rps: number;
-    rpcLoad: number[];
+    utilization: number[];
   }[]
 > {
   const syncDurationMetric = await metrics.ponder_historical_duration
@@ -513,7 +513,7 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
       (acc, cur) => acc + cur.totalRequests - cur.failedRequests,
       0,
     );
-    const rpcLoad = rpcUsage.map(({ failedRequests, totalRequests }) => {
+    const utilization = rpcUsage.map(({ failedRequests, totalRequests }) => {
       return totalSuccessfulRequests === 0
         ? 0
         : ((totalRequests - failedRequests) * 100) / totalSuccessfulRequests;
@@ -526,7 +526,7 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
       status: isComplete ? "complete" : isRealtime ? "realtime" : "historical",
       eta,
       rps: requests / seconds,
-      rpcLoad,
+      utilization,
     } as const;
   });
 }
