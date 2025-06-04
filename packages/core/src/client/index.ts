@@ -1,4 +1,3 @@
-import type { getPonderCheckpointTable } from "@/database/index.js";
 import type { Schema, Status } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
@@ -125,20 +124,26 @@ export const client = ({
 
     if (c.req.path === "/sql/status") {
       // Note: This is done to avoid non-browser compatible dependencies
+
       const checkpoints = (await globalThis.PONDER_DATABASE.readonlyQB
-        .execute(sql`SELECT * from _ponder_checkpoint`)
-        .then((res) => res.rows)) as ReturnType<
-        typeof getPonderCheckpointTable
-      >["$inferSelect"][];
+        .execute(
+          sql`SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint`,
+        )
+        .then((res) => res.rows)) as {
+        chain_name: string;
+        chain_id: number;
+        latest_checkpoint: string;
+        safe_checkpoint: string;
+      }[];
 
       const status: Status = {};
-      for (const { chainName, chainId, latestCheckpoint } of checkpoints) {
-        status[chainName] = {
-          id: chainId,
+      for (const { chain_name, chain_id, latest_checkpoint } of checkpoints) {
+        status[chain_name] = {
+          id: chain_id,
           block: {
-            number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
+            number: Number(decodeCheckpoint(latest_checkpoint).blockNumber),
             timestamp: Number(
-              decodeCheckpoint(latestCheckpoint).blockTimestamp,
+              decodeCheckpoint(latest_checkpoint).blockTimestamp,
             ),
           },
         };
