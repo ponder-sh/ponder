@@ -18,7 +18,7 @@ import {
   type PgQueryResultHKT,
   type PgTransactionConfig,
 } from "drizzle-orm/pg-core";
-import { Client, Pool, type PoolClient } from "pg";
+import pg from "pg";
 
 const RETRY_COUNT = 9;
 const BASE_DURATION = 125;
@@ -26,7 +26,10 @@ const SQL_LENGTH_LIMIT = 35;
 
 type BaseQB<
   TSchema extends Schema = Schema,
-  TClient extends PGlite | Pool | PoolClient = PGlite | Pool | PoolClient,
+  TClient extends PGlite | pg.Pool | pg.PoolClient =
+    | PGlite
+    | pg.Pool
+    | pg.PoolClient,
 > = Omit<Drizzle<TSchema>, "transaction"> & {
   transaction<T>(
     transaction: (tx: QB<TSchema, TClient>) => Promise<T>,
@@ -34,7 +37,7 @@ type BaseQB<
   ): Promise<T>;
 } & (
     | { $dialect: "pglite"; $client: PGlite }
-    | { $dialect: "postgres"; $client: Pool | PoolClient }
+    | { $dialect: "postgres"; $client: pg.Pool | pg.PoolClient }
   );
 
 /**
@@ -42,7 +45,10 @@ type BaseQB<
  */
 export type QB<
   TSchema extends Schema = Schema,
-  TClient extends PGlite | Pool | PoolClient = PGlite | Pool | PoolClient,
+  TClient extends PGlite | pg.Pool | pg.PoolClient =
+    | PGlite
+    | pg.Pool
+    | pg.PoolClient,
 > = { label(label: string): BaseQB<TSchema, TClient> } & BaseQB<
   TSchema,
   TClient
@@ -82,7 +88,10 @@ export const parseSqlError = (e: any): Error => {
  */
 export const createQB = <
   TSchema extends Schema = { [name: string]: never },
-  TClient extends PGlite | Pool | PoolClient = PGlite | Pool | PoolClient,
+  TClient extends PGlite | pg.Pool | pg.PoolClient =
+    | PGlite
+    | pg.Pool
+    | pg.PoolClient,
 >(
   common: Common,
   db: PgDatabase<PgQueryResultHKT, TSchema> & { $client: TClient },
@@ -190,7 +199,7 @@ export const createQB = <
   };
 
   const assignClient = (qb: QB<TSchema, TClient>, client: TClient) => {
-    if (client instanceof Pool || client instanceof Client) {
+    if (client instanceof pg.Pool || client instanceof pg.Client) {
       Object.assign(qb, { $dialect: "postgres" });
     } else {
       Object.assign(qb, { $dialect: "pglite" });
