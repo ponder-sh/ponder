@@ -1,12 +1,10 @@
 import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
 import { buildSchema } from "@/build/schema.js";
-import { getReorgTable } from "@/drizzle/kit/index.js";
 import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import {
   type Checkpoint,
-  MAX_CHECKPOINT_STRING,
   ZERO_CHECKPOINT,
   encodeCheckpoint,
 } from "@/utils/checkpoint.js";
@@ -19,8 +17,15 @@ import {
   type Database,
   TABLES,
   createDatabase,
+  getPonderCheckpointTable,
   getPonderMetaTable,
 } from "./index.js";
+import {
+  commitBlock,
+  createIndexes,
+  createTrigger,
+  finalize,
+} from "./utils.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -57,10 +62,11 @@ test("migrate() succeeds with empty schema", async (context) => {
   expect(tableNames).toContain("_reorg__account");
   expect(tableNames).toContain("_ponder_meta");
 
-  const metadata = await database.qb.drizzle.select().from(sql`_ponder_meta`);
+  const metadata = await database.userQB.select().from(sql`_ponder_meta`);
 
   expect(metadata).toHaveLength(1);
 
+  // TODO(kyle) how to shutdown
   await context.common.shutdown.kill();
 });
 
@@ -244,7 +250,7 @@ test("migrate() succeeds with crash recovery", async (context) => {
 
   await databaseTwo.migrate({ buildId: "abc" });
 
-  const metadata = await databaseTwo.qb.drizzle
+  const metadata = await databaseTwo.userQB
     .select()
     .from(getPonderMetaTable("public"));
 
@@ -277,9 +283,10 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
     },
   });
   await database.migrate({ buildId: "abc" });
-  await database.finalize({
+
+  await finalize(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-    db: database.qb.drizzle,
+    table: account,
   });
 
   const databaseTwo = await createDatabase({
@@ -347,7 +354,7 @@ test.skip("migrateSync() handles concurrent migrations", async (context) => {
   });
 
   // The second migration should error, then retry and succeed
-  const spy = vi.spyOn(database.qb.sync, "transaction");
+  const spy = vi.spyOn(database.userQB, "transaction");
 
   await Promise.all([database.migrateSync(), database.migrateSync()]);
 
@@ -380,44 +387,41 @@ test("migrate() with crash recovery reverts rows", async (context) => {
 
   // setup tables, reorg tables, and metadata checkpoint
 
-  await database.createTriggers();
+  await createTrigger(database.userQB, { table: account });
 
-  await database.setReady();
+  await database.userQB
+    .update(getPonderMetaTable())
+    .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     schemaBuild: { schema: { account } },
-    database,
   });
+  indexingStore.qb = database.userQB;
 
   await indexingStore
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  await database.commitBlock({
+  await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
-    db: database.qb.drizzle,
+    table: account,
   });
 
   await indexingStore
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
-  await database.commitBlock({
+  await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
-    db: database.qb.drizzle,
+    table: account,
   });
 
-  await database.setCheckpoints({
-    checkpoints: [
-      {
-        chainId: 1,
-        chainName: "mainnet",
-        latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-        safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-      },
-    ],
-    db: database.qb.drizzle,
+  await database.userQB.insert(getPonderCheckpointTable()).values({
+    chainId: 1,
+    chainName: "mainnet",
+    latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
   });
 
   await context.common.shutdown.kill();
@@ -450,14 +454,14 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     ]
   `);
 
-  const rows = await databaseTwo.qb.drizzle
+  const rows = await databaseTwo.userQB
     .execute(sql`SELECT * from "account"`)
     .then((result) => result.rows);
 
   expect(rows).toHaveLength(1);
   expect(rows[0]!.address).toBe(zeroAddress);
 
-  const metadata = await databaseTwo.qb.drizzle
+  const metadata = await databaseTwo.userQB
     .select()
     .from(getPonderMetaTable("public"));
 
@@ -495,21 +499,20 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
 
   await database.migrate({ buildId: "abc" });
 
-  await database.createIndexes();
-
-  await database.setCheckpoints({
-    checkpoints: [
-      {
-        chainId: 1,
-        chainName: "mainnet",
-        latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-        safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-      },
-    ],
-    db: database.qb.drizzle,
+  await createIndexes(database.userQB, {
+    statements: buildSchema({ schema: { account } }).statements,
   });
 
-  await database.setReady();
+  await database.userQB.insert(getPonderCheckpointTable()).values({
+    chainId: 1,
+    chainName: "mainnet",
+    latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+  });
+
+  await database.userQB
+    .update(getPonderMetaTable())
+    .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` });
 
   await context.common.shutdown.kill();
 
@@ -560,14 +563,14 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
 
   await database.migrate({ buildId: "abc" });
 
-  const row = await database.qb.drizzle
+  const row = await database.userQB
     .select()
     .from(getPonderMetaTable("public"))
     .then((result) => result[0]!.value);
 
   await wait(500);
 
-  const rowAfterHeartbeat = await database.qb.drizzle
+  const rowAfterHeartbeat = await database.userQB
     .select()
     .from(getPonderMetaTable("public"))
     .then((result) => result[0]!.value);
@@ -579,369 +582,8 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
   await context.common.shutdown.kill();
 });
 
-test("finalize()", async (context) => {
-  const database = await createDatabase({
-    common: context.common,
-    namespace: {
-      schema: "public",
-      viewsSchema: undefined,
-    },
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-    },
-    schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
-    },
-  });
-
-  await database.migrate({ buildId: "abc" });
-
-  // setup tables, reorg tables, and metadata checkpoint
-
-  await database.createTriggers();
-
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { account } },
-    database,
-  });
-
-  await indexingStore
-    .insert(account)
-    .values({ address: zeroAddress, balance: 10n });
-
-  await database.commitBlock({
-    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
-    db: database.qb.drizzle,
-  });
-
-  await indexingStore
-    .update(account, { address: zeroAddress })
-    .set({ balance: 88n });
-
-  await indexingStore
-    .insert(account)
-    .values({ address: "0x0000000000000000000000000000000000000001" });
-
-  await database.commitBlock({
-    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
-    db: database.qb.drizzle,
-  });
-
-  await database.finalize({
-    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-    db: database.qb.drizzle,
-  });
-
-  // reorg tables
-
-  const rows = await database.qb.drizzle.select().from(getReorgTable(account));
-
-  expect(rows).toHaveLength(2);
-
-  await context.common.shutdown.kill();
-});
-
-test("createIndexes()", async (context) => {
-  const account = onchainTable(
-    "account",
-    (p) => ({
-      address: p.hex().primaryKey(),
-      balance: p.bigint(),
-    }),
-    (table) => ({
-      balanceIdx: index("balance_index").on(table.balance),
-    }),
-  );
-
-  const database = await createDatabase({
-    common: context.common,
-    namespace: {
-      schema: "public",
-      viewsSchema: undefined,
-    },
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-    },
-    schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
-    },
-  });
-
-  await database.migrate({ buildId: "abc" });
-  await database.createIndexes();
-
-  const indexNames = await getUserIndexNames(database, "public", "account");
-  expect(indexNames).toContain("balance_index");
-
-  await context.common.shutdown.kill();
-});
-
-test("createTriggers()", async (context) => {
-  const database = await createDatabase({
-    common: context.common,
-    namespace: {
-      schema: "public",
-      viewsSchema: undefined,
-    },
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-    },
-    schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
-    },
-  });
-
-  await database.migrate({ buildId: "abc" });
-  await database.createTriggers();
-
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { account } },
-    database,
-  });
-
-  await indexingStore
-    .insert(account)
-    .values({ address: zeroAddress, balance: 10n });
-
-  const { rows } = await database.qb.drizzle.execute(
-    sql`SELECT * FROM _reorg__account`,
-  );
-
-  expect(rows).toStrictEqual([
-    {
-      address: zeroAddress,
-      balance: "10",
-      operation: 0,
-      operation_id: 1,
-      checkpoint: MAX_CHECKPOINT_STRING,
-    },
-  ]);
-
-  await context.common.shutdown.kill();
-});
-
-test("createTriggers() duplicate", async (context) => {
-  const database = await createDatabase({
-    common: context.common,
-    namespace: {
-      schema: "public",
-      viewsSchema: undefined,
-    },
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-    },
-    schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
-    },
-  });
-
-  await database.migrate({ buildId: "abc" });
-  await database.createTriggers();
-  await database.createTriggers();
-
-  await context.common.shutdown.kill();
-});
-
-test("commitBlock()", async (context) => {
-  const database = await createDatabase({
-    common: context.common,
-    namespace: {
-      schema: "public",
-      viewsSchema: undefined,
-    },
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-    },
-    schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
-    },
-  });
-
-  await database.migrate({ buildId: "abc" });
-  await database.createTriggers();
-
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { account } },
-    database,
-  });
-
-  await indexingStore
-    .insert(account)
-    .values({ address: zeroAddress, balance: 10n });
-
-  await database.commitBlock({
-    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-    db: database.qb.drizzle,
-  });
-
-  const { rows } = await database.qb.drizzle.execute(
-    sql`SELECT * FROM _reorg__account`,
-  );
-
-  expect(rows).toStrictEqual([
-    {
-      address: zeroAddress,
-      balance: "10",
-      operation: 0,
-      operation_id: 1,
-      checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-    },
-  ]);
-
-  await context.common.shutdown.kill();
-});
-
-test("revert()", async (context) => {
-  const database = await createDatabase({
-    common: context.common,
-    namespace: {
-      schema: "public",
-      viewsSchema: undefined,
-    },
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-    },
-    schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
-    },
-  });
-
-  await database.migrate({ buildId: "abc" });
-
-  // setup tables, reorg tables, and metadata checkpoint
-
-  await database.createTriggers();
-
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { account } },
-    database,
-  });
-
-  await indexingStore
-    .insert(account)
-    .values({ address: zeroAddress, balance: 10n });
-
-  await database.commitBlock({
-    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
-    db: database.qb.drizzle,
-  });
-
-  await indexingStore
-    .update(account, { address: zeroAddress })
-    .set({ balance: 88n });
-
-  await indexingStore
-    .insert(account)
-    .values({ address: "0x0000000000000000000000000000000000000001" });
-
-  await database.commitBlock({
-    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-    db: database.qb.drizzle,
-  });
-
-  await indexingStore.delete(account, { address: zeroAddress });
-
-  await database.commitBlock({
-    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
-    db: database.qb.drizzle,
-  });
-
-  await database.qb.drizzle.transaction(async (tx) => {
-    await database.revert({
-      checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
-      tx,
-    });
-  });
-
-  const rows = await database.qb.drizzle.select().from(account);
-
-  expect(rows).toHaveLength(1);
-  expect(rows[0]).toStrictEqual({ address: zeroAddress, balance: 10n });
-
-  await context.common.shutdown.kill();
-});
-
-test("revert() with composite primary key", async (context) => {
-  const test = onchainTable(
-    "Test",
-    (p) => ({
-      a: p.integer("A").notNull(),
-      b: p.integer("B").notNull(),
-      c: p.integer("C"),
-    }),
-    (table) => ({
-      pk: primaryKey({ columns: [table.a, table.b] }),
-    }),
-  );
-
-  const database = await createDatabase({
-    common: context.common,
-    namespace: {
-      schema: "public",
-      viewsSchema: undefined,
-    },
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-    },
-    schemaBuild: {
-      schema: { test },
-      statements: buildSchema({ schema: { test } }).statements,
-    },
-  });
-
-  await database.migrate({ buildId: "abc" });
-
-  // setup tables, reorg tables, and metadata checkpoint
-
-  await database.createTriggers();
-
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { test } },
-    database,
-  });
-
-  await indexingStore.insert(test).values({ a: 1, b: 1 });
-
-  await database.commitBlock({
-    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
-    db: database.qb.drizzle,
-  });
-
-  await indexingStore.update(test, { a: 1, b: 1 }).set({ c: 1 });
-
-  await database.commitBlock({
-    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 12n }),
-    db: database.qb.drizzle,
-  });
-
-  await database.qb.drizzle.transaction(async (tx) => {
-    await database.revert({
-      checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
-      tx,
-    });
-  });
-
-  const rows = await database.qb.drizzle.select().from(test);
-
-  expect(rows).toHaveLength(1);
-  expect(rows[0]).toStrictEqual({ a: 1, b: 1, c: null });
-
-  await context.common.shutdown.kill();
-});
-
 async function getUserTableNames(database: Database, namespace: string) {
-  const rows = await database.qb.drizzle
+  const rows = await database.userQB
     .select({ name: TABLES.table_name })
     .from(TABLES)
     .where(
@@ -959,7 +601,7 @@ async function getUserIndexNames(
   namespace: string,
   tableName: string,
 ) {
-  const rows = await database.qb.drizzle
+  const rows = await database.userQB
     .select({
       name: sql<string>`indexname`.as("name"),
     })

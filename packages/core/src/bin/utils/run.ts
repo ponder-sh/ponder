@@ -1,5 +1,17 @@
 import { runCodegen } from "@/bin/utils/codegen.js";
-import type { Database } from "@/database/index.js";
+import {
+  type Database,
+  getPonderCheckpointTable,
+  getPonderMetaTable,
+} from "@/database/index.js";
+import {
+  commitBlock,
+  createIndexes,
+  createTrigger,
+  dropTrigger,
+  finalize,
+  revert,
+} from "@/database/utils.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
@@ -24,9 +36,8 @@ import { recordAsyncGenerator } from "@/utils/generators.js";
 import { mutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
-import { type TableConfig, getTableName, is, sql } from "drizzle-orm";
+import { getTableName, is, sql } from "drizzle-orm";
 import { PgTable } from "drizzle-orm/pg-core";
-import type { PgTableWithColumns } from "drizzle-orm/pg-core";
 
 /** Starts the sync and indexing services for the specified build. */
 export async function run({
@@ -50,6 +61,12 @@ export async function run({
   onFatalError: (error: Error) => void;
   onReloadableError: (error: Error) => void;
 }) {
+  const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
+  const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
+  const tables = Object.values(schemaBuild.schema).filter(
+    (table): table is PgTable => is(table, PgTable),
+  );
+
   await database.migrateSync();
 
   runCodegen({ common });
@@ -94,6 +111,12 @@ export async function run({
     eventCount,
   });
 
+  const historicalIndexingStore = createHistoricalIndexingStore({
+    common,
+    schemaBuild,
+    indexingCache,
+  });
+
   for (const chain of indexingBuild.chains) {
     const label = { chain: chain.name };
     common.metrics.ponder_historical_total_indexing_seconds.set(
@@ -129,47 +152,50 @@ export async function run({
 
   // If the initial checkpoint is zero, we need to run setup events.
   if (crashRecoveryCheckpoint === undefined) {
-    await database.retry(async () => {
-      await database.transaction(async (client, tx) => {
-        const historicalIndexingStore = createHistoricalIndexingStore({
-          common,
-          schemaBuild,
-          indexingCache,
-          db: tx,
-          client,
-        });
-        const result = await indexing.processSetupEvents({
-          db: historicalIndexingStore,
-        });
+    await database.userQB.transaction(async (tx) => {
+      historicalIndexingStore.qb = tx;
+      indexingCache.qb = tx;
 
-        if (result.status === "error") {
-          onReloadableError(result.error);
+      const result = await indexing.processSetupEvents({
+        db: historicalIndexingStore,
+      });
+
+      if (result.status === "error") {
+        onReloadableError(result.error);
+        return;
+      }
+
+      try {
+        await indexingCache.flush();
+      } catch (error) {
+        if (error instanceof FlushError) {
+          onReloadableError(error as Error);
           return;
         }
-
-        try {
-          await indexingCache.flush({ client });
-        } catch (error) {
-          if (error instanceof FlushError) {
-            onReloadableError(error as Error);
-            return;
-          }
-          throw error;
-        }
-      });
+        throw error;
+      }
     });
   }
 
   // Note: `_ponder_checkpoint` must be updated after the setup events are processed.
-  await database.setCheckpoints({
-    checkpoints: indexingBuild.chains.map((chain) => ({
-      chainName: chain.name,
-      chainId: chain.id,
-      latestCheckpoint: sync.getStartCheckpoint(chain),
-      safeCheckpoint: sync.getStartCheckpoint(chain),
-    })),
-    db: database.qb.drizzle,
-  });
+  await database.adminQB
+    .label("update_checkpoints")
+    .insert(PONDER_CHECKPOINT)
+    .values(
+      indexingBuild.chains.map((chain) => ({
+        chainName: chain.name,
+        chainId: chain.id,
+        latestCheckpoint: sync.getStartCheckpoint(chain),
+        safeCheckpoint: sync.getStartCheckpoint(chain),
+      })),
+    )
+    .onConflictDoUpdate({
+      target: PONDER_CHECKPOINT.chainName,
+      set: {
+        safeCheckpoint: sql`excluded.safe_checkpoint`,
+        latestCheckpoint: sql`excluded.latest_checkpoint`,
+      },
+    });
 
   // Run historical indexing until complete.
   for await (const events of recordAsyncGenerator(
@@ -187,14 +213,10 @@ export async function run({
   )) {
     let endClock = startClock();
 
+    indexingCache.qb = database.userQB;
     await Promise.all([
-      indexingCache.prefetch({
-        events: events.events,
-        db: database.qb.drizzle,
-      }),
-      cachedViemClient.prefetch({
-        events: events.events,
-      }),
+      indexingCache.prefetch({ events: events.events }),
+      cachedViemClient.prefetch({ events: events.events }),
     ]);
     common.metrics.ponder_historical_transform_duration.inc(
       { step: "prefetch" },
@@ -202,161 +224,162 @@ export async function run({
     );
     if (events.events.length > 0) {
       endClock = startClock();
-      await database.retry(async () => {
-        await database
-          .transaction(async (client, tx) => {
-            common.metrics.ponder_historical_transform_duration.inc(
-              { step: "begin" },
-              endClock(),
-            );
 
-            endClock = startClock();
-            const historicalIndexingStore = createHistoricalIndexingStore({
-              common,
-              schemaBuild,
-              indexingCache,
-              db: tx,
-              client,
+      await database.userQB
+        .transaction(async (tx) => {
+          historicalIndexingStore.qb = tx;
+          indexingCache.qb = tx;
+
+          common.metrics.ponder_historical_transform_duration.inc(
+            { step: "begin" },
+            endClock(),
+          );
+
+          endClock = startClock();
+
+          const eventChunks = chunk(events.events, 93);
+          for (const eventChunk of eventChunks) {
+            const result = await indexing.processEvents({
+              events: eventChunk,
+              db: historicalIndexingStore,
+              cache: indexingCache,
             });
 
-            const eventChunks = chunk(events.events, 93);
-            for (const eventChunk of eventChunks) {
-              const result = await indexing.processEvents({
-                events: eventChunk,
-                db: historicalIndexingStore,
-                cache: indexingCache,
-              });
+            if (result.status === "error") {
+              onReloadableError(result.error);
+              return;
+            }
 
-              if (result.status === "error") {
-                onReloadableError(result.error);
-                return;
-              }
+            const checkpoint = decodeCheckpoint(
+              eventChunk[eventChunk.length - 1]!.checkpoint,
+            );
 
-              const checkpoint = decodeCheckpoint(
-                eventChunk[eventChunk.length - 1]!.checkpoint,
+            if (preBuild.ordering === "multichain") {
+              const chain = indexingBuild.chains.find(
+                (chain) => chain.id === Number(checkpoint.chainId),
+              )!;
+              common.metrics.ponder_historical_completed_indexing_seconds.set(
+                { chain: chain.name },
+                Math.max(
+                  Number(checkpoint.blockTimestamp) -
+                    sync.seconds[chain.name]!.start -
+                    sync.seconds[chain.name]!.cached,
+                  0,
+                ),
               );
-
-              if (preBuild.ordering === "multichain") {
-                const chain = indexingBuild.chains.find(
-                  (chain) => chain.id === Number(checkpoint.chainId),
-                )!;
+              common.metrics.ponder_indexing_timestamp.set(
+                { chain: chain.name },
+                Number(checkpoint.blockTimestamp),
+              );
+            } else {
+              for (const chain of indexingBuild.chains) {
                 common.metrics.ponder_historical_completed_indexing_seconds.set(
                   { chain: chain.name },
-                  Math.max(
-                    Number(checkpoint.blockTimestamp) -
-                      Math.max(
+                  Math.min(
+                    Math.max(
+                      Number(checkpoint.blockTimestamp) -
+                        sync.seconds[chain.name]!.start -
                         sync.seconds[chain.name]!.cached,
+                      0,
+                    ),
+                    Math.max(
+                      sync.seconds[chain.name]!.end -
                         sync.seconds[chain.name]!.start,
-                      ),
-                    0,
+                      0,
+                    ),
                   ),
                 );
                 common.metrics.ponder_indexing_timestamp.set(
                   { chain: chain.name },
-                  Number(checkpoint.blockTimestamp),
+                  Math.max(
+                    Number(checkpoint.blockTimestamp),
+                    sync.seconds[chain.name]!.end,
+                  ),
                 );
-              } else {
-                for (const chain of indexingBuild.chains) {
-                  common.metrics.ponder_historical_completed_indexing_seconds.set(
-                    { chain: chain.name },
-                    Math.min(
-                      Math.max(
-                        Number(checkpoint.blockTimestamp) -
-                          Math.max(
-                            sync.seconds[chain.name]!.cached,
-                            sync.seconds[chain.name]!.start,
-                          ),
-                        0,
-                      ),
-                      Math.max(
-                        sync.seconds[chain.name]!.end -
-                          sync.seconds[chain.name]!.start,
-                        0,
-                      ),
-                    ),
-                  );
-                  common.metrics.ponder_indexing_timestamp.set(
-                    { chain: chain.name },
-                    Math.max(
-                      Number(checkpoint.blockTimestamp),
-                      sync.seconds[chain.name]!.end,
-                    ),
-                  );
-                }
-              }
-
-              // Note: allows for terminal and logs to be updated
-              if (preBuild.databaseConfig.kind === "pglite") {
-                await new Promise(setImmediate);
               }
             }
-            await new Promise(setImmediate);
 
-            // underlying metrics collection is actually synchronous
-            // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-            const { eta, progress } = await getAppProgress(common.metrics);
-            if (eta === undefined || progress === undefined) {
-              common.logger.info({
-                service: "app",
-                msg: `Indexed ${events.events.length} events`,
-              });
-            } else {
-              common.logger.info({
-                service: "app",
-                msg: `Indexed ${events.events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
-              });
+            // Note: allows for terminal and logs to be updated
+            if (preBuild.databaseConfig.kind === "pglite") {
+              await new Promise(setImmediate);
             }
+          }
+          await new Promise(setImmediate);
 
-            common.metrics.ponder_historical_transform_duration.inc(
-              { step: "index" },
-              endClock(),
-            );
+          // underlying metrics collection is actually synchronous
+          // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
+          const { eta, progress } = await getAppProgress(common.metrics);
+          if (eta === undefined || progress === undefined) {
+            common.logger.info({
+              service: "app",
+              msg: `Indexed ${events.events.length} events`,
+            });
+          } else {
+            common.logger.info({
+              service: "app",
+              msg: `Indexed ${events.events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
+            });
+          }
 
-            endClock = startClock();
-            // Note: at this point, the next events can be preloaded, as long as the are not indexed until
-            // the "flush" + "finalize" is complete.
+          common.metrics.ponder_historical_transform_duration.inc(
+            { step: "index" },
+            endClock(),
+          );
 
-            try {
-              await indexingCache.flush({ client });
-            } catch (error) {
-              if (error instanceof FlushError) {
-                onReloadableError(error as Error);
-                return;
-              }
-              throw error;
+          endClock = startClock();
+          // Note: at this point, the next events can be preloaded, as long as the are not indexed until
+          // the "flush" + "finalize" is complete.
+
+          try {
+            await indexingCache.flush();
+          } catch (error) {
+            if (error instanceof FlushError) {
+              onReloadableError(error as Error);
+              return;
             }
+            throw error;
+          }
 
-            common.metrics.ponder_historical_transform_duration.inc(
-              { step: "load" },
-              endClock(),
-            );
-            endClock = startClock();
+          common.metrics.ponder_historical_transform_duration.inc(
+            { step: "load" },
+            endClock(),
+          );
+          endClock = startClock();
 
-            await database.setCheckpoints({
-              checkpoints: events.checkpoints.map(
-                ({ chainId, checkpoint }) => ({
+          if (events.checkpoints.length > 0) {
+            await database.adminQB
+              .label("update_checkpoints")
+              .insert(PONDER_CHECKPOINT)
+              .values(
+                events.checkpoints.map(({ chainId, checkpoint }) => ({
                   chainName: indexingBuild.chains.find(
                     (chain) => chain.id === chainId,
                   )!.name,
                   chainId,
                   latestCheckpoint: checkpoint,
                   safeCheckpoint: checkpoint,
-                }),
-              ),
-              db: tx,
-            });
+                })),
+              )
+              .onConflictDoUpdate({
+                target: PONDER_CHECKPOINT.chainName,
+                set: {
+                  safeCheckpoint: sql`excluded.safe_checkpoint`,
+                  latestCheckpoint: sql`excluded.latest_checkpoint`,
+                },
+              });
+          }
 
-            common.metrics.ponder_historical_transform_duration.inc(
-              { step: "finalize" },
-              endClock(),
-            );
-            endClock = startClock();
-          })
-          .catch((error) => {
-            indexingCache.rollback();
-            throw error;
-          });
-      });
+          common.metrics.ponder_historical_transform_duration.inc(
+            { step: "finalize" },
+            endClock(),
+          );
+          endClock = startClock();
+        })
+        .catch((error) => {
+          indexingCache.rollback();
+          throw error;
+        });
+
       cachedViemClient.clear();
       common.metrics.ponder_historical_transform_duration.inc(
         { step: "commit" },
@@ -400,28 +423,26 @@ export async function run({
     msg: "Completed historical indexing",
   });
 
-  await database.createIndexes();
-  await database.createTriggers();
+  await createIndexes(database.adminQB, { statements: schemaBuild.statements });
+  await Promise.all(
+    tables.map((table) => createTrigger(database.adminQB, { table })),
+  );
 
   if (namespaceBuild.viewsSchema) {
-    await database.wrap({ method: "create-views" }, async () => {
-      await database.qb.drizzle.execute(
+    await database.adminQB.label("create_views").transaction(async (tx) => {
+      await tx.execute(
         sql.raw(`CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.viewsSchema}"`),
-      );
-
-      const tables = Object.values(schemaBuild.schema).filter(
-        (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
       );
 
       for (const table of tables) {
         // Note: drop views before creating new ones to avoid enum errors.
-        await database.qb.drizzle.execute(
+        await tx.execute(
           sql.raw(
             `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${getTableName(table)}"`,
           ),
         );
 
-        await database.qb.drizzle.execute(
+        await tx.execute(
           sql.raw(
             `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
           ),
@@ -433,13 +454,13 @@ export async function run({
         msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
       });
 
-      await database.qb.drizzle.execute(
+      await tx.execute(
         sql.raw(
           `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_meta"`,
         ),
       );
 
-      await database.qb.drizzle.execute(
+      await tx.execute(
         sql.raw(
           `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_checkpoint"`,
         ),
@@ -449,7 +470,7 @@ export async function run({
       const notification = "status_notify()";
       const channel = `${namespaceBuild.viewsSchema}_status_channel`;
 
-      await database.qb.drizzle.execute(
+      await tx.execute(
         sql.raw(`
   CREATE OR REPLACE FUNCTION "${namespaceBuild.viewsSchema}".${notification}
   RETURNS TRIGGER
@@ -462,7 +483,7 @@ export async function run({
   $$;`),
       );
 
-      await database.qb.drizzle.execute(
+      await tx.execute(
         sql.raw(`
   CREATE OR REPLACE TRIGGER "${trigger}"
   AFTER INSERT OR UPDATE OR DELETE
@@ -473,13 +494,16 @@ export async function run({
     });
   }
 
-  await database.setReady();
+  await database.adminQB
+    .label("set_ready")
+    .update(PONDER_META)
+    .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` });
 
   const realtimeIndexingStore = createRealtimeIndexingStore({
     common,
     schemaBuild,
-    database,
   });
+  realtimeIndexingStore.qb = database.userQB;
 
   const onRealtimeEvent = mutex(async (event: RealtimeEvent) => {
     switch (event.type) {
@@ -513,7 +537,11 @@ export async function run({
 
             if (result.status === "error") onReloadableError(result.error);
 
-            await database.commitBlock({ checkpoint, db: database.qb.drizzle });
+            await Promise.all(
+              tables.map((table) =>
+                commitBlock(database.userQB, { table, checkpoint }),
+              ),
+            );
 
             if (preBuild.ordering === "multichain") {
               common.metrics.ponder_indexing_timestamp.set(
@@ -531,11 +559,10 @@ export async function run({
           }
         }
 
-        await database.wrap({ method: "setCheckpoints" }, async () => {
-          if (event.checkpoints.length === 0) return;
-
-          await database.qb.drizzle
-            .insert(database.PONDER_CHECKPOINT)
+        if (event.checkpoints.length > 0) {
+          await database.adminQB
+            .label("update_checkpoints")
+            .insert(PONDER_CHECKPOINT)
             .values(
               event.checkpoints.map(({ chainId, checkpoint }) => ({
                 chainName: indexingBuild.chains.find(
@@ -547,12 +574,10 @@ export async function run({
               })),
             )
             .onConflictDoUpdate({
-              target: database.PONDER_CHECKPOINT.chainName,
-              set: {
-                latestCheckpoint: sql`excluded.latest_checkpoint`,
-              },
+              target: PONDER_CHECKPOINT.chainName,
+              set: { latestCheckpoint: sql`excluded.latest_checkpoint` },
             });
-        });
+        }
 
         break;
       }
@@ -560,25 +585,41 @@ export async function run({
         // Note: `_ponder_checkpoint` is not called here, instead it is called
         // in the `block` case.
 
-        await database.removeTriggers();
-        await database.retry(async () => {
-          await database.qb.drizzle.transaction(async (tx) => {
-            await database.revert({ checkpoint: event.checkpoint, tx });
-          });
+        await database.userQB.transaction(async (tx) => {
+          for (const table of tables) {
+            await dropTrigger(tx, { table });
+            const count = await revert(tx, {
+              table,
+              checkpoint: event.checkpoint,
+            });
+            common.logger.info({
+              service: "database",
+              msg: `Reverted ${count} unfinalized operations from '${getTableName(table)}'`,
+            });
+            await createTrigger(tx, { table });
+          }
         });
-        await database.createTriggers();
 
         break;
 
       case "finalize":
-        await database.qb.drizzle.update(database.PONDER_CHECKPOINT).set({
-          safeCheckpoint: event.checkpoint,
+        await database.userQB.transaction(async (tx) => {
+          await tx.label("update_checkpoint").update(PONDER_CHECKPOINT).set({
+            safeCheckpoint: event.checkpoint,
+          });
+
+          for (const table of tables) {
+            await finalize(tx, { table, checkpoint: event.checkpoint });
+
+            const decoded = decodeCheckpoint(event.checkpoint);
+
+            common.logger.debug({
+              service: "database",
+              msg: `Updated finalized checkpoint to (timestamp=${decoded.blockTimestamp} chainId=${decoded.chainId} block=${decoded.blockNumber})`,
+            });
+          }
         });
 
-        await database.finalize({
-          checkpoint: event.checkpoint,
-          db: database.qb.drizzle,
-        });
         break;
 
       default:

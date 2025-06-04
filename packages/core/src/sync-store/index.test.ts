@@ -623,11 +623,11 @@ test("insertChildAddresses()", async (context) => {
     chainId: 1,
   });
 
-  const factories = await database.qb.sync
+  const factories = await database.syncQB
     .select()
     .from(ponderSyncSchema.factories)
     .execute();
-  const factoryAddresses = await database.qb.sync
+  const factoryAddresses = await database.syncQB
     .select()
     .from(ponderSyncSchema.factoryAddresses)
     .execute();
@@ -659,7 +659,7 @@ test("insertLogs()", async (context) => {
 
   await syncStore.insertLogs({ logs: [rpcLogs[0]!], chainId: 1 });
 
-  const logs = await database.qb.sync.select().from(ponderSyncSchema.logs);
+  const logs = await database.syncQB.select().from(ponderSyncSchema.logs);
   expect(logs).toHaveLength(1);
 });
 
@@ -688,7 +688,7 @@ test("insertLogs() with duplicates", async (context) => {
 
   await syncStore.insertLogs({ logs: [rpcLogs[0]!], chainId: 1 });
 
-  const logs = await database.qb.sync.select().from(ponderSyncSchema.logs);
+  const logs = await database.syncQB.select().from(ponderSyncSchema.logs);
   expect(logs).toHaveLength(1);
 });
 
@@ -708,7 +708,7 @@ test("insertBlocks()", async (context) => {
 
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
-  const blocks = await database.qb.sync
+  const blocks = await database.syncQB
     .select()
     .from(ponderSyncSchema.blocks)
     .execute();
@@ -732,7 +732,7 @@ test("insertBlocks() with duplicates", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
-  const blocks = await database.qb.sync
+  const blocks = await database.syncQB
     .select()
     .from(ponderSyncSchema.blocks)
     .execute();
@@ -764,7 +764,7 @@ test("insertTransactions()", async (context) => {
     chainId: 1,
   });
 
-  const transactions = await database.qb.sync
+  const transactions = await database.syncQB
     .select()
     .from(ponderSyncSchema.transactions)
     .execute();
@@ -800,7 +800,7 @@ test("insertTransactions() with duplicates", async (context) => {
     chainId: 1,
   });
 
-  const transactions = await database.qb.sync
+  const transactions = await database.syncQB
     .select()
     .from(ponderSyncSchema.transactions)
     .execute();
@@ -833,7 +833,7 @@ test("insertTransactionReceipts()", async (context) => {
     chainId: 1,
   });
 
-  const transactionReceipts = await database.qb.sync
+  const transactionReceipts = await database.syncQB
     .select()
     .from(ponderSyncSchema.transactionReceipts)
     .execute();
@@ -870,7 +870,7 @@ test("insertTransactionReceipts() with duplicates", async (context) => {
     chainId: 1,
   });
 
-  const transactionReceipts = await database.qb.sync
+  const transactionReceipts = await database.syncQB
     .select()
     .from(ponderSyncSchema.transactionReceipts)
     .execute();
@@ -933,7 +933,7 @@ test("insertTraces()", async (context) => {
     chainId: 1,
   });
 
-  const traces = await database.qb.sync
+  const traces = await database.syncQB
     .select()
     .from(ponderSyncSchema.traces)
     .execute();
@@ -1006,7 +1006,7 @@ test("insertTraces() with duplicates", async (context) => {
     chainId: 1,
   });
 
-  const traces = await database.qb.sync
+  const traces = await database.syncQB
     .select()
     .from(ponderSyncSchema.traces)
     .execute();
@@ -1137,7 +1137,7 @@ test("insertRpcRequestResults() ", async (context) => {
     chainId: 1,
   });
 
-  const result = await database.qb.sync
+  const result = await database.syncQB
     .select()
     .from(ponderSyncSchema.rpcRequestResults)
     .execute();
@@ -1161,13 +1161,13 @@ test("inserttRpcRequestResults() hash matches postgres", async (context) => {
     chainId: 1,
   });
 
-  const jsHash = await database.qb.sync
+  const jsHash = await database.syncQB
     .select()
     .from(ponderSyncSchema.rpcRequestResults)
     .execute()
     .then((result) => result[0]!.requestHash);
 
-  const psqlHash = await database.qb.sync.execute(
+  const psqlHash = await database.syncQB.execute(
     sql`SELECT MD5(${JSON.stringify(orderObject({ method: "eth_call", params: ["0x1"] }))}) as request_hash`,
   );
 
@@ -1306,7 +1306,7 @@ test("pruneRpcRequestResult", async (context) => {
     chainId: 1,
   });
 
-  const requestResults = await database.qb.sync
+  const requestResults = await database.syncQB
     .select()
     .from(ponderSyncSchema.rpcRequestResults)
     .execute();
@@ -1447,23 +1447,23 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
 
   await syncStore.pruneByChain({ chainId: 1 });
 
-  const logs = await database.qb.sync
+  const logs = await database.syncQB
     .select()
     .from(ponderSyncSchema.logs)
     .execute();
-  const blocks = await database.qb.sync
+  const blocks = await database.syncQB
     .select()
     .from(ponderSyncSchema.blocks)
     .execute();
-  const traces = await database.qb.sync
+  const traces = await database.syncQB
     .select()
     .from(ponderSyncSchema.traces)
     .execute();
-  const transactions = await database.qb.sync
+  const transactions = await database.syncQB
     .select()
     .from(ponderSyncSchema.transactions)
     .execute();
-  const transactionReceipts = await database.qb.sync
+  const transactionReceipts = await database.syncQB
     .select()
     .from(ponderSyncSchema.transactionReceipts)
     .execute();
