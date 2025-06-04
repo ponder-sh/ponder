@@ -1,8 +1,8 @@
-import type { Database } from "@/database/index.js";
+import type { getPonderCheckpointTable } from "@/database/index.js";
+import type { QB } from "@/database/queryBuilder.js";
 import type { OnchainTable } from "@/drizzle/onchain.js";
 import { normalizeColumn } from "@/indexing-store/utils.js";
 import type { Schema, Status } from "@/internal/types.js";
-import type { Drizzle, ReadonlyDrizzle } from "@/types/db.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import { deserialize, serialize } from "@/utils/serialize.js";
@@ -37,6 +37,7 @@ import {
   notInArray,
   notLike,
   or,
+  sql,
 } from "drizzle-orm";
 import {
   type PgEnum,
@@ -68,9 +69,8 @@ import { GraphQLJSON } from "./json.js";
 
 type Parent = Record<string, any>;
 type Context = {
+  qb: QB<{ [key: string]: OnchainTable }>;
   getDataLoader: ReturnType<typeof buildDataLoaderCache>;
-  getCheckpoints: Database["getCheckpoints"];
-  drizzle: Drizzle<{ [key: string]: OnchainTable }>;
 };
 
 type PluralArgs = {
@@ -335,7 +335,7 @@ export function buildGraphQLSchema({
 
                 return executePluralQuery(
                   referencedTable,
-                  context.drizzle,
+                  context.qb,
                   args,
                   includeTotalCount,
                   relationalConditions,
@@ -415,12 +415,7 @@ export function buildGraphQLSchema({
       resolve: async (_parent, args: PluralArgs, context, info) => {
         const includeTotalCount = selectionIncludesField(info, "totalCount");
 
-        return executePluralQuery(
-          table,
-          context.drizzle,
-          args,
-          includeTotalCount,
-        );
+        return executePluralQuery(table, context.qb, args, includeTotalCount);
       },
     };
   }
@@ -428,7 +423,13 @@ export function buildGraphQLSchema({
   queryFields._meta = {
     type: GraphQLMeta,
     resolve: async (_source, _args, context) => {
-      const checkpoints = await context.getCheckpoints();
+      // Note: This is done to avoid non-browser compatible dependencies
+      const checkpoints = (await globalThis.PONDER_DATABASE.readonlyQB
+        .execute(sql`SELECT * from _ponder_checkpoint`)
+        .then((res) => res.rows)) as ReturnType<
+        typeof getPonderCheckpointTable
+      >["$inferSelect"][];
+
       const status: Status = {};
       for (const { chainName, chainId, latestCheckpoint } of checkpoints) {
         status[chainName] = {
@@ -560,7 +561,7 @@ const innerType = (
 
 async function executePluralQuery(
   table: TableRelationalConfig,
-  drizzle: Drizzle<{ [key: string]: OnchainTable }>,
+  drizzle: QB<{ [key: string]: OnchainTable }>,
   args: PluralArgs,
   includeTotalCount: boolean,
   extraConditions: (SQL | undefined)[] = [],
@@ -1013,16 +1014,15 @@ function buildCursorCondition(
   return buildCondition(0);
 }
 
-export function buildDataLoaderCache({
-  drizzle,
-}: { drizzle: ReadonlyDrizzle<Schema> }) {
+export function buildDataLoaderCache(qb: QB) {
   const dataLoaderMap = new Map<
     TableRelationalConfig,
     DataLoader<string, any> | undefined
   >();
   return ({ table }: { table: TableRelationalConfig }) => {
-    const baseQuery = (drizzle as Drizzle<{ [key: string]: OnchainTable }>)
-      .query[table.tsName];
+    const baseQuery = (qb as QB<{ [key: string]: OnchainTable }>).query[
+      table.tsName
+    ];
     if (baseQuery === undefined)
       throw new Error(
         `Internal error: Unknown table "${table.tsName}" in data loader cache`,

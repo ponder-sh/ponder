@@ -1,5 +1,6 @@
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import type { QB } from "@/database/queryBuilder.js";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import { addErrorMeta, toErrorMeta } from "@/indexing/index.js";
@@ -8,14 +9,11 @@ import { FlushError } from "@/internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
   Event,
-  Schema,
   SchemaBuild,
 } from "@/internal/types.js";
-import type { Drizzle } from "@/types/db.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
-import { PGlite } from "@electric-sql/pglite";
 import {
   type Column,
   type Table,
@@ -24,15 +22,14 @@ import {
   getTableName,
   is,
   or,
+  sql,
 } from "drizzle-orm";
 import {
   PgTable,
   type PgTableWithColumns,
   getTableConfig,
 } from "drizzle-orm/pg-core";
-import type { PoolClient } from "pg";
 import copy from "pg-copy-streams";
-import { parseSqlError } from "./index.js";
 import {
   getProfilePatternKey,
   recordProfilePattern,
@@ -48,11 +45,10 @@ export type IndexingCache = {
   /**
    * Returns the entry for `table` with `key`.
    */
-  get: (params: {
-    table: Table;
-    key: object;
-    db: Drizzle<Schema>;
-  }) => Row | null | Promise<Row | null>;
+  get: (params: { table: Table; key: object }) =>
+    | Row
+    | null
+    | Promise<Row | null>;
   /**
    * Sets the entry for `table` with `key` to `row`.
    */
@@ -65,27 +61,17 @@ export type IndexingCache = {
   /**
    * Deletes the entry for `table` with `key`.
    */
-  delete: (params: {
-    table: Table;
-    key: object;
-    db: Drizzle<Schema>;
-  }) => boolean | Promise<boolean>;
+  delete: (params: { table: Table; key: object }) => boolean | Promise<boolean>;
   /**
    * Writes all temporary data to the database.
    *
    * @param params.tableNames - If provided, only flush the tables in the set.
    */
-  flush: (params: {
-    client: PoolClient | PGlite;
-    tableNames?: Set<string>;
-  }) => Promise<void>;
+  flush: (params?: { tableNames?: Set<string> }) => Promise<void>;
   /**
    * Predict and load rows that will be accessed in the next event batch.
    */
-  prefetch: (params: {
-    events: Event[];
-    db: Drizzle<Schema>;
-  }) => Promise<void>;
+  prefetch: (params: { events: Event[] }) => Promise<void>;
   /**
    * Remove spillover and buffer entries.
    */
@@ -99,6 +85,7 @@ export type IndexingCache = {
    */
   clear: () => void;
   event: Event | undefined;
+  qb: QB;
 };
 
 const SAMPLING_RATE = 10;
@@ -232,15 +219,15 @@ export const getCopyText = (table: Table, rows: Row[]) => {
   return results.join("\n");
 };
 
-export const getCopyHelper = ({ client }: { client: PoolClient | PGlite }) => {
-  if (client instanceof PGlite) {
+export const getCopyHelper = (qb: QB) => {
+  if (qb.$dialect === "pglite") {
     return async (table: Table, text: string, includeSchema = true) => {
       const target = includeSchema
         ? `"${getTableConfig(table).schema ?? "public"}"."${getTableName(
             table,
           )}"`
         : `"${getTableName(table)}"`;
-      await client.query(`COPY ${target} FROM '/dev/blob'`, [], {
+      await qb.$client.query(`COPY ${target} FROM '/dev/blob'`, [], {
         blob: new Blob([text]),
       });
     };
@@ -253,7 +240,7 @@ export const getCopyHelper = ({ client }: { client: PoolClient | PGlite }) => {
         : `"${getTableName(table)}"`;
       await pipeline(
         Readable.from(text),
-        client.query(copy.from(`COPY ${target} FROM STDIN`)),
+        qb.$client.query(copy.from(`COPY ${target} FROM STDIN`)),
       );
     };
   }
@@ -304,6 +291,7 @@ export const createIndexingCache = ({
    */
   let cacheBytes = 0;
   let event: Event | undefined;
+  let qb: QB = undefined!;
   let isCacheComplete = crashRecoveryCheckpoint === undefined;
   const primaryKeyCache = new Map<Table, [string, Column][]>();
 
@@ -342,7 +330,7 @@ export const createIndexingCache = ({
         updateBuffer.get(table)!.has(ck)
       );
     },
-    async get({ table, key, db }) {
+    async get({ table, key }) {
       if (event && eventCount[event.name]! % SAMPLING_RATE === 1) {
         if (profile.has(event.name) === false) {
           profile.set(event.name, new Map());
@@ -414,7 +402,7 @@ export const createIndexingCache = ({
 
       const endClock = startClock();
 
-      const result = await db
+      const result = await qb
         .select()
         .from(table)
         .where(getWhereCondition(table, key))
@@ -455,7 +443,7 @@ export const createIndexingCache = ({
 
       return row;
     },
-    async delete({ table, key, db }) {
+    async delete({ table, key }) {
       const ck = getCacheKey(table, key);
 
       const inInsertBuffer = insertBuffer.get(table)!.delete(ck);
@@ -463,7 +451,7 @@ export const createIndexingCache = ({
 
       cache.get(table)!.delete(ck);
 
-      const inDb = await db
+      const inDb = await qb
         .delete(table)
         .where(getWhereCondition(table, key))
         .returning()
@@ -471,8 +459,8 @@ export const createIndexingCache = ({
 
       return inInsertBuffer || inUpdateBuffer || inDb;
     },
-    async flush({ client, tableNames }) {
-      const copy = getCopyHelper({ client });
+    async flush({ tableNames } = {}) {
+      const copy = getCopyHelper(qb);
 
       const shouldRecordBytes = isCacheComplete;
 
@@ -492,8 +480,7 @@ export const createIndexingCache = ({
         if (insertValues.length > 0) {
           const endClock = startClock();
 
-          // @ts-ignore
-          await client.query("SAVEPOINT flush");
+          await qb.execute(sql.raw("SAVEPOINT flush"));
 
           try {
             const text = getCopyText(
@@ -505,19 +492,17 @@ export const createIndexingCache = ({
 
             await copy(table, text);
           } catch (_error) {
-            let error = _error as Error;
+            const error = _error as Error;
             const result = await recoverBatchError(
               insertValues,
               async (values) => {
-                // @ts-ignore
-                await client.query("ROLLBACK to flush");
+                await qb.execute(sql.raw("ROLLBACK to flush"));
                 const text = getCopyText(
                   table,
                   values.map(({ row }) => row),
                 );
                 await copy(table, text);
-                // @ts-ignore
-                await client.query("SAVEPOINT flush");
+                await qb.execute(sql.raw("SAVEPOINT flush"));
               },
             );
 
@@ -526,10 +511,8 @@ export const createIndexingCache = ({
             }
 
             // Note: rollback so that the connection is available for other queries
-            // @ts-ignore
-            await client.query("ROLLBACK to flush");
+            await qb.execute(sql.raw("ROLLBACK to flush"));
 
-            error = parseSqlError(result.error);
             error.stack = undefined;
 
             if (result.value.metadata.event) {
@@ -617,10 +600,8 @@ export const createIndexingCache = ({
 
           const endClock = startClock();
 
-          // @ts-ignore
-          await client.query(createTempTableQuery);
-          // @ts-ignore
-          await client.query("SAVEPOINT flush");
+          await qb.execute(sql.raw(createTempTableQuery));
+          await qb.execute(sql.raw("SAVEPOINT flush"));
 
           try {
             const text = getCopyText(
@@ -632,19 +613,17 @@ export const createIndexingCache = ({
 
             await copy(table, text, false);
           } catch (_error) {
-            let error = _error as Error;
+            const error = _error as Error;
             const result = await recoverBatchError(
               updateValues,
               async (values) => {
-                // @ts-ignore
-                await client.query("ROLLBACK to flush");
+                await qb.execute(sql.raw("ROLLBACK to flush"));
                 const text = getCopyText(
                   table,
                   values.map(({ row }) => row),
                 );
                 await copy(table, text, false);
-                // @ts-ignore
-                await client.query("SAVEPOINT flush");
+                await qb.execute(sql.raw("SAVEPOINT flush"));
               },
             );
 
@@ -653,10 +632,8 @@ export const createIndexingCache = ({
             }
 
             // Note: rollback so that the connection is available for other queries
-            // @ts-ignore
-            await client.query("ROLLBACK to flush");
+            await qb.execute(sql.raw("ROLLBACK to flush"));
 
-            error = parseSqlError(result.error);
             error.stack = undefined;
 
             addErrorMeta(
@@ -675,8 +652,7 @@ export const createIndexingCache = ({
             throw error;
           }
 
-          // @ts-ignore
-          await client.query(updateQuery);
+          await qb.execute(sql.raw(updateQuery));
 
           common.metrics.ponder_indexing_cache_query_duration.observe(
             {
@@ -703,12 +679,11 @@ export const createIndexingCache = ({
         }
 
         if (insertValues.length > 0 || updateValues.length > 0) {
-          // @ts-ignore
-          await client.query("RELEASE flush");
+          await qb.execute(sql.raw("RELEASE flush"));
         }
       }
     },
-    async prefetch({ events, db }) {
+    async prefetch({ events }) {
       if (isCacheComplete) {
         if (cacheBytes < common.options.indexingCacheMaxBytes) {
           return;
@@ -789,7 +764,7 @@ export const createIndexingCache = ({
             if (conditions.length === 0) return;
             const endClock = startClock();
 
-            await db
+            await qb
               .select()
               .from(table)
               .where(or(...conditions))
@@ -863,6 +838,9 @@ export const createIndexingCache = ({
     },
     set event(_event: Event | undefined) {
       event = _event;
+    },
+    set qb(_qb: QB) {
+      qb = _qb;
     },
   };
 };

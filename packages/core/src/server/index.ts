@@ -1,5 +1,9 @@
 import http from "node:http";
-import type { Database } from "@/database/index.js";
+import {
+  type Database,
+  getPonderCheckpointTable,
+  getPonderMetaTable,
+} from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import type { ApiBuild, Status } from "@/internal/types.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
@@ -83,7 +87,11 @@ export async function createServer({
       return c.text("", 200);
     })
     .get("/ready", async (c) => {
-      const isReady = await database.getReady();
+      const isReady = await database.readonlyQB
+        .label("select_ready")
+        .select()
+        .from(getPonderMetaTable())
+        .then((result) => result[0]!.value.is_ready === 1);
 
       if (isReady) {
         return c.text("", 200);
@@ -92,7 +100,10 @@ export async function createServer({
       return c.text("Historical indexing is not complete.", 503);
     })
     .get("/status", async (c) => {
-      const checkpoints = await globalThis.PONDER_DATABASE.getCheckpoints();
+      const checkpoints = await database.readonlyQB
+        .label("select_checkpoints")
+        .select()
+        .from(getPonderCheckpointTable());
       const status: Status = {};
       for (const { chainName, chainId, latestCheckpoint } of checkpoints) {
         status[chainName] = {
