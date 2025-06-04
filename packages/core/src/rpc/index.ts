@@ -238,19 +238,29 @@ export const createRpc = ({
     ];
   }
 
-  let ws_subscribe:
-    | NonNullable<ReturnType<WebSocketTransport>["value"]>["subscribe"]
-    | undefined = undefined;
+  let wsTransport: ReturnType<WebSocketTransport> | undefined = undefined;
+  let reconnectCount = 0;
+
+  const wsSetup = (url: string) => {
+    return webSocket(url, { keepAlive: true, reconnect: false })({
+      chain: chain.viemChain,
+      retryCount: 0,
+      timeout: 5_000,
+    });
+  };
+
+  const wsReconnect = async (url: string) => {
+    if (reconnectCount++ === RETRY_COUNT) throw new SocketClosedError({ url });
+
+    await wsTransport!.value!.getRpcClient().then((r) => r.close());
+    wsTransport = wsSetup(url);
+  };
 
   if (typeof chain.ws === "string") {
     const protocol = new url.URL(chain.ws).protocol;
 
     if (protocol === "wss:" || protocol === "ws:") {
-      ws_subscribe = webSocket(chain.ws, { keepAlive: true, reconnect: true })({
-        chain: chain.viemChain,
-        retryCount: 0,
-        timeout: 5_000,
-      }).value?.subscribe;
+      wsTransport = wsSetup(chain.ws);
     } else {
       throw new Error(
         `Inconsistent RPC URL protocol: ${protocol}. Expected wss or ws.`,
@@ -467,36 +477,79 @@ export const createRpc = ({
   });
 
   let interval: NodeJS.Timeout | undefined;
+  let tryCount = 0;
 
   const rpc: Rpc = {
     // @ts-ignore
     request: queue.add,
-    subscribe({ onBlock, onError }) {
-      if (ws_subscribe === undefined) {
+    subscribe({ onBlock, onError: _onError }) {
+      if (wsTransport === undefined) {
         interval = setInterval(() => {
           _eth_getBlockByNumber(rpc, { blockTag: "latest" })
             .then(onBlock)
-            .catch(onError);
+            .catch(_onError);
         }, chain.pollingInterval);
         common.shutdown.add(() => {
           clearInterval(interval);
         });
       } else {
-        ws_subscribe({
-          params: ["newHeads"],
-          onData: (data) => {
-            _eth_getBlockByHash(rpc, { hash: data.result.hash })
-              .then(onBlock)
-              .catch(onError);
-          },
-          onError: (err) => {
+        wsTransport
+          .value!.subscribe({
+            params: ["newHeads"],
+            onData: (data) => {
+              _eth_getBlockByHash(rpc, { hash: data.result.hash })
+                .then(onBlock)
+                .catch(_onError);
+
+              reconnectCount = 0;
+            },
+            onError: async (err) => {
+              const error = err as Error;
+              if (error instanceof SocketClosedError) {
+                console.log(error);
+                try {
+                  // Try reconnecting webSocket
+                  await wsReconnect(chain.ws!);
+                } catch (e) {
+                  // If failed after max attempts, switch to polling
+                  console.log(
+                    `Switched from subscription to polling based realtime indexing after ${tryCount + 1} reconnect attempts.`,
+                  );
+                  wsTransport = undefined;
+                }
+
+                rpc.subscribe({ onBlock, onError: _onError });
+              }
+
+              console.log(error);
+            },
+          })
+          .then(() => {
+            tryCount = 0;
+          })
+          .catch(async (err) => {
             const error = err as Error;
-            if (error instanceof SocketClosedError) {
-              console.log("SOCKET CLOSED ERROR");
-              // Need to resubscribe
+
+            if (tryCount === RETRY_COUNT) {
+              common.logger.warn({
+                service: "rpc",
+                msg: `Failed "eth_subscribe" request after ${tryCount + 1} attempts. Switching to polling.`,
+                error,
+              });
+              wsTransport = undefined;
+            } else {
+              const duration = BASE_DURATION * 2 ** tryCount;
+              common.logger.debug({
+                service: "rpc",
+                msg: `Failed "eth_subscribe" request, retrying after ${duration} milliseconds.`,
+                error,
+              });
+              await wait(duration);
             }
-          },
-        });
+
+            tryCount++;
+            rpc.subscribe({ onBlock, onError: _onError });
+          });
       }
     },
     unsubscribe() {
