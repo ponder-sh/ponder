@@ -249,19 +249,20 @@ export const createRealtimeIndexingStore = ({
     sql: drizzle(
       async (_sql, params, method, typings) => {
         const query: QueryWithTypings = { sql: _sql, params, typings };
-
         const endClock = startClock();
 
-        const result = await qb._.session
-          .prepareQuery(query, undefined, undefined, method === "all")
-          .execute()
-          .finally(() => {
-            common.metrics.ponder_indexing_store_raw_sql_duration.observe(
-              endClock(),
-            );
-          });
-        // @ts-ignore
-        return { rows: result.rows.map((row) => Object.values(row)) };
+        try {
+          const result = await qb._.session
+            .prepareQuery(query, undefined, undefined, method === "all")
+            .execute();
+
+          // @ts-ignore
+          return { rows: result.rows.map((row) => Object.values(row)) };
+        } finally {
+          common.metrics.ponder_indexing_store_raw_sql_duration.observe(
+            endClock(),
+          );
+        }
       },
       { schema, casing: "snake_case" },
     ),

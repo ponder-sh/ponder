@@ -104,6 +104,13 @@ export const createQB = <
       const endClock = startClock();
       const id = crypto.randomUUID().slice(0, 8);
 
+      if (label) {
+        common.logger.trace({
+          service: "database",
+          msg: `Started '${label}' database method (id=${id})`,
+        });
+      }
+
       try {
         if (common.shutdown.isKilled && isAdmin === false) {
           throw new ShutdownError();
@@ -170,6 +177,12 @@ export const createQB = <
         });
         await wait(duration);
       } finally {
+        if (label) {
+          common.logger.trace({
+            service: "database",
+            msg: `Completed '${label}' database method in ${Math.round(endClock())}ms (id=${id})`,
+          });
+        }
       }
     }
 
@@ -217,21 +230,21 @@ export const createQB = <
   db.transaction = async (...args) => {
     const callback = args[0];
     args[0] = (..._args) => {
-      let qb = _args[0] as unknown as QB<TSchema, TClient>;
+      const qb = _args[0] as unknown as QB<TSchema, TClient>;
 
       qb.label = (_label: string) => {
         label = _label;
         return qb;
       };
 
-      qb = new Proxy(qb, {
-        get(target, prop) {
-          if (prop !== "label") {
-            label = undefined;
-          }
-          return Reflect.get(target, prop);
-        },
-      });
+      // qb = new Proxy(qb, {
+      //   get(target, prop) {
+      //     if (prop !== "label") {
+      //       label = undefined;
+      //     }
+      //     return Reflect.get(target, prop);
+      //   },
+      // });
 
       // @ts-expect-error
       assignClient(qb, _args[0]._.session.client);
@@ -283,21 +296,21 @@ export const createQB = <
     return wrap(label, () => transaction(...args), "");
   };
 
-  let qb = db as unknown as QB<TSchema, TClient>;
+  const qb = db as unknown as QB<TSchema, TClient>;
 
   qb.label = (_label: string) => {
     label = _label;
     return qb;
   };
 
-  qb = new Proxy(qb, {
-    get(target, prop) {
-      if (prop !== "label") {
-        label = undefined;
-      }
-      return Reflect.get(target, prop);
-    },
-  });
+  // qb = new Proxy(qb, {
+  //   get(target, prop) {
+  //     if (prop !== "label") {
+  //       label = undefined;
+  //     }
+  //     return Reflect.get(target, prop);
+  //   },
+  // });
 
   assignClient(qb, db.$client);
 
