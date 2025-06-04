@@ -21,9 +21,7 @@ test("QB query", async (context) => {
   const qb = createQB(context.common, drizzle(pool, { casing: "snake_case" }));
 
   await qb.label("test1").select().from(SCHEMATA);
-  await qb
-    .label("test2")
-    .execute(sql`SELECT * FROM information_schema.schemata`);
+  await qb.execute(sql`SELECT * FROM information_schema.schemata`);
 });
 
 test("QB transaction", async (context) => {

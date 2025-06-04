@@ -604,7 +604,7 @@ export async function run({
 
       case "finalize":
         await database.userQB.transaction(async (tx) => {
-          await tx.label("update_checkpoint").update(PONDER_CHECKPOINT).set({
+          await tx.label("update_checkpoints").update(PONDER_CHECKPOINT).set({
             safeCheckpoint: event.checkpoint,
           });
 

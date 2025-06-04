@@ -13,11 +13,9 @@ export const createIndexes = async (
 ) => {
   for (const statement of statements.indexes.sql) {
     await qb.label("create_indexes").transaction(async (tx) => {
-      await tx.label("update_statement_timeout").execute(
-        // 60 minutes
-        "SET statement_timeout = 3600000;",
-      );
-      await tx.label("create_index").execute(statement);
+      // 60 minutes
+      await tx.execute("SET statement_timeout = 3600000;");
+      await tx.execute(statement);
     });
   }
 };
