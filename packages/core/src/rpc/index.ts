@@ -242,7 +242,7 @@ export const createRpc = ({
     | undefined = undefined;
 
   if (typeof chain.ws === "string") {
-    const protocol = new url.URL(chain.rpc).protocol;
+    const protocol = new url.URL(chain.ws).protocol;
 
     if (protocol === "wss:" || protocol === "ws:") {
       ws_subscribe = webSocket(chain.ws)({
@@ -488,8 +488,9 @@ export const createRpc = ({
               .then(onBlock)
               .catch(onError);
           },
-          onError: () => {
-            // TODO: handle error
+          onError: (err) => {
+            const error = err as Error;
+            console.log(error);
           },
         });
       }
