@@ -21,7 +21,6 @@ import {
   ParseRpcError,
   type PublicRpcSchema,
   type RpcError,
-  SocketClosedError,
   TimeoutError,
   type WebSocketTransport,
   isHex,
@@ -493,23 +492,18 @@ export const createRpc = ({
               reconnectCount = 0;
             },
             onError: async (err) => {
-              const error = err as Error;
-              if (error instanceof SocketClosedError) {
-                console.log("Socket closed, reconnecting...");
+              console.log(`Subscribe onError: ${err}`);
 
-                if (reconnectCount++ === RETRY_COUNT) {
-                  console.log(
-                    `Switched from subscription to polling based realtime indexing after ${reconnectCount + 1} reconnect attempts.`,
-                  );
-                  wsTransport = undefined;
-                } else {
-                  await wsTransport!
-                    .value!.getRpcClient()
-                    .then((r) => r.close());
-                }
-
-                rpc.subscribe({ onBlock, onError: _onError });
+              if (reconnectCount++ === RETRY_COUNT) {
+                console.log(
+                  `Switched from subscription to polling based realtime indexing after ${reconnectCount + 1} reconnect attempts.`,
+                );
+                wsTransport = undefined;
+              } else {
+                await wsTransport!.value!.getRpcClient().then((r) => r.close());
               }
+
+              rpc.subscribe({ onBlock, onError: _onError });
             },
           })
           .then(() => {
@@ -542,6 +536,9 @@ export const createRpc = ({
     },
     unsubscribe() {
       clearInterval(interval);
+      if (wsTransport) {
+        wsTransport.value!.getRpcClient().then((r) => r.close());
+      }
     },
   };
 
