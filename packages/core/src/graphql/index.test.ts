@@ -4,7 +4,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import type { Database } from "@/database/index.js";
+import { type Database, getPonderCheckpointTable } from "@/database/index.js";
 import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
 import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { relations } from "drizzle-orm";
@@ -19,13 +19,8 @@ beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
 function buildContextValue(database: Database) {
-  const drizzle = database.qb.drizzleReadonly;
-  const getDataLoader = buildDataLoaderCache({ drizzle });
-  return {
-    drizzle,
-    getDataLoader,
-    getCheckpoints: () => database.getCheckpoints(),
-  };
+  const getDataLoader = buildDataLoaderCache(database.readonlyQB);
+  return { qb: database.readonlyQB, getDataLoader };
 }
 
 test("metadata", async (context) => {
@@ -40,30 +35,25 @@ test("metadata", async (context) => {
 
   const graphqlSchema = buildGraphQLSchema({ schema });
 
-  await database.setCheckpoints({
-    checkpoints: [
-      {
-        chainId: 1,
-        chainName: "mainnet",
-        latestCheckpoint: encodeCheckpoint({
-          blockNumber: 10n,
-          chainId: 1n,
-          blockTimestamp: 20n,
-          transactionIndex: 0n,
-          eventType: EVENT_TYPES.blocks,
-          eventIndex: 0n,
-        }),
-        safeCheckpoint: encodeCheckpoint({
-          blockNumber: 10n,
-          chainId: 1n,
-          blockTimestamp: 20n,
-          transactionIndex: 0n,
-          eventType: EVENT_TYPES.blocks,
-          eventIndex: 0n,
-        }),
-      },
-    ],
-    db: database.qb.drizzle,
+  await database.adminQB.insert(getPonderCheckpointTable()).values({
+    chainId: 1,
+    chainName: "mainnet",
+    latestCheckpoint: encodeCheckpoint({
+      blockNumber: 10n,
+      chainId: 1n,
+      blockTimestamp: 20n,
+      transactionIndex: 0n,
+      eventType: EVENT_TYPES.blocks,
+      eventIndex: 0n,
+    }),
+    safeCheckpoint: encodeCheckpoint({
+      blockNumber: 10n,
+      chainId: 1n,
+      blockTimestamp: 20n,
+      transactionIndex: 0n,
+      eventType: EVENT_TYPES.blocks,
+      eventIndex: 0n,
+    }),
   });
 
   const result = await query(`
@@ -931,13 +921,13 @@ test("plural with one relation uses dataloader", async (context) => {
 
   const personFindManySpy = vi.spyOn(
     // @ts-expect-error
-    database.qb.drizzleReadonly.query.person,
+    database.readonlyQB.query.person,
     "findMany",
   );
 
   const petFindManySpy = vi.spyOn(
     // @ts-expect-error
-    database.qb.drizzleReadonly.query.pet,
+    database.readonlyQB.query.pet,
     "findMany",
   );
 

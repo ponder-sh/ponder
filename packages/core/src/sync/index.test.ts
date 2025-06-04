@@ -238,14 +238,14 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
     block,
   });
 
-  const blocks = await database.qb.sync
+  const blocks = await database.syncQB
     .select()
     .from(ponderSyncSchema.blocks)
     .execute();
 
   expect(blocks).toHaveLength(1);
 
-  const intervals = await database.qb.sync
+  const intervals = await database.syncQB
     .select()
     .from(ponderSyncSchema.intervals)
     .execute();
@@ -534,7 +534,7 @@ test("getLocalSyncGenerator()", async (context) => {
 
   await drainAsyncGenerator(syncGenerator);
 
-  const intervals = await database.qb.sync
+  const intervals = await database.syncQB
     .select()
     .from(ponderSyncSchema.intervals)
     .execute();
@@ -615,7 +615,7 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
 
   await drainAsyncGenerator(syncGenerator);
 
-  const intervals = await database.qb.sync
+  const intervals = await database.syncQB
     .select()
     .from(ponderSyncSchema.intervals)
     .execute();

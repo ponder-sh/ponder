@@ -1,8 +1,9 @@
+import type { getPonderCheckpointTable } from "@/database/index.js";
 import type { Schema, Status } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
-import type { QueryWithTypings } from "drizzle-orm";
+import { type QueryWithTypings, sql } from "drizzle-orm";
 import type { PgSession } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
@@ -39,7 +40,7 @@ export const client = ({
 
   const channel = `${globalThis.PONDER_NAMESPACE_BUILD}_status_channel`;
 
-  if ("instance" in driver) {
+  if (driver.dialect === "pglite") {
     driver.instance.query(`LISTEN "${channel}"`).then(() => {
       driver.instance.onNotification(async () => {
         statusResolver.resolve();
@@ -47,7 +48,7 @@ export const client = ({
       });
     });
   } else {
-    const pool = driver.internal;
+    const pool = driver.admin;
 
     const connectAndListen = async () => {
       driver.listen = await pool.connect();
@@ -88,7 +89,7 @@ export const client = ({
           return c.text((error as Error).message, 500);
         }
       } else {
-        const client = await driver.internal.connect();
+        const client = await driver.admin.connect();
 
         try {
           await validateQuery(query.sql);
@@ -123,7 +124,12 @@ export const client = ({
     }
 
     if (c.req.path === "/sql/status") {
-      const checkpoints = await globalThis.PONDER_DATABASE.getCheckpoints();
+      // Note: This is done to avoid non-browser compatible dependencies
+      const checkpoints = (await globalThis.PONDER_DATABASE.readonlyQB
+        .execute(sql`SELECT * from _ponder_checkpoint`)
+        .then((res) => res.rows)) as ReturnType<
+        typeof getPonderCheckpointTable
+      >["$inferSelect"][];
 
       const status: Status = {};
       for (const { chainName, chainId, latestCheckpoint } of checkpoints) {
