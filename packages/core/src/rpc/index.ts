@@ -241,26 +241,15 @@ export const createRpc = ({
   let wsTransport: ReturnType<WebSocketTransport> | undefined = undefined;
   let reconnectCount = 0;
 
-  const wsSetup = (url: string) => {
-    return webSocket(url, { keepAlive: true, reconnect: false })({
-      chain: chain.viemChain,
-      retryCount: 0,
-      timeout: 5_000,
-    });
-  };
-
-  const wsReconnect = async (url: string) => {
-    if (reconnectCount++ === RETRY_COUNT) throw new SocketClosedError({ url });
-
-    await wsTransport!.value!.getRpcClient().then((r) => r.close());
-    wsTransport = wsSetup(url);
-  };
-
   if (typeof chain.ws === "string") {
     const protocol = new url.URL(chain.ws).protocol;
 
     if (protocol === "wss:" || protocol === "ws:") {
-      wsTransport = wsSetup(chain.ws);
+      wsTransport = webSocket(chain.ws, { keepAlive: true, reconnect: false })({
+        chain: chain.viemChain,
+        retryCount: 0,
+        timeout: 5_000,
+      });
     } else {
       throw new Error(
         `Inconsistent RPC URL protocol: ${protocol}. Expected wss or ws.`,
@@ -506,22 +495,21 @@ export const createRpc = ({
             onError: async (err) => {
               const error = err as Error;
               if (error instanceof SocketClosedError) {
-                console.log(error);
-                try {
-                  // Try reconnecting webSocket
-                  await wsReconnect(chain.ws!);
-                } catch (e) {
-                  // If failed after max attempts, switch to polling
+                console.log("Socket closed, reconnecting...");
+
+                if (reconnectCount++ === RETRY_COUNT) {
                   console.log(
-                    `Switched from subscription to polling based realtime indexing after ${tryCount + 1} reconnect attempts.`,
+                    `Switched from subscription to polling based realtime indexing after ${reconnectCount + 1} reconnect attempts.`,
                   );
                   wsTransport = undefined;
+                } else {
+                  await wsTransport!
+                    .value!.getRpcClient()
+                    .then((r) => r.close());
                 }
 
                 rpc.subscribe({ onBlock, onError: _onError });
               }
-
-              console.log(error);
             },
           })
           .then(() => {
