@@ -257,11 +257,17 @@ export const createRpc = ({
       }) satisfies Bucket,
   );
 
+  /** Tracks all active bucket reactivation timeouts to cleanup during shutdown */
+  const timeouts = new Set<NodeJS.Timeout>();
+
   const scheduleBucketActivation = (bucket: Bucket) => {
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       bucket.isActive = true;
       bucket.isWarmingUp = true;
+      timeouts.delete(timeoutId);
     }, bucket.reactivationDelay);
+
+    timeouts.add(timeoutId);
   };
 
   const getBucket = async (): Promise<Bucket> => {
@@ -336,16 +342,18 @@ export const createRpc = ({
           const response = await bucket.request(body);
           // TODO(kyle) can response be undefined
 
+          const duration = stopClock();
+
           common.logger.trace({
             service: "rpc",
-            msg: `Received ${body.method} response (duration=${stopClock()}, params=${JSON.stringify(body.params)})`,
+            msg: `Received ${body.method} response (duration=${duration}, params=${JSON.stringify(body.params)})`,
           });
           common.metrics.ponder_rpc_request_duration.observe(
             { method: body.method, chain: chain.name },
-            stopClock(),
+            duration,
           );
 
-          addLatency(bucket, stopClock(), true);
+          addLatency(bucket, duration, true);
 
           bucket.consecutiveSuccessfulRequests++;
           increaseMaxRPS(bucket);
@@ -451,6 +459,13 @@ export const createRpc = ({
       clearInterval(interval);
     },
   };
+
+  common.shutdown.add(() => {
+    for (const timeoutId of timeouts) {
+      clearTimeout(timeoutId);
+    }
+    timeouts.clear();
+  });
 
   return rpc;
 };
