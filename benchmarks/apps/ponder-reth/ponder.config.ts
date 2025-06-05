@@ -7,7 +7,6 @@ export default createConfig({
     mainnet: {
       id: 1,
       rpc: process.env.PONDER_RPC_URL_1!,
-      maxRequestsPerSecond: 200,
     },
   },
   contracts: {

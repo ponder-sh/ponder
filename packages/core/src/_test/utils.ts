@@ -178,7 +178,6 @@ export const getChain = (params?: {
     name: "mainnet",
     id: 1,
     rpc: `http://127.0.0.1:8545/${poolId}`,
-    maxRequestsPerSecond: 50,
     pollingInterval: 1_000,
     finalityBlockCount: params?.finalityBlockCount ?? 1,
     disableCache: false,

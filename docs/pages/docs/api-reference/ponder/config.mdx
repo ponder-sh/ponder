@@ -147,7 +147,6 @@ export default createConfig({
 | **id**                   |  `number`   | **Required**. The [chain ID](https://chainlist.org) for the chain.                                                       |
 | **transport**            | `Transport` | **Required**. A Viem [Transport](https://viem.sh/docs/clients/transports/http.html) e.g. `http` or `fallback`.             |
 | **pollingInterval**      |  `number`   | **Default: `1_000`**. Frequency (in ms) used when polling for new events on this chain.                                  |
-| **maxRequestsPerSecond** |  `number`   | **Default: `50`**. Maximum number of RPC requests per second. Can be reduced to work around rate limits.                   |
 | **disableCache**         |  `boolean`  | **Default: `false`**. Disables the RPC request cache. Use when indexing a [local node](/docs/guides/foundry) like Anvil. |
 
 
