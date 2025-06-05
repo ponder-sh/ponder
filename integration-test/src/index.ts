@@ -252,45 +252,60 @@ const onBuild = async (app: PonderApp) => {
     msg: "Mocking syncQB, adminQB, userQB, and readonlyQB",
   });
 
-  app.database.syncQB = createQB(
-    app.common,
-    dbSim(
-      drizzle(app.database.driver.sync, {
-        casing: "snake_case",
-        schema: PONDER_SYNC,
-      }),
-    ),
-  );
+  // app.database.syncQB = createQB(
+  //   app.common,
+  //   dbSim(
+  //     drizzle(app.database.driver.sync, {
+  //       casing: "snake_case",
+  //       schema: PONDER_SYNC,
+  //     }),
+  //   ),
+  // );
+
+  // app.database.adminQB = createQB(
+  //   app.common,
+  //   dbSim(
+  //     drizzle(app.database.driver.admin, {
+  //       casing: "snake_case",
+  //       schema: app.schemaBuild.schema,
+  //     }),
+  //   ),
+  //   true,
+  // );
+
+  // app.database.userQB = createQB(
+  //   app.common,
+  //   dbSim(
+  //     drizzle(app.database.driver.user, {
+  //       casing: "snake_case",
+  //       schema: app.schemaBuild.schema,
+  //     }),
+  //   ),
+  // );
+
+  // app.database.readonlyQB = createQB(
+  //   app.common,
+  //   dbSim(
+  //     drizzle(app.database.driver.readonly, {
+  //       casing: "snake_case",
+  //       schema: app.schemaBuild.schema,
+  //     }),
+  //   ),
+  // );
+
+  app.database.syncQB = createQB(app.common, dbSim(app.database.syncQB));
 
   app.database.adminQB = createQB(
     app.common,
-    dbSim(
-      drizzle(app.database.driver.admin, {
-        casing: "snake_case",
-        schema: app.schemaBuild.schema,
-      }),
-    ),
+    dbSim(app.database.adminQB),
     true,
   );
 
-  app.database.userQB = createQB(
-    app.common,
-    dbSim(
-      drizzle(app.database.driver.user, {
-        casing: "snake_case",
-        schema: app.schemaBuild.schema,
-      }),
-    ),
-  );
+  app.database.userQB = createQB(app.common, dbSim(app.database.userQB));
 
   app.database.readonlyQB = createQB(
     app.common,
-    dbSim(
-      drizzle(app.database.driver.readonly, {
-        casing: "snake_case",
-        schema: app.schemaBuild.schema,
-      }),
-    ),
+    dbSim(app.database.readonlyQB),
   );
 
   if (APP_ID === "super-assessment") {
