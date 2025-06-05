@@ -1,6 +1,6 @@
 import url from "node:url";
 import type { Common } from "@/internal/common.js";
-import type { Chain, SyncBlock } from "@/internal/types.js";
+import type { Chain, SyncBlock, SyncBlockHeader } from "@/internal/types.js";
 import type { RealtimeSync } from "@/sync-realtime/index.js";
 import { createQueue } from "@/utils/queue.js";
 import { _eth_getBlockByHash, _eth_getBlockByNumber } from "@/utils/rpc.js";
@@ -38,7 +38,9 @@ export type Rpc = {
     parameters: TParameters,
   ) => Promise<RequestReturnType<TParameters["method"]>>;
   subscribe: (params: {
-    onBlock: (block: SyncBlock) => ReturnType<RealtimeSync["sync"]>;
+    onBlock: (
+      block: SyncBlock | SyncBlockHeader,
+    ) => ReturnType<RealtimeSync["sync"]>;
     onError: (error: Error) => void;
   }) => void;
   unsubscribe: () => void;
@@ -470,25 +472,36 @@ export const createRpc = ({
         wsTransport
           .value!.subscribe({
             params: ["newHeads"],
-            onData: (data) => {
+            onData: async (data) => {
               if (data.result !== undefined) {
-                _eth_getBlockByHash(rpc, { hash: data.result.hash })
-                  .then(onBlock)
-                  .catch(_onError);
+                onBlock(data.result);
+                retryCount = 0;
               } else if (data.error !== undefined) {
                 const error = data.error as Error;
-                _onError(error);
-              }
+                console.log(`Websocket returned an error: ${error}`);
 
-              retryCount = 0;
+                if (retryCount++ === RETRY_COUNT) {
+                  common.logger.warn({
+                    service: "rpc",
+                    msg: `Failed "eth_subscribe" subscription after ${retryCount + 1} consecutive errors. Switching to polling.`,
+                    error,
+                  });
+                  wsTransport = undefined;
+
+                  rpc.subscribe({ onBlock, onError: _onError });
+                }
+              }
             },
             onError: async (err) => {
+              const error = err as Error;
               console.log(`Subscribe onError: ${err}`);
 
               if (retryCount++ === RETRY_COUNT) {
-                console.log(
-                  `Switched from subscription to polling based realtime indexing after ${retryCount + 1} reconnect attempts.`,
-                );
+                common.logger.warn({
+                  service: "rpc",
+                  msg: `Failed "eth_subscribe" subscription after ${retryCount + 1} consecutive errors. Switching to polling.`,
+                  error,
+                });
                 wsTransport = undefined;
               } else {
                 await wsTransport!.value!.getRpcClient().then((r) => r.close());
@@ -503,7 +516,7 @@ export const createRpc = ({
           .catch(async (err) => {
             const error = err as Error;
 
-            if (retryCount === RETRY_COUNT) {
+            if (retryCount++ === RETRY_COUNT) {
               common.logger.warn({
                 service: "rpc",
                 msg: `Failed "eth_subscribe" request after ${retryCount + 1} attempts. Switching to polling.`,

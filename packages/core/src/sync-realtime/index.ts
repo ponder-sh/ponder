@@ -53,7 +53,7 @@ export type RealtimeSync = {
    *
    * @param block - The block to reconcile.
    */
-  sync(block: SyncBlock): Promise<SyncResult>;
+  sync(block: SyncBlock | SyncBlockHeader): Promise<SyncResult>;
   onError(error: Error): void;
   /**
    * Local chain of blocks that have not been finalized.
