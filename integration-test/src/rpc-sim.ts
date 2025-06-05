@@ -71,7 +71,7 @@ export const sim =
 
       requestCount.set(id, nonce + 1);
 
-      if (seedrandom(SEED + id + nonce)() < SIM_PARAMS.ERROR_RATE) {
+      if (seedrandom(SEED + id + nonce)() < SIM_PARAMS.RPC_ERROR_RATE) {
         throw new Error("Simulated error");
       }
 

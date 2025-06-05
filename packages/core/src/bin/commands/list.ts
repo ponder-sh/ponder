@@ -65,18 +65,18 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
     schemaBuild: emptySchemaBuild,
   });
 
-  const ponderSchemas = await database.qb.drizzle
+  const ponderSchemas = await database.adminQB
     .select({ schema: TABLES.table_schema })
     .from(TABLES)
     .where(eq(TABLES.table_name, "_ponder_meta"));
 
-  const ponderViewSchemas = await database.qb.drizzle
+  const ponderViewSchemas = await database.adminQB
     .select({ schema: VIEWS.table_schema })
     .from(VIEWS)
     .where(eq(VIEWS.table_name, "_ponder_meta"));
 
   const queries = ponderSchemas.map((row) =>
-    database.qb.drizzle
+    database.adminQB
       .select({
         value: getPonderMetaTable(row.schema).value,
         schema: sql<string>`${row.schema}`.as("schema"),

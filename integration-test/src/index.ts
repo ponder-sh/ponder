@@ -31,6 +31,7 @@ import {
   type PonderApp,
   start,
 } from "../../packages/core/src/bin/commands/start.js";
+import { createQB } from "../../packages/core/src/database/queryBuilder.js";
 import { getPrimaryKeyColumns } from "../../packages/core/src/drizzle/index.js";
 import type {
   Factory,
@@ -51,6 +52,7 @@ import { promiseWithResolvers } from "../../packages/core/src/utils/promiseWithR
 import { _eth_getBlockByNumber } from "../../packages/core/src/utils/rpc.js";
 import * as SUPER_ASSESSMENT from "../apps/super-assessment/schema.js";
 import { metadata } from "../schema.js";
+import { dbSim } from "./db-sim";
 import { realtimeBlockEngine, sim } from "./rpc-sim.js";
 import { getJoinConditions } from "./sql.js";
 
@@ -75,7 +77,8 @@ export const pick = <T>(possibilities: T[] | readonly T[], tag: string): T => {
 };
 
 export const SIM_PARAMS = {
-  ERROR_RATE: pick([0, 0.02, 0.05, 0.1, 0.2], "error-rate"),
+  RPC_ERROR_RATE: pick([0, 0.02, 0.05, 0.1, 0.2], "rpc-error-rate"),
+  DB_ERROR_RATE: pick([0, 0.02, 0.05, 0.1, 0.2], "db-error-rate"),
   INTERVAL_CHUNKS: 8,
   INTERVAL_EVICT_RATE: pick(
     [0, 0, 0, 0, 0, 0.25, 0.5, 0.75, 1],
@@ -241,6 +244,67 @@ const pwr = promiseWithResolvers<void>();
  */
 const onBuild = async (app: PonderApp) => {
   app.preBuild.ordering = SIM_PARAMS.ORDERING;
+
+  app.common.logger.warn({
+    service: "sim",
+    msg: "Mocking syncQB, adminQB, userQB, and readonlyQB",
+  });
+
+  // app.database.syncQB = createQB(
+  //   app.common,
+  //   dbSim(
+  //     drizzle(app.database.driver.sync, {
+  //       casing: "snake_case",
+  //       schema: PONDER_SYNC,
+  //     }),
+  //   ),
+  // );
+
+  // app.database.adminQB = createQB(
+  //   app.common,
+  //   dbSim(
+  //     drizzle(app.database.driver.admin, {
+  //       casing: "snake_case",
+  //       schema: app.schemaBuild.schema,
+  //     }),
+  //   ),
+  //   true,
+  // );
+
+  // app.database.userQB = createQB(
+  //   app.common,
+  //   dbSim(
+  //     drizzle(app.database.driver.user, {
+  //       casing: "snake_case",
+  //       schema: app.schemaBuild.schema,
+  //     }),
+  //   ),
+  // );
+
+  // app.database.readonlyQB = createQB(
+  //   app.common,
+  //   dbSim(
+  //     drizzle(app.database.driver.readonly, {
+  //       casing: "snake_case",
+  //       schema: app.schemaBuild.schema,
+  //     }),
+  //   ),
+  // );
+
+  app.database.syncQB = createQB(app.common, dbSim(app.database.syncQB));
+
+  app.database.adminQB = createQB(
+    app.common,
+    dbSim(app.database.adminQB),
+    true,
+  );
+
+  app.database.userQB = createQB(app.common, dbSim(app.database.userQB));
+
+  app.database.readonlyQB = createQB(
+    app.common,
+    dbSim(app.database.readonlyQB),
+  );
 
   if (APP_ID === "super-assessment") {
     const random = seedrandom(`${SEED}_super_assessment_filter`);
