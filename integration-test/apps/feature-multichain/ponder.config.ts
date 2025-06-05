@@ -5,7 +5,7 @@ import { weth9Abi } from "./abis/weth9Abi";
 export default createConfig({
   database: {
     kind: "postgres",
-    connectionString: process.env.PONDER_DATABASE_URL,
+    connectionString: process.env.DATABASE_URL,
     poolConfig: { max: 11 },
   },
   chains: {
