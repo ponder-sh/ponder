@@ -93,7 +93,7 @@ type ChainConfig<chain> = {
   id: chain extends { id: infer id extends number } ? id | number : number;
   /** RPC url. */
   rpc: string | string[] | Transport | undefined;
-  ws: string | undefined;
+  ws?: string;
   /** Polling interval (in ms). Default: `1_000`. */
   pollingInterval?: number;
   /**

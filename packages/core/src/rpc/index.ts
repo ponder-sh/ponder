@@ -251,7 +251,7 @@ export const createRpc = ({
       );
     }
   }
-  
+
   const buckets = request.map(
     (request, index) =>
       ({
