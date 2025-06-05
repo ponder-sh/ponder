@@ -126,3 +126,12 @@ export class ShutdownError extends NonRetryableError {
     Object.setPrototypeOf(this, ShutdownError.prototype);
   }
 }
+
+export class TransactionError extends NonRetryableError {
+  override name = "TransactionError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, TransactionError.prototype);
+  }
+}
