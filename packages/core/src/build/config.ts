@@ -178,7 +178,6 @@ export async function buildConfigAndIndexingFunctions({
         name: chainName,
         rpc: chain.rpc,
         ws: chain.ws,
-        maxRequestsPerSecond: chain.maxRequestsPerSecond ?? 50,
         pollingInterval: chain.pollingInterval ?? 1_000,
         finalityBlockCount: getFinalityBlockCount({ chain: matchedChain }),
         disableCache: chain.disableCache ?? false,

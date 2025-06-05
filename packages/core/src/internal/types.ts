@@ -303,7 +303,6 @@ export type Chain = {
   rpc: string | string[] | Transport;
   ws: string | undefined;
   pollingInterval: number;
-  maxRequestsPerSecond: number;
   finalityBlockCount: number;
   disableCache: boolean;
   viemChain: ViemChain | undefined;

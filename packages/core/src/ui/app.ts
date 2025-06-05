@@ -164,11 +164,11 @@ export const buildUiLines = (ui: UiState): string[] => {
           format: (_, row) => row.rps.toFixed(1),
         },
         {
-          title: "RPC Load (%)",
-          key: "rpcLoad",
+          title: "RPC (utilization %)",
+          key: "utilization",
           align: "right",
           format: (_, row) =>
-            row.rpcLoad.map((v: number) => Math.round(v)).join("|"),
+            row.utilization.map((v: number) => Math.round(v)).join("|"),
         },
       ]),
     );
