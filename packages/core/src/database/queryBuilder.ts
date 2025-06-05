@@ -54,6 +54,22 @@ export type QB<
   TClient
 >;
 
+const NON_LABEL_METHODS = [
+  "transaction",
+  "query",
+  "select",
+  "selectDistinct",
+  "selectDistinctOn",
+  "insert",
+  "update",
+  "delete",
+  "execute",
+  "refreshMaterializedView",
+  "with",
+  "$with",
+  "$count",
+] as const;
+
 export const parseSqlError = (e: any): Error => {
   let error = getBaseError(e);
 
@@ -239,22 +255,23 @@ export const createQB = <
   db.transaction = async (...args) => {
     const callback = args[0];
     args[0] = (..._args) => {
-      const qb = _args[0] as unknown as QB<TSchema, TClient>;
+      let qb = _args[0] as unknown as QB<TSchema, TClient>;
 
       qb.label = (_label: string) => {
         label = _label;
         return qb;
       };
 
-      // qb = new Proxy(qb, {
-      //   get(target, prop) {
-      //     if (prop !== "label") {
-      //       label = undefined;
-      //     }
-      //     return Reflect.get(target, prop);
-      //   },
-      // });
+      qb = new Proxy(qb, {
+        get(target, prop) {
+          // @ts-expect-error
+          if (NON_LABEL_METHODS.includes(prop)) {
+            label = undefined;
+          }
 
+          return Reflect.get(target, prop);
+        },
+      });
       // @ts-expect-error
       assignClient(qb, _args[0]._.session.client);
       return callback(..._args);
@@ -305,21 +322,23 @@ export const createQB = <
     return wrap(label, () => transaction(...args), "");
   };
 
-  const qb = db as unknown as QB<TSchema, TClient>;
+  let qb = db as unknown as QB<TSchema, TClient>;
 
   qb.label = (_label: string) => {
     label = _label;
     return qb;
   };
 
-  // qb = new Proxy(qb, {
-  //   get(target, prop) {
-  //     if (prop !== "label") {
-  //       label = undefined;
-  //     }
-  //     return Reflect.get(target, prop);
-  //   },
-  // });
+  qb = new Proxy(qb, {
+    get(target, prop) {
+      // @ts-expect-error
+      if (NON_LABEL_METHODS.includes(prop)) {
+        label = undefined;
+      }
+
+      return Reflect.get(target, prop);
+    },
+  });
 
   assignClient(qb, db.$client);
 
