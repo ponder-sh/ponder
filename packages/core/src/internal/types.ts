@@ -401,6 +401,18 @@ export type LightBlock = Pick<
   "hash" | "parentHash" | "number" | "timestamp"
 >;
 
+export type SyncBlockHeader = Prettify<
+  MakeOptional<RpcBlock<Exclude<BlockTag, "pending">, false>, "size">
+>;
+
+export const isSyncBlock = (
+  block: SyncBlock | SyncBlockHeader,
+): block is SyncBlock => {
+  return (
+    block.transactions.length === 0 || typeof block.transactions[0] !== "string"
+  );
+};
+
 export type InternalBlock = Block;
 export type InternalLog = Log & {
   blockNumber: number;

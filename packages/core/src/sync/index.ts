@@ -11,6 +11,7 @@ import type {
   Seconds,
   Source,
   SyncBlock,
+  SyncBlockHeader,
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
 import {
@@ -118,7 +119,7 @@ export const syncBlockToLightBlock = ({
   parentHash,
   number,
   timestamp,
-}: SyncBlock): LightBlock => ({
+}: SyncBlock | SyncBlockHeader): LightBlock => ({
   hash,
   parentHash,
   number,
@@ -1118,7 +1119,7 @@ export const getPerChainOnRealtimeSyncEvent = ({
           syncStore.insertBlocks({
             blocks: finalizedBlocks
               .filter(({ hasMatchedFilter }) => hasMatchedFilter)
-              .map(({ block }) => block),
+              .map(({ block }) => block as SyncBlock), // SyncBlock is expected for hasMatchedFilter === true
             chainId: chain.id,
           }),
           syncStore.insertTransactions({
@@ -1141,7 +1142,7 @@ export const getPerChainOnRealtimeSyncEvent = ({
             traces: finalizedBlocks.flatMap(({ traces, block, transactions }) =>
               traces.map((trace) => ({
                 trace,
-                block,
+                block: block as SyncBlock, // SyncBlock is expected for traces.length !== 0
                 transaction: transactions.find(
                   (t) => t.hash === trace.transactionHash,
                 )!,
