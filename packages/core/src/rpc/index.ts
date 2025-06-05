@@ -53,7 +53,7 @@ const LATENCY_WINDOW_SIZE = 500;
 const LATENCY_HURDLE_RATE = 0.1;
 /** Exploration rate. */
 const EPSILON = 0.1;
-const INITIAL_MAX_RPS = 50;
+const INITIAL_MAX_RPS = 20;
 const MIN_RPS = 1;
 const MAX_RPS = 500;
 const RPS_INCREASE_FACTOR = 1.2;
