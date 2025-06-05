@@ -1,5 +1,9 @@
 import type { Common } from "@/internal/common.js";
-import { NonRetryableError, ShutdownError } from "@/internal/errors.js";
+import {
+  NonRetryableError,
+  ShutdownError,
+  TransactionError,
+} from "@/internal/errors.js";
 import {
   BigIntSerializationError,
   CheckConstraintError,
@@ -176,7 +180,10 @@ export const createQB = <
           firstError = error;
         }
 
-        if (error instanceof NonRetryableError) {
+        if (
+          error instanceof NonRetryableError &&
+          error instanceof TransactionError === false
+        ) {
           common.logger.warn({
             service: "database",
             msg: `Failed '${label ?? sql}' database query (id=${id})`,
@@ -255,14 +262,14 @@ export const createQB = <
   db.transaction = async (...args) => {
     const callback = args[0];
     args[0] = (..._args) => {
-      let qb = _args[0] as unknown as QB<TSchema, TClient>;
+      let tx = _args[0] as unknown as QB<TSchema, TClient>;
 
-      qb.label = (_label: string) => {
+      tx.label = (_label: string) => {
         label = _label;
-        return qb;
+        return tx;
       };
 
-      qb = new Proxy(qb, {
+      tx = new Proxy(tx, {
         get(target, prop) {
           // @ts-expect-error
           if (NON_LABEL_METHODS.includes(prop)) {
@@ -273,7 +280,7 @@ export const createQB = <
         },
       });
       // @ts-expect-error
-      assignClient(qb, _args[0]._.session.client);
+      assignClient(tx, _args[0]._.session.client);
       return callback(..._args);
     };
     return _transaction(...args);
@@ -290,7 +297,7 @@ export const createQB = <
           label,
           () =>
             execute(...args).catch((error) => {
-              throw new NonRetryableError(error.message);
+              throw new TransactionError(error.message);
             }),
           dialect.sqlToQuery(args[0]).sql.slice(0, SQL_LENGTH_LIMIT),
         );
@@ -308,7 +315,7 @@ export const createQB = <
             label,
             () =>
               execute(..._args).catch((error) => {
-                throw new NonRetryableError(error.message);
+                throw new TransactionError(error.message);
               }),
             args[0].sql.slice(0, SQL_LENGTH_LIMIT),
           );
@@ -319,6 +326,7 @@ export const createQB = <
       return callback(..._args);
     };
 
+    // TODO(kyle) what should sql be?
     return wrap(label, () => transaction(...args), "");
   };
 
