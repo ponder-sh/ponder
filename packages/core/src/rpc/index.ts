@@ -234,7 +234,6 @@ export const createRpc = ({
   }
 
   let wsTransport: ReturnType<WebSocketTransport> | undefined = undefined;
-  let reconnectCount = 0;
 
   if (typeof chain.ws === "string") {
     const protocol = new url.URL(chain.ws).protocol;
@@ -452,7 +451,7 @@ export const createRpc = ({
   });
 
   let interval: NodeJS.Timeout | undefined;
-  let tryCount = 0;
+  let retryCount = 0;
 
   const rpc: Rpc = {
     // @ts-ignore
@@ -472,18 +471,23 @@ export const createRpc = ({
           .value!.subscribe({
             params: ["newHeads"],
             onData: (data) => {
-              _eth_getBlockByHash(rpc, { hash: data.result.hash })
-                .then(onBlock)
-                .catch(_onError);
+              if (data.result !== undefined) {
+                _eth_getBlockByHash(rpc, { hash: data.result.hash })
+                  .then(onBlock)
+                  .catch(_onError);
+              } else if (data.error !== undefined) {
+                const error = data.error as Error;
+                _onError(error);
+              }
 
-              reconnectCount = 0;
+              retryCount = 0;
             },
             onError: async (err) => {
               console.log(`Subscribe onError: ${err}`);
 
-              if (reconnectCount++ === RETRY_COUNT) {
+              if (retryCount++ === RETRY_COUNT) {
                 console.log(
-                  `Switched from subscription to polling based realtime indexing after ${reconnectCount + 1} reconnect attempts.`,
+                  `Switched from subscription to polling based realtime indexing after ${retryCount + 1} reconnect attempts.`,
                 );
                 wsTransport = undefined;
               } else {
@@ -494,20 +498,20 @@ export const createRpc = ({
             },
           })
           .then(() => {
-            tryCount = 0;
+            retryCount = 0;
           })
           .catch(async (err) => {
             const error = err as Error;
 
-            if (tryCount === RETRY_COUNT) {
+            if (retryCount === RETRY_COUNT) {
               common.logger.warn({
                 service: "rpc",
-                msg: `Failed "eth_subscribe" request after ${tryCount + 1} attempts. Switching to polling.`,
+                msg: `Failed "eth_subscribe" request after ${retryCount + 1} attempts. Switching to polling.`,
                 error,
               });
               wsTransport = undefined;
             } else {
-              const duration = BASE_DURATION * 2 ** tryCount;
+              const duration = BASE_DURATION * 2 ** retryCount;
               common.logger.debug({
                 service: "rpc",
                 msg: `Failed "eth_subscribe" request, retrying after ${duration} milliseconds.`,
@@ -516,7 +520,7 @@ export const createRpc = ({
               await wait(duration);
             }
 
-            tryCount++;
+            retryCount++;
             rpc.subscribe({ onBlock, onError: _onError });
           });
       }
