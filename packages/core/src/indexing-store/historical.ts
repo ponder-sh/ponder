@@ -284,12 +284,13 @@ export const createHistoricalIndexingStore = ({
         const endClock = startClock();
 
         try {
-          const result = await qb._.session
-            .prepareQuery(query, undefined, undefined, method === "all")
-            .execute();
-
-          // @ts-ignore
-          return { rows: result.rows.map((row) => Object.values(row)) };
+          return await qb.transaction(async (tx) => {
+            const result = await tx._.session
+              .prepareQuery(query, undefined, undefined, method === "all")
+              .execute();
+            // @ts-ignore
+            return { rows: result.rows.map((row) => Object.values(row)) };
+          });
         } finally {
           common.metrics.ponder_indexing_store_raw_sql_duration.observe(
             endClock(),
