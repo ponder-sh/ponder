@@ -24,7 +24,7 @@ import {
   getPairWithFactoryConfigAndIndexingFunctions,
   testClient,
 } from "@/_test/utils.js";
-import { buildConfigAndIndexingFunctions } from "@/build/configAndIndexingFunctions.js";
+import { buildConfigAndIndexingFunctions } from "@/build/config.js";
 import { createRpc } from "@/rpc/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
 import {

@@ -76,6 +76,20 @@ export function createLogger({
   };
 }
 
+export function createNoopLogger(
+  _args: { level?: LogLevel; mode?: LogMode } = {},
+) {
+  return {
+    fatal(_options: Omit<Log, "level" | "time">) {},
+    error(_options: Omit<Log, "level" | "time">) {},
+    warn(_options: Omit<Log, "level" | "time">) {},
+    info(_options: Omit<Log, "level" | "time">) {},
+    debug(_options: Omit<Log, "level" | "time">) {},
+    trace(_options: Omit<Log, "level" | "time">) {},
+    flush: () => new Promise<unknown>((resolve) => resolve(undefined)),
+  };
+}
+
 const levels = {
   60: { label: "FATAL", colorLabel: pc.bgRed("FATAL") },
   50: { label: "ERROR", colorLabel: pc.red("ERROR") },
@@ -116,10 +130,10 @@ const format = (log: Log) => {
       prettyLog.push(`${log.error.name}: ${log.error.message}`);
     }
 
-    if ("where" in log.error) {
+    if (typeof log.error === "object" && "where" in log.error) {
       prettyLog.push(`where: ${log.error.where as string}`);
     }
-    if ("meta" in log.error) {
+    if (typeof log.error === "object" && "meta" in log.error) {
       prettyLog.push(log.error.meta as string);
     }
   }

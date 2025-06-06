@@ -7,6 +7,7 @@ import type {
   Chain,
   ContractSource,
   IndexingFunctions,
+  LightBlock,
   RawIndexingFunctions,
   Source,
   SyncBlock,
@@ -21,10 +22,12 @@ import {
   defaultTransactionReceiptInclude,
   defaultTransferFilterInclude,
 } from "@/sync/filter.js";
+import { syncBlockToLightBlock } from "@/sync/index.js";
 import { chains as viemChains } from "@/utils/chains.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { getFinalityBlockCount } from "@/utils/finality.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { BlockNotFoundError, type Hex, type LogTopic, hexToNumber } from "viem";
 import { buildLogFactory } from "./factory.js";
 
@@ -35,12 +38,7 @@ const flattenSources = <
 ): (Omit<T[string], "chain"> & { name: string; chain: string })[] => {
   return Object.entries(config).flatMap(
     ([name, source]: [string, T[string]]) => {
-      if (typeof source.chain === "string") {
-        return {
-          name,
-          ...source,
-        };
-      } else {
+      if (typeof source.chain === "object") {
         return Object.entries(source.chain).map(([chain, sourceOverride]) => {
           const { chain: _chain, ...base } = source;
 
@@ -51,6 +49,12 @@ const flattenSources = <
             ...sourceOverride,
           };
         });
+      } else {
+        // Handles string, null, or undefined
+        return {
+          name,
+          ...source,
+        };
       }
     },
   );
@@ -67,6 +71,7 @@ export async function buildConfigAndIndexingFunctions({
 }): Promise<{
   chains: Chain[];
   rpcs: Rpc[];
+  finalizedBlocks: LightBlock[];
   sources: Source[];
   indexingFunctions: IndexingFunctions;
   logs: { level: "warn" | "info" | "debug"; msg: string }[];
@@ -199,6 +204,30 @@ export async function buildConfigAndIndexingFunctions({
     }),
   );
 
+  const finalizedBlocks = await Promise.all(
+    chains.map((chain) => {
+      const rpc = rpcs[chains.findIndex((c) => c.name === chain.name)]!;
+
+      const blockPromise = _eth_getBlockByNumber(rpc, {
+        blockTag: "latest",
+      })
+        .then((block) => hexToNumber((block as SyncBlock).number))
+        .catch((e) => {
+          throw new Error(
+            `Unable to fetch "latest" block for chain '${chain.name}':\n${e.message}`,
+          );
+        });
+
+      perChainLatestBlockNumber.set(chain.name, blockPromise);
+
+      return blockPromise.then((latest) =>
+        _eth_getBlockByNumber(rpc, {
+          blockNumber: Math.max(latest - chain.finalityBlockCount, 0),
+        }).then(syncBlockToLightBlock),
+      );
+    }),
+  );
+
   const sourceNames = new Set<string>();
   for (const source of [
     ...Object.keys(config.contracts ?? {}),
@@ -296,7 +325,9 @@ export async function buildConfigAndIndexingFunctions({
       throw new Error(
         `Validation failed: Chain for '${source.name}' is null or undefined. Expected one of [${chains
           .map((n) => `'${n.name}'`)
-          .join(", ")}].`,
+          .join(
+            ", ",
+          )}]. Did you forget to change 'network' to 'chain' when migrating to 0.11?`,
       );
     }
 
@@ -322,6 +353,48 @@ export async function buildConfigAndIndexingFunctions({
       throw new Error(
         `Validation failed: Start block for '${source.name}' is after end block (${startBlock} > ${endBlock}).`,
       );
+    }
+
+    if (
+      "address" in source &&
+      typeof source.address === "object" &&
+      !Array.isArray(source.address)
+    ) {
+      const factoryStartBlock =
+        (await resolveBlockNumber(source.address.startBlock, chain)) ??
+        startBlock;
+
+      const factoryEndBlock =
+        (await resolveBlockNumber(source.address.startBlock, chain)) ??
+        endBlock;
+
+      if (
+        factoryStartBlock !== undefined &&
+        (startBlock === undefined || factoryStartBlock > startBlock)
+      ) {
+        throw new Error(
+          `Validation failed: Start block for '${source.name}' is before start block of factory address (${factoryStartBlock} > ${startBlock}).`,
+        );
+      }
+
+      if (
+        endBlock !== undefined &&
+        (factoryEndBlock === undefined || factoryEndBlock > endBlock)
+      ) {
+        throw new Error(
+          `Validation failed: End block for ${source.name}  is before end block of factory address (${factoryEndBlock} > ${endBlock}).`,
+        );
+      }
+
+      if (
+        factoryStartBlock !== undefined &&
+        factoryEndBlock !== undefined &&
+        factoryEndBlock < factoryStartBlock
+      ) {
+        throw new Error(
+          `Validation failed: Start block for '${source.name}' factory address is after end block (${factoryStartBlock} > ${factoryEndBlock}).`,
+        );
+      }
     }
   }
 
@@ -476,12 +549,20 @@ export async function buildConfigAndIndexingFunctions({
             typeof resolvedAddress === "object" &&
             !Array.isArray(resolvedAddress)
           ) {
+            const factoryFromBlock =
+              (await resolveBlockNumber(resolvedAddress.startBlock, chain)) ??
+              fromBlock;
+
+            const factoryToBlock =
+              (await resolveBlockNumber(resolvedAddress.endBlock, chain)) ??
+              toBlock;
+
             // Note that this can throw.
             const logFactory = buildLogFactory({
               chainId: chain.id,
               ...resolvedAddress,
-              fromBlock,
-              toBlock,
+              fromBlock: factoryFromBlock,
+              toBlock: factoryToBlock,
             });
 
             const logSources = topicsArray.map(
@@ -652,12 +733,20 @@ export async function buildConfigAndIndexingFunctions({
             typeof resolvedAddress === "object" &&
             !Array.isArray(resolvedAddress)
           ) {
+            const factoryFromBlock =
+              (await resolveBlockNumber(resolvedAddress.startBlock, chain)) ??
+              fromBlock;
+
+            const factoryToBlock =
+              (await resolveBlockNumber(resolvedAddress.endBlock, chain)) ??
+              toBlock;
+
             // Note that this can throw.
             const logFactory = buildLogFactory({
               chainId: chain.id,
               ...resolvedAddress,
-              fromBlock,
-              toBlock,
+              fromBlock: factoryFromBlock,
+              toBlock: factoryToBlock,
             });
 
             return [
@@ -901,7 +990,8 @@ export async function buildConfigAndIndexingFunctions({
 
   // Filter out any chains that don't have any sources registered.
   const chainsWithSources: Chain[] = [];
-  const rpcsWithoutSources: Rpc[] = [];
+  const rpcsWithSources: Rpc[] = [];
+  const finalizedBlocksWithSources: LightBlock[] = [];
 
   for (let i = 0; i < chains.length; i++) {
     const chain = chains[i]!;
@@ -912,7 +1002,8 @@ export async function buildConfigAndIndexingFunctions({
 
     if (hasSources) {
       chainsWithSources.push(chain);
-      rpcsWithoutSources.push(rpc);
+      rpcsWithSources.push(rpc);
+      finalizedBlocksWithSources.push(finalizedBlocks[i]!);
     } else {
       logs.push({
         level: "warn",
@@ -929,7 +1020,8 @@ export async function buildConfigAndIndexingFunctions({
 
   return {
     chains: chainsWithSources,
-    rpcs: rpcsWithoutSources,
+    rpcs: rpcsWithSources,
+    finalizedBlocks: finalizedBlocksWithSources,
     sources,
     indexingFunctions,
     logs,
@@ -957,6 +1049,7 @@ export async function safeBuildConfigAndIndexingFunctions({
       sources: result.sources,
       chains: result.chains,
       rpcs: result.rpcs,
+      finalizedBlocks: result.finalizedBlocks,
       indexingFunctions: result.indexingFunctions,
       logs: result.logs,
     } as const;

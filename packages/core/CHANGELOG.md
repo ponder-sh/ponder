@@ -1,5 +1,50 @@
 # ponder
 
+## 0.11.11
+
+### Patch Changes
+
+- [#1795](https://github.com/ponder-sh/ponder/pull/1795) [`dadf613`](https://github.com/ponder-sh/ponder/commit/dadf613d100c313dfe3a273a3731819aea30a912) Thanks [@kyscott18](https://github.com/kyscott18)! - Improve address checksum performance.
+
+- [#1799](https://github.com/ponder-sh/ponder/pull/1799) [`8c15cc9`](https://github.com/ponder-sh/ponder/commit/8c15cc97f6b1b1950157ad993a78f379d0e090e1) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved type inference issues, specifically for apps exporting type declarations.
+
+## 0.11.10
+
+### Patch Changes
+
+- Updated dependencies [[`58cb1c5`](https://github.com/ponder-sh/ponder/commit/58cb1c5ab6c867bbf8e86b28cb8848607282166b)]:
+  - @ponder/utils@0.2.8
+
+## 0.11.9
+
+### Patch Changes
+
+- [#1791](https://github.com/ponder-sh/ponder/pull/1791) [`db7f3af`](https://github.com/ponder-sh/ponder/commit/db7f3af8ebeeadcfd96ad40f411cd1e8561b497b) Thanks [@kyscott18](https://github.com/kyscott18)! - Added validations against updating primary key columns in `db.update().set()` and `db.insert().values().onConflictDoNothing()`.
+
+- [#1789](https://github.com/ponder-sh/ponder/pull/1789) [`621fed0`](https://github.com/ponder-sh/ponder/commit/621fed0856ee239d5ce3cadea71fd1a255fc3324) Thanks [@typedarray](https://github.com/typedarray)! - Moved 0.10 migration logs to debug level.
+
+- [#1787](https://github.com/ponder-sh/ponder/pull/1787) [`1d3b5b8`](https://github.com/ponder-sh/ponder/commit/1d3b5b856f77fdd93f12a744790b1e9358c454f5) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in `v0.9.21` that caused the dev ui to leave out some data.
+
+## 0.11.8
+
+### Patch Changes
+
+- [#1785](https://github.com/ponder-sh/ponder/pull/1785) [`acee346`](https://github.com/ponder-sh/ponder/commit/acee34601710394e0e2094e35c9c0a4757042c2f) Thanks [@typedarray](https://github.com/typedarray)! - Improved validation error message for common 0.11 migration mistake.
+
+## 0.11.7
+
+### Patch Changes
+
+- [#1762](https://github.com/ponder-sh/ponder/pull/1762) [`9072b07`](https://github.com/ponder-sh/ponder/commit/9072b0733c0216d3e8e9b9fd1649aece85f7efb3) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed several bugs that caused events to be missed.
+
+- [#1629](https://github.com/ponder-sh/ponder/pull/1629) [`074a138`](https://github.com/ponder-sh/ponder/commit/074a13829091f286e951a1f88bb2cfb33120fcea) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Introduced the feature of specifying factory block range independent from source block range.
+
+- [#1762](https://github.com/ponder-sh/ponder/pull/1762) [`9072b07`](https://github.com/ponder-sh/ponder/commit/9072b0733c0216d3e8e9b9fd1649aece85f7efb3) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused `[account]:transaction:to` indexing functions to process extra events.
+
+- [#1762](https://github.com/ponder-sh/ponder/pull/1762) [`9072b07`](https://github.com/ponder-sh/ponder/commit/9072b0733c0216d3e8e9b9fd1649aece85f7efb3) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `ponder_realtime_block_arrival_latency` metric.
+
+- [#1762](https://github.com/ponder-sh/ponder/pull/1762) [`9072b07`](https://github.com/ponder-sh/ponder/commit/9072b0733c0216d3e8e9b9fd1649aece85f7efb3) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with `ponder_realtime_latency` overreporting with `omnichain` ordering.
+
 ## 0.11.6
 
 ### Patch Changes

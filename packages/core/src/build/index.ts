@@ -26,7 +26,7 @@ import { ViteNodeServer } from "vite-node/server";
 import { installSourcemapsSupport } from "vite-node/source-map";
 import { normalizeModuleId, toFilePath } from "vite-node/utils";
 import viteTsconfigPathsPlugin from "vite-tsconfig-paths";
-import { safeBuildConfigAndIndexingFunctions } from "./configAndIndexingFunctions.js";
+import { safeBuildConfigAndIndexingFunctions } from "./config.js";
 import { vitePluginPonder } from "./plugin.js";
 import { safeBuildPre } from "./pre.js";
 import { safeBuildSchema } from "./schema.js";
@@ -442,6 +442,8 @@ export const createBuild = async ({
           sources: buildConfigAndIndexingFunctionsResult.sources,
           chains: buildConfigAndIndexingFunctionsResult.chains,
           rpcs: buildConfigAndIndexingFunctionsResult.rpcs,
+          finalizedBlocks:
+            buildConfigAndIndexingFunctionsResult.finalizedBlocks,
           indexingFunctions:
             buildConfigAndIndexingFunctionsResult.indexingFunctions,
         },

@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1747681016798,
+      "tag": "0000_shallow_ultron",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1748012742134,
+      "tag": "0001_outstanding_onslaught",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1748205665018,
+      "tag": "0002_panoramic_magma",
+      "breakpoints": true
+    }
+  ]
+}

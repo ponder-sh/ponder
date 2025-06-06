@@ -14,6 +14,7 @@ import {
   type IndexingStore,
   checkOnchainTable,
   parseSqlError,
+  validateUpdateSet,
 } from "./index.js";
 
 export const createHistoricalIndexingStore = ({
@@ -113,12 +114,14 @@ export const createHistoricalIndexingStore = ({
 
                   if (row) {
                     if (typeof valuesU === "function") {
-                      for (const [key, value] of Object.entries(valuesU(row))) {
+                      const set = validateUpdateSet(table, valuesU(row));
+                      for (const [key, value] of Object.entries(set)) {
                         if (value === undefined) continue;
                         row[key] = value;
                       }
                     } else {
-                      for (const [key, value] of Object.entries(valuesU)) {
+                      const set = validateUpdateSet(table, valuesU);
+                      for (const [key, value] of Object.entries(set)) {
                         if (value === undefined) continue;
                         row[key] = value;
                       }
@@ -144,20 +147,18 @@ export const createHistoricalIndexingStore = ({
                 }
                 return rows;
               } else {
-                const row = await indexingCache.get({
-                  table,
-                  key: values,
-                  db,
-                });
+                const row = await indexingCache.get({ table, key: values, db });
 
                 if (row) {
                   if (typeof valuesU === "function") {
-                    for (const [key, value] of Object.entries(valuesU(row))) {
+                    const set = validateUpdateSet(table, valuesU(row));
+                    for (const [key, value] of Object.entries(set)) {
                       if (value === undefined) continue;
                       row[key] = value;
                     }
                   } else {
-                    for (const [key, value] of Object.entries(valuesU)) {
+                    const set = validateUpdateSet(table, valuesU);
+                    for (const [key, value] of Object.entries(set)) {
                       if (value === undefined) continue;
                       row[key] = value;
                     }
@@ -255,23 +256,20 @@ export const createHistoricalIndexingStore = ({
           }
 
           if (typeof values === "function") {
-            for (const [key, value] of Object.entries(values(row))) {
+            const set = validateUpdateSet(table, values(row));
+            for (const [key, value] of Object.entries(set)) {
               if (value === undefined) continue;
               row[key] = value;
             }
           } else {
-            for (const [key, value] of Object.entries(values)) {
+            const set = validateUpdateSet(table, values);
+            for (const [key, value] of Object.entries(set)) {
               if (value === undefined) continue;
               row[key] = value;
             }
           }
 
-          return indexingCache.set({
-            table,
-            key,
-            row,
-            isUpdate: true,
-          });
+          return indexingCache.set({ table, key, row, isUpdate: true });
         },
       };
     },

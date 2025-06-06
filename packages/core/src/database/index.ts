@@ -15,7 +15,7 @@ import type {
   Schema,
   SchemaBuild,
 } from "@/internal/types.js";
-import { migrationProvider } from "@/sync-store/migrations.js";
+import { buildMigrationProvider } from "@/sync-store/migrations.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
 import type { Drizzle } from "@/types/db.js";
 import {
@@ -663,6 +663,7 @@ export const createDatabase = async ({
             plugins: [new WithSchemaPlugin("ponder_sync")],
           });
 
+          const migrationProvider = buildMigrationProvider(common.logger);
           const migrator = new Migrator({
             db: kysely,
             provider: migrationProvider,
@@ -689,10 +690,10 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_meta" (
           await qb.drizzle.execute(
             sql.raw(`
 CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
-  "chain_name" text PRIMARY KEY,
-  "chain_id" integer NOT NULL,
-  "safe_checkpoint" varchar(75) NOT NULL,
-  "latest_checkpoint" varchar(75) NOT NULL
+  "chain_name" TEXT PRIMARY KEY,
+  "chain_id" INTEGER NOT NULL,
+  "safe_checkpoint" VARCHAR(75) NOT NULL,
+  "latest_checkpoint" VARCHAR(75) NOT NULL
 )`),
           );
 
@@ -1091,7 +1092,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).trigg
             const result = await tx.execute(
               sql.raw(`
 WITH reverted1 AS (
-  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+ DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE checkpoint > '${checkpoint}' RETURNING *
 ), reverted2 AS (
   SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1

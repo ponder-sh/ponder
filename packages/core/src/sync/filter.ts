@@ -22,7 +22,7 @@ import type {
   Trace as UserTrace,
 } from "@/types/eth.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import type { Address } from "viem";
+import { type Address, hexToNumber } from "viem";
 
 /** Returns true if `address` is an address filter. */
 export const isAddressFactory = (
@@ -118,6 +118,20 @@ export const isLogFactoryMatched = ({
   }
   if (log.topics.length === 0) return false;
   if (factory.eventSelector !== toLowerCase(log.topics[0]!)) return false;
+  if (
+    factory.fromBlock !== undefined &&
+    (typeof log.blockNumber === "number"
+      ? factory.fromBlock > log.blockNumber
+      : factory.fromBlock > hexToNumber(log.blockNumber))
+  )
+    return false;
+  if (
+    factory.toBlock !== undefined &&
+    (typeof log.blockNumber === "number"
+      ? factory.toBlock < log.blockNumber
+      : factory.toBlock < hexToNumber(log.blockNumber))
+  )
+    return false;
 
   return true;
 };
@@ -189,10 +203,9 @@ export const isTransactionFilterMatched = ({
 
   if (
     isAddressFactory(filter.toAddress) === false &&
-    transaction.to !== null &&
     isValueMatched(
       filter.toAddress as Address | Address[] | undefined,
-      transaction.to,
+      transaction.to ?? undefined,
     ) === false
   ) {
     return false;
