@@ -265,9 +265,13 @@ export const createRealtimeSync = (
    * treated as "matched".
    */
   const fetchBlockEventData = async (
-    _block: SyncBlock | SyncBlockHeader,
+    maybeBlockHeader: SyncBlock | SyncBlockHeader,
   ): Promise<BlockWithEventData> => {
     let block: SyncBlock | undefined;
+
+    if (isSyncBlock(maybeBlockHeader)) {
+      block = maybeBlockHeader;
+    }
 
     ////////
     // Logs
@@ -275,15 +279,24 @@ export const createRealtimeSync = (
 
     // "eth_getLogs" calls can be skipped if no filters match `newHeadBlock.logsBloom`.
     const shouldRequestLogs =
-      _block.logsBloom === zeroLogsBloom ||
-      logFilters.some((filter) => isFilterInBloom({ block: _block, filter }));
+      maybeBlockHeader.logsBloom === zeroLogsBloom ||
+      logFilters.some((filter) =>
+        isFilterInBloom({ block: maybeBlockHeader, filter }),
+      );
 
     let logs: SyncLog[] = [];
     if (shouldRequestLogs) {
-      logs = await _eth_getLogs(args.rpc, { blockHash: _block.hash });
+      if (block === undefined) {
+        [block, logs] = await Promise.all([
+          _eth_getBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
+          _eth_getLogs(args.rpc, { blockHash: maybeBlockHeader.hash }),
+        ]);
+      } else {
+        logs = await _eth_getLogs(args.rpc, { blockHash: block.hash });
+      }
 
       // Protect against RPCs returning empty logs. Known to happen near chain tip.
-      if (_block.logsBloom !== zeroLogsBloom && logs.length === 0) {
+      if (block.logsBloom !== zeroLogsBloom && logs.length === 0) {
         throw new Error(
           "Detected invalid eth_getLogs response. `block.logsBloom` is not empty but zero logs were returned.",
         );
@@ -291,12 +304,6 @@ export const createRealtimeSync = (
 
       const logIds = new Set<string>();
       for (const log of logs) {
-        if (block === undefined) {
-          block = isSyncBlock(_block)
-            ? _block
-            : await _eth_getBlockByHash(args.rpc, { hash: _block.hash });
-        }
-
         if (log.blockHash !== block.hash) {
           throw new Error(
             `Detected invalid eth_getLogs response. 'log.blockHash' ${log.blockHash} does not match requested block hash ${block.hash}`,
@@ -343,7 +350,7 @@ export const createRealtimeSync = (
     ) {
       args.common.logger.debug({
         service: "realtime",
-        msg: `Skipped fetching '${args.chain.name}' logs for block ${hexToNumber(_block.number)} due to bloom filter result`,
+        msg: `Skipped fetching '${args.chain.name}' logs for block ${hexToNumber(maybeBlockHeader.number)} due to bloom filter result`,
       });
     }
 
@@ -356,33 +363,33 @@ export const createRealtimeSync = (
 
     let traces: SyncTrace[] = [];
     if (shouldRequestTraces) {
-      traces = await _debug_traceBlockByHash(args.rpc, {
-        hash: _block.hash,
-      });
+      if (block === undefined) {
+        [block, traces] = await Promise.all([
+          _eth_getBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
+          _debug_traceBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
+        ]);
+      } else {
+        traces = await _debug_traceBlockByHash(args.rpc, { hash: block.hash });
+      }
 
       // Protect against RPCs returning empty traces. Known to happen near chain tip.
       // Use the fact that any transaction produces a trace.
-      if (_block.transactions.length !== 0 && traces.length === 0) {
+      if (block.transactions.length !== 0 && traces.length === 0) {
         throw new Error(
           "Detected invalid debug_traceBlock response. `block.transactions` is not empty but zero traces were returned.",
         );
       }
-    }
 
-    // Validate that each trace point to valid transaction in the block
-    for (const trace of traces) {
-      if (
-        (isSyncBlock(_block)
-          ? (_block.transactions as SyncTransaction[]).find(
-              (t) => t.hash === trace.transactionHash,
-            )
-          : (_block.transactions as string[]).find(
-              (t) => t === trace.transactionHash,
-            )) === undefined
-      ) {
-        throw new Error(
-          `Detected inconsistent RPC responses. 'trace.txHash' ${trace.transactionHash} not found in 'block' ${_block.hash}`,
-        );
+      // Validate that each trace point to valid transaction in the block
+      for (const trace of traces) {
+        if (
+          block.transactions.find((t) => t.hash === trace.transactionHash) ===
+          undefined
+        ) {
+          throw new Error(
+            `Detected inconsistent RPC responses. 'trace.txHash' ${trace.transactionHash} not found in 'block' ${block.hash}`,
+          );
+        }
       }
     }
 
@@ -415,7 +422,7 @@ export const createRealtimeSync = (
           if (log.transactionHash === zeroHash) {
             args.common.logger.warn({
               service: "sync",
-              msg: `Detected '${args.chain.name}' log with empty transaction hash in block ${_block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some chains like ZKsync.`,
+              msg: `Detected '${args.chain.name}' log with empty transaction hash in block ${maybeBlockHeader.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some chains like ZKsync.`,
             });
           } else {
             requiredTransactions.add(log.transactionHash);
@@ -437,7 +444,11 @@ export const createRealtimeSync = (
       let isMatched = false;
       for (const filter of transferFilters) {
         if (
-          isTransferFilterMatched({ filter, trace: trace.trace, block: _block })
+          isTransferFilterMatched({
+            filter,
+            trace: trace.trace,
+            block: maybeBlockHeader,
+          })
         ) {
           requiredTransactions.add(trace.transactionHash);
           isMatched = true;
@@ -451,7 +462,11 @@ export const createRealtimeSync = (
 
       for (const filter of traceFilters) {
         if (
-          isTraceFilterMatched({ filter, trace: trace.trace, block: _block })
+          isTraceFilterMatched({
+            filter,
+            trace: trace.trace,
+            block: maybeBlockHeader,
+          })
         ) {
           requiredTransactions.add(trace.transactionHash);
           isMatched = true;
@@ -470,21 +485,22 @@ export const createRealtimeSync = (
     // Transactions
     ////////
 
-    if (requiredTransactions.size === 0 && transactionFilters.length === 0) {
+    // exit early if no logs or traces were requested and no transactions are required
+    if (block === undefined && transactionFilters.length === 0) {
       return {
-        block: _block,
+        block: maybeBlockHeader,
         transactions: [],
         transactionReceipts: [],
-        logs: logs,
+        logs: [],
         traces: [],
         childAddresses: blockChildAddresses,
       };
     }
 
     if (block === undefined) {
-      block = isSyncBlock(_block)
-        ? _block
-        : await _eth_getBlockByHash(args.rpc, { hash: _block.hash });
+      block = await _eth_getBlockByHash(args.rpc, {
+        hash: maybeBlockHeader.hash,
+      });
     }
 
     const transactions = block.transactions.filter((transaction) => {
