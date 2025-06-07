@@ -5,7 +5,6 @@ import {
   type DecodeAbiParametersReturnType,
   type Hex,
   InvalidAbiDecodingTypeError,
-  checksumAddress,
   hexToBigInt,
   hexToBool,
   hexToNumber,
@@ -14,6 +13,7 @@ import {
   trim,
 } from "viem";
 import { type Cursor, createCursor, readBytes, setPosition } from "./cursor.js";
+import { lazyChecksumAddress } from "./lazy.js";
 
 export function decodeAbiParameters<
   const params extends readonly AbiParameter[],
@@ -38,7 +38,10 @@ export function decodeAbiParameters<
       staticPosition: 0,
     });
     consumed += consumed_;
-    values.push(data);
+    const length = values.push(data);
+    if (param.type === "address") {
+      lazyChecksumAddress(values, length - 1);
+    }
   }
   return values as DecodeAbiParametersReturnType<params>;
 }
@@ -87,7 +90,7 @@ const sizeOfOffset = 32;
 function decodeAddress(cursor: Cursor) {
   const value = readBytes(cursor, 32);
 
-  return [checksumAddress(`0x${value.slice(-40)}`), 32];
+  return [`0x${value.slice(-40)}`, 32];
 }
 
 function decodeArray(
@@ -125,7 +128,10 @@ function decodeArray(
         staticPosition: startOfData,
       });
       consumed += consumed_;
-      value.push(data);
+      const length = value.push(data);
+      if (param.type === "address") {
+        lazyChecksumAddress(value, length - 1);
+      }
     }
 
     // As we have gone wondering, restore to the original position + next slot.
@@ -151,7 +157,10 @@ function decodeArray(
       const [data] = decodeParameter(cursor, param, {
         staticPosition: start,
       });
-      value.push(data);
+      const length = value.push(data);
+      if (param.type === "address") {
+        lazyChecksumAddress(value, length - 1);
+      }
     }
 
     // As we have gone wondering, restore to the original position + next slot.
@@ -168,7 +177,10 @@ function decodeArray(
       staticPosition: staticPosition + consumed,
     });
     consumed += consumed_;
-    value.push(data);
+    const length = value.push(data);
+    if (param.type === "address") {
+      lazyChecksumAddress(value, length - 1);
+    }
   }
   return [value, consumed];
 }
@@ -259,6 +271,9 @@ function decodeTuple(
       });
       consumed += consumed_;
       value[hasUnnamedChild ? i : component?.name!] = data;
+      if (component.type === "address") {
+        lazyChecksumAddress(value, hasUnnamedChild ? i : component?.name!);
+      }
     }
 
     // As we have gone wondering, restore to the original position + next slot.
@@ -275,6 +290,9 @@ function decodeTuple(
     });
     value[hasUnnamedChild ? i : component?.name!] = data;
     consumed += consumed_;
+    if (component.type === "address") {
+      lazyChecksumAddress(value, hasUnnamedChild ? i : component?.name!);
+    }
   }
   return [value, consumed];
 }
