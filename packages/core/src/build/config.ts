@@ -1,3 +1,4 @@
+import type { Factory } from "@/config/address.js";
 import type { Config } from "@/config/index.js";
 import type { Common } from "@/internal/common.js";
 import { BuildError } from "@/internal/errors.js";
@@ -28,7 +29,13 @@ import { dedupe } from "@/utils/dedupe.js";
 import { getFinalityBlockCount } from "@/utils/finality.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
-import { BlockNotFoundError, type Hex, type LogTopic, hexToNumber } from "viem";
+import {
+  type Address,
+  BlockNotFoundError,
+  type Hex,
+  type LogTopic,
+  hexToNumber,
+} from "viem";
 import { buildLogFactory } from "./factory.js";
 
 const flattenSources = <
@@ -543,31 +550,33 @@ export async function buildConfigAndIndexingFunctions({
             chain,
           } as const;
 
-          const resolvedAddress = source?.address;
+          const resolvedAddress =
+            source?.address === undefined
+              ? undefined
+              : Array.isArray(source?.address)
+                ? source?.address
+                : [source?.address];
 
-          if (
-            typeof resolvedAddress === "object" &&
-            !Array.isArray(resolvedAddress)
-          ) {
-            const factoryFromBlock =
-              (await resolveBlockNumber(resolvedAddress.startBlock, chain)) ??
-              fromBlock;
+          if (resolvedAddress === undefined) {
+          } else if (typeof resolvedAddress[0] === "object") {
+            const sources: ContractSource[] = [];
+            for (const factory of resolvedAddress as readonly Factory[]) {
+              const factoryFromBlock =
+                (await resolveBlockNumber(factory.startBlock, chain)) ??
+                fromBlock;
 
-            const factoryToBlock =
-              (await resolveBlockNumber(resolvedAddress.endBlock, chain)) ??
-              toBlock;
+              const factoryToBlock =
+                (await resolveBlockNumber(factory.endBlock, chain)) ?? toBlock;
 
-            // Note that this can throw.
-            const logFactory = buildLogFactory({
-              chainId: chain.id,
-              ...resolvedAddress,
-              fromBlock: factoryFromBlock,
-              toBlock: factoryToBlock,
-            });
+              const logFactory = buildLogFactory({
+                chainId: chain.id,
+                ...factory,
+                fromBlock: factoryFromBlock,
+                toBlock: factoryToBlock,
+              });
 
-            const logSources = topicsArray.map(
-              (topics) =>
-                ({
+              for (const topics of topicsArray) {
+                sources.push({
                   ...contractMetadata,
                   filter: {
                     type: "log",
@@ -585,13 +594,11 @@ export async function buildConfigAndIndexingFunctions({
                         : [],
                     ),
                   },
-                }) satisfies ContractSource,
-            );
+                } satisfies ContractSource);
+              }
 
-            if (source.includeCallTraces) {
-              return [
-                ...logSources,
-                {
+              if (source.includeCallTraces) {
+                sources.push({
                   ...contractMetadata,
                   filter: {
                     type: "trace",
@@ -609,15 +616,12 @@ export async function buildConfigAndIndexingFunctions({
                         : [],
                     ),
                   },
-                } satisfies ContractSource,
-              ];
+                } satisfies ContractSource);
+              }
             }
-
-            return logSources;
-          } else if (resolvedAddress !== undefined) {
-            for (const address of Array.isArray(resolvedAddress)
-              ? resolvedAddress
-              : [resolvedAddress]) {
+            return sources;
+          } else {
+            for (const address of resolvedAddress as readonly Address[]) {
               if (!address!.startsWith("0x"))
                 throw new Error(
                   `Validation failed: Invalid prefix for address '${address}'. Got '${address!.slice(
@@ -633,10 +637,10 @@ export async function buildConfigAndIndexingFunctions({
           }
 
           const validatedAddress = Array.isArray(resolvedAddress)
-            ? dedupe(resolvedAddress).map((r) => toLowerCase(r))
-            : resolvedAddress !== undefined
-              ? toLowerCase(resolvedAddress)
-              : undefined;
+            ? resolvedAddress.length === 1
+              ? toLowerCase(resolvedAddress[0] as Address)
+              : dedupe(resolvedAddress).map((r) => toLowerCase(r as Address))
+            : undefined;
 
           const logSources = topicsArray.map(
             (topics) =>
@@ -670,11 +674,7 @@ export async function buildConfigAndIndexingFunctions({
                   type: "trace",
                   chainId: chain.id,
                   fromAddress: undefined,
-                  toAddress: Array.isArray(validatedAddress)
-                    ? validatedAddress
-                    : validatedAddress === undefined
-                      ? undefined
-                      : [validatedAddress],
+                  toAddress: validatedAddress,
                   callType: "CALL",
                   functionSelector: registeredFunctionSelectors,
                   includeReverted: false,
@@ -721,7 +721,12 @@ export async function buildConfigAndIndexingFunctions({
           const fromBlock = await resolveBlockNumber(source.startBlock, chain);
           const toBlock = await resolveBlockNumber(source.endBlock, chain);
 
-          const resolvedAddress = source?.address;
+          const resolvedAddress =
+            source?.address === undefined
+              ? undefined
+              : Array.isArray(source?.address)
+                ? source?.address
+                : [source?.address];
 
           if (resolvedAddress === undefined) {
             throw new Error(
@@ -729,28 +734,25 @@ export async function buildConfigAndIndexingFunctions({
             );
           }
 
-          if (
-            typeof resolvedAddress === "object" &&
-            !Array.isArray(resolvedAddress)
-          ) {
-            const factoryFromBlock =
-              (await resolveBlockNumber(resolvedAddress.startBlock, chain)) ??
-              fromBlock;
+          if (typeof resolvedAddress[0] === "object") {
+            const sources: AccountSource[] = [];
+            for (const factory of resolvedAddress as readonly Factory[]) {
+              const factoryFromBlock =
+                (await resolveBlockNumber(factory.startBlock, chain)) ??
+                fromBlock;
 
-            const factoryToBlock =
-              (await resolveBlockNumber(resolvedAddress.endBlock, chain)) ??
-              toBlock;
+              const factoryToBlock =
+                (await resolveBlockNumber(factory.endBlock, chain)) ?? toBlock;
 
-            // Note that this can throw.
-            const logFactory = buildLogFactory({
-              chainId: chain.id,
-              ...resolvedAddress,
-              fromBlock: factoryFromBlock,
-              toBlock: factoryToBlock,
-            });
+              // Note that this can throw.
+              const logFactory = buildLogFactory({
+                chainId: chain.id,
+                ...factory,
+                fromBlock: factoryFromBlock,
+                toBlock: factoryToBlock,
+              });
 
-            return [
-              {
+              sources.push({
                 type: "account",
                 name: source.name,
                 chain,
@@ -764,8 +766,9 @@ export async function buildConfigAndIndexingFunctions({
                   toBlock,
                   include: defaultTransactionFilterInclude,
                 },
-              } satisfies AccountSource,
-              {
+              } satisfies AccountSource);
+
+              sources.push({
                 type: "account",
                 name: source.name,
                 chain,
@@ -779,8 +782,9 @@ export async function buildConfigAndIndexingFunctions({
                   toBlock,
                   include: defaultTransactionFilterInclude,
                 },
-              } satisfies AccountSource,
-              {
+              } satisfies AccountSource);
+
+              sources.push({
                 type: "account",
                 name: source.name,
                 chain,
@@ -798,8 +802,9 @@ export async function buildConfigAndIndexingFunctions({
                       : [],
                   ),
                 },
-              } satisfies AccountSource,
-              {
+              } satisfies AccountSource);
+
+              sources.push({
                 type: "account",
                 name: source.name,
                 chain,
@@ -817,13 +822,13 @@ export async function buildConfigAndIndexingFunctions({
                       : [],
                   ),
                 },
-              } satisfies AccountSource,
-            ];
+              } satisfies AccountSource);
+            }
+
+            return sources;
           }
 
-          for (const address of Array.isArray(resolvedAddress)
-            ? resolvedAddress
-            : [resolvedAddress]) {
+          for (const address of resolvedAddress as readonly Address[]) {
             if (!address!.startsWith("0x"))
               throw new Error(
                 `Validation failed: Invalid prefix for address '${address}'. Got '${address!.slice(
@@ -837,11 +842,10 @@ export async function buildConfigAndIndexingFunctions({
               );
           }
 
-          const validatedAddress = Array.isArray(resolvedAddress)
-            ? dedupe(resolvedAddress).map((r) => toLowerCase(r))
-            : resolvedAddress !== undefined
-              ? toLowerCase(resolvedAddress)
-              : undefined;
+          const validatedAddress =
+            resolvedAddress.length === 1
+              ? toLowerCase(resolvedAddress[0] as Address)
+              : dedupe(resolvedAddress).map((r) => toLowerCase(r as Address));
 
           return [
             {

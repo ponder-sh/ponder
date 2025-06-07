@@ -71,6 +71,7 @@ export const createRpc = ({
     }
   } else if (Array.isArray(chain.rpc)) {
     request = loadBalance(
+      // @ts-ignore
       chain.rpc.map((rpc) => {
         const protocol = new url.URL(rpc).protocol;
         if (protocol === "https:" || protocol === "http:") {
@@ -82,6 +83,7 @@ export const createRpc = ({
         }
       }),
     )({
+      // @ts-ignore
       chain: chain.viemChain,
       retryCount: 0,
       timeout: 5_000,

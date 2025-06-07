@@ -16,5 +16,9 @@ export const factory = <event extends AbiEvent>(factory: Factory<event>) =>
   factory;
 
 export type AddressConfig = {
-  address?: `0x${string}` | readonly `0x${string}`[] | Factory;
+  address?:
+    | `0x${string}`
+    | readonly `0x${string}`[]
+    | Factory
+    | readonly Factory[];
 };
