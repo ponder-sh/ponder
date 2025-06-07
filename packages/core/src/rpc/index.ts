@@ -1,9 +1,9 @@
 import url from "node:url";
 import type { Common } from "@/internal/common.js";
-import type { Chain, SyncBlock } from "@/internal/types.js";
+import type { Chain, SyncBlock, SyncBlockHeader } from "@/internal/types.js";
 import type { RealtimeSync } from "@/sync-realtime/index.js";
 import { createQueue } from "@/utils/queue.js";
-import { _eth_getBlockByNumber } from "@/utils/rpc.js";
+import { _eth_getBlockByHash, _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import {
@@ -22,6 +22,7 @@ import {
   type PublicRpcSchema,
   type RpcError,
   TimeoutError,
+  type WebSocketTransport,
   isHex,
   webSocket,
 } from "viem";
@@ -37,7 +38,9 @@ export type Rpc = {
     parameters: TParameters,
   ) => Promise<RequestReturnType<TParameters["method"]>>;
   subscribe: (params: {
-    onBlock: (block: SyncBlock) => ReturnType<RealtimeSync["sync"]>;
+    onBlock: (
+      block: SyncBlock | SyncBlockHeader,
+    ) => ReturnType<RealtimeSync["sync"]>;
     onError: (error: Error) => void;
   }) => void;
   unsubscribe: () => void;
@@ -230,6 +233,24 @@ export const createRpc = ({
         timeout: 5_000,
       }).request,
     ];
+  }
+
+  let wsTransport: ReturnType<WebSocketTransport> | undefined = undefined;
+
+  if (typeof chain.ws === "string") {
+    const protocol = new url.URL(chain.ws).protocol;
+
+    if (protocol === "wss:" || protocol === "ws:") {
+      wsTransport = webSocket(chain.ws, { keepAlive: true, reconnect: false })({
+        chain: chain.viemChain,
+        retryCount: 0,
+        timeout: 5_000,
+      });
+    } else {
+      throw new Error(
+        `Inconsistent RPC URL protocol: ${protocol}. Expected wss or ws.`,
+      );
+    }
   }
 
   const buckets = request.map(
@@ -440,23 +461,96 @@ export const createRpc = ({
   });
 
   let interval: NodeJS.Timeout | undefined;
+  let retryCount = 0;
 
   const rpc: Rpc = {
     // @ts-ignore
     request: queue.add,
-    subscribe({ onBlock, onError }) {
-      interval = setInterval(() => {
-        _eth_getBlockByNumber(rpc, { blockTag: "latest" })
-          .then(onBlock)
-          .catch(onError);
-      }, chain.pollingInterval);
+    subscribe({ onBlock, onError: _onError }) {
+      if (wsTransport === undefined) {
+        interval = setInterval(() => {
+          _eth_getBlockByNumber(rpc, { blockTag: "latest" })
+            .then(onBlock)
+            .catch(_onError);
+        }, chain.pollingInterval);
+        common.shutdown.add(() => {
+          clearInterval(interval);
+        });
+      } else {
+        wsTransport
+          .value!.subscribe({
+            params: ["newHeads"],
+            onData: async (data) => {
+              if (data.result !== undefined) {
+                onBlock(data.result);
+                retryCount = 0;
+              } else if (data.error !== undefined) {
+                const error = data.error as Error;
+                console.log(`Websocket returned an error: ${error}`);
 
-      common.shutdown.add(() => {
-        clearInterval(interval);
-      });
+                if (retryCount++ === RETRY_COUNT) {
+                  common.logger.warn({
+                    service: "rpc",
+                    msg: `Failed "eth_subscribe" subscription after ${retryCount + 1} consecutive errors. Switching to polling.`,
+                    error,
+                  });
+                  wsTransport = undefined;
+
+                  rpc.subscribe({ onBlock, onError: _onError });
+                }
+              }
+            },
+            onError: async (err) => {
+              const error = err as Error;
+              console.log(`Subscribe onError: ${err}`);
+
+              if (retryCount++ === RETRY_COUNT) {
+                common.logger.warn({
+                  service: "rpc",
+                  msg: `Failed "eth_subscribe" subscription after ${retryCount + 1} consecutive errors. Switching to polling.`,
+                  error,
+                });
+                wsTransport = undefined;
+              } else {
+                await wsTransport!.value!.getRpcClient().then((r) => r.close());
+              }
+
+              rpc.subscribe({ onBlock, onError: _onError });
+            },
+          })
+          .then(() => {
+            retryCount = 0;
+          })
+          .catch(async (err) => {
+            const error = err as Error;
+
+            if (retryCount++ === RETRY_COUNT) {
+              common.logger.warn({
+                service: "rpc",
+                msg: `Failed "eth_subscribe" request after ${retryCount + 1} attempts. Switching to polling.`,
+                error,
+              });
+              wsTransport = undefined;
+            } else {
+              const duration = BASE_DURATION * 2 ** retryCount;
+              common.logger.debug({
+                service: "rpc",
+                msg: `Failed "eth_subscribe" request, retrying after ${duration} milliseconds.`,
+                error,
+              });
+              await wait(duration);
+            }
+
+            retryCount++;
+            rpc.subscribe({ onBlock, onError: _onError });
+          });
+      }
     },
     unsubscribe() {
       clearInterval(interval);
+      if (wsTransport) {
+        wsTransport.value!.getRpcClient().then((r) => r.close());
+      }
     },
   };
 

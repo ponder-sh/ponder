@@ -9,6 +9,7 @@ import type {
   LogFactory,
   LogFilter,
   SyncBlock,
+  SyncBlockHeader,
   SyncLog,
   SyncTrace,
   SyncTransaction,
@@ -326,7 +327,10 @@ export const isTransferFilterMatched = ({
 export const isBlockFilterMatched = ({
   filter,
   block,
-}: { filter: BlockFilter; block: InternalBlock | SyncBlock }): boolean => {
+}: {
+  filter: BlockFilter;
+  block: InternalBlock | SyncBlock | SyncBlockHeader;
+}): boolean => {
   // Return `false` for out of range blocks
   if (
     Number(block.number) < (filter.fromBlock ?? 0) ||

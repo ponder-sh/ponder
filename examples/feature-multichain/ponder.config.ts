@@ -5,10 +5,26 @@ import { weth9Abi } from "./abis/weth9Abi";
 export default createConfig({
   ordering: "multichain",
   chains: {
-    mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1 },
-    base: { id: 8453, rpc: process.env.PONDER_RPC_URL_8453 },
-    optimism: { id: 10, rpc: process.env.PONDER_RPC_URL_10 },
-    polygon: { id: 137, rpc: process.env.PONDER_RPC_URL_137 },
+    mainnet: {
+      id: 1,
+      rpc: process.env.PONDER_RPC_URL_1,
+      ws: process.env.PONDER_WS_URL_1,
+    },
+    base: {
+      id: 8453,
+      rpc: process.env.PONDER_RPC_URL_8453,
+      ws: process.env.PONDER_WS_URL_8453,
+    },
+    optimism: {
+      id: 10,
+      rpc: process.env.PONDER_RPC_URL_10,
+      ws: process.env.PONDER_WS_URL_10,
+    },
+    polygon: {
+      id: 137,
+      rpc: process.env.PONDER_RPC_URL_137,
+      ws: process.env.PONDER_WS_URL_137,
+    },
   },
   contracts: {
     weth9: {
