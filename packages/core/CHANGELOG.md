@@ -1,5 +1,21 @@
 # ponder
 
+## 0.11.12
+
+### Patch Changes
+
+- [#1790](https://github.com/ponder-sh/ponder/pull/1790) [`8b79de7`](https://github.com/ponder-sh/ponder/commit/8b79de7d9f86f3dd7556d3ba0c7ae2944c07128b) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Added dynamic rpc load balancing and rate limiting. Deprecated `maxRequestsPerSecond`.
+
+- [`cd73809`](https://github.com/ponder-sh/ponder/commit/cd738099818d186c72b13cd8d5fc5d64016b0600) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved `db.sql` performance.
+
+- [#1779](https://github.com/ponder-sh/ponder/pull/1779) [`a0ff140`](https://github.com/ponder-sh/ponder/commit/a0ff140b4f5ecccad740b63b69c096b0cb447a66) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved RPC response validation.
+
+- [#1807](https://github.com/ponder-sh/ponder/pull/1807) [`4062ef9`](https://github.com/ponder-sh/ponder/commit/4062ef950ad710fe8704885bcc956c132464b713) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Improved abi decoding performance.
+
+- [#1810](https://github.com/ponder-sh/ponder/pull/1810) [`45d8a5c`](https://github.com/ponder-sh/ponder/commit/45d8a5c02754fe8050fe6a778bc0b1f34032870f) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed issue with `ponder db prune` command causing errors similar to `syntax error at or near "-" at character 28`.
+
+- [#1790](https://github.com/ponder-sh/ponder/pull/1790) [`af1ef11`](https://github.com/ponder-sh/ponder/commit/af1ef118b72d96ceac7f5ba36c39ceb008f355aa) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Added 'ponder_rpc_request_error_total' prometheus metric to track total count of failed requests per chain per method.
+
 ## 0.11.11
 
 ### Patch Changes
