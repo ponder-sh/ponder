@@ -15,7 +15,7 @@ import type {
   Schema,
   SchemaBuild,
 } from "@/internal/types.js";
-import { migrationProvider } from "@/sync-store/migrations.js";
+import { buildMigrationProvider } from "@/sync-store/migrations.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
 import type { Drizzle } from "@/types/db.js";
 import {
@@ -663,6 +663,7 @@ export const createDatabase = async ({
             plugins: [new WithSchemaPlugin("ponder_sync")],
           });
 
+          const migrationProvider = buildMigrationProvider(common.logger);
           const migrator = new Migrator({
             db: kysely,
             provider: migrationProvider,

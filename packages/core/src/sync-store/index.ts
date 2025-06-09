@@ -30,6 +30,7 @@ import {
 } from "@/sync/filter.js";
 import { encodeFragment, getFragments } from "@/sync/fragments.js";
 import type { Interval } from "@/utils/interval.js";
+import { lazyChecksumAddress } from "@/utils/lazy.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
 import { startClock } from "@/utils/timer.js";
@@ -46,12 +47,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { type PgColumn, unionAll } from "drizzle-orm/pg-core";
-import {
-  type Address,
-  type EIP1193Parameters,
-  checksumAddress,
-  hexToNumber,
-} from "viem";
+import { type Address, type EIP1193Parameters, hexToNumber } from "viem";
 import {
   encodeBlock,
   encodeLog,
@@ -850,9 +846,9 @@ export const createSyncStore = ({
               transaction as unknown as InternalTransaction;
 
             internalTransaction.blockNumber = Number(transaction.blockNumber);
-            internalTransaction.from = checksumAddress(transaction.from);
+            lazyChecksumAddress(internalTransaction, "from");
             if (transaction.to !== null) {
-              internalTransaction.to = checksumAddress(transaction.to);
+              lazyChecksumAddress(internalTransaction, "to");
             }
 
             if (transaction.type === "0x0") {
@@ -896,17 +892,14 @@ export const createSyncStore = ({
               transactionReceipt.blockNumber,
             );
             if (transactionReceipt.contractAddress !== null) {
-              internalTransactionReceipt.contractAddress = checksumAddress(
-                transactionReceipt.contractAddress,
+              lazyChecksumAddress(
+                internalTransactionReceipt,
+                "contractAddress",
               );
             }
-            internalTransactionReceipt.from = checksumAddress(
-              transactionReceipt.from,
-            );
+            lazyChecksumAddress(internalTransactionReceipt, "from");
             if (transactionReceipt.to !== null) {
-              internalTransactionReceipt.to = checksumAddress(
-                transactionReceipt.to,
-              );
+              lazyChecksumAddress(internalTransactionReceipt, "to");
             }
             internalTransactionReceipt.status =
               transactionReceipt.status === "0x1"
@@ -937,7 +930,7 @@ export const createSyncStore = ({
             const internalLog = log as unknown as InternalLog;
 
             internalLog.blockNumber = Number(log.blockNumber);
-            internalLog.address = checksumAddress(log.address);
+            lazyChecksumAddress(internalLog, "address");
             internalLog.removed = false;
             internalLog.topics = [
               // @ts-ignore
@@ -968,9 +961,9 @@ export const createSyncStore = ({
 
             internalTrace.blockNumber = Number(trace.blockNumber);
 
-            internalTrace.from = checksumAddress(trace.from);
+            lazyChecksumAddress(internalTrace, "from");
             if (trace.to !== null) {
-              internalTrace.to = checksumAddress(trace.to);
+              lazyChecksumAddress(internalTrace, "to");
             }
 
             if (trace.output === null) {
@@ -989,7 +982,7 @@ export const createSyncStore = ({
             traceIndex++;
           }
 
-          block.miner = checksumAddress(block.miner);
+          lazyChecksumAddress(block, "miner");
 
           blockData.push({
             block,

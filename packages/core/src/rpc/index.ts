@@ -339,8 +339,12 @@ export const createRpc = ({
 
           addRequestTimestamp(bucket);
           common.metrics.rpc_usage[chain.name]![bucket.index]!.totalRequests++;
+          
           const response = await bucket.request(body);
-          // TODO(kyle) can response be undefined
+
+          if (response === undefined) {
+            throw new Error("Response is undefined");
+          }
 
           const duration = stopClock();
 

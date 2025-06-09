@@ -12,4 +12,4 @@ declare module "ponder:schema" {
 // This file enables type checking and editor autocomplete for this Ponder project.
 // After upgrading, you may find that changes have been made to this file.
 // If this happens, please commit the changes. Do not manually edit this file.
-// See https://ponder.sh/docs/getting-started/installation#typescript for more information.
+// See https://ponder.sh/docs/requirements#typescript for more information.
