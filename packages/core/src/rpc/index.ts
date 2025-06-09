@@ -112,7 +112,10 @@ export const createRpc = ({
           });
 
           const response = await request(body);
-          // TODO(kyle) can response be undefined
+
+          if (response === undefined) {
+            throw new Error("Response is undefined");
+          }
 
           common.logger.trace({
             service: "rpc",
