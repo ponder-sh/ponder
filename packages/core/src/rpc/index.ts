@@ -361,6 +361,11 @@ export const createRpc = ({
         } catch (e) {
           const error = e as Error;
 
+          common.metrics.ponder_rpc_request_error_total.inc(
+            { method: body.method, chain: chain.name },
+            1,
+          );
+
           if (
             body.method === "eth_getLogs" &&
             isHex(body.params[0].fromBlock) &&

@@ -85,6 +85,7 @@ export class MetricsService {
   >;
 
   ponder_rpc_request_duration: prometheus.Histogram<"chain" | "method">;
+  ponder_rpc_request_error_total: prometheus.Counter<"chain" | "method">;
 
   ponder_postgres_query_total: prometheus.Counter<"pool">;
   ponder_postgres_query_queue_size: prometheus.Gauge<"pool"> = null!;
@@ -346,6 +347,13 @@ export class MetricsService {
       registers: [this.registry],
     });
 
+    this.ponder_rpc_request_error_total = new prometheus.Counter({
+      name: "ponder_rpc_request_error_total",
+      help: "Totla count of failed RPC requests",
+      labelNames: ["chain", "method"] as const,
+      registers: [this.registry],
+    });
+
     this.ponder_postgres_query_total = new prometheus.Counter({
       name: "ponder_postgres_query_total",
       help: "Total number of queries submitted to the database",
@@ -387,6 +395,7 @@ export class MetricsService {
     this.ponder_historical_completed_blocks.reset();
     this.ponder_realtime_reorg_total.reset();
     this.ponder_rpc_request_duration.reset();
+    this.ponder_rpc_request_error_total.reset();
 
     // Note: These are used by both indexing and API services.
     this.ponder_database_method_duration.reset();
