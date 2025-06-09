@@ -454,7 +454,6 @@ export const createRpc = ({
 
   let interval: NodeJS.Timeout | undefined;
   let retryCount = 0;
-  let unsubscribe: (() => Promise<any>) | undefined = undefined;
 
   const rpc: Rpc = {
     // @ts-ignore
@@ -479,15 +478,23 @@ export const createRpc = ({
                 retryCount = 0;
               } else if (data.error !== undefined) {
                 const error = data.error as Error;
-                console.log(`Websocket returned an error: ${error}`);
+                retryCount++;
 
-                if (retryCount++ === RETRY_COUNT) {
+                common.logger.debug({
+                  service: "rpc",
+                  msg: "Received a webSocket subscription data.error.",
+                  error,
+                });
+
+                if (retryCount === RETRY_COUNT) {
                   common.logger.warn({
                     service: "rpc",
-                    msg: `Failed "eth_subscribe" subscription after ${retryCount + 1} consecutive errors. Switching to polling.`,
+                    msg: `Failed new_Heads subscription after ${retryCount + 1} consecutive errors. Switching to polling.`,
                     error,
                   });
-                  if (unsubscribe !== undefined) await unsubscribe();
+                  await wsTransport!
+                    .value!.getRpcClient()
+                    .then((r) => r.close());
                   wsTransport = undefined;
 
                   rpc.subscribe({ onBlock, onError: _onError });
@@ -496,34 +503,39 @@ export const createRpc = ({
             },
             onError: async (err) => {
               const error = err as Error;
-              console.log(`Subscribe onError: ${err}`);
+              retryCount++;
 
-              if (retryCount++ === RETRY_COUNT) {
+              if (retryCount === RETRY_COUNT) {
                 common.logger.warn({
                   service: "rpc",
-                  msg: `Failed "eth_subscribe" subscription after ${retryCount + 1} consecutive errors. Switching to polling.`,
+                  msg: `Failed new_Heads subscription after ${retryCount + 1} consecutive errors. Switching to polling.`,
                   error,
                 });
-                if (unsubscribe !== undefined) await unsubscribe();
+                await wsTransport!.value!.getRpcClient().then((r) => r.close());
                 wsTransport = undefined;
               } else {
+                common.logger.debug({
+                  service: "rpc",
+                  msg: "Failed new_Heads subscription, retrying subscription request.",
+                  error,
+                });
                 await wsTransport!.value!.getRpcClient().then((r) => r.close());
               }
 
               rpc.subscribe({ onBlock, onError: _onError });
             },
           })
-          .then((subscription) => {
+          .then(() => {
             retryCount = 0;
-            unsubscribe = subscription.unsubscribe;
           })
           .catch(async (err) => {
             const error = err as Error;
+            retryCount++;
 
-            if (retryCount++ === RETRY_COUNT) {
+            if (retryCount === RETRY_COUNT) {
               common.logger.warn({
                 service: "rpc",
-                msg: `Failed "eth_subscribe" request after ${retryCount + 1} attempts. Switching to polling.`,
+                msg: `Failed new_Heads subscription request after ${retryCount + 1} attempts. Switching to polling.`,
                 error,
               });
               wsTransport = undefined;
@@ -531,13 +543,12 @@ export const createRpc = ({
               const duration = BASE_DURATION * 2 ** retryCount;
               common.logger.debug({
                 service: "rpc",
-                msg: `Failed "eth_subscribe" request, retrying after ${duration} milliseconds.`,
+                msg: `Failed new_Heads subscription request, retrying after ${duration} milliseconds.`,
                 error,
               });
               await wait(duration);
             }
 
-            retryCount++;
             rpc.subscribe({ onBlock, onError: _onError });
           });
       }
