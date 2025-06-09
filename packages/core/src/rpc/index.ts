@@ -9,7 +9,6 @@ import { wait } from "@/utils/wait.js";
 import {
   type GetLogsRetryHelperParameters,
   getLogsRetryHelper,
-  loadBalance,
 } from "@ponder/utils";
 import {
   http,
@@ -22,6 +21,7 @@ import {
   ParseRpcError,
   type PublicRpcSchema,
   type RpcError,
+  TimeoutError,
   isHex,
   webSocket,
 } from "viem";
@@ -45,90 +45,326 @@ export type Rpc = {
 
 const RETRY_COUNT = 9;
 const BASE_DURATION = 125;
+const INITIAL_REACTIVATION_DELAY = 100;
+const MAX_REACTIVATION_DELAY = 5_000;
+const BACKOFF_FACTOR = 1.5;
+const LATENCY_WINDOW_SIZE = 500;
+/** Hurdle rate for switching to a faster bucket. */
+const LATENCY_HURDLE_RATE = 0.1;
+/** Exploration rate. */
+const EPSILON = 0.1;
+const INITIAL_MAX_RPS = 20;
+const MIN_RPS = 1;
+const MAX_RPS = 500;
+const RPS_INCREASE_FACTOR = 1.2;
+const RPS_DECREASE_FACTOR = 0.7;
+const RPS_INCREASE_QUALIFIER = 0.8;
+const SUCCESS_WINDOW_SIZE = 100;
+
+type Bucket = {
+  index: number;
+  /** Reactivation delay in milliseconds. */
+  reactivationDelay: number;
+  /** Number of active connections. */
+  activeConnections: number;
+  /** Is the bucket available to send requests. */
+  isActive: boolean;
+  /** Is the bucket recently activated and yet to complete successful requests. */
+  isWarmingUp: boolean;
+
+  latencyMetadata: {
+    latencies: { value: number; success: boolean }[];
+
+    successfulLatencies: number;
+    latencySum: number;
+  };
+  expectedLatency: number;
+
+  requestTimestamps: number[];
+  /** Number of consecutive successful requests. */
+  consecutiveSuccessfulRequests: number;
+  /** Maximum requests per second (dynamic). */
+  rpsLimit: number;
+
+  request: EIP1193RequestFn;
+};
+
+const addLatency = (bucket: Bucket, latency: number, success: boolean) => {
+  bucket.latencyMetadata.latencies.push({ value: latency, success });
+  bucket.latencyMetadata.latencySum += latency;
+  if (success) {
+    bucket.latencyMetadata.successfulLatencies++;
+  }
+
+  if (bucket.latencyMetadata.latencies.length > LATENCY_WINDOW_SIZE) {
+    const record = bucket.latencyMetadata.latencies.shift()!;
+    bucket.latencyMetadata.latencySum -= record.value;
+    if (record.success) {
+      bucket.latencyMetadata.successfulLatencies--;
+    }
+  }
+
+  bucket.expectedLatency =
+    bucket.latencyMetadata.latencySum /
+    bucket.latencyMetadata.successfulLatencies;
+};
+
+const addRequestTimestamp = (bucket: Bucket) => {
+  const timestamp = Date.now() / 1000;
+  bucket.requestTimestamps.push(timestamp);
+  while (timestamp - bucket.requestTimestamps[0]! > 5) {
+    bucket.requestTimestamps.shift()!;
+  }
+};
+
+/**
+ * Calculate the requests per second for a bucket
+ * using historical request timestamps.
+ */
+const getRPS = (bucket: Bucket) => {
+  const timestamp = Date.now() / 1000;
+  while (
+    bucket.requestTimestamps.length > 0 &&
+    timestamp - bucket.requestTimestamps[0]! > 5
+  ) {
+    bucket.requestTimestamps.shift()!;
+  }
+
+  if (bucket.requestTimestamps.length === 0) return 0;
+
+  const t =
+    bucket.requestTimestamps[bucket.requestTimestamps.length - 1]! -
+    bucket.requestTimestamps[0]! +
+    1;
+  return bucket.requestTimestamps.length / t;
+};
+
+/**
+ * Return `true` if the bucket is available to send a request.
+ */
+const isAvailable = (bucket: Bucket) => {
+  if (bucket.isActive && getRPS(bucket) < bucket.rpsLimit) return true;
+
+  if (bucket.isActive && bucket.isWarmingUp && bucket.activeConnections < 3) {
+    return true;
+  }
+
+  return false;
+};
+
+const increaseMaxRPS = (bucket: Bucket) => {
+  if (
+    bucket.consecutiveSuccessfulRequests >= SUCCESS_WINDOW_SIZE &&
+    getRPS(bucket) > bucket.rpsLimit * RPS_INCREASE_QUALIFIER
+  ) {
+    const newRPSLimit = Math.min(
+      bucket.rpsLimit * RPS_INCREASE_FACTOR,
+      MAX_RPS,
+    );
+    bucket.rpsLimit = newRPSLimit;
+    bucket.consecutiveSuccessfulRequests = 0;
+  }
+};
+
+const decreaseMaxRPS = (bucket: Bucket) => {
+  const newRPSLimit = Math.max(bucket.rpsLimit * RPS_DECREASE_FACTOR, MIN_RPS);
+  bucket.rpsLimit = newRPSLimit;
+  bucket.consecutiveSuccessfulRequests = 0;
+};
 
 export const createRpc = ({
   common,
   chain,
   concurrency = 25,
 }: { common: Common; chain: Chain; concurrency?: number }): Rpc => {
-  let request: EIP1193RequestFn;
+  let request: EIP1193RequestFn[];
+
   if (typeof chain.rpc === "string") {
     const protocol = new url.URL(chain.rpc).protocol;
     if (protocol === "https:" || protocol === "http:") {
-      request = http(chain.rpc)({
-        chain: chain.viemChain,
-        retryCount: 0,
-        timeout: 5_000,
-      }).request;
+      request = [
+        http(chain.rpc)({
+          chain: chain.viemChain,
+          retryCount: 0,
+          timeout: 5_000,
+        }).request,
+      ];
     } else if (protocol === "wss:" || protocol === "ws:") {
-      request = webSocket(chain.rpc)({
-        chain: chain.viemChain,
-        retryCount: 0,
-        timeout: 5_000,
-      }).request;
+      request = [
+        webSocket(chain.rpc)({
+          chain: chain.viemChain,
+          retryCount: 0,
+          timeout: 5_000,
+        }).request,
+      ];
     } else {
       throw new Error(`Unsupported RPC URL protocol: ${protocol}`);
     }
   } else if (Array.isArray(chain.rpc)) {
-    request = loadBalance(
-      chain.rpc.map((rpc) => {
-        const protocol = new url.URL(rpc).protocol;
-        if (protocol === "https:" || protocol === "http:") {
-          return http(rpc);
-        } else if (protocol === "wss:" || protocol === "ws:") {
-          return webSocket(rpc);
-        } else {
-          throw new Error(`Unsupported RPC URL protocol: ${protocol}`);
-        }
-      }),
-    )({
-      chain: chain.viemChain,
-      retryCount: 0,
-      timeout: 5_000,
-    }).request;
+    request = chain.rpc.map((rpc) => {
+      const protocol = new url.URL(rpc).protocol;
+      if (protocol === "https:" || protocol === "http:") {
+        return http(rpc)({
+          chain: chain.viemChain,
+          retryCount: 0,
+          timeout: 5_000,
+        }).request;
+      } else if (protocol === "wss:" || protocol === "ws:") {
+        return webSocket(rpc)({
+          chain: chain.viemChain,
+          retryCount: 0,
+          timeout: 5_000,
+        }).request;
+      } else {
+        throw new Error(`Unsupported RPC URL protocol: ${protocol}`);
+      }
+    });
   } else {
-    request = chain.rpc({
-      chain: chain.viemChain,
-      retryCount: 0,
-      timeout: 5_000,
-    }).request;
+    request = [
+      chain.rpc({
+        chain: chain.viemChain,
+        retryCount: 0,
+        timeout: 5_000,
+      }).request,
+    ];
   }
+
+  const buckets = request.map(
+    (request, index) =>
+      ({
+        index,
+        reactivationDelay: INITIAL_REACTIVATION_DELAY,
+
+        activeConnections: 0,
+        isActive: true,
+        isWarmingUp: false,
+
+        latencyMetadata: {
+          latencies: [],
+          successfulLatencies: 0,
+          latencySum: 0,
+        },
+        expectedLatency: 200,
+
+        requestTimestamps: [],
+        consecutiveSuccessfulRequests: 0,
+        rpsLimit: INITIAL_MAX_RPS,
+
+        request,
+      }) satisfies Bucket,
+  );
+
+  /** Tracks all active bucket reactivation timeouts to cleanup during shutdown */
+  const timeouts = new Set<NodeJS.Timeout>();
+
+  const scheduleBucketActivation = (bucket: Bucket) => {
+    const timeoutId = setTimeout(() => {
+      bucket.isActive = true;
+      bucket.isWarmingUp = true;
+      timeouts.delete(timeoutId);
+      common.logger.debug({
+        service: "rpc",
+        msg: `RPC bucket ${bucket.index} reactivated for chain '${chain.name}' after ${Math.round(bucket.reactivationDelay)}ms`,
+      });
+    }, bucket.reactivationDelay);
+
+    common.logger.debug({
+      service: "rpc",
+      msg: `RPC bucket '${chain.name}' ${bucket.index} deactivated for chain '${chain.name}'. Reactivation scheduled in ${Math.round(bucket.reactivationDelay)}ms`,
+    });
+
+    timeouts.add(timeoutId);
+  };
+
+  const getBucket = async (): Promise<Bucket> => {
+    const availableBuckets = buckets.filter((b) => isAvailable(b));
+
+    if (availableBuckets.length === 0) {
+      await wait(10);
+      return getBucket();
+    }
+
+    if (Math.random() < EPSILON) {
+      const randomBucket =
+        availableBuckets[Math.floor(Math.random() * availableBuckets.length)]!;
+      randomBucket.activeConnections++;
+      return randomBucket;
+    }
+
+    const fastestBucket = availableBuckets.reduce((fastest, current) => {
+      const currentLatency = current.expectedLatency;
+      const fastestLatency = fastest.expectedLatency;
+
+      if (currentLatency < fastestLatency * (1 - LATENCY_HURDLE_RATE)) {
+        return current;
+      }
+
+      if (
+        currentLatency <= fastestLatency &&
+        current.activeConnections < fastest.activeConnections
+      ) {
+        return current;
+      }
+
+      return fastest;
+    }, availableBuckets[0]!);
+
+    fastestBucket.activeConnections++;
+    return fastestBucket;
+  };
 
   const queue = createQueue<
     Awaited<ReturnType<Rpc["request"]>>,
     Parameters<Rpc["request"]>[0]
   >({
     initialStart: true,
-    frequency: chain.maxRequestsPerSecond,
     concurrency,
-    // @ts-ignore
     worker: async (body) => {
       for (let i = 0; i <= RETRY_COUNT; i++) {
+        const bucket = await getBucket();
+
+        const stopClock = startClock();
         try {
-          const stopClock = startClock();
           common.logger.trace({
             service: "rpc",
-            msg: `Sent ${body.method} request (params=${JSON.stringify(body.params)})`,
+            msg: `Sent '${chain.name}' ${body.method} request (params=${JSON.stringify(body.params)})`,
           });
 
-          const response = await request(body);
+          addRequestTimestamp(bucket);
+
+          const response = await bucket.request(body);
 
           if (response === undefined) {
             throw new Error("Response is undefined");
           }
 
+          const duration = stopClock();
+
           common.logger.trace({
             service: "rpc",
-            msg: `Received ${body.method} response (duration=${stopClock()}, params=${JSON.stringify(body.params)})`,
+            msg: `Received '${chain.name}' ${body.method} response (duration=${duration}, params=${JSON.stringify(body.params)})`,
           });
           common.metrics.ponder_rpc_request_duration.observe(
             { method: body.method, chain: chain.name },
-            stopClock(),
+            duration,
           );
+
+          addLatency(bucket, duration, true);
+
+          bucket.consecutiveSuccessfulRequests++;
+          increaseMaxRPS(bucket);
+
+          bucket.isWarmingUp = false;
+          bucket.reactivationDelay = INITIAL_REACTIVATION_DELAY;
 
           return response as RequestReturnType<typeof body.method>;
         } catch (e) {
           const error = e as Error;
+
+          common.metrics.ponder_rpc_request_error_total.inc(
+            { method: body.method, chain: chain.name },
+            1,
+          );
 
           if (
             body.method === "eth_getLogs" &&
@@ -143,10 +379,37 @@ export const createRpc = ({
             if (getLogsErrorResponse.shouldRetry === true) throw error;
           }
 
+          addLatency(bucket, stopClock(), false);
+
+          if (
+            // @ts-ignore
+            error.code === 429 ||
+            // @ts-ignore
+            error.status === 429 ||
+            error instanceof TimeoutError
+          ) {
+            if (bucket.isActive) {
+              bucket.isActive = false;
+              bucket.isWarmingUp = false;
+
+              decreaseMaxRPS(bucket);
+
+              scheduleBucketActivation(bucket);
+
+              bucket.reactivationDelay =
+                error instanceof TimeoutError
+                  ? INITIAL_REACTIVATION_DELAY
+                  : Math.min(
+                      bucket.reactivationDelay * BACKOFF_FACTOR,
+                      MAX_REACTIVATION_DELAY,
+                    );
+            }
+          }
+
           if (shouldRetry(error) === false) {
             common.logger.warn({
               service: "rpc",
-              msg: `Failed ${body.method} request`,
+              msg: `Failed '${chain.name}' ${body.method} request`,
             });
             throw error;
           }
@@ -154,7 +417,7 @@ export const createRpc = ({
           if (i === RETRY_COUNT) {
             common.logger.warn({
               service: "rpc",
-              msg: `Failed ${body.method} request after ${i + 1} attempts`,
+              msg: `Failed '${chain.name}' ${body.method} request after ${i + 1} attempts`,
               error,
             });
             throw error;
@@ -163,12 +426,16 @@ export const createRpc = ({
           const duration = BASE_DURATION * 2 ** i;
           common.logger.debug({
             service: "rpc",
-            msg: `Failed ${body.method} request, retrying after ${duration} milliseconds`,
+            msg: `Failed '${chain.name}' ${body.method} request, retrying after ${duration} milliseconds`,
             error,
           });
           await wait(duration);
+        } finally {
+          bucket.activeConnections--;
         }
       }
+
+      throw "unreachable";
     },
   });
 
@@ -192,6 +459,13 @@ export const createRpc = ({
       clearInterval(interval);
     },
   };
+
+  common.shutdown.add(() => {
+    for (const timeoutId of timeouts) {
+      clearTimeout(timeoutId);
+    }
+    timeouts.clear();
+  });
 
   return rpc;
 };
