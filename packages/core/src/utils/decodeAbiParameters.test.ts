@@ -3,7 +3,6 @@ import {
   type Hex,
   encodeAbiParameters,
   getAbiItem,
-  getAddress,
   parseAbiParameters,
 } from "viem";
 import { assertType, describe, expect, test } from "vitest";
@@ -117,7 +116,11 @@ describe("static", () => {
           parseAbiParameters("address"),
           "0x00000000000000000000000014dc79964da2c08b23698b3d3cc7ca32193d9955",
         ),
-      ).toEqual(["0x14dC79964da2C08b23698B3D3cc7Ca32193d9955"]);
+      ).toMatchInlineSnapshot(`
+        [
+          "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
+        ]
+      `);
     });
   });
 
@@ -172,12 +175,14 @@ describe("static", () => {
         "0x000000000000000000000000c961145a54c96e3ae9baa048c4f4d6b04c13916b000000000000000000000000a5cc3c03994db5b0d9a5eedd10cabab0813678ac",
       );
       assertType<readonly [readonly [Address, Address]]>(result);
-      expect(result).toEqual([
+      expect(result).toMatchInlineSnapshot(`
         [
-          "0xc961145a54C96E3aE9bAA048c4F4D6b04C13916b",
-          "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC",
-        ],
-      ]);
+          [
+            "0xc961145a54C96E3aE9bAA048c4F4D6b04C13916b",
+            "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC",
+          ],
+        ]
+      `);
     });
   });
 
@@ -281,9 +286,16 @@ describe("static", () => {
           },
         ]
       >(result);
-      expect(result).toEqual([
-        { x: 420n, y: true, z: "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC" },
-      ]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          {
+            "x": 420n,
+            "y": true,
+            "z": "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC",
+            Symbol(nodejs.util.inspect.custom): [Function],
+          },
+        ]
+      `);
     });
   });
 
@@ -294,9 +306,15 @@ describe("static", () => {
         "0x00000000000000000000000000000000000000000000000000000000000001a40000000000000000000000000000000000000000000000000000000000000001000000000000000000000000a5cc3c03994db5b0d9a5eedd10cabab0813678ac",
       );
       assertType<readonly [readonly [bigint, boolean, Hex]]>(result);
-      expect(result).toEqual([
-        [420n, true, "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC"],
-      ]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [
+            420n,
+            true,
+            "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC",
+          ],
+        ]
+      `);
     });
   });
 
@@ -307,9 +325,15 @@ describe("static", () => {
         "0x00000000000000000000000000000000000000000000000000000000000001a40000000000000000000000000000000000000000000000000000000000000001000000000000000000000000a5cc3c03994db5b0d9a5eedd10cabab0813678ac",
       );
       assertType<readonly [readonly [bigint, boolean, Hex]]>(result);
-      expect(result).toEqual([
-        [420n, true, "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC"],
-      ]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [
+            420n,
+            true,
+            "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC",
+          ],
+        ]
+      `);
     });
   });
 
@@ -349,21 +373,28 @@ describe("static", () => {
           },
         ]
       >(result);
-      expect(result).toEqual([
-        {
-          foo: {
-            x: 420n,
-            y: true,
-            z: "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC",
+      expect(result).toMatchInlineSnapshot(`
+        [
+          {
+            "baz": {
+              "x": 69n,
+              "y": false,
+              "z": "0xc961145a54C96E3aE9bAA048c4F4D6b04C13916b",
+              Symbol(nodejs.util.inspect.custom): [Function],
+            },
+            "foo": {
+              "x": 420n,
+              "y": true,
+              "z": "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC",
+              Symbol(nodejs.util.inspect.custom): [Function],
+            },
+            "x": [
+              1,
+              2,
+            ],
           },
-          baz: {
-            x: 69n,
-            y: false,
-            z: "0xc961145a54C96E3aE9bAA048c4F4D6b04C13916b",
-          },
-          x: [1, 2],
-        },
-      ]);
+        ]
+      `);
     });
   });
 
@@ -408,11 +439,13 @@ describe("static", () => {
         "0x00000000000000000000000000000000000000000000000000000000000001a40000000000000000000000000000000000000000000000000000000000000001000000000000000000000000c961145a54c96e3ae9baa048c4f4d6b04c13916b",
       );
       assertType<readonly [bigint, boolean, string]>(result);
-      expect(result).toEqual([
-        420n,
-        true,
-        "0xc961145a54C96E3aE9bAA048c4F4D6b04C13916b",
-      ]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          420n,
+          true,
+          "0xc961145a54C96E3aE9bAA048c4F4D6b04C13916b",
+        ]
+      `);
     });
   });
 });
@@ -1355,14 +1388,6 @@ const seaportContractConfigAbi = [
   },
 ] as const;
 
-const address = {
-  burn: "0x0000000000000000000000000000000000000000",
-  daiHolder: "0x66F62574ab04989737228D18C3624f7FC1edAe14",
-  usdcHolder: "0x5414d89a8bf7e99d732bc52f3e6a3ef461c0c078",
-  vitalik: "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
-  notDeployed: "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
-} as const;
-
 describe("seaport", () => {
   test("cancel", () => {
     const cancel = getAbiItem({
@@ -1373,118 +1398,128 @@ describe("seaport", () => {
       cancel.inputs,
       "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000540000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa9604500000000000000000000000000000000000000000000000000000000000001600000000000000000000000000000000000000000000000000000000000000360000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000001caab5c3b30000000000000000000000000000000000000000000000000000001caab5c3b3511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a00000000000000000000000000000000000000000000000000000000498f3973511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a00000000000000000000000000000000000000000000000000000000498f39730000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000045000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000001a4000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000005414d89a8bf7e99d732bc52f3e6a3ef461c0c07800000000000000000000000000000000000000000000000000000000000002030000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000b000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa9604500000000000000000000000000000000000000000000000000000000034fb5b7000000000000000000000000000000000000000000000000000000000000006f000000000000000000000000000000000000000000000000000000000001e0f30000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000045000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000001a4000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000037000000000000000000000000000000000000000000000000000000000000000f000000000000000000000000000000000000000000000000000000000000008d000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa9604500000000000000000000000000000000000000000000000000000000000001600000000000000000000000000000000000000000000000000000000000000360000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000001caab5c3b30000000000000000000000000000000000000000000000000000001caab5c3b3511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a00000000000000000000000000000000000000000000000000000000498f3973511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a00000000000000000000000000000000000000000000000000000000498f39730000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000045000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000001a4000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000005414d89a8bf7e99d732bc52f3e6a3ef461c0c07800000000000000000000000000000000000000000000000000000000000002030000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000b000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa9604500000000000000000000000000000000000000000000000000000000034fb5b7000000000000000000000000000000000000000000000000000000000000006f000000000000000000000000000000000000000000000000000000000001e0f30000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000045000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000001a4000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000037000000000000000000000000000000000000000000000000000000000000000f000000000000000000000000000000000000000000000000000000000000008d000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045",
     );
-    expect(data).toEqual([
+    expect(data).toMatchInlineSnapshot(`
       [
-        {
-          conduitKey:
-            "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
-          consideration: [
-            {
-              endAmount: 420n,
-              identifierOrCriteria: 69n,
-              itemType: 10,
-              recipient: getAddress(address.vitalik),
-              startAmount: 6n,
-              token: getAddress(address.burn),
-            },
-            {
-              endAmount: 141n,
-              identifierOrCriteria: 55n,
-              itemType: 16,
-              recipient: getAddress(address.vitalik),
-              startAmount: 15n,
-              token: getAddress(address.burn),
-            },
-          ],
-          counter: 1234123123n,
-          endTime: 123123123123n,
-          offer: [
-            {
-              endAmount: 420n,
-              identifierOrCriteria: 69n,
-              itemType: 10,
-              startAmount: 6n,
-              token: getAddress(address.burn),
-            },
-            {
-              endAmount: 11n,
-              identifierOrCriteria: 515n,
-              itemType: 10,
-              startAmount: 6n,
-              token: getAddress(address.usdcHolder),
-            },
-            {
-              endAmount: 123123n,
-              identifierOrCriteria: 55555511n,
-              itemType: 10,
-              startAmount: 111n,
-              token: getAddress(address.vitalik),
-            },
-          ],
-          offerer: getAddress(address.vitalik),
-          orderType: 10,
-          salt: 1234123123n,
-          startTime: 123123123123n,
-          zone: getAddress(address.vitalik),
-          zoneHash:
-            "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
-        },
-        {
-          conduitKey:
-            "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
-          consideration: [
-            {
-              endAmount: 420n,
-              identifierOrCriteria: 69n,
-              itemType: 10,
-              recipient: getAddress(address.vitalik),
-              startAmount: 6n,
-              token: getAddress(address.burn),
-            },
-            {
-              endAmount: 141n,
-              identifierOrCriteria: 55n,
-              itemType: 16,
-              recipient: getAddress(address.vitalik),
-              startAmount: 15n,
-              token: getAddress(address.burn),
-            },
-          ],
-          counter: 1234123123n,
-          endTime: 123123123123n,
-          offer: [
-            {
-              endAmount: 420n,
-              identifierOrCriteria: 69n,
-              itemType: 10,
-              startAmount: 6n,
-              token: getAddress(address.burn),
-            },
-            {
-              endAmount: 11n,
-              identifierOrCriteria: 515n,
-              itemType: 10,
-              startAmount: 6n,
-              token: getAddress(address.usdcHolder),
-            },
-            {
-              endAmount: 123123n,
-              identifierOrCriteria: 55555511n,
-              itemType: 10,
-              startAmount: 111n,
-              token: getAddress(address.vitalik),
-            },
-          ],
-          offerer: getAddress(address.vitalik),
-          orderType: 10,
-          salt: 1234123123n,
-          startTime: 123123123123n,
-          zone: getAddress(address.vitalik),
-          zoneHash:
-            "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
-        },
-      ],
-    ]);
+        [
+          {
+            "conduitKey": "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
+            "consideration": [
+              {
+                "endAmount": 420n,
+                "identifierOrCriteria": 69n,
+                "itemType": 10,
+                "recipient": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                "startAmount": 6n,
+                "token": "0x0000000000000000000000000000000000000000",
+                Symbol(nodejs.util.inspect.custom): [Function],
+              },
+              {
+                "endAmount": 141n,
+                "identifierOrCriteria": 55n,
+                "itemType": 16,
+                "recipient": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                "startAmount": 15n,
+                "token": "0x0000000000000000000000000000000000000000",
+                Symbol(nodejs.util.inspect.custom): [Function],
+              },
+            ],
+            "counter": 1234123123n,
+            "endTime": 123123123123n,
+            "offer": [
+              {
+                "endAmount": 420n,
+                "identifierOrCriteria": 69n,
+                "itemType": 10,
+                "startAmount": 6n,
+                "token": "0x0000000000000000000000000000000000000000",
+                Symbol(nodejs.util.inspect.custom): [Function],
+              },
+              {
+                "endAmount": 11n,
+                "identifierOrCriteria": 515n,
+                "itemType": 10,
+                "startAmount": 6n,
+                "token": "0x5414d89a8bF7E99d732BC52f3e6A3Ef461c0C078",
+                Symbol(nodejs.util.inspect.custom): [Function],
+              },
+              {
+                "endAmount": 123123n,
+                "identifierOrCriteria": 55555511n,
+                "itemType": 10,
+                "startAmount": 111n,
+                "token": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                Symbol(nodejs.util.inspect.custom): [Function],
+              },
+            ],
+            "offerer": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            "orderType": 10,
+            "salt": 1234123123n,
+            "startTime": 123123123123n,
+            "zone": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            "zoneHash": "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
+            Symbol(nodejs.util.inspect.custom): [Function],
+          },
+          {
+            "conduitKey": "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
+            "consideration": [
+              {
+                "endAmount": 420n,
+                "identifierOrCriteria": 69n,
+                "itemType": 10,
+                "recipient": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                "startAmount": 6n,
+                "token": "0x0000000000000000000000000000000000000000",
+                Symbol(nodejs.util.inspect.custom): [Function],
+              },
+              {
+                "endAmount": 141n,
+                "identifierOrCriteria": 55n,
+                "itemType": 16,
+                "recipient": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                "startAmount": 15n,
+                "token": "0x0000000000000000000000000000000000000000",
+                Symbol(nodejs.util.inspect.custom): [Function],
+              },
+            ],
+            "counter": 1234123123n,
+            "endTime": 123123123123n,
+            "offer": [
+              {
+                "endAmount": 420n,
+                "identifierOrCriteria": 69n,
+                "itemType": 10,
+                "startAmount": 6n,
+                "token": "0x0000000000000000000000000000000000000000",
+                Symbol(nodejs.util.inspect.custom): [Function],
+              },
+              {
+                "endAmount": 11n,
+                "identifierOrCriteria": 515n,
+                "itemType": 10,
+                "startAmount": 6n,
+                "token": "0x5414d89a8bF7E99d732BC52f3e6A3Ef461c0C078",
+                Symbol(nodejs.util.inspect.custom): [Function],
+              },
+              {
+                "endAmount": 123123n,
+                "identifierOrCriteria": 55555511n,
+                "itemType": 10,
+                "startAmount": 111n,
+                "token": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                Symbol(nodejs.util.inspect.custom): [Function],
+              },
+            ],
+            "offerer": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            "orderType": 10,
+            "salt": 1234123123n,
+            "startTime": 123123123123n,
+            "zone": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            "zoneHash": "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
+            Symbol(nodejs.util.inspect.custom): [Function],
+          },
+        ],
+      ]
+    `);
   });
 
   test("fulfillAdvancedOrder", () => {
@@ -1496,81 +1531,87 @@ describe("seaport", () => {
       fulfillAdvancedOrder.inputs,
       "0x000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000006a0511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa9604500000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000001a4000000000000000000000000000000000000000000000000000000000000004500000000000000000000000000000000000000000000000000000000000005a000000000000000000000000000000000000000000000000000000000000005e0000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa9604500000000000000000000000000000000000000000000000000000000000001600000000000000000000000000000000000000000000000000000000000000360000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000001caab5c3b30000000000000000000000000000000000000000000000000000001caab5c3b3511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a00000000000000000000000000000000000000000000000000000000498f3973511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a0000000000000000000000000000000000000000000000000000000000010f2c0000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000045000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000001a4000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000005414d89a8bf7e99d732bc52f3e6a3ef461c0c07800000000000000000000000000000000000000000000000000000000000002030000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000b000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa9604500000000000000000000000000000000000000000000000000000000034fb5b7000000000000000000000000000000000000000000000000000000000000006f000000000000000000000000000000000000000000000000000000000001e0f30000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000045000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000001a4000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000037000000000000000000000000000000000000000000000000000000000000000f000000000000000000000000000000000000000000000000000000000000008d000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000000000000000000000000000000000000000000312312300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003123123000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000b000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000004cf000000000000000000000000000000000000000000000000000000000000109200000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000001511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
     );
-    expect(data).toEqual([
-      {
-        denominator: 69n,
-        extraData: "0x123123",
-        numerator: 420n,
-        parameters: {
-          conduitKey:
-            "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
-          consideration: [
-            {
-              endAmount: 420n,
-              identifierOrCriteria: 69n,
-              itemType: 10,
-              recipient: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
-              startAmount: 6n,
-              token: "0x0000000000000000000000000000000000000000",
-            },
-            {
-              endAmount: 141n,
-              identifierOrCriteria: 55n,
-              itemType: 16,
-              recipient: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
-              startAmount: 15n,
-              token: "0x0000000000000000000000000000000000000000",
-            },
-          ],
-          endTime: 123123123123n,
-          offer: [
-            {
-              endAmount: 420n,
-              identifierOrCriteria: 69n,
-              itemType: 10,
-              startAmount: 6n,
-              token: "0x0000000000000000000000000000000000000000",
-            },
-            {
-              endAmount: 11n,
-              identifierOrCriteria: 515n,
-              itemType: 10,
-              startAmount: 6n,
-              token: "0x5414d89a8bF7E99d732BC52f3e6A3Ef461c0C078",
-            },
-            {
-              endAmount: 123123n,
-              identifierOrCriteria: 55555511n,
-              itemType: 10,
-              startAmount: 111n,
-              token: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
-            },
-          ],
-          offerer: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
-          orderType: 10,
-          salt: 1234123123n,
-          startTime: 123123123123n,
-          totalOriginalConsiderationItems: 69420n,
-          zone: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
-          zoneHash:
-            "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
-        },
-        signature: "0x123123",
-      },
+    expect(data).toMatchInlineSnapshot(`
       [
         {
-          criteriaProof: [
-            "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
-          ],
-          identifier: 4242n,
-          index: 1231n,
-          orderIndex: 11n,
-          side: 1,
+          "denominator": 69n,
+          "extraData": "0x123123",
+          "numerator": 420n,
+          "parameters": {
+            "conduitKey": "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
+            "consideration": [
+              {
+                "endAmount": 420n,
+                "identifierOrCriteria": 69n,
+                "itemType": 10,
+                "recipient": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                "startAmount": 6n,
+                "token": "0x0000000000000000000000000000000000000000",
+                Symbol(nodejs.util.inspect.custom): [Function],
+              },
+              {
+                "endAmount": 141n,
+                "identifierOrCriteria": 55n,
+                "itemType": 16,
+                "recipient": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                "startAmount": 15n,
+                "token": "0x0000000000000000000000000000000000000000",
+                Symbol(nodejs.util.inspect.custom): [Function],
+              },
+            ],
+            "endTime": 123123123123n,
+            "offer": [
+              {
+                "endAmount": 420n,
+                "identifierOrCriteria": 69n,
+                "itemType": 10,
+                "startAmount": 6n,
+                "token": "0x0000000000000000000000000000000000000000",
+                Symbol(nodejs.util.inspect.custom): [Function],
+              },
+              {
+                "endAmount": 11n,
+                "identifierOrCriteria": 515n,
+                "itemType": 10,
+                "startAmount": 6n,
+                "token": "0x5414d89a8bF7E99d732BC52f3e6A3Ef461c0C078",
+                Symbol(nodejs.util.inspect.custom): [Function],
+              },
+              {
+                "endAmount": 123123n,
+                "identifierOrCriteria": 55555511n,
+                "itemType": 10,
+                "startAmount": 111n,
+                "token": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                Symbol(nodejs.util.inspect.custom): [Function],
+              },
+            ],
+            "offerer": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            "orderType": 10,
+            "salt": 1234123123n,
+            "startTime": 123123123123n,
+            "totalOriginalConsiderationItems": 69420n,
+            "zone": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            "zoneHash": "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
+            Symbol(nodejs.util.inspect.custom): [Function],
+          },
+          "signature": "0x123123",
         },
-      ],
-      "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
-      "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
-    ]);
+        [
+          {
+            "criteriaProof": [
+              "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
+            ],
+            "identifier": 4242n,
+            "index": 1231n,
+            "orderIndex": 11n,
+            "side": 1,
+          },
+        ],
+        "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
+        "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      ]
+    `);
   });
 });
 
