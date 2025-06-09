@@ -17,14 +17,14 @@ export default createConfig({
       address: "0xD68fe5b53e7E1AbeB5A4d0A6660667791f39263a",
       chain: "base",
       startBlock: 0x246523,
-      endBlock: 29000000,
+      endBlock: 4000000,
     },
     BasePaint: {
       abi: BasePaintAbi,
       address: "0xBa5e05cb26b78eDa3A2f8e3b3814726305dcAc83",
       chain: "base",
       startBlock: 0x246523,
-      endBlock: 29000000,
+      endBlock: 4000000,
     },
   },
 });
