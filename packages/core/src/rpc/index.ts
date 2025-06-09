@@ -274,20 +274,8 @@ export const createRpc = ({
     const availableBuckets = buckets.filter((b) => isAvailable(b));
 
     if (availableBuckets.length === 0) {
-      const rpsSafePromise = new Promise<void>((resolve) => {
-        const checkRPSSafe = () => {
-          const availableBucket = buckets.find((b) => isAvailable(b));
-          if (availableBucket) {
-            resolve();
-          } else {
-            setTimeout(checkRPSSafe, 5);
-          }
-        };
-        checkRPSSafe();
-      });
-
-      await rpsSafePromise;
-
+      console.log("no available buckets");
+      await wait(10);
       return getBucket();
     }
 
