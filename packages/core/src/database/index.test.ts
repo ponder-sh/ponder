@@ -66,7 +66,6 @@ test("migrate() succeeds with empty schema", async (context) => {
 
   expect(metadata).toHaveLength(1);
 
-  // TODO(kyle) how to shutdown
   await context.common.shutdown.kill();
 });
 
