@@ -264,13 +264,13 @@ export const createRpc = ({
       timeouts.delete(timeoutId);
       common.logger.debug({
         service: "rpc",
-        msg: `RPC bucket ${bucket.index} reactivated for chain '${chain.name}' after ${bucket.reactivationDelay}ms`,
+        msg: `RPC bucket ${bucket.index} reactivated for chain '${chain.name}' after ${Math.round(bucket.reactivationDelay)}ms`,
       });
     }, bucket.reactivationDelay);
 
     common.logger.debug({
       service: "rpc",
-      msg: `RPC bucket ${bucket.index} deactivated for chain '${chain.name}'. Reactivation scheduled in ${bucket.reactivationDelay}ms`,
+      msg: `RPC bucket ${bucket.index} deactivated for chain '${chain.name}'. Reactivation scheduled in ${Math.round(bucket.reactivationDelay)}ms`,
     });
 
     timeouts.add(timeoutId);
