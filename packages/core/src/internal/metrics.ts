@@ -349,7 +349,7 @@ export class MetricsService {
 
     this.ponder_rpc_request_error_total = new prometheus.Counter({
       name: "ponder_rpc_request_error_total",
-      help: "Totla count of failed RPC requests",
+      help: "Total count of failed RPC requests",
       labelNames: ["chain", "method"] as const,
       registers: [this.registry],
     });
