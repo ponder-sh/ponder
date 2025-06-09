@@ -1,7 +1,38 @@
 import { eq, onchainTable, relations } from "@/index.js";
 import { createClient } from "@ponder/client";
 import { expect, test } from "vitest";
-import { validateQuery } from "./validate.js";
+import { findTableNames, validateQuery } from "./parse.js";
+
+test("findTableNames", async () => {
+  let tableNames = await findTableNames(
+    "SELECT col FROM users JOIN metadata ON users.id = metadata.id;",
+  );
+
+  expect(tableNames).toMatchInlineSnapshot(`
+    Set {
+      "users",
+      "metadata",
+    }
+  `);
+
+  tableNames = await findTableNames("UPDATE users SET col = $1;");
+
+  expect(tableNames).toMatchInlineSnapshot(`
+    Set {
+      "users",
+    }
+  `);
+
+  tableNames = await findTableNames(
+    "DELETE FROM user_schema.table WHERE id = $1;",
+  );
+
+  expect(tableNames).toMatchInlineSnapshot(`
+    Set {
+      "table",
+    }
+  `);
+});
 
 test("validateQuery()", async () => {
   await validateQuery("SELECT * FROM users;");
