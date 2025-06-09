@@ -274,7 +274,6 @@ export const createRpc = ({
     const availableBuckets = buckets.filter((b) => isAvailable(b));
 
     if (availableBuckets.length === 0) {
-      console.log("no available buckets");
       await wait(10);
       return getBucket();
     }
