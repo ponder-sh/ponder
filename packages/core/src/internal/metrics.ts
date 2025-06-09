@@ -85,7 +85,6 @@ export class MetricsService {
   >;
 
   ponder_rpc_request_duration: prometheus.Histogram<"chain" | "method">;
-  ponder_rpc_request_lag: prometheus.Histogram<"chain" | "method">;
 
   ponder_postgres_query_total: prometheus.Counter<"pool">;
   ponder_postgres_query_queue_size: prometheus.Gauge<"pool"> = null!;
@@ -346,13 +345,6 @@ export class MetricsService {
       buckets: httpRequestDurationMs,
       registers: [this.registry],
     });
-    this.ponder_rpc_request_lag = new prometheus.Histogram({
-      name: "ponder_rpc_request_lag",
-      help: "Time RPC requests spend waiting in the request queue",
-      labelNames: ["chain", "method"] as const,
-      buckets: databaseQueryDurationMs,
-      registers: [this.registry],
-    });
 
     this.ponder_postgres_query_total = new prometheus.Counter({
       name: "ponder_postgres_query_total",
@@ -395,7 +387,6 @@ export class MetricsService {
     this.ponder_historical_completed_blocks.reset();
     this.ponder_realtime_reorg_total.reset();
     this.ponder_rpc_request_duration.reset();
-    this.ponder_rpc_request_lag.reset();
 
     // Note: These are used by both indexing and API services.
     this.ponder_database_method_duration.reset();
