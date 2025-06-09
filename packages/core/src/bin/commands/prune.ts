@@ -141,7 +141,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
       )!.tableCount;
 
       if (schema !== "public" && tableCount <= 2 + value.table_names.length) {
-        schemasToDrop.push(schema);
+        schemasToDrop.push(`"${schema}"`);
       }
     } else {
       for (const table of value.table_names) {
@@ -164,7 +164,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
         schema !== "public" &&
         tableCount <= 2 + value.table_names.length * 2
       ) {
-        schemasToDrop.push(schema);
+        schemasToDrop.push(`"${schema}"`);
       }
     }
   }
@@ -213,9 +213,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
 
   if (schemasToDrop.length > 0) {
     await database.qb.drizzle.execute(
-      sql.raw(
-        `DROP SCHEMA IF EXISTS ${schemasToDrop.map((s) => `"${s}"`).join(", ")} CASCADE`,
-      ),
+      sql.raw(`DROP SCHEMA IF EXISTS ${schemasToDrop.join(", ")} CASCADE`),
     );
 
     logger.warn({
