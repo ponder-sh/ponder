@@ -454,6 +454,7 @@ export const createRpc = ({
 
   let interval: NodeJS.Timeout | undefined;
   let retryCount = 0;
+  let unsubscribe: (() => Promise<any>) | undefined = undefined;
 
   const rpc: Rpc = {
     // @ts-ignore
@@ -486,6 +487,7 @@ export const createRpc = ({
                     msg: `Failed "eth_subscribe" subscription after ${retryCount + 1} consecutive errors. Switching to polling.`,
                     error,
                   });
+                  if (unsubscribe !== undefined) await unsubscribe();
                   wsTransport = undefined;
 
                   rpc.subscribe({ onBlock, onError: _onError });
@@ -502,6 +504,7 @@ export const createRpc = ({
                   msg: `Failed "eth_subscribe" subscription after ${retryCount + 1} consecutive errors. Switching to polling.`,
                   error,
                 });
+                if (unsubscribe !== undefined) await unsubscribe();
                 wsTransport = undefined;
               } else {
                 await wsTransport!.value!.getRpcClient().then((r) => r.close());
@@ -510,8 +513,9 @@ export const createRpc = ({
               rpc.subscribe({ onBlock, onError: _onError });
             },
           })
-          .then(() => {
+          .then((subscription) => {
             retryCount = 0;
+            unsubscribe = subscription.unsubscribe;
           })
           .catch(async (err) => {
             const error = err as Error;
