@@ -111,7 +111,7 @@ Metrics are not part of the public API, so these are subject to change without n
 | ponder_http_server_request_size_bytes  | Size of HTTP requests received by the server                          | histogram |
 | ponder_http_server_response_size_bytes | Size of HTTP responses served by the server                           | histogram |
 | ponder_rpc_request_duration            | Duration of RPC requests                                              | histogram |
-| ponder_rpc_request_lag                 | Time RPC requests spend waiting in the request queue                  | histogram |
+| ponder_rpc_request_error_total         | Total number of failed RPC requests                                   | counter   |
 | ponder_postgres_pool_connections       | Gauge of current connections for PostgreSQL pools                     | gauge     |
 | ponder_postgres_query_queue_size       | Current size of the query queue for PostgreSQL                        | gauge     |
 | ponder_postgres_query_total            | Total number of queries processed by PostgreSQL                       | counter   |
