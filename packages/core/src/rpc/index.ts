@@ -339,7 +339,7 @@ export const createRpc = ({
 
           addRequestTimestamp(bucket);
           common.metrics.rpc_usage[chain.name]![bucket.index]!.totalRequests++;
-          
+
           const response = await bucket.request(body);
 
           if (response === undefined) {
