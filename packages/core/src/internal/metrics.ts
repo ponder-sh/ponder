@@ -341,7 +341,7 @@ export class MetricsService {
 
     this.ponder_rpc_request_duration = new prometheus.Histogram({
       name: "ponder_rpc_request_duration",
-      help: "Duration of RPC requests",
+      help: "Duration of successful RPC requests",
       labelNames: ["chain", "method"] as const,
       buckets: httpRequestDurationMs,
       registers: [this.registry],

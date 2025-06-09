@@ -270,7 +270,7 @@ export const createRpc = ({
 
     common.logger.debug({
       service: "rpc",
-      msg: `RPC bucket ${bucket.index} deactivated for chain '${chain.name}'. Reactivation scheduled in ${Math.round(bucket.reactivationDelay)}ms`,
+      msg: `RPC bucket '${chain.name}' ${bucket.index} deactivated for chain '${chain.name}'. Reactivation scheduled in ${Math.round(bucket.reactivationDelay)}ms`,
     });
 
     timeouts.add(timeoutId);
@@ -327,7 +327,7 @@ export const createRpc = ({
         try {
           common.logger.trace({
             service: "rpc",
-            msg: `Sent ${body.method} request for chain '${chain.name}' (params=${JSON.stringify(body.params)})`,
+            msg: `Sent '${chain.name}' ${body.method} request (params=${JSON.stringify(body.params)})`,
           });
 
           addRequestTimestamp(bucket);
@@ -342,7 +342,7 @@ export const createRpc = ({
 
           common.logger.trace({
             service: "rpc",
-            msg: `Received ${body.method} response for chain '${chain.name}' (duration=${duration}, params=${JSON.stringify(body.params)})`,
+            msg: `Received '${chain.name}' ${body.method} response (duration=${duration}, params=${JSON.stringify(body.params)})`,
           });
           common.metrics.ponder_rpc_request_duration.observe(
             { method: body.method, chain: chain.name },
@@ -409,7 +409,7 @@ export const createRpc = ({
           if (shouldRetry(error) === false) {
             common.logger.warn({
               service: "rpc",
-              msg: `Failed ${body.method} request for chain '${chain.name}'`,
+              msg: `Failed '${chain.name}' ${body.method} request`,
             });
             throw error;
           }
@@ -417,7 +417,7 @@ export const createRpc = ({
           if (i === RETRY_COUNT) {
             common.logger.warn({
               service: "rpc",
-              msg: `Failed ${body.method} request after ${i + 1} attempts for chain '${chain.name}'`,
+              msg: `Failed '${chain.name}' ${body.method} request after ${i + 1} attempts`,
               error,
             });
             throw error;
@@ -426,7 +426,7 @@ export const createRpc = ({
           const duration = BASE_DURATION * 2 ** i;
           common.logger.debug({
             service: "rpc",
-            msg: `Failed ${body.method} request for chain '${chain.name}', retrying after ${duration} milliseconds`,
+            msg: `Failed '${chain.name}' ${body.method} request, retrying after ${duration} milliseconds`,
             error,
           });
           await wait(duration);
