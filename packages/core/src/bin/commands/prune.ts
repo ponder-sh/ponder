@@ -213,7 +213,9 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
 
   if (schemasToDrop.length > 0) {
     await database.qb.drizzle.execute(
-      sql.raw(`DROP SCHEMA IF EXISTS ${schemasToDrop.join(", ")} CASCADE`),
+      sql.raw(
+        `DROP SCHEMA IF EXISTS ${schemasToDrop.map((s) => `"${s}"`).join(", ")} CASCADE`,
+      ),
     );
 
     logger.warn({
