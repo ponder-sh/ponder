@@ -178,9 +178,6 @@ export const createRpc = ({
   concurrency = 25,
 }: { common: Common; chain: Chain; concurrency?: number }): Rpc => {
   let request: EIP1193RequestFn[];
-  common.metrics.rpc_usage[chain.name] = Array.from({
-    length: Array.isArray(chain.rpc) ? chain.rpc.length : 1,
-  }).map(() => ({ failedRequests: 0, totalRequests: 0 }));
 
   if (typeof chain.rpc === "string") {
     const protocol = new url.URL(chain.rpc).protocol;
@@ -265,7 +262,16 @@ export const createRpc = ({
       bucket.isActive = true;
       bucket.isWarmingUp = true;
       timeouts.delete(timeoutId);
+      common.logger.debug({
+        service: "rpc",
+        msg: `RPC bucket ${bucket.index} reactivated for ${chain.name} network after ${bucket.reactivationDelay}ms`,
+      });
     }, bucket.reactivationDelay);
+
+    common.logger.debug({
+      service: "rpc",
+      msg: `RPC bucket ${bucket.index} deactivated for ${chain.name} network. Reactivation scheduled in ${bucket.reactivationDelay}ms`,
+    });
 
     timeouts.add(timeoutId);
   };
@@ -321,11 +327,10 @@ export const createRpc = ({
         try {
           common.logger.trace({
             service: "rpc",
-            msg: `Sent ${body.method} request (params=${JSON.stringify(body.params)})`,
+            msg: `Sent ${body.method} request for ${chain.name} network (params=${JSON.stringify(body.params)})`,
           });
 
           addRequestTimestamp(bucket);
-          common.metrics.rpc_usage[chain.name]![bucket.index]!.totalRequests++;
 
           const response = await bucket.request(body);
 
@@ -337,7 +342,7 @@ export const createRpc = ({
 
           common.logger.trace({
             service: "rpc",
-            msg: `Received ${body.method} response (duration=${duration}, params=${JSON.stringify(body.params)})`,
+            msg: `Received ${body.method} response for ${chain.name} network (duration=${duration}, params=${JSON.stringify(body.params)})`,
           });
           common.metrics.ponder_rpc_request_duration.observe(
             { method: body.method, chain: chain.name },
@@ -355,7 +360,6 @@ export const createRpc = ({
           return response as RequestReturnType<typeof body.method>;
         } catch (e) {
           const error = e as Error;
-          common.metrics.rpc_usage[chain.name]![bucket.index]!.failedRequests++;
 
           if (
             body.method === "eth_getLogs" &&
@@ -400,7 +404,7 @@ export const createRpc = ({
           if (shouldRetry(error) === false) {
             common.logger.warn({
               service: "rpc",
-              msg: `Failed ${body.method} request`,
+              msg: `Failed ${body.method} request for ${chain.name} network`,
             });
             throw error;
           }
@@ -408,7 +412,7 @@ export const createRpc = ({
           if (i === RETRY_COUNT) {
             common.logger.warn({
               service: "rpc",
-              msg: `Failed ${body.method} request after ${i + 1} attempts`,
+              msg: `Failed ${body.method} request after ${i + 1} attempts for ${chain.name} network`,
               error,
             });
             throw error;
@@ -417,7 +421,7 @@ export const createRpc = ({
           const duration = BASE_DURATION * 2 ** i;
           common.logger.debug({
             service: "rpc",
-            msg: `Failed ${body.method} request, retrying after ${duration} milliseconds`,
+            msg: `Failed ${body.method} request for ${chain.name} network, retrying after ${duration} milliseconds`,
             error,
           });
           await wait(duration);

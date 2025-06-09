@@ -20,9 +20,6 @@ export class MetricsService {
   registry: prometheus.Registry;
   start_timestamp: number;
   rps: { [chain: string]: { count: number; timestamp: number }[] };
-  rpc_usage: {
-    [chain: string]: { failedRequests: number; totalRequests: number }[];
-  };
 
   ponder_version_info: prometheus.Gauge<
     "version" | "major" | "minor" | "patch"
@@ -98,7 +95,6 @@ export class MetricsService {
     this.registry = new prometheus.Registry();
     this.start_timestamp = Date.now();
     this.rps = {};
-    this.rpc_usage = {};
 
     this.ponder_version_info = new prometheus.Gauge({
       name: "ponder_version_info",
@@ -431,7 +427,6 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
     progress: number;
     eta: number | undefined;
     rps: number;
-    utilization: number[];
   }[]
 > {
   const syncDurationMetric = await metrics.ponder_historical_duration
@@ -508,17 +503,6 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
     const seconds =
       _length === 1 ? 0.1 : (_lastRps.timestamp - _firstRps.timestamp) / 1_000;
 
-    const rpcUsage = metrics.rpc_usage[chain]!;
-    const totalSuccessfulRequests = rpcUsage.reduce(
-      (acc, cur) => acc + cur.totalRequests - cur.failedRequests,
-      0,
-    );
-    const utilization = rpcUsage.map(({ failedRequests, totalRequests }) => {
-      return totalSuccessfulRequests === 0
-        ? 0
-        : ((totalRequests - failedRequests) * 100) / totalSuccessfulRequests;
-    });
-
     return {
       chainName: chain,
       block: syncBlock,
@@ -526,7 +510,6 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
       status: isComplete ? "complete" : isRealtime ? "realtime" : "historical",
       eta,
       rps: requests / seconds,
-      utilization,
     } as const;
   });
 }

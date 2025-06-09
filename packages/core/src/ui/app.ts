@@ -163,13 +163,6 @@ export const buildUiLines = (ui: UiState): string[] => {
           align: "right",
           format: (_, row) => row.rps.toFixed(1),
         },
-        {
-          title: "RPC (utilization %)",
-          key: "utilization",
-          align: "right",
-          format: (_, row) =>
-            row.utilization.map((v: number) => Math.round(v)).join("|"),
-        },
       ]),
     );
   }
