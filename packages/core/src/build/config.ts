@@ -362,6 +362,7 @@ export async function buildConfigAndIndexingFunctions({
       );
     }
 
+    // TODO: handle Factory[]
     if (
       "address" in source &&
       typeof source.address === "object" &&
@@ -404,6 +405,32 @@ export async function buildConfigAndIndexingFunctions({
       }
     }
   }
+
+  const isFactoryArray = (
+    address:
+      | Address
+      | Factory
+      | readonly Address[]
+      | readonly Factory[]
+      | undefined,
+  ): address is readonly Factory[] => {
+    return (
+      address !== undefined &&
+      Array.isArray(address) &&
+      typeof address[0]! === "object"
+    );
+  };
+
+  const isFactory = (
+    address:
+      | Address
+      | Factory
+      | readonly Address[]
+      | readonly Factory[]
+      | undefined,
+  ): address is Factory => {
+    return typeof address === "object" && !Array.isArray(address);
+  };
 
   const contractSources: ContractSource[] = (
     await Promise.all(
@@ -550,17 +577,15 @@ export async function buildConfigAndIndexingFunctions({
             chain,
           } as const;
 
-          const resolvedAddress =
-            source?.address === undefined
-              ? undefined
-              : Array.isArray(source?.address)
-                ? source?.address
-                : [source?.address];
+          const resolvedAddress = source?.address;
 
-          if (resolvedAddress === undefined) {
-          } else if (typeof resolvedAddress[0] === "object") {
+          // handle Factory | readonly Factory[]
+          if (isFactory(resolvedAddress) || isFactoryArray(resolvedAddress)) {
             const sources: ContractSource[] = [];
-            for (const factory of resolvedAddress as readonly Factory[]) {
+
+            for (const factory of Array.isArray(resolvedAddress)
+              ? resolvedAddress
+              : [resolvedAddress]) {
               const factoryFromBlock =
                 (await resolveBlockNumber(factory.startBlock, chain)) ??
                 fromBlock;
@@ -619,9 +644,12 @@ export async function buildConfigAndIndexingFunctions({
                 } satisfies ContractSource);
               }
             }
+
             return sources;
-          } else {
-            for (const address of resolvedAddress as readonly Address[]) {
+          } else if (resolvedAddress !== undefined) {
+            for (const address of Array.isArray(resolvedAddress)
+              ? resolvedAddress
+              : [resolvedAddress]) {
               if (!address!.startsWith("0x"))
                 throw new Error(
                   `Validation failed: Invalid prefix for address '${address}'. Got '${address!.slice(
@@ -636,11 +664,12 @@ export async function buildConfigAndIndexingFunctions({
             }
           }
 
+          // handle Address | readonly Address[] | undefined
           const validatedAddress = Array.isArray(resolvedAddress)
-            ? resolvedAddress.length === 1
-              ? toLowerCase(resolvedAddress[0] as Address)
-              : dedupe(resolvedAddress).map((r) => toLowerCase(r as Address))
-            : undefined;
+            ? dedupe(resolvedAddress).map((r) => toLowerCase(r))
+            : resolvedAddress !== undefined
+              ? toLowerCase(resolvedAddress)
+              : undefined;
 
           const logSources = topicsArray.map(
             (topics) =>
@@ -721,22 +750,22 @@ export async function buildConfigAndIndexingFunctions({
           const fromBlock = await resolveBlockNumber(source.startBlock, chain);
           const toBlock = await resolveBlockNumber(source.endBlock, chain);
 
-          const resolvedAddress =
-            source?.address === undefined
-              ? undefined
-              : Array.isArray(source?.address)
-                ? source?.address
-                : [source?.address];
+          const resolvedAddress = source?.address;
 
+          // handle undefined
           if (resolvedAddress === undefined) {
             throw new Error(
               `Validation failed: Account '${source.name}' must specify an 'address'.`,
             );
           }
 
-          if (typeof resolvedAddress[0] === "object") {
+          // handle Factory | readonly Factory[]
+          if (isFactory(resolvedAddress) || isFactoryArray(resolvedAddress)) {
             const sources: AccountSource[] = [];
-            for (const factory of resolvedAddress as readonly Factory[]) {
+
+            for (const factory of Array.isArray(resolvedAddress)
+              ? resolvedAddress
+              : [resolvedAddress]) {
               const factoryFromBlock =
                 (await resolveBlockNumber(factory.startBlock, chain)) ??
                 fromBlock;
@@ -828,7 +857,10 @@ export async function buildConfigAndIndexingFunctions({
             return sources;
           }
 
-          for (const address of resolvedAddress as readonly Address[]) {
+          // handle Address | readonly Address[]
+          for (const address of Array.isArray(resolvedAddress)
+            ? resolvedAddress
+            : [resolvedAddress]) {
             if (!address!.startsWith("0x"))
               throw new Error(
                 `Validation failed: Invalid prefix for address '${address}'. Got '${address!.slice(
@@ -842,10 +874,9 @@ export async function buildConfigAndIndexingFunctions({
               );
           }
 
-          const validatedAddress =
-            resolvedAddress.length === 1
-              ? toLowerCase(resolvedAddress[0] as Address)
-              : dedupe(resolvedAddress).map((r) => toLowerCase(r as Address));
+          const validatedAddress = Array.isArray(resolvedAddress)
+            ? dedupe(resolvedAddress).map((r) => toLowerCase(r))
+            : toLowerCase(resolvedAddress);
 
           return [
             {
