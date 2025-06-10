@@ -1,4 +1,4 @@
-import { validateQuery } from "@/client/validate.js";
+import { findTableNames, validateQuery } from "@/client/parse.js";
 import type { Common } from "@/internal/common.js";
 import { RecordNotFoundError } from "@/internal/errors.js";
 import type { Schema, SchemaBuild } from "@/internal/types.js";
@@ -285,18 +285,25 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     sql: drizzle(
       async (_sql, params, method, typings) => {
-        await indexingCache.flush({ client });
-
-        let safeQuery = false;
-
+        let isSelectOnly = false;
         try {
           await validateQuery(_sql, false);
-          safeQuery = true;
+          isSelectOnly = true;
         } catch {}
 
-        if (safeQuery === false) {
+        if (isSelectOnly === false) {
+          await indexingCache.flush({ client });
           indexingCache.invalidate();
           indexingCache.clear();
+        } else {
+          // Note: Not all nodes are implemented in the parser,
+          // so we need to try/catch to avoid throwing an error.
+          let tableNames: Set<string> | undefined;
+          try {
+            tableNames = await findTableNames(_sql);
+          } catch {}
+
+          await indexingCache.flush({ client, tableNames });
         }
 
         const query: QueryWithTypings = { sql: _sql, params, typings };

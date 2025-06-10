@@ -20,6 +20,8 @@ jobs:
           - "reference-erc20"
           - "super-assessment"
           - "uniswap-v4"
+          - "the-compact"
+          - "basepaint"
         iteration: [0, 1, 2, 3, 4]
 
     steps:
