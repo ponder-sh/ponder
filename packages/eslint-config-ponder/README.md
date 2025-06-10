@@ -1,5 +1,22 @@
 # eslint-config-ponder
 
+ESLint config for Ponder apps.
+
+## Requirements
+
+- ESLint v9 or higher
+- Node.js v16.x or higher
+
+## Installation
+
+```bash
+npm install --save-dev eslint-config-ponder typescript-eslint eslint
+```
+
+## Usage
+
+The config is designed to work with ESLint v9's flat config system.
+
 [![CI status][ci-badge]][ci-url]
 [![Version][version-badge]][version-url]
 [![Telegram chat][tg-badge]][tg-url]

@@ -3,10 +3,10 @@
   "version": "0.11.12",
   "description": "ESLint config for Ponder apps",
   "license": "MIT",
-  "main": "./index.js",
+  "main": "./eslint.config.js",
+  "type": "module",
   "peerDependencies": {
-    "@typescript-eslint/eslint-plugin": "^6.3.0",
-    "@typescript-eslint/parser": "^6.3.0",
-    "eslint": ">= 3"
+    "typescript-eslint": "^7.0.0",
+    "eslint": "^9.0.0"
   }
 }
