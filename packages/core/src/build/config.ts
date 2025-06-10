@@ -702,7 +702,11 @@ export async function buildConfigAndIndexingFunctions({
                   type: "trace",
                   chainId: chain.id,
                   fromAddress: undefined,
-                  toAddress: validatedAddress,
+                  toAddress: Array.isArray(validatedAddress)
+                    ? validatedAddress
+                    : validatedAddress === undefined
+                      ? undefined
+                      : [validatedAddress],
                   callType: "CALL",
                   functionSelector: registeredFunctionSelectors,
                   includeReverted: false,
