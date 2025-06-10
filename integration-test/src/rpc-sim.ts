@@ -536,8 +536,9 @@ export const realtimeBlockEngine = async (
       block = result as RpcBlock;
     }
 
-    if (SIM_PARAMS.REALTIME_BLOCK_HAS_TRANSACTIONS === false)
+    if (SIM_PARAMS.REALTIME_BLOCK_HAS_TRANSACTIONS === false) {
       block.transactions = undefined;
+    }
 
     return block;
   };

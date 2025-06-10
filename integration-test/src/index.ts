@@ -112,7 +112,6 @@ export const SIM_PARAMS = {
   // ),
   // REALTIME_SHUTDOWN_RATE: pick([0, 0.001, 0.002], "realtime-shutdown-rate"),
   ORDERING: pick(["multichain", "omnichain"], "ordering"),
-
   REALTIME_BLOCK_HAS_TRANSACTIONS: pick(
     [true, false],
     "realtime-block-has-transactions",

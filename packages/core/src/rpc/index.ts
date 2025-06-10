@@ -43,7 +43,7 @@ export type Rpc = {
     ) => ReturnType<RealtimeSync["sync"]>;
     onError: (error: Error) => void;
   }) => void;
-  unsubscribe: () => void;
+  unsubscribe: () => Promise<void>;
 };
 
 const RETRY_COUNT = 9;
@@ -461,18 +461,23 @@ export const createRpc = ({
   });
 
   let interval: NodeJS.Timeout | undefined;
-  let retryCount = 0;
-  let isClosing = false;
+  let webSocketErrorCount = 0;
+  let isWebSocketClosing = false;
+  const disconnect = async () => {
+    const conn = await wsTransport!.value!.getRpcClient();
+    isWebSocketClosing = true;
+    conn.close();
+  };
 
   const rpc: Rpc = {
     // @ts-ignore
     request: queue.add,
-    subscribe({ onBlock, onError: _onError }) {
+    subscribe({ onBlock, onError }) {
       if (wsTransport === undefined) {
         interval = setInterval(() => {
           _eth_getBlockByNumber(rpc, { blockTag: "latest" })
             .then(onBlock)
-            .catch(_onError);
+            .catch(onError);
         }, chain.pollingInterval);
         common.shutdown.add(() => {
           clearInterval(interval);
@@ -482,104 +487,98 @@ export const createRpc = ({
           .value!.subscribe({
             params: ["newHeads"],
             onData: async (data) => {
-              if (data.result !== undefined) {
-                onBlock(data.result);
-                retryCount = 0;
-              } else if (data.error !== undefined) {
+              if (data.error || data.result === undefined) {
                 const error = data.error as Error;
-                retryCount++;
+                webSocketErrorCount++;
 
-                common.logger.debug({
-                  service: "rpc",
-                  msg: "Received a webSocket subscription data.error.",
-                  error,
-                });
-
-                if (retryCount === RETRY_COUNT) {
+                if (webSocketErrorCount === RETRY_COUNT) {
                   common.logger.warn({
                     service: "rpc",
-                    msg: `Failed new_Heads subscription after ${retryCount + 1} consecutive errors. Switching to polling.`,
+                    msg: `Failed '${chain.name}' eth_subscribe after ${webSocketErrorCount + 1} consecutive errors. Switching to polling.`,
                     error,
                   });
 
-                  const conn = await wsTransport!.value!.getRpcClient();
-                  isClosing = true;
-                  conn.close();
+                  await disconnect();
 
                   wsTransport = undefined;
 
-                  rpc.subscribe({ onBlock, onError: _onError });
+                  rpc.subscribe({ onBlock, onError });
+                } else {
+                  common.logger.debug({
+                    service: "rpc",
+                    msg: `Failed '${chain.name}' eth_subscribe request`,
+                    error,
+                  });
                 }
               }
             },
-            onError: async (err) => {
-              const error = err as Error;
-              if (isClosing) {
-                isClosing = false;
+            onError: async (_error) => {
+              // Note: `disconnect` causes `onError` to be called again.
+              if (isWebSocketClosing) {
+                isWebSocketClosing = false;
                 return;
               }
 
-              retryCount++;
+              const error = _error as Error;
+              webSocketErrorCount += 1;
 
-              if (retryCount === RETRY_COUNT) {
+              if (webSocketErrorCount === RETRY_COUNT) {
                 common.logger.warn({
                   service: "rpc",
-                  msg: `Failed new_Heads subscription after ${retryCount + 1} consecutive errors. Switching to polling.`,
+                  msg: `Failed '${chain.name}' eth_subscribe request after ${webSocketErrorCount + 1} consecutive errors. Switching to polling.`,
                   error,
                 });
 
-                const conn = await wsTransport!.value!.getRpcClient();
-                isClosing = true;
-                conn.close();
+                await disconnect();
 
                 wsTransport = undefined;
               } else {
                 common.logger.debug({
                   service: "rpc",
-                  msg: "Failed new_Heads subscription, retrying subscription request.",
+                  msg: `Failed '${chain.name}' eth_subscribe request`,
                   error,
                 });
 
                 const conn = await wsTransport!.value!.getRpcClient();
-                isClosing = true;
+                isWebSocketClosing = true;
                 conn.close();
               }
 
-              rpc.subscribe({ onBlock, onError: _onError });
+              rpc.subscribe({ onBlock, onError });
             },
           })
           .then(() => {
-            retryCount = 0;
+            webSocketErrorCount = 0;
           })
           .catch(async (err) => {
             const error = err as Error;
-            retryCount++;
+            webSocketErrorCount += 1;
 
-            if (retryCount === RETRY_COUNT) {
+            if (webSocketErrorCount === RETRY_COUNT) {
               common.logger.warn({
                 service: "rpc",
-                msg: `Failed new_Heads subscription request after ${retryCount + 1} attempts. Switching to polling.`,
+                msg: `Failed '${chain.name}' eth_subscribe after ${webSocketErrorCount + 1} consecutive errors. Switching to polling.`,
                 error,
               });
               wsTransport = undefined;
             } else {
-              const duration = BASE_DURATION * 2 ** retryCount;
+              const duration = BASE_DURATION * 2 ** webSocketErrorCount;
               common.logger.debug({
                 service: "rpc",
-                msg: `Failed new_Heads subscription request, retrying after ${duration} milliseconds.`,
+                msg: `Failed '${chain.name}' eth_subscribe request, retrying after ${duration} milliseconds.`,
                 error,
               });
               await wait(duration);
             }
 
-            rpc.subscribe({ onBlock, onError: _onError });
+            rpc.subscribe({ onBlock, onError });
           });
       }
     },
-    unsubscribe() {
+    async unsubscribe() {
       clearInterval(interval);
       if (wsTransport) {
-        wsTransport.value!.getRpcClient().then((r) => r.close());
+        await disconnect();
       }
     },
   };

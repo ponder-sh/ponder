@@ -9,7 +9,7 @@ import type {
   TransactionReceipt,
   Transfer,
 } from "@/types/eth.js";
-import type { MakeOptional, Prettify } from "@/types/utils.js";
+import type { Prettify } from "@/types/utils.js";
 import type { Trace as DebugTrace } from "@/utils/debug.js";
 import type { PGliteOptions } from "@/utils/pglite.js";
 import type { PGlite } from "@electric-sql/pglite";
@@ -399,21 +399,8 @@ export type LightBlock = Pick<
   "hash" | "parentHash" | "number" | "timestamp"
 >;
 
-export type SyncBlockHeader = Prettify<
-  MakeOptional<
-    RpcBlock<Exclude<BlockTag, "pending">, false>,
-    "size" | "transactions"
-  >
->;
-
-export const isSyncBlock = (
-  block: SyncBlock | SyncBlockHeader,
-): block is SyncBlock => {
-  return (
-    block.transactions !== undefined &&
-    (block.transactions.length === 0 ||
-      typeof block.transactions[0] !== "string")
-  );
+export type SyncBlockHeader = Omit<SyncBlock, "transactions"> & {
+  transactions: string[] | undefined;
 };
 
 export type InternalBlock = Block;

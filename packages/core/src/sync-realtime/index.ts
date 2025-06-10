@@ -1,23 +1,22 @@
 import type { Common } from "@/internal/common.js";
 import { ShutdownError } from "@/internal/errors.js";
-import {
-  type BlockFilter,
-  type Chain,
-  type Factory,
-  type Filter,
-  type LightBlock,
-  type LogFilter,
-  type Source,
-  type SyncBlock,
-  type SyncBlockHeader,
-  type SyncLog,
-  type SyncTrace,
-  type SyncTransaction,
-  type SyncTransactionReceipt,
-  type TraceFilter,
-  type TransactionFilter,
-  type TransferFilter,
-  isSyncBlock,
+import type {
+  BlockFilter,
+  Chain,
+  Factory,
+  Filter,
+  LightBlock,
+  LogFilter,
+  Source,
+  SyncBlock,
+  SyncBlockHeader,
+  SyncLog,
+  SyncTrace,
+  SyncTransaction,
+  SyncTransactionReceipt,
+  TraceFilter,
+  TransactionFilter,
+  TransferFilter,
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
 import {
@@ -117,6 +116,18 @@ type CreateRealtimeSyncParameters = {
    */
   onEvent: (event: RealtimeSyncEvent) => Promise<{ promise: Promise<void> }>;
   onFatalError: (error: Error) => void;
+};
+
+const isSyncBlock = (
+  block: SyncBlock | SyncBlockHeader,
+): block is SyncBlock => {
+  if (block.transactions === undefined) {
+    return false;
+  }
+
+  return (
+    block.transactions.length === 0 || typeof block.transactions[0] === "object"
+  );
 };
 
 const MAX_LATEST_BLOCK_ATTEMPT_MS = 3 * 60 * 1000; // 3 minutes
@@ -271,7 +282,6 @@ export const createRealtimeSync = (
     let block: SyncBlock | undefined;
 
     if (isSyncBlock(maybeBlockHeader)) {
-      validateTransactionsAndBlock(maybeBlockHeader);
       block = maybeBlockHeader;
     }
 
@@ -290,12 +300,7 @@ export const createRealtimeSync = (
     if (shouldRequestLogs) {
       if (block === undefined) {
         [block, logs] = await Promise.all([
-          _eth_getBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }).then(
-            (block) => {
-              validateTransactionsAndBlock(block);
-              return block;
-            },
-          ),
+          _eth_getBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
           _eth_getLogs(args.rpc, { blockHash: maybeBlockHeader.hash }),
         ]);
       } else {
@@ -379,12 +384,7 @@ export const createRealtimeSync = (
     if (shouldRequestTraces) {
       if (block === undefined) {
         [block, traces] = await Promise.all([
-          _eth_getBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }).then(
-            (block) => {
-              validateTransactionsAndBlock(block);
-              return block;
-            },
-          ),
+          _eth_getBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
           _debug_traceBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
         ]);
       } else {
@@ -497,9 +497,8 @@ export const createRealtimeSync = (
       block = await _eth_getBlockByHash(args.rpc, {
         hash: maybeBlockHeader.hash,
       });
-
-      validateTransactionsAndBlock(block);
     }
+    validateTransactionsAndBlock(block);
 
     const transactions = block.transactions.filter((transaction) => {
       let isMatched = requiredTransactions.has(transaction.hash);
