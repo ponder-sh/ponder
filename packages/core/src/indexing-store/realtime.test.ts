@@ -5,6 +5,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { json } from "@/drizzle/json.js";
 import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
 import {
   BigIntSerializationError,
@@ -713,7 +714,7 @@ test("enum", async (context) => {
   // TODO(kyle) error
 });
 
-test.skip("json bigint", async (context) => {
+test("json bigint", async (context) => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
