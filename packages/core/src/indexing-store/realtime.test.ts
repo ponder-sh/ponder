@@ -5,7 +5,6 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { json } from "@/drizzle/json.js";
 import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
 import {
   BigIntSerializationError,

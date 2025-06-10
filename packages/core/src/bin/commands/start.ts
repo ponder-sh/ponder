@@ -105,7 +105,7 @@ export async function start({
   }
 
   const buildResult1 = mergeResults([
-    build.preCompile(configResult.result),
+    await build.preCompile(configResult.result),
     build.compileSchema(schemaResult.result),
   ]);
 
