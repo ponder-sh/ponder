@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.13
+
+### Patch Changes
+
+- [#1813](https://github.com/ponder-sh/ponder/pull/1813) [`695e429`](https://github.com/ponder-sh/ponder/commit/695e42935cdd18b3d70424e0b74e79bbeec47983) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed bug with `ponder db create-views` introduced in `v0.11.3` causing errors similar to ` syntax error at or near ""[table_name]""`.
+
 ## 0.11.12
 
 ### Patch Changes
