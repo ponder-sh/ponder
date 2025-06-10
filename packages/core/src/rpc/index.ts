@@ -454,6 +454,7 @@ export const createRpc = ({
 
   let interval: NodeJS.Timeout | undefined;
   let retryCount = 0;
+  let isClosing = false;
 
   const rpc: Rpc = {
     // @ts-ignore
@@ -492,9 +493,11 @@ export const createRpc = ({
                     msg: `Failed new_Heads subscription after ${retryCount + 1} consecutive errors. Switching to polling.`,
                     error,
                   });
-                  await wsTransport!
-                    .value!.getRpcClient()
-                    .then((r) => r.close());
+
+                  const conn = await wsTransport!.value!.getRpcClient();
+                  isClosing = true;
+                  conn.close();
+
                   wsTransport = undefined;
 
                   rpc.subscribe({ onBlock, onError: _onError });
@@ -503,6 +506,11 @@ export const createRpc = ({
             },
             onError: async (err) => {
               const error = err as Error;
+              if (isClosing) {
+                isClosing = false;
+                return;
+              }
+
               retryCount++;
 
               if (retryCount === RETRY_COUNT) {
@@ -511,7 +519,11 @@ export const createRpc = ({
                   msg: `Failed new_Heads subscription after ${retryCount + 1} consecutive errors. Switching to polling.`,
                   error,
                 });
-                await wsTransport!.value!.getRpcClient().then((r) => r.close());
+
+                const conn = await wsTransport!.value!.getRpcClient();
+                isClosing = true;
+                conn.close();
+
                 wsTransport = undefined;
               } else {
                 common.logger.debug({
@@ -519,7 +531,10 @@ export const createRpc = ({
                   msg: "Failed new_Heads subscription, retrying subscription request.",
                   error,
                 });
-                await wsTransport!.value!.getRpcClient().then((r) => r.close());
+
+                const conn = await wsTransport!.value!.getRpcClient();
+                isClosing = true;
+                conn.close();
               }
 
               rpc.subscribe({ onBlock, onError: _onError });
