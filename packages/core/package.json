@@ -13,7 +13,6 @@
     "dist",
     "src/**/*.ts",
     "!src/_test/**/*",
-    "!migrations/**/*",
     "!**/*.test.ts",
     "!**/*.test-d.ts",
     "!**/*.tsbuildinfo",
