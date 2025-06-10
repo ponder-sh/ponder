@@ -72,6 +72,8 @@ export async function createViews({
     return;
   }
 
+  console.log(cliOptions);
+
   const database = await createDatabase({
     common,
     // Note: `namespace` is not used in this command
