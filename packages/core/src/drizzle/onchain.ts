@@ -26,6 +26,7 @@ import {
 import { PgBigintBuilder, type PgBigintBuilderInitial } from "./bigint.js";
 import { PgBytesBuilder, type PgBytesBuilderInitial } from "./bytes.js";
 import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
+import { json, jsonb } from "./json.js";
 import { PgTextBuilder, type PgTextBuilderInitial } from "./text.js";
 
 /** @internal */
@@ -121,7 +122,7 @@ export type BuildExtraConfigColumns<
 
 export type PgColumnsBuilders = Omit<
   _PgColumnsBuilders,
-  "bigint" | "serial" | "smallserial" | "bigserial"
+  "bigint" | "serial" | "smallserial" | "bigserial" | "json" | "jsonb"
 > & {
   /**
    * Create an 8 byte number column.
@@ -166,6 +167,8 @@ export type PgColumnsBuilders = Omit<
    * }));
    */
   bytes: typeof bytes;
+  json: typeof json;
+  jsonb: typeof jsonb;
 };
 
 /**
@@ -273,7 +276,7 @@ function pgTableWithSchema<
 
   const parsedColumns: columns =
     typeof columns === "function"
-      ? columns({ ...restColumns, int8, hex, bigint, bytes, text })
+      ? columns({ ...restColumns, int8, hex, bigint, bytes, text, json, jsonb })
       : columns;
 
   const builtColumns = Object.fromEntries(
