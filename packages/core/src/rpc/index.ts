@@ -56,7 +56,7 @@ const LATENCY_WINDOW_SIZE = 500;
 const LATENCY_HURDLE_RATE = 0.1;
 /** Exploration rate. */
 const EPSILON = 0.1;
-const INITIAL_MAX_RPS = 50;
+const INITIAL_MAX_RPS = 20;
 const MIN_RPS = 1;
 const MAX_RPS = 500;
 const RPS_INCREASE_FACTOR = 1.2;
@@ -181,9 +181,6 @@ export const createRpc = ({
   concurrency = 25,
 }: { common: Common; chain: Chain; concurrency?: number }): Rpc => {
   let request: EIP1193RequestFn[];
-  common.metrics.rpc_usage[chain.name] = Array.from({
-    length: Array.isArray(chain.rpc) ? chain.rpc.length : 1,
-  }).map(() => ({ failedRequests: 0, totalRequests: 0 }));
 
   if (typeof chain.rpc === "string") {
     const protocol = new url.URL(chain.rpc).protocol;
@@ -278,31 +275,33 @@ export const createRpc = ({
       }) satisfies Bucket,
   );
 
+  /** Tracks all active bucket reactivation timeouts to cleanup during shutdown */
+  const timeouts = new Set<NodeJS.Timeout>();
+
   const scheduleBucketActivation = (bucket: Bucket) => {
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       bucket.isActive = true;
       bucket.isWarmingUp = true;
+      timeouts.delete(timeoutId);
+      common.logger.debug({
+        service: "rpc",
+        msg: `RPC bucket ${bucket.index} reactivated for chain '${chain.name}' after ${Math.round(bucket.reactivationDelay)}ms`,
+      });
     }, bucket.reactivationDelay);
+
+    common.logger.debug({
+      service: "rpc",
+      msg: `RPC bucket '${chain.name}' ${bucket.index} deactivated for chain '${chain.name}'. Reactivation scheduled in ${Math.round(bucket.reactivationDelay)}ms`,
+    });
+
+    timeouts.add(timeoutId);
   };
 
   const getBucket = async (): Promise<Bucket> => {
     const availableBuckets = buckets.filter((b) => isAvailable(b));
 
     if (availableBuckets.length === 0) {
-      const rpsSafePromise = new Promise<void>((resolve) => {
-        const checkRPSSafe = () => {
-          const availableBucket = buckets.find((b) => isAvailable(b));
-          if (availableBucket) {
-            resolve();
-          } else {
-            setTimeout(checkRPSSafe, 5);
-          }
-        };
-        checkRPSSafe();
-      });
-
-      await rpsSafePromise;
-
+      await wait(10);
       return getBucket();
     }
 
@@ -349,24 +348,29 @@ export const createRpc = ({
         try {
           common.logger.trace({
             service: "rpc",
-            msg: `Sent ${body.method} request (params=${JSON.stringify(body.params)})`,
+            msg: `Sent '${chain.name}' ${body.method} request (params=${JSON.stringify(body.params)})`,
           });
 
           addRequestTimestamp(bucket);
-          common.metrics.rpc_usage[chain.name]![bucket.index]!.totalRequests++;
+
           const response = await bucket.request(body);
-          // TODO(kyle) can response be undefined
+
+          if (response === undefined) {
+            throw new Error("Response is undefined");
+          }
+
+          const duration = stopClock();
 
           common.logger.trace({
             service: "rpc",
-            msg: `Received ${body.method} response (duration=${stopClock()}, params=${JSON.stringify(body.params)})`,
+            msg: `Received '${chain.name}' ${body.method} response (duration=${duration}, params=${JSON.stringify(body.params)})`,
           });
           common.metrics.ponder_rpc_request_duration.observe(
             { method: body.method, chain: chain.name },
-            stopClock(),
+            duration,
           );
 
-          addLatency(bucket, stopClock(), true);
+          addLatency(bucket, duration, true);
 
           bucket.consecutiveSuccessfulRequests++;
           increaseMaxRPS(bucket);
@@ -377,7 +381,11 @@ export const createRpc = ({
           return response as RequestReturnType<typeof body.method>;
         } catch (e) {
           const error = e as Error;
-          common.metrics.rpc_usage[chain.name]![bucket.index]!.failedRequests++;
+
+          common.metrics.ponder_rpc_request_error_total.inc(
+            { method: body.method, chain: chain.name },
+            1,
+          );
 
           if (
             body.method === "eth_getLogs" &&
@@ -422,7 +430,7 @@ export const createRpc = ({
           if (shouldRetry(error) === false) {
             common.logger.warn({
               service: "rpc",
-              msg: `Failed ${body.method} request`,
+              msg: `Failed '${chain.name}' ${body.method} request`,
             });
             throw error;
           }
@@ -430,7 +438,7 @@ export const createRpc = ({
           if (i === RETRY_COUNT) {
             common.logger.warn({
               service: "rpc",
-              msg: `Failed ${body.method} request after ${i + 1} attempts`,
+              msg: `Failed '${chain.name}' ${body.method} request after ${i + 1} attempts`,
               error,
             });
             throw error;
@@ -439,7 +447,7 @@ export const createRpc = ({
           const duration = BASE_DURATION * 2 ** i;
           common.logger.debug({
             service: "rpc",
-            msg: `Failed ${body.method} request, retrying after ${duration} milliseconds`,
+            msg: `Failed '${chain.name}' ${body.method} request, retrying after ${duration} milliseconds`,
             error,
           });
           await wait(duration);
@@ -575,6 +583,13 @@ export const createRpc = ({
       }
     },
   };
+
+  common.shutdown.add(() => {
+    for (const timeoutId of timeouts) {
+      clearTimeout(timeoutId);
+    }
+    timeouts.clear();
+  });
 
   return rpc;
 };

@@ -20,9 +20,6 @@ export class MetricsService {
   registry: prometheus.Registry;
   start_timestamp: number;
   rps: { [chain: string]: { count: number; timestamp: number }[] };
-  rpc_usage: {
-    [chain: string]: { failedRequests: number; totalRequests: number }[];
-  };
 
   ponder_version_info: prometheus.Gauge<
     "version" | "major" | "minor" | "patch"
@@ -88,7 +85,7 @@ export class MetricsService {
   >;
 
   ponder_rpc_request_duration: prometheus.Histogram<"chain" | "method">;
-  ponder_rpc_request_lag: prometheus.Histogram<"chain" | "method">;
+  ponder_rpc_request_error_total: prometheus.Counter<"chain" | "method">;
 
   ponder_postgres_query_total: prometheus.Counter<"pool">;
   ponder_postgres_query_queue_size: prometheus.Gauge<"pool"> = null!;
@@ -98,7 +95,6 @@ export class MetricsService {
     this.registry = new prometheus.Registry();
     this.start_timestamp = Date.now();
     this.rps = {};
-    this.rpc_usage = {};
 
     this.ponder_version_info = new prometheus.Gauge({
       name: "ponder_version_info",
@@ -345,16 +341,16 @@ export class MetricsService {
 
     this.ponder_rpc_request_duration = new prometheus.Histogram({
       name: "ponder_rpc_request_duration",
-      help: "Duration of RPC requests",
+      help: "Duration of successful RPC requests",
       labelNames: ["chain", "method"] as const,
       buckets: httpRequestDurationMs,
       registers: [this.registry],
     });
-    this.ponder_rpc_request_lag = new prometheus.Histogram({
-      name: "ponder_rpc_request_lag",
-      help: "Time RPC requests spend waiting in the request queue",
+
+    this.ponder_rpc_request_error_total = new prometheus.Counter({
+      name: "ponder_rpc_request_error_total",
+      help: "Total count of failed RPC requests",
       labelNames: ["chain", "method"] as const,
-      buckets: databaseQueryDurationMs,
       registers: [this.registry],
     });
 
@@ -399,7 +395,7 @@ export class MetricsService {
     this.ponder_historical_completed_blocks.reset();
     this.ponder_realtime_reorg_total.reset();
     this.ponder_rpc_request_duration.reset();
-    this.ponder_rpc_request_lag.reset();
+    this.ponder_rpc_request_error_total.reset();
 
     // Note: These are used by both indexing and API services.
     this.ponder_database_method_duration.reset();
@@ -431,7 +427,6 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
     progress: number;
     eta: number | undefined;
     rps: number;
-    utilization: number[];
   }[]
 > {
   const syncDurationMetric = await metrics.ponder_historical_duration
@@ -508,17 +503,6 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
     const seconds =
       _length === 1 ? 0.1 : (_lastRps.timestamp - _firstRps.timestamp) / 1_000;
 
-    const rpcUsage = metrics.rpc_usage[chain]!;
-    const totalSuccessfulRequests = rpcUsage.reduce(
-      (acc, cur) => acc + cur.totalRequests - cur.failedRequests,
-      0,
-    );
-    const utilization = rpcUsage.map(({ failedRequests, totalRequests }) => {
-      return totalSuccessfulRequests === 0
-        ? 0
-        : ((totalRequests - failedRequests) * 100) / totalSuccessfulRequests;
-    });
-
     return {
       chainName: chain,
       block: syncBlock,
@@ -526,7 +510,6 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
       status: isComplete ? "complete" : isRealtime ? "realtime" : "historical",
       eta,
       rps: requests / seconds,
-      utilization,
     } as const;
   });
 }

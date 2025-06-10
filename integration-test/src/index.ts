@@ -54,6 +54,9 @@ import { metadata } from "../schema.js";
 import { type RpcBlockHeader, realtimeBlockEngine, sim } from "./rpc-sim.js";
 import { getJoinConditions } from "./sql.js";
 
+// Large apps that shouldn't be synced, use cached data instead
+const CACHED_APPS = ["the-compact", "basepaint"];
+
 // inputs
 
 const DATABASE_URL = process.env.DATABASE_URL!;
@@ -76,11 +79,9 @@ export const pick = <T>(possibilities: T[] | readonly T[], tag: string): T => {
 
 export const SIM_PARAMS = {
   ERROR_RATE: pick([0, 0.02, 0.05, 0.1, 0.2], "error-rate"),
-  INTERVAL_CHUNKS: 8,
-  INTERVAL_EVICT_RATE: pick(
-    [0, 0, 0, 0, 0, 0.25, 0.5, 0.75, 1],
-    "interval-evict-rate",
-  ),
+  MAX_UNCACHED_BLOCKS: CACHED_APPS.includes(APP_ID)
+    ? 0
+    : pick([0, 0, 0, 100, 1000], "max-uncached-blocks"),
   SUPER_ASSESSMENT_FILTER_RATE: pick(
     [0, 0.25, 0.5],
     "super-assessment-filter-rate",
@@ -100,10 +101,7 @@ export const SIM_PARAMS = {
     "realtime-fast-forward-rate",
   ),
   REALTIME_DELAY_RATE: pick([0, 0.4, 0.8], "realtime-delay-rate"),
-  FINALIZED_RATE: pick(
-    [-0.01, 0, 0.95, 0.96, 0.97, 0.98, 0.99, 1],
-    "finalized-rate",
-  ),
+  UNFINALIZED_BLOCKS: pick([0, 0, 100, 100, 1000, 1100], "unfinalized-blocks"),
   // SHUTDOWN_TIMER: pick(
   //   [
   //     undefined,
@@ -843,29 +841,40 @@ const onBuild = async (app: PonderApp) => {
 
   // remove uncached data
 
-  for (const interval of await appDb.select().from(PONDER_SYNC.intervals)) {
-    const intervals: [number, number][] = JSON.parse(
-      `[${interval.blocks.slice(1, -1)}]`,
-    );
-
-    const chunks: [number, number][] = [];
-    for (const interval of intervals) {
-      chunks.push(
-        ...getChunks({
-          interval: [interval[0], interval[1] - 1],
-          maxChunkSize: Math.floor(
-            (interval[1] - interval[0]) / SIM_PARAMS.INTERVAL_CHUNKS,
-          ),
-        }),
+  if (SIM_PARAMS.MAX_UNCACHED_BLOCKS > 0) {
+    for (const interval of await appDb.select().from(PONDER_SYNC.intervals)) {
+      const intervals: [number, number][] = JSON.parse(
+        `[${interval.blocks.slice(1, -1)}]`,
       );
-    }
 
-    const resultIntervals: [number, number][] = [];
-    const random = seedrandom(SEED! + interval.fragmentId);
-    for (const chunk of chunks) {
-      if (random() > SIM_PARAMS.INTERVAL_EVICT_RATE) {
-        resultIntervals.push(chunk);
+      let resultIntervals: [number, number][] = [];
+      for (const interval of intervals) {
+        resultIntervals.push(
+          ...getChunks({
+            interval: [interval[0], interval[1] - 1],
+            maxChunkSize: Math.floor(SIM_PARAMS.MAX_UNCACHED_BLOCKS / 2),
+          }),
+        );
+      }
 
+      const removedInterval1 = pick(
+        resultIntervals,
+        `removed_interval_1_${interval.fragmentId}`,
+      );
+      resultIntervals = resultIntervals.filter(
+        (interval) => interval !== removedInterval1,
+      );
+      const removedInterval2 = pick(
+        resultIntervals,
+        `removed_interval_2_${interval.fragmentId}`,
+      );
+      resultIntervals = resultIntervals.filter(
+        (interval) => interval !== removedInterval2,
+      );
+
+      resultIntervals = intervalUnion(resultIntervals);
+
+      for (const blocks of resultIntervals) {
         const fragment = decodeFragment(interval.fragmentId);
         switch (fragment.type) {
           case "block": {
@@ -873,8 +882,8 @@ const onBuild = async (app: PonderApp) => {
               and(
                 eq(PONDER_SYNC.blocks.chainId, BigInt(fragment.chainId)),
                 sql`(blocks.number - ${fragment.offset}) % ${fragment.interval} = 0`,
-                gte(PONDER_SYNC.blocks.number, BigInt(chunk[0])),
-                lte(PONDER_SYNC.blocks.number, BigInt(chunk[1])),
+                gte(PONDER_SYNC.blocks.number, BigInt(blocks[0])),
+                lte(PONDER_SYNC.blocks.number, BigInt(blocks[1])),
               )!,
             );
 
@@ -893,8 +902,8 @@ const onBuild = async (app: PonderApp) => {
                 PONDER_SYNC.transactions,
                 "to",
               ),
-              gte(PONDER_SYNC.transactions.blockNumber, BigInt(chunk[0])),
-              lte(PONDER_SYNC.transactions.blockNumber, BigInt(chunk[1])),
+              gte(PONDER_SYNC.transactions.blockNumber, BigInt(blocks[0])),
+              lte(PONDER_SYNC.transactions.blockNumber, BigInt(blocks[1])),
             )!;
 
             blockConditions.push(
@@ -949,8 +958,8 @@ const onBuild = async (app: PonderApp) => {
                     fragment.functionSelector,
                   )
                 : undefined,
-              gte(PONDER_SYNC.traces.blockNumber, BigInt(chunk[0])),
-              lte(PONDER_SYNC.traces.blockNumber, BigInt(chunk[1])),
+              gte(PONDER_SYNC.traces.blockNumber, BigInt(blocks[0])),
+              lte(PONDER_SYNC.traces.blockNumber, BigInt(blocks[1])),
             )!;
 
             blockConditions.push(
@@ -1024,8 +1033,8 @@ const onBuild = async (app: PonderApp) => {
               fragment.topic3
                 ? eq(PONDER_SYNC.logs.topic3, fragment.topic3)
                 : undefined,
-              gte(PONDER_SYNC.logs.blockNumber, BigInt(chunk[0])),
-              lte(PONDER_SYNC.logs.blockNumber, BigInt(chunk[1])),
+              gte(PONDER_SYNC.logs.blockNumber, BigInt(blocks[0])),
+              lte(PONDER_SYNC.logs.blockNumber, BigInt(blocks[1])),
             )!;
 
             blockConditions.push(
@@ -1089,8 +1098,8 @@ const onBuild = async (app: PonderApp) => {
                 "from",
               ),
               getAddressCondition(fragment.toAddress, PONDER_SYNC.traces, "to"),
-              gte(PONDER_SYNC.traces.blockNumber, BigInt(chunk[0])),
-              lte(PONDER_SYNC.traces.blockNumber, BigInt(chunk[1])),
+              gte(PONDER_SYNC.traces.blockNumber, BigInt(blocks[0])),
+              lte(PONDER_SYNC.traces.blockNumber, BigInt(blocks[1])),
             )!;
 
             blockConditions.push(
@@ -1146,62 +1155,66 @@ const onBuild = async (app: PonderApp) => {
           }
         }
       }
+
+      if (resultIntervals.length === 0) {
+        await appDb
+          .delete(PONDER_SYNC.intervals)
+          .where(eq(PONDER_SYNC.intervals.fragmentId, interval.fragmentId));
+      } else {
+        const numranges = resultIntervals
+          .map((interval) => {
+            const start = interval[0];
+            const end = interval[1] + 1;
+            return `numrange(${start}, ${end}, '[]')`;
+          })
+          .join(", ");
+        await appDb
+          .update(PONDER_SYNC.intervals)
+          .set({ blocks: sql.raw(`nummultirange(${numranges})`) })
+          .where(eq(PONDER_SYNC.intervals.fragmentId, interval.fragmentId));
+      }
     }
 
-    if (resultIntervals.length === 0) {
+    if (blockConditions.length > 0) {
       await appDb
-        .delete(PONDER_SYNC.intervals)
-        .where(eq(PONDER_SYNC.intervals.fragmentId, interval.fragmentId));
+        .delete(PONDER_SYNC.blocks)
+        .where(not(or(...blockConditions)!));
     } else {
-      const numranges = resultIntervals
-        .map((interval) => {
-          const start = interval[0];
-          const end = interval[1] + 1;
-          return `numrange(${start}, ${end}, '[]')`;
-        })
-        .join(", ");
-      await appDb
-        .update(PONDER_SYNC.intervals)
-        .set({ blocks: sql.raw(`nummultirange(${numranges})`) })
-        .where(eq(PONDER_SYNC.intervals.fragmentId, interval.fragmentId));
+      await appDb.delete(PONDER_SYNC.blocks);
     }
-  }
 
-  if (blockConditions.length > 0) {
-    await appDb.delete(PONDER_SYNC.blocks).where(not(or(...blockConditions)!));
-  } else {
-    await appDb.delete(PONDER_SYNC.blocks);
-  }
+    if (transactionConditions.length > 0) {
+      await appDb
+        .delete(PONDER_SYNC.transactions)
+        .where(not(or(...transactionConditions)!));
+    } else {
+      await appDb.delete(PONDER_SYNC.transactions);
+    }
 
-  if (transactionConditions.length > 0) {
-    await appDb
-      .delete(PONDER_SYNC.transactions)
-      .where(not(or(...transactionConditions)!));
-  } else {
-    await appDb.delete(PONDER_SYNC.transactions);
-  }
+    if (transactionReceiptConditions.length > 0) {
+      await appDb
+        .delete(PONDER_SYNC.transactionReceipts)
+        .where(not(or(...transactionReceiptConditions)!));
+    } else {
+      await appDb.delete(PONDER_SYNC.transactionReceipts);
+    }
 
-  if (transactionReceiptConditions.length > 0) {
-    await appDb
-      .delete(PONDER_SYNC.transactionReceipts)
-      .where(not(or(...transactionReceiptConditions)!));
-  } else {
-    await appDb.delete(PONDER_SYNC.transactionReceipts);
-  }
+    if (traceConditions.length > 0) {
+      await appDb
+        .delete(PONDER_SYNC.traces)
+        .where(not(or(...traceConditions)!));
+    } else {
+      await appDb.delete(PONDER_SYNC.traces);
+    }
 
-  if (traceConditions.length > 0) {
-    await appDb.delete(PONDER_SYNC.traces).where(not(or(...traceConditions)!));
-  } else {
-    await appDb.delete(PONDER_SYNC.traces);
-  }
+    if (logConditions.length > 0) {
+      await appDb.delete(PONDER_SYNC.logs).where(not(or(...logConditions)!));
+    } else {
+      await appDb.delete(PONDER_SYNC.logs);
+    }
 
-  if (logConditions.length > 0) {
-    await appDb.delete(PONDER_SYNC.logs).where(not(or(...logConditions)!));
-  } else {
-    await appDb.delete(PONDER_SYNC.logs);
+    // TODO(kyle) delete factories
   }
-
-  // TODO(kyle) delete factories
 
   const chains: Parameters<typeof realtimeBlockEngine>[0] = new Map();
   for (let i = 0; i < app.indexingBuild.chains.length; i++) {
@@ -1214,13 +1227,11 @@ const onBuild = async (app: PonderApp) => {
         .map(({ filter }) => [filter.fromBlock, filter.toBlock]!),
     );
 
-    const start = intervals[intervals.length - 1]![0];
     const end = intervals[intervals.length - 1]![1];
 
-    if (SIM_PARAMS.FINALIZED_RATE !== 1) {
+    if (SIM_PARAMS.UNFINALIZED_BLOCKS !== 0) {
       app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(rpc, {
-        blockNumber:
-          start + Math.floor((end - start) * SIM_PARAMS.FINALIZED_RATE),
+        blockNumber: end - SIM_PARAMS.UNFINALIZED_BLOCKS,
       });
     }
 
@@ -1363,7 +1374,7 @@ export const restart = async () => {
 //   await restart();
 // }
 
-if (SIM_PARAMS.FINALIZED_RATE === 1) {
+if (SIM_PARAMS.UNFINALIZED_BLOCKS === 0) {
   while (true) {
     try {
       const result = await fetch("http://localhost:42069/ready");

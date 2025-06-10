@@ -23,6 +23,7 @@ import {
   ZERO_CHECKPOINT,
   encodeCheckpoint,
 } from "@/utils/checkpoint.js";
+import { decodeAbiParameters } from "@/utils/decodeAbiParameters.js";
 import { never } from "@/utils/never.js";
 import type { AbiEvent, AbiParameter } from "abitype";
 import {
@@ -31,7 +32,6 @@ import {
   DecodeLogTopicsMismatch,
   type Hex,
   checksumAddress,
-  decodeAbiParameters,
   decodeFunctionData,
   decodeFunctionResult,
   hexToBigInt,

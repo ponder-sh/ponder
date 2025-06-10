@@ -42,10 +42,14 @@ import {
   _eth_getBlockReceipts,
   _eth_getLogs,
   _eth_getTransactionReceipt,
+  validateLogsAndBlock,
+  validateReceiptsAndBlock,
+  validateTracesAndBlock,
+  validateTransactionsAndBlock,
 } from "@/utils/rpc.js";
 import { wait } from "@/utils/wait.js";
 import { type Address, type Hash, hexToNumber, zeroHash } from "viem";
-import { isFilterInBloom, zeroLogsBloom } from "./bloom.js";
+import { isFilterInBloom, isInBloom, zeroLogsBloom } from "./bloom.js";
 
 export type RealtimeSync = {
   /**
@@ -197,7 +201,7 @@ export const createRealtimeSync = (
   }
 
   const syncTransactionReceipts = async (
-    blockHash: Hash,
+    block: SyncBlock,
     transactionHashes: Set<Hash>,
   ): Promise<SyncTransactionReceipt[]> => {
     if (transactionHashes.size === 0) {
@@ -211,13 +215,19 @@ export const createRealtimeSync = (
         ),
       );
 
+      validateReceiptsAndBlock(
+        transactionReceipts,
+        block,
+        "eth_getTransactionReceipt",
+      );
+
       return transactionReceipts;
     }
 
     let blockReceipts: SyncTransactionReceipt[];
     try {
       blockReceipts = await _eth_getBlockReceipts(args.rpc, {
-        blockHash,
+        blockHash: block.hash,
       });
     } catch (_error) {
       const error = _error as Error;
@@ -230,20 +240,11 @@ export const createRealtimeSync = (
       });
 
       isBlockReceipts = false;
-      return syncTransactionReceipts(blockHash, transactionHashes);
+      return syncTransactionReceipts(block, transactionHashes);
     }
 
-    const blockReceiptsTransactionHashes = new Set(
-      blockReceipts.map((r) => r.transactionHash),
-    );
-    // Validate that block transaction receipts include all required transactions
-    for (const hash of Array.from(transactionHashes)) {
-      if (blockReceiptsTransactionHashes.has(hash) === false) {
-        throw new Error(
-          `Detected inconsistent RPC responses. 'transaction.hash' ${hash} not found in eth_getBlockReceipts response for block '${blockHash}'`,
-        );
-      }
-    }
+    validateReceiptsAndBlock(blockReceipts, block, "eth_getBlockReceipts");
+
     const transactionReceipts = blockReceipts.filter((receipt) =>
       transactionHashes.has(receipt.transactionHash),
     );
@@ -270,6 +271,7 @@ export const createRealtimeSync = (
     let block: SyncBlock | undefined;
 
     if (isSyncBlock(maybeBlockHeader)) {
+      validateTransactionsAndBlock(maybeBlockHeader);
       block = maybeBlockHeader;
     }
 
@@ -295,51 +297,58 @@ export const createRealtimeSync = (
         logs = await _eth_getLogs(args.rpc, { blockHash: block.hash });
       }
 
-      // Protect against RPCs returning empty logs. Known to happen near chain tip.
-      if (block.logsBloom !== zeroLogsBloom && logs.length === 0) {
-        throw new Error(
-          "Detected invalid eth_getLogs response. `block.logsBloom` is not empty but zero logs were returned.",
-        );
+      validateLogsAndBlock(logs, block);
+
+      // Note: Exact `logsBloom` validations were considered too strict to add to `validateLogsAndBlock`.
+      let isInvalidLogsBloom = false;
+      for (const log of logs) {
+        if (isInBloom(block.logsBloom, log.address) === false) {
+          isInvalidLogsBloom = true;
+        }
+
+        if (
+          log.topics[0] &&
+          isInBloom(block.logsBloom, log.topics[0]) === false
+        ) {
+          isInvalidLogsBloom = true;
+        }
+
+        if (
+          log.topics[1] &&
+          isInBloom(block.logsBloom, log.topics[1]) === false
+        ) {
+          isInvalidLogsBloom = true;
+        }
+
+        if (
+          log.topics[2] &&
+          isInBloom(block.logsBloom, log.topics[2]) === false
+        ) {
+          isInvalidLogsBloom = true;
+        }
+
+        if (
+          log.topics[3] &&
+          isInBloom(block.logsBloom, log.topics[3]) === false
+        ) {
+          isInvalidLogsBloom = true;
+        }
+
+        if (isInvalidLogsBloom) {
+          args.common.logger.warn({
+            service: "realtime",
+            msg: `Detected inconsistent RPC responses. Log at index ${log.logIndex} is not in 'block.logsBloom' for block ${block.hash}.`,
+          });
+          break;
+        }
       }
 
-      const logIds = new Set<string>();
       for (const log of logs) {
-        if (log.blockHash !== block.hash) {
-          throw new Error(
-            `Detected invalid eth_getLogs response. 'log.blockHash' ${log.blockHash} does not match requested block hash ${block.hash}`,
-          );
-        }
-
-        const id = `${log.blockHash}-${log.logIndex}`;
-        if (logIds.has(id)) {
+        if (log.transactionHash === zeroHash) {
           args.common.logger.warn({
-            service: "sync",
-            msg: `Detected invalid eth_getLogs response. Duplicate log index ${log.logIndex} for block ${log.blockHash}.`,
+            service: "realtime",
+            msg: `Detected '${args.chain.name}' log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some chains like ZKsync.`,
           });
-        } else {
-          logIds.add(id);
-        }
-
-        const transaction = block.transactions.find(
-          (t) => t.hash === log.transactionHash,
-        );
-        if (transaction === undefined) {
-          if (log.transactionHash === zeroHash) {
-            args.common.logger.warn({
-              service: "sync",
-              msg: `Detected '${args.chain.name}' log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some chains like ZKsync.`,
-            });
-          } else {
-            throw new Error(
-              `Detected inconsistent '${args.chain.name}' RPC responses. 'log.transactionHash' ${log.transactionHash} not found in 'block.transactions' ${block.hash}`,
-            );
-          }
-        } else {
-          if (transaction!.transactionIndex !== log.transactionIndex) {
-            throw new Error(
-              `Detected inconsistent '${args.chain.name}' RPC responses. 'log.transactionIndex' ${log.transactionIndex} not found in 'block.transactions' ${block.hash}`,
-            );
-          }
         }
       }
     }
@@ -372,25 +381,7 @@ export const createRealtimeSync = (
         traces = await _debug_traceBlockByHash(args.rpc, { hash: block.hash });
       }
 
-      // Protect against RPCs returning empty traces. Known to happen near chain tip.
-      // Use the fact that any transaction produces a trace.
-      if (block.transactions.length !== 0 && traces.length === 0) {
-        throw new Error(
-          "Detected invalid debug_traceBlock response. `block.transactions` is not empty but zero traces were returned.",
-        );
-      }
-
-      // Validate that each trace point to valid transaction in the block
-      for (const trace of traces) {
-        if (
-          block.transactions.find((t) => t.hash === trace.transactionHash) ===
-          undefined
-        ) {
-          throw new Error(
-            `Detected inconsistent RPC responses. 'trace.txHash' ${trace.transactionHash} not found in 'block' ${block.hash}`,
-          );
-        }
-      }
+      validateTracesAndBlock(traces, block);
     }
 
     ////////
@@ -419,12 +410,7 @@ export const createRealtimeSync = (
       for (const filter of logFilters) {
         if (isLogFilterMatched({ filter, log })) {
           isMatched = true;
-          if (log.transactionHash === zeroHash) {
-            args.common.logger.warn({
-              service: "sync",
-              msg: `Detected '${args.chain.name}' log with empty transaction hash in block ${maybeBlockHeader.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some chains like ZKsync.`,
-            });
-          } else {
+          if (log.transactionHash !== zeroHash) {
             requiredTransactions.add(log.transactionHash);
             if (shouldGetTransactionReceipt(filter)) {
               requiredTransactionReceipts.add(log.transactionHash);
@@ -515,24 +501,12 @@ export const createRealtimeSync = (
       return isMatched;
     });
 
-    // Validate that filtered logs/callTraces point to valid transaction in the block
-    const blockTransactionsHashes = new Set(
-      block.transactions.map((t) => t.hash),
-    );
-    for (const hash of Array.from(requiredTransactions)) {
-      if (blockTransactionsHashes.has(hash) === false) {
-        throw new Error(
-          `Detected inconsistent RPC responses. 'transaction.hash' ${hash} not found in eth_getBlockReceipts response for block '${block.hash}'.`,
-        );
-      }
-    }
-
     ////////
     // Transaction Receipts
     ////////
 
     const transactionReceipts = await syncTransactionReceipts(
-      block.hash,
+      block,
       requiredTransactionReceipts,
     );
 

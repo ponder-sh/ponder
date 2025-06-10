@@ -1,6 +1,21 @@
+import { type Logger, createNoopLogger } from "@/internal/logger.js";
 import type { Kysely, Migration, MigrationProvider } from "kysely";
 import { sql } from "kysely";
 import { maxUint256 } from "viem";
+
+let logger = createNoopLogger();
+
+class StaticMigrationProvider implements MigrationProvider {
+  async getMigrations() {
+    return migrations;
+  }
+}
+
+export function buildMigrationProvider(logger_: Logger) {
+  logger = logger_;
+  const migrationProvider = new StaticMigrationProvider();
+  return migrationProvider;
+}
 
 const migrations: Record<string, Migration> = {
   "2023_05_15_0_initial": {
@@ -1284,9 +1299,10 @@ GROUP BY fragment_id, chain_id
       // 6. create new primary key
       // 7. reset metadata
 
-      console.log(
-        `${new Date().toISOString()} [ponder_sync migration] started 2025_02_19_0_primary_key`,
-      );
+      logger.debug({
+        service: "migrate",
+        msg: `${new Date().toISOString()} [ponder_sync migration] started 2025_02_19_0_primary_key`,
+      });
 
       await db.executeQuery(sql`SET statement_timeout = 3600000;`.compile(db));
 
@@ -1325,9 +1341,10 @@ GROUP BY fragment_id, chain_id
       await db.schema.dropIndex("trace_type_index").ifExists().execute();
       await db.schema.dropIndex("trace_value_index").ifExists().execute();
 
-      console.log(
-        `${new Date().toISOString()} [ponder_sync migration] dropped indexes`,
-      );
+      logger.debug({
+        service: "migrate",
+        msg: `${new Date().toISOString()} [ponder_sync migration] dropped indexes`,
+      });
 
       await db.schema
         .alterTable("logs")
@@ -1380,9 +1397,10 @@ GROUP BY fragment_id, chain_id
 
       await db.deleteFrom("logs").where("checkpoint", "=", null).execute();
 
-      console.log(
-        `${new Date().toISOString()} [ponder_sync migration] updated column types`,
-      );
+      logger.debug({
+        service: "migrate",
+        msg: `${new Date().toISOString()} [ponder_sync migration] updated column types`,
+      });
 
       await db.schema.alterTable("logs").dropConstraint("logs_pkey").execute();
       await db.schema
@@ -1422,9 +1440,10 @@ GROUP BY fragment_id, chain_id
         .execute();
       await db.schema.alterTable("traces").dropColumn("isReverted").execute();
 
-      console.log(
-        `${new Date().toISOString()} [ponder_sync migration] dropped columns`,
-      );
+      logger.debug({
+        service: "migrate",
+        msg: `${new Date().toISOString()} [ponder_sync migration] dropped columns`,
+      });
 
       await db.schema
         .alterTable("logs")
@@ -1599,9 +1618,10 @@ GROUP BY fragment_id, chain_id
         .renameColumn("revertReason", "revert_reason")
         .execute();
 
-      console.log(
-        `${new Date().toISOString()} [ponder_sync migration] renamed columns`,
-      );
+      logger.debug({
+        service: "migrate",
+        msg: `${new Date().toISOString()} [ponder_sync migration] renamed columns`,
+      });
 
       await db.schema
         .alterTable("logs")
@@ -1641,9 +1661,10 @@ GROUP BY fragment_id, chain_id
         ])
         .execute();
 
-      console.log(
-        `${new Date().toISOString()} [ponder_sync migration] added primary keys`,
-      );
+      logger.debug({
+        service: "migrate",
+        msg: `${new Date().toISOString()} [ponder_sync migration] added primary keys`,
+      });
 
       await sql`ANALYZE ponder_sync.logs`.execute(db);
       await sql`ANALYZE ponder_sync.blocks`.execute(db);
@@ -1657,16 +1678,18 @@ GROUP BY fragment_id, chain_id
       await sql`REINDEX TABLE ponder_sync.transaction_receipts`.execute(db);
       await sql`REINDEX TABLE ponder_sync.traces`.execute(db);
 
-      console.log(
-        `${new Date().toISOString()} [ponder_sync migration] finished 2025_02_19_0_primary_key`,
-      );
+      logger.debug({
+        service: "migrate",
+        msg: `${new Date().toISOString()} [ponder_sync migration] finished 2025_02_19_0_primary_key`,
+      });
     },
   },
   "2025_02_26_0_factories": {
     async up(db) {
-      console.log(
-        `${new Date().toISOString()} [ponder_sync migration] started 2025_02_26_0_factories`,
-      );
+      logger.debug({
+        service: "migrate",
+        msg: `${new Date().toISOString()} [ponder_sync migration] started 2025_02_26_0_factories`,
+      });
       await db.executeQuery(sql`SET statement_timeout = 3600000;`.compile(db));
 
       // drop any intervals that contain a factory address
@@ -1711,16 +1734,18 @@ GROUP BY fragment_id, chain_id
         .column("factory_id")
         .execute();
 
-      console.log(
-        `${new Date().toISOString()} [ponder_sync migration] finished 2025_02_26_0_factories`,
-      );
+      logger.debug({
+        service: "migrate",
+        msg: `${new Date().toISOString()} [ponder_sync migration] finished 2025_02_26_0_factories`,
+      });
     },
   },
   "2025_02_26_1_rpc_request_results": {
     async up(db) {
-      console.log(
-        `${new Date().toISOString()} [ponder_sync migration] started 2025_02_26_1_rpc_request_results`,
-      );
+      logger.debug({
+        service: "migrate",
+        msg: `${new Date().toISOString()} [ponder_sync migration] started 2025_02_26_1_rpc_request_results`,
+      });
       await db.executeQuery(sql`SET statement_timeout = 3600000;`.compile(db));
 
       await db.schema
@@ -1778,17 +1803,10 @@ GROUP BY fragment_id, chain_id
         .execute();
       await sql`ANALYZE ponder_sync.rpc_request_results`.execute(db);
 
-      console.log(
-        `${new Date().toISOString()} [ponder_sync migration] finished 2025_02_26_1_rpc_request_results`,
-      );
+      logger.debug({
+        service: "migrate",
+        msg: `${new Date().toISOString()} [ponder_sync migration] finished 2025_02_26_1_rpc_request_results`,
+      });
     },
   },
 };
-
-class StaticMigrationProvider implements MigrationProvider {
-  async getMigrations() {
-    return migrations;
-  }
-}
-
-export const migrationProvider = new StaticMigrationProvider();

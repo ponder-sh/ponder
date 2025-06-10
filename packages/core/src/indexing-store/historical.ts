@@ -1,4 +1,4 @@
-import { validateQuery } from "@/client/validate.js";
+import { findTableNames, validateQuery } from "@/client/parse.js";
 import type { Common } from "@/internal/common.js";
 import { RecordNotFoundError } from "@/internal/errors.js";
 import type { Schema, SchemaBuild } from "@/internal/types.js";
@@ -14,6 +14,7 @@ import {
   type IndexingStore,
   checkOnchainTable,
   parseSqlError,
+  validateUpdateSet,
 } from "./index.js";
 
 export const createHistoricalIndexingStore = ({
@@ -113,12 +114,14 @@ export const createHistoricalIndexingStore = ({
 
                   if (row) {
                     if (typeof valuesU === "function") {
-                      for (const [key, value] of Object.entries(valuesU(row))) {
+                      const set = validateUpdateSet(table, valuesU(row));
+                      for (const [key, value] of Object.entries(set)) {
                         if (value === undefined) continue;
                         row[key] = value;
                       }
                     } else {
-                      for (const [key, value] of Object.entries(valuesU)) {
+                      const set = validateUpdateSet(table, valuesU);
+                      for (const [key, value] of Object.entries(set)) {
                         if (value === undefined) continue;
                         row[key] = value;
                       }
@@ -144,20 +147,18 @@ export const createHistoricalIndexingStore = ({
                 }
                 return rows;
               } else {
-                const row = await indexingCache.get({
-                  table,
-                  key: values,
-                  db,
-                });
+                const row = await indexingCache.get({ table, key: values, db });
 
                 if (row) {
                   if (typeof valuesU === "function") {
-                    for (const [key, value] of Object.entries(valuesU(row))) {
+                    const set = validateUpdateSet(table, valuesU(row));
+                    for (const [key, value] of Object.entries(set)) {
                       if (value === undefined) continue;
                       row[key] = value;
                     }
                   } else {
-                    for (const [key, value] of Object.entries(valuesU)) {
+                    const set = validateUpdateSet(table, valuesU);
+                    for (const [key, value] of Object.entries(set)) {
                       if (value === undefined) continue;
                       row[key] = value;
                     }
@@ -255,23 +256,20 @@ export const createHistoricalIndexingStore = ({
           }
 
           if (typeof values === "function") {
-            for (const [key, value] of Object.entries(values(row))) {
+            const set = validateUpdateSet(table, values(row));
+            for (const [key, value] of Object.entries(set)) {
               if (value === undefined) continue;
               row[key] = value;
             }
           } else {
-            for (const [key, value] of Object.entries(values)) {
+            const set = validateUpdateSet(table, values);
+            for (const [key, value] of Object.entries(set)) {
               if (value === undefined) continue;
               row[key] = value;
             }
           }
 
-          return indexingCache.set({
-            table,
-            key,
-            row,
-            isUpdate: true,
-          });
+          return indexingCache.set({ table, key, row, isUpdate: true });
         },
       };
     },
@@ -287,18 +285,25 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     sql: drizzle(
       async (_sql, params, method, typings) => {
-        await indexingCache.flush({ client });
-
-        let safeQuery = false;
-
+        let isSelectOnly = false;
         try {
           await validateQuery(_sql, false);
-          safeQuery = true;
+          isSelectOnly = true;
         } catch {}
 
-        if (safeQuery === false) {
+        if (isSelectOnly === false) {
+          await indexingCache.flush({ client });
           indexingCache.invalidate();
           indexingCache.clear();
+        } else {
+          // Note: Not all nodes are implemented in the parser,
+          // so we need to try/catch to avoid throwing an error.
+          let tableNames: Set<string> | undefined;
+          try {
+            tableNames = await findTableNames(_sql);
+          } catch {}
+
+          await indexingCache.flush({ client, tableNames });
         }
 
         const query: QueryWithTypings = { sql: _sql, params, typings };

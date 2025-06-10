@@ -1,0 +1,241 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/0_6/docs/utilities/types",
+      "destination": "/docs/api-reference/ponder/config#types"
+    },
+    {
+      "source": "/0_6/docs/advanced/foundry",
+      "destination": "/docs/0.10/guides/foundry"
+    },
+    {
+      "source": "/0_6/docs/advanced/logging",
+      "destination": "/docs/0.10/advanced/observability"
+    },
+    {
+      "source": "/0_6/docs/advanced/metrics",
+      "destination": "/docs/0.10/advanced/observability"
+    },
+    {
+      "source": "/0_6/docs/advanced/status",
+      "destination": "/docs/0.10/advanced/observability"
+    },
+    {
+      "source": "/0_6/docs/advanced/telemetry",
+      "destination": "/docs/0.10/advanced/telemetry"
+    },
+    {
+      "source": "/0_6/docs/api-reference/config",
+      "destination": "/docs/0.10/api-reference/ponder/config"
+    },
+    {
+      "source": "/0_6/docs/api-reference/create-ponder",
+      "destination": "/docs/0.10/api-reference/create-ponder"
+    },
+    {
+      "source": "/0_6/docs/api-reference/indexing-functions",
+      "destination": "/docs/0.10/api-reference/ponder/indexing-functions"
+    },
+    {
+      "source": "/0_6/docs/api-reference/ponder-cli",
+      "destination": "/docs/0.10/api-reference/ponder/cli"
+    },
+    {
+      "source": "/0_6/docs/api-reference/schema",
+      "destination": "/docs/0.10/api-reference/ponder/schema"
+    },
+    {
+      "source": "/0_6/docs/block-intervals",
+      "destination": "/docs/0.10/config/block-intervals"
+    },
+    {
+      "source": "/0_6/docs/contracts-and-networks",
+      "destination": "/docs/0.10/config/contracts"
+    },
+    {
+      "source": "/0_6/docs/getting-started/installation",
+      "destination": "/docs/0.10/get-started"
+    },
+    {
+      "source": "/0_6/docs/getting-started/migrate-subgraph",
+      "destination": "/docs/0.10/migration-guide"
+    },
+    {
+      "source": "/0_6/docs/getting-started/new-project",
+      "destination": "/docs/0.10/get-started"
+    },
+    {
+      "source": "/0_6/docs/indexing/call-traces",
+      "destination": "/docs/0.10/guides/call-traces"
+    },
+    {
+      "source": "/0_6/docs/indexing/create-update-records",
+      "destination": "/docs/0.10/indexing/write"
+    },
+    {
+      "source": "/0_6/docs/indexing/read-contract-data",
+      "destination": "/docs/0.10/indexing/read-contracts"
+    },
+    {
+      "source": "/0_6/docs/indexing/time-series",
+      "destination": "/docs/0.10/guides/time-series"
+    },
+    {
+      "source": "/0_6/docs/migration-guide",
+      "destination": "/docs/0.10/migration-guide"
+    },
+    {
+      "source": "/0_6/docs/production/deploy",
+      "destination": "/docs/0.10/production/self-hosting"
+    },
+    {
+      "source": "/0_6/docs/production/horizontal-scaling",
+      "destination": "/docs/0.10/production/self-hosting"
+    },
+    {
+      "source": "/0_6/docs/query/api-functions",
+      "destination": "/docs/0.10/query/api-endpoints"
+    },
+    {
+      "source": "/0_6/docs/query/direct-sql",
+      "destination": "/docs/0.10/query/direct-sql"
+    },
+    {
+      "source": "/0_6/docs/query/graphql",
+      "destination": "/docs/0.10/query/graphql"
+    },
+    {
+      "source": "/0_6/docs/schema",
+      "destination": "/docs/0.10/api-reference/ponder/schema"
+    },
+    {
+      "source": "/0_6/docs/utilities/merge-abis",
+      "destination": "/docs/api-reference/ponder-utils"
+    },
+    {
+      "source": "/0_6/docs/utilities/replace-bigints",
+      "destination": "/docs/api-reference/ponder-utils"
+    },
+    {
+      "source": "/0_6/docs/utilities/transports",
+      "destination": "/docs/api-reference/ponder-utils#transports"
+    },
+    {
+      "source": "/0_6/docs/why-ponder",
+      "destination": "/docs/why-ponder"
+    },
+    {
+      "source": "/api/telemetry",
+      "destination": "/docs/advanced/telemetry"
+    },
+    {
+      "source": "/docs/accounts",
+      "destination": "/docs/config/accounts"
+    },
+    {
+      "source": "/docs/advanced/foundry",
+      "destination": "/docs/guides/foundry"
+    },
+    {
+      "source": "/docs/advanced/logging",
+      "destination": "/docs/advanced/observability"
+    },
+    {
+      "source": "/docs/advanced/metrics",
+      "destination": "/docs/advanced/observability"
+    },
+    {
+      "source": "/docs/advanced/status",
+      "destination": "/docs/advanced/observability"
+    },
+    {
+      "source": "/docs/api-reference/config",
+      "destination": "/docs/api-reference/ponder/config"
+    },
+    {
+      "source": "/docs/api-reference/database",
+      "destination": "/docs/api-reference/ponder/database"
+    },
+    {
+      "source": "/docs/api-reference/indexing-functions",
+      "destination": "/docs/api-reference/ponder/indexing-functions"
+    },
+    {
+      "source": "/docs/api-reference/ponder-cli",
+      "destination": "/docs/api-reference/ponder/cli"
+    },
+    {
+      "source": "/docs/api-reference/schema",
+      "destination": "/docs/api-reference/ponder/schema"
+    },
+    {
+      "source": "/docs/block-intervals",
+      "destination": "/docs/config/block-intervals"
+    },
+    {
+      "source": "/docs/call-traces",
+      "destination": "/docs/guides/call-traces"
+    },
+    {
+      "source": "/docs/contracts-and-networks",
+      "destination": "/docs/config/contracts"
+    },
+    {
+      "source": "/docs/getting-started/database",
+      "destination": "/docs/database"
+    },
+    {
+      "source": "/docs/getting-started/migrate-subgraph",
+      "destination": "/docs/migration-guide"
+    },
+    {
+      "source": "/docs/getting-started/new-project",
+      "destination": "/docs/get-started"
+    },
+    {
+      "source": "/docs/getting-started/system-requirements",
+      "destination": "/docs/requirements"
+    },
+    {
+      "source": "/docs/indexing/read-contract-data",
+      "destination": "/docs/indexing/read-contracts"
+    },
+    {
+      "source": "/docs/indexing/write-to-the-database",
+      "destination": "/docs/indexing/write"
+    },
+    {
+      "source": "/docs/production/deploy",
+      "destination": "/docs/production/self-hosting"
+    },
+    {
+      "source": "/docs/query/api-functions",
+      "destination": "/docs/query/api-endpoints"
+    },
+    {
+      "source": "/docs/query/client",
+      "destination": "/docs/query/sql-client"
+    },
+    {
+      "source": "/docs/schema",
+      "destination": "/docs/api-reference/ponder/schema"
+    },
+    {
+      "source": "/docs/utilities/merge-abis",
+      "destination": "/docs/api-reference/ponder-utils"
+    },
+    {
+      "source": "/docs/utilities/replace-bigints",
+      "destination": "/docs/api-reference/ponder-utils"
+    },
+    {
+      "source": "/docs/utilities/transports",
+      "destination": "/docs/api-reference/ponder-utils#transports"
+    },
+    {
+      "source": "/docs/utilities/types",
+      "destination": "/docs/api-reference/ponder/config#types"
+    }
+  ]
+}

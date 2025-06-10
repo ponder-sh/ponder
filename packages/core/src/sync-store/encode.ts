@@ -33,7 +33,7 @@ export const encodeBlock = ({
   receiptsRoot: block.receiptsRoot,
   transactionsRoot: block.transactionsRoot,
   sha3Uncles: block.sha3Uncles ?? null,
-  size: block.size ? hexToBigInt(block.size) : 0n,
+  size: hexToBigInt(block.size),
   difficulty: hexToBigInt(block.difficulty),
   totalDifficulty: block.totalDifficulty
     ? hexToBigInt(block.totalDifficulty)
