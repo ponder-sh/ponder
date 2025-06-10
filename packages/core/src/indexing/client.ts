@@ -7,6 +7,7 @@ import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
 import { startClock } from "@/utils/timer.js";
+import { wait } from "@/utils/wait.js";
 import {
   type Abi,
   type Account,
@@ -504,21 +505,31 @@ export const createCachedViemClient = ({
       };
     };
 
+    const NO_DATA_RETRY_COUNT = 5;
+    const NO_DATA_RETRY_BASE_DURATION = 125;
+
     const getRetryAction = (action: PonderActions[keyof PonderActions]) => {
       return async (...args: Parameters<typeof action>) => {
-        const RETRY_COUNT = 3;
-        for (let i = 0; i <= RETRY_COUNT; i++) {
+        for (let i = 0; i <= NO_DATA_RETRY_COUNT; i++) {
           try {
             // @ts-ignore
             return await action(...args);
           } catch (error) {
-            if (
-              (error as Error)?.message?.includes("returned no data") ===
-                false ||
-              i === RETRY_COUNT
-            ) {
-              throw error;
-            }
+            const isNoDataError = (error as Error)?.message?.includes(
+              "returned no data",
+            );
+            if (isNoDataError === false) throw error;
+
+            if (i === NO_DATA_RETRY_COUNT) throw error;
+
+            const duration = NO_DATA_RETRY_BASE_DURATION * 2 ** i;
+
+            common.logger.debug({
+              service: "rpc",
+              msg: `Failed eth_call request: Contract function returned no data ("0x"), retrying after ${duration}ms`,
+            });
+
+            await wait(duration);
           }
         }
       };
