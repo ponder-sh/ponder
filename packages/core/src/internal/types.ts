@@ -9,7 +9,7 @@ import type {
   TransactionReceipt,
   Transfer,
 } from "@/types/eth.js";
-import type { Prettify } from "@/types/utils.js";
+import type { MakeOptional, Prettify } from "@/types/utils.js";
 import type { Trace as DebugTrace } from "@/utils/debug.js";
 import type { PGliteOptions } from "@/utils/pglite.js";
 import type { PGlite } from "@electric-sql/pglite";
