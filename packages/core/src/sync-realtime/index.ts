@@ -290,7 +290,12 @@ export const createRealtimeSync = (
     if (shouldRequestLogs) {
       if (block === undefined) {
         [block, logs] = await Promise.all([
-          _eth_getBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
+          _eth_getBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }).then(
+            (block) => {
+              validateTransactionsAndBlock(block);
+              return block;
+            },
+          ),
           _eth_getLogs(args.rpc, { blockHash: maybeBlockHeader.hash }),
         ]);
       } else {
@@ -374,7 +379,12 @@ export const createRealtimeSync = (
     if (shouldRequestTraces) {
       if (block === undefined) {
         [block, traces] = await Promise.all([
-          _eth_getBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
+          _eth_getBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }).then(
+            (block) => {
+              validateTransactionsAndBlock(block);
+              return block;
+            },
+          ),
           _debug_traceBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
         ]);
       } else {
@@ -487,6 +497,8 @@ export const createRealtimeSync = (
       block = await _eth_getBlockByHash(args.rpc, {
         hash: maybeBlockHeader.hash,
       });
+
+      validateTransactionsAndBlock(block);
     }
 
     const transactions = block.transactions.filter((transaction) => {
