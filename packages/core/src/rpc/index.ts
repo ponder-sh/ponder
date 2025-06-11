@@ -510,10 +510,10 @@ export const createRpc = ({
                     error,
                   });
                 }
+              } else {
+                onBlock(data.result);
+                webSocketErrorCount = 0;
               }
-
-              onBlock(data.result);
-              webSocketErrorCount = 0;
             },
             onError: async (_error) => {
               // Note: `disconnect` causes `onError` to be called again.
