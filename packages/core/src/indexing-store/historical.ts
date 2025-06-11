@@ -291,8 +291,13 @@ export const createHistoricalIndexingStore = ({
         const endClock = startClock();
 
         try {
-          const result = await qb._.session
-            .prepareQuery(query, undefined, undefined, method === "all")
+          const result = await qb()
+            ._.session.prepareQuery(
+              query,
+              undefined,
+              undefined,
+              method === "all",
+            )
             .execute();
 
           // @ts-ignore

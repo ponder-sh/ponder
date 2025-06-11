@@ -26,23 +26,7 @@ import pg from "pg";
 
 const RETRY_COUNT = 9;
 const BASE_DURATION = 125;
-const SQL_LENGTH_LIMIT = 35;
-
-type BaseQB<
-  TSchema extends Schema = Schema,
-  TClient extends PGlite | pg.Pool | pg.PoolClient =
-    | PGlite
-    | pg.Pool
-    | pg.PoolClient,
-> = Omit<Drizzle<TSchema>, "transaction"> & {
-  transaction<T>(
-    transaction: (tx: QB<TSchema, TClient>) => Promise<T>,
-    config?: PgTransactionConfig,
-  ): Promise<T>;
-} & (
-    | { $dialect: "pglite"; $client: PGlite }
-    | { $dialect: "postgres"; $client: pg.Pool | pg.PoolClient }
-  );
+const SQL_LENGTH_LIMIT = 50;
 
 /**
  * Query builder with built-in retry logic, logging, and metrics.
@@ -53,26 +37,16 @@ export type QB<
     | PGlite
     | pg.Pool
     | pg.PoolClient,
-> = { label(label: string): BaseQB<TSchema, TClient> } & BaseQB<
-  TSchema,
-  TClient
->;
-
-// const NON_LABEL_METHODS = [
-//   "transaction",
-//   "query",
-//   "select",
-//   "selectDistinct",
-//   "selectDistinctOn",
-//   "insert",
-//   "update",
-//   "delete",
-//   "execute",
-//   "refreshMaterializedView",
-//   "with",
-//   "$with",
-//   "$count",
-// ] as const;
+> = ((label?: string) => Omit<Drizzle<TSchema>, "transaction"> & {
+  transaction<T>(
+    transaction: (tx: QB<TSchema, TClient>) => Promise<T>,
+    config?: PgTransactionConfig,
+  ): Promise<T>;
+}) &
+  (
+    | { $dialect: "pglite"; $client: PGlite }
+    | { $dialect: "postgres"; $client: pg.Pool | pg.PoolClient }
+  );
 
 export const parseSqlError = (e: any): Error => {
   let error = getBaseError(e);
@@ -118,7 +92,7 @@ export const createQB = <
   isAdmin = false,
 ): QB<TSchema, TClient> => {
   const dialect = new PgDialect({ casing: "snake_case" });
-  let label: string | undefined;
+  let label: string | undefined = undefined;
 
   const wrap = async <T>(
     label: string | undefined,
@@ -262,26 +236,15 @@ export const createQB = <
   db.transaction = async (...args) => {
     const callback = args[0];
     args[0] = (..._args) => {
-      const tx = _args[0] as unknown as QB<TSchema, TClient>;
-
-      tx.label = (_label: string) => {
+      const tx = (_label?: string) => {
         label = _label;
-        return tx;
+        return _args[0];
       };
 
-      // tx = new Proxy(tx, {
-      //   get(target, prop) {
-      //     // @ts-expect-error
-      //     if (NON_LABEL_METHODS.includes(prop)) {
-      //       label = undefined;
-      //     }
-
-      //     return Reflect.get(target, prop);
-      //   },
-      // });
       // @ts-expect-error
       assignClient(tx, _args[0]._.session.client);
-      return callback(..._args);
+      // @ts-expect-error
+      return callback(tx);
     };
     return _transaction(...args);
   };
@@ -326,27 +289,13 @@ export const createQB = <
       return callback(..._args);
     };
 
-    // TODO(kyle) what should sql be?
-    return wrap(label, () => transaction(...args), "");
+    return wrap(label, () => transaction(...args), "qb_transaction");
   };
 
-  const qb = db as unknown as QB<TSchema, TClient>;
-
-  qb.label = (_label: string) => {
+  const qb = ((_label: string | undefined) => {
     label = _label;
-    return qb;
-  };
-
-  // qb = new Proxy(qb, {
-  //   get(target, prop) {
-  //     // @ts-expect-error
-  //     if (NON_LABEL_METHODS.includes(prop)) {
-  //       label = undefined;
-  //     }
-
-  //     return Reflect.get(target, prop);
-  //   },
-  // });
+    return db;
+  }) as unknown as QB<TSchema, TClient>;
 
   assignClient(qb, db.$client);
 

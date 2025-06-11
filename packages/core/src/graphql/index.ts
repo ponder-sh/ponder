@@ -423,7 +423,8 @@ export function buildGraphQLSchema({
     type: GraphQLMeta,
     resolve: async (_source, _args, context) => {
       // Note: This is done to avoid non-browser compatible dependencies
-      const checkpoints = (await context.qb
+      const checkpoints = (await context
+        .qb()
         .execute(
           sql`SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint`,
         )
@@ -565,13 +566,13 @@ const innerType = (
 
 async function executePluralQuery(
   table: TableRelationalConfig,
-  drizzle: QB<{ [key: string]: OnchainTable }>,
+  qb: QB<{ [key: string]: OnchainTable }>,
   args: PluralArgs,
   includeTotalCount: boolean,
   extraConditions: (SQL | undefined)[] = [],
 ) {
-  const rawTable = drizzle._.fullSchema[table.tsName];
-  const baseQuery = drizzle.query[table.tsName];
+  const rawTable = qb()._.fullSchema[table.tsName];
+  const baseQuery = qb().query[table.tsName];
   if (rawTable === undefined || baseQuery === undefined)
     throw new Error(`Internal error: Table "${table.tsName}" not found in RQB`);
 
@@ -615,7 +616,7 @@ async function executePluralQuery(
   let hasNextPage = false;
 
   const totalCountPromise = includeTotalCount
-    ? drizzle
+    ? qb()
         .select({ count: count() })
         .from(rawTable)
         .where(and(...whereConditions, ...extraConditions))
@@ -1024,7 +1025,7 @@ export function buildDataLoaderCache(qb: QB) {
     DataLoader<string, any> | undefined
   >();
   return ({ table }: { table: TableRelationalConfig }) => {
-    const baseQuery = (qb as QB<{ [key: string]: OnchainTable }>).query[
+    const baseQuery = (qb as QB<{ [key: string]: OnchainTable }>)().query[
       table.tsName
     ];
     if (baseQuery === undefined)

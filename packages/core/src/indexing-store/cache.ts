@@ -402,7 +402,7 @@ export const createIndexingCache = ({
 
       const endClock = startClock();
 
-      const result = await qb
+      const result = await qb()
         .select()
         .from(table)
         .where(getWhereCondition(table, key))
@@ -451,7 +451,7 @@ export const createIndexingCache = ({
 
       cache.get(table)!.delete(ck);
 
-      const inDb = await qb
+      const inDb = await qb()
         .delete(table)
         .where(getWhereCondition(table, key))
         .returning()
@@ -480,7 +480,7 @@ export const createIndexingCache = ({
         if (insertValues.length > 0) {
           const endClock = startClock();
 
-          await qb.execute(sql.raw("SAVEPOINT flush"));
+          await qb().execute(sql.raw("SAVEPOINT flush"));
 
           try {
             const text = getCopyText(
@@ -496,13 +496,13 @@ export const createIndexingCache = ({
             const result = await recoverBatchError(
               insertValues,
               async (values) => {
-                await qb.execute(sql.raw("ROLLBACK to flush"));
+                await qb().execute(sql.raw("ROLLBACK to flush"));
                 const text = getCopyText(
                   table,
                   values.map(({ row }) => row),
                 );
                 await copy(table, text);
-                await qb.execute(sql.raw("SAVEPOINT flush"));
+                await qb().execute(sql.raw("SAVEPOINT flush"));
               },
             );
 
@@ -511,7 +511,7 @@ export const createIndexingCache = ({
             }
 
             // Note: rollback so that the connection is available for other queries
-            await qb.execute(sql.raw("ROLLBACK to flush"));
+            await qb().execute(sql.raw("ROLLBACK to flush"));
 
             error.stack = undefined;
 
@@ -600,8 +600,8 @@ export const createIndexingCache = ({
 
           const endClock = startClock();
 
-          await qb.execute(sql.raw(createTempTableQuery));
-          await qb.execute(sql.raw("SAVEPOINT flush"));
+          await qb().execute(sql.raw(createTempTableQuery));
+          await qb().execute(sql.raw("SAVEPOINT flush"));
 
           try {
             const text = getCopyText(
@@ -617,13 +617,13 @@ export const createIndexingCache = ({
             const result = await recoverBatchError(
               updateValues,
               async (values) => {
-                await qb.execute(sql.raw("ROLLBACK to flush"));
+                await qb().execute(sql.raw("ROLLBACK to flush"));
                 const text = getCopyText(
                   table,
                   values.map(({ row }) => row),
                 );
                 await copy(table, text, false);
-                await qb.execute(sql.raw("SAVEPOINT flush"));
+                await qb().execute(sql.raw("SAVEPOINT flush"));
               },
             );
 
@@ -632,7 +632,7 @@ export const createIndexingCache = ({
             }
 
             // Note: rollback so that the connection is available for other queries
-            await qb.execute(sql.raw("ROLLBACK to flush"));
+            await qb().execute(sql.raw("ROLLBACK to flush"));
 
             error.stack = undefined;
 
@@ -652,7 +652,7 @@ export const createIndexingCache = ({
             throw error;
           }
 
-          await qb.execute(sql.raw(updateQuery));
+          await qb().execute(sql.raw(updateQuery));
 
           common.metrics.ponder_indexing_cache_query_duration.observe(
             {
@@ -679,7 +679,7 @@ export const createIndexingCache = ({
         }
 
         if (insertValues.length > 0 || updateValues.length > 0) {
-          await qb.execute(sql.raw("RELEASE flush"));
+          await qb().execute(sql.raw("RELEASE flush"));
         }
       }
     },
@@ -764,7 +764,7 @@ export const createIndexingCache = ({
             if (conditions.length === 0) return;
             const endClock = startClock();
 
-            await qb
+            await qb()
               .select()
               .from(table)
               .where(or(...conditions))

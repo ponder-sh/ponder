@@ -42,7 +42,7 @@ test("flush() insert", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -89,7 +89,7 @@ test("flush() update", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -175,7 +175,7 @@ test("flush() encoding", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -239,7 +239,7 @@ test("flush() encoding escape", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -320,7 +320,7 @@ test("prefetch() uses profile metadata", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -375,7 +375,7 @@ test("prefetch() evicts rows", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 

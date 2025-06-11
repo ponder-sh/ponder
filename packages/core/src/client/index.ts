@@ -125,7 +125,7 @@ export const client = ({
     if (c.req.path === "/sql/status") {
       // Note: This is done to avoid non-browser compatible dependencies
 
-      const checkpoints = (await globalThis.PONDER_DATABASE.readonlyQB
+      const checkpoints = (await globalThis.PONDER_DATABASE.readonlyQB()
         .execute(
           sql`SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint`,
         )

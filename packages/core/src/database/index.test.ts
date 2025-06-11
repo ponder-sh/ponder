@@ -62,7 +62,7 @@ test("migrate() succeeds with empty schema", async (context) => {
   expect(tableNames).toContain("_reorg__account");
   expect(tableNames).toContain("_ponder_meta");
 
-  const metadata = await database.userQB.select().from(sql`_ponder_meta`);
+  const metadata = await database.userQB().select().from(sql`_ponder_meta`);
 
   expect(metadata).toHaveLength(1);
 
@@ -249,7 +249,8 @@ test("migrate() succeeds with crash recovery", async (context) => {
 
   await databaseTwo.migrate({ buildId: "abc" });
 
-  const metadata = await databaseTwo.userQB
+  const metadata = await databaseTwo
+    .userQB()
     .select()
     .from(getPonderMetaTable("public"));
 
@@ -353,7 +354,7 @@ test.skip("migrateSync() handles concurrent migrations", async (context) => {
   });
 
   // The second migration should error, then retry and succeed
-  const spy = vi.spyOn(database.userQB, "transaction");
+  const spy = vi.spyOn(database.userQB(), "transaction");
 
   await Promise.all([database.migrateSync(), database.migrateSync()]);
 
@@ -388,7 +389,8 @@ test("migrate() with crash recovery reverts rows", async (context) => {
 
   await createTrigger(database.userQB, { table: account });
 
-  await database.userQB
+  await database
+    .userQB()
     .update(getPonderMetaTable())
     .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` });
 
@@ -416,12 +418,15 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     table: account,
   });
 
-  await database.userQB.insert(getPonderCheckpointTable()).values({
-    chainId: 1,
-    chainName: "mainnet",
-    latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-    safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-  });
+  await database
+    .userQB()
+    .insert(getPonderCheckpointTable())
+    .values({
+      chainId: 1,
+      chainName: "mainnet",
+      latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+      safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    });
 
   await context.common.shutdown.kill();
 
@@ -453,14 +458,16 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     ]
   `);
 
-  const rows = await databaseTwo.userQB
+  const rows = await databaseTwo
+    .userQB()
     .execute(sql`SELECT * from "account"`)
     .then((result) => result.rows);
 
   expect(rows).toHaveLength(1);
   expect(rows[0]!.address).toBe(zeroAddress);
 
-  const metadata = await databaseTwo.userQB
+  const metadata = await databaseTwo
+    .userQB()
     .select()
     .from(getPonderMetaTable("public"));
 
@@ -502,14 +509,18 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
     statements: buildSchema({ schema: { account } }).statements,
   });
 
-  await database.userQB.insert(getPonderCheckpointTable()).values({
-    chainId: 1,
-    chainName: "mainnet",
-    latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-    safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-  });
+  await database
+    .userQB()
+    .insert(getPonderCheckpointTable())
+    .values({
+      chainId: 1,
+      chainName: "mainnet",
+      latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+      safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    });
 
-  await database.userQB
+  await database
+    .userQB()
     .update(getPonderMetaTable())
     .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` });
 
@@ -562,14 +573,16 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
 
   await database.migrate({ buildId: "abc" });
 
-  const row = await database.userQB
+  const row = await database
+    .userQB()
     .select()
     .from(getPonderMetaTable("public"))
     .then((result) => result[0]!.value);
 
   await wait(500);
 
-  const rowAfterHeartbeat = await database.userQB
+  const rowAfterHeartbeat = await database
+    .userQB()
     .select()
     .from(getPonderMetaTable("public"))
     .then((result) => result[0]!.value);
@@ -582,7 +595,8 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
 });
 
 async function getUserTableNames(database: Database, namespace: string) {
-  const rows = await database.userQB
+  const rows = await database
+    .userQB()
     .select({ name: TABLES.table_name })
     .from(TABLES)
     .where(
@@ -600,7 +614,8 @@ async function getUserIndexNames(
   namespace: string,
   tableName: string,
 ) {
-  const rows = await database.userQB
+  const rows = await database
+    .userQB()
     .select({
       name: sql<string>`indexname`.as("name"),
     })

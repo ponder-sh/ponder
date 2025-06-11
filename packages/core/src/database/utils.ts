@@ -12,10 +12,10 @@ export const createIndexes = async (
   { statements }: { statements: SchemaBuild["statements"] },
 ) => {
   for (const statement of statements.indexes.sql) {
-    await qb.label("create_indexes").transaction(async (tx) => {
+    await qb("create_indexes").transaction(async (tx) => {
       // 60 minutes
-      await tx.execute("SET statement_timeout = 3600000;");
-      await tx.execute(statement);
+      await tx().execute("SET statement_timeout = 3600000;");
+      await tx().execute(statement);
     });
   }
 };
@@ -28,7 +28,7 @@ export const createTrigger = async (qb: QB, { table }: { table: PgTable }) => {
     (column) => `"${getColumnCasing(column, "snake_case")}"`,
   );
 
-  await qb.label("create_trigger_function").execute(
+  await qb("create_trigger_function").execute(
     sql.raw(`
 CREATE OR REPLACE FUNCTION "${schema}".${getTableNames(table).triggerFn}
 RETURNS TRIGGER AS $$
@@ -48,7 +48,7 @@ END;
 $$ LANGUAGE plpgsql`),
   );
 
-  await qb.label("create_trigger").execute(
+  await qb("create_trigger").execute(
     sql.raw(`
 CREATE OR REPLACE TRIGGER "${getTableNames(table).trigger}"
 AFTER INSERT OR UPDATE OR DELETE ON "${schema}"."${getTableName(table)}"
@@ -60,13 +60,11 @@ FOR EACH ROW EXECUTE FUNCTION "${schema}".${getTableNames(table).triggerFn};
 export const dropTrigger = async (qb: QB, { table }: { table: PgTable }) => {
   const schema = getTableConfig(table).schema ?? "public";
 
-  await qb
-    .label("drop_trigger")
-    .execute(
-      sql.raw(
-        `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${schema}"."${getTableName(table)}"`,
-      ),
-    );
+  await qb("drop_trigger").execute(
+    sql.raw(
+      `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${schema}"."${getTableName(table)}"`,
+    ),
+  );
 };
 
 export const revert = async (
@@ -76,7 +74,7 @@ export const revert = async (
   const primaryKeyColumns = getPrimaryKeyColumns(table);
   const schema = getTableConfig(table).schema ?? "public";
 
-  const result = await qb.label("revert").execute(
+  const result = await qb("revert").execute(
     sql.raw(`
 WITH reverted1 AS (
 DELETE FROM "${schema}"."${getTableName(getReorgTable(table))}"
@@ -125,8 +123,7 @@ export const finalize = async (
   qb: QB,
   { checkpoint, table }: { checkpoint: string; table: PgTable },
 ) => {
-  await qb
-    .label("finalize")
+  await qb("finalize")
     .delete(getReorgTable(table))
     .where(lte(getReorgTable(table).checkpoint, checkpoint));
 };
@@ -136,8 +133,7 @@ export const commitBlock = async (
   { checkpoint, table }: { checkpoint: string; table: PgTable },
 ) => {
   const reorgTable = getReorgTable(table);
-  await qb
-    .label("commit_block")
+  await qb("commit_block")
     .update(reorgTable)
     .set({ checkpoint })
     .where(eq(reorgTable.checkpoint, MAX_CHECKPOINT_STRING));
