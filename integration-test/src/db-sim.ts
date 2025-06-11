@@ -55,17 +55,22 @@ export const dbSim = <
 
   // transaction queries (non-retryable)
 
-  const _transaction = db.transaction.bind(db);
-  db.transaction = async (...args) => {
-    const callback = args[0];
-    args[0] = (_tx) => {
-      const tx = _tx();
+  const unwrapTx = (qb: ReturnType<QB>) => {
+    const _transaction = db.transaction.bind(db);
+    db.transaction = async (...args) => {
+      const callback = args[0];
+      args[0] = (_tx) => {
+        const tx = _tx();
+        unwrapTx(tx);
 
-      // @ts-expect-error
-      return callback(tx);
+        // @ts-expect-error
+        return callback(tx);
+      };
+      return _transaction(...args);
     };
-    return _transaction(...args);
   };
+
+  unwrapTx(db);
 
   const transaction = db._.session.transaction.bind(db._.session);
   db._.session.transaction = async (...args) => {

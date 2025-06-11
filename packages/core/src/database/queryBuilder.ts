@@ -232,22 +232,28 @@ export const createQB = <
 
   // transaction queries (non-retryable)
 
-  const _transaction = db.transaction.bind(db);
-  db.transaction = async (...args) => {
-    const callback = args[0];
-    args[0] = (_tx) => {
-      const tx = (_label?: string) => {
-        label = _label;
-        return _tx;
-      };
+  const wrapTx = (db: PgDatabase<PgQueryResultHKT, TSchema>) => {
+    const _transaction = db.transaction.bind(db);
+    db.transaction = async (...args) => {
+      const callback = args[0];
+      args[0] = (_tx) => {
+        wrapTx(_tx);
 
-      // @ts-expect-error
-      assignClient(tx, _tx.session.client);
-      // @ts-expect-error
-      return callback(tx);
+        const tx = (_label?: string) => {
+          label = _label;
+          return _tx;
+        };
+
+        // @ts-expect-error
+        assignClient(tx, _tx.session.client);
+        // @ts-expect-error
+        return callback(tx);
+      };
+      return _transaction(...args);
     };
-    return _transaction(...args);
   };
+
+  wrapTx(db);
 
   const transaction = db._.session.transaction.bind(db._.session);
   db._.session.transaction = async (...args) => {

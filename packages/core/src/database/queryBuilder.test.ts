@@ -39,6 +39,11 @@ test("QB transaction", async (context) => {
   await qb("test3").transaction(async (tx) => {
     await tx("test4").execute(sql`SELECT * FROM information_schema.schemata`);
   });
+  await qb("test4").transaction(async (tx) => {
+    await tx("test5").transaction(async (tx) => {
+      await tx("test6").select().from(SCHEMATA);
+    });
+  });
 });
 
 test("QB retries error", async (context) => {
