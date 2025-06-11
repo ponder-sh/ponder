@@ -69,7 +69,7 @@ const DB_PREDICTION_THRESHOLD = 0.2;
 const RPC_PREDICTION_THRESHOLD = 0.8;
 const MAX_CONSTANT_PATTERN_COUNT = 10;
 
-/** RPC methods that reference a block. */
+/** RPC methods that reference a block number. */
 const blockDependentMethods = new Set([
   "eth_getBalance",
   "eth_getTransactionCount",
@@ -83,9 +83,10 @@ const blockDependentMethods = new Set([
   "eth_getCode",
   "eth_getStorageAt",
   "eth_getUncleByBlockNumberAndIndex",
+  "debug_traceBlockByNumber",
 ]);
 
-/** RPC methods that don't reference a block. */
+/** RPC methods that don't reference a block number. */
 const nonBlockDependentMethods = new Set([
   "eth_getBlockByHash",
   "eth_getTransactionByHash",
@@ -95,6 +96,9 @@ const nonBlockDependentMethods = new Set([
   "eth_getTransactionReceipt",
   "eth_getUncleByBlockHashAndIndex",
   "eth_getUncleCountByBlockHash",
+  "debug_traceBlockByHash",
+  "debug_traceTransaction",
+  "debug_traceCall",
 ]);
 
 /** Viem actions where the `block` property is optional and implicit. */
@@ -930,6 +934,7 @@ export const cachedTransport =
             case "eth_getBlockTransactionCountByNumber":
             case "eth_getTransactionByBlockNumberAndIndex":
             case "eth_getUncleByBlockNumberAndIndex":
+            case "debug_traceBlockByNumber":
               [blockNumber] = params;
               break;
             case "eth_getBalance":
