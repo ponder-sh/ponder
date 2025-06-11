@@ -128,13 +128,15 @@ Here are a few common transport options.
 * [`loadBalance`](/docs/api-reference/ponder-utils#loadbalance)
 * [`rateLimit`](/docs/api-reference/ponder-utils#ratelimit)
 
-### WebSocket Support
+### WebSocket
 
-Use the optional `ws` field to specify a WebSocket RPC endpoint for each chain. When provided, Ponder will use WebSocket connections for real-time block subscriptions instead of polling.
+Use the optional `ws` field to specify a WebSocket RPC endpoint for each chain.
 
-WebSocket connections offer lower latency with immediate block notifications and reduced RPC usage for event-only indexers compared to polling.
+When provided, Ponder will use WebSocket connections for realtime block subscriptions instead of polling. Websocket connections offer lower latency and reduced RPC usage.
 
-If the WebSocket connection becomes unstable or fails, Ponder automatically falls back to the default polling mechanism to ensure continuous indexing.
+:::info
+  If the WebSocket connection becomes unstable or fails, Ponder automatically falls back to the default polling mechanism to ensure continuous indexing.
+:::
 
 ```ts [ponder.config.ts]
 import { createConfig } from "ponder";
