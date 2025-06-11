@@ -394,16 +394,6 @@ export async function run({
     msg: "Completed historical indexing",
   });
 
-  await database.setCheckpoints({
-    checkpoints: indexingBuild.chains.map((chain) => ({
-      chainName: chain.name,
-      chainId: chain.id,
-      latestCheckpoint: sync.getFinalizedCheckpoint(chain),
-      safeCheckpoint: sync.getFinalizedCheckpoint(chain),
-    })),
-    db: database.qb.drizzle,
-  });
-
   await database.createIndexes();
   await database.createTriggers();
 
