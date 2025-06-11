@@ -388,7 +388,7 @@ export const createSync = async (params: {
           // is defined.
           let from: string;
           if (crashRecoveryCheckpoint === undefined) {
-            from = getMultichainCheckpoint({ tag: "start", chain });
+            from = getMultichainCheckpoint({ tag: "start", chain })!;
           } else if (
             Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) ===
             chain.id
