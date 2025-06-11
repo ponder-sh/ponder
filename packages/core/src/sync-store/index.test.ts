@@ -557,27 +557,28 @@ test("getCrashRecoveryBlock()", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
   const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
+  const rpc = createRpc({ chain, common: context.common });
 
   await testClient.mine({ blocks: 4 });
   const rpcBlock1 = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
+  rpcBlock1.timestamp = rpcBlock1.number;
 
   const rpcBlock2 = await _eth_getBlockByNumber(rpc, {
     blockNumber: 2,
   });
+  rpcBlock2.timestamp = rpcBlock2.number;
 
   const rpcBlock3 = await _eth_getBlockByNumber(rpc, {
     blockNumber: 3,
   });
+  rpcBlock3.timestamp = rpcBlock3.number;
 
   const rpcBlock4 = await _eth_getBlockByNumber(rpc, {
     blockNumber: 4,
   });
+  rpcBlock4.timestamp = rpcBlock4.number;
 
   await syncStore.insertBlocks({
     blocks: [rpcBlock1, rpcBlock2, rpcBlock3, rpcBlock4],
