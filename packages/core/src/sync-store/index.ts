@@ -357,7 +357,7 @@ export const createSyncStore = ({
 
   getSafeCrashRecoveryBlock: async ({ chainId, timestamp }) => {
     return database.wrap({ method: "getSafeCrashRecoveryBlock" }, async () => {
-      const record = await database.qb.sync
+      const rows = await database.qb.sync
         .select({
           number: ponderSyncSchema.blocks.number,
           timestamp: ponderSyncSchema.blocks.timestamp,
@@ -372,9 +372,7 @@ export const createSyncStore = ({
         .orderBy(desc(ponderSyncSchema.blocks.number))
         .limit(1);
 
-      if (record.length === 0) return undefined;
-
-      return record[0]!;
+      return rows[0];
     });
   },
   insertLogs: async ({ logs, chainId }) => {
