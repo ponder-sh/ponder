@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.14
+
+### Patch Changes
+
+- [#1817](https://github.com/ponder-sh/ponder/pull/1817) [`a48fcd9`](https://github.com/ponder-sh/ponder/commit/a48fcd9ce11c30a8068b36925ffb8f8519ac85be) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Improved crash recovery performance by retrieving crash recovery checkpoint via db introspection.
+
 ## 0.11.13
 
 ### Patch Changes
