@@ -235,14 +235,14 @@ export const createQB = <
   const _transaction = db.transaction.bind(db);
   db.transaction = async (...args) => {
     const callback = args[0];
-    args[0] = (..._args) => {
+    args[0] = (_tx) => {
       const tx = (_label?: string) => {
         label = _label;
-        return _args[0];
+        return _tx;
       };
 
       // @ts-expect-error
-      assignClient(tx, _args[0]._.session.client);
+      assignClient(tx, _tx.session.client);
       // @ts-expect-error
       return callback(tx);
     };

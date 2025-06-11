@@ -5,16 +5,18 @@ import {
 } from "drizzle-orm/pg-core";
 import type pg from "pg";
 import seedrandom from "seedrandom";
+import type { QB } from "../../packages/core/src/database/queryBuilder.js";
 import { SEED, SIM_PARAMS } from "./index.js";
 
 export const dbSim = <
   TSchema extends { [name: string]: unknown } = { [name: string]: never },
   TClient extends pg.Pool | pg.PoolClient = pg.Pool | pg.PoolClient,
 >(
-  db: PgDatabase<PgQueryResultHKT, TSchema> & { $client: TClient },
+  qb: QB,
 ): PgDatabase<PgQueryResultHKT, TSchema> & { $client: TClient } => {
   const dialect = new PgDialect({ casing: "snake_case" });
   const queryCount = new Map<string, number>();
+  const db = qb();
 
   const simError = (sql: string): void => {
     let nonce: number;
@@ -52,6 +54,18 @@ export const dbSim = <
   };
 
   // transaction queries (non-retryable)
+
+  const _transaction = db.transaction.bind(db);
+  db.transaction = async (...args) => {
+    const callback = args[0];
+    args[0] = (_tx) => {
+      const tx = _tx();
+
+      // @ts-expect-error
+      return callback(tx);
+    };
+    return _transaction(...args);
+  };
 
   const transaction = db._.session.transaction.bind(db._.session);
   db._.session.transaction = async (...args) => {
