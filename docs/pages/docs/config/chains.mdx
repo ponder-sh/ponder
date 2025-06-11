@@ -132,7 +132,7 @@ Here are a few common transport options.
 
 Use the optional `ws` field to specify a WebSocket RPC endpoint for each chain. When provided, Ponder will use WebSocket connections for real-time block subscriptions instead of polling.
 
-WebSocket connections offer lower latency with immediate block notifications and reduced RPC usage for event-only indexers compared to polling mechanisms.
+WebSocket connections offer lower latency with immediate block notifications and reduced RPC usage for event-only indexers compared to polling.
 
 If the WebSocket connection becomes unstable or fails, Ponder automatically falls back to the default polling mechanism to ensure continuous indexing.
 
