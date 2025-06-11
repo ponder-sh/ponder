@@ -289,7 +289,7 @@ export const createSync = async (params: {
     );
 
     const eventGenerators = Array.from(perChainSync.entries()).map(
-      ([chain, { syncProgress, historicalSync }]) => {
+      async ([chain, { syncProgress, historicalSync }]) => {
         const sources = params.indexingBuild.sources.filter(
           ({ filter }) => filter.chainId === chain.id,
         );
@@ -380,15 +380,32 @@ export const createSync = async (params: {
 
         // In order to speed up the "extract" phase when there is a crash recovery,
         // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
-        // is defined and `crashRecoveryCheckpoint` refers to the same chain as `chain`.
+        // is defined.
         let from: string;
-        if (
-          crashRecoveryCheckpoint &&
+        if (crashRecoveryCheckpoint === undefined) {
+          from = getMultichainCheckpoint({ tag: "start", chain });
+        } else if (
           Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) === chain.id
         ) {
           from = crashRecoveryCheckpoint;
         } else {
-          from = getMultichainCheckpoint({ tag: "start", chain })!;
+          const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
+            chainId: chain.id,
+            timestamp: Number(
+              decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
+            ),
+          });
+
+          if (fromBlock === undefined) {
+            from = getMultichainCheckpoint({ tag: "start", chain })!;
+          } else {
+            from = encodeCheckpoint({
+              ...ZERO_CHECKPOINT,
+              blockNumber: fromBlock.number,
+              blockTimestamp: fromBlock.timestamp,
+              chainId: BigInt(chain.id),
+            });
+          }
         }
 
         const localEventGenerator = getLocalEventGenerator({
