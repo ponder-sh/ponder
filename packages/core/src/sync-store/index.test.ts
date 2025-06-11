@@ -40,6 +40,8 @@ import { sql } from "drizzle-orm";
 import {
   encodeFunctionData,
   encodeFunctionResult,
+  hexToBigInt,
+  hexToNumber,
   parseEther,
   zeroAddress,
 } from "viem";
@@ -549,6 +551,48 @@ test("getChildAddresses() distinct", async (context) => {
       "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be" => 0,
     }
   `);
+});
+
+test("getCrashRecoveryBlock()", async (context) => {
+  const { syncStore } = await setupDatabaseServices(context);
+
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  await testClient.mine({ blocks: 4 });
+  const rpcBlock1 = await _eth_getBlockByNumber(rpc, {
+    blockNumber: 1,
+  });
+
+  const rpcBlock2 = await _eth_getBlockByNumber(rpc, {
+    blockNumber: 2,
+  });
+
+  const rpcBlock3 = await _eth_getBlockByNumber(rpc, {
+    blockNumber: 3,
+  });
+
+  const rpcBlock4 = await _eth_getBlockByNumber(rpc, {
+    blockNumber: 4,
+  });
+
+  await syncStore.insertBlocks({
+    blocks: [rpcBlock1, rpcBlock2, rpcBlock3, rpcBlock4],
+    chainId: 1,
+  });
+
+  const result = await syncStore.getSafeCrashRecoveryBlock({
+    chainId: chain.id,
+    timestamp: hexToNumber(rpcBlock3.timestamp),
+  });
+
+  expect(result).toEqual({
+    number: hexToBigInt(rpcBlock2.number),
+    timestamp: hexToBigInt(rpcBlock2.timestamp),
+  });
 });
 
 test("insertChildAddresses()", async (context) => {
