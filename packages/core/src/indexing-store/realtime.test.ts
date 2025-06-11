@@ -12,7 +12,7 @@ import {
   NotNullConstraintError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { pgTable } from "drizzle-orm/pg-core";
 import { toBytes, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
@@ -436,6 +436,40 @@ test("sql", async (context) => {
     .catch((error) => error);
 
   expect(error).instanceOf(UniqueConstraintError);
+});
+
+test("sql with error", async (context) => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+  });
+  indexingStore.qb = database.userQB;
+
+  // error
+
+  const error = await indexingStore.sql
+    .execute(sql`SELECT * FROM does_not_exist`)
+    .catch((error) => error);
+
+  expect(error).toBeInstanceOf(Error);
+
+  // next query doesn't error
+
+  await indexingStore.sql
+    .select()
+    .from(schema.account)
+    .where(eq(schema.account.address, zeroAddress));
 });
 
 test("onchain table", async (context) => {

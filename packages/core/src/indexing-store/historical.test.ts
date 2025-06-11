@@ -571,6 +571,52 @@ test("sql followed by find", async (context) => {
   });
 });
 
+test("sql with error", async (context) => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount: {},
+  });
+
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB().transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
+
+    // error
+
+    const error = await indexingStore.sql
+      .execute(sql`SELECT * FROM does_not_exist`)
+      .catch((error) => error);
+
+    expect(error).toBeInstanceOf(Error);
+
+    // next query doesn't error
+
+    await indexingStore.sql
+      .select()
+      .from(schema.account)
+      .where(eq(schema.account.address, zeroAddress));
+  });
+});
+
 test("onchain table", async (context) => {
   const { database } = await setupDatabaseServices(context);
 
