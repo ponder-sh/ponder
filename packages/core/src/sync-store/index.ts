@@ -38,10 +38,12 @@ import {
   type SQL,
   and,
   asc,
+  desc,
   eq,
   gte,
   inArray,
   isNull,
+  lt,
   lte,
   or,
   sql,
@@ -71,6 +73,10 @@ export type SyncStore = {
     chainId: number;
   }): Promise<void>;
   getChildAddresses(args: { factory: Factory }): Promise<Map<Address, number>>;
+  getSafeCrashRecoveryBlock(args: {
+    chainId: number;
+    timestamp: number;
+  }): Promise<{ number: bigint; timestamp: bigint } | undefined>;
   insertLogs(args: { logs: SyncLog[]; chainId: number }): Promise<void>;
   insertBlocks(args: { blocks: SyncBlock[]; chainId: number }): Promise<void>;
   insertTransactions(args: {
@@ -344,6 +350,27 @@ export const createSyncStore = ({
           });
       },
     ),
+
+  getSafeCrashRecoveryBlock: async ({ chainId, timestamp }) => {
+    return database.wrap({ method: "getSafeCrashRecoveryBlock" }, async () => {
+      const rows = await database.qb.sync
+        .select({
+          number: ponderSyncSchema.blocks.number,
+          timestamp: ponderSyncSchema.blocks.timestamp,
+        })
+        .from(ponderSyncSchema.blocks)
+        .where(
+          and(
+            eq(ponderSyncSchema.blocks.chainId, BigInt(chainId)),
+            lt(ponderSyncSchema.blocks.timestamp, BigInt(timestamp)),
+          ),
+        )
+        .orderBy(desc(ponderSyncSchema.blocks.number))
+        .limit(1);
+
+      return rows[0];
+    });
+  },
   insertLogs: async ({ logs, chainId }) => {
     if (logs.length === 0) return;
     await database.wrap(

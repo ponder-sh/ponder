@@ -325,131 +325,155 @@ export const createSync = async (params: {
       getOmnichainCheckpoint({ tag: "end" }),
     );
 
-    const eventGenerators = Array.from(perChainSync.entries()).map(
-      ([chain, { syncProgress, historicalSync }]) => {
-        const sources = params.indexingBuild.sources.filter(
-          ({ filter }) => filter.chainId === chain.id,
-        );
+    const eventGenerators = await Promise.all(
+      Array.from(perChainSync.entries()).map(
+        async ([chain, { syncProgress, historicalSync }]) => {
+          const sources = params.indexingBuild.sources.filter(
+            ({ filter }) => filter.chainId === chain.id,
+          );
 
-        const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
-          ({ chainId }) => chainId === chain.id,
-        )?.checkpoint;
+          const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
+            ({ chainId }) => chainId === chain.id,
+          )?.checkpoint;
 
-        async function* decodeEventGenerator(
-          eventGenerator: AsyncGenerator<{
-            events: RawEvent[];
-            checkpoint: string;
-          }>,
-        ) {
-          for await (const { events, checkpoint } of eventGenerator) {
-            const endClock = startClock();
-            const decodedEvents = decodeEvents(params.common, sources, events);
-            params.common.logger.debug({
-              service: "app",
-              msg: `Decoded ${decodedEvents.length} '${chain.name}' events`,
+          async function* decodeEventGenerator(
+            eventGenerator: AsyncGenerator<{
+              events: RawEvent[];
+              checkpoint: string;
+            }>,
+          ) {
+            for await (const { events, checkpoint } of eventGenerator) {
+              const endClock = startClock();
+              const decodedEvents = decodeEvents(
+                params.common,
+                sources,
+                events,
+              );
+              params.common.logger.debug({
+                service: "app",
+                msg: `Decoded ${decodedEvents.length} '${chain.name}' events`,
+              });
+              params.common.metrics.ponder_historical_extract_duration.inc(
+                { step: "decode" },
+                endClock(),
+              );
+
+              await new Promise(setImmediate);
+
+              yield { events: decodedEvents, checkpoint };
+            }
+          }
+
+          async function* sortCrashRecoveryEvents(
+            eventGenerator: AsyncGenerator<{
+              events: Event[];
+              checkpoint: string;
+            }>,
+          ) {
+            for await (const { events, checkpoint } of eventGenerator) {
+              // Sort out any events before the crash recovery checkpoint
+
+              if (
+                crashRecoveryCheckpoint &&
+                events.length > 0 &&
+                events[0]!.checkpoint < crashRecoveryCheckpoint
+              ) {
+                const [, right] = partition(
+                  events,
+                  (event) => event.checkpoint <= crashRecoveryCheckpoint,
+                );
+                yield { events: right, checkpoint };
+              } else {
+                yield { events, checkpoint };
+              }
+            }
+          }
+
+          async function* sortCompletedAndPendingEvents(
+            eventGenerator: AsyncGenerator<{
+              events: Event[];
+              checkpoint: string;
+            }>,
+          ) {
+            for await (const { events, checkpoint } of eventGenerator) {
+              // Sort out any events between the omnichain finalized checkpoint and the single-chain
+              // finalized checkpoint and add them to pendingEvents. These events are synced during
+              // the historical phase, but must be indexed in the realtime phase because events
+              // synced in realtime on other chains might be ordered before them.
+              if (checkpoint > to) {
+                const [left, right] = partition(
+                  events,
+                  (event) => event.checkpoint <= to,
+                );
+                pendingEvents = pendingEvents.concat(right);
+                yield { events: left, checkpoint: to };
+              } else {
+                yield { events, checkpoint };
+              }
+            }
+          }
+
+          const localSyncGenerator = getLocalSyncGenerator({
+            common: params.common,
+            chain,
+            syncProgress,
+            historicalSync,
+          });
+
+          // In order to speed up the "extract" phase when there is a crash recovery,
+          // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
+          // is defined.
+          let from: string;
+          if (crashRecoveryCheckpoint === undefined) {
+            from = getMultichainCheckpoint({ tag: "start", chain });
+          } else if (
+            Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) ===
+            chain.id
+          ) {
+            from = crashRecoveryCheckpoint;
+          } else {
+            const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
+              chainId: chain.id,
+              timestamp: Number(
+                decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
+              ),
             });
-            params.common.metrics.ponder_historical_extract_duration.inc(
-              { step: "decode" },
-              endClock(),
-            );
 
-            await new Promise(setImmediate);
-
-            yield { events: decodedEvents, checkpoint };
-          }
-        }
-
-        async function* sortCrashRecoveryEvents(
-          eventGenerator: AsyncGenerator<{
-            events: Event[];
-            checkpoint: string;
-          }>,
-        ) {
-          for await (const { events, checkpoint } of eventGenerator) {
-            // Sort out any events before the crash recovery checkpoint
-
-            if (
-              crashRecoveryCheckpoint &&
-              events.length > 0 &&
-              events[0]!.checkpoint < crashRecoveryCheckpoint
-            ) {
-              const [, right] = partition(
-                events,
-                (event) => event.checkpoint <= crashRecoveryCheckpoint,
-              );
-              yield { events: right, checkpoint };
+            if (fromBlock === undefined) {
+              from = getMultichainCheckpoint({ tag: "start", chain });
             } else {
-              yield { events, checkpoint };
+              from = encodeCheckpoint({
+                ...ZERO_CHECKPOINT,
+                blockNumber: fromBlock.number,
+                blockTimestamp: fromBlock.timestamp,
+                chainId: BigInt(chain.id),
+              });
             }
           }
-        }
 
-        async function* sortCompletedAndPendingEvents(
-          eventGenerator: AsyncGenerator<{
-            events: Event[];
-            checkpoint: string;
-          }>,
-        ) {
-          for await (const { events, checkpoint } of eventGenerator) {
-            // Sort out any events between the omnichain finalized checkpoint and the single-chain
-            // finalized checkpoint and add them to pendingEvents. These events are synced during
-            // the historical phase, but must be indexed in the realtime phase because events
-            // synced in realtime on other chains might be ordered before them.
-            if (checkpoint > to) {
-              const [left, right] = partition(
-                events,
-                (event) => event.checkpoint <= to,
-              );
-              pendingEvents = pendingEvents.concat(right);
-              yield { events: left, checkpoint: to };
-            } else {
-              yield { events, checkpoint };
-            }
-          }
-        }
+          const localEventGenerator = getLocalEventGenerator({
+            common: params.common,
+            chain,
+            syncStore: params.syncStore,
+            sources,
+            localSyncGenerator,
+            from,
+            to: min(
+              getMultichainCheckpoint({ tag: "finalized", chain }),
+              getMultichainCheckpoint({ tag: "end", chain }),
+            ),
+            limit:
+              Math.round(
+                params.common.options.syncEventsQuerySize /
+                  (params.indexingBuild.chains.length + 1),
+              ) + 6,
+          });
 
-        const localSyncGenerator = getLocalSyncGenerator({
-          common: params.common,
-          chain,
-          syncProgress,
-          historicalSync,
-        });
-
-        // In order to speed up the "extract" phase when there is a crash recovery,
-        // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
-        // is defined and `crashRecoveryCheckpoint` refers to the same chain as `chain`.
-        let from: string;
-        if (
-          crashRecoveryCheckpoint &&
-          Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) === chain.id
-        ) {
-          from = crashRecoveryCheckpoint;
-        } else {
-          from = getMultichainCheckpoint({ tag: "start", chain });
-        }
-
-        const localEventGenerator = getLocalEventGenerator({
-          common: params.common,
-          chain,
-          syncStore: params.syncStore,
-          sources,
-          localSyncGenerator,
-          from,
-          to: min(
-            getMultichainCheckpoint({ tag: "finalized", chain }),
-            getMultichainCheckpoint({ tag: "end", chain }),
-          ),
-          limit:
-            Math.round(
-              params.common.options.syncEventsQuerySize /
-                (params.indexingBuild.chains.length + 1),
-            ) + 6,
-        });
-
-        return sortCompletedAndPendingEvents(
-          sortCrashRecoveryEvents(decodeEventGenerator(localEventGenerator)),
-        );
-      },
+          return sortCompletedAndPendingEvents(
+            sortCrashRecoveryEvents(decodeEventGenerator(localEventGenerator)),
+          );
+        },
+      ),
     );
 
     let eventGenerator: EventGenerator;
