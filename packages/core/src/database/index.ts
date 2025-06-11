@@ -182,8 +182,7 @@ export const createDatabase = async ({
       clearInterval(heartbeatInterval);
 
       if (["start", "dev"].includes(common.options.command)) {
-        await adminQB
-          .label("unlock")
+        await adminQB("unlock")
           .update(PONDER_META)
           .set({ value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))` });
       }
@@ -313,8 +312,7 @@ export const createDatabase = async ({
       clearInterval(heartbeatInterval);
 
       if (["start", "dev"].includes(common.options.command)) {
-        await adminQB
-          .label("unlock")
+        await adminQB("unlock")
           .update(PONDER_META)
           .set({ value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))` });
       }
@@ -455,7 +453,7 @@ export const createDatabase = async ({
       }
     },
     async migrate({ buildId }) {
-      await adminQB.label("create_meta_table").execute(
+      await adminQB("create_meta_table").execute(
         sql.raw(`
 CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_meta" (
   "key" TEXT PRIMARY KEY,
@@ -463,7 +461,7 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_meta" (
 )`),
       );
 
-      await adminQB.label("create_checkpoint_table").execute(
+      await adminQB("create_checkpoint_table").execute(
         sql.raw(`
 CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
   "chain_name" TEXT PRIMARY KEY,
@@ -477,7 +475,7 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
       const notification = "status_notify()";
       const channel = `${namespace.schema}_status_channel`;
 
-      await adminQB.label("create_system_notification").execute(
+      await adminQB("create_system_notification").execute(
         sql.raw(`
 CREATE OR REPLACE FUNCTION "${namespace.schema}".${notification}
 RETURNS TRIGGER
@@ -490,7 +488,7 @@ END;
 $$;`),
       );
 
-      await adminQB.label("create_system_trigger").execute(
+      await adminQB("create_system_trigger").execute(
         sql.raw(`
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
@@ -501,7 +499,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
 
       const createTables = async (tx: QB) => {
         for (let i = 0; i < schemaBuild.statements.tables.sql.length; i++) {
-          await tx
+          await tx()
             .execute(sql.raw(schemaBuild.statements.tables.sql[i]!))
             .catch((_error) => {
               const error = _error as Error;
@@ -517,7 +515,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
 
       const createEnums = async (tx: QB) => {
         for (let i = 0; i < schemaBuild.statements.enums.sql.length; i++) {
-          await tx
+          await tx()
             .execute(sql.raw(schemaBuild.statements.enums.sql[i]!))
             .catch((_error) => {
               const error = _error as Error;
@@ -532,10 +530,10 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
       };
 
       const tryAcquireLockAndMigrate = () =>
-        adminQB.label("migrate").transaction(async (tx) => {
+        adminQB("migrate").transaction(async (tx) => {
           // Note: All ponder versions are compatible with the next query (every version of the "_ponder_meta" table have the same columns)
 
-          const previousApp = await tx
+          const previousApp = await tx()
             .select({ value: PONDER_META.value })
             .from(PONDER_META)
             .where(eq(PONDER_META.key, "app"))
@@ -560,7 +558,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
               msg: `Created tables [${tables.map(getTableName).join(", ")}]`,
             });
 
-            await tx
+            await tx()
               .insert(PONDER_META)
               .values({ key: "app", value: metadata });
             return {
@@ -575,26 +573,26 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
               previousApp.build_id !== buildId)
           ) {
             for (const table of previousApp.table_names) {
-              await tx.execute(
+              await tx().execute(
                 sql.raw(
                   `DROP TABLE IF EXISTS "${namespace.schema}"."${table}" CASCADE`,
                 ),
               );
-              await tx.execute(
+              await tx().execute(
                 sql.raw(
                   `DROP TABLE IF EXISTS "${namespace.schema}"."${sqlToReorgTableName(table)}" CASCADE`,
                 ),
               );
             }
             for (const enumName of schemaBuild.statements.enums.json) {
-              await tx.execute(
+              await tx().execute(
                 sql.raw(
                   `DROP TYPE IF EXISTS "${namespace.schema}"."${enumName.name}"`,
                 ),
               );
             }
 
-            await tx.execute(
+            await tx().execute(
               sql.raw(
                 `TRUNCATE TABLE "${namespace.schema}"."${getTableName(PONDER_CHECKPOINT)}" CASCADE`,
               ),
@@ -608,7 +606,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
               msg: `Created tables [${tables.map(getTableName).join(", ")}]`,
             });
 
-            await tx.update(PONDER_META).set({ value: metadata });
+            await tx().update(PONDER_META).set({ value: metadata });
             return {
               status: "success",
               crashRecoveryCheckpoint: undefined,
@@ -650,7 +648,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
             msg: `Detected crash recovery for build '${buildId}' in schema '${namespace.schema}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
           });
 
-          const checkpoints = await tx.select().from(PONDER_CHECKPOINT);
+          const checkpoints = await tx().select().from(PONDER_CHECKPOINT);
           const crashRecoveryCheckpoint =
             checkpoints.length === 0
               ? undefined
@@ -660,14 +658,14 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
                 }));
 
           if (previousApp.is_ready === 0) {
-            await tx.update(PONDER_META).set({ value: metadata });
+            await tx().update(PONDER_META).set({ value: metadata });
             return { status: "success", crashRecoveryCheckpoint } as const;
           }
 
           // Remove triggers
 
           for (const table of tables) {
-            await tx.execute(
+            await tx().execute(
               sql.raw(
                 `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
               ),
@@ -677,7 +675,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
           // Remove indexes
 
           for (const indexStatement of schemaBuild.statements.indexes.json) {
-            await tx.execute(
+            await tx().execute(
               sql.raw(
                 `DROP INDEX IF EXISTS "${namespace.schema}"."${indexStatement.data.name}"`,
               ),
@@ -702,7 +700,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
           // Note: We don't update the `_ponder_checkpoint` table here, instead we wait for it to be updated
           // in the runtime script.
 
-          await tx.update(PONDER_META).set({ value: metadata });
+          await tx().update(PONDER_META).set({ value: metadata });
           return { status: "success", crashRecoveryCheckpoint } as const;
         });
 
@@ -734,8 +732,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
         try {
           const heartbeat = Date.now();
 
-          await adminQB
-            .label("heartbeat")
+          await adminQB("heartbeat")
             .update(PONDER_META)
             .set({
               value: sql`jsonb_set(value, '{heartbeat_at}', ${heartbeat})`,

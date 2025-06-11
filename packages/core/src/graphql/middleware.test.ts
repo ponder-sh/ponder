@@ -44,7 +44,7 @@ test("middleware serves request", async (context) => {
 
   const app = new Hono().use(
     "/graphql",
-    graphql({ schema, db: database.readonlyQB }),
+    graphql({ schema, db: database.readonlyQB() }),
   );
 
   const response = await app.request("/graphql", {
@@ -103,7 +103,7 @@ test("middleware supports path other than /graphql using hono routing", async (c
 
   const app = new Hono().use(
     "/not-graphql/**",
-    graphql({ schema, db: database.readonlyQB }),
+    graphql({ schema, db: database.readonlyQB() }),
   );
 
   const response = await app.request("/not-graphql/at-all", {
@@ -144,7 +144,7 @@ test("middleware throws error when extra filter is applied", async (context) => 
 
   const app = new Hono().use(
     "/graphql",
-    graphql({ schema, db: database.readonlyQB }),
+    graphql({ schema, db: database.readonlyQB() }),
   );
 
   const response = await app.request("/graphql", {
@@ -189,7 +189,7 @@ test("graphQLMiddleware throws error for token limit", async (context) => {
 
   const app = new Hono().use(
     "/graphql",
-    graphql({ schema, db: database.readonlyQB }, { maxOperationTokens: 3 }),
+    graphql({ schema, db: database.readonlyQB() }, { maxOperationTokens: 3 }),
   );
 
   const response = await app.request("/graphql", {
@@ -238,7 +238,7 @@ test("graphQLMiddleware throws error for depth limit", async (context) => {
 
   const app = new Hono().use(
     "/graphql",
-    graphql({ schema, db: database.readonlyQB }, { maxOperationDepth: 5 }),
+    graphql({ schema, db: database.readonlyQB() }, { maxOperationDepth: 5 }),
   );
 
   const response = await app.request("/graphql", {
@@ -287,7 +287,7 @@ test("graphQLMiddleware throws error for max aliases", async (context) => {
 
   const app = new Hono().use(
     "/graphql",
-    graphql({ schema, db: database.readonlyQB }, { maxOperationAliases: 2 }),
+    graphql({ schema, db: database.readonlyQB() }, { maxOperationAliases: 2 }),
   );
 
   const response = await app.request("/graphql", {
@@ -342,7 +342,7 @@ test("graphQLMiddleware interactive", async (context) => {
 
   const app = new Hono().use(
     "/graphql",
-    graphql({ schema, db: database.readonlyQB }, { maxOperationAliases: 2 }),
+    graphql({ schema, db: database.readonlyQB() }, { maxOperationAliases: 2 }),
   );
 
   const response = await app.request("/graphql");

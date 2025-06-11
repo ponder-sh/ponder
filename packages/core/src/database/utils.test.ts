@@ -84,7 +84,7 @@ test("finalize()", async (context) => {
 
   // reorg tables
 
-  const rows = await database.userQB.select().from(getReorgTable(account));
+  const rows = await database.userQB().select().from(getReorgTable(account));
 
   expect(rows).toHaveLength(2);
 });
@@ -130,9 +130,9 @@ test("createTriggers()", async (context) => {
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  const { rows } = await database.userQB.execute(
-    sql`SELECT * FROM _reorg__account`,
-  );
+  const { rows } = await database
+    .userQB()
+    .execute(sql`SELECT * FROM _reorg__account`);
 
   expect(rows).toStrictEqual([
     {
@@ -176,9 +176,9 @@ test("commitBlock()", async (context) => {
     table: account,
   });
 
-  const { rows } = await database.userQB.execute(
-    sql`SELECT * FROM _reorg__account`,
-  );
+  const { rows } = await database
+    .userQB()
+    .execute(sql`SELECT * FROM _reorg__account`);
 
   expect(rows).toStrictEqual([
     {
@@ -235,14 +235,14 @@ test("revert()", async (context) => {
     table: account,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     await revert(tx, {
       checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
       table: account,
     });
   });
 
-  const rows = await database.userQB.select().from(account);
+  const rows = await database.userQB().select().from(account);
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toStrictEqual({ address: zeroAddress, balance: 10n });
@@ -288,14 +288,14 @@ test("revert() with composite primary key", async (context) => {
     table: test,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     await revert(tx, {
       checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
       table: test,
     });
   });
 
-  const rows = await database.userQB.select().from(test);
+  const rows = await database.userQB().select().from(test);
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toStrictEqual({ a: 1, b: 1, c: null });
@@ -306,7 +306,8 @@ async function getUserIndexNames(
   namespace: string,
   tableName: string,
 ) {
-  const rows = await database.userQB
+  const rows = await database
+    .userQB()
     .select({
       name: sql<string>`indexname`.as("name"),
     })

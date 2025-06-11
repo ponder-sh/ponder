@@ -83,8 +83,8 @@ test("ready", async (context) => {
     database,
   });
 
-  await database.adminQB
-    .label("set_ready")
+  await database
+    .adminQB()
     .update(getPonderMetaTable())
     .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` });
 

@@ -20,8 +20,8 @@ test("QB query", async (context) => {
   );
   const qb = createQB(context.common, drizzle(pool, { casing: "snake_case" }));
 
-  await qb.label("test1").select().from(SCHEMATA);
-  await qb.execute(sql`SELECT * FROM information_schema.schemata`);
+  await qb("test1").select().from(SCHEMATA);
+  await qb().execute(sql`SELECT * FROM information_schema.schemata`);
 });
 
 test("QB transaction", async (context) => {
@@ -33,13 +33,11 @@ test("QB transaction", async (context) => {
   );
   const qb = createQB(context.common, drizzle(pool, { casing: "snake_case" }));
 
-  await qb.label("test1").transaction(async (tx) => {
-    await tx.label("test2").select().from(SCHEMATA);
+  await qb("test1").transaction(async (tx) => {
+    await tx("test2").select().from(SCHEMATA);
   });
-  await qb.label("test3").transaction(async (tx) => {
-    await tx
-      .label("test4")
-      .execute(sql`SELECT * FROM information_schema.schemata`);
+  await qb("test3").transaction(async (tx) => {
+    await tx("test4").execute(sql`SELECT * FROM information_schema.schemata`);
   });
 });
 
@@ -55,7 +53,7 @@ test("QB retries error", async (context) => {
   const querySpy = vi.spyOn(pool, "query");
   querySpy.mockRejectedValueOnce(new Error("Database connection error"));
 
-  await qb.label("test1").select().from(SCHEMATA);
+  await qb("test1").select().from(SCHEMATA);
 
   expect(querySpy).toHaveBeenCalledTimes(2);
 });
@@ -77,12 +75,12 @@ test("QB transaction retries error", async (context) => {
   querySpy.mockRejectedValueOnce(new Error("Database connection error"));
   let error = true;
 
-  await qb.label("test1").transaction(async (tx) => {
+  await qb("test1").transaction(async (tx) => {
     if (error) {
       error = false;
       querySpy.mockRejectedValueOnce(new Error("Database connection error"));
     }
-    await tx.label("test2").select().from(SCHEMATA);
+    await tx("test2").select().from(SCHEMATA);
   });
 
   // BEGIN, ROLLBACK, BEGIN, SELECT, COMMIT
@@ -103,8 +101,7 @@ test("QB parses error", async (context) => {
   const querySpy = vi.spyOn(pool, "query");
   querySpy.mockRejectedValueOnce(new Error("violates not-null constraint"));
 
-  const error = await qb
-    .label("test1")
+  const error = await qb("test1")
     .select()
     .from(SCHEMATA)
     .catch((error) => error);
@@ -125,7 +122,7 @@ test("QB client", async (context) => {
   expect(qb.$dialect).toBe("postgres");
   expect(qb.$client).toBeInstanceOf(Pool);
 
-  await qb.transaction(async (tx) => {
+  await qb().transaction(async (tx) => {
     expect(tx.$dialect).toBe("postgres");
     expect(tx.$client).toBeInstanceOf(Client);
   });

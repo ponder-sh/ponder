@@ -37,7 +37,7 @@ for (let i = 0; i < globalThis.PONDER_INDEXING_BUILD.chains.length; i++) {
   })
 }
 
-export const db = globalThis.PONDER_DATABASE.readonlyQB;
+export const db = globalThis.PONDER_DATABASE.readonlyQB();
 export { publicClients };
 `;
 

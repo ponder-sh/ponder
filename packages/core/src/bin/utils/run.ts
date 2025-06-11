@@ -152,7 +152,7 @@ export async function run({
 
   // If the initial checkpoint is zero, we need to run setup events.
   if (crashRecoveryCheckpoint === undefined) {
-    await database.userQB.transaction(async (tx) => {
+    await database.userQB().transaction(async (tx) => {
       historicalIndexingStore.qb = tx;
       indexingCache.qb = tx;
 
@@ -178,8 +178,8 @@ export async function run({
   }
 
   // Note: `_ponder_checkpoint` must be updated after the setup events are processed.
-  await database.adminQB
-    .label("update_checkpoints")
+  await database
+    .adminQB("update_checkpoints")
     .insert(PONDER_CHECKPOINT)
     .values(
       indexingBuild.chains.map((chain) => ({
@@ -225,7 +225,8 @@ export async function run({
     if (events.events.length > 0) {
       endClock = startClock();
 
-      await database.userQB
+      await database
+        .userQB()
         .transaction(async (tx) => {
           historicalIndexingStore.qb = tx;
           indexingCache.qb = tx;
@@ -347,8 +348,8 @@ export async function run({
           endClock = startClock();
 
           if (events.checkpoints.length > 0) {
-            await database.adminQB
-              .label("update_checkpoints")
+            await database
+              .adminQB("update_checkpoints")
               .insert(PONDER_CHECKPOINT)
               .values(
                 events.checkpoints.map(({ chainId, checkpoint }) => ({
@@ -429,20 +430,20 @@ export async function run({
   );
 
   if (namespaceBuild.viewsSchema) {
-    await database.adminQB.label("create_views").transaction(async (tx) => {
-      await tx.execute(
+    await database.adminQB("create_views").transaction(async (tx) => {
+      await tx().execute(
         sql.raw(`CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.viewsSchema}"`),
       );
 
       for (const table of tables) {
         // Note: drop views before creating new ones to avoid enum errors.
-        await tx.execute(
+        await tx().execute(
           sql.raw(
             `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${getTableName(table)}"`,
           ),
         );
 
-        await tx.execute(
+        await tx().execute(
           sql.raw(
             `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
           ),
@@ -454,13 +455,13 @@ export async function run({
         msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
       });
 
-      await tx.execute(
+      await tx().execute(
         sql.raw(
           `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_meta"`,
         ),
       );
 
-      await tx.execute(
+      await tx().execute(
         sql.raw(
           `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_checkpoint"`,
         ),
@@ -470,7 +471,7 @@ export async function run({
       const notification = "status_notify()";
       const channel = `${namespaceBuild.viewsSchema}_status_channel`;
 
-      await tx.execute(
+      await tx().execute(
         sql.raw(`
   CREATE OR REPLACE FUNCTION "${namespaceBuild.viewsSchema}".${notification}
   RETURNS TRIGGER
@@ -483,7 +484,7 @@ export async function run({
   $$;`),
       );
 
-      await tx.execute(
+      await tx().execute(
         sql.raw(`
   CREATE OR REPLACE TRIGGER "${trigger}"
   AFTER INSERT OR UPDATE OR DELETE
@@ -494,8 +495,8 @@ export async function run({
     });
   }
 
-  await database.adminQB
-    .label("set_ready")
+  await database
+    .adminQB("set_ready")
     .update(PONDER_META)
     .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` });
 
@@ -560,8 +561,8 @@ export async function run({
         }
 
         if (event.checkpoints.length > 0) {
-          await database.adminQB
-            .label("update_checkpoints")
+          await database
+            .adminQB("update_checkpoints")
             .insert(PONDER_CHECKPOINT)
             .values(
               event.checkpoints.map(({ chainId, checkpoint }) => ({
@@ -585,7 +586,7 @@ export async function run({
         // Note: `_ponder_checkpoint` is not called here, instead it is called
         // in the `block` case.
 
-        await database.userQB.transaction(async (tx) => {
+        await database.userQB().transaction(async (tx) => {
           for (const table of tables) {
             await dropTrigger(tx, { table });
             const count = await revert(tx, {
@@ -603,8 +604,8 @@ export async function run({
         break;
 
       case "finalize":
-        await database.userQB.transaction(async (tx) => {
-          await tx.label("update_checkpoints").update(PONDER_CHECKPOINT).set({
+        await database.userQB().transaction(async (tx) => {
+          await tx("update_checkpoints").update(PONDER_CHECKPOINT).set({
             safeCheckpoint: event.checkpoint,
           });
 

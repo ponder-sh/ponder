@@ -38,7 +38,7 @@ test("client.db", async (context) => {
 
   const app = new Hono().use(
     client({
-      db: database.readonlyQB,
+      db: database.readonlyQB(),
       schema: { account },
     }),
   );
@@ -68,7 +68,7 @@ test("client.db error", async (context) => {
 
   const app = new Hono().use(
     client({
-      db: database.readonlyQB,
+      db: database.readonlyQB(),
       schema: {},
     }),
   );
@@ -112,7 +112,7 @@ test("client.db search_path", async (context) => {
 
   const app = new Hono().use(
     client({
-      db: database.readonlyQB,
+      db: database.readonlyQB(),
       schema: { account: schemaAccount },
     }),
   );
@@ -144,7 +144,7 @@ test("client.db readonly", async (context) => {
   globalThis.PONDER_DATABASE = database;
 
   const app = new Hono().use(
-    client({ db: database.readonlyQB, schema: { account } }),
+    client({ db: database.readonlyQB(), schema: { account } }),
   );
 
   const query = {
@@ -175,7 +175,7 @@ test("client.db recursive", async (context) => {
   globalThis.PONDER_DATABASE = database;
 
   const app = new Hono().use(
-    client({ db: database.readonlyQB, schema: { account } }),
+    client({ db: database.readonlyQB(), schema: { account } }),
   );
 
   const query = {
@@ -208,7 +208,7 @@ test("client.status", async (context) => {
 
   const app = new Hono().use(
     client({
-      db: database.readonlyQB,
+      db: database.readonlyQB(),
       schema: {},
     }),
   );

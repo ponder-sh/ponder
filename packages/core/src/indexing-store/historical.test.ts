@@ -48,7 +48,7 @@ test("find", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -108,7 +108,7 @@ test("insert", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -264,7 +264,7 @@ test("update", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -359,7 +359,7 @@ test("update throw error when primary key is updated", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -414,7 +414,7 @@ test("delete", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -474,7 +474,7 @@ test("sql", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -501,7 +501,7 @@ test("sql", async (context) => {
 
     // non-null constraint
 
-    await tx.execute(sql.raw("SAVEPOINT test"));
+    await tx().execute(sql.raw("SAVEPOINT test"));
 
     await expect(
       async () =>
@@ -516,7 +516,7 @@ test("sql", async (context) => {
 
     // unique constraint
 
-    await tx.execute(sql.raw("ROLLBACK TO test"));
+    await tx().execute(sql.raw("ROLLBACK TO test"));
 
     await expect(
       async () =>
@@ -552,7 +552,7 @@ test("sql followed by find", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -594,7 +594,7 @@ test("onchain table", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -632,7 +632,7 @@ test("missing rows", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -671,7 +671,7 @@ test("notNull", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -761,7 +761,7 @@ test("default", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -798,7 +798,7 @@ test("$default", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -838,7 +838,7 @@ test("$onUpdateFn", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -881,7 +881,7 @@ test("array", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -926,7 +926,7 @@ test("text array", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -977,7 +977,7 @@ test("enum", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -1022,7 +1022,7 @@ test("json bigint", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -1058,7 +1058,7 @@ test("bytes", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -1101,7 +1101,7 @@ test("text with null bytes", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -1144,7 +1144,7 @@ test.skip("time", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -1187,7 +1187,7 @@ test("timestamp", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -1230,7 +1230,7 @@ test.skip("date", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -1273,7 +1273,7 @@ test.skip("interval", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -1316,7 +1316,7 @@ test("point", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
@@ -1359,7 +1359,7 @@ test("line", async (context) => {
     indexingCache,
   });
 
-  await database.userQB.transaction(async (tx) => {
+  await database.userQB().transaction(async (tx) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
