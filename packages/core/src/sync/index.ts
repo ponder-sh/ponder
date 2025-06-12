@@ -71,7 +71,6 @@ export type Sync = {
   getEvents(): EventGenerator;
   startRealtime(): Promise<void>;
   getStartCheckpoint(chain: Chain): string;
-  getFinalizedCheckpoint(chain: Chain): string;
   seconds: Seconds;
 };
 
@@ -1049,9 +1048,6 @@ export const createSync = async (params: {
     seconds,
     getStartCheckpoint(chain) {
       return getMultichainCheckpoint({ tag: "start", chain });
-    },
-    getFinalizedCheckpoint(chain) {
-      return getMultichainCheckpoint({ tag: "finalized", chain });
     },
   };
 };

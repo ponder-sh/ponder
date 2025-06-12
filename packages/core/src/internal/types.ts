@@ -360,6 +360,9 @@ export type ApiBuild = {
 
 // Crash recovery
 
+/**
+ * @dev It is not an invariant that `chainId` and `checkpoint.chainId` are the same.
+ */
 export type CrashRecoveryCheckpoint =
   | {
       chainId: number;
