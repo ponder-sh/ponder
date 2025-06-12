@@ -321,6 +321,32 @@ export async function buildConfigAndIndexingFunctions({
     logs.push({ level: "warn", msg: "No indexing functions were registered." });
   }
 
+  const isFactoryArray = (
+    address:
+      | Address
+      | Factory
+      | readonly Address[]
+      | readonly Factory[]
+      | undefined,
+  ): address is readonly Factory[] => {
+    return (
+      address !== undefined &&
+      Array.isArray(address) &&
+      typeof address[0]! === "object"
+    );
+  };
+
+  const isFactory = (
+    address:
+      | Address
+      | Factory
+      | readonly Address[]
+      | readonly Factory[]
+      | undefined,
+  ): address is Factory => {
+    return typeof address === "object" && !Array.isArray(address);
+  };
+
   // common validation for all sources
   for (const source of [
     ...flattenSources(config.contracts ?? {}),
@@ -361,75 +387,49 @@ export async function buildConfigAndIndexingFunctions({
       );
     }
 
-    // TODO: handle Factory[]
     if (
       "address" in source &&
-      typeof source.address === "object" &&
-      !Array.isArray(source.address)
+      (isFactory(source.address) || isFactoryArray(source.address))
     ) {
-      const factoryStartBlock =
-        (await resolveBlockNumber(source.address.startBlock, chain)) ??
-        startBlock;
+      for (const factory of isFactoryArray(source.address)
+        ? source.address
+        : [source.address]) {
+        const factoryStartBlock =
+          (await resolveBlockNumber(factory.startBlock, chain)) ?? startBlock;
 
-      const factoryEndBlock =
-        (await resolveBlockNumber(source.address.startBlock, chain)) ??
-        endBlock;
+        const factoryEndBlock =
+          (await resolveBlockNumber(factory.startBlock, chain)) ?? endBlock;
 
-      if (
-        factoryStartBlock !== undefined &&
-        (startBlock === undefined || factoryStartBlock > startBlock)
-      ) {
-        throw new Error(
-          `Validation failed: Start block for '${source.name}' is before start block of factory address (${factoryStartBlock} > ${startBlock}).`,
-        );
-      }
+        if (
+          factoryStartBlock !== undefined &&
+          (startBlock === undefined || factoryStartBlock > startBlock)
+        ) {
+          throw new Error(
+            `Validation failed: Start block for '${source.name}' is before start block of factory address (${factoryStartBlock} > ${startBlock}).`,
+          );
+        }
 
-      if (
-        endBlock !== undefined &&
-        (factoryEndBlock === undefined || factoryEndBlock > endBlock)
-      ) {
-        throw new Error(
-          `Validation failed: End block for ${source.name}  is before end block of factory address (${factoryEndBlock} > ${endBlock}).`,
-        );
-      }
+        if (
+          endBlock !== undefined &&
+          (factoryEndBlock === undefined || factoryEndBlock > endBlock)
+        ) {
+          throw new Error(
+            `Validation failed: End block for ${source.name}  is before end block of factory address (${factoryEndBlock} > ${endBlock}).`,
+          );
+        }
 
-      if (
-        factoryStartBlock !== undefined &&
-        factoryEndBlock !== undefined &&
-        factoryEndBlock < factoryStartBlock
-      ) {
-        throw new Error(
-          `Validation failed: Start block for '${source.name}' factory address is after end block (${factoryStartBlock} > ${factoryEndBlock}).`,
-        );
+        if (
+          factoryStartBlock !== undefined &&
+          factoryEndBlock !== undefined &&
+          factoryEndBlock < factoryStartBlock
+        ) {
+          throw new Error(
+            `Validation failed: Start block for '${source.name}' factory address is after end block (${factoryStartBlock} > ${factoryEndBlock}).`,
+          );
+        }
       }
     }
   }
-
-  const isFactoryArray = (
-    address:
-      | Address
-      | Factory
-      | readonly Address[]
-      | readonly Factory[]
-      | undefined,
-  ): address is readonly Factory[] => {
-    return (
-      address !== undefined &&
-      Array.isArray(address) &&
-      typeof address[0]! === "object"
-    );
-  };
-
-  const isFactory = (
-    address:
-      | Address
-      | Factory
-      | readonly Address[]
-      | readonly Factory[]
-      | undefined,
-  ): address is Factory => {
-    return typeof address === "object" && !Array.isArray(address);
-  };
 
   const contractSources: ContractSource[] = (
     await Promise.all(
