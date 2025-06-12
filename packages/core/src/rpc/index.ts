@@ -462,10 +462,8 @@ export const createRpc = ({
 
   let interval: NodeJS.Timeout | undefined;
   let webSocketErrorCount = 0;
-  let isWebSocketClosing = false;
   const disconnect = async () => {
     const conn = await wsTransport!.value!.getRpcClient();
-    isWebSocketClosing = true;
     conn.close();
   };
 
@@ -494,7 +492,7 @@ export const createRpc = ({
                 if (webSocketErrorCount === RETRY_COUNT) {
                   common.logger.warn({
                     service: "rpc",
-                    msg: `subscribe onData: Failed '${chain.name}' eth_subscribe after ${webSocketErrorCount + 1} consecutive errors. Switching to polling.`,
+                    msg: `Failed '${chain.name}' newHeads subscription after ${webSocketErrorCount + 1} consecutive errors. Switching to polling`,
                     error,
                   });
 
@@ -506,14 +504,14 @@ export const createRpc = ({
                 } else {
                   common.logger.debug({
                     service: "rpc",
-                    msg: `subscribe onData: Failed '${chain.name}' eth_subscribe request`,
+                    msg: `Received failed '${chain.name}' newHeads subscription data`,
                     error,
                   });
                 }
               } else {
                 common.logger.debug({
                   service: "rpc",
-                  msg: `subscribe onData: result for '${chain.name}': \n ${data.result}`,
+                  msg: `Received successful '${chain.name}' newHeads subscription data`,
                 });
 
                 onBlock(data.result);
@@ -521,19 +519,13 @@ export const createRpc = ({
               }
             },
             onError: async (_error) => {
-              // Note: `disconnect` causes `onError` to be called again.
-              if (isWebSocketClosing) {
-                isWebSocketClosing = false;
-                return;
-              }
-
               const error = _error as Error;
               webSocketErrorCount += 1;
 
               if (webSocketErrorCount === RETRY_COUNT) {
                 common.logger.warn({
                   service: "rpc",
-                  msg: `subscribe onError: Failed '${chain.name}' eth_subscribe request after ${webSocketErrorCount + 1} consecutive errors. Switching to polling.`,
+                  msg: `Failed '${chain.name}' newHeads subscription after ${webSocketErrorCount + 1} consecutive errors. Switching to polling`,
                   error,
                 });
 
@@ -543,7 +535,7 @@ export const createRpc = ({
               } else {
                 common.logger.debug({
                   service: "rpc",
-                  msg: `subscribe onError: Failed '${chain.name}' eth_subscribe request`,
+                  msg: `Failed '${chain.name}' newHeads subscription`,
                   error,
                 });
 
@@ -563,7 +555,7 @@ export const createRpc = ({
             if (webSocketErrorCount === RETRY_COUNT) {
               common.logger.warn({
                 service: "rpc",
-                msg: `Failed initial '${chain.name}' eth_subscribe after ${webSocketErrorCount + 1} consecutive errors. Switching to polling.`,
+                msg: `Failed '${chain.name}' eth_subscribe request after ${webSocketErrorCount + 1} consecutive errors. Switching to polling`,
                 error,
               });
               wsTransport = undefined;
@@ -571,7 +563,7 @@ export const createRpc = ({
               const duration = BASE_DURATION * 2 ** webSocketErrorCount;
               common.logger.debug({
                 service: "rpc",
-                msg: `Failed initial '${chain.name}' eth_subscribe request, retrying after ${duration} milliseconds.`,
+                msg: `Failed '${chain.name}' eth_subscribe request, retrying after ${duration} milliseconds`,
                 error,
               });
               await wait(duration);
