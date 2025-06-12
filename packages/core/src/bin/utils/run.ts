@@ -379,8 +379,10 @@ export async function run({
       label,
       Math.max(
         sync.seconds[chain.name]!.end -
-          sync.seconds[chain.name]!.start -
-          sync.seconds[chain.name]!.cached,
+          Math.max(
+            sync.seconds[chain.name]!.cached,
+            sync.seconds[chain.name]!.start,
+          ),
         0,
       ),
     );
