@@ -514,7 +514,7 @@ export const createRpc = ({
                 } else {
                   common.logger.debug({
                     service: "rpc",
-                    msg: `Received failed '${chain.name}' newHeads subscription data`,
+                    msg: `Received '${chain.name}' newHeads subscription error`,
                     error,
                   });
                 }
