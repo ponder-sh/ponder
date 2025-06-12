@@ -67,6 +67,9 @@ test("mergeAsyncGenerators() yields all results", async () => {
 
   p1.resolve(1);
   p2.resolve(2);
+
+  await new Promise((res) => setTimeout(res));
+
   p3.resolve(3);
   p4.resolve(4);
 

@@ -23,8 +23,15 @@ export async function* mergeAsyncGenerators<T>(
       generators.splice(index, 1);
       promises.splice(index, 1);
     } else {
+      const generator = generators[index]!;
+      const promise = generator.next();
+
       promises.splice(index, 1);
-      promises.push(generators[index]!.next());
+      generators.splice(index, 1);
+
+      generators.push(generator);
+      promises.push(promise);
+
       yield result.value;
     }
   }
