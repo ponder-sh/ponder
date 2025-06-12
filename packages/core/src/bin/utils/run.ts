@@ -244,8 +244,10 @@ export async function run({
                   { chain: chain.name },
                   Math.max(
                     Number(checkpoint.blockTimestamp) -
-                      sync.seconds[chain.name]!.start -
-                      sync.seconds[chain.name]!.cached,
+                      Math.max(
+                        sync.seconds[chain.name]!.cached,
+                        sync.seconds[chain.name]!.start,
+                      ),
                     0,
                   ),
                 );
@@ -260,8 +262,10 @@ export async function run({
                     Math.min(
                       Math.max(
                         Number(checkpoint.blockTimestamp) -
-                          sync.seconds[chain.name]!.start -
-                          sync.seconds[chain.name]!.cached,
+                          Math.max(
+                            sync.seconds[chain.name]!.cached,
+                            sync.seconds[chain.name]!.start,
+                          ),
                         0,
                       ),
                       Math.max(
