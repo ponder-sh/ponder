@@ -56,8 +56,8 @@ export const dbSim = <
   // transaction queries (non-retryable)
 
   const unwrapTx = (qb: ReturnType<QB>) => {
-    const _transaction = db.transaction.bind(db);
-    db.transaction = async (...args) => {
+    const _transaction = qb.transaction.bind(qb);
+    qb.transaction = async (...args) => {
       const callback = args[0];
       args[0] = (_tx) => {
         const tx = _tx();
