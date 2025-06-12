@@ -1,5 +1,15 @@
 # ponder
 
+## 0.11.15
+
+### Patch Changes
+
+- [#1822](https://github.com/ponder-sh/ponder/pull/1822) [`33e38ea`](https://github.com/ponder-sh/ponder/commit/33e38ea989f4243d336e8a960e3279cc43547ff3) Thanks [@kyscott18](https://github.com/kyscott18)! - Improve historical backfill performance.
+
+- [#1820](https://github.com/ponder-sh/ponder/pull/1820) [`87377f8`](https://github.com/ponder-sh/ponder/commit/87377f8b11e2a190d459658350fe46965d121a6a) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed progress estimation metrics after crash recovery.
+
+- [#1819](https://github.com/ponder-sh/ponder/pull/1819) [`4d4d523`](https://github.com/ponder-sh/ponder/commit/4d4d52304c352f20c53976c69765200a90446a44) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with the \_ponder_checkpoint table being updated incorrectly after the historical backfill is complete.
+
 ## 0.11.14
 
 ### Patch Changes
