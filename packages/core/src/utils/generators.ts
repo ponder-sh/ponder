@@ -23,7 +23,8 @@ export async function* mergeAsyncGenerators<T>(
       generators.splice(index, 1);
       promises.splice(index, 1);
     } else {
-      promises[index] = generators[index]!.next();
+      promises.splice(index, 1);
+      promises.push(generators[index]!.next());
       yield result.value;
     }
   }

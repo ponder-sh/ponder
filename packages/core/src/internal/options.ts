@@ -118,6 +118,6 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
           1_024 *
           1_024,
 
-    syncEventsQuerySize: 18_000,
+    syncEventsQuerySize: 12_000,
   } satisfies Options;
 };
