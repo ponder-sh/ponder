@@ -863,12 +863,15 @@ export const createRealtimeSync = (
    */
   const reconcileBlock = mutex(
     async (
-      blockWithEventData: BlockWithEventData,
+      blockWithEventData: BlockWithEventData | SyncBlockHeader | SyncBlock,
     ): Promise<
       SyncResult | { type: "pending"; promise: Promise<SyncResult> }
     > => {
       const latestBlock = getLatestUnfinalizedBlock();
-      const block = blockWithEventData.block;
+      const block =
+        "block" in blockWithEventData
+          ? blockWithEventData.block
+          : blockWithEventData;
 
       // We already saw and handled this block. No-op.
       if (latestBlock.hash === block.hash) {
@@ -892,47 +895,71 @@ export const createRealtimeSync = (
         // Blocks are missing. They should be fetched and enqueued.
         if (hexToNumber(latestBlock.number) + 1 < hexToNumber(block.number)) {
           // Retrieve missing blocks, but only fetch a certain amount.
-          const missingBlockRange = range(
-            hexToNumber(latestBlock.number) + 1,
-            Math.min(
-              hexToNumber(block.number),
-              hexToNumber(latestBlock.number) + MAX_QUEUED_BLOCKS,
-            ),
+          const unsafeToBlock = Math.min(
+            hexToNumber(block.number),
+            hexToNumber(latestBlock.number) + MAX_QUEUED_BLOCKS,
           );
 
-          const pendingBlocks = await Promise.all(
-            missingBlockRange.map((blockNumber) =>
+          const missingBlockRange = range(
+            hexToNumber(latestBlock.number) + 1,
+            unsafeToBlock,
+          );
+
+          let safeToBlock = unsafeToBlock;
+          const pendingBlocks: SyncBlock[] = [];
+
+          await Promise.all(
+            missingBlockRange.map((blockNumber) => {
               _eth_getBlockByNumber(args.rpc, {
                 blockNumber,
-              }).then((block) => fetchBlockEventData(block)),
-            ),
+              })
+                .then((block) => pendingBlocks.push(block))
+                .catch(() => {
+                  safeToBlock = Math.min(safeToBlock, blockNumber);
+                });
+            }),
+          );
+
+          const pendingBlocksWithEventData = await Promise.all(
+            pendingBlocks
+              .filter((block) => hexToNumber(block.number) < safeToBlock)
+              .map((block) => fetchBlockEventData(block)),
           );
 
           args.common.logger.info({
             service: "realtime",
             msg: `Fetched ${missingBlockRange.length} missing '${
               args.chain.name
-            }' blocks [${hexToNumber(latestBlock.number) + 1}, ${Math.min(
-              hexToNumber(block.number),
-              hexToNumber(latestBlock.number) + MAX_QUEUED_BLOCKS,
-            )}]`,
+            }' blocks [${hexToNumber(latestBlock.number) + 1}, ${safeToBlock}]`,
           });
 
           reconcileBlock.clear(({ resolve }) => resolve({ type: "rejected" }));
-          for (const pendingBlock of pendingBlocks) {
-            reconcileBlock(pendingBlock);
+          for (const pendingBlockWithEventData of pendingBlocksWithEventData) {
+            reconcileBlock(pendingBlockWithEventData);
           }
 
-          return {
-            type: "pending",
-            promise: reconcileBlock(blockWithEventData).then(resolvePending),
-          };
+          if (safeToBlock < unsafeToBlock) {
+            return {
+              type: "rejected",
+            };
+          } else {
+            return {
+              type: "pending",
+              promise: reconcileBlock(blockWithEventData).then(resolvePending),
+            };
+          }
         }
 
         // Check if a reorg occurred by validating the chain of block hashes.
         if (block.parentHash !== latestBlock.hash) {
           await reconcileReorg(block);
           return { type: "rejected" };
+        }
+
+        if ("block" in blockWithEventData === false) {
+          return {
+            type: "rejected",
+          };
         }
 
         // New block is exactly one block ahead of the local chain.
