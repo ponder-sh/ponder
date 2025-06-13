@@ -52,6 +52,7 @@ export const sidebar = {
     {
       text: "Production",
       items: [
+        { text: "Marble ✨", link: "/docs/production/marble" },
         { text: "Railway", link: "/docs/production/railway" },
         { text: "Self-hosting", link: "/docs/production/self-hosting" },
       ],
