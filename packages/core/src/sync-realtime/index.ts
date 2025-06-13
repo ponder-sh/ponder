@@ -824,7 +824,9 @@ export const createRealtimeSync = (
       return resolvePending(result);
     } catch (_error) {
       onError(_error as Error);
-      return { type: "rejected" };
+
+      const result = await reconcileBlock(block);
+      return resolvePending(result);
     }
   };
 
