@@ -823,9 +823,9 @@ export const createRealtimeSync = (
 
       return resolvePending(result);
     } catch (_error) {
-      onError(_error as Error);
-
       const result = await reconcileBlock(block);
+
+      onError(_error as Error);
       return resolvePending(result);
     }
   };
