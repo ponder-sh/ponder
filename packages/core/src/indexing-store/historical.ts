@@ -183,19 +183,43 @@ export const createHistoricalIndexingStore = ({
               }
             },
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
-            then: async (onFulfilled, onRejected) => {
-              common.metrics.ponder_indexing_store_queries_total.inc({
-                table: getTableName(table),
-                method: "insert",
-              });
-              checkOnchainTable(table, "insert");
+            then: (onFulfilled, onRejected) => {
+              return (async () => {
+                common.metrics.ponder_indexing_store_queries_total.inc({
+                  table: getTableName(table),
+                  method: "insert",
+                });
+                checkOnchainTable(table, "insert");
 
-              if (Array.isArray(values)) {
-                const rows = [];
-                for (const value of values) {
+                if (Array.isArray(values)) {
+                  const rows = [];
+                  for (const value of values) {
+                    const row = await indexingCache.get({
+                      table,
+                      key: value,
+                      db,
+                    });
+
+                    if (row) {
+                      throw new UniqueConstraintError(
+                        `duplicate key value violates unique constraint "${getTableName(table)}_pkey"`,
+                      );
+                    }
+
+                    rows.push(
+                      indexingCache.set({
+                        table,
+                        key: value,
+                        row: value,
+                        isUpdate: false,
+                      }),
+                    );
+                  }
+                  return Promise.resolve(rows).then(onFulfilled, onRejected);
+                } else {
                   const row = await indexingCache.get({
                     table,
-                    key: value,
+                    key: values,
                     db,
                   });
 
@@ -205,33 +229,15 @@ export const createHistoricalIndexingStore = ({
                     );
                   }
 
-                  rows.push(
-                    indexingCache.set({
-                      table,
-                      key: value,
-                      row: value,
-                      isUpdate: false,
-                    }),
-                  );
+                  const result = indexingCache.set({
+                    table,
+                    key: values,
+                    row: values,
+                    isUpdate: false,
+                  });
+                  return Promise.resolve(result).then(onFulfilled, onRejected);
                 }
-                return Promise.resolve(rows).then(onFulfilled, onRejected);
-              } else {
-                const row = await indexingCache.get({ table, key: values, db });
-
-                if (row) {
-                  throw new UniqueConstraintError(
-                    `duplicate key value violates unique constraint "${getTableName(table)}_pkey"`,
-                  );
-                }
-
-                const result = indexingCache.set({
-                  table,
-                  key: values,
-                  row: values,
-                  isUpdate: false,
-                });
-                return Promise.resolve(result).then(onFulfilled, onRejected);
-              }
+              })().then(onFulfilled, onRejected);
             },
             catch: (onRejected) => inner.then(undefined, onRejected),
             finally: (onFinally) =>
