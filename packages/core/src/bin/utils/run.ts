@@ -6,7 +6,6 @@ import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import { createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
-import { FlushError } from "@/internal/errors.js";
 import { getAppProgress } from "@/internal/metrics.js";
 import type {
   CrashRecoveryCheckpoint,
@@ -147,15 +146,7 @@ export async function run({
           return;
         }
 
-        try {
-          await indexingCache.flush({ client });
-        } catch (error) {
-          if (error instanceof FlushError) {
-            onReloadableError(error as Error);
-            return;
-          }
-          throw error;
-        }
+        await indexingCache.flush({ client });
       });
     });
   }
@@ -316,15 +307,7 @@ export async function run({
             // Note: at this point, the next events can be preloaded, as long as the are not indexed until
             // the "flush" + "finalize" is complete.
 
-            try {
-              await indexingCache.flush({ client });
-            } catch (error) {
-              if (error instanceof FlushError) {
-                onReloadableError(error as Error);
-                return;
-              }
-              throw error;
-            }
+            await indexingCache.flush({ client });
 
             common.metrics.ponder_historical_transform_duration.inc(
               { step: "load" },

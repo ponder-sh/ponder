@@ -1,6 +1,9 @@
 import { findTableNames, validateQuery } from "@/client/parse.js";
 import type { Common } from "@/internal/common.js";
-import { RecordNotFoundError } from "@/internal/errors.js";
+import {
+  RecordNotFoundError,
+  UniqueConstraintError,
+} from "@/internal/errors.js";
 import type { Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { prettyPrint } from "@/utils/print.js";
@@ -180,7 +183,7 @@ export const createHistoricalIndexingStore = ({
               }
             },
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
-            then: (onFulfilled, onRejected) => {
+            then: async (onFulfilled, onRejected) => {
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -190,8 +193,17 @@ export const createHistoricalIndexingStore = ({
               if (Array.isArray(values)) {
                 const rows = [];
                 for (const value of values) {
-                  // Note: optimistic assumption that no conflict exists
-                  // because error is recovered at flush time
+                  const row = await indexingCache.get({
+                    table,
+                    key: value,
+                    db,
+                  });
+
+                  if (row) {
+                    throw new UniqueConstraintError(
+                      `duplicate key value violates unique constraint "${getTableName(table)}_pkey"`,
+                    );
+                  }
 
                   rows.push(
                     indexingCache.set({
@@ -204,8 +216,13 @@ export const createHistoricalIndexingStore = ({
                 }
                 return Promise.resolve(rows).then(onFulfilled, onRejected);
               } else {
-                // Note: optimistic assumption that no conflict exists
-                // because error is recovered at flush time
+                const row = await indexingCache.get({ table, key: values, db });
+
+                if (row) {
+                  throw new UniqueConstraintError(
+                    `duplicate key value violates unique constraint "${getTableName(table)}_pkey"`,
+                  );
+                }
 
                 const result = indexingCache.set({
                   table,
