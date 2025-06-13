@@ -10,6 +10,14 @@ const baseUrl =
 export default defineConfig({
   title: "Ponder",
   titleTemplate: "%s – Ponder",
+  banner: { 
+    // @ts-expect-error
+    dismissable: 'false', 
+    backgroundColor: 'var(--vocs-color_heading)', 
+    textColor: 'var(--vocs-color_background)',
+    content: <div>Introducing <a href="https://marble.xyz" target="_blank">Marble</a>, the company behind Ponder</div>,
+    height: '36px', 
+  },
   description:
     "Ponder is an open-source backend framework for robust, performant, and maintainable crypto apps.",
   rootDir: ".",

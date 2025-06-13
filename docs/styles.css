@@ -22,29 +22,37 @@
   /* Default: 300px */
   --vocs-sidebar_width: 260px;
   /* Default: 70ch */
-  --vocs-content_width: calc(74ch + (var(--vocs-content_horizontalPadding) * 2));
+  --vocs-content_width: calc(
+    74ch + (var(--vocs-content_horizontalPadding) * 2)
+  );
 }
 :root.dark {
   /* Default: 300px */
   --vocs-sidebar_width: 260px;
   /* Default: 70ch */
-  --vocs-content_width: calc(74ch + (var(--vocs-content_horizontalPadding) * 2));
+  --vocs-content_width: calc(
+    74ch + (var(--vocs-content_horizontalPadding) * 2)
+  );
 }
 
 /* HERO TEXTURE */
 .hero-texture {
-  background: radial-gradient(
+  background:
+    radial-gradient(
       91.96% 91.96% at 50% 91.96%,
       rgba(0, 0, 0, 0) 0%,
       #fff 100%
-    ), url("/hero.png") lightgray 50% / cover no-repeat;
+    ),
+    url("/hero.png") lightgray 50% / cover no-repeat;
 }
 .dark .hero-texture {
-  background: radial-gradient(
+  background:
+    radial-gradient(
       91.96% 91.96% at 50% 91.96%,
       rgba(0, 0, 0, 0) -20%,
       #111 100%
-    ), url("/hero.png") lightgray 50% / cover no-repeat;
+    ),
+    url("/hero.png") lightgray 50% / cover no-repeat;
 }
 
 /* LOGO SIZING */
@@ -87,6 +95,10 @@ div.vocs_Sidebar_item {
 }
 div.vocs_Sidebar_item:hover {
   color: var(--vocs-color_text2);
+}
+
+.vocs_Sidebar_footer {
+  bottom: var(--vocs_Banner_bannerHeight);
 }
 
 /* BLOG POSTS */
