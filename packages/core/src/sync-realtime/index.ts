@@ -9,6 +9,7 @@ import type {
   LogFilter,
   Source,
   SyncBlock,
+  SyncBlockHeader,
   SyncLog,
   SyncTrace,
   SyncTransaction,
@@ -55,7 +56,7 @@ export type RealtimeSync = {
    *
    * @param block - The block to reconcile.
    */
-  sync(block: SyncBlock): Promise<SyncResult>;
+  sync(block: SyncBlock | SyncBlockHeader): Promise<SyncResult>;
   onError(error: Error): void;
   /**
    * Local chain of blocks that have not been finalized.
@@ -78,7 +79,7 @@ type SyncResult =
     };
 
 export type BlockWithEventData = {
-  block: SyncBlock;
+  block: SyncBlock | SyncBlockHeader;
   transactions: SyncTransaction[];
   transactionReceipts: SyncTransactionReceipt[];
   logs: SyncLog[];
@@ -115,6 +116,18 @@ type CreateRealtimeSyncParameters = {
    */
   onEvent: (event: RealtimeSyncEvent) => Promise<{ promise: Promise<void> }>;
   onFatalError: (error: Error) => void;
+};
+
+const isSyncBlock = (
+  block: SyncBlock | SyncBlockHeader,
+): block is SyncBlock => {
+  if (block.transactions === undefined) {
+    return false;
+  }
+
+  return (
+    block.transactions.length === 0 || typeof block.transactions[0] === "object"
+  );
 };
 
 const MAX_LATEST_BLOCK_ATTEMPT_MS = 3 * 60 * 1000; // 3 minutes
@@ -264,9 +277,13 @@ export const createRealtimeSync = (
    * treated as "matched".
    */
   const fetchBlockEventData = async (
-    block: SyncBlock,
+    maybeBlockHeader: SyncBlock | SyncBlockHeader,
   ): Promise<BlockWithEventData> => {
-    validateTransactionsAndBlock(block);
+    let block: SyncBlock | undefined;
+
+    if (isSyncBlock(maybeBlockHeader)) {
+      block = maybeBlockHeader;
+    }
 
     ////////
     // Logs
@@ -274,12 +291,21 @@ export const createRealtimeSync = (
 
     // "eth_getLogs" calls can be skipped if no filters match `newHeadBlock.logsBloom`.
     const shouldRequestLogs =
-      block.logsBloom === zeroLogsBloom ||
-      logFilters.some((filter) => isFilterInBloom({ block, filter }));
+      maybeBlockHeader.logsBloom === zeroLogsBloom ||
+      logFilters.some((filter) =>
+        isFilterInBloom({ block: maybeBlockHeader, filter }),
+      );
 
     let logs: SyncLog[] = [];
     if (shouldRequestLogs) {
-      logs = await _eth_getLogs(args.rpc, { blockHash: block.hash });
+      if (block === undefined) {
+        [block, logs] = await Promise.all([
+          _eth_getBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
+          _eth_getLogs(args.rpc, { blockHash: maybeBlockHeader.hash }),
+        ]);
+      } else {
+        logs = await _eth_getLogs(args.rpc, { blockHash: block.hash });
+      }
 
       validateLogsAndBlock(logs, block);
 
@@ -343,7 +369,7 @@ export const createRealtimeSync = (
     ) {
       args.common.logger.debug({
         service: "realtime",
-        msg: `Skipped fetching '${args.chain.name}' logs for block ${hexToNumber(block.number)} due to bloom filter result`,
+        msg: `Skipped fetching '${args.chain.name}' logs for block ${hexToNumber(maybeBlockHeader.number)} due to bloom filter result`,
       });
     }
 
@@ -356,9 +382,14 @@ export const createRealtimeSync = (
 
     let traces: SyncTrace[] = [];
     if (shouldRequestTraces) {
-      traces = await _debug_traceBlockByHash(args.rpc, {
-        hash: block.hash,
-      });
+      if (block === undefined) {
+        [block, traces] = await Promise.all([
+          _eth_getBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
+          _debug_traceBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
+        ]);
+      } else {
+        traces = await _debug_traceBlockByHash(args.rpc, { hash: block.hash });
+      }
 
       validateTracesAndBlock(traces, block);
     }
@@ -408,7 +439,13 @@ export const createRealtimeSync = (
     traces = traces.filter((trace) => {
       let isMatched = false;
       for (const filter of transferFilters) {
-        if (isTransferFilterMatched({ filter, trace: trace.trace, block })) {
+        if (
+          isTransferFilterMatched({
+            filter,
+            trace: trace.trace,
+            block: maybeBlockHeader,
+          })
+        ) {
           requiredTransactions.add(trace.transactionHash);
           isMatched = true;
           if (shouldGetTransactionReceipt(filter)) {
@@ -420,7 +457,13 @@ export const createRealtimeSync = (
       }
 
       for (const filter of traceFilters) {
-        if (isTraceFilterMatched({ filter, trace: trace.trace, block })) {
+        if (
+          isTraceFilterMatched({
+            filter,
+            trace: trace.trace,
+            block: maybeBlockHeader,
+          })
+        ) {
           requiredTransactions.add(trace.transactionHash);
           isMatched = true;
           if (shouldGetTransactionReceipt(filter)) {
@@ -437,6 +480,25 @@ export const createRealtimeSync = (
     ////////
     // Transactions
     ////////
+
+    // exit early if no logs or traces were requested and no transactions are required
+    if (block === undefined && transactionFilters.length === 0) {
+      return {
+        block: maybeBlockHeader,
+        transactions: [],
+        transactionReceipts: [],
+        logs: [],
+        traces: [],
+        childAddresses: blockChildAddresses,
+      };
+    }
+
+    if (block === undefined) {
+      block = await _eth_getBlockByHash(args.rpc, {
+        hash: maybeBlockHeader.hash,
+      });
+    }
+    validateTransactionsAndBlock(block);
 
     const transactions = block.transactions.filter((transaction) => {
       let isMatched = requiredTransactions.has(transaction.hash);
@@ -658,7 +720,7 @@ export const createRealtimeSync = (
    * @param block Block that caused reorg to be detected.
    * Must be at most 1 block ahead of the local chain.
    */
-  const reconcileReorg = async (block: SyncBlock) => {
+  const reconcileReorg = async (block: SyncBlock | SyncBlockHeader) => {
     args.common.logger.warn({
       service: "realtime",
       msg: `Detected forked '${args.chain.name}' block at height ${hexToNumber(block.number)}`,
@@ -733,7 +795,7 @@ export const createRealtimeSync = (
    * Start syncing the latest block.
    */
   const fetchAndReconcileLatestBlock = async (
-    block: SyncBlock,
+    block: SyncBlock | SyncBlockHeader,
   ): Promise<SyncResult> => {
     try {
       args.common.logger.debug({

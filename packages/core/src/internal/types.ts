@@ -301,6 +301,7 @@ export type Chain = {
   name: string;
   id: number;
   rpc: string | string[] | Transport;
+  ws?: string;
   pollingInterval: number;
   finalityBlockCount: number;
   disableCache: boolean;
@@ -400,6 +401,10 @@ export type LightBlock = Pick<
   SyncBlock,
   "hash" | "parentHash" | "number" | "timestamp"
 >;
+
+export type SyncBlockHeader = Omit<SyncBlock, "transactions"> & {
+  transactions: string[] | undefined;
+};
 
 export type InternalBlock = Block;
 export type InternalLog = Log & {

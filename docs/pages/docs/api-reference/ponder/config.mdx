@@ -133,6 +133,7 @@ export default createConfig({
     mainnet: { // [!code focus]
       id: 1, // [!code focus]
       rpc: process.env.PONDER_RPC_URL_1, // [!code focus]
+      ws: process.env.PONDER_WS_URL_1, // [!code focus]
     }, // [!code focus]
   }, // [!code focus]
   // ...
@@ -141,13 +142,14 @@ export default createConfig({
 
 #### Parameters
 
-| field                    |    type     |                                                                                                                            |
-| :----------------------- | :---------: | :------------------------------------------------------------------------------------------------------------------------- |
-| **name**                 |  `string`   | **Required**. A unique name for the chain. Must be unique across all chains. _Provided as the object property name._   |
-| **id**                   |  `number`   | **Required**. The [chain ID](https://chainlist.org) for the chain.                                                       |
-| **transport**            | `Transport` | **Required**. A Viem [Transport](https://viem.sh/docs/clients/transports/http.html) e.g. `http` or `fallback`.             |
-| **pollingInterval**      |  `number`   | **Default: `1_000`**. Frequency (in ms) used when polling for new events on this chain.                                  |
-| **disableCache**         |  `boolean`  | **Default: `false`**. Disables the RPC request cache. Use when indexing a [local node](/docs/guides/foundry) like Anvil. |
+| field                    |    type                            |                                                                                                                                            |
+| :----------------------- | :---------------------------------:| :----------------------------------------------------------------------------------------------------------------------------------------- |
+| **name**                 |  `string`                          | **Required**. A unique name for the chain. Must be unique across all chains. _Provided as the object property name._                       |
+| **id**                   |  `number`                          | **Required**. The [chain ID](https://chainlist.org) for the chain.                                                                         |
+| **rpc**                  |  `string \| string[] \| Transport` | **Required**. One or more RPC endpoints or a Viem [Transport](https://viem.sh/docs/clients/transports/http.html) e.g. `http` or `fallback`.|
+| **ws**                   |  `string`                          | **Default: `undefined`**. A webSocket endpoint for realtime indexing on this chain.                                                         |
+| **pollingInterval**      |  `number`                          | **Default: `1_000`**. Frequency (in ms) used when polling for new events on this chain.                                                    |
+| **disableCache**         |  `boolean`                         | **Default: `false`**. Disables the RPC request cache. Use when indexing a [local node](/docs/guides/foundry) like Anvil.                   |
 
 
 ### `contracts`
@@ -325,6 +327,7 @@ import { createConfig, type ChainConfig } from "ponder"; // [!code focus]
 const mainnet = { // [!code focus]
   id: 1, // [!code focus]
   rpc: process.env.PONDER_RPC_URL_1, // [!code focus]
+  ws: process.env.PONDER_WS_URL_1, // [!code focus]
 } as const satisfies ChainConfig; // [!code focus]
 
 export default createConfig({

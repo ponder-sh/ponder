@@ -473,6 +473,10 @@ export const sim =
     return custom({ request })({ chain, retryCount: 0 });
   };
 
+export type RpcBlockHeader = Omit<RpcBlock, "transactions"> & {
+  transactions: Address[] | undefined;
+};
+
 export const realtimeBlockEngine = async (
   chains: Map<
     number,
@@ -487,7 +491,7 @@ export const realtimeBlockEngine = async (
       })
     : undefined;
 
-  const blocks = new Map<number, RpcBlock[]>();
+  const blocks = new Map<number, (RpcBlock | RpcBlockHeader)[]>();
   const incomplete = new Set<number>();
 
   // TODO(kyle) block not found error
@@ -495,8 +499,8 @@ export const realtimeBlockEngine = async (
   const getBlock = async (
     chainId: number,
     blockNumber: number,
-  ): Promise<RpcBlock> => {
-    const block =
+  ): Promise<RpcBlock | RpcBlockHeader> => {
+    let block: RpcBlockHeader | RpcBlock | undefined =
       db === undefined
         ? undefined
         : await db
@@ -508,11 +512,9 @@ export const realtimeBlockEngine = async (
                 eq(RPC_SCHEMA.blocks.number, blockNumber),
               ),
             )
-            .then((blocks) => blocks[0]);
+            .then((blocks) => blocks[0]?.body as RpcBlock);
 
-    if (block) {
-      return block.body as RpcBlock;
-    } else {
+    if (block === undefined) {
       const result = await chains.get(chainId)!.request({
         method: "eth_getBlockByNumber",
         params: [toHex(blockNumber), true],
@@ -531,17 +533,27 @@ export const realtimeBlockEngine = async (
           .onConflictDoNothing();
       }
 
-      return result as RpcBlock;
+      block = result as RpcBlock;
     }
+
+    if (SIM_PARAMS.REALTIME_BLOCK_HAS_TRANSACTIONS === false) {
+      block.transactions = undefined;
+    }
+
+    return block;
   };
 
-  const getNextBlock = async (chainId: number): Promise<RpcBlock> => {
+  const getNextBlock = async (
+    chainId: number,
+  ): Promise<RpcBlock | RpcBlockHeader> => {
     const currentBlock = blocks.get(chainId)![blocks.get(chainId)!.length - 1]!;
     const blockNumber = hexToNumber(currentBlock.number!) + 1;
     return getBlock(chainId, blockNumber);
   };
 
-  const simulate = async (chainId: number): Promise<RpcBlock | undefined> => {
+  const simulate = async (
+    chainId: number,
+  ): Promise<RpcBlock | RpcBlockHeader | undefined> => {
     if (incomplete.has(chainId) === false) return undefined;
 
     let block = blocks.get(chainId)![blocks.get(chainId)!.length - 1]!;

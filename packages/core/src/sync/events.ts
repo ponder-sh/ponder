@@ -11,6 +11,7 @@ import type {
   RawEvent,
   Source,
   SyncBlock,
+  SyncBlockHeader,
   SyncLog,
   SyncTrace,
   SyncTransaction,
@@ -603,7 +604,7 @@ function decodeTopic({ param, value }: { param: AbiParameter; value: Hex }) {
 
 export const syncBlockToInternal = ({
   block,
-}: { block: SyncBlock }): InternalBlock => ({
+}: { block: SyncBlock | SyncBlockHeader }): InternalBlock => ({
   baseFeePerGas: block.baseFeePerGas ? hexToBigInt(block.baseFeePerGas) : null,
   difficulty: hexToBigInt(block.difficulty),
   extraData: block.extraData,

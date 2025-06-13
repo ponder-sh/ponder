@@ -51,7 +51,7 @@ import { promiseWithResolvers } from "../../packages/core/src/utils/promiseWithR
 import { _eth_getBlockByNumber } from "../../packages/core/src/utils/rpc.js";
 import * as SUPER_ASSESSMENT from "../apps/super-assessment/schema.js";
 import { metadata } from "../schema.js";
-import { realtimeBlockEngine, sim } from "./rpc-sim.js";
+import { type RpcBlockHeader, realtimeBlockEngine, sim } from "./rpc-sim.js";
 import { getJoinConditions } from "./sql.js";
 
 // Large apps that shouldn't be synced, use cached data instead
@@ -112,6 +112,10 @@ export const SIM_PARAMS = {
   // ),
   // REALTIME_SHUTDOWN_RATE: pick([0, 0.001, 0.002], "realtime-shutdown-rate"),
   ORDERING: pick(["multichain", "omnichain"], "ordering"),
+  REALTIME_BLOCK_HAS_TRANSACTIONS: pick(
+    [true, false],
+    "realtime-block-has-transactions",
+  ),
 };
 
 const db = drizzle(DATABASE_URL!, { casing: "snake_case" });
@@ -1284,7 +1288,7 @@ const onBuild = async (app: PonderApp) => {
 
     rpc.subscribe = ({ onBlock }) => {
       (async () => {
-        let block: RpcBlock;
+        let block: RpcBlock | RpcBlockHeader;
         let isAccepted: boolean;
 
         for await (block of getRealtimeBlockGenerator(chain.id)) {

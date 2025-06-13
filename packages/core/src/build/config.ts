@@ -177,6 +177,7 @@ export async function buildConfigAndIndexingFunctions({
         id: chain.id,
         name: chainName,
         rpc: chain.rpc,
+        ws: chain.ws,
         pollingInterval: chain.pollingInterval ?? 1_000,
         finalityBlockCount: getFinalityBlockCount({ chain: matchedChain }),
         disableCache: chain.disableCache ?? false,
