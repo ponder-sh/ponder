@@ -73,6 +73,35 @@ export type Build = {
   }) => void;
 };
 
+// Helper to generate buildId (extracted for testability)
+export function getBuildId({
+  configHash,
+  schemaHash,
+  indexingHash,
+}: {
+  configHash: string;
+  schemaHash: string;
+  indexingHash: string;
+}) {
+  const envBuildId = process.env.PONDER_BUILD_ID_OVERRIDE;
+  const buildIdPattern = /^[a-f0-9]{10}$/;
+  if (envBuildId && envBuildId !== "undefined") {
+    if (!buildIdPattern.test(envBuildId)) {
+      throw new Error(
+        `PONDER_BUILD_ID_OVERRIDE must be exactly 10 lowercase hexadecimal characters. Got: '${envBuildId}'`,
+      );
+    }
+    return envBuildId;
+  }
+  return createHash("sha256")
+    .update(BUILD_ID_VERSION)
+    .update(configHash)
+    .update(schemaHash)
+    .update(indexingHash)
+    .digest("hex")
+    .slice(0, 10);
+}
+
 export const createBuild = async ({
   common,
   cliOptions,
@@ -427,13 +456,12 @@ export const createBuild = async ({
         common.logger[log.level]({ service: "build", msg: log.msg });
       }
 
-      const buildId = createHash("sha256")
-        .update(BUILD_ID_VERSION)
-        .update(configResult.contentHash)
-        .update(schemaResult.contentHash)
-        .update(indexingResult.contentHash)
-        .digest("hex")
-        .slice(0, 10);
+      // Allow build ID override via environment variable
+      const buildId = getBuildId({
+        configHash: configResult.contentHash,
+        schemaHash: schemaResult.contentHash,
+        indexingHash: indexingResult.contentHash,
+      });
 
       return {
         status: "success",
