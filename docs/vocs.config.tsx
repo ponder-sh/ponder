@@ -101,7 +101,7 @@ export default defineConfig({
     // },
   ],
   editLink: {
-    pattern: "https://github.com/ponder-sh/ponder/edit/main/vocs/pages/:path",
+    pattern: "https://github.com/ponder-sh/ponder/edit/main/docs/pages/:path",
     text: "Suggest changes",
   },
   theme: {
