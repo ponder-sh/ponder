@@ -16,7 +16,7 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
 
   await context.db
     .insert(account)
-    .values({ address: event.args.to, balance: 0n, isOwner: false })
+    .values({ address: event.args.to, balance: event.args.amount, isOwner: false })
     .onConflictDoUpdate((row) => ({
       balance: row.balance + event.args.amount,
     }));
