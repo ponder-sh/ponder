@@ -365,8 +365,7 @@ export async function buildConfigAndIndexingFunctions({
         startBlock;
 
       const factoryEndBlock =
-        (await resolveBlockNumber(source.address.startBlock, chain)) ??
-        endBlock;
+        (await resolveBlockNumber(source.address.endBlock, chain)) ?? endBlock;
 
       if (
         factoryStartBlock !== undefined &&
