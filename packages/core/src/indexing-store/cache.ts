@@ -2,7 +2,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
-import { addErrorMeta } from "@/indexing/index.js";
+import { addErrorMeta, toErrorMeta } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import { FlushError } from "@/internal/errors.js";
 import type {
@@ -530,6 +530,8 @@ export const createIndexingCache = ({
               );
 
               if (result.value.metadata.event) {
+                addErrorMeta(error, toErrorMeta(result.value.metadata.event));
+
                 common.logger.warn({
                   service: "indexing",
                   msg: `Error inserting into '${getTableName(table)}' in '${result.value.metadata.event.name}'`,
@@ -668,6 +670,8 @@ export const createIndexingCache = ({
               );
 
               if (result.value.metadata.event) {
+                addErrorMeta(error, toErrorMeta(result.value.metadata.event));
+
                 common.logger.warn({
                   service: "indexing",
                   msg: `Error updating '${getTableName(table)}' in '${result.value.metadata.event.name}'`,
