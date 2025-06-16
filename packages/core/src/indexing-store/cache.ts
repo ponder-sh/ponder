@@ -32,7 +32,6 @@ import {
 } from "drizzle-orm/pg-core";
 import type { PoolClient } from "pg";
 import copy from "pg-copy-streams";
-import { parseSqlError } from "./index.js";
 import {
   getProfilePatternKey,
   recordProfilePattern,
@@ -521,32 +520,45 @@ export const createIndexingCache = ({
               },
             );
 
-            if (result.status === "success") {
-              return;
-            }
+            if (result.status === "error") {
+              error = new FlushError(result.error.message);
+              error.stack = undefined;
 
-            // Note: rollback so that the connection is available for other queries
-            // @ts-ignore
-            await client.query("ROLLBACK to flush");
-
-            error = parseSqlError(result.error);
-            error.stack = undefined;
-
-            if (result.value.metadata.event) {
               addErrorMeta(
                 error,
                 `db.insert arguments:\n${prettyPrint(result.value.row)}`,
               );
-              addErrorMeta(error, toErrorMeta(result.value.metadata.event));
-              common.logger.error({
+
+              if (result.value.metadata.event) {
+                addErrorMeta(error, toErrorMeta(result.value.metadata.event));
+
+                common.logger.warn({
+                  service: "indexing",
+                  msg: `Error inserting into '${getTableName(table)}' in '${result.value.metadata.event.name}'`,
+                  error,
+                });
+              } else {
+                common.logger.warn({
+                  service: "indexing",
+                  msg: `Error inserting into '${getTableName(table)}'`,
+                  error,
+                });
+              }
+
+              // @ts-ignore remove meta from error
+              error.meta = undefined;
+            } else {
+              error = new FlushError(error.message);
+              error.stack = undefined;
+
+              common.logger.warn({
                 service: "indexing",
-                msg: `Error while processing ${getTableName(
-                  table,
-                )}.insert() in event '${result.value.metadata.event.name}'`,
+                msg: `Error inserting into '${getTableName(table)}'`,
                 error,
               });
             }
-            throw new FlushError(error.message);
+
+            throw error;
           } finally {
             common.metrics.ponder_indexing_cache_query_duration.observe(
               {
@@ -648,22 +660,46 @@ export const createIndexingCache = ({
               },
             );
 
-            if (result.status === "success") {
-              return;
+            if (result.status === "error") {
+              error = new FlushError(result.error.message);
+              error.stack = undefined;
+
+              addErrorMeta(
+                error,
+                `db.update arguments:\n${prettyPrint(result.value.row)}`,
+              );
+
+              if (result.value.metadata.event) {
+                addErrorMeta(error, toErrorMeta(result.value.metadata.event));
+
+                common.logger.warn({
+                  service: "indexing",
+                  msg: `Error updating '${getTableName(table)}' in '${result.value.metadata.event.name}'`,
+                  error,
+                });
+              } else {
+                common.logger.warn({
+                  service: "indexing",
+                  msg: `Error updating '${getTableName(table)}'`,
+                  error,
+                });
+              }
+
+              // @ts-ignore remove meta from error
+              error.meta = undefined;
+            } else {
+              error = new FlushError(error.message);
+              error.stack = undefined;
+
+              common.logger.warn({
+                service: "indexing",
+                msg: `Error updating '${getTableName(table)}'`,
+                error,
+              });
             }
 
-            // Note: rollback so that the connection is available for other queries
-            // @ts-ignore
-            await client.query("ROLLBACK to flush");
-
-            error = parseSqlError(result.error);
-            error.stack = undefined;
-
-            addErrorMeta(
-              error,
-              `db.update arguments:\n${prettyPrint(result.value.row)}`,
-            );
-
+            throw error;
+          } finally {
             common.metrics.ponder_indexing_cache_query_duration.observe(
               {
                 table: getTableName(table),
@@ -671,8 +707,6 @@ export const createIndexingCache = ({
               },
               endClock(),
             );
-
-            throw error;
           }
 
           // @ts-ignore
