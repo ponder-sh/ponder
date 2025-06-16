@@ -1,9 +1,6 @@
 import { findTableNames, validateQuery } from "@/client/parse.js";
 import type { Common } from "@/internal/common.js";
-import {
-  RecordNotFoundError,
-  UniqueConstraintError,
-} from "@/internal/errors.js";
+import { RecordNotFoundError } from "@/internal/errors.js";
 import type { Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { prettyPrint } from "@/utils/print.js";
@@ -184,60 +181,40 @@ export const createHistoricalIndexingStore = ({
             },
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
             then: (onFulfilled, onRejected) => {
-              return (async () => {
-                common.metrics.ponder_indexing_store_queries_total.inc({
-                  table: getTableName(table),
-                  method: "insert",
-                });
-                checkOnchainTable(table, "insert");
+              common.metrics.ponder_indexing_store_queries_total.inc({
+                table: getTableName(table),
+                method: "insert",
+              });
+              checkOnchainTable(table, "insert");
 
-                if (Array.isArray(values)) {
-                  const rows = [];
-                  for (const value of values) {
-                    const row = await indexingCache.get({
+              if (Array.isArray(values)) {
+                const rows = [];
+                for (const value of values) {
+                  // Note: optimistic assumption that no conflict exists
+                  // because error is recovered at flush time
+
+                  rows.push(
+                    indexingCache.set({
                       table,
                       key: value,
-                      db,
-                    });
-
-                    if (row) {
-                      throw new UniqueConstraintError(
-                        `duplicate key value violates unique constraint "${getTableName(table)}_pkey"`,
-                      );
-                    }
-
-                    rows.push(
-                      indexingCache.set({
-                        table,
-                        key: value,
-                        row: value,
-                        isUpdate: false,
-                      }),
-                    );
-                  }
-                  return Promise.resolve(rows).then(onFulfilled, onRejected);
-                } else {
-                  const row = await indexingCache.get({
-                    table,
-                    key: values,
-                    db,
-                  });
-
-                  if (row) {
-                    throw new UniqueConstraintError(
-                      `duplicate key value violates unique constraint "${getTableName(table)}_pkey"`,
-                    );
-                  }
-
-                  const result = indexingCache.set({
-                    table,
-                    key: values,
-                    row: values,
-                    isUpdate: false,
-                  });
-                  return Promise.resolve(result).then(onFulfilled, onRejected);
+                      row: value,
+                      isUpdate: false,
+                    }),
+                  );
                 }
-              })().then(onFulfilled, onRejected);
+                return Promise.resolve(rows).then(onFulfilled, onRejected);
+              } else {
+                // Note: optimistic assumption that no conflict exists
+                // because error is recovered at flush time
+
+                const result = indexingCache.set({
+                  table,
+                  key: values,
+                  row: values,
+                  isUpdate: false,
+                });
+                return Promise.resolve(result).then(onFulfilled, onRejected);
+              }
             },
             catch: (onRejected) => inner.then(undefined, onRejected),
             finally: (onFinally) =>
