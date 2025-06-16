@@ -111,7 +111,7 @@ export default createConfig({
   chains: {
     mainnet: {
       id: 1,
-      transport: fallback([ // [!code focus]
+      rpc: fallback([ // [!code focus]
         http("https://eth-mainnet.g.alchemy.com/v2/..."), // [!code focus]
         http("https://quaint-large-card.quiknode.pro/..."), // [!code focus]
       ]), // [!code focus]
