@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.17
+
+### Patch Changes
+
+- [#1825](https://github.com/ponder-sh/ponder/pull/1825) [`d5b053e`](https://github.com/ponder-sh/ponder/commit/d5b053e0c397e76757c7a4f495168922a90266db) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed several indexing bugs when inserting data.
+
 ## 0.11.16
 
 ### Patch Changes
