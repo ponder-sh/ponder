@@ -529,11 +529,19 @@ export const createIndexingCache = ({
                 `db.insert arguments:\n${prettyPrint(result.value.row)}`,
               );
 
-              common.logger.warn({
-                service: "indexing",
-                msg: `Error while inserting into '${getTableName(table)}'`,
-                error,
-              });
+              if (result.value.metadata.event) {
+                common.logger.warn({
+                  service: "indexing",
+                  msg: `Error inserting into '${getTableName(table)}' in '${result.value.metadata.event.name}'`,
+                  error,
+                });
+              } else {
+                common.logger.warn({
+                  service: "indexing",
+                  msg: `Error inserting into '${getTableName(table)}'`,
+                  error,
+                });
+              }
 
               // @ts-ignore remove meta from error
               error.meta = undefined;
@@ -543,7 +551,7 @@ export const createIndexingCache = ({
 
               common.logger.warn({
                 service: "indexing",
-                msg: `Error while inserting into '${getTableName(table)}'`,
+                msg: `Error inserting into '${getTableName(table)}'`,
                 error,
               });
             }
@@ -659,11 +667,19 @@ export const createIndexingCache = ({
                 `db.update arguments:\n${prettyPrint(result.value.row)}`,
               );
 
-              common.logger.warn({
-                service: "indexing",
-                msg: `Error while updating '${getTableName(table)}'`,
-                error,
-              });
+              if (result.value.metadata.event) {
+                common.logger.warn({
+                  service: "indexing",
+                  msg: `Error updating '${getTableName(table)}' in '${result.value.metadata.event.name}'`,
+                  error,
+                });
+              } else {
+                common.logger.warn({
+                  service: "indexing",
+                  msg: `Error updating '${getTableName(table)}'`,
+                  error,
+                });
+              }
 
               // @ts-ignore remove meta from error
               error.meta = undefined;
@@ -673,7 +689,7 @@ export const createIndexingCache = ({
 
               common.logger.warn({
                 service: "indexing",
-                msg: `Error while updating '${getTableName(table)}'`,
+                msg: `Error updating '${getTableName(table)}'`,
                 error,
               });
             }
