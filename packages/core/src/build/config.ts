@@ -236,7 +236,7 @@ export async function buildConfigAndIndexingFunctions({
   ]) {
     if (sourceNames.has(source)) {
       throw new Error(
-        `Validation failed: Duplicate source name '${source}' not allowed.`,
+        `Validation failed: Duplicate name '${source}' not allowed. The name must be unique across blocks, contracts, and accounts.`,
       );
     }
     sourceNames.add(source);
