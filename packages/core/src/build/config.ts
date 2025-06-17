@@ -299,7 +299,7 @@ export async function buildConfigAndIndexingFunctions({
 
     if (!matchedSourceName) {
       throw new Error(
-        `Invalid event '${eventName}' uses an unrecognized contract, account, or block interval name. Expected one of [${Array.from(
+        `Validation failed: Invalid event '${eventName}' uses an unrecognized contract, account, or block interval name. Expected one of [${Array.from(
           sourceNames,
         )
           .map((n) => `'${n}'`)
