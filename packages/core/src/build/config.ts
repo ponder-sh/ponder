@@ -299,7 +299,7 @@ export async function buildConfigAndIndexingFunctions({
 
     if (!matchedSourceName) {
       throw new Error(
-        `Validation failed: Invalid source name '${sourceName}'. Got '${sourceName}', expected one of [${Array.from(
+        `Invalid event '${eventName}' uses an unrecognized contract, account, or block interval name. Expected one of [${Array.from(
           sourceNames,
         )
           .map((n) => `'${n}'`)
@@ -949,7 +949,7 @@ export async function buildConfigAndIndexingFunctions({
 
         if (!Number.isInteger(interval) || interval === 0) {
           throw new Error(
-            `Validation failed: Invalid interval for block source '${source.name}'. Got ${interval}, expected a non-zero integer.`,
+            `Validation failed: Invalid interval for block interval '${source.name}'. Got ${interval}, expected a non-zero integer.`,
           );
         }
 
@@ -980,7 +980,7 @@ export async function buildConfigAndIndexingFunctions({
       if (!hasRegisteredIndexingFunction) {
         logs.push({
           level: "debug",
-          msg: `No indexing functions were registered for '${blockSource.name}' blocks`,
+          msg: `No indexing functions were registered for block interval '${blockSource.name}:block'`,
         });
       }
       return hasRegisteredIndexingFunction;
@@ -1007,7 +1007,7 @@ export async function buildConfigAndIndexingFunctions({
     } else {
       logs.push({
         level: "warn",
-        msg: `No sources registered for chain '${chain.name}'`,
+        msg: `No contracts, accounts, or block intervals registered for chain '${chain.name}'`,
       });
     }
   }
