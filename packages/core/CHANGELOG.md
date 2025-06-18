@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.18
+
+### Patch Changes
+
+- [#1835](https://github.com/ponder-sh/ponder/pull/1835) [`3fe67e9`](https://github.com/ponder-sh/ponder/commit/3fe67e92ef913e996d06d5a9b13a01ca6b5438f1) Thanks [@typedarray](https://github.com/typedarray)! - Improved validation error message for duplicate contract, acccount, or block interval names.
+
 ## 0.11.17
 
 ### Patch Changes
