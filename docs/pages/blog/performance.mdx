@@ -1,0 +1,162 @@
+---
+layout: minimal
+title: "Our (enduring) Journey to 100k Events per Second"
+description: "Part 1: Speculation and Ponder’s in-memory db."
+# authors:
+#   - "[Kevin](https://twitter.com/typedarray)"
+date: "March 15, 2024"
+---
+
+import { Footer } from "../../components/footer";
+
+# Our (enduring) Journey to 100k Events per Second
+
+<div className="flex flex-row items-center gap-4 mt-5">
+  <img src="/kevin-avatar.jpg" className="w-10 h-10 rounded-full" />
+  <div className="flex flex-col">
+    <span className="font-medium">Kevin</span>
+    <span className="text-sm" style={{ color: "var(--vocs-color_text3)" }}>June 23, 2025</span>
+  </div>
+</div>
+
+Delivering peak performance has been a driving principle for Ponder throughout its almost three-year history. In recent months, we’ve made significant progress towards our longstanding goal of 100k events per second. In this post, we'll dive into what makes Ponder fast, detailing the technical approaches and the insights we’ve gathered along the way.
+
+```
+Ponder   █ 21s (103x faster)
+
+TheGraph █████████████████████████████████████████████████████████████████████████████████████████████████████ 37m 5s 
+```
+
+Performance is very important for a framework like Ponder, because it allows developers to rapidly and freely iterate, focusing on their business logic instead of restraints introduced by the tool. Over time, this creates faster feedback loops and better end user experiences.
+
+Ponder is built with TypeScript. This choice is deliberate, but it might be a surprise to some expecting us to _Rewrite-it-in-Rust_. Ponder is proof that thoughtful architecture design allows us to deliver great performance while remaining approachable to the entire web development ecosystem.
+
+We use a combination of unit and end-to-end benchmarks, metrics, and flamegraphs to identify performance bottlenecks and measure the impact of changes.
+
+## Overview of Ponder architecture
+
+Ponder is essentially an [ETL framework](https://en.wikipedia.org/wiki/Extract,_transform,_load) – it **extracts** data from an Ethereum node through the JSON-RPC API, **transforms** the data with user-defined indexing functions, and **loads** the results into Postgres for persistent storage.
+
+Internally, a Ponder app has two main phases. The **historical backfill** indexes events from the designated "start" of the app up to the current point in time. Then, the **realtime** phase indexes newly produced blocks, processing them immediately.
+
+Ethereum blocks, transactions, traces, logs, and events logically grouped together are collectively referred to as **events**. The simplified goal of any performance work is to increase the number of events processed per second across a diverse range of user workloads.
+
+## Performance optimizations
+
+The following examples highlight key optimizations, particularly within our data 'transform' step, but they're just a part of our overall performance work. 
+
+The key bottlenecks in this step are:
+- **Database queries**
+- **RPC requests**
+
+### In-memory database
+
+The transform step runs user-defined indexing functions, such as the one from our [ERC20 example](https://github.com/ponder-sh/ponder/blob/main/examples/reference-erc20/src/index.ts) below. An indexing function commonly has one or many database function calls for writing application ready data to the database.
+
+Ponder has a [store API](https://ponder.sh/docs/indexing/write-to-the-database#store-api) made up of `find()`, `insert()`, `update()`, and `delete()` for simplified database access. If that is too constrained, [raw SQL](https://ponder.sh/docs/indexing/write-to-the-database#raw-sql) is also available.
+
+```ts [src/index.ts]
+import { ponder } from "ponder:registry";
+import { allowance, approvalEvent } from "ponder:schema";
+
+ponder.on("ERC20:Approval", async ({ event, context }) => {
+  // upsert "allowance".
+  await context.db // [!code focus]
+    .insert(allowance) // [!code focus]
+    .values({ // [!code focus]
+      spender: event.args.spender, // [!code focus]
+      owner: event.args.owner, // [!code focus]
+      amount: event.args.amount, // [!code focus]
+    }) // [!code focus]
+    .onConflictDoUpdate({ amount: event.args.amount }); // [!code focus]
+
+  // add row to "approval_event".
+  await context.db.insert(approvalEvent).values({ // [!code focus]
+    id: event.id, // [!code focus]
+    amount: event.args.amount, // [!code focus]
+    timestamp: Number(event.block.timestamp), // [!code focus]
+    owner: event.args.owner, // [!code focus]
+    spender: event.args.spender, // [!code focus]
+  }); // [!code focus]
+});
+```
+
+With a naive implementation, each database function call requires 1-2 queries. Database queries can take from 1ms to 100ms (because of roundtrip latency), total throughput of Ponder is quickly limited.
+
+To solve this, we implemented an in-memory caching layer on top of the database. The in-memory cache serves as a buffer for database writes that periodically flushes to the database using the [COPY statement](https://www.postgresql.org/docs/current/sql-copy.html). The in-memory cache also saves results of previous queries for reading data without having to make a database query. 
+
+:::info
+  The key-value design of the store API is a requirement. A more expressive syntax such as raw SQL is unable to benefit from the optimization described here.
+:::
+
+This was released in [v0.4.37](https://github.com/ponder-sh/ponder/pull/929). After this change, database function calls with a proper cache hit take single digit microseconds.
+
+```
+│ Event          │ Count │ Duration (ms) │
+├────────────────┼───────┼───────────────┤
+│ ERC20:Transfer │ 13332 │         0.008 │
+│ ERC20:Approval │  4274 │         0.005 │
+```
+
+As with everything, some tradeoffs had to be made. This design uses way more memory, requiring a memory management solution to avoid out-of-memory errors for large apps. More on this later.
+
+### Delayed errors
+
+Let's take a deep dive into the `db.insert()` function call. When there are no "on conflict" modifiers, this function should throw an error if a row with the same primary key already exists in the database (a unique constraint violation). To check if a row exists or not, Ponder needs to check the previously described in-memory cache or maybe do a database query if the row is not in the cache.
+
+Unfortunately, this is really bad for performance. It is especially bad when you consider that this query is almost always wasted work. Only a tiny fraction of apps have a logical error that would cause a unique key constraint.
+
+The solution we came up with is to delay errors until the underlying rows are batch inserted into the database. If an error occurs when inserting the batch, we determine exactly which row violates the unique constraint
+
+This was released in [v0.9.20](https://github.com/ponder-sh/ponder/pull/1522). The Uniswap v4 app got 10x faster because of this optimization.
+
+<img src="/uniswap.png" className="mt-6" />
+
+### Speculation
+
+As previously mentioned, Ponder maintains an in-memory database cache. What happens when the cache gets too large? At first we used a simple LRU algorithm to evict database rows. But because of the inherent unpredictability of onchain events, a simple LRU algorithm is suboptimal and leads to a low cache hit rate.
+
+Drawing inspiration from [JavaScript engine design](https://webkit.org/blog/10308/speculation-in-javascriptcore/), we implemented a speculative cache eviction and pre-fetching algorithm.
+
+The algorithm works as follows:
+1. **Profile**: Continuously profile the database accesses of indexing functions.
+2. **Predict**: Before processing a new batch of events, use the profiling data to predict which database rows will be accessed.
+3. **Prefetch**: Send batch queries to the database to fetch all rows that we predict will be accessed.
+
+This solution is directly applicable to RPC requests made with `context.client` as well. The same profiling, prediction, and prefetching is used to prefetch RPC requests.
+
+```ts [src/index.ts]
+ponder.on(“Erc20:Transfer”, async ({ event, context }) => {
+  // Ponder profiles the RPC request and prefetches the result
+  const data = await context.client.readContract({
+    abi: erc20Abi, 
+    functionName: “balanceOf”, 
+    address: event.log.address, 
+    args: [event.args.from], 
+  });
+})
+```
+
+This was released in [v0.10.8](https://github.com/ponder-sh/ponder/pull/1596) and [v0.10.15](https://github.com/ponder-sh/ponder/pull/1628). The BasePaint app got 6x faster because of this optimization.
+
+<img src="/basepaint.png" className="mt-6" />
+
+## What didn't work
+
+It's also important to consider what didn't work and what can be learned from it. From version v0.2 to v0.4, we implemented a static analysis feature to parse user code and extract the tables that each function reads and writes to. Ponder would use this information to run indexing functions out of order, sometimes multiple at a time. 
+
+While theoretically this would be faster than a single stream of events, it was very complex and fragile. We had many regressions and the dynamic, concurrent nature made it very difficult to debug. Luckily, we were able to take a step back and realize we were not getting the results that we wanted and ended up removing the feature entirely. The main takeaway from this is safe and simple fallback mechanisms are important when dealing with diverse and unknown user code. 
+
+## Future optimizations
+
+We haven’t yet achieved our goal of 100k events per second. There are still many ways to make Ponder even faster. Some ideas are:
+
++ **Multi-threading**: NodeJS is single threaded.
++ **Improved pipeline**: Each step of the ETL can be performed at the same time. Only the slowest step should be the overall bottleneck.
++ **Column selection**: Most data (`block.logsBloom`, `transaction.input`) passed to indexing functions is unused and therefore wasted.
++ **Node-API**: Computationally expensive functions such as `checksumAddress` can benefit from native code.
++ **Framework-defined infrastructure**
+
+If any of these ideas excite you, please check out our github https://github.com/ponder-sh/ponder or reach out to jobs@ponder.sh.
+
+<Footer />
