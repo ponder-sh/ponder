@@ -18,10 +18,14 @@ test("QB query", async (context) => {
     context.databaseConfig.poolConfig,
     context.common.logger,
   );
-  const qb = createQB(context.common, drizzle(pool, { casing: "snake_case" }));
+  const qb = createQB(() => drizzle(pool, { casing: "snake_case" }), {
+    common: context.common,
+  });
 
-  await qb("test1").select().from(SCHEMATA);
   await qb().execute(sql`SELECT * FROM information_schema.schemata`);
+  const query = qb().select().from(SCHEMATA);
+  await qb("test1").select().from(SCHEMATA);
+  await query;
 });
 
 test("QB transaction", async (context) => {
@@ -31,7 +35,9 @@ test("QB transaction", async (context) => {
     context.databaseConfig.poolConfig,
     context.common.logger,
   );
-  const qb = createQB(context.common, drizzle(pool, { casing: "snake_case" }));
+  const qb = createQB(() => drizzle(pool, { casing: "snake_case" }), {
+    common: context.common,
+  });
 
   await qb("test1").transaction(async (tx) => {
     await tx("test2").select().from(SCHEMATA);
@@ -53,7 +59,9 @@ test("QB retries error", async (context) => {
     context.databaseConfig.poolConfig,
     context.common.logger,
   );
-  const qb = createQB(context.common, drizzle(pool, { casing: "snake_case" }));
+  const qb = createQB(() => drizzle(pool, { casing: "snake_case" }), {
+    common: context.common,
+  });
 
   const querySpy = vi.spyOn(pool, "query");
   querySpy.mockRejectedValueOnce(new Error("Database connection error"));
@@ -71,10 +79,9 @@ test("QB transaction retries error", async (context) => {
     context.common.logger,
   );
   const connection = await pool.connect();
-  const qb = createQB(
-    context.common,
-    drizzle(connection, { casing: "snake_case" }),
-  );
+  const qb = createQB(() => drizzle(connection, { casing: "snake_case" }), {
+    common: context.common,
+  });
 
   const querySpy = vi.spyOn(connection, "query");
   querySpy.mockRejectedValueOnce(new Error("Database connection error"));
@@ -88,7 +95,7 @@ test("QB transaction retries error", async (context) => {
     await tx("test2").select().from(SCHEMATA);
   });
 
-  // BEGIN, ROLLBACK, BEGIN, SELECT, COMMIT
+  // BEGIN, BEGIN, ROLLBACK, SELECT, COMMIT
   expect(querySpy).toHaveBeenCalledTimes(5);
 
   connection.release();
@@ -101,7 +108,9 @@ test("QB parses error", async (context) => {
     context.databaseConfig.poolConfig,
     context.common.logger,
   );
-  const qb = createQB(context.common, drizzle(pool, { casing: "snake_case" }));
+  const qb = createQB(() => drizzle(pool, { casing: "snake_case" }), {
+    common: context.common,
+  });
 
   const querySpy = vi.spyOn(pool, "query");
   querySpy.mockRejectedValueOnce(new Error("violates not-null constraint"));
@@ -122,7 +131,9 @@ test("QB client", async (context) => {
     context.databaseConfig.poolConfig,
     context.common.logger,
   );
-  const qb = createQB(context.common, drizzle(pool, { casing: "snake_case" }));
+  const qb = createQB(() => drizzle(pool, { casing: "snake_case" }), {
+    common: context.common,
+  });
 
   expect(qb.$dialect).toBe("postgres");
   expect(qb.$client).toBeInstanceOf(Pool);

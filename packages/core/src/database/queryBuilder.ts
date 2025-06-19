@@ -87,12 +87,11 @@ export const createQB = <
     | pg.Pool
     | pg.PoolClient,
 >(
-  common: Common,
-  db: PgDatabase<PgQueryResultHKT, TSchema> & { $client: TClient },
-  isAdmin = false,
+  createDb: () => PgDatabase<PgQueryResultHKT, TSchema> & { $client: TClient },
+  { common, isAdmin }: { common: Common; isAdmin?: boolean },
 ): QB<TSchema, TClient> => {
   const dialect = new PgDialect({ casing: "snake_case" });
-  let label: string | undefined = undefined;
+  let txLabel: string | undefined = undefined;
 
   const wrap = async <T>(
     label: string | undefined,
@@ -205,105 +204,116 @@ export const createQB = <
     Object.assign(qb, { $client: client });
   };
 
-  // non-transaction queries (retryable)
-
-  const execute = db._.session.execute.bind(db._.session);
-  db._.session.execute = async (...args) => {
-    return wrap(
-      label,
-      () => execute(...args),
-      dialect.sqlToQuery(args[0]).sql.slice(0, SQL_LENGTH_LIMIT),
-    );
-  };
-
-  const prepareQuery = db._.session.prepareQuery.bind(db._.session);
-  db._.session.prepareQuery = (...args) => {
-    const result = prepareQuery(...args);
-    const execute = result.execute.bind(result);
-    result.execute = async (..._args) => {
-      return wrap(
-        label,
-        () => execute(..._args),
-        args[0].sql.slice(0, SQL_LENGTH_LIMIT),
-      );
-    };
-    return result;
-  };
-
-  // transaction queries (non-retryable)
-
   const wrapTx = (db: PgDatabase<PgQueryResultHKT, TSchema>) => {
     const _transaction = db.transaction.bind(db);
     db.transaction = async (...args) => {
       const callback = args[0];
-      args[0] = (_tx) => {
+      args[0] = async (_tx) => {
         wrapTx(_tx);
 
-        const tx = (_label?: string) => {
-          label = _label;
+        const previousLabel = txLabel;
+
+        const tx = (label?: string) => {
+          txLabel = label;
           return _tx;
         };
 
         // @ts-expect-error
         assignClient(tx, _tx.session.client);
         // @ts-expect-error
-        return callback(tx);
+        const result = await callback(tx);
+
+        txLabel = previousLabel;
+        return result;
       };
       return _transaction(...args);
     };
   };
 
-  wrapTx(db);
+  const qb = ((label: string | undefined) => {
+    const db = createDb();
+    const isClient = db.$client instanceof pg.Client;
 
-  const transaction = db._.session.transaction.bind(db._.session);
-  db._.session.transaction = async (...args) => {
-    const callback = args[0];
-    args[0] = async (..._args) => {
-      const execute = _args[0]._.session.execute.bind(_args[0]._.session);
-      // @ts-expect-error
-      _args[0]._.session.execute = async (...args) => {
-        return wrap(
-          label,
-          () =>
-            execute(...args).catch((error) => {
-              throw new TransactionError(error.message);
-            }),
-          dialect.sqlToQuery(args[0]).sql.slice(0, SQL_LENGTH_LIMIT),
-        );
-      };
+    // non-transaction queries (retryable)
 
-      const prepareQuery = _args[0]._.session.prepareQuery.bind(
-        _args[0]._.session,
+    const execute = db._.session.execute.bind(db._.session);
+    db._.session.execute = async (...args) => {
+      return wrap(
+        label,
+        () => execute(...args),
+        dialect.sqlToQuery(args[0]).sql.slice(0, SQL_LENGTH_LIMIT),
       );
-      // @ts-ignore
-      _args[0]._.session.prepareQuery = (...args) => {
-        const result = prepareQuery(...args);
-        const execute = result.execute.bind(result);
-        result.execute = async (..._args) => {
-          return wrap(
-            label,
-            () =>
-              execute(..._args).catch((error) => {
-                throw new TransactionError(error.message);
-              }),
-            args[0].sql.slice(0, SQL_LENGTH_LIMIT),
-          );
-        };
-        return result;
-      };
-
-      return callback(..._args);
     };
 
-    return wrap(label, () => transaction(...args), "qb_transaction");
-  };
+    const prepareQuery = db._.session.prepareQuery.bind(db._.session);
+    db._.session.prepareQuery = (...args) => {
+      const result = prepareQuery(...args);
+      const execute = result.execute.bind(result);
+      result.execute = async (..._args) => {
+        return wrap(
+          label,
+          () => execute(..._args),
+          args[0].sql.slice(0, SQL_LENGTH_LIMIT),
+        );
+      };
+      return result;
+    };
 
-  const qb = ((_label: string | undefined) => {
-    label = _label;
+    // transaction queries (non-retryable)
+
+    wrapTx(db);
+    txLabel = label;
+
+    const transaction = db._.session.transaction.bind(db._.session);
+    db._.session.transaction = async (...args) => {
+      const callback = args[0];
+      args[0] = async (..._args) => {
+        const tx = _args[0] as PgDatabase<PgQueryResultHKT, TSchema>;
+        const txExecute = isClient
+          ? execute
+          : tx._.session.execute.bind(tx._.session);
+        // @ts-expect-error
+        tx._.session.execute = async (...args) => {
+          return wrap(
+            txLabel,
+            () =>
+              txExecute(...args).catch((error) => {
+                throw new TransactionError(error.message);
+              }),
+            dialect.sqlToQuery(args[0]).sql.slice(0, SQL_LENGTH_LIMIT),
+          );
+        };
+
+        const txPrepareQuery = isClient
+          ? prepareQuery
+          : tx._.session.prepareQuery.bind(tx._.session);
+        // @ts-ignore
+        tx._.session.prepareQuery = (...args) => {
+          const result = txPrepareQuery(...args);
+          const execute = result.execute.bind(result);
+          result.execute = async (..._args) => {
+            return wrap(
+              txLabel,
+              () =>
+                execute(..._args).catch((error) => {
+                  throw new TransactionError(error.message);
+                }),
+              args[0].sql.slice(0, SQL_LENGTH_LIMIT),
+            );
+          };
+          return result;
+        };
+
+        return callback(..._args);
+      };
+
+      return wrap(label, () => transaction(...args), "begin");
+    };
+
     return db;
   }) as unknown as QB<TSchema, TClient>;
 
-  assignClient(qb, db.$client);
+  assignClient(qb, createDb().$client);
 
   return qb;
 };

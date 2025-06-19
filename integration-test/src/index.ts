@@ -252,19 +252,33 @@ const onBuild = async (app: PonderApp) => {
     msg: "Mocking syncQB, adminQB, userQB, and readonlyQB",
   });
 
-  app.database.syncQB = createQB(app.common, dbSim(app.database.syncQB));
+  // const syncDB = dbSim(drizzle(DATABASE_URL!, { casing: "snake_case" }));
+  // const adminDB = dbSim(drizzle(DATABASE_URL!, { casing: "snake_case" }));
+  // const userDB = dbSim(drizzle(DATABASE_URL!, { casing: "snake_case" }));
+  // const readonlyDB = dbSim(drizzle(DATABASE_URL!, { casing: "snake_case" }));
 
-  app.database.adminQB = createQB(
-    app.common,
-    dbSim(app.database.adminQB),
-    true,
+  app.database.syncQB = createQB(
+    () => dbSim(drizzle(app.database.driver.sync!, { casing: "snake_case" })),
+    { common: app.common },
   );
 
-  app.database.userQB = createQB(app.common, dbSim(app.database.userQB));
+  app.database.adminQB = createQB(
+    () => dbSim(drizzle(app.database.driver.admin!, { casing: "snake_case" })),
+    {
+      common: app.common,
+      isAdmin: true,
+    },
+  );
+
+  app.database.userQB = createQB(
+    () => dbSim(drizzle(app.database.driver.user!, { casing: "snake_case" })),
+    { common: app.common },
+  );
 
   app.database.readonlyQB = createQB(
-    app.common,
-    dbSim(app.database.readonlyQB),
+    () =>
+      dbSim(drizzle(app.database.driver.readonly!, { casing: "snake_case" })),
+    { common: app.common },
   );
 
   if (APP_ID === "super-assessment") {

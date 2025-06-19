@@ -198,33 +198,36 @@ export const createDatabase = async ({
     await driver.instance.query(`SET search_path TO "${namespace.schema}"`);
 
     syncQB = createQB(
-      common,
-      drizzlePglite((driver as PGliteDriver).instance, {
-        casing: "snake_case",
-        schema: PONDER_SYNC,
-      }),
+      () =>
+        drizzlePglite((driver as PGliteDriver).instance, {
+          casing: "snake_case",
+          schema: PONDER_SYNC,
+        }),
+      { common },
     );
     adminQB = createQB(
-      common,
-      drizzlePglite((driver as PGliteDriver).instance, {
-        casing: "snake_case",
-        schema: schemaBuild.schema,
-      }),
-      true,
+      () =>
+        drizzlePglite((driver as PGliteDriver).instance, {
+          casing: "snake_case",
+          schema: schemaBuild.schema,
+        }),
+      { common, isAdmin: true },
     );
     userQB = createQB(
-      common,
-      drizzlePglite((driver as PGliteDriver).instance, {
-        casing: "snake_case",
-        schema: schemaBuild.schema,
-      }),
+      () =>
+        drizzlePglite((driver as PGliteDriver).instance, {
+          casing: "snake_case",
+          schema: schemaBuild.schema,
+        }),
+      { common },
     );
     readonlyQB = createQB(
-      common,
-      drizzlePglite((driver as PGliteDriver).instance, {
-        casing: "snake_case",
-        schema: schemaBuild.schema,
-      }),
+      () =>
+        drizzlePglite((driver as PGliteDriver).instance, {
+          casing: "snake_case",
+          schema: schemaBuild.schema,
+        }),
+      { common },
     );
   } else {
     const internalMax = 2;
@@ -279,33 +282,40 @@ export const createDatabase = async ({
     );
 
     syncQB = createQB(
-      common,
-      drizzleNodePg(driver.sync, {
-        casing: "snake_case",
-        schema: PONDER_SYNC,
-      }),
+      () =>
+        // @ts-expect-error
+        drizzleNodePg(driver.sync, {
+          casing: "snake_case",
+          schema: PONDER_SYNC,
+        }),
+      { common },
     );
     adminQB = createQB(
-      common,
-      drizzleNodePg(driver.admin, {
-        casing: "snake_case",
-        schema: schemaBuild.schema,
-      }),
-      true,
+      () =>
+        // @ts-expect-error
+        drizzleNodePg(driver.admin, {
+          casing: "snake_case",
+          schema: schemaBuild.schema,
+        }),
+      { common, isAdmin: true },
     );
     userQB = createQB(
-      common,
-      drizzleNodePg(driver.user, {
-        casing: "snake_case",
-        schema: schemaBuild.schema,
-      }),
+      () =>
+        // @ts-expect-error
+        drizzleNodePg(driver.user, {
+          casing: "snake_case",
+          schema: schemaBuild.schema,
+        }),
+      { common },
     );
     readonlyQB = createQB(
-      common,
-      drizzleNodePg(driver.readonly, {
-        casing: "snake_case",
-        schema: schemaBuild.schema,
-      }),
+      () =>
+        // @ts-expect-error
+        drizzleNodePg(driver.readonly, {
+          casing: "snake_case",
+          schema: schemaBuild.schema,
+        }),
+      { common },
     );
 
     common.shutdown.add(async () => {
