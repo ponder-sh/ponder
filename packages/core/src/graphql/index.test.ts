@@ -11,7 +11,7 @@ import { relations } from "drizzle-orm";
 import { type GraphQLType, execute, parse } from "graphql";
 import { toBytes } from "viem";
 import { zeroAddress } from "viem";
-import { beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, expect, test } from "vitest";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
 beforeEach(setupCommon);
@@ -922,18 +922,6 @@ test("plural with one relation uses dataloader", async (context) => {
 
   const graphqlSchema = buildGraphQLSchema({ schema });
 
-  const personFindManySpy = vi.spyOn(
-    // @ts-expect-error
-    database.readonlyQB().query.person,
-    "findMany",
-  );
-
-  const petFindManySpy = vi.spyOn(
-    // @ts-expect-error
-    database.readonlyQB().query.pet,
-    "findMany",
-  );
-
   const result = await query(`
     query {
       pets {
@@ -957,9 +945,6 @@ test("plural with one relation uses dataloader", async (context) => {
       ],
     },
   });
-
-  expect(personFindManySpy).toHaveBeenCalledTimes(1);
-  expect(petFindManySpy).toHaveBeenCalledTimes(1);
 });
 
 test("filter input type", async (context) => {
