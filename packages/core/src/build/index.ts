@@ -380,7 +380,7 @@ export const createBuild = async ({
           await driver.query("SELECT version()");
         } catch (e) {
           const error = new BuildError(
-            `Failed to connect to database. Please check your database connection settings.\n\n${(e as any).message}`,
+            `Failed to connect to PGlite database. Please check your database connection settings.\n\n${(e as any).message}`,
           );
           error.stack = undefined;
           common.logger.error({
