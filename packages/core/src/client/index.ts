@@ -37,7 +37,7 @@ export const client = ({
   const driver = globalThis.PONDER_DATABASE.driver;
   let statusResolver = promiseWithResolvers<void>();
 
-  const channel = `${globalThis.PONDER_NAMESPACE_BUILD}_status_channel`;
+  const channel = `${globalThis.PONDER_NAMESPACE_BUILD.schema}_status_channel`;
 
   if ("instance" in driver) {
     driver.instance.query(`LISTEN "${channel}"`).then(() => {
