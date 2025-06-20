@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.19
+
+### Patch Changes
+
+- [#1839](https://github.com/ponder-sh/ponder/pull/1839) [`76b3a3e`](https://github.com/ponder-sh/ponder/commit/76b3a3e34e3e8c40952be50d62883f5210b01a0e) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug impacting live queries for `@ponder/client` and `@ponder/react` introduced in `v0.11.0`.
+
 ## 0.11.18
 
 ### Patch Changes
