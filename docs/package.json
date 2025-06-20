@@ -7,9 +7,11 @@
     "dev": "vocs dev",
     "build": "vocs build",
     "search-index": "vocs search-index",
-    "preview": "vocs preview"
+    "preview": "vocs preview",
+    "telemetry:local": "tsx api/telemetry-local.ts"
   },
   "dependencies": {
+    "@clickhouse/client": "^1.11.0",
     "@segment/analytics-node": "^2.2.1",
     "@theguild/remark-mermaid": "^0.3.0",
     "@vercel/node": "^5.1.16",
@@ -28,6 +30,7 @@
   "devDependencies": {
     "@types/node": "^22.15.18",
     "@types/react": "^19.0.10",
-    "@types/react-dom": "^18"
+    "@types/react-dom": "^18",
+    "tsx": "^4.19.2"
   }
 }

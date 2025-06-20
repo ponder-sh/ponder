@@ -65,6 +65,9 @@ importers:
 
   docs:
     dependencies:
+      '@clickhouse/client':
+        specifier: ^1.11.0
+        version: 1.11.2
       '@segment/analytics-node':
         specifier: ^2.2.1
         version: 2.2.1(encoding@0.1.13)
@@ -117,6 +120,9 @@ importers:
       '@types/react-dom':
         specifier: ^18
         version: 18.2.17
+      tsx:
+        specifier: ^4.19.2
+        version: 4.19.2
 
   examples/feature-accounts:
     dependencies:
@@ -1333,6 +1339,13 @@ packages:
     resolution: {integrity: sha512-0MhX9/B4iL6Re04jPrttDm+BsP8y6mS7byuv0BvXgdXhbV5PdlsHt55dvNsuBCPZ7xq1oTAOOuotR9NFbQyMSA==}
     bundledDependencies:
       - is-unicode-supported
+
+  '@clickhouse/client-common@1.11.2':
+    resolution: {integrity: sha512-H4ECHqaipzMgiZKqpb1Z4N3Ofq+lVTCn8I59XsSynqrsfR4jWZD3PipXVvIzMpDmTMvrlJWrOwAdm0DMNiMQbA==}
+
+  '@clickhouse/client@1.11.2':
+    resolution: {integrity: sha512-ZE7Q1qxsDNXCkGPf1zqmhpZpwAKxKT+1s4Z432J1Mb2Gm26Y4tG/sJoug81AfAJTt6s7taO2vzNBAKfSR3SStg==}
+    engines: {node: '>=16'}
 
   '@commander-js/extra-typings@12.0.1':
     resolution: {integrity: sha512-OvkMobb1eMqOCuJdbuSin/KJkkZr7n24/UNV+Lcz/0Dhepf3r2p9PaGwpRpAWej7A+gQnny4h8mGhpFl4giKkg==}
@@ -9935,6 +9948,12 @@ snapshots:
       '@clack/core': 0.3.5
       picocolors: 1.1.1
       sisteransi: 1.0.5
+
+  '@clickhouse/client-common@1.11.2': {}
+
+  '@clickhouse/client@1.11.2':
+    dependencies:
+      '@clickhouse/client-common': 1.11.2
 
   '@commander-js/extra-typings@12.0.1(commander@12.0.0)':
     dependencies:
