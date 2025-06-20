@@ -512,6 +512,25 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
+  // harmony
+  match = sError.match(/query must be smaller than size ([\d,.]+)/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range: BigInt(match[1]!.replace(/[,.]/g, "")),
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+      isSuggestedRange: true,
+    } as const;
+  }
+
   // No match found
   return {
     shouldRetry: false,
