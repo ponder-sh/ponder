@@ -1,13 +1,13 @@
 ---
 layout: minimal
-title: "Ponder's (ongoing) Journey to 100,000 Events per Second"
+title: "Ponder’s (ongoing) journey to 100,000 events per second"
 description: "Part 1: Speculation and Ponder’s in-memory database"
 date: "June 23, 2025"
 ---
 
 import { Footer } from "../../components/footer";
 
-# Ponder's (ongoing) journey to 100,000 events per second
+# Ponder’s (ongoing) journey to 100,000 events per second
 
 <div className="flex flex-row items-center gap-4 mt-5">
   <img src="/kyle-avatar.jpg" className="w-10 h-10 rounded-full" />
@@ -43,9 +43,7 @@ We want to highlight three key performance optimizations from Ponder's **transfo
 
 ### In-memory database
 
-The transform step runs user-defined indexing functions, such as the one from our [ERC20 example](https://github.com/ponder-sh/ponder/blob/main/examples/reference-erc20/src/index.ts) below. An indexing function commonly has one or many database function calls for writing application ready data to the database.
-
-Ponder has a [store API](https://ponder.sh/docs/indexing/write-to-the-database#store-api) made up of `find()`, `insert()`, `update()`, and `delete()` for simplified database access. If that is too constrained, [raw SQL](https://ponder.sh/docs/indexing/write-to-the-database#raw-sql) is also available.
+The transform step runs user-defined indexing functions, such as the one from our [ERC20 example](https://github.com/ponder-sh/ponder/blob/main/examples/reference-erc20/src/index.ts) below. Indexing functions typically make one or many database function calls to write application ready data to the database.
 
 ```ts [src/index.ts]
 import { ponder } from "ponder:registry";
@@ -73,7 +71,7 @@ ponder.on("ERC20:Approval", async ({ event, context }) => {
 });
 ```
 
-In early versions of Ponder, these store API methods each made one database query. This approach was simple and easy to maintain.
+In early versions of Ponder, these store API methods – `find()`, `insert()`, `update()`, and `delete()` – each made one database query. This approach was simple and easy to maintain.
 
 But – because Ponder processes events one-by-one – each database query blocks the entire indexing process. For systems with even a few milliseconds of latency between Ponder and the database, performance suffered.
 
@@ -83,10 +81,6 @@ This optimization makes it practical to use Ponder despite database latencies up
 
 In certain cases, the in-memory buffer can also serve reads (e.g. `find` and `insert` with `onConflictDoUpdate`) which further reduces the frequency of blocking database queries.
 
-:::info
-  The in-memory buffer uses a key-value storage model, which imposes some restrictions on table definitions. And if you use raw SQL, these optimizations don’t generally apply.
-:::
-
 ```
 │ Event          │ Count │ Duration (ms) │
 ├────────────────┼───────┼───────────────┤
@@ -94,7 +88,11 @@ In certain cases, the in-memory buffer can also serve reads (e.g. `find` and `in
 │ ERC20:Approval │  4274 │         0.005 │
 ```
 
-The key trade-off with this design is memory usage. This design uses more memory, requiring a memory management solution to avoid out-of-memory errors for large apps. More on this later.
+The key trade-off with this design is higher memory usage, which requires careful management to avoid out-of-memory errors in large apps. More on that later.
+
+:::info
+  The in-memory buffer uses a key-value storage model, which imposes some restrictions on table definitions. And if you use raw SQL, these optimizations don’t generally apply.
+:::
 
 ### Delayed errors
 
@@ -104,11 +102,9 @@ This function throws an error if a row with the same primary key value already e
 
 Unfortunately, this introduces a blocking database query for simple inserts (the most common database operation!). It’s especially bad when you consider that this query is almost always wasted work – only a tiny fraction of apps have logical errors that would cause a unique key constraint.
 
-We released our solution in [0.9.20](https://github.com/ponder-sh/ponder/pull/1522).
+We released our solution in [0.9.20](https://github.com/ponder-sh/ponder/pull/1522). To avoid the blocking queries, we simply wait to detect & report the unique constraint error until the row gets flushed to the database. If we get an error, we have a mechanism to figure out exactly which indexing function was responsible, and we use that information to construct a useful error message.
 
-To avoid the blocking queries, we simply wait to detect & report the unique constraint error until the row gets flushed to the database. If we get an error, we have a mechanism to figure out exactly which indexing function was responsible, and we use that information to construct a useful error message.
-
-This “delayed errors” optimization sped up our Uniswap V4 benchmark project by ~10x.
+This optimization sped up our Uniswap V4 benchmark project by ~10x.
 
 <img src="/uniswap.png" className="mt-6" />
 
@@ -146,7 +142,7 @@ ponder.on(“Erc20:Transfer”, async ({ event, context }) => {
 })
 ```
 
-We released speculation in `0.10.8`, and it was a major performance win for most apps. Our BasePaint example project got 6x faster because of this optimization.
+We released speculation in `0.10.8`, and it was a major performance win for most apps – our BasePaint example project got 6x faster.
 
 <img src="/basepaint.png" className="mt-6" />
 
