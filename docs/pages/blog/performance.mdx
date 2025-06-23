@@ -1,13 +1,13 @@
 ---
 layout: minimal
 title: "Ponder's (ongoing) Journey to 100,000 Events per Second"
-description: "Part 1: Speculation and Ponder’s in-memory db."
+description: "Part 1: Speculation and Ponder’s in-memory database"
 date: "June 23, 2025"
 ---
 
 import { Footer } from "../../components/footer";
 
-# Ponder's (ongoing) Journey to 100,000 Events per Second
+# Ponder's (ongoing) journey to 100,000 events per second
 
 <div className="flex flex-row items-center gap-4 mt-5">
   <img src="/kyle-avatar.jpg" className="w-10 h-10 rounded-full" />
@@ -17,13 +17,13 @@ import { Footer } from "../../components/footer";
   </div>
 </div>
 
-Delivering peak performance has been a driving principle for Ponder throughout its almost three-year history. In recent months, we’ve made significant progress towards our longstanding goal of processing 100,000 events per second across diverse indexing workloads. In this post, we'll dive into what makes Ponder fast, detailing the technical approaches and the insights we’ve gathered along the way.
+Since the very first commit nearly three years ago, Ponder has been focused on delivering peak performance.
 
-```
-Ponder   █ 21s (103x faster)
+In recent months, we’ve made significant progress towards our longstanding goal of processing 100,000 events per second across diverse indexing workloads.
 
-TheGraph █████████████████████████████████████████████████████████████████████████████████████████████████████ 37m 5s 
-```
+In this post, we'll share a few of the key optimizations that make Ponder fast and some insights we’ve gathered along the way.
+
+<img src="/rocket-pool-benchmark.png" className="mt-6" />
 
 Performance is very important for a framework like Ponder, because it allows developers to rapidly and freely iterate, focusing on their business logic instead of restraints introduced by the tool. Over time, this creates faster feedback loops and better end user experiences.
 
@@ -39,9 +39,7 @@ An “event” is a unit of onchain data that triggers an indexing function – 
 
 ## Performance optimizations
 
-The following examples highlight key optimizations, particularly within our data 'transform' step, but they're just a part of our overall performance work. 
-
-The key bottlenecks in this step are 1) database queries, when user logic requires reading data that's already been inserted and 2) RPC requests.
+We want to highlight three key performance optimizations from Ponder's **transform** step. The key bottlenecks in this step are 1) blocking database queries and 2) blocking RPC requests.
 
 ### In-memory database
 
@@ -128,7 +126,7 @@ ponder.on(“ERC20:Transfer”, async ({ event, context }) => {
 ```
 
 This direction proved fruitful. Drawing inspiration from JavaScript engines, we designed a pre-fetching algorithm that works like this:
-1. **Profile**: Continuously profile indexing function logic to record statistics about which database rows get accessed. The profiling data encodes concepts like “The ERC20:Transfer indexing function always queries the “accounts” table for a row where `address = event.args.from`”.
+1. **Profile**: Continuously profile indexing function logic to record statistics about which database rows get accessed. The profiling data encodes concepts like: The `ERC20:Transfer` indexing function always runs a query where `account.address = event.args.from`.
 2. **Predict**: For each new batch of events, use the profiling data to predict which database rows will be accessed while processing each event.
 3. **Prefetch**: Send batch queries to the database to fetch all the predicted rows, and insert them into the in-memory cache.
 
@@ -154,7 +152,7 @@ We released speculation in `0.10.8`, and it was a major performance win for most
 
 ## What didn't work
 
-It's also important to consider what didn't work and what can be learned from it. From version v0.2 to v0.4, we implemented a static analysis feature to parse user code and extract the tables that each function reads and writes to. Ponder would use this information to run indexing functions out of order, sometimes multiple at a time. 
+It's also important to consider what didn't work and what can be learned from it. From versions 0.2 to 0.4, we implemented a static analysis feature to parse user code and extract the tables that each function reads and writes to. Ponder would use this information to run indexing functions out of order, sometimes multiple at a time. 
 
 While theoretically this would be faster than a single stream of events, it was very complex and fragile. We had many regressions and the dynamic, concurrent nature made it very difficult to debug. Luckily, we were able to take a step back and realize we were not getting the results that we wanted and ended up removing the feature entirely. The main takeaway from this is safe and simple fallback mechanisms are important when dealing with diverse and unknown user code. 
 
@@ -167,6 +165,6 @@ We haven’t yet achieved our goal of 100,000 events per second. There are still
 + **Column selection**: Most data (`block.logsBloom`, `transaction.input`) passed to indexing functions never gets used.
 + **Node-API**: Computationally expensive functions such as `checksumAddress` can benefit from native code.
 
-If any of these ideas excite you, please check out our GitHub https://github.com/ponder-sh/ponder or reach out to jobs@marble.xyz.
+If any of these ideas excite you, please check out our [GitHub](https://github.com/ponder-sh/ponder) or reach out to jobs@marble.xyz.
 
 <Footer />
