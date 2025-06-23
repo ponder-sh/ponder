@@ -81,6 +81,7 @@ export default async function forwardTelemetry(
         },
         clickhouse_settings:{
           "async_insert": 1,
+          "async_insert_busy_timeout_ms": 30_000,
         },
       }).catch(handleError);
     } else if (body.event === "lifecycle:session_start") {
@@ -103,6 +104,7 @@ export default async function forwardTelemetry(
         },
         clickhouse_settings:{
           "async_insert": 1,
+          "async_insert_busy_timeout_ms": 30_000,
         },
       }).catch(handleError);
     }
