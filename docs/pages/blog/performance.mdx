@@ -120,11 +120,10 @@ What happens when the in-memory buffer gets too large? At first, we used a simpl
 
 Instead, we noticed that the best predictor for which database rows a specific indexing function would access is the event body itself. Ponder apps often use event properties like `block.timestamp`, `log.address`, and decoded log arguments as primary key values.
 
-```ts
-import { accounts } from “ponder:schema”;
-
+```ts [src/index.ts]
 ponder.on(“ERC20:Transfer”, async ({ event, context }) => {
-  const sender = context.db.find(accounts, { address: event.args.from })
+  // Ponder profiles the database query and prefetches the result
+  const sender = context.db.find(accounts, { address: event.args.from });
 });
 ```
 
@@ -141,10 +140,10 @@ As a bonus, it turns out that the same approach works well to pre-fetch RPC requ
 ponder.on(“Erc20:Transfer”, async ({ event, context }) => {
   // Ponder profiles the RPC request and prefetches the result
   const data = await context.client.readContract({
-    abi: erc20Abi, 
-    functionName: “balanceOf”, 
-    address: event.log.address, 
-    args: [event.args.from], 
+    abi: erc20Abi,
+    functionName: “balanceOf”,
+    address: event.log.address,
+    args: [event.args.from],
   });
 })
 ```
