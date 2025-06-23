@@ -11,7 +11,7 @@
     "telemetry:local": "tsx api/telemetry-local.ts"
   },
   "dependencies": {
-    "@clickhouse/client": "^1.11.0",
+    "@clickhouse/client": "1.11.0",
     "@segment/analytics-node": "^2.2.1",
     "@theguild/remark-mermaid": "^0.3.0",
     "@vercel/node": "^5.1.16",

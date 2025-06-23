@@ -64,7 +64,7 @@ export default async function forwardTelemetry(
     if (body.event === "lifecycle:heartbeat_send") {
       await clickhouse.exec({
         query: `
-    INSERT INTO telemetry_heartbeat 
+    INSERT INTO telemetry.telemetry_heartbeat 
       (timestamp, project_id, session_id, device_id, duration) VALUES
       (
         now(), 
@@ -87,7 +87,7 @@ export default async function forwardTelemetry(
     } else if (body.event === "lifecycle:session_start") {
       await clickhouse.exec({
         query: `
-    INSERT INTO telemetry_heartbeat 
+    INSERT INTO telemetry.telemetry_heartbeat 
       (timestamp, project_id, session_id, device_id, duration) VALUES
       (
         now(), 
