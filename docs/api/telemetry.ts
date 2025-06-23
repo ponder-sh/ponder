@@ -81,6 +81,7 @@ export default async function forwardTelemetry(
         },
         clickhouse_settings:{
           "async_insert": 1,
+          "wait_for_async_insert": 0,
           "async_insert_busy_timeout_ms": 30_000,
         },
       }).catch(handleError);
@@ -104,6 +105,7 @@ export default async function forwardTelemetry(
         },
         clickhouse_settings:{
           "async_insert": 1,
+          "wait_for_async_insert": 0,
           "async_insert_busy_timeout_ms": 30_000,
         },
       }).catch(handleError);
