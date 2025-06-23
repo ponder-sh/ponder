@@ -807,7 +807,7 @@ export const createRealtimeSync = (
 
       // We already saw and handled this block. No-op.
       if (latestBlock.hash === block.hash) {
-        args.common.logger.trace({
+        args.common.logger.debug({
           service: "realtime",
           msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
         });

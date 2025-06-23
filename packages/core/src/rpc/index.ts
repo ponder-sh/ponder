@@ -473,6 +473,7 @@ export const createRpc = ({
     request: queue.add,
     async subscribe({ onBlock, onError, polling = false }) {
       if (polling || wsTransport === undefined) {
+        console.log({ polling, wsTransport, i: chain.pollingInterval });
         interval = setInterval(() => {
           _eth_getBlockByNumber(rpc, { blockTag: "latest" })
             .then(onBlock)
