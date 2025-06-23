@@ -10,6 +10,7 @@
     "preview": "vocs preview"
   },
   "dependencies": {
+    "@clickhouse/client": "1.11.0",
     "@segment/analytics-node": "^2.2.1",
     "@theguild/remark-mermaid": "^0.3.0",
     "@vercel/node": "^5.1.16",
