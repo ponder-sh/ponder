@@ -120,9 +120,6 @@ importers:
       '@types/react-dom':
         specifier: ^18
         version: 18.2.17
-      tsx:
-        specifier: ^4.19.2
-        version: 4.19.2
 
   examples/feature-accounts:
     dependencies:

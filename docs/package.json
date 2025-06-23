@@ -7,8 +7,7 @@
     "dev": "vocs dev",
     "build": "vocs build",
     "search-index": "vocs search-index",
-    "preview": "vocs preview",
-    "telemetry:local": "tsx api/telemetry-local.ts"
+    "preview": "vocs preview"
   },
   "dependencies": {
     "@clickhouse/client": "1.11.0",
@@ -30,7 +29,6 @@
   "devDependencies": {
     "@types/node": "^22.15.18",
     "@types/react": "^19.0.10",
-    "@types/react-dom": "^18",
-    "tsx": "^4.19.2"
+    "@types/react-dom": "^18"
   }
 }
