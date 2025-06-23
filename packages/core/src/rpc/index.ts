@@ -472,12 +472,25 @@ export const createRpc = ({
     // @ts-ignore
     request: queue.add,
     async subscribe({ onBlock, onError, polling = false }) {
+      let isFetching = false;
+
       if (polling || wsTransport === undefined) {
         console.log({ polling, wsTransport, i: chain.pollingInterval });
-        interval = setInterval(() => {
-          _eth_getBlockByNumber(rpc, { blockTag: "latest" })
-            .then(onBlock)
-            .catch(onError);
+        interval = setInterval(async () => {
+          if (isFetching) return;
+
+          isFetching = true;
+
+          try {
+            const block = await _eth_getBlockByNumber(rpc, {
+              blockTag: "latest",
+            });
+            await onBlock(block);
+          } catch (error) {
+            onError(error as Error);
+          } finally {
+            isFetching = false;
+          }
         }, chain.pollingInterval);
         common.shutdown.add(() => {
           clearInterval(interval);
