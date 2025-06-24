@@ -158,7 +158,7 @@ export default createConfig({
 
 In some cases, the indexer needs to collect child addresses from the factory before indexing it. 
 
-In these cases, to save indexing time you can specify `startBlock` and `endBlock` of the factory separately. The `startBlock` option specifies the block number to begin collecting factory childs from. The `endBlock` option specifies the block number to stop collecting factory childs at. Both options default to contract's `startBlock` and `endBlock` respectively. 
+In these cases, to save indexing time you can specify `startBlock` and `endBlock` of the factory separately. The `startBlock` option specifies the block number to begin collecting factory children from. The `endBlock` option specifies the block number to stop collecting factory children at. Both options default to contract's `startBlock` and `endBlock` respectively. 
 
 This separation allows you to, for example, scan the entire factory history (from its deployment) to collect all existing child contracts, while then indexing those contracts starting from a more recent block. 
 
