@@ -120,6 +120,12 @@ importers:
       '@types/react-dom':
         specifier: ^18
         version: 18.2.17
+      dotenv:
+        specifier: ^16.3.1
+        version: 16.4.5
+      tsx:
+        specifier: ^4.19.2
+        version: 4.19.2
 
   examples/feature-accounts:
     dependencies:
@@ -552,7 +558,7 @@ importers:
     dependencies:
       forge-std:
         specifier: github:foundry-rs/forge-std
-        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/f46d8301cf732f4f83846565aa475628265e51e0
+        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/60acb7aaadcce2d68e52986a0a66fe79f07d138f
 
   examples/with-foundry/ponder:
     dependencies:
@@ -5910,8 +5916,8 @@ packages:
   forever-agent@0.6.1:
     resolution: {integrity: sha512-j0KLYPhm6zeac4lz3oJ3o65qvgQCcPubiyotZrXqEaG4hNagNYO8qdlUrX5vwqv9ohqeT/Z3j6+yW067yWWdUw==}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/f46d8301cf732f4f83846565aa475628265e51e0:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/f46d8301cf732f4f83846565aa475628265e51e0}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/60acb7aaadcce2d68e52986a0a66fe79f07d138f:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/60acb7aaadcce2d68e52986a0a66fe79f07d138f}
     version: 1.9.7
 
   form-data@2.3.3:
@@ -14862,7 +14868,7 @@ snapshots:
 
   forever-agent@0.6.1: {}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/f46d8301cf732f4f83846565aa475628265e51e0: {}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/60acb7aaadcce2d68e52986a0a66fe79f07d138f: {}
 
   form-data@2.3.3:
     dependencies:
