@@ -27,7 +27,121 @@ const client = new PostHog(process.env.POSTHOG_PROJECT_API_KEY, {
   flushInterval: 0,
 });
 
-const clickhouse = createClient({ url: process.env.CLICKHOUSE_URL })
+const clickhouse = createClient({
+  url: process.env.CLICKHOUSE_URL,
+  database: process.env.CLICKHOUSE_DB ?? "telemetry",
+  compression: {
+    response: true,
+    request: true,
+  },
+  clickhouse_settings: {
+    async_insert: 1,
+    wait_for_async_insert: 0,
+    async_insert_busy_timeout_ms: 30_000,
+  },
+})
+
+// Local buffer for batching requests
+interface BufferedRequest {
+  timestamp: Date;
+  project_id: string;
+  session_id: string;
+  device_id: string;
+  duration: number;
+}
+
+class RequestBuffer {
+  #buffer: BufferedRequest[] = [];
+  #currentBatchPromise: Promise<void> | null = null;
+  #batchTimeout = 2000;
+
+  async push(request: BufferedRequest): Promise<void> {
+    if (!this.#currentBatchPromise) {
+      this.#currentBatchPromise = this.#delayedProcessBatch();
+    }
+
+    this.#buffer.push(request);
+    await this.#currentBatchPromise;
+  }
+
+  async #delayedProcessBatch(): Promise<void> {
+    await new Promise(resolve => setTimeout(resolve, this.#batchTimeout));
+
+    const requestsToFlush = [...this.#buffer];
+    this.#buffer = [];
+    this.#currentBatchPromise = null;
+
+    if (requestsToFlush.length === 0) {
+      return;
+    }
+
+    try {
+      await this.#insertToClickHouse(requestsToFlush);
+      console.log(`Successfully flushed ${requestsToFlush.length} requests to ClickHouse`);
+    } catch (error) {
+      console.error('Error flushing buffer to ClickHouse:', error);
+      this.#buffer.unshift(...requestsToFlush);
+      this.#currentBatchPromise = this.#delayedProcessBatch();
+      throw error;
+    }
+  }
+
+  async #insertToClickHouse(requests: BufferedRequest[]): Promise<void> {
+    if (requests.length === 0) {
+      return;
+    }
+
+    const valueSets = requests.map((_, index) => 
+      `(now(), reinterpretAsUInt64(unhex({project_id_${index}:String})), reinterpretAsUInt64(unhex({session_id_${index}:String})), reinterpretAsUInt64(unhex({device_id_${index}:String})), {duration_${index}:UInt32})`
+    ).join(', ');
+
+    const queryParams: Record<string, any> = {};
+    requests.forEach((req, index) => {
+      queryParams[`project_id_${index}`] = req.project_id;
+      queryParams[`session_id_${index}`] = req.session_id;
+      queryParams[`device_id_${index}`] = req.device_id;
+      queryParams[`duration_${index}`] = req.duration;
+    });
+
+    await clickhouse.exec({
+      query: `
+        INSERT INTO telemetry_heartbeat 
+          (timestamp, project_id, session_id, device_id, duration) VALUES
+          ${valueSets}
+      `,
+      query_params: queryParams,
+    });
+  }
+
+  async forceFlush(): Promise<void> {
+    if (this.#currentBatchPromise) {
+      await this.#currentBatchPromise;
+    }
+    
+    if (this.#buffer.length > 0) {
+      const requestsToFlush = [...this.#buffer];
+      this.#buffer = [];
+      this.#currentBatchPromise = null;
+
+      await this.#insertToClickHouse(requestsToFlush);
+      console.log(`Force flushed ${requestsToFlush.length} requests to ClickHouse`);
+    }
+  }
+}
+
+// Global buffer instance
+const requestBuffer = new RequestBuffer();
+
+// Cleanup on process exit
+process.on('SIGINT', async () => {
+  await requestBuffer.forceFlush();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  await requestBuffer.forceFlush();
+  process.exit(0);
+});
 
 const asyncTrack = (payload: TrackParams) => {
   return new Promise<void>((resolve, reject) => {
@@ -62,53 +176,21 @@ export default async function forwardTelemetry(
     await client.shutdown();
 
     if (body.event === "lifecycle:heartbeat_send") {
-      await clickhouse.exec({
-        query: `
-    INSERT INTO telemetry.telemetry_heartbeat 
-      (timestamp, project_id, session_id, device_id, duration) VALUES
-      (
-        now(), 
-        reinterpretAsUInt64(unhex({project_id:String})), 
-        reinterpretAsUInt64(unhex({session_id:String})),
-        reinterpretAsUInt64(unhex({device_id:String})),
-        {duration:UInt32}
-      )`,
-        query_params: {
-          project_id: body.properties.project_id, 
-          session_id: body.properties.session_id,
-          device_id: body.distinctId,
-          duration: Math.round(+body.properties.duration_seconds),
-        },
-        clickhouse_settings:{
-          "async_insert": 1,
-          "wait_for_async_insert": 0,
-          "async_insert_busy_timeout_ms": 30_000,
-        },
-      }).catch(handleError);
+      await requestBuffer.push({
+        timestamp: new Date(),
+        project_id: body.properties.project_id,
+        session_id: body.properties.session_id,
+        device_id: body.distinctId,
+        duration: Math.round(+body.properties.duration_seconds),
+      });
     } else if (body.event === "lifecycle:session_start") {
-      await clickhouse.exec({
-        query: `
-    INSERT INTO telemetry.telemetry_heartbeat 
-      (timestamp, project_id, session_id, device_id, duration) VALUES
-      (
-        now(), 
-        reinterpretAsUInt64(unhex({project_id:String})), 
-        reinterpretAsUInt64(unhex({session_id:String})),
-        reinterpretAsUInt64(unhex({device_id:String})),
-        {duration:UInt32}
-      )`,
-        query_params: {
-          project_id: body.properties.project_id, 
-          session_id: body.properties.session_id,
-          device_id: body.distinctId,
-          duration: 0,
-        },
-        clickhouse_settings:{
-          "async_insert": 1,
-          "wait_for_async_insert": 0,
-          "async_insert_busy_timeout_ms": 30_000,
-        },
-      }).catch(handleError);
+      await requestBuffer.push({
+        timestamp: new Date(),
+        project_id: body.properties.project_id,
+        session_id: body.properties.session_id,
+        device_id: body.distinctId,
+        duration: 0,
+      });
     }
   }
   // Otherwise, assume it's a Segment event
@@ -122,3 +204,4 @@ export default async function forwardTelemetry(
 
   return res.status(200).json({ success: true });
 }
+
