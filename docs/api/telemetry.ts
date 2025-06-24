@@ -92,18 +92,19 @@ class RequestBuffer {
     }
 
     const valueSets = requests.map((_, index) =>
-      `(now(), reinterpretAsUInt64(unhex({project_id_${index}:String})), reinterpretAsUInt64(unhex({session_id_${index}:String})), reinterpretAsUInt64(unhex({device_id_${index}:String})), {duration_${index}:UInt32})`
+      `({timestamp_${index}:Int64}, reinterpretAsUInt64(unhex({project_id_${index}:String})), reinterpretAsUInt64(unhex({session_id_${index}:String})), reinterpretAsUInt64(unhex({device_id_${index}:String})), {duration_${index}:UInt32})`
     ).join(', ');
 
     const queryParams: Record<string, any> = {};
     requests.forEach((req, index) => {
+      queryParams[`timestamp_${index}`] = Math.floor(req.timestamp.getTime() / 1000);
       queryParams[`project_id_${index}`] = req.project_id;
       queryParams[`session_id_${index}`] = req.session_id;
       queryParams[`device_id_${index}`] = req.device_id;
       queryParams[`duration_${index}`] = req.duration;
     });
 
-    await clickhouse.exec({
+    await clickhouse.command({
       query: `
         INSERT INTO telemetry_heartbeat 
           (timestamp, project_id, session_id, device_id, duration) VALUES
