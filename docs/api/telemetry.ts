@@ -91,7 +91,7 @@ class RequestBuffer {
       return;
     }
 
-    const valueSets = requests.map((_, index) => 
+    const valueSets = requests.map((_, index) =>
       `(now(), reinterpretAsUInt64(unhex({project_id_${index}:String})), reinterpretAsUInt64(unhex({session_id_${index}:String})), reinterpretAsUInt64(unhex({device_id_${index}:String})), {duration_${index}:UInt32})`
     ).join(', ');
 
@@ -117,7 +117,7 @@ class RequestBuffer {
     if (this.#currentBatchPromise) {
       await this.#currentBatchPromise;
     }
-    
+
     if (this.#buffer.length > 0) {
       const requestsToFlush = [...this.#buffer];
       this.#buffer = [];
