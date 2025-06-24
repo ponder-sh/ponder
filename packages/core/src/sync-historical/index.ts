@@ -480,7 +480,6 @@ export const createHistoricalSync = async (
     // Note: `factory` must refer to the same original `factory` in `filter`
     // and not be a recovered factory from `recoverFilter`.
     if (childAddressesCache.has(factory)) {
-      console.log(`Cache size: ${childAddressesCache.get(factory)!.size}`);
       return childAddressesCache.get(factory)!;
     }
 
