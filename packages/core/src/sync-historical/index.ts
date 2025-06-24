@@ -425,11 +425,18 @@ export const createHistoricalSync = async (
     });
 
     const childAddresses = new Map<Address, number>();
+    const childAddressesRecord = childAddressesCache.get(factory);
     for (const log of logs) {
       if (isLogFactoryMatched({ factory, log })) {
         const address = getChildAddress({ log, factory });
         if (childAddresses.has(address) === false) {
           childAddresses.set(address, hexToNumber(log.blockNumber));
+        }
+        if (
+          childAddressesRecord !== undefined &&
+          childAddressesRecord.has(address) === false
+        ) {
+          childAddressesRecord.set(address, hexToNumber(log.blockNumber));
         }
       }
     }
