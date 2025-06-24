@@ -116,6 +116,8 @@ export const createHistoricalSync = async (
     Promise<SyncTransactionReceipt>
   >();
 
+  const childAddressesCache = new Map<Factory, Map<Address, number>>();
+
   /**
    * Data about the range passed to "eth_getLogs" share among all log
    * filters and log factories.
@@ -460,7 +462,14 @@ export const createHistoricalSync = async (
 
     // Note: `factory` must refer to the same original `factory` in `filter`
     // and not be a recovered factory from `recoverFilter`.
-    return args.syncStore.getChildAddresses({ factory });
+    if (childAddressesCache.has(factory)) {
+      return childAddressesCache.get(factory)!;
+    }
+
+    const childAddresses = await args.syncStore.getChildAddresses({ factory });
+    childAddressesCache.set(factory, childAddresses);
+
+    return childAddresses;
   };
 
   ////////
