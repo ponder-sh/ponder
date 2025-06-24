@@ -457,6 +457,7 @@ export const createSync = async (params: {
             syncStore: params.syncStore,
             sources,
             localSyncGenerator,
+            childAddressesCache: historicalSync.childAddressesCache,
             from,
             to: min(
               getMultichainCheckpoint({ tag: "finalized", chain }),
@@ -1251,6 +1252,7 @@ export async function* getLocalEventGenerator(params: {
   syncStore: SyncStore;
   sources: Source[];
   localSyncGenerator: AsyncGenerator<number>;
+  childAddressesCache: Map<Factory, Map<Address, number>>;
   from: string;
   to: string;
   limit: number;
@@ -1274,9 +1276,11 @@ export async function* getLocalEventGenerator(params: {
       switch (filter.type) {
         case "log":
           if (isAddressFactory(filter.address)) {
-            const childAddresses = await params.syncStore.getChildAddresses({
-              factory: filter.address,
-            });
+            const childAddresses =
+              params.childAddressesCache.get(filter.address) ??
+              (await params.syncStore.getChildAddresses({
+                factory: filter.address,
+              }));
 
             initialChildAddresses.set(filter.address, childAddresses);
           }
@@ -1286,17 +1290,21 @@ export async function* getLocalEventGenerator(params: {
         case "transfer":
         case "trace":
           if (isAddressFactory(filter.fromAddress)) {
-            const childAddresses = await params.syncStore.getChildAddresses({
-              factory: filter.fromAddress,
-            });
+            const childAddresses =
+              params.childAddressesCache.get(filter.fromAddress) ??
+              (await params.syncStore.getChildAddresses({
+                factory: filter.fromAddress,
+              }));
 
             initialChildAddresses.set(filter.fromAddress, childAddresses);
           }
 
           if (isAddressFactory(filter.toAddress)) {
-            const childAddresses = await params.syncStore.getChildAddresses({
-              factory: filter.toAddress,
-            });
+            const childAddresses =
+              params.childAddressesCache.get(filter.toAddress) ??
+              (await params.syncStore.getChildAddresses({
+                factory: filter.toAddress,
+              }));
 
             initialChildAddresses.set(filter.toAddress, childAddresses);
           }
