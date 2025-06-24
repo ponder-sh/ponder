@@ -14,7 +14,7 @@
 
 #### Removed `event.log.id`
 
-The `event.log.id` and `event.trace.id` properties were removed. Replace each occurence with the new `event.id` property (described below), or update the table definition to use a compound primary key that better represents the business logic / domain.
+The `event.log.id` and `event.trace.id` properties were removed. Replace each occurrence with the new `event.id` property (described below), or update the table definition to use a compound primary key that better represents the business logic / domain.
 
 ```ts [src/index.ts]
 import { ponder } from "ponder:registry";
