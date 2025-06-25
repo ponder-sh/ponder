@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.20
+
+### Patch Changes
+
+- [#1848](https://github.com/ponder-sh/ponder/pull/1848) [`d3bf6b5`](https://github.com/ponder-sh/ponder/commit/d3bf6b516953d40a62abfdc8d28cc5bbfae8bbf8) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with websockets that caused the error `TypeError: Cannot convert undefined to a BigInt`.
+
 ## 0.11.19
 
 ### Patch Changes
