@@ -255,6 +255,7 @@ export const createSync = async (params: {
       syncProgress: SyncProgress;
       historicalSync: HistoricalSync;
       realtimeSync: RealtimeSync | undefined;
+      childAddresses: Map<Factory, Map<Address, number>>;
     }
   >();
 
@@ -327,7 +328,7 @@ export const createSync = async (params: {
 
     const eventGenerators = await Promise.all(
       Array.from(perChainSync.entries()).map(
-        async ([chain, { syncProgress, historicalSync }]) => {
+        async ([chain, { syncProgress, historicalSync, childAddresses }]) => {
           const sources = params.indexingBuild.sources.filter(
             ({ filter }) => filter.chainId === chain.id,
           );
@@ -457,7 +458,7 @@ export const createSync = async (params: {
             syncStore: params.syncStore,
             sources,
             localSyncGenerator,
-            childAddresses: historicalSync.childAddresses,
+            childAddresses,
             from,
             to: min(
               getMultichainCheckpoint({ tag: "finalized", chain }),
@@ -874,6 +875,7 @@ export const createSync = async (params: {
         syncProgress,
         historicalSync,
         realtimeSync: undefined,
+        childAddresses,
       });
     }),
   );
@@ -917,12 +919,11 @@ export const createSync = async (params: {
         const chain = params.indexingBuild.chains[index]!;
         const rpc = params.indexingBuild.rpcs[index]!;
 
-        const { syncProgress } = perChainSync.get(chain)!;
+        const { syncProgress, childAddresses } = perChainSync.get(chain)!;
 
         const sources = params.indexingBuild.sources.filter(
           ({ filter }) => filter.chainId === chain.id,
         );
-        const filters = sources.map(({ filter }) => filter);
 
         if (isSyncEnd(syncProgress)) {
           params.common.metrics.ponder_sync_is_complete.set(
@@ -935,48 +936,7 @@ export const createSync = async (params: {
             1,
           );
 
-          const initialChildAddresses = new Map<
-            Factory,
-            Map<Address, number>
-          >();
-
-          for (const filter of filters) {
-            switch (filter.type) {
-              case "log":
-                if (isAddressFactory(filter.address)) {
-                  const childAddresses =
-                    await params.syncStore.getChildAddresses({
-                      factory: filter.address,
-                    });
-
-                  initialChildAddresses.set(filter.address, childAddresses);
-                }
-                break;
-
-              case "transaction":
-              case "transfer":
-              case "trace":
-                if (isAddressFactory(filter.fromAddress)) {
-                  const childAddresses =
-                    await params.syncStore.getChildAddresses({
-                      factory: filter.fromAddress,
-                    });
-
-                  initialChildAddresses.set(filter.fromAddress, childAddresses);
-                }
-
-                if (isAddressFactory(filter.toAddress)) {
-                  const childAddresses =
-                    await params.syncStore.getChildAddresses({
-                      factory: filter.toAddress,
-                    });
-
-                  initialChildAddresses.set(filter.toAddress, childAddresses);
-                }
-
-                break;
-            }
-          }
+          const initialChildAddresses = childAddresses;
 
           const perChainOnRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
             common: params.common,

@@ -64,7 +64,6 @@ import {
 
 export type HistoricalSync = {
   intervalsCache: Map<Filter, { fragment: Fragment; intervals: Interval[] }[]>;
-  childAddresses: Map<Factory, Map<Address, number>>;
   /**
    * Extract raw data for `interval` and return the closest-to-tip block
    * that is synced.
@@ -794,7 +793,6 @@ export const createHistoricalSync = async (
 
   return {
     intervalsCache,
-    childAddresses: childAddressesCache,
     async sync(_interval) {
       const intervalsToSync: {
         interval: Interval;
