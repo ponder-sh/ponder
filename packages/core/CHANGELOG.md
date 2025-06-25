@@ -1,5 +1,13 @@
 # ponder
 
+## 0.11.21
+
+### Patch Changes
+
+- [#1851](https://github.com/ponder-sh/ponder/pull/1851) [`fd596bf`](https://github.com/ponder-sh/ponder/commit/fd596bfc4f6a3725509e3504041fffde26357cd8) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with historical to realtime handoff causing out of memory error for large apps.
+
+- [#1794](https://github.com/ponder-sh/ponder/pull/1794) [`f379a29`](https://github.com/ponder-sh/ponder/commit/f379a297b5af99638b27e86534dd241acca04ee2) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved database error handling.
+
 ## 0.11.20
 
 ### Patch Changes
