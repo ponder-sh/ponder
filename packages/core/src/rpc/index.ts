@@ -475,7 +475,6 @@ export const createRpc = ({
       let isFetching = false;
 
       if (polling || wsTransport === undefined) {
-        console.log({ polling, wsTransport, i: chain.pollingInterval });
         interval = setInterval(async () => {
           if (isFetching) return;
 
