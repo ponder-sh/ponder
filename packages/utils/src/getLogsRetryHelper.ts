@@ -512,6 +512,63 @@ export const getLogsRetryHelper = ({
     } as const;
   }
 
+  // harmony
+  match = sError.match(/query must be smaller than size ([\d,.]+)/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range: BigInt(match[1]!.replace(/[,.]/g, "")),
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+      isSuggestedRange: true,
+    } as const;
+  }
+
+  // moonriver
+  match = sError.match(/block range is too wide \(maximum ([\d,.]+)\)/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range: BigInt(match[1]!.replace(/[,.]/g, "")),
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+      isSuggestedRange: true,
+    } as const;
+  }
+
+  // aurora
+  match = sError.match(/up to a ([\d,.]+) block range/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range: BigInt(match[1]!.replace(/[,.]/g, "")),
+    });
+
+    if (isRangeUnchanged(params, ranges)) {
+      return { shouldRetry: false } as const;
+    }
+
+    return {
+      shouldRetry: true,
+      ranges,
+      isSuggestedRange: true,
+    } as const;
+  }
+
   // No match found
   return {
     shouldRetry: false,
