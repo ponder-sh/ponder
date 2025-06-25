@@ -25,9 +25,11 @@ import {
   testClient,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/config.js";
+import type { Factory, Source } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
 import {
+  type Address,
   encodeFunctionData,
   encodeFunctionResult,
   toHex,
@@ -41,6 +43,26 @@ beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
+
+const setupChildAddresses = (
+  sources: Source[],
+): Map<Factory, Map<Address, number>> => {
+  const childAddresses = new Map();
+  for (const source of sources) {
+    switch (source.filter.type) {
+      case "log":
+        childAddresses.set(source.filter.address, new Map());
+        break;
+      case "transaction":
+      case "transfer":
+      case "trace":
+        childAddresses.set(source.filter.fromAddress, new Map());
+        childAddresses.set(source.filter.toAddress, new Map());
+    }
+  }
+
+  return childAddresses as Map<Factory, Map<Address, number>>;
+};
 
 test("createHistoricalSync()", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
@@ -64,6 +86,7 @@ test("createHistoricalSync()", async (context) => {
     common: context.common,
     chain,
     sources,
+    childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
     onFatalError: () => {},
@@ -102,6 +125,7 @@ test("sync() with log filter", async (context) => {
     common: context.common,
     chain,
     sources,
+    childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
     onFatalError: () => {},
@@ -155,6 +179,7 @@ test("sync() with log filter and transaction receipts", async (context) => {
     common: context.common,
     chain,
     sources,
+    childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
     onFatalError: () => {},
@@ -201,6 +226,7 @@ test("sync() with block filter", async (context) => {
     common: context.common,
     chain,
     sources,
+    childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
     onFatalError: () => {},
@@ -256,6 +282,7 @@ test("sync() with log factory", async (context) => {
     common: context.common,
     chain,
     sources,
+    childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
     onFatalError: () => {},
@@ -410,6 +437,7 @@ test("sync() with transaction filter", async (context) => {
     common: context.common,
     chain,
     sources: sources.filter(({ filter }) => filter.type === "transaction"),
+    childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
     onFatalError: () => {},
@@ -555,6 +583,7 @@ test("sync() with many filters", async (context) => {
     common: context.common,
     chain,
     sources: [...erc20Sources, ...blockSources],
+    childAddresses: setupChildAddresses([...erc20Sources, ...blockSources]),
     syncStore,
     rpc,
     onFatalError: () => {},
@@ -612,6 +641,7 @@ test("sync() with cache", async (context) => {
     common: context.common,
     chain,
     sources,
+    childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
     onFatalError: () => {},
@@ -627,6 +657,7 @@ test("sync() with cache", async (context) => {
     common: context.common,
     chain,
     sources,
+    childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
     onFatalError: () => {},
@@ -666,6 +697,7 @@ test("sync() with partial cache", async (context) => {
     common: context.common,
     chain,
     sources,
+    childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
     onFatalError: () => {},
@@ -684,6 +716,7 @@ test("sync() with partial cache", async (context) => {
     common: context.common,
     chain,
     sources,
+    childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
     onFatalError: () => {},
@@ -716,6 +749,7 @@ test("sync() with partial cache", async (context) => {
     common: context.common,
     chain,
     sources,
+    childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
     onFatalError: () => {},
@@ -777,6 +811,7 @@ test("syncBlock() with cache", async (context) => {
     common: context.common,
     chain,
     sources: [...erc20Sources, ...blockSources],
+    childAddresses: setupChildAddresses([...erc20Sources, ...blockSources]),
     syncStore,
     rpc,
     onFatalError: () => {},
@@ -831,6 +866,7 @@ test("syncAddress() handles many addresses", async (context) => {
     common: context.common,
     chain,
     sources,
+    childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
     onFatalError: () => {},
