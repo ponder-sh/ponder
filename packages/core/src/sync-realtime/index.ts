@@ -118,18 +118,6 @@ type CreateRealtimeSyncParameters = {
   onFatalError: (error: Error) => void;
 };
 
-const isSyncBlock = (
-  block: SyncBlock | SyncBlockHeader,
-): block is SyncBlock => {
-  if (block.transactions === undefined) {
-    return false;
-  }
-
-  return (
-    block.transactions.length === 0 || typeof block.transactions[0] === "object"
-  );
-};
-
 const MAX_LATEST_BLOCK_ATTEMPT_MS = 3 * 60 * 1000; // 3 minutes
 
 const ERROR_TIMEOUT = [
@@ -281,7 +269,7 @@ export const createRealtimeSync = (
   ): Promise<BlockWithEventData> => {
     let block: SyncBlock | undefined;
 
-    if (isSyncBlock(maybeBlockHeader)) {
+    if (maybeBlockHeader.transactions !== undefined) {
       block = maybeBlockHeader;
     }
 

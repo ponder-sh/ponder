@@ -1,5 +1,6 @@
 import type {
   SyncBlock,
+  SyncBlockHeader,
   SyncLog,
   SyncTrace,
   SyncTransaction,
@@ -548,7 +549,15 @@ export const validateReceiptsAndBlock = (
  * - totalDifficulty
  * - extraData
  */
-export const standardizeBlock = (block: SyncBlock): SyncBlock => {
+export const standardizeBlock = <
+  block extends
+    | SyncBlock
+    | (Omit<SyncBlock, "transactions"> & {
+        transactions: string[] | undefined;
+      }),
+>(
+  block: block,
+): block extends SyncBlock ? SyncBlock : SyncBlockHeader => {
   // required properties
   if (block.hash === undefined) {
     throw new Error("'block.hash' is a required property");
@@ -610,9 +619,25 @@ export const standardizeBlock = (block: SyncBlock): SyncBlock => {
     block.extraData = "0x";
   }
 
-  block.transactions = block.transactions.map(standardizeTransaction);
+  // Note: block headers for some providers may contain transactions hashes,
+  // but Ponder coerces them to not contain transactions.
 
-  return block;
+  if (block.transactions === undefined) {
+    return block as block extends SyncBlock ? SyncBlock : SyncBlockHeader;
+  }
+
+  if (
+    block.transactions.length === 0 ||
+    typeof block.transactions[0] === "object"
+  ) {
+    block.transactions = (block as SyncBlock).transactions.map(
+      standardizeTransaction,
+    );
+  } else {
+    block.transactions = undefined;
+  }
+
+  return block as block extends SyncBlock ? SyncBlock : SyncBlockHeader;
 };
 
 /**

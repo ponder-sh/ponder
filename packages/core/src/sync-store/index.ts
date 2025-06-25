@@ -16,6 +16,7 @@ import type {
   LightBlock,
   LogFilter,
   SyncBlock,
+  SyncBlockHeader,
   SyncLog,
   SyncTrace,
   SyncTransaction,
@@ -78,7 +79,10 @@ export type SyncStore = {
     timestamp: number;
   }): Promise<{ number: bigint; timestamp: bigint } | undefined>;
   insertLogs(args: { logs: SyncLog[]; chainId: number }): Promise<void>;
-  insertBlocks(args: { blocks: SyncBlock[]; chainId: number }): Promise<void>;
+  insertBlocks(args: {
+    blocks: (SyncBlock | SyncBlockHeader)[];
+    chainId: number;
+  }): Promise<void>;
   insertTransactions(args: {
     transactions: SyncTransaction[];
     chainId: number;

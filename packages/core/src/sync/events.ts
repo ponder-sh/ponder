@@ -619,7 +619,7 @@ export const syncBlockToInternal = ({
   parentHash: block.parentHash,
   receiptsRoot: block.receiptsRoot,
   sha3Uncles: block.sha3Uncles,
-  size: block.size ? hexToBigInt(block.size) : 0n,
+  size: hexToBigInt(block.size),
   stateRoot: block.stateRoot,
   timestamp: hexToBigInt(block.timestamp),
   totalDifficulty: block.totalDifficulty
