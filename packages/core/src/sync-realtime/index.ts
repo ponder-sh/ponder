@@ -1057,13 +1057,14 @@ export const createRealtimeSync = (
         // Reset the error state after successfully completing the happy path.
         reconcileBlockErrorCount = 0;
 
-        // Note: awaiting `blockPromise` ensures that blocks are indexed immediately,
+        // Note: awaiting `indexedPromise` ensures that blocks are indexed immediately,
         // handling backpressure during the realtime "catchup" phase.
-        await blockPromise.then((result) => result.promise);
+        const indexedPromise = blockPromise.then((result) => result.promise);
+        await indexedPromise;
 
         return {
           type: "accepted",
-          blockPromise: blockPromise.then((result) => result.promise),
+          blockPromise: indexedPromise,
           finalizePromise: finalizePromise?.then((result) => result.promise),
         };
       } catch (_error) {
