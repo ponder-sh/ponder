@@ -76,6 +76,7 @@ type CreateHistoricalSyncParameters = {
   common: Common;
   sources: Source[];
   syncStore: SyncStore;
+  childAddresses: Map<Factory, Map<Address, number>>;
   chain: Chain;
   rpc: Rpc;
   onFatalError: (error: Error) => void;
@@ -117,7 +118,7 @@ export const createHistoricalSync = async (
     Promise<SyncTransactionReceipt>
   >();
 
-  const childAddressesCache = new Map<Factory, Map<Address, number>>();
+  const childAddressesCache = args.childAddresses;
 
   /**
    * Data about the range passed to "eth_getLogs" share among all log

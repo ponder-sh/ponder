@@ -810,10 +810,43 @@ export const createSync = async (params: {
         });
       }
 
+      const childAddresses: Map<Factory, Map<Address, number>> = new Map();
+      for (const source of sources) {
+        switch (source.filter.type) {
+          case "log":
+            if (isAddressFactory(source.filter.address)) {
+              const _childAddresses = await params.syncStore.getChildAddresses({
+                factory: source.filter.address,
+              });
+              childAddresses.set(source.filter.address, _childAddresses);
+            }
+            break;
+          case "transaction":
+          case "transfer":
+          case "trace":
+            if (isAddressFactory(source.filter.fromAddress)) {
+              const _childAddresses = await params.syncStore.getChildAddresses({
+                factory: source.filter.fromAddress,
+              });
+              childAddresses.set(source.filter.fromAddress, _childAddresses);
+            }
+
+            if (isAddressFactory(source.filter.toAddress)) {
+              const _childAddresses = await params.syncStore.getChildAddresses({
+                factory: source.filter.toAddress,
+              });
+              childAddresses.set(source.filter.toAddress, _childAddresses);
+            }
+
+            break;
+        }
+      }
+
       const historicalSync = await createHistoricalSync({
         common: params.common,
         sources,
         syncStore: params.syncStore,
+        childAddresses,
         rpc,
         chain,
         onFatalError: params.onFatalError,
@@ -1276,11 +1309,7 @@ export async function* getLocalEventGenerator(params: {
       switch (filter.type) {
         case "log":
           if (isAddressFactory(filter.address)) {
-            const childAddresses =
-              params.childAddresses.get(filter.address) ??
-              (await params.syncStore.getChildAddresses({
-                factory: filter.address,
-              }));
+            const childAddresses = params.childAddresses.get(filter.address)!;
 
             initialChildAddresses.set(filter.address, childAddresses);
           }
@@ -1290,21 +1319,15 @@ export async function* getLocalEventGenerator(params: {
         case "transfer":
         case "trace":
           if (isAddressFactory(filter.fromAddress)) {
-            const childAddresses =
-              params.childAddresses.get(filter.fromAddress) ??
-              (await params.syncStore.getChildAddresses({
-                factory: filter.fromAddress,
-              }));
+            const childAddresses = params.childAddresses.get(
+              filter.fromAddress,
+            )!;
 
             initialChildAddresses.set(filter.fromAddress, childAddresses);
           }
 
           if (isAddressFactory(filter.toAddress)) {
-            const childAddresses =
-              params.childAddresses.get(filter.toAddress) ??
-              (await params.syncStore.getChildAddresses({
-                factory: filter.toAddress,
-              }));
+            const childAddresses = params.childAddresses.get(filter.toAddress)!;
 
             initialChildAddresses.set(filter.toAddress, childAddresses);
           }
