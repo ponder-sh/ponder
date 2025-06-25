@@ -720,7 +720,9 @@ export const createRealtimeSync = (
    * @param block Block that caused reorg to be detected.
    * Must be at most 1 block ahead of the local chain.
    */
-  const reconcileReorg = async (block: SyncBlock | SyncBlockHeader) => {
+  const reconcileReorg = async (
+    block: SyncBlock | SyncBlockHeader,
+  ): Promise<{ promise: Promise<void> }> => {
     args.common.logger.warn({
       service: "realtime",
       msg: `Detected forked '${args.chain.name}' block at height ${hexToNumber(block.number)}`,
@@ -768,7 +770,11 @@ export const createRealtimeSync = (
 
     const commonAncestor = getLatestUnfinalizedBlock();
 
-    args.onEvent({ type: "reorg", block: commonAncestor, reorgedBlocks });
+    const reorgPromise = args.onEvent({
+      type: "reorg",
+      block: commonAncestor,
+      reorgedBlocks,
+    });
 
     args.common.logger.warn({
       service: "realtime",
@@ -789,6 +795,8 @@ export const createRealtimeSync = (
       }
       childAddressesPerBlock.delete(hexToNumber(block.number));
     }
+
+    return reorgPromise;
   };
 
   /**
@@ -884,9 +892,9 @@ export const createRealtimeSync = (
         // Quickly check for a reorg by comparing block numbers. If the block
         // number has not increased, a reorg must have occurred.
         if (hexToNumber(latestBlock.number) >= hexToNumber(block.number)) {
-          await reconcileReorg(block);
+          const reorgPromise = await reconcileReorg(block);
 
-          return { type: "rejected" };
+          return { type: "reorg", reorgPromise: reorgPromise.promise };
         }
 
         // Blocks are missing. They should be fetched and enqueued.
@@ -931,8 +939,9 @@ export const createRealtimeSync = (
 
         // Check if a reorg occurred by validating the chain of block hashes.
         if (block.parentHash !== latestBlock.hash) {
-          await reconcileReorg(block);
-          return { type: "rejected" };
+          const reorgPromise = await reconcileReorg(block);
+
+          return { type: "reorg", reorgPromise: reorgPromise.promise };
         }
 
         // New block is exactly one block ahead of the local chain.
@@ -1047,6 +1056,10 @@ export const createRealtimeSync = (
 
         // Reset the error state after successfully completing the happy path.
         reconcileBlockErrorCount = 0;
+
+        // Note: awaiting `blockPromise` ensures that blocks are indexed immediately,
+        // handling backpressure during the realtime "catchup" phase.
+        await blockPromise.then((result) => result.promise);
 
         return {
           type: "accepted",
