@@ -14,7 +14,7 @@
 
 #### Removed `event.log.id`
 
-The `event.log.id` and `event.trace.id` properties were removed. Replace each occurence with the new `event.id` property (described below), or update the table definition to use a compound primary key that better represents the business logic / domain.
+The `event.log.id` and `event.trace.id` properties were removed. Replace each occurrence with the new `event.id` property (described below), or update the table definition to use a compound primary key that better represents the business logic / domain.
 
 ```ts [src/index.ts]
 import { ponder } from "ponder:registry";
@@ -190,7 +190,7 @@ ponder start --schema my_schema
 ```
 
 :::info
-Each deployment/instance of a Ponder app must have it's own schema, with some exceptions for `ponder dev` and crash recovery. [Read more](/docs/0.10/database#database-schema).
+Each deployment/instance of a Ponder app must have its own schema, with some exceptions for `ponder dev` and crash recovery. [Read more](/docs/0.10/database#database-schema).
 :::
 
 #### Railway
