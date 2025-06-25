@@ -457,7 +457,7 @@ export const createSync = async (params: {
             syncStore: params.syncStore,
             sources,
             localSyncGenerator,
-            childAddressesCache: historicalSync.childAddressesCache,
+            childAddresses: historicalSync.childAddresses,
             from,
             to: min(
               getMultichainCheckpoint({ tag: "finalized", chain }),
@@ -1252,7 +1252,7 @@ export async function* getLocalEventGenerator(params: {
   syncStore: SyncStore;
   sources: Source[];
   localSyncGenerator: AsyncGenerator<number>;
-  childAddressesCache: Map<Factory, Map<Address, number>>;
+  childAddresses: Map<Factory, Map<Address, number>>;
   from: string;
   to: string;
   limit: number;
@@ -1277,7 +1277,7 @@ export async function* getLocalEventGenerator(params: {
         case "log":
           if (isAddressFactory(filter.address)) {
             const childAddresses =
-              params.childAddressesCache.get(filter.address) ??
+              params.childAddresses.get(filter.address) ??
               (await params.syncStore.getChildAddresses({
                 factory: filter.address,
               }));
@@ -1291,7 +1291,7 @@ export async function* getLocalEventGenerator(params: {
         case "trace":
           if (isAddressFactory(filter.fromAddress)) {
             const childAddresses =
-              params.childAddressesCache.get(filter.fromAddress) ??
+              params.childAddresses.get(filter.fromAddress) ??
               (await params.syncStore.getChildAddresses({
                 factory: filter.fromAddress,
               }));
@@ -1301,7 +1301,7 @@ export async function* getLocalEventGenerator(params: {
 
           if (isAddressFactory(filter.toAddress)) {
             const childAddresses =
-              params.childAddressesCache.get(filter.toAddress) ??
+              params.childAddresses.get(filter.toAddress) ??
               (await params.syncStore.getChildAddresses({
                 factory: filter.toAddress,
               }));
