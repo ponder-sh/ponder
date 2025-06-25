@@ -484,6 +484,7 @@ export const createRpc = ({
             const block = await _eth_getBlockByNumber(rpc, {
               blockTag: "latest",
             });
+            // Note: `onBlock` should never throw.
             await onBlock(block);
           } catch (error) {
             onError(error as Error);
