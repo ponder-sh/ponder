@@ -480,14 +480,7 @@ export const createHistoricalSync = async (
 
     // Note: `factory` must refer to the same original `factory` in `filter`
     // and not be a recovered factory from `recoverFilter`.
-    if (childAddressesCache.has(factory)) {
-      return childAddressesCache.get(factory)!;
-    }
-
-    const childAddresses = await args.syncStore.getChildAddresses({ factory });
-    childAddressesCache.set(factory, childAddresses);
-
-    return childAddresses;
+    return childAddressesCache.get(factory)!;
   };
 
   ////////
