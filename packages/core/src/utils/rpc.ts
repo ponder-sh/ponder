@@ -557,6 +557,7 @@ export const standardizeBlock = <
       }),
 >(
   block: block,
+  isBlockHeader = false,
 ): block extends SyncBlock ? SyncBlock : SyncBlockHeader => {
   // required properties
   if (block.hash === undefined) {
@@ -573,9 +574,6 @@ export const standardizeBlock = <
   }
   if (block.parentHash === undefined) {
     throw new Error("'block.parentHash' is a required property");
-  }
-  if (block.transactions === undefined) {
-    throw new Error("'block.transactions' is a required property");
   }
 
   // non-required properties
@@ -620,24 +618,23 @@ export const standardizeBlock = <
   }
 
   // Note: block headers for some providers may contain transactions hashes,
-  // but Ponder coerces them to not contain transactions.
+  // but Ponder coerces the transactions property to undefined.
 
-  if (block.transactions === undefined) {
+  if (isBlockHeader) {
+    block.transactions = undefined;
+
     return block as block extends SyncBlock ? SyncBlock : SyncBlockHeader;
-  }
+  } else {
+    if (block.transactions === undefined) {
+      throw new Error("'block.transactions' is a required property");
+    }
 
-  if (
-    block.transactions.length === 0 ||
-    typeof block.transactions[0] === "object"
-  ) {
     block.transactions = (block as SyncBlock).transactions.map(
       standardizeTransaction,
     );
-  } else {
-    block.transactions = undefined;
-  }
 
-  return block as block extends SyncBlock ? SyncBlock : SyncBlockHeader;
+    return block as block extends SyncBlock ? SyncBlock : SyncBlockHeader;
+  }
 };
 
 /**

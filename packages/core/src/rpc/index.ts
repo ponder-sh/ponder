@@ -495,7 +495,7 @@ export const createRpc = ({
             params: ["newHeads"],
             onData: async (data) => {
               if (data.error === undefined && data.result !== undefined) {
-                onBlock(standardizeBlock(data.result));
+                onBlock(standardizeBlock(data.result, true));
 
                 common.logger.debug({
                   service: "rpc",
