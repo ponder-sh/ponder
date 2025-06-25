@@ -1139,7 +1139,7 @@ export const getPerChainOnRealtimeSyncEvent = ({
           syncStore.insertBlocks({
             blocks: finalizedBlocks
               .filter(({ hasMatchedFilter }) => hasMatchedFilter)
-              .map(({ block }) => block as SyncBlock), // SyncBlock is expected for hasMatchedFilter === true
+              .map(({ block }) => block),
             chainId: chain.id,
           }),
           syncStore.insertTransactions({

@@ -3,7 +3,11 @@ import type { Common } from "@/internal/common.js";
 import type { Chain, SyncBlock, SyncBlockHeader } from "@/internal/types.js";
 import type { RealtimeSync } from "@/sync-realtime/index.js";
 import { createQueue } from "@/utils/queue.js";
-import { _eth_getBlockByHash, _eth_getBlockByNumber } from "@/utils/rpc.js";
+import {
+  _eth_getBlockByHash,
+  _eth_getBlockByNumber,
+  standardizeBlock,
+} from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import {
@@ -491,7 +495,7 @@ export const createRpc = ({
             params: ["newHeads"],
             onData: async (data) => {
               if (data.error === undefined && data.result !== undefined) {
-                onBlock(data.result);
+                onBlock(standardizeBlock(data.result, true));
 
                 common.logger.debug({
                   service: "rpc",

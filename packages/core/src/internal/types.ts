@@ -403,7 +403,7 @@ export type LightBlock = Pick<
 >;
 
 export type SyncBlockHeader = Omit<SyncBlock, "transactions"> & {
-  transactions: string[] | undefined;
+  transactions: undefined;
 };
 
 export type InternalBlock = Block;

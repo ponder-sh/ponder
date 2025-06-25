@@ -1,5 +1,6 @@
 import type {
   SyncBlock,
+  SyncBlockHeader,
   SyncLog,
   SyncTrace,
   SyncTransaction,
@@ -14,7 +15,7 @@ export const encodeBlock = ({
   block,
   chainId,
 }: {
-  block: SyncBlock;
+  block: SyncBlock | SyncBlockHeader;
   chainId: number;
 }): typeof ponderSyncSchema.blocks.$inferInsert => ({
   chainId: BigInt(chainId),

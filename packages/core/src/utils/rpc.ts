@@ -1,5 +1,6 @@
 import type {
   SyncBlock,
+  SyncBlockHeader,
   SyncLog,
   SyncTrace,
   SyncTransaction,
@@ -548,7 +549,16 @@ export const validateReceiptsAndBlock = (
  * - totalDifficulty
  * - extraData
  */
-export const standardizeBlock = (block: SyncBlock): SyncBlock => {
+export const standardizeBlock = <
+  block extends
+    | SyncBlock
+    | (Omit<SyncBlock, "transactions"> & {
+        transactions: string[] | undefined;
+      }),
+>(
+  block: block,
+  isBlockHeader = false,
+): block extends SyncBlock ? SyncBlock : SyncBlockHeader => {
   // required properties
   if (block.hash === undefined) {
     throw new Error("'block.hash' is a required property");
@@ -564,9 +574,6 @@ export const standardizeBlock = (block: SyncBlock): SyncBlock => {
   }
   if (block.parentHash === undefined) {
     throw new Error("'block.parentHash' is a required property");
-  }
-  if (block.transactions === undefined) {
-    throw new Error("'block.transactions' is a required property");
   }
 
   // non-required properties
@@ -610,9 +617,24 @@ export const standardizeBlock = (block: SyncBlock): SyncBlock => {
     block.extraData = "0x";
   }
 
-  block.transactions = block.transactions.map(standardizeTransaction);
+  // Note: block headers for some providers may contain transactions hashes,
+  // but Ponder coerces the transactions property to undefined.
 
-  return block;
+  if (isBlockHeader) {
+    block.transactions = undefined;
+
+    return block as block extends SyncBlock ? SyncBlock : SyncBlockHeader;
+  } else {
+    if (block.transactions === undefined) {
+      throw new Error("'block.transactions' is a required property");
+    }
+
+    block.transactions = (block as SyncBlock).transactions.map(
+      standardizeTransaction,
+    );
+
+    return block as block extends SyncBlock ? SyncBlock : SyncBlockHeader;
+  }
 };
 
 /**
