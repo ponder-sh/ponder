@@ -117,7 +117,7 @@ export const createHistoricalSync = async (
     Promise<SyncTransactionReceipt>
   >();
 
-  const childAddressesCache = args.childAddresses;
+  const childAddressesCache = new Map<Factory, Map<Address, number>>();
 
   /**
    * Data about the range passed to "eth_getLogs" share among all log
@@ -425,7 +425,8 @@ export const createHistoricalSync = async (
       address: factory.address,
     });
 
-    const childAddresses = new Map<Address, number>();
+    const childAddresses =
+      childAddressesCache.get(factory) ?? new Map<Address, number>();
     for (const log of logs) {
       if (isLogFactoryMatched({ factory, log })) {
         const address = getChildAddress({ log, factory });
@@ -440,24 +441,18 @@ export const createHistoricalSync = async (
       }
     }
 
-    const childAddressesRecord = childAddressesCache.get(factory);
-    if (childAddressesRecord !== undefined) {
-      for (const [address, blockNumber] of childAddresses.entries()) {
-        const prevBlockNumber = childAddressesRecord.get(address);
+    const childAddressesRecord = args.childAddresses.get(factory)!;
+    for (const [address, blockNumber] of childAddresses.entries()) {
+      const prevBlockNumber = childAddressesRecord.get(address);
 
-        if (prevBlockNumber === undefined || prevBlockNumber > blockNumber) {
-          childAddressesRecord.set(address, blockNumber);
-        }
+      if (prevBlockNumber === undefined || prevBlockNumber > blockNumber) {
+        childAddressesRecord.set(address, blockNumber);
       }
     }
 
     // Note: `factory` must refer to the same original `factory` in `filter`
     // and not be a recovered factory from `recoverFilter`.
-    await args.syncStore.insertChildAddresses({
-      factory,
-      childAddresses,
-      chainId: args.chain.id,
-    });
+    childAddressesCache.set(factory, childAddresses);
   };
 
   /**
@@ -479,7 +474,7 @@ export const createHistoricalSync = async (
 
     // Note: `factory` must refer to the same original `factory` in `filter`
     // and not be a recovered factory from `recoverFilter`.
-    return childAddressesCache.get(factory)!;
+    return args.childAddresses.get(factory)!;
   };
 
   ////////
@@ -965,6 +960,14 @@ export const createHistoricalSync = async (
           ),
           chainId: args.chain.id,
         }),
+        ...Array.from(childAddressesCache.entries()).map(
+          ([factory, childAddresses]) =>
+            args.syncStore.insertChildAddresses({
+              factory,
+              childAddresses,
+              chainId: args.chain.id,
+            }),
+        ),
       ]);
 
       // Add corresponding intervals to the sync-store
