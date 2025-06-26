@@ -1,5 +1,6 @@
-import { Table, is, relations } from "drizzle-orm";
-import * as _ponderSchema from "../../ponder/ponder.schema";
+import { setDatabaseSchema } from "@ponder/client";
+import { relations } from "drizzle-orm";
+import * as ponderSchema from "../../ponder/ponder.schema";
 import * as offchainSchema from "./offchain";
 
 // Note: We need a separate file for merging the schemas because
@@ -7,21 +8,9 @@ import * as offchainSchema from "./offchain";
 // don't want drizzle to generate migrations for onchain tables.
 
 // Note: `_ponderSchema` doesn't have information about which database schema
-// to use, so we need to set it manually.
+// to use, so we need to set it with the `setDatabaseSchema` function.
 
-const setDatabaseSchema = <T extends { [name: string]: unknown }>(
-  schema: T,
-  schemaName: string,
-): T => {
-  for (const table of Object.values(schema)) {
-    if (is(table, Table)) {
-      table[Symbol.for("drizzle:Schema")] = schemaName;
-    }
-  }
-  return schema;
-};
-
-const ponderSchema = setDatabaseSchema(_ponderSchema, "prod");
+setDatabaseSchema(ponderSchema, "prod");
 
 export const metadataRelations = relations(
   offchainSchema.metadataTable,
