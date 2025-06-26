@@ -1263,39 +1263,6 @@ export async function* getLocalEventGenerator(params: {
     params.localSyncGenerator,
     Number.POSITIVE_INFINITY,
   )) {
-    const initialChildAddresses = new Map<Factory, Map<Address, number>>();
-
-    for (const filter of params.sources.map(({ filter }) => filter)) {
-      switch (filter.type) {
-        case "log":
-          if (isAddressFactory(filter.address)) {
-            const childAddresses = params.childAddresses.get(filter.address)!;
-
-            initialChildAddresses.set(filter.address, childAddresses);
-          }
-          break;
-
-        case "transaction":
-        case "transfer":
-        case "trace":
-          if (isAddressFactory(filter.fromAddress)) {
-            const childAddresses = params.childAddresses.get(
-              filter.fromAddress,
-            )!;
-
-            initialChildAddresses.set(filter.fromAddress, childAddresses);
-          }
-
-          if (isAddressFactory(filter.toAddress)) {
-            const childAddresses = params.childAddresses.get(filter.toAddress)!;
-
-            initialChildAddresses.set(filter.toAddress, childAddresses);
-          }
-
-          break;
-      }
-    }
-
     while (cursor <= Math.min(syncCursor, toBlock)) {
       const { blockData, cursor: queryCursor } =
         await params.syncStore.getEventBlockData({
@@ -1311,7 +1278,7 @@ export async function* getLocalEventGenerator(params: {
         buildEvents({
           sources: params.sources,
           blockData: bd,
-          childAddresses: initialChildAddresses,
+          childAddresses: params.childAddresses,
           chainId: params.chain.id,
         }),
       );
