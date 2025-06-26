@@ -984,6 +984,7 @@ export const createHistoricalSync = async (
       transactionsCache.clear();
       blockReceiptsCache.clear();
       transactionReceiptsCache.clear();
+      childAddressesCache.clear();
 
       return latestBlock;
     },
