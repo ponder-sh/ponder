@@ -2,7 +2,7 @@ import type { Schema, Status } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
-import { type QueryWithTypings, sql } from "drizzle-orm";
+import type { QueryWithTypings } from "drizzle-orm";
 import type { PgSession } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
@@ -39,7 +39,7 @@ export const client = ({
 
   const channel = `${globalThis.PONDER_NAMESPACE_BUILD.schema}_status_channel`;
 
-  if (driver.dialect === "pglite") {
+  if ("instance" in driver) {
     driver.instance.query(`LISTEN "${channel}"`).then(() => {
       driver.instance.onNotification(async () => {
         statusResolver.resolve();
@@ -47,7 +47,7 @@ export const client = ({
       });
     });
   } else {
-    const pool = driver.admin;
+    const pool = driver.internal;
 
     const connectAndListen = async () => {
       driver.listen = await pool.connect();
@@ -88,7 +88,7 @@ export const client = ({
           return c.text((error as Error).message, 500);
         }
       } else {
-        const client = await driver.admin.connect();
+        const client = await driver.internal.connect();
 
         try {
           await validateQuery(query.sql);
@@ -123,27 +123,16 @@ export const client = ({
     }
 
     if (c.req.path === "/sql/status") {
-      // Note: This is done to avoid non-browser compatible dependencies
-
-      const checkpoints = (await globalThis.PONDER_DATABASE.readonlyQB()
-        .execute(
-          sql`SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint`,
-        )
-        .then((res) => res.rows)) as {
-        chain_name: string;
-        chain_id: number;
-        latest_checkpoint: string;
-        safe_checkpoint: string;
-      }[];
+      const checkpoints = await globalThis.PONDER_DATABASE.getCheckpoints();
 
       const status: Status = {};
-      for (const { chain_name, chain_id, latest_checkpoint } of checkpoints) {
-        status[chain_name] = {
-          id: chain_id,
+      for (const { chainName, chainId, latestCheckpoint } of checkpoints) {
+        status[chainName] = {
+          id: chainId,
           block: {
-            number: Number(decodeCheckpoint(latest_checkpoint).blockNumber),
+            number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
             timestamp: Number(
-              decodeCheckpoint(latest_checkpoint).blockTimestamp,
+              decodeCheckpoint(latestCheckpoint).blockTimestamp,
             ),
           },
         };

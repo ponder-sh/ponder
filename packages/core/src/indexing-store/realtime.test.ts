@@ -12,7 +12,7 @@ import {
   NotNullConstraintError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { pgTable } from "drizzle-orm/pg-core";
 import { toBytes, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
@@ -36,9 +36,9 @@ test("find", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   // empty
 
@@ -75,9 +75,9 @@ test("insert", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   // single
 
@@ -231,9 +231,9 @@ test("update", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   // setup
 
@@ -296,9 +296,9 @@ test("update throw error when primary key is updated", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   // setup
 
@@ -340,9 +340,9 @@ test("delete", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   // no entry
 
@@ -385,9 +385,9 @@ test("sql", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   // setup
 
@@ -438,40 +438,6 @@ test("sql", async (context) => {
   expect(error).instanceOf(UniqueConstraintError);
 });
 
-test("sql with error", async (context) => {
-  const schema = {
-    account: onchainTable("account", (p) => ({
-      address: p.hex().primaryKey(),
-      balance: p.bigint().notNull(),
-    })),
-  };
-
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema },
-  });
-  indexingStore.qb = database.userQB;
-
-  // error
-
-  const error = await indexingStore.sql
-    .execute(sql`SELECT * FROM does_not_exist`)
-    .catch((error) => error);
-
-  expect(error).toBeInstanceOf(Error);
-
-  // next query doesn't error
-
-  await indexingStore.sql
-    .select()
-    .from(schema.account)
-    .where(eq(schema.account.address, zeroAddress));
-});
-
 test("onchain table", async (context) => {
   const { database } = await setupDatabaseServices(context);
 
@@ -484,9 +450,9 @@ test("onchain table", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   // check error
 
@@ -512,9 +478,9 @@ test("missing rows", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   // error
 
@@ -540,9 +506,9 @@ test("notNull", async (context) => {
 
   let indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   // insert
 
@@ -566,9 +532,9 @@ test("notNull", async (context) => {
 
   indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   let error = await indexingStore
     .insert(schema.account)
@@ -599,9 +565,9 @@ test("default", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   await indexingStore.insert(schema.account).values({ address: zeroAddress });
 
@@ -626,9 +592,9 @@ test("$default", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   await indexingStore.insert(schema.account).values({ address: zeroAddress });
 
@@ -656,9 +622,9 @@ test("$onUpdateFn", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   // insert
 
@@ -689,9 +655,9 @@ test("array", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   await indexingStore.insert(schema.account).values({
     address: zeroAddress,
@@ -726,9 +692,9 @@ test("enum", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   await indexingStore.insert(schema.account).values({
     address: zeroAddress,
@@ -761,9 +727,9 @@ test("json bigint", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   const error = await indexingStore
     .insert(schema.account)
@@ -797,9 +763,9 @@ test("bigint array", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   await indexingStore.insert(schema.account).values({
     address: zeroAddress,
@@ -830,9 +796,9 @@ test("bytes", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   await indexingStore.insert(schema.account).values({
     address: zeroAddress,
@@ -863,9 +829,9 @@ test("text with null bytes", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   await indexingStore.insert(schema.account).values({
     address: zeroAddress,
@@ -896,9 +862,9 @@ test.skip("time", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   await indexingStore.insert(schema.account).values({
     address: zeroAddress,
@@ -929,9 +895,9 @@ test("timestamp", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   await indexingStore.insert(schema.account).values({
     address: zeroAddress,
@@ -962,9 +928,9 @@ test.skip("date", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   await indexingStore.insert(schema.account).values({
     address: zeroAddress,
@@ -995,9 +961,9 @@ test.skip("interval", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   await indexingStore.insert(schema.account).values({
     address: zeroAddress,
@@ -1028,9 +994,9 @@ test("point", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   await indexingStore.insert(schema.account).values({
     address: zeroAddress,
@@ -1061,9 +1027,9 @@ test("line", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
+    database,
     schemaBuild: { schema },
   });
-  indexingStore.qb = database.userQB;
 
   await indexingStore.insert(schema.account).values({
     address: zeroAddress,

@@ -129,7 +129,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         }
 
         const buildResult1 = mergeResults([
-          await build.preCompile(configResult.result),
+          build.preCompile(configResult.result),
           build.compileSchema(schemaResult.result),
         ]);
 
