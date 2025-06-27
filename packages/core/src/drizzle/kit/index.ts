@@ -1,4 +1,4 @@
-import { SQL, getTableName, is } from "drizzle-orm";
+import { SQL, type TableConfig, getTableName, is } from "drizzle-orm";
 import { CasingCache, toCamelCase, toSnakeCase } from "drizzle-orm/casing";
 import {
   type AnyPgTable,
@@ -9,6 +9,7 @@ import {
   PgSchema,
   type PgSequence,
   PgTable,
+  type PgTableWithColumns,
   PgView,
   getTableConfig,
   index,
@@ -39,7 +40,9 @@ export type SqlStatements = {
 export const sqlToReorgTableName = (tableName: string) =>
   `_reorg__${tableName}`;
 
-export const getReorgTable = (table: PgTable) => {
+export const getReorgTable = <config extends TableConfig>(
+  table: PgTableWithColumns<config>,
+) => {
   const schema = getTableConfig(table).schema;
 
   if (schema && schema !== "public") {

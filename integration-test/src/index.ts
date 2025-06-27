@@ -31,7 +31,6 @@ import {
   type PonderApp,
   start,
 } from "../../packages/core/src/bin/commands/start.js";
-import { createQB } from "../../packages/core/src/database/queryBuilder.js";
 import { getPrimaryKeyColumns } from "../../packages/core/src/drizzle/index.js";
 import type {
   Factory,
@@ -52,7 +51,6 @@ import { promiseWithResolvers } from "../../packages/core/src/utils/promiseWithR
 import { _eth_getBlockByNumber } from "../../packages/core/src/utils/rpc.js";
 import * as SUPER_ASSESSMENT from "../apps/super-assessment/schema.js";
 import { metadata } from "../schema.js";
-import { dbSim } from "./db-sim";
 import { type RpcBlockHeader, realtimeBlockEngine, sim } from "./rpc-sim.js";
 import { getJoinConditions } from "./sql.js";
 
@@ -80,8 +78,7 @@ export const pick = <T>(possibilities: T[] | readonly T[], tag: string): T => {
 };
 
 export const SIM_PARAMS = {
-  RPC_ERROR_RATE: pick([0, 0.02, 0.05, 0.1, 0.2], "rpc-error-rate"),
-  DB_ERROR_RATE: pick([0, 0.02, 0.05, 0.1, 0.2], "db-error-rate"),
+  ERROR_RATE: pick([0, 0.02, 0.05, 0.1, 0.2], "error-rate"),
   MAX_UNCACHED_BLOCKS: CACHED_APPS.includes(APP_ID)
     ? 0
     : pick([0, 0, 0, 100, 1000], "max-uncached-blocks"),
@@ -246,40 +243,6 @@ const pwr = promiseWithResolvers<void>();
  */
 const onBuild = async (app: PonderApp) => {
   app.preBuild.ordering = SIM_PARAMS.ORDERING;
-
-  app.common.logger.warn({
-    service: "sim",
-    msg: "Mocking syncQB, adminQB, userQB, and readonlyQB",
-  });
-
-  // const syncDB = dbSim(drizzle(DATABASE_URL!, { casing: "snake_case" }));
-  // const adminDB = dbSim(drizzle(DATABASE_URL!, { casing: "snake_case" }));
-  // const userDB = dbSim(drizzle(DATABASE_URL!, { casing: "snake_case" }));
-  // const readonlyDB = dbSim(drizzle(DATABASE_URL!, { casing: "snake_case" }));
-
-  app.database.syncQB = createQB(
-    () => dbSim(drizzle(app.database.driver.sync!, { casing: "snake_case" })),
-    { common: app.common },
-  );
-
-  app.database.adminQB = createQB(
-    () => dbSim(drizzle(app.database.driver.admin!, { casing: "snake_case" })),
-    {
-      common: app.common,
-      isAdmin: true,
-    },
-  );
-
-  app.database.userQB = createQB(
-    () => dbSim(drizzle(app.database.driver.user!, { casing: "snake_case" })),
-    { common: app.common },
-  );
-
-  app.database.readonlyQB = createQB(
-    () =>
-      dbSim(drizzle(app.database.driver.readonly!, { casing: "snake_case" })),
-    { common: app.common },
-  );
 
   if (APP_ID === "super-assessment") {
     const random = seedrandom(`${SEED}_super_assessment_filter`);

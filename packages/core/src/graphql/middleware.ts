@@ -28,7 +28,7 @@ import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
  *
  */
 export const graphql = (
-  { schema }: { db: ReadonlyDrizzle<Schema>; schema: Schema },
+  { db, schema }: { db: ReadonlyDrizzle<Schema>; schema: Schema },
   {
     maxOperationTokens = 1000,
     maxOperationDepth = 100,
@@ -53,11 +53,13 @@ export const graphql = (
     graphqlEndpoint: "*", // Disable built-in route validation, use Hono routing instead
     schema: graphqlSchema,
     context: () => {
-      const getDataLoader = buildDataLoaderCache(
-        globalThis.PONDER_DATABASE.readonlyQB,
-      );
+      const getDataLoader = buildDataLoaderCache({ drizzle: db });
 
-      return { qb: globalThis.PONDER_DATABASE.readonlyQB, getDataLoader };
+      return {
+        getDataLoader,
+        getCheckpoints: () => globalThis.PONDER_DATABASE.getCheckpoints(),
+        drizzle: db,
+      };
     },
     maskedErrors: process.env.NODE_ENV === "production",
     logging: false,

@@ -4,8 +4,6 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { getPonderMetaTable } from "@/database/index.js";
-import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { beforeEach, expect, test, vi } from "vitest";
 import { createServer } from "./index.js";
@@ -83,10 +81,7 @@ test("ready", async (context) => {
     database,
   });
 
-  await database
-    .adminQB()
-    .update(getPonderMetaTable())
-    .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` });
+  await database.setReady();
 
   const response = await server.hono.request("/ready");
 

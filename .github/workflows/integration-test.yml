@@ -53,4 +53,3 @@ jobs:
           PONDER_RPC_URL_11155420: ${{ secrets.PONDER_RPC_URL_11155420 }}
           PGDATABASE: postgres
           PGSSLMODE: disable
-          NODE_ENV: ci
