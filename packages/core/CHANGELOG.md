@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.22
+
+### Patch Changes
+
+- [#1857](https://github.com/ponder-sh/ponder/pull/1857) [`7c266b8`](https://github.com/ponder-sh/ponder/commit/7c266b8183c009e325616a8210c2c9a557ce50b7) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in `v0.11.21` that caused some apps to freeze when syncing.
+
 ## 0.11.21
 
 ### Patch Changes
