@@ -50,7 +50,7 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const buildResult = await build.preCompile(configResult.result);
+  const buildResult = build.preCompile(configResult.result);
 
   if (buildResult.status === "error") {
     await exit({ reason: "Failed intial build", code: 1 });
@@ -65,21 +65,18 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
     schemaBuild: emptySchemaBuild,
   });
 
-  const ponderSchemas = await database
-    .adminQB()
+  const ponderSchemas = await database.qb.drizzle
     .select({ schema: TABLES.table_schema })
     .from(TABLES)
     .where(eq(TABLES.table_name, "_ponder_meta"));
 
-  const ponderViewSchemas = await database
-    .adminQB()
+  const ponderViewSchemas = await database.qb.drizzle
     .select({ schema: VIEWS.table_schema })
     .from(VIEWS)
     .where(eq(VIEWS.table_name, "_ponder_meta"));
 
   const queries = ponderSchemas.map((row) =>
-    database
-      .adminQB()
+    database.qb.drizzle
       .select({
         value: getPonderMetaTable(row.schema).value,
         schema: sql<string>`${row.schema}`.as("schema"),

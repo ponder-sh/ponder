@@ -15,8 +15,6 @@ import type {
   Schema,
   SchemaBuild,
 } from "@/internal/types.js";
-import { createPool } from "@/utils/pg.js";
-import { createPglite } from "@/utils/pglite.js";
 import { getNextAvailablePort } from "@/utils/port.js";
 import type { Result } from "@/utils/result.js";
 import { serialize } from "@/utils/serialize.js";
@@ -60,7 +58,7 @@ export type Build = {
     database: Database;
   }) => Promise<ApiResult>;
   namespaceCompile: () => Result<NamespaceBuild>;
-  preCompile: (params: { config: Config }) => Promise<Result<PreBuild>>;
+  preCompile: (params: { config: Config }) => Result<PreBuild>;
   compileSchema: (params: { schema: Schema }) => Result<SchemaBuild>;
   compileIndexing: (params: {
     configResult: Extract<ConfigResult, { status: "success" }>["result"];
@@ -357,7 +355,7 @@ export const createBuild = async ({
         result: { schema, viewsSchema },
       } as const;
     },
-    async preCompile({ config }): Promise<Result<PreBuild>> {
+    preCompile({ config }): Result<PreBuild> {
       const preBuild = safeBuildPre({
         config,
         options: common.options,
@@ -370,55 +368,6 @@ export const createBuild = async ({
         });
 
         return preBuild;
-      }
-
-      // diagnostic query
-      const dialect = preBuild.databaseConfig.kind;
-      if (dialect === "pglite") {
-        const driver = createPglite(preBuild.databaseConfig.options);
-        try {
-          await driver.query("SELECT version()");
-        } catch (e) {
-          const error = new BuildError(
-            `Failed to connect to PGlite database. Please check your database connection settings.\n\n${(e as any).message}`,
-          );
-          error.stack = undefined;
-          common.logger.error({
-            service: "build",
-            msg: "Failed build",
-            error,
-          });
-          return { status: "error", error };
-        } finally {
-          await driver.close();
-        }
-      } else if (dialect === "postgres") {
-        const pool = createPool(
-          {
-            ...preBuild.databaseConfig.poolConfig,
-            application_name: "test",
-            max: 1,
-            statement_timeout: 10_000,
-          },
-          common.logger,
-        );
-
-        try {
-          await pool.query("SELECT version()");
-        } catch (e) {
-          const error = new BuildError(
-            `Failed to connect to database. Please check your database connection settings.\n\n${(e as any).message}`,
-          );
-          error.stack = undefined;
-          common.logger.error({
-            service: "build",
-            msg: "Failed build",
-            error,
-          });
-          return { status: "error", error };
-        } finally {
-          await pool.end();
-        }
       }
 
       for (const log of preBuild.logs) {

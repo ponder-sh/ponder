@@ -4,14 +4,14 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { type Database, getPonderCheckpointTable } from "@/database/index.js";
+import type { Database } from "@/database/index.js";
 import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
 import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { relations } from "drizzle-orm";
 import { type GraphQLType, execute, parse } from "graphql";
 import { toBytes } from "viem";
 import { zeroAddress } from "viem";
-import { beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
 beforeEach(setupCommon);
@@ -19,8 +19,13 @@ beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
 function buildContextValue(database: Database) {
-  const getDataLoader = buildDataLoaderCache(database.readonlyQB);
-  return { qb: database.readonlyQB, getDataLoader };
+  const drizzle = database.qb.drizzleReadonly;
+  const getDataLoader = buildDataLoaderCache({ drizzle });
+  return {
+    drizzle,
+    getDataLoader,
+    getCheckpoints: () => database.getCheckpoints(),
+  };
 }
 
 test("metadata", async (context) => {
@@ -35,29 +40,31 @@ test("metadata", async (context) => {
 
   const graphqlSchema = buildGraphQLSchema({ schema });
 
-  await database
-    .adminQB()
-    .insert(getPonderCheckpointTable())
-    .values({
-      chainId: 1,
-      chainName: "mainnet",
-      latestCheckpoint: encodeCheckpoint({
-        blockNumber: 10n,
-        chainId: 1n,
-        blockTimestamp: 20n,
-        transactionIndex: 0n,
-        eventType: EVENT_TYPES.blocks,
-        eventIndex: 0n,
-      }),
-      safeCheckpoint: encodeCheckpoint({
-        blockNumber: 10n,
-        chainId: 1n,
-        blockTimestamp: 20n,
-        transactionIndex: 0n,
-        eventType: EVENT_TYPES.blocks,
-        eventIndex: 0n,
-      }),
-    });
+  await database.setCheckpoints({
+    checkpoints: [
+      {
+        chainId: 1,
+        chainName: "mainnet",
+        latestCheckpoint: encodeCheckpoint({
+          blockNumber: 10n,
+          chainId: 1n,
+          blockTimestamp: 20n,
+          transactionIndex: 0n,
+          eventType: EVENT_TYPES.blocks,
+          eventIndex: 0n,
+        }),
+        safeCheckpoint: encodeCheckpoint({
+          blockNumber: 10n,
+          chainId: 1n,
+          blockTimestamp: 20n,
+          transactionIndex: 0n,
+          eventType: EVENT_TYPES.blocks,
+          eventIndex: 0n,
+        }),
+      },
+    ],
+    db: database.qb.drizzle,
+  });
 
   const result = await query(`
     query {
@@ -922,6 +929,18 @@ test("plural with one relation uses dataloader", async (context) => {
 
   const graphqlSchema = buildGraphQLSchema({ schema });
 
+  const personFindManySpy = vi.spyOn(
+    // @ts-expect-error
+    database.qb.drizzleReadonly.query.person,
+    "findMany",
+  );
+
+  const petFindManySpy = vi.spyOn(
+    // @ts-expect-error
+    database.qb.drizzleReadonly.query.pet,
+    "findMany",
+  );
+
   const result = await query(`
     query {
       pets {
@@ -945,6 +964,9 @@ test("plural with one relation uses dataloader", async (context) => {
       ],
     },
   });
+
+  expect(personFindManySpy).toHaveBeenCalledTimes(1);
+  expect(petFindManySpy).toHaveBeenCalledTimes(1);
 });
 
 test("filter input type", async (context) => {
