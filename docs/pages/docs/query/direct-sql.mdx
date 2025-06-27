@@ -54,6 +54,7 @@ This function mutates a Drizzle schema such that any queries built using that sc
 :::code-group
 
 ```ts [Drizzle]
+import { setDatabaseSchema } from "@ponder/client"; // [!code focus]
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "../../ponder/ponder.schema"; // [!code focus]
 
