@@ -109,7 +109,7 @@ export const compileQuery = (query: SQLWrapper) => {
  */
 export const createClient = <schema extends Schema>(
   baseUrl: string,
-  { schema }: { schema: schema },
+  params: { schema?: schema } = {},
 ): Client<schema> => {
   let sse: EventSource | undefined;
   let liveCount = 0;
@@ -135,7 +135,7 @@ export const createClient = <schema extends Schema>(
           rows: result.rows.map((row: object) => Object.values(row)),
         };
       },
-      { schema, casing: "snake_case" },
+      { schema: params.schema, casing: "snake_case" },
     ),
     live: (queryFn, onData, onError) => {
       if (sse === undefined) {
