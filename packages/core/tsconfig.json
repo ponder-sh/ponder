@@ -4,7 +4,7 @@
   "exclude": [],
   "compilerOptions": {
     "paths": {
-      "@/*": ["src/*"],
+      "@/*": ["./src/*"],
       "@ponder/utils": ["../utils/src"] // Required for end-to-end tests
     }
   }
