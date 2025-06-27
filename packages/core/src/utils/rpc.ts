@@ -377,6 +377,12 @@ export const validateTransactionsAndBlock = (block: SyncBlock) => {
  * @dev Allows `block.logsBloom` to be `zeroLogsBloom`.
  */
 export const validateLogsAndBlock = (logs: SyncLog[], block: SyncBlock) => {
+  if (block.logsBloom !== zeroLogsBloom && logs.length === 0) {
+    throw new Error(
+      "Detected invalid eth_getLogs response. `block.logsBloom` is not empty but zero logs were returned.",
+    );
+  }
+
   const logIndexes = new Set<string>();
   const transactionByIndex = new Map<Hex, SyncTransaction>(
     block.transactions.map((transaction) => [
@@ -384,6 +390,7 @@ export const validateLogsAndBlock = (logs: SyncLog[], block: SyncBlock) => {
       transaction,
     ]),
   );
+
   for (const log of logs) {
     if (block.hash !== log.blockHash) {
       throw new Error(
@@ -416,12 +423,6 @@ export const validateLogsAndBlock = (logs: SyncLog[], block: SyncBlock) => {
       );
     } else {
       logIndexes.add(log.logIndex);
-    }
-
-    if (block.logsBloom !== zeroLogsBloom && logs.length === 0) {
-      throw new Error(
-        "Detected invalid eth_getLogs response. `block.logsBloom` is not empty but zero logs were returned.",
-      );
     }
   }
 };
