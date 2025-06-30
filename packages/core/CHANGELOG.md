@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.23
+
+### Patch Changes
+
+- [#1856](https://github.com/ponder-sh/ponder/pull/1856) [`293a03e`](https://github.com/ponder-sh/ponder/commit/293a03e5e52e3f306110df7b258cac5512fe6916) Thanks [@valamidev](https://github.com/valamidev)! - A bug fix for zero logsBloom and empty logs cross validation
+
 ## 0.11.22
 
 ### Patch Changes
