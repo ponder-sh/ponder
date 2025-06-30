@@ -1,0 +1,130 @@
+# Offchain data [Combine onchain and offchain data]
+
+Ponder supports combining its indexed data with data from external (offchain) sources.
+
+:::info
+  Ponder doesn't natively support offchain data because it interferes with the reorg reconcilation and other core indexing features.
+:::
+
+## Guide
+
+`drizzle-orm`, however, the same 
+
+:::steps
+
+### Repo structure
+
+- monorepo
+- drizzle version
+
+### Define `ponder.schema.ts`
+
+Start by creating a `ponder.schema.ts` file in your Ponder project. No special configuration is required.
+
+```ts [ponder.schema.ts]
+import { onchainTable } from "ponder";
+
+export const account = onchainTable("account", (t) => ({
+  address: t.hex().primaryKey(),
+}));
+
+export const token = onchainTable("token", (t) => ({
+  id: t.bigint().primaryKey(),
+  owner: t.hex().notNull(),
+}));
+
+export const transferEvent = onchainTable("transfer_event", (t) => ({
+  id: t.text().primaryKey(),
+  timestamp: t.integer().notNull(),
+  from: t.hex().notNull(),
+  to: t.hex().notNull(),
+  token: t.bigint().notNull(),
+}));
+```
+
+### Define the schema for the offchain data
+
+will be used to generate migrations for offchain data.
+
+```ts [offchain.ts]
+import { json, numeric, pgSchema } from "drizzle-orm/pg-core";
+
+export const offchainSchema = pgSchema("offchain");
+
+export const metadataTable = offchainSchema.table("metadata", {
+  tokenId: numeric({ precision: 78, scale: 0 }).primaryKey(),
+  metadata: json(),
+});
+```
+
+:::info
+  There are no restrictions for the database schema defined by `pgSchema`. Ponder will avoid dropping tables not created in `ponder.schema.ts` and throw errors in the case of naming conflicts.
+:::
+
+### Define the combined schema
+
+In a separate file, combine the onchain and offchain schemas including any relations between them.
+
+```ts [schema.ts]
+import { setDatabaseSchema } from "@ponder/client";
+import { relations } from "drizzle-orm";
+import * as ponderSchema from "../../ponder/ponder.schema";
+import * as offchainSchema from "./offchain";
+
+setDatabaseSchema(ponderSchema, "prod");
+
+export const metadataRelations = relations(
+  offchainSchema.metadataTable,
+  ({ one }) => ({
+    token: one(ponderSchema.token, {
+      fields: [offchainSchema.metadataTable.tokenId],
+      references: [ponderSchema.token.id],
+    }),
+  }),
+);
+
+export const schema = {
+  ...offchainSchema,
+  ...ponderSchema,
+  metadataRelations,
+};
+```
+
+Manually set the database schema for Ponder tables, views pattern
+
+### Query with direct SQL
+
+```ts [index.ts]
+import { drizzle } from "drizzle-orm/node-postgres";
+import { schema } from "./schema";
+
+export const db = drizzle(process.env.DATABASE_URL!, { schema });
+
+const result = await db.query.metadataTable.findMany({
+  with: {
+    token: true,
+  },
+});
+
+console.log(result);
+```
+
+### Query with API functions
+
+```ts [api/index.ts]
+import { Hono } from "hono";
+import { db } from "ponder:api";
+import * as offchainSchema from "../../../offchain/src/offchain";
+
+const app = new Hono();
+
+app.post("/new-metadata", async (c) => {
+  const { tokenId, metadata } = await c.req.json();
+  await db.insert(offchainSchema.metadataTable).values({
+    tokenId,
+    metadata,
+  });
+});
+
+export default app;
+```
