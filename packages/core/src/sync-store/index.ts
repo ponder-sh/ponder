@@ -41,6 +41,7 @@ import {
   asc,
   desc,
   eq,
+  gt,
   gte,
   inArray,
   isNull,
@@ -626,140 +627,229 @@ export const createSyncStore = ({
           .orderBy(asc(ponderSyncSchema.blocks.number))
           .limit(limit);
 
-        const transactionsQuery = database.qb.sync
-          .select({
-            blockNumber: ponderSyncSchema.transactions.blockNumber,
-            transactionIndex: ponderSyncSchema.transactions.transactionIndex,
-            hash: ponderSyncSchema.transactions.hash,
-            from: ponderSyncSchema.transactions.from,
-            to: ponderSyncSchema.transactions.to,
-            input: ponderSyncSchema.transactions.input,
-            value: ponderSyncSchema.transactions.value,
-            nonce: ponderSyncSchema.transactions.nonce,
-            r: ponderSyncSchema.transactions.r,
-            s: ponderSyncSchema.transactions.s,
-            v: ponderSyncSchema.transactions.v,
-            type: ponderSyncSchema.transactions.type,
-            gas: ponderSyncSchema.transactions.gas,
-            gasPrice: ponderSyncSchema.transactions.gasPrice,
-            maxFeePerGas: ponderSyncSchema.transactions.maxFeePerGas,
-            maxPriorityFeePerGas:
-              ponderSyncSchema.transactions.maxPriorityFeePerGas,
-            accessList: ponderSyncSchema.transactions.accessList,
-          })
-          .from(ponderSyncSchema.transactions)
-          .where(
-            and(
-              eq(ponderSyncSchema.transactions.chainId, BigInt(chainId)),
-              gte(ponderSyncSchema.transactions.blockNumber, BigInt(fromBlock)),
-              lte(ponderSyncSchema.transactions.blockNumber, BigInt(toBlock)),
-            ),
-          )
-          .orderBy(
-            asc(ponderSyncSchema.transactions.blockNumber),
-            asc(ponderSyncSchema.transactions.transactionIndex),
-          )
-          .limit(limit);
-
-        const transactionReceiptsQuery = database.qb.sync
-          .select({
-            blockNumber: ponderSyncSchema.transactionReceipts.blockNumber,
-            transactionIndex:
-              ponderSyncSchema.transactionReceipts.transactionIndex,
-            from: ponderSyncSchema.transactionReceipts.from,
-            to: ponderSyncSchema.transactionReceipts.to,
-            contractAddress:
-              ponderSyncSchema.transactionReceipts.contractAddress,
-            logsBloom: ponderSyncSchema.transactionReceipts.logsBloom,
-            gasUsed: ponderSyncSchema.transactionReceipts.gasUsed,
-            cumulativeGasUsed:
-              ponderSyncSchema.transactionReceipts.cumulativeGasUsed,
-            effectiveGasPrice:
-              ponderSyncSchema.transactionReceipts.effectiveGasPrice,
-            status: ponderSyncSchema.transactionReceipts.status,
-            type: ponderSyncSchema.transactionReceipts.type,
-          })
-          .from(ponderSyncSchema.transactionReceipts)
-          .where(
-            and(
-              eq(ponderSyncSchema.transactionReceipts.chainId, BigInt(chainId)),
-              gte(
-                ponderSyncSchema.transactionReceipts.blockNumber,
-                BigInt(fromBlock),
+        const transactionsQuery = (
+          fromBlock: number,
+          toBlock: number,
+          fromIdx: number | undefined,
+        ) => {
+          return database.qb.sync
+            .select({
+              blockNumber: ponderSyncSchema.transactions.blockNumber,
+              transactionIndex: ponderSyncSchema.transactions.transactionIndex,
+              hash: ponderSyncSchema.transactions.hash,
+              from: ponderSyncSchema.transactions.from,
+              to: ponderSyncSchema.transactions.to,
+              input: ponderSyncSchema.transactions.input,
+              value: ponderSyncSchema.transactions.value,
+              nonce: ponderSyncSchema.transactions.nonce,
+              r: ponderSyncSchema.transactions.r,
+              s: ponderSyncSchema.transactions.s,
+              v: ponderSyncSchema.transactions.v,
+              type: ponderSyncSchema.transactions.type,
+              gas: ponderSyncSchema.transactions.gas,
+              gasPrice: ponderSyncSchema.transactions.gasPrice,
+              maxFeePerGas: ponderSyncSchema.transactions.maxFeePerGas,
+              maxPriorityFeePerGas:
+                ponderSyncSchema.transactions.maxPriorityFeePerGas,
+              accessList: ponderSyncSchema.transactions.accessList,
+            })
+            .from(ponderSyncSchema.transactions)
+            .where(
+              and(
+                eq(ponderSyncSchema.transactions.chainId, BigInt(chainId)),
+                or(
+                  fromIdx !== undefined
+                    ? and(
+                        eq(
+                          ponderSyncSchema.transactions.blockNumber,
+                          BigInt(fromBlock),
+                        ),
+                        gt(
+                          ponderSyncSchema.transactions.transactionIndex,
+                          fromIdx,
+                        ),
+                      )
+                    : eq(
+                        ponderSyncSchema.transactions.blockNumber,
+                        BigInt(fromBlock),
+                      ),
+                  gt(
+                    ponderSyncSchema.transactions.blockNumber,
+                    BigInt(fromBlock),
+                  ),
+                ),
+                lte(ponderSyncSchema.transactions.blockNumber, BigInt(toBlock)),
               ),
-              lte(
-                ponderSyncSchema.transactionReceipts.blockNumber,
-                BigInt(toBlock),
-              ),
-            ),
-          )
-          .orderBy(
-            asc(ponderSyncSchema.transactionReceipts.blockNumber),
-            asc(ponderSyncSchema.transactionReceipts.transactionIndex),
-          )
-          .limit(limit);
+            )
+            .orderBy(
+              asc(ponderSyncSchema.transactions.blockNumber),
+              asc(ponderSyncSchema.transactions.transactionIndex),
+            )
+            .limit(limit);
+        };
 
-        const logsQuery = database.qb.sync
-          .select({
-            blockNumber: ponderSyncSchema.logs.blockNumber,
-            logIndex: ponderSyncSchema.logs.logIndex,
-            transactionIndex: ponderSyncSchema.logs.transactionIndex,
-            address: ponderSyncSchema.logs.address,
-            topic0: ponderSyncSchema.logs.topic0,
-            topic1: ponderSyncSchema.logs.topic1,
-            topic2: ponderSyncSchema.logs.topic2,
-            topic3: ponderSyncSchema.logs.topic3,
-            data: ponderSyncSchema.logs.data,
-          })
-          .from(ponderSyncSchema.logs)
-          .where(
-            and(
-              eq(ponderSyncSchema.logs.chainId, BigInt(chainId)),
-              gte(ponderSyncSchema.logs.blockNumber, BigInt(fromBlock)),
-              lte(ponderSyncSchema.logs.blockNumber, BigInt(toBlock)),
-              or(...logFilters.map((filter) => logFilter(filter))),
-            ),
-          )
-          .orderBy(
-            asc(ponderSyncSchema.logs.blockNumber),
-            asc(ponderSyncSchema.logs.logIndex),
-          )
-          .limit(limit);
-
-        const tracesQuery = database.qb.sync
-          .select({
-            blockNumber: ponderSyncSchema.traces.blockNumber,
-            transactionIndex: ponderSyncSchema.traces.transactionIndex,
-            traceIndex: ponderSyncSchema.traces.traceIndex,
-            from: ponderSyncSchema.traces.from,
-            to: ponderSyncSchema.traces.to,
-            input: ponderSyncSchema.traces.input,
-            output: ponderSyncSchema.traces.output,
-            value: ponderSyncSchema.traces.value,
-            type: ponderSyncSchema.traces.type,
-            gas: ponderSyncSchema.traces.gas,
-            gasUsed: ponderSyncSchema.traces.gasUsed,
-            error: ponderSyncSchema.traces.error,
-            revertReason: ponderSyncSchema.traces.revertReason,
-            subcalls: ponderSyncSchema.traces.subcalls,
-          })
-          .from(ponderSyncSchema.traces)
-          .where(
-            and(
-              eq(ponderSyncSchema.traces.chainId, BigInt(chainId)),
-              gte(ponderSyncSchema.traces.blockNumber, BigInt(fromBlock)),
-              lte(ponderSyncSchema.traces.blockNumber, BigInt(toBlock)),
-              or(
-                ...traceFilters.map((filter) => traceFilter(filter)),
-                ...transferFilters.map((filter) => transferFilter(filter)),
+        const transactionReceiptsQuery = (
+          fromBlock: number,
+          toBlock: number,
+          fromIdx: number | undefined,
+        ) => {
+          return database.qb.sync
+            .select({
+              blockNumber: ponderSyncSchema.transactionReceipts.blockNumber,
+              transactionIndex:
+                ponderSyncSchema.transactionReceipts.transactionIndex,
+              from: ponderSyncSchema.transactionReceipts.from,
+              to: ponderSyncSchema.transactionReceipts.to,
+              contractAddress:
+                ponderSyncSchema.transactionReceipts.contractAddress,
+              logsBloom: ponderSyncSchema.transactionReceipts.logsBloom,
+              gasUsed: ponderSyncSchema.transactionReceipts.gasUsed,
+              cumulativeGasUsed:
+                ponderSyncSchema.transactionReceipts.cumulativeGasUsed,
+              effectiveGasPrice:
+                ponderSyncSchema.transactionReceipts.effectiveGasPrice,
+              status: ponderSyncSchema.transactionReceipts.status,
+              type: ponderSyncSchema.transactionReceipts.type,
+            })
+            .from(ponderSyncSchema.transactionReceipts)
+            .where(
+              and(
+                eq(
+                  ponderSyncSchema.transactionReceipts.chainId,
+                  BigInt(chainId),
+                ),
+                or(
+                  fromIdx !== undefined
+                    ? and(
+                        eq(
+                          ponderSyncSchema.transactionReceipts.blockNumber,
+                          BigInt(fromBlock),
+                        ),
+                        gt(
+                          ponderSyncSchema.transactionReceipts.transactionIndex,
+                          fromIdx,
+                        ),
+                      )
+                    : eq(
+                        ponderSyncSchema.transactionReceipts.blockNumber,
+                        BigInt(fromBlock),
+                      ),
+                  gt(
+                    ponderSyncSchema.transactionReceipts.blockNumber,
+                    BigInt(fromBlock),
+                  ),
+                ),
+                lte(
+                  ponderSyncSchema.transactionReceipts.blockNumber,
+                  BigInt(toBlock),
+                ),
               ),
-            ),
-          )
-          .orderBy(
-            asc(ponderSyncSchema.traces.blockNumber),
-            asc(ponderSyncSchema.traces.traceIndex),
-          )
-          .limit(limit);
+            )
+            .orderBy(
+              asc(ponderSyncSchema.transactionReceipts.blockNumber),
+              asc(ponderSyncSchema.transactionReceipts.transactionIndex),
+            )
+            .limit(limit);
+        };
+
+        const logsQuery = (
+          fromBlock: number,
+          toBlock: number,
+          fromIdx: number | undefined,
+        ) => {
+          return database.qb.sync
+            .select({
+              blockNumber: ponderSyncSchema.logs.blockNumber,
+              logIndex: ponderSyncSchema.logs.logIndex,
+              transactionIndex: ponderSyncSchema.logs.transactionIndex,
+              address: ponderSyncSchema.logs.address,
+              topic0: ponderSyncSchema.logs.topic0,
+              topic1: ponderSyncSchema.logs.topic1,
+              topic2: ponderSyncSchema.logs.topic2,
+              topic3: ponderSyncSchema.logs.topic3,
+              data: ponderSyncSchema.logs.data,
+            })
+            .from(ponderSyncSchema.logs)
+            .where(
+              and(
+                eq(ponderSyncSchema.logs.chainId, BigInt(chainId)),
+                or(
+                  fromIdx !== undefined
+                    ? and(
+                        eq(
+                          ponderSyncSchema.logs.blockNumber,
+                          BigInt(fromBlock),
+                        ),
+                        gt(ponderSyncSchema.logs.logIndex, fromIdx),
+                      )
+                    : eq(ponderSyncSchema.logs.blockNumber, BigInt(fromBlock)),
+                  gt(ponderSyncSchema.logs.blockNumber, BigInt(fromBlock)),
+                ),
+                lte(ponderSyncSchema.logs.blockNumber, BigInt(toBlock)),
+                or(...logFilters.map((filter) => logFilter(filter))),
+              ),
+            )
+            .orderBy(
+              asc(ponderSyncSchema.logs.blockNumber),
+              asc(ponderSyncSchema.logs.logIndex),
+            )
+            .limit(limit);
+        };
+
+        const tracesQuery = (
+          fromBlock: number,
+          toBlock: number,
+          fromIdx: number | undefined,
+        ) => {
+          return database.qb.sync
+            .select({
+              blockNumber: ponderSyncSchema.traces.blockNumber,
+              transactionIndex: ponderSyncSchema.traces.transactionIndex,
+              traceIndex: ponderSyncSchema.traces.traceIndex,
+              from: ponderSyncSchema.traces.from,
+              to: ponderSyncSchema.traces.to,
+              input: ponderSyncSchema.traces.input,
+              output: ponderSyncSchema.traces.output,
+              value: ponderSyncSchema.traces.value,
+              type: ponderSyncSchema.traces.type,
+              gas: ponderSyncSchema.traces.gas,
+              gasUsed: ponderSyncSchema.traces.gasUsed,
+              error: ponderSyncSchema.traces.error,
+              revertReason: ponderSyncSchema.traces.revertReason,
+              subcalls: ponderSyncSchema.traces.subcalls,
+            })
+            .from(ponderSyncSchema.traces)
+            .where(
+              and(
+                eq(ponderSyncSchema.traces.chainId, BigInt(chainId)),
+                or(
+                  fromIdx !== undefined
+                    ? and(
+                        eq(
+                          ponderSyncSchema.traces.blockNumber,
+                          BigInt(fromBlock),
+                        ),
+                        gt(ponderSyncSchema.traces.traceIndex, fromIdx),
+                      )
+                    : eq(
+                        ponderSyncSchema.traces.blockNumber,
+                        BigInt(fromBlock),
+                      ),
+                  gt(ponderSyncSchema.traces.blockNumber, BigInt(fromBlock)),
+                ),
+                lte(ponderSyncSchema.traces.blockNumber, BigInt(toBlock)),
+                or(
+                  ...traceFilters.map((filter) => traceFilter(filter)),
+                  ...transferFilters.map((filter) => transferFilter(filter)),
+                ),
+              ),
+            )
+            .orderBy(
+              asc(ponderSyncSchema.traces.blockNumber),
+              asc(ponderSyncSchema.traces.traceIndex),
+            )
+            .limit(limit);
+        };
 
         let endClock = startClock();
 
@@ -781,7 +871,7 @@ export const createSyncStore = ({
               })
             : [],
           shouldQueryTransactions
-            ? transactionsQuery.then((res) => {
+            ? transactionsQuery(fromBlock, toBlock, undefined).then((res) => {
                 common.metrics.ponder_database_method_duration.observe(
                   { method: "getEventBlockData_transactions" },
                   endClock(),
@@ -791,17 +881,19 @@ export const createSyncStore = ({
               })
             : [],
           shouldQueryTransactionReceipts
-            ? transactionReceiptsQuery.then((res) => {
-                common.metrics.ponder_database_method_duration.observe(
-                  { method: "getEventBlockData_transaction_receipts" },
-                  endClock(),
-                );
+            ? transactionReceiptsQuery(fromBlock, toBlock, undefined).then(
+                (res) => {
+                  common.metrics.ponder_database_method_duration.observe(
+                    { method: "getEventBlockData_transaction_receipts" },
+                    endClock(),
+                  );
 
-                return res;
-              })
+                  return res;
+                },
+              )
             : [],
           shouldQueryLogs
-            ? logsQuery.then((res) => {
+            ? logsQuery(fromBlock, toBlock, undefined).then((res) => {
                 common.metrics.ponder_database_method_duration.observe(
                   { method: "getEventBlockData_logs" },
                   endClock(),
@@ -811,7 +903,7 @@ export const createSyncStore = ({
               })
             : [],
           shouldQueryTraces
-            ? tracesQuery.then((res) => {
+            ? tracesQuery(fromBlock, toBlock, undefined).then((res) => {
                 common.metrics.ponder_database_method_duration.observe(
                   { method: "getEventBlockData_traces" },
                   endClock(),
@@ -858,6 +950,76 @@ export const createSyncStore = ({
         let transactionReceiptIndex = 0;
         let traceIndex = 0;
         let logIndex = 0;
+
+        if (transactionsRows.length === limit) {
+          let currentTransactionsRows = transactionsRows;
+          while (currentTransactionsRows.length === limit) {
+            const lastIdx =
+              currentTransactionsRows[limit - 1]!.transactionIndex;
+            const fromBlock = Number(
+              currentTransactionsRows[limit - 1]!.blockNumber,
+            );
+
+            currentTransactionsRows = await transactionsQuery(
+              fromBlock,
+              supremum,
+              lastIdx,
+            );
+            for (const row of currentTransactionsRows) {
+              // @ts-ignore
+              transactionsRows.push(row);
+            }
+          }
+        }
+
+        if (transactionReceiptsRows.length === limit) {
+          let currentReceiptsRows = transactionReceiptsRows;
+          while (currentReceiptsRows.length === limit) {
+            const lastIdx = currentReceiptsRows[limit - 1]!.transactionIndex;
+            const fromBlock = Number(
+              currentReceiptsRows[limit - 1]!.blockNumber,
+            );
+
+            currentReceiptsRows = await transactionReceiptsQuery(
+              fromBlock,
+              supremum,
+              lastIdx,
+            );
+            for (const row of currentReceiptsRows) {
+              // @ts-ignore
+              transactionReceiptsRows.push(row);
+            }
+          }
+        }
+
+        if (logsRows.length === limit) {
+          let currentLogsRows = logsRows;
+          while (currentLogsRows.length === limit) {
+            const lastIdx = currentLogsRows[limit - 1]!.logIndex;
+            const fromBlock = Number(currentLogsRows[limit - 1]!.blockNumber);
+
+            currentLogsRows = await logsQuery(fromBlock, supremum, lastIdx);
+            for (const row of currentLogsRows) {
+              // @ts-ignore
+              logsRows.push(row);
+            }
+          }
+        }
+
+        if (tracesRows.length === limit) {
+          let currentTracesRows = tracesRows;
+          while (currentTracesRows.length === limit) {
+            const lastIdx = currentTracesRows[limit - 1]!.traceIndex;
+            const fromBlock = Number(currentTracesRows[limit - 1]!.blockNumber);
+
+            currentTracesRows = await tracesQuery(fromBlock, supremum, lastIdx);
+            for (const row of currentTracesRows) {
+              // @ts-ignore
+              tracesRows.push(row);
+            }
+          }
+        }
+
         for (const block of blocksRows) {
           if (Number(block.number) > supremum) {
             break;
@@ -1031,35 +1193,7 @@ export const createSyncStore = ({
 
         await new Promise(setImmediate);
 
-        let cursor: number;
-        if (
-          Math.max(
-            blocksRows.length,
-            transactionsRows.length,
-            transactionReceiptsRows.length,
-            logsRows.length,
-            tracesRows.length,
-          ) !== limit
-        ) {
-          cursor = toBlock;
-        } else if (
-          blocksRows.length === limit &&
-          Math.max(
-            transactionsRows.length,
-            transactionReceiptsRows.length,
-            logsRows.length,
-            tracesRows.length,
-          ) !== limit
-        ) {
-          // all events for `supremum` block have been extracted
-          cursor = supremum;
-        } else {
-          // there may be events for `supremum` block that have not been extracted
-          blockData.pop();
-          cursor = supremum - 1;
-        }
-
-        return { blockData, cursor };
+        return { blockData, cursor: supremum };
       },
     ),
   insertRpcRequestResults: async ({ requests, chainId }) => {
