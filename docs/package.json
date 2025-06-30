@@ -17,7 +17,6 @@
     "@vercel/og": "^0.6.8",
     "clsx": "^2.1.1",
     "lucide-react": "^0.510.0",
-    "posthog-node": "^4.17.1",
     "radix-ui": "^1.4.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
