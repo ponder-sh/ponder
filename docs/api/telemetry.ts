@@ -55,6 +55,8 @@ export default async function forwardTelemetry(
         }],
       }).catch(handleError);
     }
+  } else {
+    return res.status(501).json({ error: "Event type not supported" });
   }
 
   return res.status(200).json({ success: true });
