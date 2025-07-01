@@ -138,7 +138,7 @@ export const isLogFactoryMatched = ({
 };
 
 export const encodeFactory = (factory: Factory): string => {
-  return `${factory.type}_${factory.address}_${factory.chainId}_${factory.childAddressLocation}_${factory.eventSelector}_${factory.fromBlock ?? "undefined"}_${factory.toBlock ?? "undefined"}`;
+  return `${factory.type}_${Array.isArray(factory.address) ? factory.address.join("_") : factory.address}_${factory.chainId}_${factory.childAddressLocation}_${factory.eventSelector}_${factory.fromBlock ?? "undefined"}_${factory.toBlock ?? "undefined"}`;
 };
 
 /**
