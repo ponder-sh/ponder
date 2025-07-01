@@ -970,7 +970,7 @@ export const createSyncStore = ({
         const transactionsPromise = async () => {
           let currentTransactionsRows = transactionsRows;
           while (currentTransactionsRows.length === limit) {
-            const lastIdx =
+            const fromTransactionIndex =
               currentTransactionsRows[limit - 1]!.transactionIndex;
             const fromBlock = Number(
               currentTransactionsRows[limit - 1]!.blockNumber,
@@ -980,7 +980,7 @@ export const createSyncStore = ({
             currentTransactionsRows = await getEventBlockData_transactions(
               {
                 fromBlock,
-                fromTransactionIndex: lastIdx,
+                fromTransactionIndex,
                 toBlock: supremum,
                 chainId,
                 limit,
@@ -1003,7 +1003,7 @@ export const createSyncStore = ({
         const transactionReceiptsPromise = async () => {
           let currentTransactionReceiptsRows = transactionReceiptsRows;
           while (currentTransactionReceiptsRows.length === limit) {
-            const lastIdx =
+            const fromTransactionIndex =
               currentTransactionReceiptsRows[limit - 1]!.transactionIndex;
             const fromBlock = Number(
               currentTransactionReceiptsRows[limit - 1]!.blockNumber,
@@ -1015,7 +1015,7 @@ export const createSyncStore = ({
               await getEventBlockData_transaction_receipts(
                 {
                   fromBlock,
-                  fromTransactionIndex: lastIdx,
+                  fromTransactionIndex,
                   toBlock: supremum,
                   chainId,
                   limit,
@@ -1038,7 +1038,7 @@ export const createSyncStore = ({
         const logsPromise = async () => {
           let currentLogsRows = logsRows;
           while (currentLogsRows.length === limit) {
-            const lastIdx = currentLogsRows[limit - 1]!.logIndex;
+            const fromLogIndex = currentLogsRows[limit - 1]!.logIndex;
             const fromBlock = Number(currentLogsRows[limit - 1]!.blockNumber);
 
             const endClock = startClock();
@@ -1047,7 +1047,7 @@ export const createSyncStore = ({
               {
                 filters: logFilters,
                 fromBlock,
-                fromLogIndex: lastIdx,
+                fromLogIndex,
                 toBlock: supremum,
                 chainId,
                 limit,
@@ -1069,7 +1069,7 @@ export const createSyncStore = ({
         const tracesPromise = async () => {
           let currentTracesRows = tracesRows;
           while (currentTracesRows.length === limit) {
-            const lastIdx = currentTracesRows[limit - 1]!.traceIndex;
+            const fromTraceIndex = currentTracesRows[limit - 1]!.traceIndex;
             const fromBlock = Number(currentTracesRows[limit - 1]!.blockNumber);
 
             const endClock = startClock();
@@ -1078,7 +1078,7 @@ export const createSyncStore = ({
                 traceFilters,
                 transferFilters,
                 fromBlock,
-                fromTraceIndex: lastIdx,
+                fromTraceIndex,
                 toBlock: supremum,
                 chainId,
                 limit,
