@@ -964,7 +964,14 @@ export const createSyncStore = ({
               fromBlock,
               supremum,
               lastIdx,
-            );
+            ).then((res) => {
+              common.metrics.ponder_database_method_duration.observe(
+                { method: "getEventBlockData_transactions" },
+                endClock(),
+              );
+
+              return res;
+            });
             for (const row of currentTransactionsRows) {
               // @ts-ignore
               transactionsRows.push(row);
@@ -973,19 +980,27 @@ export const createSyncStore = ({
         }
 
         if (transactionReceiptsRows.length === limit) {
-          let currentReceiptsRows = transactionReceiptsRows;
-          while (currentReceiptsRows.length === limit) {
-            const lastIdx = currentReceiptsRows[limit - 1]!.transactionIndex;
+          let currentTransactionReceiptsRows = transactionReceiptsRows;
+          while (currentTransactionReceiptsRows.length === limit) {
+            const lastIdx =
+              currentTransactionReceiptsRows[limit - 1]!.transactionIndex;
             const fromBlock = Number(
-              currentReceiptsRows[limit - 1]!.blockNumber,
+              currentTransactionReceiptsRows[limit - 1]!.blockNumber,
             );
 
-            currentReceiptsRows = await transactionReceiptsQuery(
+            currentTransactionReceiptsRows = await transactionReceiptsQuery(
               fromBlock,
               supremum,
               lastIdx,
-            );
-            for (const row of currentReceiptsRows) {
+            ).then((res) => {
+              common.metrics.ponder_database_method_duration.observe(
+                { method: "getEventBlockData_transaction_receipts" },
+                endClock(),
+              );
+
+              return res;
+            });
+            for (const row of currentTransactionReceiptsRows) {
               // @ts-ignore
               transactionReceiptsRows.push(row);
             }
@@ -998,7 +1013,18 @@ export const createSyncStore = ({
             const lastIdx = currentLogsRows[limit - 1]!.logIndex;
             const fromBlock = Number(currentLogsRows[limit - 1]!.blockNumber);
 
-            currentLogsRows = await logsQuery(fromBlock, supremum, lastIdx);
+            currentLogsRows = await logsQuery(
+              fromBlock,
+              supremum,
+              lastIdx,
+            ).then((res) => {
+              common.metrics.ponder_database_method_duration.observe(
+                { method: "getEventBlockData_logs" },
+                endClock(),
+              );
+
+              return res;
+            });
             for (const row of currentLogsRows) {
               // @ts-ignore
               logsRows.push(row);
@@ -1012,7 +1038,18 @@ export const createSyncStore = ({
             const lastIdx = currentTracesRows[limit - 1]!.traceIndex;
             const fromBlock = Number(currentTracesRows[limit - 1]!.blockNumber);
 
-            currentTracesRows = await tracesQuery(fromBlock, supremum, lastIdx);
+            currentTracesRows = await tracesQuery(
+              fromBlock,
+              supremum,
+              lastIdx,
+            ).then((res) => {
+              common.metrics.ponder_database_method_duration.observe(
+                { method: "getEventBlockData_traces" },
+                endClock(),
+              );
+
+              return res;
+            });
             for (const row of currentTracesRows) {
               // @ts-ignore
               tracesRows.push(row);
