@@ -436,6 +436,7 @@ export const createRpc = ({
             common.logger.warn({
               service: "rpc",
               msg: `Failed '${chain.name}' ${body.method} request`,
+              error,
             });
             throw error;
           }
