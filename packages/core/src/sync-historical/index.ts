@@ -427,26 +427,21 @@ export const createHistoricalSync = async (
 
     const childAddresses =
       childAddressesCache.get(factory) ?? new Map<Address, number>();
+
+    const childAddressesRecord = args.childAddresses.get(factory)!;
+
     for (const log of logs) {
       if (isLogFactoryMatched({ factory, log })) {
         const address = getChildAddress({ log, factory });
-        const prevBlockNumber = childAddresses.get(address);
+        const existingBlockNumber = childAddressesRecord.get(address);
 
         if (
-          prevBlockNumber === undefined ||
-          prevBlockNumber > hexToNumber(log.blockNumber)
+          existingBlockNumber === undefined ||
+          existingBlockNumber > hexToNumber(log.blockNumber)
         ) {
           childAddresses.set(address, hexToNumber(log.blockNumber));
+          childAddressesRecord.set(address, hexToNumber(log.blockNumber));
         }
-      }
-    }
-
-    const childAddressesRecord = args.childAddresses.get(factory)!;
-    for (const [address, blockNumber] of childAddresses.entries()) {
-      const prevBlockNumber = childAddressesRecord.get(address);
-
-      if (prevBlockNumber === undefined || prevBlockNumber > blockNumber) {
-        childAddressesRecord.set(address, blockNumber);
       }
     }
 
