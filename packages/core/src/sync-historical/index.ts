@@ -22,6 +22,7 @@ import type {
 import type { Rpc } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
+  encodeFactory,
   getChildAddress,
   isAddressFactory,
   isAddressMatched,
@@ -75,7 +76,7 @@ type CreateHistoricalSyncParameters = {
   common: Common;
   sources: Source[];
   syncStore: SyncStore;
-  childAddresses: Map<Factory, Map<Address, number>>;
+  childAddresses: Map<string, Map<Address, number>>;
   chain: Chain;
   rpc: Rpc;
   onFatalError: (error: Error) => void;
@@ -117,7 +118,7 @@ export const createHistoricalSync = async (
     Promise<SyncTransactionReceipt>
   >();
 
-  const childAddressesCache = new Map<Factory, Map<Address, number>>();
+  const childAddressesCache = new Map<LogFactory, Map<Address, number>>();
 
   /**
    * Data about the range passed to "eth_getLogs" share among all log
@@ -428,7 +429,9 @@ export const createHistoricalSync = async (
     const childAddresses =
       childAddressesCache.get(factory) ?? new Map<Address, number>();
 
-    const childAddressesRecord = args.childAddresses.get(factory)!;
+    const childAddressesRecord = args.childAddresses.get(
+      encodeFactory(factory),
+    )!;
 
     for (const log of logs) {
       if (isLogFactoryMatched({ factory, log })) {
@@ -470,7 +473,7 @@ export const createHistoricalSync = async (
 
     // Note: `factory` must refer to the same original `factory` in `filter`
     // and not be a recovered factory from `recoverFilter`.
-    return args.childAddresses.get(factory)!;
+    return args.childAddresses.get(encodeFactory(factory))!;
   };
 
   ////////

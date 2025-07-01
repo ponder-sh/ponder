@@ -66,7 +66,7 @@ import {
   syncTransactionReceiptToInternal,
   syncTransactionToInternal,
 } from "./events.js";
-import { isAddressFactory } from "./filter.js";
+import { encodeFactory, isAddressFactory } from "./filter.js";
 
 export type Sync = {
   getEvents(): EventGenerator;
@@ -255,7 +255,7 @@ export const createSync = async (params: {
       syncProgress: SyncProgress;
       historicalSync: HistoricalSync;
       realtimeSync: RealtimeSync | undefined;
-      childAddresses: Map<Factory, Map<Address, number>>;
+      childAddresses: Map<string, Map<Address, number>>;
     }
   >();
 
@@ -811,7 +811,7 @@ export const createSync = async (params: {
         });
       }
 
-      const childAddresses: Map<Factory, Map<Address, number>> = new Map();
+      const childAddresses: Map<string, Map<Address, number>> = new Map();
       for (const source of sources) {
         switch (source.filter.type) {
           case "log":
@@ -819,7 +819,10 @@ export const createSync = async (params: {
               const _childAddresses = await params.syncStore.getChildAddresses({
                 factory: source.filter.address,
               });
-              childAddresses.set(source.filter.address, _childAddresses);
+              childAddresses.set(
+                encodeFactory(source.filter.address),
+                _childAddresses,
+              );
             }
             break;
           case "transaction":
@@ -829,14 +832,20 @@ export const createSync = async (params: {
               const _childAddresses = await params.syncStore.getChildAddresses({
                 factory: source.filter.fromAddress,
               });
-              childAddresses.set(source.filter.fromAddress, _childAddresses);
+              childAddresses.set(
+                encodeFactory(source.filter.fromAddress),
+                _childAddresses,
+              );
             }
 
             if (isAddressFactory(source.filter.toAddress)) {
               const _childAddresses = await params.syncStore.getChildAddresses({
                 factory: source.filter.toAddress,
               });
-              childAddresses.set(source.filter.toAddress, _childAddresses);
+              childAddresses.set(
+                encodeFactory(source.filter.toAddress),
+                _childAddresses,
+              );
             }
 
             break;
@@ -1245,7 +1254,7 @@ export async function* getLocalEventGenerator(params: {
   syncStore: SyncStore;
   sources: Source[];
   localSyncGenerator: AsyncGenerator<number>;
-  childAddresses: Map<Factory, Map<Address, number>>;
+  childAddresses: Map<string, Map<Address, number>>;
   from: string;
   to: string;
   limit: number;

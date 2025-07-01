@@ -137,6 +137,10 @@ export const isLogFactoryMatched = ({
   return true;
 };
 
+export const encodeFactory = (factory: Factory): string => {
+  return `${factory.type}_${factory.address}_${factory.chainId}_${factory.childAddressLocation}_${factory.eventSelector}_${factory.fromBlock ?? "undefined"}_${factory.toBlock ?? "undefined"}`;
+};
+
 /**
  * Returns `true` if `log` matches `filter`
  */
