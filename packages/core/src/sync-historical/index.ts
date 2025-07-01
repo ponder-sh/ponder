@@ -434,13 +434,14 @@ export const createHistoricalSync = async (
       if (isLogFactoryMatched({ factory, log })) {
         const address = getChildAddress({ log, factory });
         const existingBlockNumber = childAddressesRecord.get(address);
+        const newBlockNumber = hexToNumber(log.blockNumber);
 
         if (
           existingBlockNumber === undefined ||
-          existingBlockNumber > hexToNumber(log.blockNumber)
+          existingBlockNumber > newBlockNumber
         ) {
-          childAddresses.set(address, hexToNumber(log.blockNumber));
-          childAddressesRecord.set(address, hexToNumber(log.blockNumber));
+          childAddresses.set(address, newBlockNumber);
+          childAddressesRecord.set(address, newBlockNumber);
         }
       }
     }
