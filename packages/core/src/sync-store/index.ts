@@ -1193,7 +1193,7 @@ export const createSyncStore = ({
 
         await new Promise(setImmediate);
 
-        return { blockData, cursor: supremum };
+        return { blockData, cursor: Math.min(supremum, toBlock) };
       },
     ),
   insertRpcRequestResults: async ({ requests, chainId }) => {
