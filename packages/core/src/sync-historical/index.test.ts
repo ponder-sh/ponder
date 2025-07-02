@@ -25,7 +25,7 @@ import {
   testClient,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/config.js";
-import type { Source } from "@/internal/types.js";
+import type { FactoryId, Source } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
 import { isAddressFactory } from "@/sync/filter.js";
@@ -47,7 +47,7 @@ beforeEach(setupCleanup);
 
 const setupChildAddresses = (
   sources: Source[],
-): Map<string, Map<Address, number>> => {
+): Map<FactoryId, Map<Address, number>> => {
   const childAddresses = new Map();
   for (const source of sources) {
     switch (source.filter.type) {
@@ -68,7 +68,7 @@ const setupChildAddresses = (
     }
   }
 
-  return childAddresses as Map<string, Map<Address, number>>;
+  return childAddresses as Map<FactoryId, Map<Address, number>>;
 };
 
 test("createHistoricalSync()", async (context) => {
