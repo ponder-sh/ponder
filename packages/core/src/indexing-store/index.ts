@@ -14,6 +14,7 @@ import type { Schema } from "@/internal/types.js";
 import type { Db } from "@/types/db.js";
 import type { Table } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
+import type { Row } from "./cache.js";
 
 export type IndexingStore = Db<Schema>;
 
@@ -38,17 +39,28 @@ export const parseSqlError = (e: any): Error => {
   return error;
 };
 
-export const validateUpdateSet = (table: Table, set: Object): Object => {
+export const validateUpdateSet = (
+  table: Table,
+  set: Object,
+  prev: Row | null,
+): Object => {
   const primaryKeys = getPrimaryKeyColumns(table);
+  const newSet = { ...set } as Row;
 
   for (const { js } of primaryKeys) {
     if (js in set) {
-      throw new NonRetryableError(
-        `Primary key column '${js}' cannot be updated`,
-      );
+      // Note: Strip of the primary keys if they are identical, otherwise throw an error.
+      if (prev !== null && (set as Row)[js] === prev[js]) {
+        delete newSet[js];
+      } else {
+        throw new NonRetryableError(
+          `Primary key column '${js}' cannot be updated`,
+        );
+      }
     }
   }
-  return set;
+
+  return newSet;
 };
 
 /** Throw an error if `table` is not an `onchainTable`. */

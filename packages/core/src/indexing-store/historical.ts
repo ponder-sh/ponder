@@ -97,6 +97,7 @@ export const createHistoricalIndexingStore = ({
               }
             },
             onConflictDoUpdate: async (valuesU: any) => {
+              ///
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -114,13 +115,13 @@ export const createHistoricalIndexingStore = ({
 
                   if (row) {
                     if (typeof valuesU === "function") {
-                      const set = validateUpdateSet(table, valuesU(row));
+                      const set = validateUpdateSet(table, valuesU(row), row);
                       for (const [key, value] of Object.entries(set)) {
                         if (value === undefined) continue;
                         row[key] = value;
                       }
                     } else {
-                      const set = validateUpdateSet(table, valuesU);
+                      const set = validateUpdateSet(table, valuesU, row);
                       for (const [key, value] of Object.entries(set)) {
                         if (value === undefined) continue;
                         row[key] = value;
@@ -151,13 +152,13 @@ export const createHistoricalIndexingStore = ({
 
                 if (row) {
                   if (typeof valuesU === "function") {
-                    const set = validateUpdateSet(table, valuesU(row));
+                    const set = validateUpdateSet(table, valuesU(row), row);
                     for (const [key, value] of Object.entries(set)) {
                       if (value === undefined) continue;
                       row[key] = value;
                     }
                   } else {
-                    const set = validateUpdateSet(table, valuesU);
+                    const set = validateUpdateSet(table, valuesU, row);
                     for (const [key, value] of Object.entries(set)) {
                       if (value === undefined) continue;
                       row[key] = value;
@@ -238,6 +239,7 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     update(table: Table, key) {
       return {
+        ///
         set: async (values: any) => {
           common.metrics.ponder_indexing_store_queries_total.inc({
             table: getTableName(table),
@@ -256,13 +258,13 @@ export const createHistoricalIndexingStore = ({
           }
 
           if (typeof values === "function") {
-            const set = validateUpdateSet(table, values(row));
+            const set = validateUpdateSet(table, values(row), row);
             for (const [key, value] of Object.entries(set)) {
               if (value === undefined) continue;
               row[key] = value;
             }
           } else {
-            const set = validateUpdateSet(table, values);
+            const set = validateUpdateSet(table, values, row);
             for (const [key, value] of Object.entries(set)) {
               if (value === undefined) continue;
               row[key] = value;
