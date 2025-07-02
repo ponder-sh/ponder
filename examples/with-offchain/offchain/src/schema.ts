@@ -10,7 +10,7 @@ import * as offchainSchema from "./offchain";
 // Note: `_ponderSchema` doesn't have information about which database schema
 // to use, so we need to set it with the `setDatabaseSchema` function.
 
-// setDatabaseSchema(ponderSchema, "prod");
+setDatabaseSchema(ponderSchema, "prod");
 
 export const metadataRelations = relations(
   offchainSchema.metadataTable,
