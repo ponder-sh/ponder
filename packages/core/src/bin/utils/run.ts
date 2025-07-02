@@ -158,18 +158,18 @@ export async function run({
         }
       });
     });
-  }
 
-  // Note: `_ponder_checkpoint` must be updated after the setup events are processed.
-  await database.setCheckpoints({
-    checkpoints: indexingBuild.chains.map((chain) => ({
-      chainName: chain.name,
-      chainId: chain.id,
-      latestCheckpoint: sync.getStartCheckpoint(chain),
-      safeCheckpoint: sync.getStartCheckpoint(chain),
-    })),
-    db: database.qb.drizzle,
-  });
+    // Note: `_ponder_checkpoint` must be updated after the setup events are processed.
+    await database.setCheckpoints({
+      checkpoints: indexingBuild.chains.map((chain) => ({
+        chainName: chain.name,
+        chainId: chain.id,
+        latestCheckpoint: sync.getStartCheckpoint(chain),
+        safeCheckpoint: sync.getStartCheckpoint(chain),
+      })),
+      db: database.qb.drizzle,
+    });
+  }
 
   // Run historical indexing until complete.
   for await (const events of recordAsyncGenerator(
