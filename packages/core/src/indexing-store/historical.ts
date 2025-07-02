@@ -97,7 +97,6 @@ export const createHistoricalIndexingStore = ({
               }
             },
             onConflictDoUpdate: async (valuesU: any) => {
-              ///
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -239,7 +238,6 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     update(table: Table, key) {
       return {
-        ///
         set: async (values: any) => {
           common.metrics.ponder_indexing_store_queries_total.inc({
             table: getTableName(table),
