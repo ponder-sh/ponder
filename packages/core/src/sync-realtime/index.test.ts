@@ -349,7 +349,7 @@ test("handleBlock() block event with log factory", async (context) => {
     onEvent,
     onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
-    initialChildAddresses: new Map([[filter.address, new Map()]]),
+    initialChildAddresses: new Map([[filter.address.id, new Map()]]),
   });
 
   let block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });

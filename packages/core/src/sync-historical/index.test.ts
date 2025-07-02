@@ -25,9 +25,10 @@ import {
   testClient,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/config.js";
-import type { Factory, Source } from "@/internal/types.js";
+import type { Source } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
+import { isAddressFactory } from "@/sync/filter.js";
 import {
   type Address,
   encodeFunctionData,
@@ -46,22 +47,28 @@ beforeEach(setupCleanup);
 
 const setupChildAddresses = (
   sources: Source[],
-): Map<Factory, Map<Address, number>> => {
+): Map<string, Map<Address, number>> => {
   const childAddresses = new Map();
   for (const source of sources) {
     switch (source.filter.type) {
       case "log":
-        childAddresses.set(source.filter.address, new Map());
+        if (isAddressFactory(source.filter.address)) {
+          childAddresses.set(source.filter.address.id, new Map());
+        }
         break;
       case "transaction":
       case "transfer":
       case "trace":
-        childAddresses.set(source.filter.fromAddress, new Map());
-        childAddresses.set(source.filter.toAddress, new Map());
+        if (isAddressFactory(source.filter.fromAddress)) {
+          childAddresses.set(source.filter.fromAddress.id, new Map());
+        }
+        if (isAddressFactory(source.filter.toAddress)) {
+          childAddresses.set(source.filter.toAddress.id, new Map());
+        }
     }
   }
 
-  return childAddresses as Map<Factory, Map<Address, number>>;
+  return childAddresses as Map<string, Map<Address, number>>;
 };
 
 test("createHistoricalSync()", async (context) => {

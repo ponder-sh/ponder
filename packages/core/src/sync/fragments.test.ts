@@ -312,6 +312,7 @@ test("getFragments() factory with topic", () => {
     topic2: null,
     topic3: null,
     address: {
+      id: `log_${"0xa"}_${1}_topic${1}_${"0xb"}_${"undefined"}_${"undefined"}`,
       type: "log",
       chainId: 1,
       address: "0xa",
@@ -358,6 +359,7 @@ test("getFragments() factory with offset", () => {
     topic2: null,
     topic3: null,
     address: {
+      id: `log_${"0xa"}_${1}_offset${64}_${"0xb"}_${"undefined"}_${"undefined"}`,
       type: "log",
       chainId: 1,
       address: "0xa",
@@ -404,6 +406,7 @@ test("getFragments() multiple factories", () => {
     topic2: null,
     topic3: null,
     address: {
+      id: `log_${["0xa", "0xb"].join("_")}_${1}_topic${1}_${"0xb"}_${"undefined"}_${"undefined"}`,
       type: "log",
       chainId: 1,
       address: ["0xa", "0xb"],
@@ -493,6 +496,7 @@ test("decodeFragment()", () => {
     type: "trace",
     chainId: 1,
     fromAddress: {
+      id: `log_${"0xa"}_${1}_topic${1}_${"0xc"}_${"undefined"}_${"undefined"}`,
       type: "log",
       chainId: 1,
       address: "0xa",
@@ -638,6 +642,7 @@ test("recoverFilter() factory", () => {
     topic2: null,
     topic3: null,
     address: {
+      id: `log_${"0xa"}_${1}_topic${1}_${"0xb"}_${"undefined"}_${"undefined"}`,
       type: "log",
       chainId: 1,
       address: "0xa",
@@ -668,6 +673,7 @@ test("recoverFilter() multiple factories", () => {
     topic2: null,
     topic3: null,
     address: {
+      id: `log_${["0xa", "0xb"].join("_")}_${1}_topic${1}_${"0xc"}_${"undefined"}_${"undefined"}`,
       type: "log",
       chainId: 1,
       address: ["0xa", "0xb"],
