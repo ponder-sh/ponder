@@ -1,5 +1,17 @@
 # ponder
 
+## 0.11.24
+
+### Patch Changes
+
+- [#1866](https://github.com/ponder-sh/ponder/pull/1866) [`d8b921b`](https://github.com/ponder-sh/ponder/commit/d8b921b52e37d385bec22349c39123fafd3da1b8) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that could cause duplicate events after a crash recovery.
+
+- [#1847](https://github.com/ponder-sh/ponder/pull/1847) [`bfe09c8`](https://github.com/ponder-sh/ponder/commit/bfe09c847a7b1602b4eb91e4c434980b8171f38d) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Improved performance for apps with large factories.
+
+- [#1863](https://github.com/ponder-sh/ponder/pull/1863) [`00f84eb`](https://github.com/ponder-sh/ponder/commit/00f84eb2eb91ea4e28bb960a9c54eb2f1dc98c3b) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Fixes the bug that would deadlock getting block data from db for event-intensive apps due to the faulty pagination.
+
+- [#1861](https://github.com/ponder-sh/ponder/pull/1861) [`78736be`](https://github.com/ponder-sh/ponder/commit/78736be573c6feae1a0514165230ea379a0fd0a8) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved rpc error logging.
+
 ## 0.11.23
 
 ### Patch Changes
