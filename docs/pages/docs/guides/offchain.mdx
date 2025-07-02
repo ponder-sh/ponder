@@ -8,14 +8,13 @@ Ponder supports combining its indexed data with data from external (offchain) so
 
 ## Guide
 
-`drizzle-orm`, however, the same 
+This guide uses `drizzle-orm`, however, the same principles apply to any method of interacting with a Postgres database.
 
 :::steps
 
-### Repo structure
+### Repo structure and `drizzle-orm` version
 
-- monorepo
-- drizzle version
+In either repository structure, it is important to make sure the `drizzle-orm` version used is the same as the one used by `ponder`. Currently, that version is **`0.41.0`**.
 
 ### Define `ponder.schema.ts`
 
@@ -44,7 +43,7 @@ export const transferEvent = onchainTable("transfer_event", (t) => ({
 
 ### Define the schema for the offchain data
 
-will be used to generate migrations for offchain data.
+This file will be used to generate migrations for offchain data.
 
 ```ts [offchain.ts]
 import { json, numeric, pgSchema } from "drizzle-orm/pg-core";
@@ -90,7 +89,9 @@ export const schema = {
 };
 ```
 
-Manually set the database schema for Ponder tables, views pattern
+:::info
+  The database schema for Ponder tables and enums must be set manually with `setDatabaseSchema`. To avoid having to update the schema for each deployment, see the [views pattern](/docs/production/self-hosting#views-pattern).
+:::
 
 ### Query with direct SQL
 
