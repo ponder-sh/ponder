@@ -20,7 +20,6 @@ import type {
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
 import {
-  encodeFactory,
   getChildAddress,
   isAddressFactory,
   isAddressMatched,
@@ -535,7 +534,7 @@ export const createRealtimeSync = (
   } => {
     // Update `childAddresses`
     for (const factory of factories) {
-      const factoryId = encodeFactory(factory);
+      const factoryId = factory.id;
       for (const address of blockChildAddresses.get(factory)!) {
         if (childAddresses.get(factoryId)!.has(address) === false) {
           childAddresses
@@ -568,9 +567,7 @@ export const createRealtimeSync = (
             ? isAddressMatched({
                 address: log.address,
                 blockNumber: hexToNumber(block.number),
-                childAddresses: childAddresses.get(
-                  encodeFactory(filter.address),
-                )!,
+                childAddresses: childAddresses.get(filter.address.id)!,
               })
             : true)
         ) {
@@ -595,18 +592,14 @@ export const createRealtimeSync = (
             ? isAddressMatched({
                 address: trace.trace.from,
                 blockNumber: hexToNumber(block.number),
-                childAddresses: childAddresses.get(
-                  encodeFactory(filter.fromAddress),
-                )!,
+                childAddresses: childAddresses.get(filter.fromAddress.id)!,
               })
             : true) &&
           (isAddressFactory(filter.toAddress)
             ? isAddressMatched({
                 address: trace.trace.to,
                 blockNumber: hexToNumber(block.number),
-                childAddresses: childAddresses.get(
-                  encodeFactory(filter.toAddress),
-                )!,
+                childAddresses: childAddresses.get(filter.toAddress.id)!,
               })
             : true)
         ) {
@@ -626,18 +619,14 @@ export const createRealtimeSync = (
             ? isAddressMatched({
                 address: trace.trace.from,
                 blockNumber: hexToNumber(block.number),
-                childAddresses: childAddresses.get(
-                  encodeFactory(filter.fromAddress),
-                )!,
+                childAddresses: childAddresses.get(filter.fromAddress.id)!,
               })
             : true) &&
           (isAddressFactory(filter.toAddress)
             ? isAddressMatched({
                 address: trace.trace.to,
                 blockNumber: hexToNumber(block.number),
-                childAddresses: childAddresses.get(
-                  encodeFactory(filter.toAddress),
-                )!,
+                childAddresses: childAddresses.get(filter.toAddress.id)!,
               })
             : true)
         ) {
@@ -671,18 +660,14 @@ export const createRealtimeSync = (
             ? isAddressMatched({
                 address: transaction.from,
                 blockNumber: hexToNumber(block.number),
-                childAddresses: childAddresses.get(
-                  encodeFactory(filter.fromAddress),
-                )!,
+                childAddresses: childAddresses.get(filter.fromAddress.id)!,
               })
             : true) &&
           (isAddressFactory(filter.toAddress)
             ? isAddressMatched({
                 address: transaction.to ?? undefined,
                 blockNumber: hexToNumber(block.number),
-                childAddresses: childAddresses.get(
-                  encodeFactory(filter.toAddress),
-                )!,
+                childAddresses: childAddresses.get(filter.toAddress.id)!,
               })
             : true)
         ) {
@@ -796,7 +781,7 @@ export const createRealtimeSync = (
           .get(hexToNumber(block.number))!
           .get(factory)!;
         for (const address of addresses) {
-          childAddresses.get(encodeFactory(factory))!.delete(address);
+          childAddresses.get(factory.id)!.delete(address);
         }
       }
       childAddressesPerBlock.delete(hexToNumber(block.number));

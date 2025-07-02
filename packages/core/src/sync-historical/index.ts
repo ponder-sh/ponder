@@ -22,7 +22,6 @@ import type {
 import type { Rpc } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
-  encodeFactory,
   getChildAddress,
   isAddressFactory,
   isAddressMatched,
@@ -429,9 +428,7 @@ export const createHistoricalSync = async (
     const childAddresses =
       childAddressesCache.get(factory) ?? new Map<Address, number>();
 
-    const childAddressesRecord = args.childAddresses.get(
-      encodeFactory(factory),
-    )!;
+    const childAddressesRecord = args.childAddresses.get(factory.id)!;
 
     for (const log of logs) {
       if (isLogFactoryMatched({ factory, log })) {
@@ -473,7 +470,7 @@ export const createHistoricalSync = async (
 
     // Note: `factory` must refer to the same original `factory` in `filter`
     // and not be a recovered factory from `recoverFilter`.
-    return args.childAddresses.get(encodeFactory(factory))!;
+    return args.childAddresses.get(factory.id)!;
   };
 
   ////////

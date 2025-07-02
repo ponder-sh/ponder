@@ -170,6 +170,7 @@ export type TraceFilter<
 };
 
 export type LogFactory = {
+  id: string;
   type: "log";
   chainId: number;
   address: Address | Address[];

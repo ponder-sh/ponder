@@ -37,7 +37,6 @@ import {
   hexToNumber,
 } from "viem";
 import {
-  encodeFactory,
   isAddressMatched,
   isBlockFilterMatched,
   isLogFilterMatched,
@@ -96,9 +95,7 @@ export const buildEvents = ({
                   ? isAddressMatched({
                       address: log.address,
                       blockNumber: Number(block.number),
-                      childAddresses: childAddresses.get(
-                        encodeFactory(filter.address),
-                      )!,
+                      childAddresses: childAddresses.get(filter.address.id)!,
                     })
                   : true)
               ) {
@@ -143,7 +140,7 @@ export const buildEvents = ({
                       address: trace.from,
                       blockNumber: Number(block.number),
                       childAddresses: childAddresses.get(
-                        encodeFactory(filter.fromAddress),
+                        filter.fromAddress.id,
                       )!,
                     })
                   : true) &&
@@ -151,9 +148,7 @@ export const buildEvents = ({
                   ? isAddressMatched({
                       address: trace.to ?? undefined,
                       blockNumber: Number(block.number),
-                      childAddresses: childAddresses.get(
-                        encodeFactory(filter.toAddress),
-                      )!,
+                      childAddresses: childAddresses.get(filter.toAddress.id)!,
                     })
                   : true) &&
                 (filter.callType === undefined
@@ -208,7 +203,7 @@ export const buildEvents = ({
                       address: transaction.from,
                       blockNumber: Number(block.number),
                       childAddresses: childAddresses.get(
-                        encodeFactory(filter.fromAddress),
+                        filter.fromAddress.id,
                       )!,
                     })
                   : true) &&
@@ -216,9 +211,7 @@ export const buildEvents = ({
                   ? isAddressMatched({
                       address: transaction.to ?? undefined,
                       blockNumber: Number(block.number),
-                      childAddresses: childAddresses.get(
-                        encodeFactory(filter.toAddress),
-                      )!,
+                      childAddresses: childAddresses.get(filter.toAddress.id)!,
                     })
                   : true) &&
                 (filter.includeReverted
@@ -263,7 +256,7 @@ export const buildEvents = ({
                       address: trace.from,
                       blockNumber: Number(block.number),
                       childAddresses: childAddresses.get(
-                        encodeFactory(filter.fromAddress),
+                        filter.fromAddress.id,
                       )!,
                     })
                   : true) &&
@@ -271,9 +264,7 @@ export const buildEvents = ({
                   ? isAddressMatched({
                       address: trace.to ?? undefined,
                       blockNumber: Number(block.number),
-                      childAddresses: childAddresses.get(
-                        encodeFactory(filter.toAddress),
-                      )!,
+                      childAddresses: childAddresses.get(filter.toAddress.id)!,
                     })
                   : true) &&
                 (filter.includeReverted ? true : trace.error === undefined)
