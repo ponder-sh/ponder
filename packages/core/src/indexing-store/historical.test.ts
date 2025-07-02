@@ -383,6 +383,25 @@ test("update throw error when primary key is updated", async (context) => {
       .catch((error) => error);
 
     expect(error).toBeInstanceOf(NonRetryableError);
+
+    // update same primary key no function
+    let row: any = await indexingStore
+      .update(schema.account, { address: zeroAddress })
+      // @ts-expect-error
+      .set({ address: zeroAddress, balance: 20n })
+      .catch((error) => error);
+
+    expect(row.address).toBe(zeroAddress);
+    expect(row.balance).toBe(20n);
+
+    // update same primary key function
+    row = await indexingStore
+      .update(schema.account, { address: zeroAddress })
+      .set(() => ({ address: zeroAddress, balance: 30n }))
+      .catch((error) => error);
+
+    expect(row.address).toBe(zeroAddress);
+    expect(row.balance).toBe(30n);
   });
 });
 
