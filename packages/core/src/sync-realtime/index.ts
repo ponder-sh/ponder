@@ -4,6 +4,7 @@ import type {
   BlockFilter,
   Chain,
   Factory,
+  FactoryId,
   Filter,
   LightBlock,
   LogFilter,
@@ -62,7 +63,7 @@ export type RealtimeSync = {
    * Local chain of blocks that have not been finalized.
    */
   unfinalizedBlocks: LightBlock[];
-  childAddresses: Map<string, Map<Address, number>>;
+  childAddresses: Map<FactoryId, Map<Address, number>>;
 };
 
 /**
@@ -108,7 +109,7 @@ type CreateRealtimeSyncParameters = {
   rpc: Rpc;
   sources: Source[];
   syncProgress: Pick<SyncProgress, "finalized">;
-  initialChildAddresses: Map<string, Map<Address, number>>;
+  initialChildAddresses: Map<FactoryId, Map<Address, number>>;
   /**
    * Handle a realtime sync event.
    *

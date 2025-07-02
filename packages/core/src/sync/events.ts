@@ -2,6 +2,7 @@ import type { Common } from "@/internal/common.js";
 import type {
   BlockFilter,
   Event,
+  FactoryId,
   InternalBlock,
   InternalLog,
   InternalTrace,
@@ -63,7 +64,7 @@ export const buildEvents = ({
     transactionReceipts: InternalTransactionReceipt[];
     traces: InternalTrace[];
   };
-  childAddresses: Map<string, Map<Address, number>>;
+  childAddresses: Map<FactoryId, Map<Address, number>>;
   chainId: number;
 }) => {
   const events: RawEvent[] = [];

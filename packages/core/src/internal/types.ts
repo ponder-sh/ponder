@@ -169,8 +169,10 @@ export type TraceFilter<
     | undefined;
 };
 
+export type FactoryId = string;
+
 export type LogFactory = {
-  id: string;
+  id: FactoryId;
   type: "log";
   chainId: number;
   address: Address | Address[];

@@ -4,6 +4,7 @@ import type {
   CrashRecoveryCheckpoint,
   Event,
   Factory,
+  FactoryId,
   Filter,
   IndexingBuild,
   LightBlock,
@@ -255,7 +256,7 @@ export const createSync = async (params: {
       syncProgress: SyncProgress;
       historicalSync: HistoricalSync;
       realtimeSync: RealtimeSync | undefined;
-      childAddresses: Map<string, Map<Address, number>>;
+      childAddresses: Map<FactoryId, Map<Address, number>>;
     }
   >();
 
@@ -811,7 +812,7 @@ export const createSync = async (params: {
         });
       }
 
-      const childAddresses: Map<string, Map<Address, number>> = new Map();
+      const childAddresses: Map<FactoryId, Map<Address, number>> = new Map();
       for (const source of sources) {
         switch (source.filter.type) {
           case "log":
@@ -1245,7 +1246,7 @@ export async function* getLocalEventGenerator(params: {
   syncStore: SyncStore;
   sources: Source[];
   localSyncGenerator: AsyncGenerator<number>;
-  childAddresses: Map<string, Map<Address, number>>;
+  childAddresses: Map<FactoryId, Map<Address, number>>;
   from: string;
   to: string;
   limit: number;

@@ -4,6 +4,7 @@ import type {
   BlockFilter,
   Chain,
   Factory,
+  FactoryId,
   Filter,
   FilterWithoutBlocks,
   Fragment,
@@ -75,7 +76,7 @@ type CreateHistoricalSyncParameters = {
   common: Common;
   sources: Source[];
   syncStore: SyncStore;
-  childAddresses: Map<string, Map<Address, number>>;
+  childAddresses: Map<FactoryId, Map<Address, number>>;
   chain: Chain;
   rpc: Rpc;
   onFatalError: (error: Error) => void;
