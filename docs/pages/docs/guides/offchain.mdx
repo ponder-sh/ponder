@@ -8,13 +8,13 @@ Ponder supports combining its indexed data with data from external (offchain) so
 
 ## Guide
 
-This guide uses `drizzle-orm`, however, the same principles apply to any method of interacting with a Postgres database.
+This guide uses `drizzle-orm` and `drizzle-kit`, however, the same principles apply to any method of interacting with a Postgres database.
+
+:::info
+  It is important to make sure the `drizzle-orm` version matches the one used by `ponder`. Currently, that version is **`0.41.0`**.
+:::
 
 :::steps
-
-### Repo structure and `drizzle-orm` version
-
-In either repository structure, it is important to make sure the `drizzle-orm` version used is the same as the one used by `ponder`. Currently, that version is **`0.41.0`**.
 
 ### Define `ponder.schema.ts`
 
@@ -43,7 +43,7 @@ export const transferEvent = onchainTable("transfer_event", (t) => ({
 
 ### Define the schema for the offchain data
 
-This file will be used to generate migrations for offchain data.
+Next, create a schema definition file for the offchain data.
 
 ```ts [offchain.ts]
 import { json, numeric, pgSchema } from "drizzle-orm/pg-core";
@@ -67,7 +67,7 @@ In a separate file, combine the onchain and offchain schemas including any relat
 ```ts [schema.ts]
 import { setDatabaseSchema } from "@ponder/client";
 import { relations } from "drizzle-orm";
-import * as ponderSchema from "../../ponder/ponder.schema";
+import * as ponderSchema from "./ponder.schema";
 import * as offchainSchema from "./offchain";
 
 setDatabaseSchema(ponderSchema, "prod");
@@ -115,7 +115,7 @@ console.log(result);
 ```ts [api/index.ts]
 import { Hono } from "hono";
 import { db } from "ponder:api";
-import * as offchainSchema from "../../../offchain/src/offchain";
+import * as offchainSchema from "../../offchain";
 
 const app = new Hono();
 
