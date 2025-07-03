@@ -104,7 +104,7 @@ export const createRealtimeIndexingStore = ({
 
                 if (typeof valuesU === "object") {
                   try {
-                    const set = validateUpdateSet(table, valuesU);
+                    const set = validateUpdateSet(table, valuesU, null);
                     return await database.qb.drizzle
                       .insert(table)
                       .values(values)
@@ -141,7 +141,7 @@ export const createRealtimeIndexingStore = ({
                       }
                     } else {
                       try {
-                        const set = validateUpdateSet(table, valuesU(row));
+                        const set = validateUpdateSet(table, valuesU(row), row);
                         rows.push(
                           await database.qb.drizzle
                             .update(table)
@@ -171,7 +171,7 @@ export const createRealtimeIndexingStore = ({
                     }
                   } else {
                     try {
-                      const set = validateUpdateSet(table, valuesU(row));
+                      const set = validateUpdateSet(table, valuesU(row), row);
                       return await database.qb.drizzle
                         .update(table)
                         .set(set)
@@ -235,9 +235,8 @@ export const createRealtimeIndexingStore = ({
             });
             checkOnchainTable(table, "update");
 
+            const row = await find(table, key);
             if (typeof values === "function") {
-              const row = await find(table, key);
-
               if (row === null) {
                 const error = new RecordNotFoundError(
                   `No existing record found in table '${getTableName(table)}'`,
@@ -247,7 +246,7 @@ export const createRealtimeIndexingStore = ({
               }
 
               try {
-                const set = validateUpdateSet(table, values(row));
+                const set = validateUpdateSet(table, values(row), row);
                 return await database.qb.drizzle
                   .update(table)
                   .set(set)
@@ -259,7 +258,7 @@ export const createRealtimeIndexingStore = ({
               }
             } else {
               try {
-                const set = validateUpdateSet(table, values);
+                const set = validateUpdateSet(table, values, row);
                 return await database.qb.drizzle
                   .update(table)
                   .set(set)
