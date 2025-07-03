@@ -50,7 +50,7 @@ export const validateUpdateSet = (
   for (const { js } of primaryKeys) {
     if (js in set) {
       // Note: Strip of the primary keys if they are identical, otherwise throw an error.
-      if (prev !== null && (set as Row)[js] === prev[js]) {
+      if (prev !== null && newSet[js] === prev[js]) {
         delete newSet[js];
       } else {
         throw new NonRetryableError(
