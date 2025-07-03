@@ -271,6 +271,8 @@ export const createSyncStore = ({
     await database.wrap(
       { method: "insertChildAddresses", includeTraceLogs: true },
       async () => {
+        const { id, ..._factory } = factory;
+
         const batchSize = Math.floor(
           common.options.databaseMaxQueryParameters / 3,
         );
@@ -281,7 +283,7 @@ export const createSyncStore = ({
         const factoryInsert = database.qb.sync.$with("factory_insert").as(
           database.qb.sync
             .insert(ponderSyncSchema.factories)
-            .values({ factory })
+            .values({ factory: _factory })
             // @ts-expect-error bug with drizzle-orm
             .returning({ id: ponderSyncSchema.factories.id })
             .onConflictDoUpdate({
@@ -313,10 +315,12 @@ export const createSyncStore = ({
     database.wrap(
       { method: "getChildAddresses", includeTraceLogs: true },
       () => {
+        const { id, ..._factory } = factory;
+
         const factoryInsert = database.qb.sync.$with("factory_insert").as(
           database.qb.sync
             .insert(ponderSyncSchema.factories)
-            .values({ factory })
+            .values({ factory: _factory })
             // @ts-expect-error bug with drizzle-orm
             .returning({ id: ponderSyncSchema.factories.id })
             .onConflictDoUpdate({

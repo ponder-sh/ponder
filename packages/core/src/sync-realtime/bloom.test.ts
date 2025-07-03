@@ -107,6 +107,7 @@ test("isFilterInBloom returns true for factory with new child address", () => {
     type: "log",
     chainId: 1,
     address: {
+      id: `log_${"0xef2d6d194084c2de36e0dabfce45d046b37d1106"}_${1}_topic${1}_${"0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc"}_${"undefined"}_${"undefined"}`,
       type: "log",
       chainId: 1,
       address: "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
@@ -139,6 +140,7 @@ test("isFilterInBloom returns true for factory without new child address", () =>
     type: "log",
     chainId: 1,
     address: {
+      id: `log_${"0xef2d6d194084c2de36e0dabfce45d046b37d1106"}_${1}_topic${1}_${"0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc"}_${"undefined"}_${"undefined"}`,
       type: "log",
       chainId: 1,
       address: "0xef2d6d194084c2de36e0dabfce45d046b37d1106",

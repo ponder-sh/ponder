@@ -4,6 +4,7 @@ import type {
   CrashRecoveryCheckpoint,
   Event,
   Factory,
+  FactoryId,
   Filter,
   IndexingBuild,
   LightBlock,
@@ -255,7 +256,7 @@ export const createSync = async (params: {
       syncProgress: SyncProgress;
       historicalSync: HistoricalSync;
       realtimeSync: RealtimeSync | undefined;
-      childAddresses: Map<Factory, Map<Address, number>>;
+      childAddresses: Map<FactoryId, Map<Address, number>>;
     }
   >();
 
@@ -811,7 +812,7 @@ export const createSync = async (params: {
         });
       }
 
-      const childAddresses: Map<Factory, Map<Address, number>> = new Map();
+      const childAddresses: Map<FactoryId, Map<Address, number>> = new Map();
       for (const source of sources) {
         switch (source.filter.type) {
           case "log":
@@ -819,7 +820,7 @@ export const createSync = async (params: {
               const _childAddresses = await params.syncStore.getChildAddresses({
                 factory: source.filter.address,
               });
-              childAddresses.set(source.filter.address, _childAddresses);
+              childAddresses.set(source.filter.address.id, _childAddresses);
             }
             break;
           case "transaction":
@@ -829,14 +830,14 @@ export const createSync = async (params: {
               const _childAddresses = await params.syncStore.getChildAddresses({
                 factory: source.filter.fromAddress,
               });
-              childAddresses.set(source.filter.fromAddress, _childAddresses);
+              childAddresses.set(source.filter.fromAddress.id, _childAddresses);
             }
 
             if (isAddressFactory(source.filter.toAddress)) {
               const _childAddresses = await params.syncStore.getChildAddresses({
                 factory: source.filter.toAddress,
               });
-              childAddresses.set(source.filter.toAddress, _childAddresses);
+              childAddresses.set(source.filter.toAddress.id, _childAddresses);
             }
 
             break;
@@ -1245,7 +1246,7 @@ export async function* getLocalEventGenerator(params: {
   syncStore: SyncStore;
   sources: Source[];
   localSyncGenerator: AsyncGenerator<number>;
-  childAddresses: Map<Factory, Map<Address, number>>;
+  childAddresses: Map<FactoryId, Map<Address, number>>;
   from: string;
   to: string;
   limit: number;

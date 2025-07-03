@@ -349,7 +349,7 @@ test("handleBlock() block event with log factory", async (context) => {
     onEvent,
     onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
-    initialChildAddresses: new Map([[filter.address, new Map()]]),
+    initialChildAddresses: new Map([[filter.address.id, new Map()]]),
   });
 
   let block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
@@ -388,6 +388,7 @@ test("handleBlock() block event with log factory", async (context) => {
         "childAddressLocation": "topic1",
         "eventSelector": "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
         "fromBlock": undefined,
+        "id": "log_0x5fbdb2315678afecb367f032d93f642f64180aa3_1_topic1_0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137_undefined_undefined",
         "toBlock": undefined,
         "type": "log",
       } => Set {
@@ -403,6 +404,7 @@ test("handleBlock() block event with log factory", async (context) => {
         "childAddressLocation": "topic1",
         "eventSelector": "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
         "fromBlock": undefined,
+        "id": "log_0x5fbdb2315678afecb367f032d93f642f64180aa3_1_topic1_0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137_undefined_undefined",
         "toBlock": undefined,
         "type": "log",
       } => Set {},
