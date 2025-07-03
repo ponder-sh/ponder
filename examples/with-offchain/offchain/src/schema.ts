@@ -7,7 +7,7 @@ import * as offchainSchema from "./offchain";
 // "ponder.schema" can't be executed by drizzle-kit, and we also
 // don't want drizzle to generate migrations for onchain tables.
 
-// Note: `_ponderSchema` doesn't have information about which database schema
+// Note: `ponderSchema` doesn't have information about which database schema
 // to use, so we need to set it with the `setDatabaseSchema` function.
 
 setDatabaseSchema(ponderSchema, "prod");
