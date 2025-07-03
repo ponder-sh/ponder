@@ -54,10 +54,11 @@ This function mutates a Drizzle schema such that any queries built using that sc
 :::code-group
 
 ```ts [Drizzle]
+import { setDatabaseSchema } from "@ponder/client"; // [!code focus]
 import { drizzle } from "drizzle-orm/node-postgres";
-import * as schema_ from "../../ponder/ponder.schema"; // [!code focus]
+import * as schema from "../../ponder/ponder.schema"; // [!code focus]
 
-const schema = setDatabaseSchema(schema_, "target_schema"); // [!code focus]
+setDatabaseSchema(schema, "target_schema"); // [!code focus]
 
 const db = drizzle(process.env.DATABASE_URL, { schema, casing: "snake_case" });
 

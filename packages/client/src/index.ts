@@ -1,5 +1,10 @@
-import type { QueryWithTypings, SQLWrapper } from "drizzle-orm";
-import type { PgDialect } from "drizzle-orm/pg-core";
+import {
+  type QueryWithTypings,
+  type SQLWrapper,
+  Table,
+  isTable,
+} from "drizzle-orm";
+import { type PgDialect, isPgEnum } from "drizzle-orm/pg-core";
 import { type PgRemoteDatabase, drizzle } from "drizzle-orm/pg-proxy";
 import { EventSource } from "eventsource";
 import superjson from "superjson";
@@ -104,7 +109,7 @@ export const compileQuery = (query: SQLWrapper) => {
  */
 export const createClient = <schema extends Schema>(
   baseUrl: string,
-  { schema }: { schema: schema },
+  params: { schema?: schema } = {},
 ): Client<schema> => {
   let sse: EventSource | undefined;
   let liveCount = 0;
@@ -130,7 +135,7 @@ export const createClient = <schema extends Schema>(
           rows: result.rows.map((row: object) => Object.values(row)),
         };
       },
-      { schema, casing: "snake_case" },
+      { schema: params.schema, casing: "snake_case" },
     ),
     live: (queryFn, onData, onError) => {
       if (sse === undefined) {
@@ -218,3 +223,18 @@ export {
   except,
   exceptAll,
 } from "drizzle-orm/pg-core";
+
+export const setDatabaseSchema = <T extends { [name: string]: unknown }>(
+  schema: T,
+  schemaName: string,
+) => {
+  for (const table of Object.values(schema)) {
+    if (isTable(table)) {
+      // @ts-ignore
+      table[Table.Symbol.Schema] = schemaName;
+    } else if (isPgEnum(table)) {
+      // @ts-ignore
+      table.schema = schemaName;
+    }
+  }
+};
