@@ -365,6 +365,8 @@ export const createSync = async (params: {
             }
           }
 
+          // Removes events that have a checkpoint earlier than (or equal to)
+          // the crash recovery checkpoint.
           async function* sortCrashRecoveryEvents(
             eventGenerator: AsyncGenerator<{
               events: Event[];
@@ -372,12 +374,10 @@ export const createSync = async (params: {
             }>,
           ) {
             for await (const { events, checkpoint } of eventGenerator) {
-              // Sort out any events before the crash recovery checkpoint
-
               if (
                 crashRecoveryCheckpoint &&
                 events.length > 0 &&
-                events[0]!.checkpoint < crashRecoveryCheckpoint
+                events[0]!.checkpoint <= crashRecoveryCheckpoint
               ) {
                 const [, right] = partition(
                   events,
