@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.25
+
+### Patch Changes
+
+- [#1872](https://github.com/ponder-sh/ponder/pull/1872) [`9e5b516`](https://github.com/ponder-sh/ponder/commit/9e5b51685c5ee84ca157f3d44239b3fd4d861d89) Thanks [@typedarray](https://github.com/typedarray)! - Fixed a bug that caused duplicate events after crash recovery for apps with high event density.
+
 ## 0.11.24
 
 ### Patch Changes
