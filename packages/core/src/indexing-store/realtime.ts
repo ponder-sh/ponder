@@ -1,5 +1,4 @@
 import type { Database } from "@/database/index.js";
-import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import type { Common } from "@/internal/common.js";
 import { RecordNotFoundError } from "@/internal/errors.js";
 import type { SchemaBuild } from "@/internal/types.js";
@@ -102,37 +101,22 @@ export const createRealtimeIndexingStore = ({
                 });
                 checkOnchainTable(table, "insert");
 
-                if (typeof valuesU === "object") {
-                  try {
-                    const set = validateUpdateSet(table, valuesU, null);
-                    return await database.qb.drizzle
-                      .insert(table)
-                      .values(values)
-                      .onConflictDoUpdate({
-                        target: getPrimaryKeyColumns(table).map(
-                          // @ts-ignore
-                          ({ js }) => table[js],
-                        ),
-                        set,
-                      })
-                      .returning()
-                      .then((res) => (Array.isArray(values) ? res : res[0]));
-                  } catch (e) {
-                    throw parseSqlError(e);
-                  }
-                }
-
                 if (Array.isArray(values)) {
                   const rows = [];
                   for (const value of values) {
                     const row = await find(table, value);
 
-                    if (row === null) {
+                    if (row) {
+                      const set =
+                        typeof valuesU === "function"
+                          ? validateUpdateSet(table, valuesU(row), row)
+                          : validateUpdateSet(table, valuesU, row);
                       try {
                         rows.push(
                           await database.qb.drizzle
-                            .insert(table)
-                            .values(value)
+                            .update(table)
+                            .set(set)
+                            .where(getWhereCondition(table, value))
                             .returning()
                             .then((res) => res[0]),
                         );
@@ -141,12 +125,10 @@ export const createRealtimeIndexingStore = ({
                       }
                     } else {
                       try {
-                        const set = validateUpdateSet(table, valuesU(row), row);
                         rows.push(
                           await database.qb.drizzle
-                            .update(table)
-                            .set(set)
-                            .where(getWhereCondition(table, value))
+                            .insert(table)
+                            .values(value)
                             .returning()
                             .then((res) => res[0]),
                         );
@@ -159,19 +141,12 @@ export const createRealtimeIndexingStore = ({
                 } else {
                   const row = await find(table, values);
 
-                  if (row === null) {
+                  if (row) {
+                    const set =
+                      typeof valuesU === "function"
+                        ? validateUpdateSet(table, valuesU(row), row)
+                        : validateUpdateSet(table, valuesU, row);
                     try {
-                      return await database.qb.drizzle
-                        .insert(table)
-                        .values(values)
-                        .returning()
-                        .then((res) => res[0]);
-                    } catch (e) {
-                      throw parseSqlError(e);
-                    }
-                  } else {
-                    try {
-                      const set = validateUpdateSet(table, valuesU(row), row);
                       return await database.qb.drizzle
                         .update(table)
                         .set(set)
@@ -181,8 +156,80 @@ export const createRealtimeIndexingStore = ({
                     } catch (e) {
                       throw parseSqlError(e);
                     }
+                  } else {
+                    try {
+                      return await database.qb.drizzle
+                        .insert(table)
+                        .values(values)
+                        .returning()
+                        .then((res) => res[0]);
+                    } catch (e) {
+                      throw parseSqlError(e);
+                    }
                   }
                 }
+
+                // if (Array.isArray(values)) {
+                //   const rows = [];
+                //   for (const value of values) {
+                //     const row = await find(table, value);
+
+                //     if (row === null) {
+                //       try {
+                //         rows.push(
+                //           await database.qb.drizzle
+                //             .insert(table)
+                //             .values(value)
+                //             .returning()
+                //             .then((res) => res[0]),
+                //         );
+                //       } catch (e) {
+                //         throw parseSqlError(e);
+                //       }
+                //     } else {
+                //       try {
+                //         const set = validateUpdateSet(table, valuesU(row), row);
+                //         rows.push(
+                //           await database.qb.drizzle
+                //             .update(table)
+                //             .set(set)
+                //             .where(getWhereCondition(table, value))
+                //             .returning()
+                //             .then((res) => res[0]),
+                //         );
+                //       } catch (e) {
+                //         throw parseSqlError(e);
+                //       }
+                //     }
+                //   }
+                //   return rows;
+                // } else {
+                //   const row = await find(table, values);
+
+                //   if (row === null) {
+                //     try {
+                //       return await database.qb.drizzle
+                //         .insert(table)
+                //         .values(values)
+                //         .returning()
+                //         .then((res) => res[0]);
+                //     } catch (e) {
+                //       throw parseSqlError(e);
+                //     }
+                //   } else {
+                //     try {
+                //       const set = validateUpdateSet(table, valuesU(row), row);
+                //       return await database.qb.drizzle
+                //         .update(table)
+                //         .set(set)
+                //         .where(getWhereCondition(table, values))
+                //         .returning()
+                //         .then((res) => res[0]);
+                //     } catch (e) {
+                //       throw parseSqlError(e);
+                //     }
+                //   }
+                // }
               }),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
             then: (onFulfilled, onRejected) =>
@@ -258,7 +305,7 @@ export const createRealtimeIndexingStore = ({
               }
             } else {
               try {
-                const set = validateUpdateSet(table, values, row);
+                const set = validateUpdateSet(table, values, row!);
                 return await database.qb.drizzle
                   .update(table)
                   .set(set)

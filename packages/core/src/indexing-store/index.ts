@@ -42,14 +42,14 @@ export const parseSqlError = (e: any): Error => {
 export const validateUpdateSet = (
   table: Table,
   set: Object,
-  prev: Row | null,
+  prev: Row,
 ): Object => {
   const primaryKeys = getPrimaryKeyColumns(table);
 
   for (const { js } of primaryKeys) {
     if (js in set) {
       // Note: Noop on the primary keys if they are identical, otherwise throw an error.
-      if (prev === null || (set as Row)[js] !== prev[js]) {
+      if ((set as Row)[js] !== prev[js]) {
         throw new NonRetryableError(
           `Primary key column '${js}' cannot be updated`,
         );
