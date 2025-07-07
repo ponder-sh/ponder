@@ -45,14 +45,11 @@ export const validateUpdateSet = (
   prev: Row | null,
 ): Object => {
   const primaryKeys = getPrimaryKeyColumns(table);
-  const newSet = { ...set } as Row;
 
   for (const { js } of primaryKeys) {
     if (js in set) {
-      // Note: Strip off the primary keys if they are identical, otherwise throw an error.
-      if (prev !== null && newSet[js] === prev[js]) {
-        delete newSet[js];
-      } else {
+      // Note: Noop on the primary keys if they are identical, otherwise throw an error.
+      if (prev === null || (set as Row)[js] !== prev[js]) {
         throw new NonRetryableError(
           `Primary key column '${js}' cannot be updated`,
         );
@@ -60,7 +57,7 @@ export const validateUpdateSet = (
     }
   }
 
-  return newSet;
+  return set;
 };
 
 /** Throw an error if `table` is not an `onchainTable`. */

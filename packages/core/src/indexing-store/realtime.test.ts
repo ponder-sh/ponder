@@ -243,6 +243,16 @@ test("insert", async (context) => {
     address: "0x0000000000000000000000000000000000000002",
     balance: 64n,
   });
+
+  await indexingStore
+    .insert(schema.account)
+    .values([
+      { address: "0x0000000000000000000000000000000000000001", balance: 44n },
+      { address: "0x0000000000000000000000000000000000000002", balance: 0n },
+    ])
+    .onConflictDoUpdate({
+      balance: 64n,
+    });
 });
 
 test("update", async (context) => {
@@ -307,6 +317,24 @@ test("update", async (context) => {
   expect(result).toStrictEqual({
     address: zeroAddress,
     balance: 22n,
+  });
+
+  result = await indexingStore
+    .update(schema.account, { address: zeroAddress })
+    .set((row) => ({ ...row, balance: row.balance + 10n }));
+
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    balance: 32n,
+  });
+
+  result = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(result).toStrictEqual({
+    address: zeroAddress,
+    balance: 32n,
   });
 });
 
