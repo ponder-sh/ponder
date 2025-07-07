@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.26
+
+### Patch Changes
+
+- [#1868](https://github.com/ponder-sh/ponder/pull/1868) [`6d9bcb7`](https://github.com/ponder-sh/ponder/commit/6d9bcb7ce0f9f872ae937c99305589b7c24db248) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Introduced factoryId which is used for child addresses tracking
+
 ## 0.11.25
 
 ### Patch Changes

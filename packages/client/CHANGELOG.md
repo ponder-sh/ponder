@@ -1,5 +1,13 @@
 # @ponder/client
 
+## 0.11.26
+
+### Patch Changes
+
+- [#1867](https://github.com/ponder-sh/ponder/pull/1867) [`e2fd8e7`](https://github.com/ponder-sh/ponder/commit/e2fd8e7892899335ffd745ff2c56fdb4d68c5b34) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated `schema` parameter in `createClient` to be optional.
+
+- [#1867](https://github.com/ponder-sh/ponder/pull/1867) [`e2fd8e7`](https://github.com/ponder-sh/ponder/commit/e2fd8e7892899335ffd745ff2c56fdb4d68c5b34) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `setDatabaseSchema` function to setting schema for drizzle tables, enums, and relations.
+
 ## 0.11.25
 
 ## 0.11.24
