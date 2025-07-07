@@ -153,6 +153,8 @@ const getAddressCondition = <
   if (isFragmentAddressFactory(fragmentAddress)) {
     if (filterAddress === undefined) return sql`true`;
 
+    const { id: _, ...matchedFilterAddress } = filterAddress as Factory;
+
     return inArray(
       addressColumn,
       appDb
@@ -167,7 +169,10 @@ const getAddressCondition = <
                 .select({ id: PONDER_SYNC.factories.id })
                 .from(PONDER_SYNC.factories)
                 .where(
-                  eq(PONDER_SYNC.factories.factory, filterAddress as Factory),
+                  eq(
+                    PONDER_SYNC.factories.factory,
+                    matchedFilterAddress as Factory,
+                  ),
                 ),
             ),
           ),
