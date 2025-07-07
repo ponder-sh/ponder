@@ -2,7 +2,7 @@ import type { Common } from "@/internal/common.js";
 import type {
   BlockFilter,
   Event,
-  Factory,
+  FactoryId,
   InternalBlock,
   InternalLog,
   InternalTrace,
@@ -64,7 +64,7 @@ export const buildEvents = ({
     transactionReceipts: InternalTransactionReceipt[];
     traces: InternalTrace[];
   };
-  childAddresses: Map<Factory, Map<Address, number>>;
+  childAddresses: Map<FactoryId, Map<Address, number>>;
   chainId: number;
 }) => {
   const events: RawEvent[] = [];
@@ -96,7 +96,7 @@ export const buildEvents = ({
                   ? isAddressMatched({
                       address: log.address,
                       blockNumber: Number(block.number),
-                      childAddresses: childAddresses.get(filter.address)!,
+                      childAddresses: childAddresses.get(filter.address.id)!,
                     })
                   : true)
               ) {
@@ -140,14 +140,16 @@ export const buildEvents = ({
                   ? isAddressMatched({
                       address: trace.from,
                       blockNumber: Number(block.number),
-                      childAddresses: childAddresses.get(filter.fromAddress)!,
+                      childAddresses: childAddresses.get(
+                        filter.fromAddress.id,
+                      )!,
                     })
                   : true) &&
                 (isAddressFactory(filter.toAddress)
                   ? isAddressMatched({
                       address: trace.to ?? undefined,
                       blockNumber: Number(block.number),
-                      childAddresses: childAddresses.get(filter.toAddress)!,
+                      childAddresses: childAddresses.get(filter.toAddress.id)!,
                     })
                   : true) &&
                 (filter.callType === undefined
@@ -201,14 +203,16 @@ export const buildEvents = ({
                   ? isAddressMatched({
                       address: transaction.from,
                       blockNumber: Number(block.number),
-                      childAddresses: childAddresses.get(filter.fromAddress)!,
+                      childAddresses: childAddresses.get(
+                        filter.fromAddress.id,
+                      )!,
                     })
                   : true) &&
                 (isAddressFactory(filter.toAddress)
                   ? isAddressMatched({
                       address: transaction.to ?? undefined,
                       blockNumber: Number(block.number),
-                      childAddresses: childAddresses.get(filter.toAddress)!,
+                      childAddresses: childAddresses.get(filter.toAddress.id)!,
                     })
                   : true) &&
                 (filter.includeReverted
@@ -252,14 +256,16 @@ export const buildEvents = ({
                   ? isAddressMatched({
                       address: trace.from,
                       blockNumber: Number(block.number),
-                      childAddresses: childAddresses.get(filter.fromAddress)!,
+                      childAddresses: childAddresses.get(
+                        filter.fromAddress.id,
+                      )!,
                     })
                   : true) &&
                 (isAddressFactory(filter.toAddress)
                   ? isAddressMatched({
                       address: trace.to ?? undefined,
                       blockNumber: Number(block.number),
-                      childAddresses: childAddresses.get(filter.toAddress)!,
+                      childAddresses: childAddresses.get(filter.toAddress.id)!,
                     })
                   : true) &&
                 (filter.includeReverted ? true : trace.error === undefined)

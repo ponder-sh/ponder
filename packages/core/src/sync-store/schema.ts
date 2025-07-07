@@ -213,7 +213,7 @@ export const factories = PONDER_SYNC.table(
   "factories",
   (t) => ({
     id: t.integer().primaryKey().generatedAlwaysAsIdentity(),
-    factory: t.jsonb().$type<Factory>().notNull(),
+    factory: t.jsonb().$type<Omit<Factory, "id">>().notNull(),
   }),
   (table) => [
     index("factories_factory_idx").on(table.factory),

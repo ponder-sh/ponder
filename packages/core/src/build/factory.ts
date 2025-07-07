@@ -34,6 +34,7 @@ export function buildLogFactory({
 
   if (indexedInputPosition > -1) {
     return {
+      id: `log_${Array.isArray(address) ? address.join("_") : address}_${chainId}_topic${(indexedInputPosition + 1) as 1 | 2 | 3}_${eventSelector}_${fromBlock ?? "undefined"}_${toBlock ?? "undefined"}`,
       type: "log",
       chainId,
       address,
@@ -66,6 +67,7 @@ export function buildLogFactory({
   }
 
   return {
+    id: `log_${Array.isArray(address) ? address.join("_") : address}_${chainId}_offset${offset}_${eventSelector}_${fromBlock ?? "undefined"}_${toBlock ?? "undefined"}`,
     type: "log",
     chainId,
     address,
