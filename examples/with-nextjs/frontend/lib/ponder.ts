@@ -12,6 +12,23 @@ const depositsQueryOptions = getPonderQueryOptions(client, (db) =>
     .limit(10),
 );
 
+const infiniteDepositsQueryOptions = (limit: number, page = 0) => {
+  return getPonderQueryOptions(client, (db) =>
+    db
+      .select()
+      .from(schema.depositEvent)
+      .orderBy(desc(schema.depositEvent.timestamp))
+      .limit(limit)
+      .offset(page * limit),
+  );
+};
+
 type Deposits = Awaited<ReturnType<typeof depositsQueryOptions.queryFn>>;
 
-export { client, schema, depositsQueryOptions, type Deposits };
+export {
+  client,
+  schema,
+  depositsQueryOptions,
+  infiniteDepositsQueryOptions,
+  type Deposits,
+};
