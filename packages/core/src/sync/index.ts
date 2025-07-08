@@ -68,6 +68,7 @@ import {
   syncTransactionToInternal,
 } from "./events.js";
 import { isAddressFactory } from "./filter.js";
+import { initGenerator, initSyncProgress } from "./init.js";
 
 export type Sync = {
   getEvents(): EventGenerator;
@@ -415,66 +416,76 @@ export const createSync = async (params: {
             }
           }
 
-          const localSyncGenerator = getLocalSyncGenerator({
-            common: params.common,
-            chain,
-            syncProgress,
-            historicalSync,
-          });
-
-          // In order to speed up the "extract" phase when there is a crash recovery,
-          // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
-          // is defined.
-          let from: string;
-          if (crashRecoveryCheckpoint === undefined) {
-            from = getMultichainCheckpoint({ tag: "start", chain });
-          } else if (
-            Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) ===
-            chain.id
-          ) {
-            from = crashRecoveryCheckpoint;
-          } else {
-            const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
-              chainId: chain.id,
-              timestamp: Number(
-                decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
-              ),
+          const getLocalGenerator = async () => {
+            const localSyncGenerator = getLocalSyncGenerator({
+              common: params.common,
+              chain,
+              syncProgress,
+              historicalSync,
             });
 
-            if (fromBlock === undefined) {
+            // In order to speed up the "extract" phase when there is a crash recovery,
+            // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
+            // is defined.
+            let from: string;
+            if (crashRecoveryCheckpoint === undefined) {
               from = getMultichainCheckpoint({ tag: "start", chain });
+            } else if (
+              Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) ===
+              chain.id
+            ) {
+              from = crashRecoveryCheckpoint;
             } else {
-              from = encodeCheckpoint({
-                ...ZERO_CHECKPOINT,
-                blockNumber: fromBlock.number,
-                blockTimestamp: fromBlock.timestamp,
-                chainId: BigInt(chain.id),
-              });
+              const fromBlock =
+                await params.syncStore.getSafeCrashRecoveryBlock({
+                  chainId: chain.id,
+                  timestamp: Number(
+                    decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
+                  ),
+                });
+
+              if (fromBlock === undefined) {
+                from = getMultichainCheckpoint({ tag: "start", chain });
+              } else {
+                from = encodeCheckpoint({
+                  ...ZERO_CHECKPOINT,
+                  blockNumber: fromBlock.number,
+                  blockTimestamp: fromBlock.timestamp,
+                  chainId: BigInt(chain.id),
+                });
+              }
             }
-          }
 
-          const localEventGenerator = getLocalEventGenerator({
+            return getLocalEventGenerator({
+              common: params.common,
+              chain,
+              syncStore: params.syncStore,
+              sources,
+              localSyncGenerator,
+              childAddresses,
+              from,
+              to: min(
+                getMultichainCheckpoint({ tag: "finalized", chain }),
+                getMultichainCheckpoint({ tag: "end", chain }),
+              ),
+              limit:
+                Math.round(
+                  params.common.options.syncEventsQuerySize /
+                    (params.indexingBuild.chains.length + 1),
+                ) + 6,
+            });
+          };
+
+          return await initGenerator({
             common: params.common,
+            indexingBuild: params.indexingBuild,
             chain,
-            syncStore: params.syncStore,
-            sources,
-            localSyncGenerator,
-            childAddresses,
-            from,
-            to: min(
-              getMultichainCheckpoint({ tag: "finalized", chain }),
-              getMultichainCheckpoint({ tag: "end", chain }),
-            ),
-            limit:
-              Math.round(
-                params.common.options.syncEventsQuerySize /
-                  (params.indexingBuild.chains.length + 1),
-              ) + 6,
+            syncProgress,
+            getLocalGenerator,
+            decodeEventGenerator,
+            sortCrashRecoveryEvents,
+            sortCompletedAndPendingEvents,
           });
-
-          return sortCompletedAndPendingEvents(
-            sortCrashRecoveryEvents(decodeEventGenerator(localEventGenerator)),
-          );
         },
       ),
     );
@@ -854,13 +865,13 @@ export const createSync = async (params: {
         onFatalError: params.onFatalError,
       });
 
-      const syncProgress = await getLocalSyncProgress({
+      const syncProgress = await initSyncProgress({
         common: params.common,
         chain,
         sources,
         rpc,
         finalizedBlock,
-        intervalsCache: historicalSync.intervalsCache,
+        historicalSync,
       });
 
       params.common.metrics.ponder_sync_is_realtime.set(
