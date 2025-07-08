@@ -114,13 +114,13 @@ export const createHistoricalIndexingStore = ({
 
                   if (row) {
                     if (typeof valuesU === "function") {
-                      const set = validateUpdateSet(table, valuesU(row));
+                      const set = validateUpdateSet(table, valuesU(row), row);
                       for (const [key, value] of Object.entries(set)) {
                         if (value === undefined) continue;
                         row[key] = value;
                       }
                     } else {
-                      const set = validateUpdateSet(table, valuesU);
+                      const set = validateUpdateSet(table, valuesU, row);
                       for (const [key, value] of Object.entries(set)) {
                         if (value === undefined) continue;
                         row[key] = value;
@@ -151,13 +151,13 @@ export const createHistoricalIndexingStore = ({
 
                 if (row) {
                   if (typeof valuesU === "function") {
-                    const set = validateUpdateSet(table, valuesU(row));
+                    const set = validateUpdateSet(table, valuesU(row), row);
                     for (const [key, value] of Object.entries(set)) {
                       if (value === undefined) continue;
                       row[key] = value;
                     }
                   } else {
-                    const set = validateUpdateSet(table, valuesU);
+                    const set = validateUpdateSet(table, valuesU, row);
                     for (const [key, value] of Object.entries(set)) {
                       if (value === undefined) continue;
                       row[key] = value;
@@ -256,13 +256,13 @@ export const createHistoricalIndexingStore = ({
           }
 
           if (typeof values === "function") {
-            const set = validateUpdateSet(table, values(row));
+            const set = validateUpdateSet(table, values(row), row);
             for (const [key, value] of Object.entries(set)) {
               if (value === undefined) continue;
               row[key] = value;
             }
           } else {
-            const set = validateUpdateSet(table, values);
+            const set = validateUpdateSet(table, values, row);
             for (const [key, value] of Object.entries(set)) {
               if (value === undefined) continue;
               row[key] = value;
