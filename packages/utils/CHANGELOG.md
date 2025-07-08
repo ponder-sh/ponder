@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.2.9
+
+### Patch Changes
+
+- [#1876](https://github.com/ponder-sh/ponder/pull/1876) [`9d9c4b9`](https://github.com/ponder-sh/ponder/commit/9d9c4b9ca8516388874a246d7b9d179ab0fd861f) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed moonriver eth_getLogs error handling.
+
 ## 0.2.8
 
 ### Patch Changes
