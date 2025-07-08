@@ -36,7 +36,7 @@ jobs:
         run: |
           cd integration-test
           SEED=$(openssl rand -hex 32)
-          UUID=$(uuidgen)
+          UUID=$(cat /proc/sys/kernel/random/uuid)
           pnpm test ${{ matrix.app_id }} -- --log-level warn
         env:
           DATABASE_URL: ${{ secrets.TEST_CONNECTION_STRING }}
