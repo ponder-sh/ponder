@@ -8,7 +8,7 @@ on:
 jobs:
   integration-test:
     name: Integration Test
-    runs-on: self-hosted
+    runs-on: default
     timeout-minutes: 30
     strategy:
       fail-fast: false
