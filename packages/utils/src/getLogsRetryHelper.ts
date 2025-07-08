@@ -47,15 +47,13 @@ export const getLogsRetryHelper = ({
   if (match !== null) {
     const ranges = chunk({ params, range: BigInt(match[3]!) - 1n });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // Cloudflare
@@ -63,15 +61,13 @@ export const getLogsRetryHelper = ({
   if (match !== null) {
     const ranges = chunk({ params, range: BigInt(match[1]!) - 1n });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // thirdweb
@@ -82,15 +78,13 @@ export const getLogsRetryHelper = ({
       range: BigInt(match[1]!),
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // infura, zksync
@@ -104,15 +98,13 @@ export const getLogsRetryHelper = ({
 
     const ranges = chunk({ params, range });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // ankr
@@ -120,15 +112,13 @@ export const getLogsRetryHelper = ({
   if (match !== null && error.code === -32600) {
     const ranges = chunk({ params, range: 3000n });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // alchemy
@@ -142,15 +132,13 @@ export const getLogsRetryHelper = ({
 
     const ranges = chunk({ params, range });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // quicknode, 1rpc, blast
@@ -161,15 +149,13 @@ export const getLogsRetryHelper = ({
       range: BigInt(match[1]!.replace(/[,.]/g, "")),
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      isSuggestedRange: true,
-      ranges,
-    } as const;
   }
 
   // blockpi
@@ -180,15 +166,13 @@ export const getLogsRetryHelper = ({
       range: BigInt(match[1]!.replace(/[,.]/g, "")),
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // 1rpc
@@ -201,15 +185,13 @@ export const getLogsRetryHelper = ({
         2n,
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: false,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: false,
-    } as const;
   }
 
   // zkevm
@@ -222,15 +204,13 @@ export const getLogsRetryHelper = ({
         2n,
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: false,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: false,
-    } as const;
   }
 
   // llamarpc, ankr
@@ -243,15 +223,13 @@ export const getLogsRetryHelper = ({
         2n,
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: false,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: false,
-    } as const;
   }
 
   // optimism
@@ -264,15 +242,13 @@ export const getLogsRetryHelper = ({
         2n,
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: false,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: false,
-    } as const;
   }
 
   // optimism (new as of 11/25/24)
@@ -285,15 +261,13 @@ export const getLogsRetryHelper = ({
         2n,
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: false,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: false,
-    } as const;
   }
 
   // base
@@ -304,15 +278,13 @@ export const getLogsRetryHelper = ({
       range: 2_000n,
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: false,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // base
@@ -325,15 +297,13 @@ export const getLogsRetryHelper = ({
         2n,
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: false,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      isSuggestedRange: false,
-      ranges,
-    } as const;
   }
 
   // arbitrum
@@ -346,15 +316,13 @@ export const getLogsRetryHelper = ({
         2n,
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: false,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: false,
-    } as const;
   }
 
   // blast (paid)
@@ -364,15 +332,13 @@ export const getLogsRetryHelper = ({
   if (match !== null) {
     const ranges = chunk({ params, range: BigInt(match[1]!) });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: false,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // chainstack
@@ -387,15 +353,13 @@ export const getLogsRetryHelper = ({
         ? chunk({ params, range: 100n })
         : chunk({ params, range: 10_000n });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // coinbase
@@ -406,15 +370,13 @@ export const getLogsRetryHelper = ({
       range: BigInt(match[1]!.replace(/[,.]/g, "")) - 1n,
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // publicnode
@@ -425,15 +387,13 @@ export const getLogsRetryHelper = ({
       range: BigInt(match[1]!.replace(/[,.]/g, "")),
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // hyperliquid
@@ -444,15 +404,13 @@ export const getLogsRetryHelper = ({
       range: BigInt(match[1]!.replace(/[,.]/g, "")),
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // swell
@@ -463,15 +421,13 @@ export const getLogsRetryHelper = ({
       range: BigInt(match[1]!.replace(/[,.]/g, "")),
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // somnia
@@ -482,15 +438,13 @@ export const getLogsRetryHelper = ({
       range: BigInt(match[1]!.replace(/[,.]/g, "")),
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // merkle
@@ -501,15 +455,13 @@ export const getLogsRetryHelper = ({
       range: 10_000n,
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // harmony
@@ -520,34 +472,30 @@ export const getLogsRetryHelper = ({
       range: BigInt(match[1]!.replace(/[,.]/g, "")),
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // moonriver
-  match = sError.match(/block range is too wide \(maximum ([\d,.]+)\)/);
+  match = sError.match(/block range is too wide \(maximum (\d+)\)/);
   if (match !== null) {
     const ranges = chunk({
       params,
       range: BigInt(match[1]!.replace(/[,.]/g, "")),
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // aurora
@@ -558,21 +506,17 @@ export const getLogsRetryHelper = ({
       range: BigInt(match[1]!.replace(/[,.]/g, "")),
     });
 
-    if (isRangeUnchanged(params, ranges)) {
-      return { shouldRetry: false } as const;
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
     }
-
-    return {
-      shouldRetry: true,
-      ranges,
-      isSuggestedRange: true,
-    } as const;
   }
 
   // No match found
-  return {
-    shouldRetry: false,
-  } as const;
+  return { shouldRetry: false } as const;
 };
 
 const isRangeUnchanged = (
