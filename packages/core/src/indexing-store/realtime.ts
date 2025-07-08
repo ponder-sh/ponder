@@ -168,68 +168,6 @@ export const createRealtimeIndexingStore = ({
                     }
                   }
                 }
-
-                // if (Array.isArray(values)) {
-                //   const rows = [];
-                //   for (const value of values) {
-                //     const row = await find(table, value);
-
-                //     if (row === null) {
-                //       try {
-                //         rows.push(
-                //           await database.qb.drizzle
-                //             .insert(table)
-                //             .values(value)
-                //             .returning()
-                //             .then((res) => res[0]),
-                //         );
-                //       } catch (e) {
-                //         throw parseSqlError(e);
-                //       }
-                //     } else {
-                //       try {
-                //         const set = validateUpdateSet(table, valuesU(row), row);
-                //         rows.push(
-                //           await database.qb.drizzle
-                //             .update(table)
-                //             .set(set)
-                //             .where(getWhereCondition(table, value))
-                //             .returning()
-                //             .then((res) => res[0]),
-                //         );
-                //       } catch (e) {
-                //         throw parseSqlError(e);
-                //       }
-                //     }
-                //   }
-                //   return rows;
-                // } else {
-                //   const row = await find(table, values);
-
-                //   if (row === null) {
-                //     try {
-                //       return await database.qb.drizzle
-                //         .insert(table)
-                //         .values(values)
-                //         .returning()
-                //         .then((res) => res[0]);
-                //     } catch (e) {
-                //       throw parseSqlError(e);
-                //     }
-                //   } else {
-                //     try {
-                //       const set = validateUpdateSet(table, valuesU(row), row);
-                //       return await database.qb.drizzle
-                //         .update(table)
-                //         .set(set)
-                //         .where(getWhereCondition(table, values))
-                //         .returning()
-                //         .then((res) => res[0]);
-                //     } catch (e) {
-                //       throw parseSqlError(e);
-                //     }
-                //   }
-                // }
               }),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
             then: (onFulfilled, onRejected) =>
