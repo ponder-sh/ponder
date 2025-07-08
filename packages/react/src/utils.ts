@@ -4,15 +4,16 @@ import { stringify } from "superjson";
 
 export type SQLWrapper = Exclude<Parameters<typeof compileQuery>[0], string>;
 
-export function getPonderQueryOptions<result>(
+export function getPonderQueryOptions<T>(
   client: Client,
-  queryFn: (db: Client["db"]) => Promise<result>,
+  queryFn: (db: Client["db"]) => T,
 ): {
   queryKey: QueryKey;
-  queryFn: () => Promise<result>;
+  queryFn: () => T;
 } {
   const queryPromise = queryFn(client.db);
 
+  // @ts-expect-error
   if ("getSQL" in queryPromise === false) {
     throw new Error('"queryFn" must return SQL');
   }

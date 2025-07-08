@@ -1,15 +1,17 @@
 "use client";
 
-import type { Client, Status } from "@ponder/client";
+import { type Client, type Status, compileQuery } from "@ponder/client";
 import {
+  type QueryKey,
   type UseQueryOptions,
   type UseQueryResult,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { useContext, useEffect, useMemo } from "react";
+import { stringify } from "superjson";
 import { PonderContext } from "./context.js";
-import { getPonderQueryOptions } from "./utils.js";
+import { type SQLWrapper, getPonderQueryOptions } from "./utils.js";
 
 export function usePonderQuery<result>(
   params: {
@@ -18,10 +20,7 @@ export function usePonderQuery<result>(
 ): UseQueryResult<result> {
   const queryClient = useQueryClient();
 
-  const client = useContext(PonderContext);
-  if (client === undefined) {
-    throw new Error("PonderProvider not found");
-  }
+  const client = usePonderClient();
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   const queryOptions = useMemo(
@@ -43,6 +42,36 @@ export function usePonderQuery<result>(
     queryKey: queryOptions.queryKey,
     queryFn: queryOptions.queryFn,
   });
+}
+
+export function usePonderClient(): Client {
+  const client = useContext(PonderContext);
+  if (client === undefined) {
+    throw new Error("PonderProvider not found");
+  }
+  return client;
+}
+
+export function usePonderQueryOptions<T>(queryFn: (db: Client["db"]) => T): {
+  queryKey: QueryKey;
+  queryFn: () => T;
+} {
+  const client = usePonderClient();
+
+  const queryPromise = queryFn(client.db);
+
+  // @ts-expect-error
+  if ("getSQL" in queryPromise === false) {
+    throw new Error('"queryFn" must return SQL');
+  }
+
+  const query = compileQuery(queryPromise as unknown as SQLWrapper);
+  const queryKey = ["__ponder_react", query.sql, stringify(query.params)];
+
+  return {
+    queryKey,
+    queryFn: () => queryPromise,
+  };
 }
 
 const statusQueryKey = ["status"];
