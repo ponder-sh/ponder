@@ -39,11 +39,10 @@ export type IndexingCache = {
   /**
    * Returns the entry for `table` with `key`.
    */
-  get: (params: {
-    table: Table;
-    key: object;
-    db: QB;
-  }) => Row | null | Promise<Row | null>;
+  get: (params: { table: Table; key: object }) =>
+    | Row
+    | null
+    | Promise<Row | null>;
   /**
    * Sets the entry for `table` with `key` to `row`.
    */
@@ -56,27 +55,17 @@ export type IndexingCache = {
   /**
    * Deletes the entry for `table` with `key`.
    */
-  delete: (params: {
-    table: Table;
-    key: object;
-    db: QB;
-  }) => boolean | Promise<boolean>;
+  delete: (params: { table: Table; key: object }) => boolean | Promise<boolean>;
   /**
    * Writes all temporary data to the database.
    *
    * @param params.tableNames - If provided, only flush the tables in the set.
    */
-  flush: (params: {
-    db: QB;
-    tableNames?: Set<string>;
-  }) => Promise<void>;
+  flush: (params?: { tableNames?: Set<string> }) => Promise<void>;
   /**
    * Predict and load rows that will be accessed in the next event batch.
    */
-  prefetch: (params: {
-    events: Event[];
-    db: QB;
-  }) => Promise<void>;
+  prefetch: (params: { events: Event[] }) => Promise<void>;
   /**
    * Remove spillover and buffer entries.
    */
@@ -90,6 +79,7 @@ export type IndexingCache = {
    */
   clear: () => void;
   event: Event | undefined;
+  qb: QB;
 };
 
 const SAMPLING_RATE = 10;
@@ -223,15 +213,15 @@ export const getCopyText = (table: Table, rows: Row[]) => {
   return results.join("\n");
 };
 
-export const getCopyHelper = ({ db }: { db: QB }) => {
-  if (db.$dialect === "pglite") {
+export const getCopyHelper = (qb: QB) => {
+  if (qb.$dialect === "pglite") {
     return async (table: Table, text: string, includeSchema = true) => {
       const target = includeSchema
         ? `"${getTableConfig(table).schema ?? "public"}"."${getTableName(
             table,
           )}"`
         : `"${getTableName(table)}"`;
-      await db.$client.query(`COPY ${target} FROM '/dev/blob'`, [], {
+      await qb.$client.query(`COPY ${target} FROM '/dev/blob'`, [], {
         blob: new Blob([text]),
       });
     };
@@ -244,7 +234,7 @@ export const getCopyHelper = ({ db }: { db: QB }) => {
         : `"${getTableName(table)}"`;
       await pipeline(
         Readable.from(text),
-        db.$client.query(copy.from(`COPY ${target} FROM STDIN`)),
+        qb.$client.query(copy.from(`COPY ${target} FROM STDIN`)),
       );
     };
   }
@@ -295,6 +285,7 @@ export const createIndexingCache = ({
    */
   let cacheBytes = 0;
   let event: Event | undefined;
+  let qb: QB = undefined!;
   let isCacheComplete = crashRecoveryCheckpoint === undefined;
   const primaryKeyCache = new Map<Table, [string, Column][]>();
 
@@ -332,7 +323,7 @@ export const createIndexingCache = ({
         updateBuffer.get(table)!.has(ck)
       );
     },
-    async get({ table, key, db }) {
+    async get({ table, key }) {
       if (event && eventCount[event.name]! % SAMPLING_RATE === 1) {
         if (profile.has(event.name) === false) {
           profile.set(event.name, new Map());
@@ -404,7 +395,7 @@ export const createIndexingCache = ({
 
       const endClock = startClock();
 
-      const result = await db
+      const result = await qb
         .select()
         .from(table)
         .where(getWhereCondition(table, key))
@@ -445,7 +436,7 @@ export const createIndexingCache = ({
 
       return row;
     },
-    async delete({ table, key, db }) {
+    async delete({ table, key }) {
       const ck = getCacheKey(table, key);
 
       const inInsertBuffer = insertBuffer.get(table)!.delete(ck);
@@ -453,7 +444,7 @@ export const createIndexingCache = ({
 
       cache.get(table)!.delete(ck);
 
-      const inDb = await db
+      const inDb = await qb
         .delete(table)
         .where(getWhereCondition(table, key))
         .returning()
@@ -461,8 +452,8 @@ export const createIndexingCache = ({
 
       return inInsertBuffer || inUpdateBuffer || inDb;
     },
-    async flush({ db, tableNames }) {
-      const copy = getCopyHelper({ db });
+    async flush({ tableNames } = {}) {
+      const copy = getCopyHelper(qb);
 
       const shouldRecordBytes = isCacheComplete;
 
@@ -482,7 +473,7 @@ export const createIndexingCache = ({
         if (insertValues.length > 0) {
           const endClock = startClock();
 
-          await db.execute("SAVEPOINT flush");
+          await qb.execute("SAVEPOINT flush");
 
           try {
             const text = getCopyText(
@@ -498,14 +489,14 @@ export const createIndexingCache = ({
             const result = await recoverBatchError(
               insertValues,
               async (values) => {
-                await db.execute("ROLLBACK to flush");
+                await qb.execute("ROLLBACK to flush");
                 const text = getCopyText(
                   table,
                   values.map(({ row }) => row),
                 );
                 await copy(table, text);
 
-                await db.execute("SAVEPOINT flush");
+                await qb.execute("SAVEPOINT flush");
               },
             );
 
@@ -618,8 +609,8 @@ export const createIndexingCache = ({
 
           const endClock = startClock();
 
-          await db.execute(createTempTableQuery);
-          await db.execute("SAVEPOINT flush");
+          await qb.execute(createTempTableQuery);
+          await qb.execute("SAVEPOINT flush");
 
           try {
             const text = getCopyText(
@@ -635,14 +626,14 @@ export const createIndexingCache = ({
             const result = await recoverBatchError(
               updateValues,
               async (values) => {
-                await db.execute("ROLLBACK to flush");
+                await qb.execute("ROLLBACK to flush");
                 const text = getCopyText(
                   table,
                   values.map(({ row }) => row),
                 );
                 await copy(table, text, false);
 
-                await db.execute("SAVEPOINT flush");
+                await qb.execute("SAVEPOINT flush");
               },
             );
 
@@ -695,7 +686,7 @@ export const createIndexingCache = ({
             );
           }
 
-          await db.execute(updateQuery);
+          await qb.execute(updateQuery);
 
           common.metrics.ponder_indexing_cache_query_duration.observe(
             {
@@ -722,11 +713,11 @@ export const createIndexingCache = ({
         }
 
         if (insertValues.length > 0 || updateValues.length > 0) {
-          await db.execute("RELEASE flush");
+          await qb.execute("RELEASE flush");
         }
       }
     },
-    async prefetch({ events, db }) {
+    async prefetch({ events }) {
       if (isCacheComplete) {
         if (cacheBytes < common.options.indexingCacheMaxBytes) {
           return;
@@ -807,7 +798,7 @@ export const createIndexingCache = ({
             if (conditions.length === 0) return;
             const endClock = startClock();
 
-            await db
+            await qb
               .select()
               .from(table)
               .where(or(...conditions))
@@ -881,6 +872,9 @@ export const createIndexingCache = ({
     },
     set event(_event: Event | undefined) {
       event = _event;
+    },
+    set qb(_qb: QB) {
+      qb = _qb;
     },
   };
 };

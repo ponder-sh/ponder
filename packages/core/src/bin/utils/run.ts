@@ -107,6 +107,12 @@ export async function run({
     eventCount,
   });
 
+  const historicalIndexingStore = createHistoricalIndexingStore({
+    common,
+    schemaBuild,
+    indexingCache,
+  });
+
   for (const chain of indexingBuild.chains) {
     const label = { chain: chain.name };
     common.metrics.ponder_historical_total_indexing_seconds.set(
@@ -143,12 +149,9 @@ export async function run({
   // If the initial checkpoint is zero, we need to run setup events.
   if (crashRecoveryCheckpoint === undefined) {
     await database.userQB.transaction(async (tx) => {
-      const historicalIndexingStore = createHistoricalIndexingStore({
-        common,
-        schemaBuild,
-        indexingCache,
-        db: tx,
-      });
+      historicalIndexingStore.qb = tx;
+      indexingCache.qb = tx;
+
       const result = await indexing.processSetupEvents({
         db: historicalIndexingStore,
       });
@@ -159,7 +162,7 @@ export async function run({
       }
 
       try {
-        await indexingCache.flush({ db: tx });
+        await indexingCache.flush();
       } catch (error) {
         if (error instanceof FlushError) {
           onReloadableError(error as Error);
@@ -204,14 +207,10 @@ export async function run({
   )) {
     let endClock = startClock();
 
+    indexingCache.qb = database.userQB;
     await Promise.all([
-      indexingCache.prefetch({
-        events: events.events,
-        db: database.userQB,
-      }),
-      cachedViemClient.prefetch({
-        events: events.events,
-      }),
+      indexingCache.prefetch({ events: events.events }),
+      cachedViemClient.prefetch({ events: events.events }),
     ]);
     common.metrics.ponder_historical_transform_duration.inc(
       { step: "prefetch" },
@@ -221,18 +220,15 @@ export async function run({
       endClock = startClock();
       await database.userQB
         .transaction(async (tx) => {
+          historicalIndexingStore.qb = tx;
+          indexingCache.qb = tx;
+
           common.metrics.ponder_historical_transform_duration.inc(
             { step: "begin" },
             endClock(),
           );
 
           endClock = startClock();
-          const historicalIndexingStore = createHistoricalIndexingStore({
-            common,
-            schemaBuild,
-            indexingCache,
-            db: tx,
-          });
 
           const eventChunks = chunk(events.events, 93);
           for (const eventChunk of eventChunks) {
@@ -332,7 +328,7 @@ export async function run({
           // the "flush" + "finalize" is complete.
 
           try {
-            await indexingCache.flush({ db: tx });
+            await indexingCache.flush();
           } catch (error) {
             if (error instanceof FlushError) {
               onReloadableError(error as Error);

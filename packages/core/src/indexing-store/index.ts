@@ -1,3 +1,4 @@
+import type { QB } from "@/database/queryBuilder.js";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { onchain } from "@/drizzle/onchain.js";
 import {
@@ -11,7 +12,7 @@ import type { Table } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import type { Row } from "./cache.js";
 
-export type IndexingStore = Db<Schema>;
+export type IndexingStore = Db<Schema> & { qb: QB };
 
 export const validateUpdateSet = (
   table: Table,

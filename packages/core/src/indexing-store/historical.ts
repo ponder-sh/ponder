@@ -18,13 +18,12 @@ export const createHistoricalIndexingStore = ({
   common,
   schemaBuild: { schema },
   indexingCache,
-  db,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   indexingCache: IndexingCache;
-  db: QB;
 }): IndexingStore => {
+  let qb: QB = undefined!;
   return {
     // @ts-ignore
     find: (table: Table, key) => {
@@ -33,7 +32,7 @@ export const createHistoricalIndexingStore = ({
         method: "find",
       });
       checkOnchainTable(table, "find");
-      return indexingCache.get({ table, key, db });
+      return indexingCache.get({ table, key });
     },
 
     // @ts-ignore
@@ -52,11 +51,7 @@ export const createHistoricalIndexingStore = ({
               if (Array.isArray(values)) {
                 const rows = [];
                 for (const value of values) {
-                  const row = await indexingCache.get({
-                    table,
-                    key: value,
-                    db,
-                  });
+                  const row = await indexingCache.get({ table, key: value });
 
                   if (row) {
                     rows.push(null);
@@ -73,11 +68,7 @@ export const createHistoricalIndexingStore = ({
                 }
                 return rows;
               } else {
-                const row = await indexingCache.get({
-                  table,
-                  key: values,
-                  db,
-                });
+                const row = await indexingCache.get({ table, key: values });
 
                 if (row) {
                   return null;
@@ -104,7 +95,6 @@ export const createHistoricalIndexingStore = ({
                   const row = await indexingCache.get({
                     table,
                     key: value,
-                    db,
                   });
 
                   if (row) {
@@ -142,7 +132,7 @@ export const createHistoricalIndexingStore = ({
                 }
                 return rows;
               } else {
-                const row = await indexingCache.get({ table, key: values, db });
+                const row = await indexingCache.get({ table, key: values });
 
                 if (row) {
                   if (typeof valuesU === "function") {
@@ -240,7 +230,7 @@ export const createHistoricalIndexingStore = ({
           });
           checkOnchainTable(table, "update");
 
-          const row = await indexingCache.get({ table, key, db });
+          const row = await indexingCache.get({ table, key });
 
           if (row === null) {
             const error = new RecordNotFoundError(
@@ -275,7 +265,7 @@ export const createHistoricalIndexingStore = ({
         method: "delete",
       });
       checkOnchainTable(table, "delete");
-      return indexingCache.delete({ table, key, db });
+      return indexingCache.delete({ table, key });
     },
     // @ts-ignore
     sql: drizzle(
@@ -287,7 +277,7 @@ export const createHistoricalIndexingStore = ({
         } catch {}
 
         if (isSelectOnly === false) {
-          await indexingCache.flush({ db });
+          await indexingCache.flush();
           indexingCache.invalidate();
           indexingCache.clear();
         } else {
@@ -298,19 +288,22 @@ export const createHistoricalIndexingStore = ({
             tableNames = await findTableNames(_sql);
           } catch {}
 
-          await indexingCache.flush({ db, tableNames });
+          await indexingCache.flush({ tableNames });
         }
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
         const endClock = startClock();
 
         try {
-          const result = await db._.session
-            .prepareQuery(query, undefined, undefined, method === "all")
-            .execute();
-
-          // @ts-ignore
-          return { rows: result.rows.map((row) => Object.values(row)) };
+          // Note: Use transaction so that user-land queries don't affect the
+          // in-progress transaction.
+          return await qb.transaction(async (tx) => {
+            const result = await tx._.session
+              .prepareQuery(query, undefined, undefined, method === "all")
+              .execute();
+            // @ts-ignore
+            return { rows: result.rows.map((row) => Object.values(row)) };
+          });
         } finally {
           common.metrics.ponder_indexing_store_raw_sql_duration.observe(
             endClock(),
@@ -319,5 +312,8 @@ export const createHistoricalIndexingStore = ({
       },
       { schema, casing: "snake_case" },
     ),
+    set qb(_qb: QB) {
+      qb = _qb;
+    },
   };
 };
