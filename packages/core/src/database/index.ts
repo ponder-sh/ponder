@@ -1094,12 +1094,11 @@ WITH operations1 AS (
   SELECT MIN(operation_id) AS min_operation_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
   AND checkpoint > '${checkpoint}'
-)
-WITH reverted1 AS (
+), reverted1 AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE CASE
-    WHEN operations1.min_operation_id IS NOT NULL
-    THEN operation_id >= operations1.min_operation_id
+    WHEN (SELECT min_operation_id FROM operations1) IS NOT NULL
+    THEN operation_id >= (SELECT min_operation_id FROM operations1)
     ELSE FALSE
   END
   RETURNING *
