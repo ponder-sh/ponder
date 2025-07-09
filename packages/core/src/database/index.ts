@@ -197,24 +197,28 @@ export const createDatabase = async ({
         casing: "snake_case",
         schema: PONDER_SYNC,
       }),
+      { common, isAdmin: false },
     );
     adminQB = createQB(
       drizzlePglite((driver as PGliteDriver).instance, {
         casing: "snake_case",
         schema: schemaBuild.schema,
       }),
+      { common, isAdmin: true },
     );
     userQB = createQB(
       drizzlePglite((driver as PGliteDriver).instance, {
         casing: "snake_case",
         schema: schemaBuild.schema,
       }),
+      { common, isAdmin: false },
     );
     readonlyQB = createQB(
       drizzlePglite((driver as PGliteDriver).instance, {
         casing: "snake_case",
         schema: schemaBuild.schema,
       }),
+      { common, isAdmin: false },
     );
   } else {
     const internalMax = 2;
@@ -274,24 +278,28 @@ export const createDatabase = async ({
         casing: "snake_case",
         schema: PONDER_SYNC,
       }),
+      { common, isAdmin: false },
     );
     adminQB = createQB(
       drizzleNodePg(driver.admin, {
         casing: "snake_case",
         schema: schemaBuild.schema,
       }),
+      { common, isAdmin: true },
     );
     userQB = createQB(
       drizzleNodePg(driver.user, {
         casing: "snake_case",
         schema: schemaBuild.schema,
       }),
+      { common, isAdmin: false },
     );
     readonlyQB = createQB(
       drizzleNodePg(driver.readonly, {
         casing: "snake_case",
         schema: schemaBuild.schema,
       }),
+      { common, isAdmin: false },
     );
 
     common.shutdown.add(async () => {
