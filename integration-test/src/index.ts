@@ -64,6 +64,7 @@ const APP_ID = process.argv[2];
 const APP_DIR = `./apps/${APP_ID}`;
 export const SEED = process.env.SEED ?? crypto.randomBytes(32).toString("hex");
 export const UUID = process.env.UUID ?? crypto.randomUUID();
+export const PORT = Number(process.env.PORT) ?? 42069;
 
 if (APP_ID === undefined) {
   throw new Error("App ID is required. Example: 'pnpm test [app id]'");
@@ -1381,7 +1382,7 @@ export const restart = async () => {
 if (SIM_PARAMS.UNFINALIZED_BLOCKS === 0) {
   while (true) {
     try {
-      const result = await fetch("http://localhost:42069/ready");
+      const result = await fetch(`http://localhost:${PORT}/ready`);
       if (result.status === 200) break;
     } catch {}
     await new Promise((resolve) => setTimeout(resolve, 100));
