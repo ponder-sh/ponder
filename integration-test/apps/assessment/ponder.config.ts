@@ -17,18 +17,18 @@ export default createConfig({
       chain: {
         mainnet: {
           address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-          startBlock: 22_546_500,
-          endBlock: 22_547_500,
+          startBlock: 22_547_400,
+          endBlock: 22_547_800,
         },
         base: {
           address: "0x4200000000000000000000000000000000000006",
           startBlock: 30_618_000,
-          endBlock: 30_619_000,
+          endBlock: 30_618_400,
         },
         optimism: {
           address: "0x4200000000000000000000000000000000000006",
           startBlock: 136_213_000,
-          endBlock: 136_214_000,
+          endBlock: 136_213_400,
         },
       },
       abi: parseAbi([
