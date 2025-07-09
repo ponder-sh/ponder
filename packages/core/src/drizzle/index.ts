@@ -1,13 +1,12 @@
-import { type TableConfig, getTableColumns, getTableName } from "drizzle-orm";
+import { getTableColumns, getTableName } from "drizzle-orm";
 import {
   type PgColumn,
   type PgTable,
-  type PgTableWithColumns,
   getTableConfig,
 } from "drizzle-orm/pg-core";
 import { getColumnCasing, sqlToReorgTableName } from "./kit/index.js";
 
-export const getTableNames = (table: PgTableWithColumns<TableConfig>) => {
+export const getTableNames = (table: PgTable) => {
   const sql = getTableName(table);
 
   return {
