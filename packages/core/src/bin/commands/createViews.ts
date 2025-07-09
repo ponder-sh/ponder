@@ -86,7 +86,7 @@ export async function createViews({
 
   const PONDER_META = getPonderMetaTable(cliOptions.schema);
 
-  const meta = await database.qb.drizzle
+  const meta = await database.userQB
     .select({ app: PONDER_META.value })
     .from(PONDER_META)
     .where(eq(PONDER_META.key, "app"));
@@ -100,17 +100,17 @@ export async function createViews({
     return;
   }
 
-  await database.qb.drizzle.execute(
+  await database.userQB.execute(
     sql.raw(`CREATE SCHEMA IF NOT EXISTS "${cliOptions.viewsSchema}"`),
   );
 
   for (const table of meta[0]!.app.table_names) {
     // Note: drop views before creating new ones to avoid enum errors.
-    await database.qb.drizzle.execute(
+    await database.userQB.execute(
       sql.raw(`DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${table}"`),
     );
 
-    await database.qb.drizzle.execute(
+    await database.userQB.execute(
       sql.raw(
         `CREATE VIEW "${cliOptions.viewsSchema}"."${table}" AS SELECT * FROM "${cliOptions.schema}"."${table}"`,
       ),
@@ -122,13 +122,13 @@ export async function createViews({
     msg: `Created ${meta[0]!.app.table_names.length} views in schema "${cliOptions.viewsSchema}"`,
   });
 
-  await database.qb.drizzle.execute(
+  await database.userQB.execute(
     sql.raw(
       `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${cliOptions.schema}"."_ponder_meta"`,
     ),
   );
 
-  await database.qb.drizzle.execute(
+  await database.userQB.execute(
     sql.raw(
       `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${cliOptions.schema}"."_ponder_checkpoint"`,
     ),
@@ -138,7 +138,7 @@ export async function createViews({
   const notification = "status_notify()";
   const channel = `${cliOptions.viewsSchema}_status_channel`;
 
-  await database.qb.drizzle.execute(
+  await database.userQB.execute(
     sql.raw(`
 CREATE OR REPLACE FUNCTION "${cliOptions.viewsSchema}".${notification}
 RETURNS TRIGGER
@@ -151,7 +151,7 @@ END;
 $$;`),
   );
 
-  await database.qb.drizzle.execute(
+  await database.userQB.execute(
     sql.raw(`
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE

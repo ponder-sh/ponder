@@ -47,7 +47,7 @@ export const client = ({
       });
     });
   } else {
-    const pool = driver.internal;
+    const pool = driver.admin;
 
     const connectAndListen = async () => {
       driver.listen = await pool.connect();
@@ -88,7 +88,7 @@ export const client = ({
           return c.text((error as Error).message, 500);
         }
       } else {
-        const client = await driver.internal.connect();
+        const client = await driver.admin.connect();
 
         try {
           await validateQuery(query.sql);
