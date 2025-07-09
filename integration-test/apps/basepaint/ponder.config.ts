@@ -6,7 +6,7 @@ export default createConfig({
   database: {
     kind: "postgres",
     connectionString: process.env.DATABASE_URL,
-    poolConfig: { max: 11 },
+    poolConfig: { max: 17 },
   },
   chains: {
     base: { id: 8453, rpc: process.env.PONDER_RPC_URL_8453! },

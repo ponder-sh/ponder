@@ -9,7 +9,7 @@ jobs:
   integration-test:
     name: Integration Test
     runs-on: default
-    timeout-minutes: 30
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:

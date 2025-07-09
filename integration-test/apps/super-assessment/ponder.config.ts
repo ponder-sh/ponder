@@ -73,7 +73,7 @@ export default process.env.SEED
       database: {
         kind: "postgres",
         connectionString: process.env.DATABASE_URL,
-        poolConfig: { max: 11 },
+        poolConfig: { max: 17 },
       },
       chains: {
         mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1 },
