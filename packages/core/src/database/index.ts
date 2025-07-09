@@ -35,7 +35,6 @@ import {
   getTableColumns,
   getTableName,
   is,
-  lte,
   sql,
 } from "drizzle-orm";
 import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
@@ -1153,11 +1152,34 @@ WITH operations1 AS (
         { method: "finalize", includeTraceLogs: true },
         async () => {
           await Promise.all(
-            tables.map((table) =>
-              db
-                .delete(getReorgTable(table))
-                .where(lte(getReorgTable(table).checkpoint, checkpoint)),
-            ),
+            tables.map(async (table) => {
+              await db.execute(
+                sql.raw(`
+WITH operations AS (
+  SELECT checkpoint as max_operation_checkpoint, MAX(operation_id) AS max_operation_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
+  AND checkpoint <= '${checkpoint}'
+), right AS (
+  SELECT MIN(operation_id) AS min_operation_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE checkpoint > (SELECT max_operation_checkpoint FROM operations)
+    AND (
+      (SELECT max_operation_id FROM operations) is NULL 
+      OR operation_id < (SELECT max_operation_id FROM operations)
+    )
+), deleted AS (
+  DELETE FROM "${namespace.schema}"."${getTableName(table)}" 
+  WHERE (
+    (SELECT min_operation_id FROM right) is NULL 
+    AND operation_id <= (SELECT max_operation_checkpoint FROM operations)
+  ) OR (
+    (SELECT min_operation_id FROM right) is NOT NULL 
+    AND operation_id < (SELECT min_operation_id FROM right)
+  )
+  RETURNING *
+) SELECT COUNT(*) FROM deleted as count;
+`),
+              );
+            }),
           );
         },
       );
