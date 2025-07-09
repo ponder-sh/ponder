@@ -714,6 +714,7 @@ export const createSync = async (params: {
         break;
       }
 
+      //
       case "reorg": {
         // Remove all reorged data
 
@@ -729,12 +730,19 @@ export const createSync = async (params: {
           const checkpoint = getMultichainCheckpoint({ tag: "current", chain });
 
           // Move events from executed to pending
+          let reorgIndex: number | undefined = undefined;
+          for (const [index, event] of executedEvents.entries()) {
+            if (event.chainId === chain.id && event.checkpoint > checkpoint) {
+              reorgIndex = index;
+              break;
+            }
+          }
 
           const reorgedEvents = executedEvents.filter(
-            (e) => e.checkpoint > checkpoint,
+            (_, i) => reorgIndex !== undefined && i >= reorgIndex,
           );
           executedEvents = executedEvents.filter(
-            (e) => e.checkpoint < checkpoint,
+            (_, i) => reorgIndex === undefined || i < reorgIndex,
           );
           pendingEvents = pendingEvents.concat(reorgedEvents);
 

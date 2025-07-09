@@ -1080,7 +1080,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).trigg
         return qb.drizzle
           .select()
           .from(PONDER_META)
-          .then((result) => result[0]?.value.is_ready === 1 ?? false);
+          .then((result) => result[0]?.value.is_ready === 1);
       });
     },
     async revert({ checkpoint, tx }) {
@@ -1088,12 +1088,21 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).trigg
         Promise.all(
           tables.map(async (table) => {
             const primaryKeyColumns = getPrimaryKeyColumns(table);
-
             const result = await tx.execute(
               sql.raw(`
+WITH operations1 AS (
+  SELECT MIN(operation_id) AS min_operation_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
+  AND checkpoint > '${checkpoint}'
+)
 WITH reverted1 AS (
- DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE checkpoint > '${checkpoint}' RETURNING *
+  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE CASE
+    WHEN operations1.min_operation_id IS NOT NULL
+    THEN operation_id >= operations1.min_operation_id
+    ELSE FALSE
+  END
+  RETURNING *
 ), reverted2 AS (
   SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1
   GROUP BY ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}
