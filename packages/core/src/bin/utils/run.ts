@@ -24,9 +24,7 @@ import { recordAsyncGenerator } from "@/utils/generators.js";
 import { mutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
-import { type TableConfig, getTableName, is, sql } from "drizzle-orm";
-import { PgTable } from "drizzle-orm/pg-core";
-import type { PgTableWithColumns } from "drizzle-orm/pg-core";
+import { getTableName, isTable, sql } from "drizzle-orm";
 
 /** Starts the sync and indexing services for the specified build. */
 export async function run({
@@ -403,9 +401,7 @@ export async function run({
       sql.raw(`CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.viewsSchema}"`),
     );
 
-    const tables = Object.values(schemaBuild.schema).filter(
-      (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
-    );
+    const tables = Object.values(schemaBuild.schema).filter(isTable);
 
     for (const table of tables) {
       // Note: drop views before creating new ones to avoid enum errors.

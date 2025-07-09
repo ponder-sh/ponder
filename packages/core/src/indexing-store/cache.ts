@@ -17,17 +17,12 @@ import { startClock } from "@/utils/timer.js";
 import {
   type Column,
   type Table,
-  type TableConfig,
   getTableColumns,
   getTableName,
-  is,
+  isTable,
   or,
 } from "drizzle-orm";
-import {
-  PgTable,
-  type PgTableWithColumns,
-  getTableConfig,
-} from "drizzle-orm/pg-core";
+import { getTableConfig } from "drizzle-orm/pg-core";
 import copy from "pg-copy-streams";
 import {
   getProfilePatternKey,
@@ -311,9 +306,7 @@ export const createIndexingCache = ({
   /** Profiling data about access patterns for each event. */
   const profile: Profile = new Map();
 
-  const tables = Object.values(schema).filter(
-    (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
-  );
+  const tables = Object.values(schema).filter(isTable);
 
   for (const table of tables) {
     cache.set(table, new Map());
@@ -323,6 +316,7 @@ export const createIndexingCache = ({
 
     primaryKeyCache.set(table, []);
     for (const { js } of getPrimaryKeyColumns(table)) {
+      // @ts-expect-error
       primaryKeyCache.get(table)!.push([js, table[js]!]);
     }
   }

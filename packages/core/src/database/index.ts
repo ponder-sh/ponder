@@ -27,21 +27,15 @@ import { createPglite, createPgliteKyselyDialect } from "@/utils/pglite.js";
 import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
 import {
-  type TableConfig,
   eq,
   getTableColumns,
   getTableName,
-  is,
+  isTable,
   lte,
   sql,
 } from "drizzle-orm";
 import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
-import {
-  PgTable,
-  type PgTableWithColumns,
-  pgSchema,
-  pgTable,
-} from "drizzle-orm/pg-core";
+import { pgSchema, pgTable } from "drizzle-orm/pg-core";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
 import type { Pool, PoolClient } from "pg";
@@ -404,9 +398,7 @@ export const createDatabase = async ({
     });
   }
 
-  const tables = Object.values(schemaBuild.schema).filter(
-    (table): table is PgTableWithColumns<TableConfig> => is(table, PgTable),
-  );
+  const tables = Object.values(schemaBuild.schema).filter(isTable);
 
   const database = {
     driver,
