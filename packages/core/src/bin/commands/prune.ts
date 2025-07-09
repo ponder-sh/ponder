@@ -65,13 +65,13 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     schemaBuild: emptySchemaBuild,
   });
 
-  const ponderSchemas = await database.userQB
+  const ponderSchemas = await database.adminQB
     .select({ schema: TABLES.table_schema, tableCount: count() })
     .from(TABLES)
     .where(
       inArray(
         TABLES.table_schema,
-        database.userQB
+        database.adminQB
           .select({ schema: TABLES.table_schema })
           .from(TABLES)
           .where(eq(TABLES.table_name, "_ponder_meta")),
@@ -79,13 +79,13 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     )
     .groupBy(TABLES.table_schema);
 
-  const ponderViewSchemas = await database.userQB
+  const ponderViewSchemas = await database.adminQB
     .select({ schema: VIEWS.table_schema })
     .from(VIEWS)
     .where(eq(VIEWS.table_name, "_ponder_meta"));
 
   const queries = ponderSchemas.map((row) =>
-    database.userQB
+    database.adminQB
       .select({
         value: getPonderMetaTable(row.schema).value,
         schema: sql<string>`${row.schema}`.as("schema"),
@@ -180,7 +180,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   if (tablesToDrop.length > 0) {
-    await database.userQB.execute(
+    await database.adminQB.execute(
       sql.raw(`DROP TABLE IF EXISTS ${tablesToDrop.join(", ")} CASCADE`),
     );
 
@@ -191,7 +191,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   if (viewsToDrop.length > 0) {
-    await database.userQB.execute(
+    await database.adminQB.execute(
       sql.raw(`DROP VIEW IF EXISTS ${viewsToDrop.join(", ")} CASCADE`),
     );
 
@@ -202,7 +202,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   if (functionsToDrop.length > 0) {
-    await database.userQB.execute(
+    await database.adminQB.execute(
       sql.raw(`DROP FUNCTION IF EXISTS ${functionsToDrop.join(", ")} CASCADE`),
     );
 
@@ -213,7 +213,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   if (schemasToDrop.length > 0) {
-    await database.userQB.execute(
+    await database.adminQB.execute(
       sql.raw(`DROP SCHEMA IF EXISTS ${schemasToDrop.join(", ")} CASCADE`),
     );
 
