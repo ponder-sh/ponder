@@ -386,7 +386,7 @@ export const createDatabase = async ({
       if (error) throw error;
     },
     async migrate({ buildId }) {
-      await userQB.execute(
+      await adminQB.execute(
         sql.raw(`
 CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_meta" (
   "key" TEXT PRIMARY KEY,
@@ -394,7 +394,7 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_meta" (
 )`),
       );
 
-      await userQB.execute(
+      await adminQB.execute(
         sql.raw(`
 CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
   "chain_name" TEXT PRIMARY KEY,
@@ -408,7 +408,7 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
       const notification = "status_notify()";
       const channel = `${namespace.schema}_status_channel`;
 
-      await userQB.execute(
+      await adminQB.execute(
         sql.raw(`
 CREATE OR REPLACE FUNCTION "${namespace.schema}".${notification}
 RETURNS TRIGGER
@@ -421,7 +421,7 @@ END;
 $$;`),
       );
 
-      await userQB.execute(
+      await adminQB.execute(
         sql.raw(`
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
@@ -463,7 +463,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
       };
 
       const tryAcquireLockAndMigrate = () =>
-        userQB.transaction(async (tx) => {
+        adminQB.transaction(async (tx) => {
           // Note: All ponder versions are compatible with the next query (every version of the "_ponder_meta" table have the same columns)
 
           const previousApp = await tx
@@ -665,7 +665,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
         try {
           const heartbeat = Date.now();
 
-          await userQB.update(PONDER_META).set({
+          await adminQB.update(PONDER_META).set({
             value: sql`jsonb_set(value, '{heartbeat_at}', ${heartbeat})`,
           });
 

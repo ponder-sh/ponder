@@ -431,19 +431,19 @@ export async function run({
   );
 
   if (namespaceBuild.viewsSchema) {
-    await database.userQB.execute(
+    await database.adminQB.execute(
       sql.raw(`CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.viewsSchema}"`),
     );
 
     for (const table of tables) {
       // Note: drop views before creating new ones to avoid enum errors.
-      await database.userQB.execute(
+      await database.adminQB.execute(
         sql.raw(
           `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${getTableName(table)}"`,
         ),
       );
 
-      await database.userQB.execute(
+      await database.adminQB.execute(
         sql.raw(
           `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
         ),
@@ -455,13 +455,13 @@ export async function run({
       msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
     });
 
-    await database.userQB.execute(
+    await database.adminQB.execute(
       sql.raw(
         `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_meta"`,
       ),
     );
 
-    await database.userQB.execute(
+    await database.adminQB.execute(
       sql.raw(
         `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_checkpoint"`,
       ),
@@ -471,7 +471,7 @@ export async function run({
     const notification = "status_notify()";
     const channel = `${namespaceBuild.viewsSchema}_status_channel`;
 
-    await database.userQB.execute(
+    await database.adminQB.execute(
       sql.raw(`
   CREATE OR REPLACE FUNCTION "${namespaceBuild.viewsSchema}".${notification}
   RETURNS TRIGGER
@@ -484,7 +484,7 @@ export async function run({
   $$;`),
     );
 
-    await database.userQB.execute(
+    await database.adminQB.execute(
       sql.raw(`
   CREATE OR REPLACE TRIGGER "${trigger}"
   AFTER INSERT OR UPDATE OR DELETE
@@ -573,9 +573,7 @@ export async function run({
             )
             .onConflictDoUpdate({
               target: PONDER_CHECKPOINT.chainName,
-              set: {
-                latestCheckpoint: sql`excluded.latest_checkpoint`,
-              },
+              set: { latestCheckpoint: sql`excluded.latest_checkpoint` },
             });
         }
 
