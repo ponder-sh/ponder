@@ -123,16 +123,27 @@ export const client = ({
     }
 
     if (c.req.path === "/sql/status") {
-      const checkpoints = await globalThis.PONDER_DATABASE.getCheckpoints();
+      // Note: This is done to avoid non-browser compatible dependencies
+
+      const checkpoints = (await globalThis.PONDER_DATABASE.readonlyQB
+        .execute(
+          "SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint",
+        )
+        .then((res) => res.rows)) as {
+        chain_name: string;
+        chain_id: number;
+        latest_checkpoint: string;
+        safe_checkpoint: string;
+      }[];
 
       const status: Status = {};
-      for (const { chainName, chainId, latestCheckpoint } of checkpoints) {
-        status[chainName] = {
-          id: chainId,
+      for (const { chain_name, chain_id, latest_checkpoint } of checkpoints) {
+        status[chain_name] = {
+          id: chain_id,
           block: {
-            number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
+            number: Number(decodeCheckpoint(latest_checkpoint).blockNumber),
             timestamp: Number(
-              decodeCheckpoint(latestCheckpoint).blockTimestamp,
+              decodeCheckpoint(latest_checkpoint).blockTimestamp,
             ),
           },
         };

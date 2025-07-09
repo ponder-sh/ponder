@@ -1,8 +1,6 @@
-import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
+import { getTableNames } from "@/drizzle/index.js";
 import {
   SHARED_OPERATION_ID_SEQUENCE,
-  getColumnCasing,
-  getReorgTable,
   sqlToReorgTableName,
 } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
@@ -16,24 +14,13 @@ import type {
 } from "@/internal/types.js";
 import { buildMigrationProvider } from "@/sync-store/migrations.js";
 import * as PONDER_SYNC from "@/sync-store/schema.js";
-import {
-  MAX_CHECKPOINT_STRING,
-  decodeCheckpoint,
-  min,
-} from "@/utils/checkpoint.js";
+import { min } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
 import { createPglite, createPgliteKyselyDialect } from "@/utils/pglite.js";
 import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
-import {
-  eq,
-  getTableColumns,
-  getTableName,
-  isTable,
-  lte,
-  sql,
-} from "drizzle-orm";
+import { eq, getTableName, isTable, sql } from "drizzle-orm";
 import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
 import { pgSchema, pgTable } from "drizzle-orm/pg-core";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
@@ -41,6 +28,7 @@ import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
 import type { Pool, PoolClient } from "pg";
 import prometheus from "prom-client";
 import { type QB, createQB } from "./queryBuilder.js";
+import { revert } from "./utils.js";
 
 export type Database = {
   driver: PostgresDriver | PGliteDriver;
@@ -57,47 +45,7 @@ export type Database = {
    */
   migrate({
     buildId,
-    ordering,
-  }: Pick<IndexingBuild, "buildId"> & {
-    ordering: "omnichain" | "multichain";
-  }): Promise<CrashRecoveryCheckpoint>;
-  createIndexes(): Promise<void>;
-  createTriggers(): Promise<void>;
-  removeTriggers(): Promise<void>;
-  /**
-   * - "safe" checkpoint: The closest-to-tip finalized and completed checkpoint.
-   * - "latest" checkpoint: The closest-to-tip completed checkpoint.
-   *
-   * @dev It is an invariant that every "latest" checkpoint is specific to that chain.
-   * In other words, `chainId === latestCheckpoint.chainId`.
-   */
-  setCheckpoints: ({
-    checkpoints,
-  }: {
-    checkpoints: {
-      chainName: string;
-      chainId: number;
-      safeCheckpoint: string;
-      latestCheckpoint: string;
-    }[];
-    db: QB;
-  }) => Promise<void>;
-  getCheckpoints: () => Promise<
-    {
-      chainName: string;
-      chainId: number;
-      safeCheckpoint: string;
-      latestCheckpoint: string;
-    }[]
-  >;
-  setReady(): Promise<void>;
-  getReady(): Promise<boolean>;
-  revert(args: {
-    checkpoint: string;
-    tx: QB;
-  }): Promise<void>;
-  finalize(args: { checkpoint: string; db: QB }): Promise<void>;
-  commitBlock(args: { checkpoint: string; db: QB }): Promise<void>;
+  }: Pick<IndexingBuild, "buildId">): Promise<CrashRecoveryCheckpoint>;
 };
 
 export const SCHEMATA = pgSchema("information_schema").table(
@@ -130,9 +78,13 @@ export type PonderApp = {
 
 const VERSION = "3";
 
-type PGliteDriver = { instance: PGlite };
+type PGliteDriver = {
+  dialect: "pglite";
+  instance: PGlite;
+};
 
 type PostgresDriver = {
+  dialect: "postgres";
   admin: Pool;
   sync: Pool;
   user: Pool;
@@ -140,8 +92,8 @@ type PostgresDriver = {
   listen: PoolClient | undefined;
 };
 
-export const getPonderMetaTable = (schema: string) => {
-  if (schema === "public") {
+export const getPonderMetaTable = (schema?: string) => {
+  if (schema === undefined || schema === "public") {
     return pgTable("_ponder_meta", (t) => ({
       key: t.text().primaryKey().$type<"app">(),
       value: t.jsonb().$type<PonderApp>().notNull(),
@@ -154,8 +106,8 @@ export const getPonderMetaTable = (schema: string) => {
   }));
 };
 
-export const getPonderCheckpointTable = (schema: string) => {
-  if (schema === "public") {
+export const getPonderCheckpointTable = (schema?: string) => {
+  if (schema === undefined || schema === "public") {
     return pgTable("_ponder_checkpoint", (t) => ({
       chainName: t.text().primaryKey(),
       chainId: t.bigint({ mode: "number" }).notNull(),
@@ -214,6 +166,7 @@ export const createDatabase = async ({
 
   if (dialect === "pglite" || dialect === "pglite_test") {
     driver = {
+      dialect: "pglite",
       instance:
         dialect === "pglite"
           ? createPglite(preBuild.databaseConfig.options)
@@ -274,6 +227,7 @@ export const createDatabase = async ({
         : [equalMax, equalMax, equalMax];
 
     driver = {
+      dialect: "postgres",
       admin: createPool(
         {
           ...preBuild.databaseConfig.poolConfig,
@@ -309,7 +263,7 @@ export const createDatabase = async ({
         common.logger,
       ),
       listen: undefined,
-    } as PostgresDriver;
+    };
 
     await driver.admin.query(
       `CREATE SCHEMA IF NOT EXISTS "${namespace.schema}"`,
@@ -674,7 +628,11 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
             ...checkpoints.map((c) => c.safeCheckpoint),
           );
 
-          await this.revert({ checkpoint: revertCheckpoint, tx });
+          await Promise.all(
+            tables.map((table) =>
+              revert(tx, { checkpoint: revertCheckpoint, table }),
+            ),
+          );
 
           // Note: We don't update the `_ponder_checkpoint` table here, instead we wait for it to be updated
           // in the runtime script.
@@ -732,170 +690,6 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
       }, common.options.databaseHeartbeatInterval);
 
       return result.crashRecoveryCheckpoint;
-    },
-    async createIndexes() {
-      for (const statement of schemaBuild.statements.indexes.sql) {
-        await userQB.transaction(async (tx) => {
-          await tx.execute("SET statement_timeout = 3600000;"); // 60 minutes
-          await tx.execute(statement);
-        });
-      }
-    },
-    async createTriggers() {
-      for (const table of tables) {
-        const columns = getTableColumns(table);
-
-        const columnNames = Object.values(columns).map(
-          (column) => `"${getColumnCasing(column, "snake_case")}"`,
-        );
-
-        await userQB.execute(
-          sql.raw(`
-CREATE OR REPLACE FUNCTION "${namespace.schema}".${getTableNames(table).triggerFn}
-RETURNS TRIGGER AS $$
-BEGIN
-  IF TG_OP = 'INSERT' THEN
-    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
-    VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${MAX_CHECKPOINT_STRING}');
-  ELSIF TG_OP = 'UPDATE' THEN
-    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
-    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${MAX_CHECKPOINT_STRING}');
-  ELSIF TG_OP = 'DELETE' THEN
-    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
-    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${MAX_CHECKPOINT_STRING}');
-  END IF;
-  RETURN NULL;
-END;
-$$ LANGUAGE plpgsql`),
-        );
-
-        await userQB.execute(
-          sql.raw(`
-CREATE OR REPLACE TRIGGER "${getTableNames(table).trigger}"
-AFTER INSERT OR UPDATE OR DELETE ON "${namespace.schema}"."${getTableName(table)}"
-FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).triggerFn};
-`),
-        );
-      }
-    },
-    async removeTriggers() {
-      for (const table of tables) {
-        await userQB.execute(
-          sql.raw(
-            `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
-          ),
-        );
-      }
-    },
-    async setCheckpoints({ checkpoints, db }) {
-      if (checkpoints.length === 0) return;
-
-      await db
-        .insert(PONDER_CHECKPOINT)
-        .values(checkpoints)
-        .onConflictDoUpdate({
-          target: PONDER_CHECKPOINT.chainName,
-          set: {
-            safeCheckpoint: sql`excluded.safe_checkpoint`,
-            latestCheckpoint: sql`excluded.latest_checkpoint`,
-          },
-        });
-    },
-    getCheckpoints() {
-      return userQB.select().from(PONDER_CHECKPOINT);
-    },
-    async setReady() {
-      await userQB
-        .update(PONDER_META)
-        .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` });
-    },
-    getReady() {
-      return userQB
-        .select()
-        .from(PONDER_META)
-        .then((result) => result[0]?.value.is_ready === 1 ?? false);
-    },
-    async revert({ checkpoint, tx }) {
-      await Promise.all(
-        tables.map(async (table) => {
-          const primaryKeyColumns = getPrimaryKeyColumns(table);
-
-          const result = await tx.execute(
-            sql.raw(`
-WITH reverted1 AS (
- DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE checkpoint > '${checkpoint}' RETURNING *
-), reverted2 AS (
-  SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1
-  GROUP BY ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}
-), reverted3 AS (
-  SELECT ${Object.values(getTableColumns(table))
-    .map((column) => `reverted1."${getColumnCasing(column, "snake_case")}"`)
-    .join(", ")}, reverted1.operation FROM reverted2
-  INNER JOIN reverted1
-  ON ${primaryKeyColumns.map(({ sql }) => `reverted2."${sql}" = reverted1."${sql}"`).join("AND ")}
-  AND reverted2.operation_id = reverted1.operation_id
-), inserted AS (
-  DELETE FROM "${namespace.schema}"."${getTableName(table)}" as t
-  WHERE EXISTS (
-    SELECT * FROM reverted3
-    WHERE ${primaryKeyColumns.map(({ sql }) => `t."${sql}" = reverted3."${sql}"`).join("AND ")}
-    AND OPERATION = 0
-  )
-  RETURNING *
-), updated_or_deleted AS (
-  INSERT INTO  "${namespace.schema}"."${getTableName(table)}"
-  SELECT ${Object.values(getTableColumns(table))
-    .map((column) => `"${getColumnCasing(column, "snake_case")}"`)
-    .join(", ")} FROM reverted3
-  WHERE operation = 1 OR operation = 2
-  ON CONFLICT (${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")})
-  DO UPDATE SET
-    ${Object.values(getTableColumns(table))
-      .map(
-        (column) =>
-          `"${getColumnCasing(column, "snake_case")}" = EXCLUDED."${getColumnCasing(column, "snake_case")}"`,
-      )
-      .join(", ")}
-  RETURNING *
-) SELECT COUNT(*) FROM reverted1 as count;
-`),
-          );
-
-          common.logger.info({
-            service: "database",
-            // @ts-ignore
-            msg: `Reverted ${result.rows[0]!.count} unfinalized operations from '${getTableName(table)}'`,
-          });
-        }),
-      );
-    },
-    async finalize({ checkpoint, db }) {
-      await Promise.all(
-        tables.map((table) =>
-          db
-            .delete(getReorgTable(table))
-            .where(lte(getReorgTable(table).checkpoint, checkpoint)),
-        ),
-      );
-
-      const decoded = decodeCheckpoint(checkpoint);
-
-      common.logger.debug({
-        service: "database",
-        msg: `Updated finalized checkpoint to (timestamp=${decoded.blockTimestamp} chainId=${decoded.chainId} block=${decoded.blockNumber})`,
-      });
-    },
-    async commitBlock({ checkpoint, db }) {
-      await Promise.all(
-        tables.map(async (table) => {
-          const reorgTable = getReorgTable(table);
-          await db
-            .update(reorgTable)
-            .set({ checkpoint })
-            .where(eq(reorgTable.checkpoint, MAX_CHECKPOINT_STRING));
-        }),
-      );
     },
   } satisfies Database;
 

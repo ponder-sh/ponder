@@ -1,5 +1,17 @@
 import { runCodegen } from "@/bin/utils/codegen.js";
-import { type Database, getPonderCheckpointTable } from "@/database/index.js";
+import {
+  type Database,
+  getPonderCheckpointTable,
+  getPonderMetaTable,
+} from "@/database/index.js";
+import {
+  commitBlock,
+  createIndexes,
+  createTrigger,
+  dropTrigger,
+  finalize,
+  revert,
+} from "@/database/utils.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
@@ -55,6 +67,7 @@ export async function run({
   const syncStore = createSyncStore({ common, database });
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
+  const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
 
   const sync = await createSync({
     common,
@@ -154,17 +167,24 @@ export async function run({
         }
         throw error;
       }
-    });
 
-    // Note: `_ponder_checkpoint` must be updated after the setup events are processed.
-    await database.setCheckpoints({
-      checkpoints: indexingBuild.chains.map((chain) => ({
-        chainName: chain.name,
-        chainId: chain.id,
-        latestCheckpoint: sync.getStartCheckpoint(chain),
-        safeCheckpoint: sync.getStartCheckpoint(chain),
-      })),
-      db: database.userQB,
+      await tx
+        .insert(PONDER_CHECKPOINT)
+        .values(
+          indexingBuild.chains.map((chain) => ({
+            chainName: chain.name,
+            chainId: chain.id,
+            latestCheckpoint: sync.getStartCheckpoint(chain),
+            safeCheckpoint: sync.getStartCheckpoint(chain),
+          })),
+        )
+        .onConflictDoUpdate({
+          target: PONDER_CHECKPOINT.chainName,
+          set: {
+            safeCheckpoint: sql`excluded.safe_checkpoint`,
+            latestCheckpoint: sql`excluded.latest_checkpoint`,
+          },
+        });
     });
   }
 
@@ -327,17 +347,27 @@ export async function run({
           );
           endClock = startClock();
 
-          await database.setCheckpoints({
-            checkpoints: events.checkpoints.map(({ chainId, checkpoint }) => ({
-              chainName: indexingBuild.chains.find(
-                (chain) => chain.id === chainId,
-              )!.name,
-              chainId,
-              latestCheckpoint: checkpoint,
-              safeCheckpoint: checkpoint,
-            })),
-            db: tx,
-          });
+          if (events.checkpoints.length > 0) {
+            await tx
+              .insert(PONDER_CHECKPOINT)
+              .values(
+                events.checkpoints.map(({ chainId, checkpoint }) => ({
+                  chainName: indexingBuild.chains.find(
+                    (chain) => chain.id === chainId,
+                  )!.name,
+                  chainId,
+                  latestCheckpoint: checkpoint,
+                  safeCheckpoint: checkpoint,
+                })),
+              )
+              .onConflictDoUpdate({
+                target: PONDER_CHECKPOINT.chainName,
+                set: {
+                  safeCheckpoint: sql`excluded.safe_checkpoint`,
+                  latestCheckpoint: sql`excluded.latest_checkpoint`,
+                },
+              });
+          }
 
           common.metrics.ponder_historical_transform_duration.inc(
             { step: "finalize" },
@@ -393,15 +423,17 @@ export async function run({
     msg: "Completed historical indexing",
   });
 
-  await database.createIndexes();
-  await database.createTriggers();
+  const tables = Object.values(schemaBuild.schema).filter(isTable);
+
+  await createIndexes(database.adminQB, { statements: schemaBuild.statements });
+  await Promise.all(
+    tables.map((table) => createTrigger(database.adminQB, { table })),
+  );
 
   if (namespaceBuild.viewsSchema) {
     await database.userQB.execute(
       sql.raw(`CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.viewsSchema}"`),
     );
-
-    const tables = Object.values(schemaBuild.schema).filter(isTable);
 
     for (const table of tables) {
       // Note: drop views before creating new ones to avoid enum errors.
@@ -462,7 +494,9 @@ export async function run({
     );
   }
 
-  await database.setReady();
+  await database.adminQB
+    .update(PONDER_META)
+    .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` });
 
   const realtimeIndexingStore = createRealtimeIndexingStore({
     common,
@@ -502,7 +536,11 @@ export async function run({
 
             if (result.status === "error") onReloadableError(result.error);
 
-            await database.commitBlock({ checkpoint, db: database.userQB });
+            await Promise.all(
+              tables.map((table) =>
+                commitBlock(database.userQB, { table, checkpoint }),
+              ),
+            );
 
             if (preBuild.ordering === "multichain") {
               common.metrics.ponder_indexing_timestamp.set(
@@ -547,25 +585,41 @@ export async function run({
         // Note: `_ponder_checkpoint` is not called here, instead it is called
         // in the `block` case.
 
-        await database.removeTriggers();
-
         await database.userQB.transaction(async (tx) => {
-          await database.revert({ checkpoint: event.checkpoint, tx });
+          for (const table of tables) {
+            await dropTrigger(tx, { table });
+            const count = await revert(tx, {
+              table,
+              checkpoint: event.checkpoint,
+            });
+            common.logger.info({
+              service: "database",
+              msg: `Reverted ${count} unfinalized operations from '${getTableName(table)}'`,
+            });
+            await createTrigger(tx, { table });
+          }
         });
-
-        await database.createTriggers();
 
         break;
 
       case "finalize":
-        await database.userQB.update(PONDER_CHECKPOINT).set({
-          safeCheckpoint: event.checkpoint,
+        await database.userQB.transaction(async (tx) => {
+          await tx.update(PONDER_CHECKPOINT).set({
+            safeCheckpoint: event.checkpoint,
+          });
+
+          for (const table of tables) {
+            await finalize(tx, { table, checkpoint: event.checkpoint });
+          }
+
+          const decoded = decodeCheckpoint(event.checkpoint);
+
+          common.logger.debug({
+            service: "database",
+            msg: `Updated finalized checkpoint to (timestamp=${decoded.blockTimestamp} chainId=${decoded.chainId} block=${decoded.blockNumber})`,
+          });
         });
 
-        await database.finalize({
-          checkpoint: event.checkpoint,
-          db: database.userQB,
-        });
         break;
 
       default:
