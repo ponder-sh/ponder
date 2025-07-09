@@ -39,7 +39,7 @@ export const client = ({
 
   const channel = `${globalThis.PONDER_NAMESPACE_BUILD.schema}_status_channel`;
 
-  if ("instance" in driver) {
+  if (driver.dialect === "pglite") {
     driver.instance.query(`LISTEN "${channel}"`).then(() => {
       driver.instance.onNotification(async () => {
         statusResolver.resolve();
@@ -76,7 +76,7 @@ export const client = ({
       }
       const query = superjson.parse(queryString) as QueryWithTypings;
 
-      if ("instance" in driver) {
+      if (driver.dialect === "pglite") {
         try {
           await validateQuery(query.sql);
           const result = await session

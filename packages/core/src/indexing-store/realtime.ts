@@ -1,4 +1,5 @@
 import type { Database } from "@/database/index.js";
+import type { QB } from "@/database/queryBuilder.js";
 import type { Common } from "@/internal/common.js";
 import { RecordNotFoundError } from "@/internal/errors.js";
 import type { SchemaBuild } from "@/internal/types.js";
@@ -22,6 +23,7 @@ export const createRealtimeIndexingStore = ({
   schemaBuild: Pick<SchemaBuild, "schema">;
   database: Database;
 }): IndexingStore => {
+  let qb: QB = undefined!;
   const find = (table: Table, key: object) => {
     return database.userQB
       .select()
@@ -242,18 +244,23 @@ export const createRealtimeIndexingStore = ({
 
         const endClock = startClock();
 
-        const result = await database.userQB._.session
-          .prepareQuery(query, undefined, undefined, method === "all")
-          .execute()
-          .finally(() => {
-            common.metrics.ponder_indexing_store_raw_sql_duration.observe(
-              endClock(),
-            );
-          });
-        // @ts-ignore
-        return { rows: result.rows.map((row) => Object.values(row)) };
+        try {
+          const result = await qb._.session
+            .prepareQuery(query, undefined, undefined, method === "all")
+            .execute();
+
+          // @ts-ignore
+          return { rows: result.rows.map((row) => Object.values(row)) };
+        } finally {
+          common.metrics.ponder_indexing_store_raw_sql_duration.observe(
+            endClock(),
+          );
+        }
       },
       { schema, casing: "snake_case" },
     ),
+    set qb(_qb: QB) {
+      qb = _qb;
+    },
   };
 };
