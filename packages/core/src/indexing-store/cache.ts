@@ -1,5 +1,6 @@
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import type { QB } from "@/database/queryBuilder.js";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import { addErrorMeta, toErrorMeta } from "@/indexing/index.js";
@@ -8,14 +9,11 @@ import { FlushError } from "@/internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
   Event,
-  Schema,
   SchemaBuild,
 } from "@/internal/types.js";
-import type { Drizzle } from "@/types/db.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
-import { PGlite } from "@electric-sql/pglite";
 import {
   type Column,
   type Table,
@@ -30,7 +28,6 @@ import {
   type PgTableWithColumns,
   getTableConfig,
 } from "drizzle-orm/pg-core";
-import type { PoolClient } from "pg";
 import copy from "pg-copy-streams";
 import {
   getProfilePatternKey,
@@ -50,7 +47,7 @@ export type IndexingCache = {
   get: (params: {
     table: Table;
     key: object;
-    db: Drizzle<Schema>;
+    db: QB;
   }) => Row | null | Promise<Row | null>;
   /**
    * Sets the entry for `table` with `key` to `row`.
@@ -67,7 +64,7 @@ export type IndexingCache = {
   delete: (params: {
     table: Table;
     key: object;
-    db: Drizzle<Schema>;
+    db: QB;
   }) => boolean | Promise<boolean>;
   /**
    * Writes all temporary data to the database.
@@ -75,7 +72,7 @@ export type IndexingCache = {
    * @param params.tableNames - If provided, only flush the tables in the set.
    */
   flush: (params: {
-    client: PoolClient | PGlite;
+    db: QB;
     tableNames?: Set<string>;
   }) => Promise<void>;
   /**
@@ -83,7 +80,7 @@ export type IndexingCache = {
    */
   prefetch: (params: {
     events: Event[];
-    db: Drizzle<Schema>;
+    db: QB;
   }) => Promise<void>;
   /**
    * Remove spillover and buffer entries.
@@ -231,15 +228,15 @@ export const getCopyText = (table: Table, rows: Row[]) => {
   return results.join("\n");
 };
 
-export const getCopyHelper = ({ client }: { client: PoolClient | PGlite }) => {
-  if (client instanceof PGlite) {
+export const getCopyHelper = ({ db }: { db: QB }) => {
+  if (db.$dialect === "pglite") {
     return async (table: Table, text: string, includeSchema = true) => {
       const target = includeSchema
         ? `"${getTableConfig(table).schema ?? "public"}"."${getTableName(
             table,
           )}"`
         : `"${getTableName(table)}"`;
-      await client.query(`COPY ${target} FROM '/dev/blob'`, [], {
+      await db.$client.query(`COPY ${target} FROM '/dev/blob'`, [], {
         blob: new Blob([text]),
       });
     };
@@ -252,7 +249,7 @@ export const getCopyHelper = ({ client }: { client: PoolClient | PGlite }) => {
         : `"${getTableName(table)}"`;
       await pipeline(
         Readable.from(text),
-        client.query(copy.from(`COPY ${target} FROM STDIN`)),
+        db.$client.query(copy.from(`COPY ${target} FROM STDIN`)),
       );
     };
   }
@@ -470,8 +467,8 @@ export const createIndexingCache = ({
 
       return inInsertBuffer || inUpdateBuffer || inDb;
     },
-    async flush({ client, tableNames }) {
-      const copy = getCopyHelper({ client });
+    async flush({ db, tableNames }) {
+      const copy = getCopyHelper({ db });
 
       const shouldRecordBytes = isCacheComplete;
 
@@ -491,8 +488,7 @@ export const createIndexingCache = ({
         if (insertValues.length > 0) {
           const endClock = startClock();
 
-          // @ts-ignore
-          await client.query("SAVEPOINT flush");
+          await db.execute("SAVEPOINT flush");
 
           try {
             const text = getCopyText(
@@ -508,15 +504,14 @@ export const createIndexingCache = ({
             const result = await recoverBatchError(
               insertValues,
               async (values) => {
-                // @ts-ignore
-                await client.query("ROLLBACK to flush");
+                await db.execute("ROLLBACK to flush");
                 const text = getCopyText(
                   table,
                   values.map(({ row }) => row),
                 );
                 await copy(table, text);
-                // @ts-ignore
-                await client.query("SAVEPOINT flush");
+
+                await db.execute("SAVEPOINT flush");
               },
             );
 
@@ -629,10 +624,8 @@ export const createIndexingCache = ({
 
           const endClock = startClock();
 
-          // @ts-ignore
-          await client.query(createTempTableQuery);
-          // @ts-ignore
-          await client.query("SAVEPOINT flush");
+          await db.execute(createTempTableQuery);
+          await db.execute("SAVEPOINT flush");
 
           try {
             const text = getCopyText(
@@ -648,15 +641,14 @@ export const createIndexingCache = ({
             const result = await recoverBatchError(
               updateValues,
               async (values) => {
-                // @ts-ignore
-                await client.query("ROLLBACK to flush");
+                await db.execute("ROLLBACK to flush");
                 const text = getCopyText(
                   table,
                   values.map(({ row }) => row),
                 );
                 await copy(table, text, false);
-                // @ts-ignore
-                await client.query("SAVEPOINT flush");
+
+                await db.execute("SAVEPOINT flush");
               },
             );
 
@@ -709,8 +701,7 @@ export const createIndexingCache = ({
             );
           }
 
-          // @ts-ignore
-          await client.query(updateQuery);
+          await db.execute(updateQuery);
 
           common.metrics.ponder_indexing_cache_query_duration.observe(
             {
@@ -737,8 +728,7 @@ export const createIndexingCache = ({
         }
 
         if (insertValues.length > 0 || updateValues.length > 0) {
-          // @ts-ignore
-          await client.query("RELEASE flush");
+          await db.execute("RELEASE flush");
         }
       }
     },

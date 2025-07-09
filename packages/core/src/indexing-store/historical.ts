@@ -1,19 +1,16 @@
 import { findTableNames, validateQuery } from "@/client/parse.js";
+import type { QB } from "@/database/queryBuilder.js";
 import type { Common } from "@/internal/common.js";
 import { RecordNotFoundError } from "@/internal/errors.js";
-import type { Schema, SchemaBuild } from "@/internal/types.js";
-import type { Drizzle } from "@/types/db.js";
+import type { SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
-import type { PGlite } from "@electric-sql/pglite";
 import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
-import type { PoolClient } from "pg";
 import type { IndexingCache } from "./cache.js";
 import {
   type IndexingStore,
   checkOnchainTable,
-  parseSqlError,
   validateUpdateSet,
 } from "./index.js";
 
@@ -22,13 +19,11 @@ export const createHistoricalIndexingStore = ({
   schemaBuild: { schema },
   indexingCache,
   db,
-  client,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   indexingCache: IndexingCache;
-  db: Drizzle<Schema>;
-  client: PoolClient | PGlite;
+  db: QB;
 }): IndexingStore => {
   return {
     // @ts-ignore
@@ -292,7 +287,7 @@ export const createHistoricalIndexingStore = ({
         } catch {}
 
         if (isSelectOnly === false) {
-          await indexingCache.flush({ client });
+          await indexingCache.flush({ db });
           indexingCache.invalidate();
           indexingCache.clear();
         } else {
@@ -303,7 +298,7 @@ export const createHistoricalIndexingStore = ({
             tableNames = await findTableNames(_sql);
           } catch {}
 
-          await indexingCache.flush({ client, tableNames });
+          await indexingCache.flush({ db, tableNames });
         }
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
@@ -316,8 +311,6 @@ export const createHistoricalIndexingStore = ({
 
           // @ts-ignore
           return { rows: result.rows.map((row) => Object.values(row)) };
-        } catch (error) {
-          throw parseSqlError(error);
         } finally {
           common.metrics.ponder_indexing_store_raw_sql_duration.observe(
             endClock(),
