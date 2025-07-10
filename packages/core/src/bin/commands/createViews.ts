@@ -65,7 +65,7 @@ export async function createViews({
     return;
   }
 
-  const buildResult = build.preCompile(configResult.result);
+  const buildResult = await build.preCompile(configResult.result);
 
   if (buildResult.status === "error") {
     await exit({ reason: "Failed intial build", code: 1 });
