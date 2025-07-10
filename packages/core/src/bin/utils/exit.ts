@@ -43,6 +43,8 @@ export const createExit = ({
       process.stdin.pause();
     }
 
+    console.log(reason);
+
     process.exit(code);
   };
 

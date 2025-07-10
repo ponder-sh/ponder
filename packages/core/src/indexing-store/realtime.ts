@@ -1,4 +1,3 @@
-import type { Database } from "@/database/index.js";
 import type { QB } from "@/database/queryBuilder.js";
 import type { Common } from "@/internal/common.js";
 import { RecordNotFoundError } from "@/internal/errors.js";
@@ -17,15 +16,13 @@ import { getCacheKey, getWhereCondition } from "./utils.js";
 export const createRealtimeIndexingStore = ({
   common,
   schemaBuild: { schema },
-  database,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
-  database: Database;
 }): IndexingStore => {
   let qb: QB = undefined!;
   const find = (table: Table, key: object) => {
-    return database.userQB
+    return qb
       .select()
       .from(table)
       .where(getWhereCondition(table, key))
@@ -34,7 +31,7 @@ export const createRealtimeIndexingStore = ({
 
   return {
     // @ts-ignore
-    find: (table: Table, key) => {
+    find: async (table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "find",
@@ -81,7 +78,7 @@ export const createRealtimeIndexingStore = ({
                 return rows;
               };
 
-              return database.userQB
+              return qb
                 .insert(table)
                 .values(values)
                 .onConflictDoNothing()
@@ -107,7 +104,7 @@ export const createRealtimeIndexingStore = ({
                         : validateUpdateSet(table, valuesU, row);
 
                     rows.push(
-                      await database.userQB
+                      await qb
                         .update(table)
                         .set(set)
                         .where(getWhereCondition(table, value))
@@ -116,7 +113,7 @@ export const createRealtimeIndexingStore = ({
                     );
                   } else {
                     rows.push(
-                      await database.userQB
+                      await qb
                         .insert(table)
                         .values(value)
                         .returning()
@@ -134,14 +131,14 @@ export const createRealtimeIndexingStore = ({
                       ? validateUpdateSet(table, valuesU(row), row)
                       : validateUpdateSet(table, valuesU, row);
 
-                  return database.userQB
+                  return qb
                     .update(table)
                     .set(set)
                     .where(getWhereCondition(table, values))
                     .returning()
                     .then((res) => res[0]);
                 } else {
-                  return database.userQB
+                  return qb
                     .insert(table)
                     .values(values)
                     .returning()
@@ -158,7 +155,7 @@ export const createRealtimeIndexingStore = ({
                 });
                 checkOnchainTable(table, "insert");
 
-                return database.userQB
+                return qb
                   .insert(table)
                   .values(values)
                   .returning()
@@ -204,7 +201,7 @@ export const createRealtimeIndexingStore = ({
             }
 
             const set = validateUpdateSet(table, values(row), row);
-            return database.userQB
+            return qb
               .update(table)
               .set(set)
               .where(getWhereCondition(table, key))
@@ -212,7 +209,7 @@ export const createRealtimeIndexingStore = ({
               .then((res) => res[0]);
           } else {
             const set = validateUpdateSet(table, values, row!);
-            return database.userQB
+            return qb
               .update(table)
               .set(set)
               .where(getWhereCondition(table, key))
@@ -230,7 +227,7 @@ export const createRealtimeIndexingStore = ({
       });
       checkOnchainTable(table, "delete");
 
-      const deleted = await database.userQB
+      const deleted = await qb
         .delete(table)
         .where(getWhereCondition(table, key))
         .returning();
