@@ -199,6 +199,7 @@ export async function setupDatabaseServices(
       schema: overrides.schemaBuild?.schema ?? {},
       statements,
     },
+    ordering: "multichain",
   });
 
   await database.migrate({
