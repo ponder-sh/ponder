@@ -216,8 +216,8 @@ export async function setupDatabaseServices(
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     schemaBuild: { schema: overrides.schemaBuild?.schema ?? {} },
-    database,
   });
+  indexingStore.qb = database.userQB;
 
   return {
     database,

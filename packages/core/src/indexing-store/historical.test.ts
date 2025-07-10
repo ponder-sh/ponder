@@ -42,14 +42,15 @@ test("find", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     // empty
 
@@ -101,14 +102,15 @@ test("insert", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     // single
 
@@ -256,14 +258,15 @@ test("update", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     // setup
 
@@ -350,14 +353,15 @@ test("update throw error when primary key is updated", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     // setup
 
@@ -423,14 +427,15 @@ test("delete", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     // no entry
 
@@ -482,14 +487,15 @@ test("sql", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     // setup
 
@@ -514,8 +520,7 @@ test("sql", async (context) => {
 
     // non-null constraint
 
-    // @ts-ignore
-    await client.query("SAVEPOINT test");
+    await tx.execute("SAVEPOINT test");
 
     await expect(
       async () =>
@@ -530,8 +535,7 @@ test("sql", async (context) => {
 
     // unique constraint
 
-    // @ts-ignore
-    await client.query("ROLLBACK TO test");
+    await tx.execute("ROLLBACK TO test");
 
     await expect(
       async () =>
@@ -561,14 +565,15 @@ test("sql followed by find", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await indexingStore.sql
       .insert(schema.account)
@@ -582,6 +587,52 @@ test("sql followed by find", async (context) => {
       address: zeroAddress,
       balance: 10n,
     });
+  });
+});
+
+test("sql with error", async (context) => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount: {},
+  });
+
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
+
+    // error
+
+    const error = await indexingStore.sql
+      .execute("SELECT * FROM does_not_exist")
+      .catch((error) => error);
+
+    expect(error).toBeInstanceOf(Error);
+
+    // next query doesn't error
+
+    await indexingStore.sql
+      .select()
+      .from(schema.account)
+      .where(eq(schema.account.address, zeroAddress));
   });
 });
 
@@ -602,14 +653,15 @@ test("onchain table", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     // check error
 
@@ -638,14 +690,15 @@ test("missing rows", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     // error
 
@@ -676,14 +729,15 @@ test("notNull", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    let indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  let indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     // insert
 
@@ -730,9 +784,10 @@ test("notNull", async (context) => {
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
     });
+
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await expect(
       async () =>
@@ -767,15 +822,15 @@ test("default", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
 
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await indexingStore.insert(schema.account).values({ address: zeroAddress });
 
@@ -804,15 +859,15 @@ test("$default", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
 
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await indexingStore.insert(schema.account).values({ address: zeroAddress });
 
@@ -844,15 +899,15 @@ test("$onUpdateFn", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
 
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     // insert
 
@@ -887,15 +942,15 @@ test("array", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
 
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -932,14 +987,15 @@ test("text array", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     const STRING_ARRAY_VALUE = "//U_W_U\\\\";
 
@@ -982,14 +1038,15 @@ test("enum", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -1026,14 +1083,15 @@ test("json bigint", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await expect(
       async () =>
@@ -1061,14 +1119,15 @@ test("bytes", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -1103,14 +1162,15 @@ test("text with null bytes", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -1145,14 +1205,15 @@ test.skip("time", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -1187,14 +1248,15 @@ test("timestamp", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -1229,14 +1291,15 @@ test.skip("date", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -1271,14 +1334,15 @@ test.skip("interval", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -1313,14 +1377,15 @@ test("point", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -1355,14 +1420,15 @@ test("line", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,

@@ -95,7 +95,7 @@ export const createQB = <
     | pg.PoolClient,
 >(
   db: PgDatabase<PgQueryResultHKT, TSchema> & { $client: TClient },
-  { common, isAdmin }: { common: Common; isAdmin: boolean },
+  { common, isAdmin }: { common: Common; isAdmin?: boolean },
 ): QB<TSchema, TClient> => {
   const dialect = new PgDialect({ casing: "snake_case" });
   const isClient = db.$client instanceof pg.Client;

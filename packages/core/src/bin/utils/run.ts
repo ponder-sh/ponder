@@ -500,8 +500,8 @@ export async function run({
   const realtimeIndexingStore = createRealtimeIndexingStore({
     common,
     schemaBuild,
-    database,
   });
+  realtimeIndexingStore.qb = database.userQB;
 
   const onRealtimeEvent = mutex(async (event: RealtimeEvent) => {
     switch (event.type) {
