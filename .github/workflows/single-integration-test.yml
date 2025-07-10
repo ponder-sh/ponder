@@ -1,0 +1,48 @@
+name: Single Integration Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: 'Seed value for testing'
+        required: true
+        type: string
+      app: 
+        description: 'App name for testing (e.g. assessment, etc.)'
+        required: true
+        type: string
+
+jobs:
+  integration-test:
+    name: Single Integration Test
+    runs-on: default
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/setup
+      - uses: oven-sh/setup-bun@v2
+
+      - run: pnpm build
+      - run: pnpm install
+
+      - name: Test ${{ github.event.inputs.app }}
+        run: |
+          cd integration-test
+          UUID=$(cat /proc/sys/kernel/random/uuid)
+          SEED=${{ github.event.inputs.seed }} pnpm test ${{ github.event.inputs.app }}
+        env:
+          DATABASE_URL: ${{ secrets.TEST_CONNECTION_STRING }}
+          PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
+          PONDER_RPC_URL_10: ${{ secrets.PONDER_RPC_URL_10 }}
+          PONDER_RPC_URL_130: ${{ secrets.PONDER_RPC_URL_130 }}
+          PONDER_RPC_URL_137: ${{ secrets.PONDER_RPC_URL_137 }}
+          PONDER_RPC_URL_480: ${{ secrets.PONDER_RPC_URL_480 }}
+          PONDER_RPC_URL_8453: ${{ secrets.PONDER_RPC_URL_8453 }}
+          PONDER_RPC_URL_42161: ${{ secrets.PONDER_RPC_URL_42161 }}
+          PONDER_RPC_URL_81457: ${{ secrets.PONDER_RPC_URL_81457 }}
+          PONDER_RPC_URL_84532: ${{ secrets.PONDER_RPC_URL_84532 }}
+          PONDER_RPC_URL_11155111: ${{ secrets.PONDER_RPC_URL_11155111 }}
+          PONDER_RPC_URL_11155420: ${{ secrets.PONDER_RPC_URL_11155420 }}
+          PGDATABASE: railway
+          PGSSLMODE: disable
