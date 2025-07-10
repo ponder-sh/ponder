@@ -35,12 +35,18 @@ export type QB<
     | PGlite
     | pg.Pool
     | pg.PoolClient,
-> = (Omit<Drizzle<TSchema>, "transaction"> & {
+> = ((label: string) => Omit<Drizzle<TSchema>, "transaction"> & {
   transaction<T>(
     transaction: (tx: QB<TSchema, TClient>) => Promise<T>,
     config?: PgTransactionConfig,
   ): Promise<T>;
 }) &
+  (Omit<Drizzle<TSchema>, "transaction"> & {
+    transaction<T>(
+      transaction: (tx: QB<TSchema, TClient>) => Promise<T>,
+      config?: PgTransactionConfig,
+    ): Promise<T>;
+  }) &
   (
     | { $dialect: "pglite"; $client: PGlite }
     | { $dialect: "postgres"; $client: pg.Pool | pg.PoolClient }
@@ -66,6 +72,8 @@ export const parseSqlError = (e: any): Error => {
     error = new NonRetryableError(error.message);
   }
 
+  error.stack = e.stack;
+
   return error;
 };
 
@@ -74,8 +82,9 @@ export const parseSqlError = (e: any): Error => {
  *
  * @example
  * ```ts
- * const qb = createQB(drizzle(pool, { casing: "snake_case" }));
- * const result = await qb.select().from(accounts);
+ * const qb = createQB(drizzle(pool, { casing: "snake_case" }), { common });
+ * const result1 = await qb.select().from(accounts);
+ * const result2 = await qb("label").select().from(accounts);
  * ```
  */
 export const createQB = <
@@ -202,11 +211,30 @@ export const createQB = <
     const _transaction = db.transaction.bind(db);
     db.transaction = async (...args) => {
       const callback = args[0];
-      args[0] = async (tx) => {
-        wrapTx(tx);
+      args[0] = async (_tx) => {
+        wrapTx(_tx);
+
+        let tx = ((_label: string) => _tx) as unknown as QB<TSchema, TClient>;
+
+        tx = new Proxy(tx, {
+          get(_, prop) {
+            return Reflect.get(_tx, prop);
+          },
+          set(_, prop, value) {
+            return Reflect.set(_tx, prop, value);
+          },
+          has(_, prop) {
+            return Reflect.has(_tx, prop);
+          },
+          ownKeys() {
+            return Reflect.ownKeys(_tx);
+          },
+        });
 
         // @ts-expect-error
-        assignClient(tx, tx.session.client);
+        assignClient(tx, _tx.session.client);
+
+        // @ts-expect-error
         return callback(tx);
       };
       return _transaction(...args);
@@ -283,7 +311,19 @@ export const createQB = <
   };
 
   wrapTx(db);
-  assignClient(db as unknown as QB<TSchema, TClient>, db.$client);
 
-  return db as unknown as QB<TSchema, TClient>;
+  let qb = ((_label: string) => db) as unknown as QB<TSchema, TClient>;
+
+  qb = new Proxy(qb, {
+    get(_, prop) {
+      return Reflect.get(db, prop);
+    },
+    set(_, prop, value) {
+      return Reflect.set(db, prop, value);
+    },
+  });
+
+  assignClient(qb, db.$client);
+
+  return qb;
 };

@@ -422,7 +422,8 @@ export function buildGraphQLSchema({
     type: GraphQLMeta,
     resolve: async (_source, _args, context) => {
       // Note: This is done to avoid non-browser compatible dependencies
-      const checkpoints = (await context.qb
+      const checkpoints = (await context
+        .qb("select_checkpoints")
         .execute(
           "SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint",
         )

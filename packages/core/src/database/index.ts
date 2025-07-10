@@ -175,7 +175,7 @@ export const createDatabase = async ({
       clearInterval(heartbeatInterval);
 
       if (["start", "dev"].includes(common.options.command)) {
-        await adminQB
+        await adminQB("unlock")
           .update(PONDER_META)
           .set({ value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))` });
       }
@@ -304,7 +304,7 @@ export const createDatabase = async ({
       clearInterval(heartbeatInterval);
 
       if (["start", "dev"].includes(common.options.command)) {
-        await adminQB
+        await adminQB("unlock")
           .update(PONDER_META)
           .set({ value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))` });
       }
@@ -360,7 +360,7 @@ export const createDatabase = async ({
 
   const tables = Object.values(schemaBuild.schema).filter(isTable);
 
-  const database = {
+  return {
     driver,
     syncQB,
     adminQB,
@@ -444,50 +444,6 @@ export const createDatabase = async ({
       }
     },
     async migrate({ buildId }) {
-      await adminQB.execute(
-        sql.raw(`
-CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_meta" (
-  "key" TEXT PRIMARY KEY,
-  "value" JSONB NOT NULL
-)`),
-      );
-
-      await adminQB.execute(
-        sql.raw(`
-CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
-  "chain_name" TEXT PRIMARY KEY,
-  "chain_id" INTEGER NOT NULL,
-  "safe_checkpoint" VARCHAR(75) NOT NULL,
-  "latest_checkpoint" VARCHAR(75) NOT NULL
-)`),
-      );
-
-      const trigger = "status_trigger";
-      const notification = "status_notify()";
-      const channel = `${namespace.schema}_status_channel`;
-
-      await adminQB.execute(
-        sql.raw(`
-CREATE OR REPLACE FUNCTION "${namespace.schema}".${notification}
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
-BEGIN
-NOTIFY "${channel}";
-RETURN NULL;
-END;
-$$;`),
-      );
-
-      await adminQB.execute(
-        sql.raw(`
-CREATE OR REPLACE TRIGGER "${trigger}"
-AFTER INSERT OR UPDATE OR DELETE
-ON "${namespace.schema}"._ponder_checkpoint
-FOR EACH STATEMENT
-EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
-      );
-
       const createTables = async (tx: QB) => {
         for (let i = 0; i < schemaBuild.statements.tables.sql.length; i++) {
           await tx
@@ -521,7 +477,51 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
       };
 
       const tryAcquireLockAndMigrate = () =>
-        adminQB.transaction(async (tx) => {
+        adminQB("migrate").transaction(async (tx) => {
+          await tx.execute(
+            sql.raw(`
+    CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_meta" (
+      "key" TEXT PRIMARY KEY,
+      "value" JSONB NOT NULL
+    )`),
+          );
+
+          await tx.execute(
+            sql.raw(`
+    CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
+      "chain_name" TEXT PRIMARY KEY,
+      "chain_id" INTEGER NOT NULL,
+      "safe_checkpoint" VARCHAR(75) NOT NULL,
+      "latest_checkpoint" VARCHAR(75) NOT NULL
+    )`),
+          );
+
+          const trigger = "status_trigger";
+          const notification = "status_notify()";
+          const channel = `${namespace.schema}_status_channel`;
+
+          await tx.execute(
+            sql.raw(`
+    CREATE OR REPLACE FUNCTION "${namespace.schema}".${notification}
+    RETURNS TRIGGER
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+    NOTIFY "${channel}";
+    RETURN NULL;
+    END;
+    $$;`),
+          );
+
+          await tx.execute(
+            sql.raw(`
+    CREATE OR REPLACE TRIGGER "${trigger}"
+    AFTER INSERT OR UPDATE OR DELETE
+    ON "${namespace.schema}"._ponder_checkpoint
+    FOR EACH STATEMENT
+    EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
+          );
+
           // Note: All ponder versions are compatible with the next query (every version of the "_ponder_meta" table have the same columns)
 
           const previousApp = await tx
@@ -723,9 +723,11 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
         try {
           const heartbeat = Date.now();
 
-          await adminQB.update(PONDER_META).set({
-            value: sql`jsonb_set(value, '{heartbeat_at}', ${heartbeat})`,
-          });
+          await adminQB("update_heartbeat")
+            .update(PONDER_META)
+            .set({
+              value: sql`jsonb_set(value, '{heartbeat_at}', ${heartbeat})`,
+            });
 
           common.logger.trace({
             service: "database",
@@ -745,8 +747,5 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
 
       return result.crashRecoveryCheckpoint;
     },
-  } satisfies Database;
-
-  // @ts-ignore
-  return database;
+  };
 };

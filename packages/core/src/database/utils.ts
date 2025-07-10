@@ -12,7 +12,7 @@ export const createIndexes = async (
   { statements }: { statements: SchemaBuild["statements"] },
 ) => {
   for (const statement of statements.indexes.sql) {
-    await qb.transaction(async (tx) => {
+    await qb("create_indexes").transaction(async (tx) => {
       // 60 minutes
       await tx.execute("SET statement_timeout = 3600000;");
       await tx.execute(statement);
@@ -28,39 +28,41 @@ export const createTrigger = async (qb: QB, { table }: { table: PgTable }) => {
     (column) => `"${getColumnCasing(column, "snake_case")}"`,
   );
 
-  await qb.execute(
-    sql.raw(`
-CREATE OR REPLACE FUNCTION "${schema}".${getTableNames(table).triggerFn}
-RETURNS TRIGGER AS $$
-BEGIN
-IF TG_OP = 'INSERT' THEN
-INSERT INTO "${schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
-VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${MAX_CHECKPOINT_STRING}');
-ELSIF TG_OP = 'UPDATE' THEN
-INSERT INTO "${schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
-VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${MAX_CHECKPOINT_STRING}');
-ELSIF TG_OP = 'DELETE' THEN
-INSERT INTO "${schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
-VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${MAX_CHECKPOINT_STRING}');
-END IF;
-RETURN NULL;
-END;
-$$ LANGUAGE plpgsql`),
-  );
+  await qb("create_trigger").transaction(async (tx) => {
+    await tx.execute(
+      sql.raw(`
+  CREATE OR REPLACE FUNCTION "${schema}".${getTableNames(table).triggerFn}
+  RETURNS TRIGGER AS $$
+  BEGIN
+  IF TG_OP = 'INSERT' THEN
+  INSERT INTO "${schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+  VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${MAX_CHECKPOINT_STRING}');
+  ELSIF TG_OP = 'UPDATE' THEN
+  INSERT INTO "${schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+  VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${MAX_CHECKPOINT_STRING}');
+  ELSIF TG_OP = 'DELETE' THEN
+  INSERT INTO "${schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+  VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${MAX_CHECKPOINT_STRING}');
+  END IF;
+  RETURN NULL;
+  END;
+  $$ LANGUAGE plpgsql`),
+    );
 
-  await qb.execute(
-    sql.raw(`
-CREATE OR REPLACE TRIGGER "${getTableNames(table).trigger}"
-AFTER INSERT OR UPDATE OR DELETE ON "${schema}"."${getTableName(table)}"
-FOR EACH ROW EXECUTE FUNCTION "${schema}".${getTableNames(table).triggerFn};
-`),
-  );
+    await tx.execute(
+      sql.raw(`
+  CREATE OR REPLACE TRIGGER "${getTableNames(table).trigger}"
+  AFTER INSERT OR UPDATE OR DELETE ON "${schema}"."${getTableName(table)}"
+  FOR EACH ROW EXECUTE FUNCTION "${schema}".${getTableNames(table).triggerFn};
+  `),
+    );
+  });
 };
 
 export const dropTrigger = async (qb: QB, { table }: { table: PgTable }) => {
   const schema = getTableConfig(table).schema ?? "public";
 
-  await qb.execute(
+  await qb("drop_trigger").execute(
     sql.raw(
       `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${schema}"."${getTableName(table)}"`,
     ),
@@ -74,7 +76,7 @@ export const revert = async (
   const primaryKeyColumns = getPrimaryKeyColumns(table);
   const schema = getTableConfig(table).schema ?? "public";
 
-  const result = await qb.execute(
+  const result = await qb("revert").execute(
     sql.raw(`
 WITH reverted1 AS (
 DELETE FROM "${schema}"."${getTableName(getReorgTable(table))}"
@@ -123,7 +125,7 @@ export const finalize = async (
   qb: QB,
   { checkpoint, table }: { checkpoint: string; table: PgTable },
 ) => {
-  await qb
+  await qb("finalize")
     .delete(getReorgTable(table))
     .where(lte(getReorgTable(table).checkpoint, checkpoint));
 };
@@ -133,7 +135,7 @@ export const commitBlock = async (
   { checkpoint, table }: { checkpoint: string; table: PgTable },
 ) => {
   const reorgTable = getReorgTable(table);
-  await qb
+  await qb("commit_block")
     .update(reorgTable)
     .set({ checkpoint })
     .where(eq(reorgTable.checkpoint, MAX_CHECKPOINT_STRING));

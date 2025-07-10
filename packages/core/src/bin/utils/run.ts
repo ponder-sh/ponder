@@ -171,7 +171,7 @@ export async function run({
         throw error;
       }
 
-      await tx
+      await tx("update_checkpoints")
         .insert(PONDER_CHECKPOINT)
         .values(
           indexingBuild.chains.map((chain) => ({
@@ -344,7 +344,7 @@ export async function run({
           endClock = startClock();
 
           if (events.checkpoints.length > 0) {
-            await tx
+            await tx("update_checkpoints")
               .insert(PONDER_CHECKPOINT)
               .values(
                 events.checkpoints.map(({ chainId, checkpoint }) => ({
@@ -427,70 +427,73 @@ export async function run({
   );
 
   if (namespaceBuild.viewsSchema) {
-    await database.adminQB.execute(
-      sql.raw(`CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.viewsSchema}"`),
-    );
+    await database.adminQB("create_views").transaction(async (tx) => {
+      await tx.execute(
+        sql.raw(`CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.viewsSchema}"`),
+      );
 
-    for (const table of tables) {
-      // Note: drop views before creating new ones to avoid enum errors.
-      await database.adminQB.execute(
+      for (const table of tables) {
+        // Note: drop views before creating new ones to avoid enum errors.
+        await tx.execute(
+          sql.raw(
+            `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${getTableName(table)}"`,
+          ),
+        );
+
+        await tx.execute(
+          sql.raw(
+            `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
+          ),
+        );
+      }
+
+      common.logger.info({
+        service: "app",
+        msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
+      });
+
+      await tx.execute(
         sql.raw(
-          `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${getTableName(table)}"`,
+          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_meta"`,
         ),
       );
 
-      await database.adminQB.execute(
+      await tx.execute(
         sql.raw(
-          `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
+          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_checkpoint"`,
         ),
       );
-    }
 
-    common.logger.info({
-      service: "app",
-      msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
+      const trigger = `status_${namespaceBuild.viewsSchema}_trigger`;
+      const notification = "status_notify()";
+      const channel = `${namespaceBuild.viewsSchema}_status_channel`;
+
+      await tx.execute(
+        sql.raw(`
+    CREATE OR REPLACE FUNCTION "${namespaceBuild.viewsSchema}".${notification}
+    RETURNS TRIGGER
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+    NOTIFY "${channel}";
+    RETURN NULL;
+    END;
+    $$;`),
+      );
+
+      await tx.execute(
+        sql.raw(`
+    CREATE OR REPLACE TRIGGER "${trigger}"
+    AFTER INSERT OR UPDATE OR DELETE
+    ON "${namespaceBuild.schema}"._ponder_checkpoint
+    FOR EACH STATEMENT
+    EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
+      );
     });
-
-    await database.adminQB.execute(
-      sql.raw(
-        `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_meta"`,
-      ),
-    );
-
-    await database.adminQB.execute(
-      sql.raw(
-        `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_checkpoint"`,
-      ),
-    );
-
-    const trigger = `status_${namespaceBuild.viewsSchema}_trigger`;
-    const notification = "status_notify()";
-    const channel = `${namespaceBuild.viewsSchema}_status_channel`;
-
-    await database.adminQB.execute(
-      sql.raw(`
-  CREATE OR REPLACE FUNCTION "${namespaceBuild.viewsSchema}".${notification}
-  RETURNS TRIGGER
-  LANGUAGE plpgsql
-  AS $$
-  BEGIN
-  NOTIFY "${channel}";
-  RETURN NULL;
-  END;
-  $$;`),
-    );
-
-    await database.adminQB.execute(
-      sql.raw(`
-  CREATE OR REPLACE TRIGGER "${trigger}"
-  AFTER INSERT OR UPDATE OR DELETE
-  ON "${namespaceBuild.schema}"._ponder_checkpoint
-  FOR EACH STATEMENT
-  EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
-    );
   }
 
-  await database.adminQB
+  await database
+    .adminQB("update_ready")
     .update(PONDER_META)
     .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` });
 
@@ -555,7 +558,8 @@ export async function run({
         }
 
         if (event.checkpoints.length > 0) {
-          await database.userQB
+          await database
+            .userQB("update_checkpoints")
             .insert(PONDER_CHECKPOINT)
             .values(
               event.checkpoints.map(({ chainId, checkpoint }) => ({
