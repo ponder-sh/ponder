@@ -1155,25 +1155,29 @@ WITH operations1 AS (
             tables.map(async (table) => {
               await db.execute(
                 sql.raw(`
-WITH operations AS (
-  SELECT checkpoint as max_operation_checkpoint, MAX(operation_id) AS max_operation_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
-  AND checkpoint <= '${checkpoint}'
-), right AS (
-  SELECT MIN(operation_id) AS min_operation_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE checkpoint > (SELECT max_operation_checkpoint FROM operations)
+WITH left_op AS (
+  SELECT checkpoint as max_op_checkpoint, operation_id as max_op_id from "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  where operation_id = (
+    SELECT MAX(operation_id)
+    FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+    WHERE substring(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
+    and checkpoint <= '${checkpoint}'
+  )
+), right_op AS (
+  SELECT MIN(operation_id) as min_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  where checkpoint > (SELECT max_op_checkpoint FROM left_op)
     AND (
-      (SELECT max_operation_id FROM operations) is NULL 
-      OR operation_id < (SELECT max_operation_id FROM operations)
+      (SELECT max_op_id from left_op) is NULL
+      or operation_id < (select max_op_id from left_op)
     )
-), deleted AS (
-  DELETE FROM "${namespace.schema}"."${getTableName(table)}" 
-  WHERE (
-    (SELECT min_operation_id FROM right) is NULL 
-    AND operation_id <= (SELECT max_operation_checkpoint FROM operations)
-  ) OR (
-    (SELECT min_operation_id FROM right) is NOT NULL 
-    AND operation_id < (SELECT min_operation_id FROM right)
+), deleted as (
+  DELETE from "${namespace.schema}"."${getTableName(getReorgTable(table))}" 
+  where (
+    (select min_op_id from right_op) is NULL
+    and operation_id <= (select max_op_id from left_op)
+  ) or (
+    (select min_op_id from right_op) is not null
+    and operation_id < (select min_op_id from right_op)
   )
   RETURNING *
 ) SELECT COUNT(*) FROM deleted as count;
