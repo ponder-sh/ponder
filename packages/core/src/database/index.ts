@@ -4,7 +4,7 @@ import {
   sqlToReorgTableName,
 } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
-import { NonRetryableError } from "@/internal/errors.js";
+import { NonRetryableError, ShutdownError } from "@/internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
@@ -18,6 +18,7 @@ import { min } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
 import { createPglite, createPgliteKyselyDialect } from "@/utils/pglite.js";
+import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
 import { eq, getTableName, isTable, sql } from "drizzle-orm";
@@ -27,7 +28,7 @@ import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
 import type { Pool, PoolClient } from "pg";
 import prometheus from "prom-client";
-import { type QB, createQB } from "./queryBuilder.js";
+import { type QB, createQB, parseSqlError } from "./queryBuilder.js";
 import { revert } from "./utils.js";
 
 export type Database = {
@@ -372,15 +373,11 @@ export const createDatabase = async ({
       const kysely = new Kysely({
         dialect:
           dialect === "postgres"
-            ? new PostgresDialect({
-                pool: (driver as PostgresDriver).admin,
-              })
+            ? new PostgresDialect({ pool: (driver as PostgresDriver).admin })
             : createPgliteKyselyDialect((driver as PGliteDriver).instance),
         log(event) {
           if (event.level === "query") {
-            common.metrics.ponder_postgres_query_total.inc({
-              pool: "migrate",
-            });
+            common.metrics.ponder_postgres_query_total.inc({ pool: "migrate" });
           }
         },
         plugins: [new WithSchemaPlugin("ponder_sync")],
@@ -393,8 +390,61 @@ export const createDatabase = async ({
         migrationTableSchema: "ponder_sync",
       });
 
-      const { error } = await migrator.migrateToLatest();
-      if (error) throw error;
+      // Note: inline operation of database wrapper because this is the only place where kysely is used
+      for (let i = 0; i <= 9; i++) {
+        const endClock = startClock();
+        try {
+          const { error } = await migrator.migrateToLatest();
+          if (error) throw error;
+
+          common.metrics.ponder_database_method_duration.observe(
+            { method: "migrate_sync" },
+            endClock(),
+          );
+
+          return;
+        } catch (_error) {
+          const error = parseSqlError(_error);
+
+          if (common.shutdown.isKilled) {
+            throw new ShutdownError();
+          }
+
+          common.metrics.ponder_database_method_duration.observe(
+            { method: "migrate_sync" },
+            endClock(),
+          );
+          common.metrics.ponder_database_method_error_total.inc({
+            method: "migrate_sync",
+          });
+
+          if (error instanceof NonRetryableError) {
+            common.logger.warn({
+              service: "database",
+              msg: `Failed 'migrate_sync' database query`,
+              error,
+            });
+            throw error;
+          }
+
+          if (i === 9) {
+            common.logger.warn({
+              service: "database",
+              msg: `Failed 'migrate_sync' database query after '${i + 1}' attempts`,
+              error,
+            });
+            throw error;
+          }
+
+          const duration = 125 * 2 ** i;
+          common.logger.debug({
+            service: "database",
+            msg: `Failed 'migrate_sync' database query, retrying after ${duration} milliseconds`,
+            error,
+          });
+          await wait(duration);
+        }
+      }
     },
     async migrate({ buildId }) {
       await adminQB.execute(
