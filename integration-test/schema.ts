@@ -64,3 +64,13 @@ export const logs = rpcCache.table(
   }),
   (table) => [primaryKey({ columns: [table.chainId, table.blockNumber] })],
 );
+
+export const calls = rpcCache.table(
+  "eth_call",
+  (t) => ({
+    chainId: t.bigint({ mode: "number" }).notNull(),
+    request: t.jsonb().notNull(),
+    body: t.jsonb().notNull(),
+  }),
+  (table) => [primaryKey({ columns: [table.chainId, table.request] })],
+);
