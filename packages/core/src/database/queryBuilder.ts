@@ -11,7 +11,7 @@ import {
 } from "@/internal/errors.js";
 import type { Schema } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
-// import { startClock } from "@/utils/timer.js";
+import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
 import {
@@ -100,21 +100,25 @@ export const createQB = <
   const dialect = new PgDialect({ casing: "snake_case" });
   const isClient = db.$client instanceof pg.Client;
 
-  const wrap = async <T>(fn: () => Promise<T>, sql: string): Promise<T> => {
+  const wrap = async <T>(
+    fn: () => Promise<T>,
+    sql: string,
+    label?: string,
+  ): Promise<T> => {
     // First error thrown is often the most useful
     let firstError: any;
     let hasError = false;
 
     for (let i = 0; i <= RETRY_COUNT; i++) {
-      // const endClock = startClock();
+      const endClock = startClock();
       const id = crypto.randomUUID().slice(0, 8);
 
-      // if (label) {
-      //   common.logger.trace({
-      //     service: "database",
-      //     msg: `Started '${label}' database method (id=${id})`,
-      //   });
-      // }
+      if (label) {
+        common.logger.trace({
+          service: "database",
+          msg: `Started '${label}' database method (id=${id})`,
+        });
+      }
 
       try {
         if (common.shutdown.isKilled && isAdmin === false) {
@@ -122,12 +126,12 @@ export const createQB = <
         }
 
         const result = await fn();
-        // if (label) {
-        //   common.metrics.ponder_database_method_duration.observe(
-        //     { method: label },
-        //     endClock(),
-        //   );
-        // }
+        if (label) {
+          common.metrics.ponder_database_method_duration.observe(
+            { method: label },
+            endClock(),
+          );
+        }
 
         if (common.shutdown.isKilled && isAdmin === false) {
           throw new ShutdownError();
@@ -141,15 +145,15 @@ export const createQB = <
           throw new ShutdownError();
         }
 
-        // if (label) {
-        //   common.metrics.ponder_database_method_duration.observe(
-        //     { method: label },
-        //     endClock(),
-        //   );
-        //   common.metrics.ponder_database_method_error_total.inc({
-        //     method: label,
-        //   });
-        // }
+        if (label) {
+          common.metrics.ponder_database_method_duration.observe(
+            { method: label },
+            endClock(),
+          );
+          common.metrics.ponder_database_method_error_total.inc({
+            method: label,
+          });
+        }
 
         if (!hasError) {
           hasError = true;
@@ -185,12 +189,12 @@ export const createQB = <
         });
         await wait(duration);
       } finally {
-        // if (label) {
-        //   common.logger.trace({
-        //     service: "database",
-        //     msg: `Completed '${label}' database method in ${Math.round(endClock())}ms (id=${id})`,
-        //   });
-        // }
+        if (label) {
+          common.logger.trace({
+            service: "database",
+            msg: `Completed '${label}' database method in ${Math.round(endClock())}ms (id=${id})`,
+          });
+        }
       }
     }
 
@@ -320,6 +324,12 @@ export const createQB = <
     },
     set(_, prop, value) {
       return Reflect.set(db, prop, value);
+    },
+    has(_, prop) {
+      return Reflect.has(db, prop);
+    },
+    ownKeys() {
+      return Reflect.ownKeys(db);
     },
   });
 
