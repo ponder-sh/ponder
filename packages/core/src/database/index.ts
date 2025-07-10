@@ -1090,7 +1090,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).trigg
       await this.record({ method: "revert", includeTraceLogs: true }, () =>
         Promise.all(
           tables.map(async (table) => {
-            console.log("reverting");
+            console.log(`reverting ${this.ordering}`);
 
             const primaryKeyColumns = getPrimaryKeyColumns(table);
             const result = await tx.execute(
@@ -1100,13 +1100,13 @@ ${
     ? `
 WITH reverted1 AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE checkpoint > '${checkpoint}' RETURNING *
+  WHERE checkpoint >= '${checkpoint}' RETURNING *
 )`
     : `
 WITH operations1 AS (
   SELECT MIN(operation_id) AS min_operation_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
-  AND checkpoint > '${checkpoint}'
+  AND checkpoint >= '${checkpoint}'
 ), reverted1 AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE CASE
@@ -1169,7 +1169,7 @@ WITH operations1 AS (
           await Promise.all(
             tables.map(async (table) => {
               console.log("finalizing");
-              await db.execute(
+              const result = await db.execute(
                 sql.raw(`
 WITH left_op AS (
   SELECT checkpoint as max_op_checkpoint, operation_id as max_op_id from "${namespace.schema}"."${getTableName(getReorgTable(table))}"
@@ -1199,6 +1199,12 @@ WITH left_op AS (
 ) SELECT COUNT(*) FROM deleted as count;
 `),
               );
+
+              common.logger.info({
+                service: "database",
+                // @ts-ignore
+                msg: `Finalized ${result.rows[0]!.count} operations from '${getTableName(table)}'`,
+              });
             }),
           );
         },

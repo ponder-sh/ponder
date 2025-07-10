@@ -702,6 +702,8 @@ export const createSync = async (params: {
           });
         }
 
+        let _finalizedEvents = 0;
+
         // Remove all finalized data
         let finalizeIndex: number | undefined = undefined;
         for (const [index, event] of executedEvents.entries()) {
@@ -733,6 +735,7 @@ export const createSync = async (params: {
         executedEvents = executedEvents.filter((_, i) => {
           if (leftIndex !== undefined) {
             if (i < leftIndex) {
+              _finalizedEvents++;
               return false;
             } else {
               return true;
@@ -740,6 +743,7 @@ export const createSync = async (params: {
           }
 
           if (finalizeIndex !== undefined && i <= finalizeIndex) {
+            _finalizedEvents++;
             return false;
           }
 
@@ -752,6 +756,11 @@ export const createSync = async (params: {
         if (to > from) {
           params.onRealtimeEvent({ type: "finalize", chain, checkpoint: to });
         }
+
+        params.common.logger.debug({
+          service: "sync",
+          msg: `Finalized ${_finalizedEvents} executed events`,
+        });
 
         break;
       }
@@ -769,7 +778,7 @@ export const createSync = async (params: {
           // Move events from executed to pending
           let reorgIndex: number | undefined = undefined;
           for (const [index, event] of executedEvents.entries()) {
-            if (event.chainId === chain.id && event.checkpoint > checkpoint) {
+            if (event.chainId === chain.id && event.checkpoint >= checkpoint) {
               reorgIndex = index;
               break;
             }
@@ -802,7 +811,9 @@ export const createSync = async (params: {
 
           // Move events from executed to pending
 
-          const reorgedEvents = executedEvents.filter((e) => e.checkpoint > to);
+          const reorgedEvents = executedEvents.filter(
+            (e) => e.checkpoint >= to,
+          );
           executedEvents = executedEvents.filter((e) => e.checkpoint < to);
           pendingEvents = pendingEvents.concat(reorgedEvents);
 
