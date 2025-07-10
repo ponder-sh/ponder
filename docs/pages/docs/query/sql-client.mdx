@@ -102,7 +102,7 @@ npm add @ponder/react @ponder/client @tanstack/react-query
 
 Wrap your app with `PonderProvider` and include the `@ponder/client` instance. This makes the client instance available to all child components.
 
-```tsx
+```ts
 import { PonderProvider } from "@ponder/react";
 import { client } from "../lib/ponder";
  
@@ -119,7 +119,7 @@ function App() {
 
 Inside the `PonderProvider`, wrap your app with a TanStack Query Provider. If you're already using TanStack Query, you can skip this step. [Read more](https://tanstack.com/query/latest/docs/framework/react/quick-start) about setting up TanStack Query.
 
-```tsx
+```ts
 import { PonderProvider } from "@ponder/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"; // [!code focus]
 import { client } from "../lib/ponder";
@@ -159,7 +159,7 @@ const result = await client.db
   .orderBy(desc(schema.account.balance));
 ```
 
-```tsx [index.tsx (@ponder/react)]
+```ts [index.ts (@ponder/react)]
 import { desc } from "@ponder/client";
 import { usePonderQuery } from "@ponder/react";
 import * as schema from "../../ponder/ponder.schema";
@@ -198,7 +198,7 @@ await client.live(
 );
 ```
 
-```tsx [index.tsx (@ponder/react)]
+```ts [index.ts (@ponder/react)]
 import { desc } from "@ponder/client";
 import { usePonderQuery } from "@ponder/react";
 import * as schema from "../../ponder/ponder.schema";
@@ -224,7 +224,7 @@ import { sql } from "@ponder/client";
 const result = await client.db.execute(sql`SELECT * FROM account limit 10;`);
 ```
 
-```tsx [index.tsx (@ponder/react)]
+```ts [index.ts (@ponder/react)]
 import { sql } from "@ponder/client";
 import { usePonderQuery } from "@ponder/react";
 
@@ -255,7 +255,7 @@ const result = await client.db
   .offset(500);
 ```
 
-```tsx [index.tsx (@ponder/react)]
+```ts [index.ts (@ponder/react)]
 import { desc } from "@ponder/client";
 import { usePonderQuery } from "@ponder/react";
 import * as schema from "../../ponder/ponder.schema";
@@ -280,7 +280,7 @@ const query = usePonderQuery({
 ## Examples
 
 - [Basic usage](https://github.com/ponder-sh/ponder/blob/main/examples/with-client/client/src/index.ts) (`@ponder/client` only)
-- [Usage with Next.js](https://github.com/ponder-sh/ponder/blob/main/examples/with-nextjs/frontend/src/pages/index.tsx#L11-L18) (`@ponder/client` and `@ponder/react`)
+- [Usage with Next.js](https://github.com/ponder-sh/ponder/blob/main/examples/with-nextjs/frontend/src/pages/index.ts#L11-L18) (`@ponder/client` and `@ponder/react`)
 
 ## Frequently asked questions
 
