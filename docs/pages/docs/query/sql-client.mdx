@@ -1,14 +1,14 @@
 # SQL client [Query with custom SQL over HTTP]
 
-Ponder natively supports SQL queries over HTTP using the `@ponder/client` package.
+Ponder natively supports SQL queries over HTTP using the `@ponder/client` and `@ponder/react` packages.
 
 The SQL client is a more powerful alternative to [GraphQL](/docs/query/graphql) that offers zero-codegen type inference, live queries, and the flexibility of SQL directly in your client code.
 
-## Guide
+## Setup
 
 ::::steps
 
-### Register `client` middleware
+### Enable on the server
 
 Use the `client` Hono middleware to enable SQL client queries.
 
@@ -49,6 +49,14 @@ npm add @ponder/client
 
 Use `createClient` to connect to the server at the path where you registered the middleware.
 
+```ts [Client project]
+import { createClient } from "@ponder/client";
+
+const client = createClient("http://localhost:42069/sql");
+```
+
+### Import `ponder.schema.ts`
+
 Import your schema from `ponder.schema.ts` into the same file. [Read more](#use-schema-from-a-different-repo) about schema portability.
 
 ```ts [Client project]
@@ -56,34 +64,13 @@ import { createClient } from "@ponder/client";
 import * as schema from "../../ponder/ponder.schema";
 
 const client = createClient("http://localhost:42069/sql", { schema });
-
-export { client, schema };
 ```
-
-### Run a query
-
-Use `client.db.select()` to build a custom SQL query using Drizzle and execute it over HTTP.
-
-```ts [Client project]
-import { desc } from "@ponder/client";
-import { client, schema } from "../lib/ponder";
-
-const result = await client.db
-  .select()
-  .from(schema.account)
-  .orderBy(desc(schema.account.balance))
-  .limit(10);
-```
-
-:::tip
-The `@ponder/client` package re-exports all Drizzle utility functions (like `desc` and `eq`). You shouldn't need to install `drizzle-orm` separately.
-:::
 
 ::::
 
-## Guide (React)
+## Setup React
 
-The `@ponder/react` package provides React hooks for subscribing to live updates from your database, powered by `@ponder/client`. This package wraps [TanStack Query](https://tanstack.com/query), a popular library for managing async state in React.
+The `@ponder/react` package provides React hooks for querying your Ponder database, powered by `@ponder/client`. This package wraps [TanStack Query](https://tanstack.com/query), a popular library for managing async state in React.
 
 ::::steps
 
@@ -150,32 +137,150 @@ function App() {
 }
 ```
 
-### Run a query
+::::
 
-Use the `usePonderQuery` hook in a client component to initiate a live query. The hook returns an ordinary TanStack Query result object.
+## Querying
 
-Whenever the query result changes, the component will re-render with the new data.
+The SQL client can be used to read indexed data from your Ponder database.
 
-```tsx
-import { usePonderQuery } from "@ponder/react";
-import { schema } from "../lib/ponder";
- 
-export function Deposits() {
-  const { data, isError, isPending } = usePonderQuery({
-    queryFn: (db) =>
-      db.select()
-        .from(schema.depositEvent)
-        .orderBy(schema.depositEvent.timestamp)
-        .limit(10),
-  });
- 
-  if (isPending) return <div>Loading deposits</div>;
-  if (isError) return <div>Error fetching deposits</div>;
-  return <div>Deposits: {data}</div>;
-}
+It's different than [direct SQL](/docs/query/direct-sql) in two key areas:
+- Schema names are automatically applied on the server using Postgres's [`search_path`](https://www.postgresql.org/docs/current/ddl-schemas.html#DDL-SCHEMAS-PATH). Table names should be unqualified.
+- Only a subset of SQL statements are allowed, with limited resources. Read more about [security](#security).
+
+:::code-group
+
+```ts [index.ts (@ponder/client)] 
+import { desc } from "@ponder/client";
+import * as schema from "../../ponder/ponder.schema";
+
+const result = await client.db
+  .select()
+  .from(schema.account)
+  .orderBy(desc(schema.account.balance));
 ```
 
-::::
+```tsx [index.tsx (@ponder/react)]
+import { desc } from "@ponder/client";
+import { usePonderQuery } from "@ponder/react";
+import * as schema from "../../ponder/ponder.schema";
+
+const query = usePonderQuery({
+  queryFn: (db) =>
+    db.select().from(schema.account).orderBy(desc(schema.account.balance)),
+});
+```
+
+:::
+
+:::tip
+The `@ponder/client` package re-exports all Drizzle utility functions (like `desc` and `eq`). You shouldn't need to install `drizzle-orm` separately.
+:::
+
+### Live queries
+
+Live queries are automatically updated when the underlying data changes. Ponder uses Server-Sent Events to stream updates to the client every time a new block is processed.
+
+:::code-group
+
+```ts [index.ts (@ponder/client)] 
+import { desc } from "@ponder/client";
+import * as schema from "../../ponder/ponder.schema";
+
+await client.live(
+  (db) => 
+    db.select().from(schema.account).orderBy(desc(schema.account.balance)),
+  (result) => {
+    // ... handle result
+  },
+  (error) => {
+    // ... handle error
+  },
+);
+```
+
+```tsx [index.tsx (@ponder/react)]
+import { desc } from "@ponder/client";
+import { usePonderQuery } from "@ponder/react";
+import * as schema from "../../ponder/ponder.schema";
+
+// `usePonderQuery` always uses live queries!
+const query = usePonderQuery({
+  queryFn: (db) =>
+    db.select().from(schema.account).orderBy(desc(schema.account.balance)),
+});
+```
+
+:::
+
+### Untyped queries
+
+It's also possible to query the Ponder database without relying on importing `ponder.schema.ts` using the [`sql`](https://orm.drizzle.team/docs/sql) operator.
+
+:::code-group
+
+```ts [index.ts (@ponder/client)] 
+import { sql } from "@ponder/client";
+
+const result = await client.db.execute(sql`SELECT * FROM account limit 10;`);
+```
+
+```tsx [index.tsx (@ponder/react)]
+import { sql } from "@ponder/client";
+import { usePonderQuery } from "@ponder/react";
+
+const query = usePonderQuery({
+  queryFn: (db) => db.execute(sql`SELECT * FROM account limit 10;`),
+});
+```
+
+:::
+
+### Pagination
+
+The SQL client supports both limit/offset and cursor-based pagination patterns to handle large result sets efficiently.
+
+:::code-group
+
+```ts [index.ts (@ponder/client)] 
+import { desc } from "@ponder/client";
+import * as schema from "../../ponder/ponder.schema";
+
+const count = await client.db.$count(schema.account);
+
+const result = await client.db
+  .select()
+  .from(schema.account)
+  .orderBy(desc(schema.account.balance))
+  .limit(100)
+  .offset(500);
+```
+
+```tsx [index.tsx (@ponder/react)]
+import { desc } from "@ponder/client";
+import { usePonderQuery } from "@ponder/react";
+import * as schema from "../../ponder/ponder.schema";
+
+const countQuery = usePonderQuery({
+  queryFn: (db) => db.$count(schema.account),
+});
+
+const query = usePonderQuery({
+  queryFn: (db) =>
+    db
+      .select()
+      .from(schema.account)
+      .orderBy(desc(schema.account.balance))
+      .limit(100)
+      .offset(500),
+});
+```
+
+:::
+
+## Examples
+
+- [Basic usage](https://github.com/ponder-sh/ponder/blob/main/examples/with-client/client/src/index.ts) (`@ponder/client` only)
+- [Usage with Next.js](https://github.com/ponder-sh/ponder/blob/main/examples/with-nextjs/frontend/src/pages/index.tsx#L11-L18) (`@ponder/client` and `@ponder/react`)
 
 ## Frequently asked questions
 
@@ -204,7 +309,3 @@ Here are the measures taken by the `client` middleware to prevent malicious quer
   SET lock_timeout = '500ms';
   ```
 
-### More examples
-
-- [Basic usage](https://github.com/ponder-sh/ponder/blob/main/examples/with-client/client/src/index.ts) (`@ponder/client` only)
-- [Usage with Next.js](https://github.com/ponder-sh/ponder/blob/main/examples/with-nextjs/frontend/src/pages/index.tsx#L11-L18) (`@ponder/client` and `@ponder/react`)

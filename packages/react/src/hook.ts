@@ -1,6 +1,6 @@
 "use client";
 
-import { type Client, type Status, compileQuery } from "@ponder/client";
+import type { Client, Status } from "@ponder/client";
 import {
   type QueryKey,
   type UseQueryOptions,
@@ -9,9 +9,8 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useContext, useEffect, useMemo } from "react";
-import { stringify } from "superjson";
 import { PonderContext } from "./context.js";
-import { type SQLWrapper, getPonderQueryOptions } from "./utils.js";
+import { getPonderQueryOptions } from "./utils.js";
 
 export function usePonderQuery<result>(
   params: {
@@ -57,21 +56,7 @@ export function usePonderQueryOptions<T>(queryFn: (db: Client["db"]) => T): {
   queryFn: () => T;
 } {
   const client = usePonderClient();
-
-  const queryPromise = queryFn(client.db);
-
-  // @ts-expect-error
-  if ("getSQL" in queryPromise === false) {
-    throw new Error('"queryFn" must return SQL');
-  }
-
-  const query = compileQuery(queryPromise as unknown as SQLWrapper);
-  const queryKey = ["__ponder_react", query.sql, stringify(query.params)];
-
-  return {
-    queryKey,
-    queryFn: () => queryPromise,
-  };
+  return getPonderQueryOptions(client, queryFn);
 }
 
 const statusQueryKey = ["status"];
