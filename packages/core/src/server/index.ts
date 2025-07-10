@@ -87,7 +87,8 @@ export async function createServer({
       return c.text("", 200);
     })
     .get("/ready", async (c) => {
-      const isReady = await database.readonlyQB
+      const isReady = await database
+        .readonlyQB("select_ready")
         .select()
         .from(getPonderMetaTable())
         .then((result) => result[0]!.value.is_ready === 1);
@@ -98,7 +99,8 @@ export async function createServer({
       return c.text("Historical indexing is not complete.", 503);
     })
     .get("/status", async (c) => {
-      const checkpoints = await database.readonlyQB
+      const checkpoints = await database
+        .readonlyQB("select_checkpoints")
         .select()
         .from(getPonderCheckpointTable());
       const status: Status = {};

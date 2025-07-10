@@ -177,7 +177,8 @@ export const createSyncStore = ({
       });
     }
 
-    await database.syncQB
+    await database
+      .syncQB("insert_intervals")
       .insert(PONDER_SYNC.intervals)
       .values(values)
       .onConflictDoUpdate({
@@ -191,7 +192,8 @@ export const createSyncStore = ({
     const queries = filters.flatMap((filter, i) => {
       const fragments = getFragments(filter);
       return fragments.map((fragment, j) =>
-        database.syncQB
+        database
+          .syncQB("select_intervals")
           .select({
             mergedBlocks: sql<string>`range_agg(unnested.blocks)`.as(
               "merged_blocks",
@@ -283,7 +285,8 @@ export const createSyncStore = ({
     }
 
     for (let i = 0; i < values.length; i += batchSize) {
-      await database.syncQB
+      await database
+        .syncQB("insert_child_addresses")
         .with(factoryInsert)
         .insert(PONDER_SYNC.factoryAddresses)
         .values(values.slice(i, i + batchSize));
@@ -304,7 +307,8 @@ export const createSyncStore = ({
         }),
     );
 
-    return database.syncQB
+    return database
+      .syncQB("select_child_addresses")
       .with(factoryInsert)
       .select({
         address: PONDER_SYNC.factoryAddresses.address,
@@ -330,9 +334,9 @@ export const createSyncStore = ({
         return result;
       });
   },
-
   getSafeCrashRecoveryBlock: async ({ chainId, timestamp }) => {
-    const rows = await database.syncQB
+    const rows = await database
+      .syncQB("select_crash_recovery_block")
       .select({
         number: PONDER_SYNC.blocks.number,
         timestamp: PONDER_SYNC.blocks.timestamp,
@@ -366,7 +370,8 @@ export const createSyncStore = ({
     // in the db.
 
     for (let i = 0; i < logs.length; i += batchSize) {
-      await database.syncQB
+      await database
+        .syncQB("insert_logs")
         .insert(PONDER_SYNC.logs)
         .values(
           logs
@@ -393,7 +398,8 @@ export const createSyncStore = ({
     );
 
     for (let i = 0; i < blocks.length; i += batchSize) {
-      await database.syncQB
+      await database
+        .syncQB("insert_blocks")
         .insert(PONDER_SYNC.blocks)
         .values(
           blocks
@@ -425,7 +431,8 @@ export const createSyncStore = ({
     // for new transactions (using onConflictDoUpdate).
 
     for (let i = 0; i < transactions.length; i += batchSize) {
-      await database.syncQB
+      await database
+        .syncQB("insert_transactions")
         .insert(PONDER_SYNC.transactions)
         .values(
           transactions
@@ -457,7 +464,8 @@ export const createSyncStore = ({
     );
 
     for (let i = 0; i < transactionReceipts.length; i += batchSize) {
-      await database.syncQB
+      await database
+        .syncQB("insert_transaction_receipts")
         .insert(PONDER_SYNC.transactionReceipts)
         .values(
           transactionReceipts
@@ -496,7 +504,8 @@ export const createSyncStore = ({
     );
 
     for (let i = 0; i < traces.length; i += batchSize) {
-      await database.syncQB
+      await database
+        .syncQB("insert_traces")
         .insert(PONDER_SYNC.traces)
         .values(
           traces
@@ -549,7 +558,8 @@ export const createSyncStore = ({
         shouldGetTransactionReceipt,
       );
 
-      const blocksQuery = database.syncQB
+      const blocksQuery = database
+        .syncQB("select_blocks")
         .select({
           number: PONDER_SYNC.blocks.number,
           timestamp: PONDER_SYNC.blocks.timestamp,
@@ -582,7 +592,8 @@ export const createSyncStore = ({
         .orderBy(asc(PONDER_SYNC.blocks.number))
         .limit(limit);
 
-      const transactionsQuery = database.syncQB
+      const transactionsQuery = database
+        .syncQB("select_transactions")
         .select({
           blockNumber: PONDER_SYNC.transactions.blockNumber,
           transactionIndex: PONDER_SYNC.transactions.transactionIndex,
@@ -616,7 +627,8 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
-      const transactionReceiptsQuery = database.syncQB
+      const transactionReceiptsQuery = database
+        .syncQB("select_transaction_receipts")
         .select({
           blockNumber: PONDER_SYNC.transactionReceipts.blockNumber,
           transactionIndex: PONDER_SYNC.transactionReceipts.transactionIndex,
@@ -644,7 +656,8 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
-      const logsQuery = database.syncQB
+      const logsQuery = database
+        .syncQB("select_logs")
         .select({
           blockNumber: PONDER_SYNC.logs.blockNumber,
           logIndex: PONDER_SYNC.logs.logIndex,
@@ -671,7 +684,8 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
-      const tracesQuery = database.syncQB
+      const tracesQuery = database
+        .syncQB("select_traces")
         .select({
           blockNumber: PONDER_SYNC.traces.blockNumber,
           transactionIndex: PONDER_SYNC.traces.transactionIndex,
@@ -715,56 +729,11 @@ export const createSyncStore = ({
         logsRows,
         tracesRows,
       ] = await Promise.all([
-        shouldQueryBlocks
-          ? blocksQuery.then((res) => {
-              common.metrics.ponder_database_method_duration.observe(
-                { method: "getEventBlockData_blocks" },
-                endClock(),
-              );
-
-              return res;
-            })
-          : [],
-        shouldQueryTransactions
-          ? transactionsQuery.then((res) => {
-              common.metrics.ponder_database_method_duration.observe(
-                { method: "getEventBlockData_transactions" },
-                endClock(),
-              );
-
-              return res;
-            })
-          : [],
-        shouldQueryTransactionReceipts
-          ? transactionReceiptsQuery.then((res) => {
-              common.metrics.ponder_database_method_duration.observe(
-                { method: "getEventBlockData_transaction_receipts" },
-                endClock(),
-              );
-
-              return res;
-            })
-          : [],
-        shouldQueryLogs
-          ? logsQuery.then((res) => {
-              common.metrics.ponder_database_method_duration.observe(
-                { method: "getEventBlockData_logs" },
-                endClock(),
-              );
-
-              return res;
-            })
-          : [],
-        shouldQueryTraces
-          ? tracesQuery.then((res) => {
-              common.metrics.ponder_database_method_duration.observe(
-                { method: "getEventBlockData_traces" },
-                endClock(),
-              );
-
-              return res;
-            })
-          : [],
+        shouldQueryBlocks ? blocksQuery : [],
+        shouldQueryTransactions ? transactionsQuery : [],
+        shouldQueryTransactionReceipts ? transactionReceiptsQuery : [],
+        shouldQueryLogs ? logsQuery : [],
+        shouldQueryTraces ? tracesQuery : [],
       ]);
 
       const supremum = Math.min(
@@ -1022,7 +991,8 @@ export const createSyncStore = ({
       result,
     }));
 
-    await database.syncQB
+    await database
+      .syncQB("insert_rpc_requests")
       .insert(PONDER_SYNC.rpcRequestResults)
       .values(values)
       .onConflictDoUpdate({
@@ -1045,7 +1015,8 @@ export const createSyncStore = ({
         .digest("hex"),
     );
 
-    const result = await database.syncQB
+    const result = await database
+      .syncQB("select_rpc_requests")
       .select({
         request_hash: PONDER_SYNC.rpcRequestResults.requestHash,
         result: PONDER_SYNC.rpcRequestResults.result,
@@ -1071,7 +1042,8 @@ export const createSyncStore = ({
 
     const numbers = blocks.map(({ number }) => BigInt(hexToNumber(number)));
 
-    await database.syncQB
+    await database
+      .syncQB("delete_rpc_requests")
       .delete(PONDER_SYNC.rpcRequestResults)
       .where(
         and(
@@ -1083,28 +1055,28 @@ export const createSyncStore = ({
   },
   pruneByChain: async ({ chainId }) =>
     database.syncQB.transaction(async (tx) => {
-      await tx
+      await tx("delete_logs")
         .delete(PONDER_SYNC.logs)
         .where(eq(PONDER_SYNC.logs.chainId, BigInt(chainId)))
         .execute();
-      await tx
+      await tx("delete_blocks")
         .delete(PONDER_SYNC.blocks)
         .where(eq(PONDER_SYNC.blocks.chainId, BigInt(chainId)))
         .execute();
 
-      await tx
+      await tx("delete_traces")
         .delete(PONDER_SYNC.traces)
         .where(eq(PONDER_SYNC.traces.chainId, BigInt(chainId)))
         .execute();
-      await tx
+      await tx("delete_transactions")
         .delete(PONDER_SYNC.transactions)
         .where(eq(PONDER_SYNC.transactions.chainId, BigInt(chainId)))
         .execute();
-      await tx
+      await tx("delete_transaction_receipts")
         .delete(PONDER_SYNC.transactionReceipts)
         .where(eq(PONDER_SYNC.transactionReceipts.chainId, BigInt(chainId)))
         .execute();
-      await tx
+      await tx("delete_factory_addresses")
         .delete(PONDER_SYNC.factoryAddresses)
         .where(eq(PONDER_SYNC.factoryAddresses.chainId, BigInt(chainId)))
         .execute();
