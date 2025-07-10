@@ -1100,13 +1100,13 @@ ${
     ? `
 WITH reverted1 AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE checkpoint >= '${checkpoint}' RETURNING *
+  WHERE checkpoint > '${checkpoint}' RETURNING *
 )`
     : `
 WITH operations1 AS (
   SELECT MIN(operation_id) AS min_operation_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
-  AND checkpoint >= '${checkpoint}'
+  AND checkpoint > '${checkpoint}'
 ), reverted1 AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE CASE

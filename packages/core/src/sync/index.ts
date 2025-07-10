@@ -778,7 +778,7 @@ export const createSync = async (params: {
           // Move events from executed to pending
           let reorgIndex: number | undefined = undefined;
           for (const [index, event] of executedEvents.entries()) {
-            if (event.chainId === chain.id && event.checkpoint >= checkpoint) {
+            if (event.chainId === chain.id && event.checkpoint > checkpoint) {
               reorgIndex = index;
               break;
             }
@@ -811,9 +811,7 @@ export const createSync = async (params: {
 
           // Move events from executed to pending
 
-          const reorgedEvents = executedEvents.filter(
-            (e) => e.checkpoint >= to,
-          );
+          const reorgedEvents = executedEvents.filter((e) => e.checkpoint > to);
           executedEvents = executedEvents.filter((e) => e.checkpoint < to);
           pendingEvents = pendingEvents.concat(reorgedEvents);
 
