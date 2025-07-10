@@ -196,6 +196,8 @@ export async function start({
     app = await onBuild(app);
   }
 
+  database.ordering = app.preBuild.ordering;
+
   run({
     ...app,
     database,

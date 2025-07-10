@@ -56,6 +56,7 @@ export type Database = {
   qb: QueryBuilder;
   PONDER_META: ReturnType<typeof getPonderMetaTable>;
   PONDER_CHECKPOINT: ReturnType<typeof getPonderCheckpointTable>;
+  ordering: "multichain" | "omnichain";
   retry: <T>(fn: () => Promise<T>) => Promise<T>;
   record: <T>(
     options: { method: string; includeTraceLogs?: boolean },
@@ -412,6 +413,7 @@ export const createDatabase = async ({
     qb,
     PONDER_META,
     PONDER_CHECKPOINT,
+    ordering,
     async retry(fn) {
       const RETRY_COUNT = 9;
       const BASE_DURATION = 125;
@@ -1094,7 +1096,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).trigg
             const result = await tx.execute(
               sql.raw(`
 ${
-  ordering === "omnichain"
+  this.ordering === "omnichain"
     ? `
 WITH reverted1 AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
