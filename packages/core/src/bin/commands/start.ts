@@ -29,6 +29,7 @@ export type PonderApp = {
   indexingBuild: IndexingBuild;
   apiBuild: ApiBuild;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
+  database: Database;
 };
 
 export async function start({
@@ -190,6 +191,7 @@ export async function start({
     indexingBuild: indexingBuildResult.result,
     apiBuild: apiBuildResult.result,
     crashRecoveryCheckpoint,
+    database,
   };
 
   if (onBuild) {
@@ -198,7 +200,6 @@ export async function start({
 
   run({
     ...app,
-    database,
     onFatalError: () => {
       exit({ reason: "Received fatal error", code: 1 });
     },
