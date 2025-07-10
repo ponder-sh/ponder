@@ -26,6 +26,7 @@ const PONDER_RPC_METHODS = [
   "eth_getBlockReceipts",
   "debug_traceBlockByNumber",
   "debug_traceBlockByHash",
+  "eth_call",
 ] as const;
 
 /**
@@ -71,7 +72,7 @@ export const sim =
 
       requestCount.set(id, nonce + 1);
 
-      if (seedrandom(SEED + id + nonce)() < SIM_PARAMS.ERROR_RATE) {
+      if (seedrandom(SEED + id + nonce)() < SIM_PARAMS.RPC_ERROR_RATE) {
         throw new Error("Simulated error");
       }
 
@@ -442,6 +443,35 @@ export const sim =
                   chainId: chain!.id,
                   number,
                   body: JSON.stringify(result).replace(/\0/g, ""),
+                })
+                .onConflictDoNothing();
+            }
+
+            break;
+          }
+          case "eth_call": {
+            const call = await db
+              .select({ body: RPC_SCHEMA.calls.body })
+              .from(RPC_SCHEMA.calls)
+              .where(
+                and(
+                  eq(RPC_SCHEMA.calls.chainId, chain!.id),
+                  eq(RPC_SCHEMA.calls.request, body.params),
+                ),
+              )
+              .limit(1)
+              .then((calls) => calls[0]);
+
+            if (call) {
+              result = call.body;
+            } else {
+              result = await _request(body);
+              await db
+                .insert(RPC_SCHEMA.calls)
+                .values({
+                  chainId: chain!.id,
+                  request: body.params,
+                  body: result,
                 })
                 .onConflictDoNothing();
             }
