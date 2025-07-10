@@ -386,6 +386,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     common: context.common,
     schemaBuild: { schema: { account } },
   });
+  indexingStore.qb = database.userQB;
 
   await indexingStore
     .insert(account)

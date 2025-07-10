@@ -921,13 +921,13 @@ test("plural with one relation uses dataloader", async (context) => {
 
   const personFindManySpy = vi.spyOn(
     // @ts-expect-error
-    database.qb.drizzleReadonly.query.person,
+    database.readonlyQB.query.person,
     "findMany",
   );
 
   const petFindManySpy = vi.spyOn(
     // @ts-expect-error
-    database.qb.drizzleReadonly.query.pet,
+    database.readonlyQB.query.pet,
     "findMany",
   );
 
