@@ -760,12 +760,7 @@ export const createSync = async (params: {
       case "reorg": {
         // Remove all reorged data
 
-        let reorgedEvents = 0;
-
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Removed ${reorgedEvents} reorged '${chain.name}' events`,
-        });
+        let _reorgedEvents = 0;
 
         if (params.ordering === "multichain") {
           // Note: `checkpoints.current` not used in multichain ordering
@@ -786,7 +781,6 @@ export const createSync = async (params: {
           executedEvents = executedEvents.filter(
             (_, i) => reorgIndex === undefined || i < reorgIndex,
           );
-          pendingEvents = pendingEvents.concat(reorgedEvents);
 
           params.common.logger.debug({
             service: "sync",
@@ -794,6 +788,13 @@ export const createSync = async (params: {
           });
 
           params.onRealtimeEvent({ type: "reorg", chain, checkpoint });
+
+          const replayableEvents = reorgedEvents.filter(
+            (e) => e.chainId !== chain.id,
+          );
+          pendingEvents = pendingEvents.concat(replayableEvents);
+
+          _reorgedEvents = reorgedEvents.length - replayableEvents.length;
         } else {
           const from = checkpoints.current;
           checkpoints.current = getOmnichainCheckpoint({ tag: "current" });
@@ -813,25 +814,27 @@ export const createSync = async (params: {
           if (to < from) {
             params.onRealtimeEvent({ type: "reorg", chain, checkpoint: to });
           }
+
+          const isReorgedEvent = (e: Event) => {
+            if (
+              e.chainId === chain.id &&
+              Number(e.event.block.number) > hexToNumber(event.block.number)
+            ) {
+              _reorgedEvents++;
+              return true;
+            }
+            return false;
+          };
+
+          pendingEvents = pendingEvents.filter(
+            (e) => isReorgedEvent(e) === false,
+          );
         }
 
-        const isReorgedEvent = (e: Event) => {
-          if (
-            e.chainId === chain.id &&
-            Number(e.event.block.number) > hexToNumber(event.block.number)
-          ) {
-            reorgedEvents++;
-            return true;
-          }
-          return false;
-        };
-
-        pendingEvents = pendingEvents.filter(
-          (e) => isReorgedEvent(e) === false,
-        );
-        executedEvents = executedEvents.filter(
-          (e) => isReorgedEvent(e) === false,
-        );
+        params.common.logger.debug({
+          service: "sync",
+          msg: `Removed ${_reorgedEvents} reorged '${chain.name}' events`,
+        });
 
         break;
       }
