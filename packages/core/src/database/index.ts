@@ -203,11 +203,13 @@ export const createDatabase = async ({
   namespace,
   preBuild,
   schemaBuild,
+  ordering,
 }: {
   common: Common;
   namespace: NamespaceBuild;
   preBuild: Pick<PreBuild, "databaseConfig">;
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
+  ordering: "multichain" | "omnichain";
 }): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
 
@@ -1086,9 +1088,19 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).trigg
       await this.record({ method: "revert", includeTraceLogs: true }, () =>
         Promise.all(
           tables.map(async (table) => {
+            console.log("reverting");
+
             const primaryKeyColumns = getPrimaryKeyColumns(table);
             const result = await tx.execute(
               sql.raw(`
+${
+  ordering === "omnichain"
+    ? `
+WITH reverted1 AS (
+  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE checkpoint > '${checkpoint}' RETURNING *
+)`
+    : `
 WITH operations1 AS (
   SELECT MIN(operation_id) AS min_operation_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
@@ -1101,7 +1113,8 @@ WITH operations1 AS (
     ELSE FALSE
   END
   RETURNING *
-), reverted2 AS (
+)`
+}, reverted2 AS (
   SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1
   GROUP BY ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}
 ), reverted3 AS (
@@ -1153,6 +1166,7 @@ WITH operations1 AS (
         async () => {
           await Promise.all(
             tables.map(async (table) => {
+              console.log("finalizing");
               await db.execute(
                 sql.raw(`
 WITH left_op AS (

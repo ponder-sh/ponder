@@ -815,10 +815,10 @@ export const createSync = async (params: {
           }
         }
 
-        const isReorgedEvent = ({ chainId, event: { block } }: Event) => {
+        const isReorgedEvent = (e: Event) => {
           if (
-            chainId === chain.id &&
-            Number(block.number) > hexToNumber(event.block.number)
+            e.chainId === chain.id &&
+            Number(e.event.block.number) > hexToNumber(event.block.number)
           ) {
             reorgedEvents++;
             return true;

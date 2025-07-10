@@ -137,6 +137,7 @@ export async function start({
     namespace: namespaceResult.result,
     preBuild,
     schemaBuild,
+    ordering: configResult.result.config.ordering ?? "multichain",
   });
   const crashRecoveryCheckpoint = await database.migrate(
     indexingBuildResult.result,
