@@ -5,7 +5,7 @@ import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import { addErrorMeta, toErrorMeta } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
-import { FlushError } from "@/internal/errors.js";
+import { FlushError, TransactionError } from "@/internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
   Event,
@@ -221,9 +221,15 @@ export const getCopyHelper = (qb: QB) => {
             table,
           )}"`
         : `"${getTableName(table)}"`;
-      await qb.$client.query(`COPY ${target} FROM '/dev/blob'`, [], {
-        blob: new Blob([text]),
-      });
+      await qb.$client
+        .query(`COPY ${target} FROM '/dev/blob'`, [], {
+          blob: new Blob([text]),
+        })
+        // Note: `TransactionError` is applied because the query
+        // uses the low-level `$client.query` method.
+        .catch((error) => {
+          throw new TransactionError(error.message);
+        });
     };
   } else {
     return async (table: Table, text: string, includeSchema = true) => {
@@ -235,7 +241,12 @@ export const getCopyHelper = (qb: QB) => {
       await pipeline(
         Readable.from(text),
         qb.$client.query(copy.from(`COPY ${target} FROM STDIN`)),
-      );
+      )
+        // Note: `TransactionError` is applied because the query
+        // uses the low-level `$client.query` method.
+        .catch((error) => {
+          throw new TransactionError(error.message);
+        });
     };
   }
 };

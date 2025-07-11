@@ -101,8 +101,11 @@ export const client = ({
           (error as Error).stack = undefined;
           return c.text((error as Error).message, 500);
         } finally {
-          await client.query("ROLLBACK");
-          client.release();
+          try {
+            await client.query("ROLLBACK");
+          } finally {
+            client.release();
+          }
         }
       }
     }
