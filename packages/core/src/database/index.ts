@@ -1130,16 +1130,15 @@ AND checkpoint > '${checkpoint}'
             }),
           );
 
-          let min_op_id: number | null = null;
-          for (const id of op_ids) {
-            if (id !== null) {
-              min_op_id = min_op_id === null ? id : Math.min(min_op_id, id);
-            }
-          }
+          const min_op_id = op_ids.reduce((prev, curr) => {
+            if (prev === null) return curr;
+            if (curr === null) return prev;
+            if (curr < prev) return curr;
+            return prev;
+          }, null);
 
           Promise.all(
             tables.map(async (table) => {
-              console.log(`reverting ${this.ordering}`);
               const primaryKeyColumns = getPrimaryKeyColumns(table);
 
               const result = await tx.execute(
@@ -1212,38 +1211,94 @@ WITH reverted1 AS (
       await this.record(
         { method: "finalize", includeTraceLogs: true },
         async () => {
-          await Promise.all(
+          const left_ops: ({ checkpoint: string; id: number } | null)[] =
+            await Promise.all(
+              tables.map(async (table) => {
+                const result = await db.execute(
+                  sql.raw(`
+SELECT checkpoint, operation_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+WHERE operation_id = (
+  SELECT MAX(operation_id)
+  FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE substring(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
+  AND checkpoint <= '${checkpoint}'
+)
+`),
+                );
+
+                if (
+                  !result.rows[0] ||
+                  result.rows[0].checkpoint === null ||
+                  result.rows[0].operation_id === null
+                ) {
+                  return null;
+                }
+
+                // @ts-ignore
+                return {
+                  checkpoint: result.rows[0].checkpoint as string,
+                  id: result.rows[0].operation_id as number,
+                };
+              }),
+            );
+
+          const max_op = left_ops.reduce((prev, curr) => {
+            if (curr === null) return prev;
+            if (prev === null) return curr;
+            if (curr.id > prev.id) return curr;
+            return prev;
+          }, null);
+
+          if (max_op === null) {
+            common.logger.info({
+              service: "database",
+              msg: "Skipped finalizing, no operations to finalize.",
+            });
+
+            return;
+          }
+
+          const right_op_ids: (number | null)[] = await Promise.all(
             tables.map(async (table) => {
-              console.log("finalizing");
               const result = await db.execute(
                 sql.raw(`
-WITH left_op AS (
-  SELECT checkpoint as max_op_checkpoint, operation_id as max_op_id from "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  where operation_id = (
-    SELECT MAX(operation_id)
-    FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-    WHERE substring(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
-    and checkpoint <= '${checkpoint}'
-  )
-), right_op AS (
-  SELECT MIN(operation_id) as min_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  where checkpoint > (SELECT max_op_checkpoint FROM left_op)
-    AND (
-      (SELECT max_op_id from left_op) is NULL
-      or operation_id < (select max_op_id from left_op)
-    )
-), deleted as (
-  DELETE from "${namespace.schema}"."${getTableName(getReorgTable(table))}" 
-  where (
-    (select min_op_id from right_op) is NULL
-    and operation_id <= (select max_op_id from left_op)
-  ) or (
-    (select min_op_id from right_op) is not null
-    and operation_id < (select min_op_id from right_op)
-  )
+SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+WHERE checkpoint > '${max_op.checkpoint}'}
+AND operation_id < ${max_op.id}
+`),
+              );
+
+              return result.rows[0]!.min_op_id as number | null;
+            }),
+          );
+
+          const min_op_id = right_op_ids.reduce((prev, curr) => {
+            if (curr === null) return prev;
+            if (prev === null) return curr;
+            if (curr < prev) return curr;
+            return prev;
+          }, null);
+
+          await Promise.all(
+            tables.map(async (table) => {
+              const result = await db.execute(
+                min_op_id === null
+                  ? sql.raw(`
+deleted AS (
+  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE operation_id <= ${max_op.id}
   RETURNING *
 ) SELECT COUNT(*) FROM deleted as count;
-`),
+`)
+                  : sql.raw(
+                      `
+deleted AS (
+  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE operation_id < ${min_op_id}
+  RETURNING *
+) SELECT COUNT(*) FROM deleted as count; 
+`,
+                    ),
               );
 
               common.logger.info({
