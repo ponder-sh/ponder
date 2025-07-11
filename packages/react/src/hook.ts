@@ -2,6 +2,7 @@
 
 import type { Client, Status } from "@ponder/client";
 import {
+  type QueryKey,
   type UseQueryOptions,
   type UseQueryResult,
   useQuery,
@@ -9,19 +10,17 @@ import {
 } from "@tanstack/react-query";
 import { useContext, useEffect, useMemo } from "react";
 import { PonderContext } from "./context.js";
+import type { ResolvedSchema } from "./index.js";
 import { getPonderQueryOptions } from "./utils.js";
 
 export function usePonderQuery<result>(
   params: {
-    queryFn: (db: Client["db"]) => Promise<result>;
+    queryFn: (db: Client<ResolvedSchema>["db"]) => Promise<result>;
   } & Omit<UseQueryOptions<result>, "queryFn" | "queryKey">,
 ): UseQueryResult<result> {
   const queryClient = useQueryClient();
 
-  const client = useContext(PonderContext);
-  if (client === undefined) {
-    throw new Error("PonderProvider not found");
-  }
+  const client = usePonderClient();
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   const queryOptions = useMemo(
@@ -43,6 +42,24 @@ export function usePonderQuery<result>(
     queryKey: queryOptions.queryKey,
     queryFn: queryOptions.queryFn,
   });
+}
+
+export function usePonderClient(): Client<ResolvedSchema> {
+  const client = useContext(PonderContext);
+  if (client === undefined) {
+    throw new Error("PonderProvider not found");
+  }
+  return client;
+}
+
+export function usePonderQueryOptions<T>(
+  queryFn: (db: Client<ResolvedSchema>["db"]) => T,
+): {
+  queryKey: QueryKey;
+  queryFn: () => T;
+} {
+  const client = usePonderClient();
+  return getPonderQueryOptions(client, queryFn);
 }
 
 const statusQueryKey = ["status"];
