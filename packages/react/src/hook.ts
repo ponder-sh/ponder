@@ -10,11 +10,12 @@ import {
 } from "@tanstack/react-query";
 import { useContext, useEffect, useMemo } from "react";
 import { PonderContext } from "./context.js";
+import type { ResolvedSchema } from "./index.js";
 import { getPonderQueryOptions } from "./utils.js";
 
 export function usePonderQuery<result>(
   params: {
-    queryFn: (db: Client["db"]) => Promise<result>;
+    queryFn: (db: Client<ResolvedSchema>["db"]) => Promise<result>;
   } & Omit<UseQueryOptions<result>, "queryFn" | "queryKey">,
 ): UseQueryResult<result> {
   const queryClient = useQueryClient();
@@ -43,7 +44,7 @@ export function usePonderQuery<result>(
   });
 }
 
-export function usePonderClient(): Client {
+export function usePonderClient(): Client<ResolvedSchema> {
   const client = useContext(PonderContext);
   if (client === undefined) {
     throw new Error("PonderProvider not found");
@@ -51,7 +52,9 @@ export function usePonderClient(): Client {
   return client;
 }
 
-export function usePonderQueryOptions<T>(queryFn: (db: Client["db"]) => T): {
+export function usePonderQueryOptions<T>(
+  queryFn: (db: Client<ResolvedSchema>["db"]) => T,
+): {
   queryKey: QueryKey;
   queryFn: () => T;
 } {

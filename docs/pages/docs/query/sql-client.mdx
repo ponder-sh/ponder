@@ -276,6 +276,52 @@ const query = usePonderQuery({
 
 :::
 
+### Relational query builder
+
+The SQL client also supports the [Drizzle query builder](https://orm.drizzle.team/docs/rqb) with some additial setup required.
+
+#### `@ponder/client`
+
+The `createClient` function accepts a `schema` option to enable the Drizzle query builder.
+
+```ts 
+import { createClient } from "@ponder/client";
+import * as schema from "../../ponder/ponder.schema";
+
+const client = createClient("http://localhost:42069/sql", { schema });
+
+const result = await client.db.query.account.findMany({
+  orderBy: (account, { desc }) => desc(account.balance),
+});
+```
+
+#### `@ponder/react`
+
+In addition to the step above, you need to "register" your `schema` globally with TypeScript using [declaration merging](https://www.typescriptlang.org/docs/handbook/declaration-merging.html).
+
+```ts
+import * as schema from "../../ponder/ponder.schema";
+
+declare module "@ponder/react" { // [!code focus]
+  interface Register { // [!code focus]
+    schema: typeof schema; // [!code focus]
+  } // [!code focus]
+} // [!code focus]
+```
+
+`usePonderQuery` is now type-safe without the need to import `schema` in every query.
+
+```ts
+import { usePonderQuery } from "@ponder/react";
+
+const query = usePonderQuery({
+  queryFn: (db) =>
+    db.query.account.findMany({
+      orderBy: (account, { desc }) => desc(account.balance),
+    }),
+});
+```
+
 ## Examples
 
 - [Basic usage](https://github.com/ponder-sh/ponder/blob/main/examples/with-client/client/src/index.ts) (`@ponder/client` only)

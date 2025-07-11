@@ -1,12 +1,13 @@
 import { type Client, compileQuery } from "@ponder/client";
 import type { QueryKey } from "@tanstack/react-query";
 import { stringify } from "superjson";
+import type { ResolvedSchema } from "./index.js";
 
 export type SQLWrapper = Exclude<Parameters<typeof compileQuery>[0], string>;
 
 export function getPonderQueryOptions<T>(
-  client: Client,
-  queryFn: (db: Client["db"]) => T,
+  client: Client<ResolvedSchema>,
+  queryFn: (db: Client<ResolvedSchema>["db"]) => T,
 ): {
   queryKey: QueryKey;
   queryFn: () => T;
