@@ -750,8 +750,6 @@ export const createSync = async (params: {
           return true;
         });
 
-        // executedEvents = executedEvents.filter((e) => e.checkpoint > to);
-
         // Raise event to parent function (runtime)
         if (to > from) {
           params.onRealtimeEvent({ type: "finalize", chain, checkpoint: to });
@@ -765,7 +763,6 @@ export const createSync = async (params: {
         break;
       }
 
-      //
       case "reorg": {
         // Remove all reorged data
 

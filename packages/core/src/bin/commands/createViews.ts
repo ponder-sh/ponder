@@ -15,6 +15,7 @@ const emptySchemaBuild = {
     tables: { sql: [], json: [] },
     enums: { sql: [], json: [] },
     indexes: { sql: [], json: [] },
+    sequences: { sql: [], json: [] },
   },
 };
 

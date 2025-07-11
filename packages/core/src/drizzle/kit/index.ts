@@ -1,4 +1,4 @@
-import { SQL, type TableConfig, getTableName, is } from "drizzle-orm";
+import { SQL, type TableConfig, getTableName, is, sql } from "drizzle-orm";
 import { CasingCache, toCamelCase, toSnakeCase } from "drizzle-orm/casing";
 import {
   type AnyPgTable,
@@ -18,7 +18,6 @@ import {
   isPgSequence,
   pgSchema,
   pgTable,
-  serial,
   varchar,
 } from "drizzle-orm/pg-core";
 
@@ -35,32 +34,39 @@ export type SqlStatements = {
     json: JsonCreateEnumStatement[];
   };
   indexes: { sql: string[]; json: JsonPgCreateIndexStatement[] };
+  sequences: { sql: string[]; json: JsonCreateSequenceStatement[] };
 };
 
 export const sqlToReorgTableName = (tableName: string) =>
   `_reorg__${tableName}`;
 
+const SHARED_OPERATION_ID_SEQUENCE = "operation_id_seq";
+
 export const getReorgTable = <config extends TableConfig>(
   table: PgTableWithColumns<config>,
 ) => {
   const schema = getTableConfig(table).schema;
-
   if (schema && schema !== "public") {
     return pgSchema(schema).table(
       sqlToReorgTableName(getTableName(table)),
       {
-        operation_id: serial().notNull().primaryKey(),
+        operation_id: integer()
+          .notNull()
+          .primaryKey()
+          .default(sql.raw(`nextval('${SHARED_OPERATION_ID_SEQUENCE}')`)),
         operation: integer().notNull().$type<0 | 1 | 2>(),
         checkpoint: varchar({ length: 75 }).notNull(),
       },
       (table) => [index().on(table.checkpoint)],
     );
   }
-
   return pgTable(
     sqlToReorgTableName(getTableName(table)),
     {
-      operation_id: serial().notNull().primaryKey(),
+      operation_id: integer()
+        .notNull()
+        .primaryKey()
+        .default(sql.raw(`nextval('${SHARED_OPERATION_ID_SEQUENCE}')`)),
       operation: integer().notNull().$type<0 | 1 | 2>(),
       checkpoint: varchar({ length: 75 }).notNull(),
     },
@@ -122,6 +128,10 @@ export const getSql = (schema: { [name: string]: unknown }): SqlStatements => {
       sql: fromJson(jsonCreateIndexesForCreatedTables),
       json: jsonCreateIndexesForCreatedTables,
     },
+    sequences: {
+      sql: [`CREATE SEQUENCE ${SHARED_OPERATION_ID_SEQUENCE};\n`],
+      json: [prepareCreateSequenceJson(SHARED_OPERATION_ID_SEQUENCE)],
+    },
   };
 };
 
@@ -140,7 +150,10 @@ const createReorgTableStatement = (statement: JsonCreateTableStatement) => {
       generatePgSnapshot(
         [
           pgTable("", {
-            operation_id: serial().notNull().primaryKey(),
+            operation_id: integer()
+              .notNull()
+              .primaryKey()
+              .default(sql.raw(`nextval('${SHARED_OPERATION_ID_SEQUENCE}')`)),
             operation: integer().notNull(),
             checkpoint: varchar({
               length: 75,
@@ -315,6 +328,11 @@ interface JsonCreateReferenceStatement {
   columnType?: string;
 }
 
+interface JsonCreateSequenceStatement {
+  type: "create_sequence";
+  name: string;
+}
+
 type JsonStatement =
   | JsonCreateTableStatement
   | JsonCreateEnumStatement
@@ -324,7 +342,8 @@ type JsonStatement =
   | JsonCreateCompositePK
   | JsonCreateUniqueConstraint
   | JsonCreateSchema
-  | JsonCreateCheckConstraint;
+  | JsonCreateCheckConstraint
+  | JsonCreateSequenceStatement;
 
 ////////
 // Generator
@@ -659,6 +678,15 @@ const prepareCreateEnumJson = (
     name: name,
     schema: schema,
     values,
+  };
+};
+
+const prepareCreateSequenceJson = (
+  name: string,
+): JsonCreateSequenceStatement => {
+  return {
+    type: "create_sequence",
+    name,
   };
 };
 

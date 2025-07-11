@@ -760,6 +760,22 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
         }
       };
 
+      const createSequences = async (tx: Drizzle<Schema>) => {
+        for (let i = 0; i < schemaBuild.statements.sequences.sql.length; i++) {
+          await tx
+            .execute(sql.raw(schemaBuild.statements.sequences.sql[i]!))
+            .catch((_error) => {
+              const error = _error as Error;
+              if (!error.message.includes("already exists")) throw error;
+              const e = new NonRetryableError(
+                `Unable to create sequence '${namespace.schema}'.'${schemaBuild.statements.sequences.json[i]!.name}' because an enum with that name already exists.`,
+              );
+              e.stack = undefined;
+              throw e;
+            });
+        }
+      };
+
       const tryAcquireLockAndMigrate = () =>
         this.wrap({ method: "migrate", includeTraceLogs: true }, () =>
           qb.drizzle.transaction(async (tx) => {
@@ -782,6 +798,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
             } satisfies PonderApp;
 
             if (previousApp === undefined) {
+              await createSequences(tx);
               await createEnums(tx);
               await createTables(tx);
 
@@ -823,6 +840,14 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
                   ),
                 );
               }
+              for (const sequenceName of schemaBuild.statements.sequences
+                .json) {
+                await tx.execute(
+                  sql.raw(
+                    `DROP SEQUENCE IF EXISTS "${namespace.schema}"."${sequenceName.name}"`,
+                  ),
+                );
+              }
 
               await tx.execute(
                 sql.raw(
@@ -830,6 +855,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
                 ),
               );
 
+              await createSequences(tx);
               await createEnums(tx);
               await createTables(tx);
 
@@ -1087,14 +1113,37 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).trigg
       });
     },
     async revert({ checkpoint, tx }) {
-      await this.record({ method: "revert", includeTraceLogs: true }, () =>
-        Promise.all(
-          tables.map(async (table) => {
-            console.log(`reverting ${this.ordering}`);
+      await this.record(
+        { method: "revert", includeTraceLogs: true },
+        async () => {
+          const op_ids: (number | null)[] = await Promise.all(
+            tables.map(async (table) => {
+              const result = await tx.execute(
+                sql.raw(`
+SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
+AND checkpoint > '${checkpoint}'
+`),
+              );
+              // @ts-ignore
+              return result.rows[0]!.min_op_id;
+            }),
+          );
 
-            const primaryKeyColumns = getPrimaryKeyColumns(table);
-            const result = await tx.execute(
-              sql.raw(`
+          let min_op_id: number | null = null;
+          for (const id of op_ids) {
+            if (id !== null) {
+              min_op_id = min_op_id === null ? id : Math.min(min_op_id, id);
+            }
+          }
+
+          Promise.all(
+            tables.map(async (table) => {
+              console.log(`reverting ${this.ordering}`);
+              const primaryKeyColumns = getPrimaryKeyColumns(table);
+
+              const result = await tx.execute(
+                sql.raw(`
 ${
   this.ordering === "omnichain"
     ? `
@@ -1103,15 +1152,11 @@ WITH reverted1 AS (
   WHERE checkpoint > '${checkpoint}' RETURNING *
 )`
     : `
-WITH operations1 AS (
-  SELECT MIN(operation_id) AS min_operation_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
-  AND checkpoint > '${checkpoint}'
-), reverted1 AS (
+WITH reverted1 AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE CASE
-    WHEN (SELECT min_operation_id FROM operations1) IS NOT NULL
-    THEN operation_id >= (SELECT min_operation_id FROM operations1)
+    WHEN ${min_op_id} IS NOT NULL
+    THEN operation_id >= ${min_op_id}
     ELSE FALSE
   END
   RETURNING *
@@ -1151,15 +1196,16 @@ WITH operations1 AS (
   RETURNING *
 ) SELECT COUNT(*) FROM reverted1 as count;
 `),
-            );
+              );
 
-            common.logger.info({
-              service: "database",
-              // @ts-ignore
-              msg: `Reverted ${result.rows[0]!.count} unfinalized operations from '${getTableName(table)}'`,
-            });
-          }),
-        ),
+              common.logger.info({
+                service: "database",
+                // @ts-ignore
+                msg: `Reverted ${result.rows[0]!.count} unfinalized operations from '${getTableName(table)}'`,
+              });
+            }),
+          );
+        },
       );
     },
     async finalize({ checkpoint, db }) {
