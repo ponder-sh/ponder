@@ -1116,26 +1116,37 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).trigg
       await this.record(
         { method: "revert", includeTraceLogs: true },
         async () => {
-          const op_ids: (number | null)[] = await Promise.all(
-            tables.map(async (table) => {
-              const result = await tx.execute(
-                sql.raw(`
-SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
-AND checkpoint > '${checkpoint}'
+          const min_op_id: number | null =
+            this.ordering === "omnichain"
+              ? null
+              : await tx
+                  .execute(
+                    sql.raw(`
+SELECT MIN(min_op_id) as global_min_op_id FROM (
+${tables
+  .map(
+    (table) => `
+  SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
+  AND checkpoint > '${checkpoint}'
+`,
+  )
+  .join(
+    `
+  UNION ALL
+`,
+  )}) AS all_mins             
 `),
-              );
-              // @ts-ignore
-              return result.rows[0]!.min_op_id;
-            }),
-          );
+                  )
+                  .then((result) => {
+                    // @ts-ignore
+                    if (!result.rows) {
+                      return null;
+                    }
 
-          const min_op_id = op_ids.reduce((prev, curr) => {
-            if (prev === null) return curr;
-            if (curr === null) return prev;
-            if (curr < prev) return curr;
-            return prev;
-          }, null);
+                    // @ts-ignore
+                    return result.rows[0]!.global_min_op_id;
+                  });
 
           Promise.all(
             tables.map(async (table) => {
@@ -1211,43 +1222,47 @@ WITH reverted1 AS (
       await this.record(
         { method: "finalize", includeTraceLogs: true },
         async () => {
-          const left_ops: ({ checkpoint: string; id: number } | null)[] =
-            await Promise.all(
-              tables.map(async (table) => {
-                const result = await db.execute(
-                  sql.raw(`
-SELECT checkpoint, operation_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+          const max_op = await db
+            .execute(
+              sql.raw(`
+WITH max_op_all AS (
+${tables
+  .map(
+    (table) => `
+  SELECT checkpoint, operation_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE operation_id = (
+    SELECT MAX(operation_id)
+    FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+    WHERE substring(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
+    AND checkpoint <= '${checkpoint}'
+  )
+`,
+  )
+  .join(
+    `
+  UNION ALL
+`,
+  )}) SELECT checkpoint, operation_id FROM max_op_all
 WHERE operation_id = (
   SELECT MAX(operation_id)
-  FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE substring(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
-  AND checkpoint <= '${checkpoint}'
+  FROM max_op_all
 )
 `),
-                );
+            )
+            .then((result) => {
+              if (
+                !result.rows[0] ||
+                result.rows[0].checkpoint === null ||
+                result.rows[0].operation_id === null
+              ) {
+                return null;
+              }
 
-                if (
-                  !result.rows[0] ||
-                  result.rows[0].checkpoint === null ||
-                  result.rows[0].operation_id === null
-                ) {
-                  return null;
-                }
-
-                // @ts-ignore
-                return {
-                  checkpoint: result.rows[0].checkpoint as string,
-                  id: result.rows[0].operation_id as number,
-                };
-              }),
-            );
-
-          const max_op = left_ops.reduce((prev, curr) => {
-            if (curr === null) return prev;
-            if (prev === null) return curr;
-            if (curr.id > prev.id) return curr;
-            return prev;
-          }, null);
+              return {
+                checkpoint: result.rows[0].checkpoint as string,
+                id: result.rows[0].operation_id as number,
+              };
+            });
 
           if (max_op === null) {
             common.logger.info({
@@ -1258,26 +1273,34 @@ WHERE operation_id = (
             return;
           }
 
-          const right_op_ids: (number | null)[] = await Promise.all(
-            tables.map(async (table) => {
-              const result = await db.execute(
-                sql.raw(`
+          const min_op_id = await db
+            .execute(
+              sql.raw(`
+SELECT MIN(min_op_id) AS global_min_op_id FROM (
+${tables
+  .map(
+    (table) => `
 SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
 WHERE checkpoint > '${max_op.checkpoint}'
 AND operation_id < ${max_op.id}
+`,
+  )
+  .join(
+    `
+UNION ALL  
+`,
+  )}) AS all_mins            
 `),
-              );
+            )
+            .then((result) => {
+              // @ts-ignore
+              if (!result.rows) {
+                return null;
+              }
 
-              return result.rows[0]!.min_op_id as number | null;
-            }),
-          );
-
-          const min_op_id = right_op_ids.reduce((prev, curr) => {
-            if (curr === null) return prev;
-            if (prev === null) return curr;
-            if (curr < prev) return curr;
-            return prev;
-          }, null);
+              // @ts-ignore
+              return result.rows[0]!.global_min_op_id as number | null;
+            });
 
           await Promise.all(
             tables.map(async (table) => {
