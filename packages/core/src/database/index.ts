@@ -1263,7 +1263,7 @@ WHERE operation_id = (
               const result = await db.execute(
                 sql.raw(`
 SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-WHERE checkpoint > '${max_op.checkpoint}'}
+WHERE checkpoint > '${max_op.checkpoint}'
 AND operation_id < ${max_op.id}
 `),
               );
