@@ -1264,15 +1264,6 @@ WHERE operation_id = (
               };
             });
 
-          if (max_op === null) {
-            common.logger.info({
-              service: "database",
-              msg: "Skipped finalizing, no operations to finalize.",
-            });
-
-            return;
-          }
-
           const min_op_id = await db
             .execute(
               sql.raw(`
@@ -1281,8 +1272,7 @@ ${tables
   .map(
     (table) => `
 SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-WHERE checkpoint > '${max_op.checkpoint}'
-AND operation_id < ${max_op.id}
+WHERE checkpoint > '${checkpoint}'
 `,
   )
   .join(
@@ -1306,10 +1296,18 @@ UNION ALL
             tables.map(async (table) => {
               const result = await db.execute(
                 min_op_id === null
-                  ? sql.raw(`
+                  ? max_op !== null
+                    ? sql.raw(`
 WITH deleted AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE operation_id <= ${max_op.id}
+  RETURNING *
+) SELECT COUNT(*) FROM deleted as count;
+`)
+                    : sql.raw(`
+WITH deleted AS (
+  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE checkpoint <= '${checkpoint}'
   RETURNING *
 ) SELECT COUNT(*) FROM deleted as count;
 `)
