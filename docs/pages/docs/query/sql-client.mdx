@@ -57,13 +57,12 @@ const client = createClient("http://localhost:42069/sql");
 
 ### Import `ponder.schema.ts`
 
-Import your schema from `ponder.schema.ts` into the same file. [Read more](#use-schema-from-a-different-repo) about schema portability.
+Import your schema from `ponder.schema.ts`. [Read more](#use-schema-from-a-different-repo) about schema portability.
 
 ```ts [Client project]
-import { createClient } from "@ponder/client";
 import * as schema from "../../ponder/ponder.schema";
 
-const client = createClient("http://localhost:42069/sql", { schema });
+schema.account.address;
 ```
 
 ::::
@@ -286,9 +285,13 @@ const query = usePonderQuery({
 
 ### Use schema from a different repo
 
-The `@ponder/client` package needs the `onchainTable` objects exported by `ponder.schema.ts` to properly compile the SQL queries client-side. If the client project is in a different repo from the Ponder project, it's not possible to import the schema file directly.
+The `@ponder/client` package needs the `onchainTable` objects exported by `ponder.schema.ts` to properly compile the SQL queries client-side.
 
-At the moment, the easiest workaround is to copy the entire `ponder.schema.ts` file into the client project and install `ponder` to get access to the `onchainTable` function.
+If the client project is in a different repo from the Ponder project, there are a few other options:
+
+- Publish the `ponder.schema.ts` to npm.
+- Copy the `ponder.schema.ts` into the client project and install `ponder` to get access to the `onchainTable` function.
+- Forfeit type safety and use [untyped queries](#untyped-queries).
 
 ### Security
 
