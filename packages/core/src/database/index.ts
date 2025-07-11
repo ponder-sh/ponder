@@ -1284,7 +1284,7 @@ AND operation_id < ${max_op.id}
               const result = await db.execute(
                 min_op_id === null
                   ? sql.raw(`
-deleted AS (
+WITH deleted AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE operation_id <= ${max_op.id}
   RETURNING *
@@ -1292,7 +1292,7 @@ deleted AS (
 `)
                   : sql.raw(
                       `
-deleted AS (
+WITH deleted AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE operation_id < ${min_op_id}
   RETURNING *
