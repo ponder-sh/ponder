@@ -51,6 +51,6 @@ jobs:
           PONDER_RPC_URL_84532: ${{ secrets.PONDER_RPC_URL_84532 }}
           PONDER_RPC_URL_11155111: ${{ secrets.PONDER_RPC_URL_11155111 }}
           PONDER_RPC_URL_11155420: ${{ secrets.PONDER_RPC_URL_11155420 }}
-          PGDATABASE: railway
+          PGDATABASE: postgres
           PGSSLMODE: disable
           NODE_ENV: ci
