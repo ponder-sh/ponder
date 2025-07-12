@@ -258,28 +258,28 @@ const onBuild = async (app: PonderApp) => {
     msg: "Mocking syncQB, adminQB, userQB, and readonlyQB",
   });
 
-  app.database.syncQB = createQB(
-    dbSim(drizzle(app.database.driver.sync!, { casing: "snake_case" })),
-    { common: app.common },
-  );
+  // app.database.syncQB = createQB(
+  //   dbSim(drizzle(app.database.driver.sync!, { casing: "snake_case" })),
+  //   { common: app.common },
+  // );
 
-  app.database.adminQB = createQB(
-    dbSim(drizzle(app.database.driver.admin!, { casing: "snake_case" })),
-    {
-      common: app.common,
-      isAdmin: true,
-    },
-  );
+  // app.database.adminQB = createQB(
+  //   dbSim(drizzle(app.database.driver.admin!, { casing: "snake_case" })),
+  //   {
+  //     common: app.common,
+  //     isAdmin: true,
+  //   },
+  // );
 
-  app.database.userQB = createQB(
-    dbSim(drizzle(app.database.driver.user!, { casing: "snake_case" })),
-    { common: app.common },
-  );
+  // app.database.userQB = createQB(
+  //   dbSim(drizzle(app.database.driver.user!, { casing: "snake_case" })),
+  //   { common: app.common },
+  // );
 
-  app.database.readonlyQB = createQB(
-    dbSim(drizzle(app.database.driver.readonly!, { casing: "snake_case" })),
-    { common: app.common },
-  );
+  // app.database.readonlyQB = createQB(
+  //   dbSim(drizzle(app.database.driver.readonly!, { casing: "snake_case" })),
+  //   { common: app.common },
+  // );
 
   if (APP_ID === "super-assessment") {
     const random = seedrandom(`${SEED}_super_assessment_filter`);
