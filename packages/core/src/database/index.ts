@@ -1122,7 +1122,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).trigg
               : await tx
                   .execute(
                     sql.raw(`
-SELECT MIN(min_op_id) as global_min_op_id FROM (
+SELECT MIN(min_op_id) AS global_min_op_id FROM (
 ${tables
   .map(
     (table) => `
@@ -1164,11 +1164,7 @@ WITH reverted1 AS (
     : `
 WITH reverted1 AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE CASE
-    WHEN ${min_op_id} IS NOT NULL
-    THEN operation_id >= ${min_op_id}
-    ELSE FALSE
-  END
+  WHERE ${min_op_id} IS NOT NULL AND operation_id >= ${min_op_id}
   RETURNING *
 )`
 }, reverted2 AS (
@@ -1222,46 +1218,32 @@ WITH reverted1 AS (
       await this.record(
         { method: "finalize", includeTraceLogs: true },
         async () => {
-          const max_op = await db
+          const max_op_id = await db
             .execute(
               sql.raw(`
-WITH max_op_all AS (
+SELECT MAX(max_op_id) AS global_max_op_id FROM (
 ${tables
   .map(
     (table) => `
-  SELECT checkpoint, operation_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE operation_id = (
-    SELECT MAX(operation_id)
-    FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-    WHERE substring(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
-    AND checkpoint <= '${checkpoint}'
-  )
+  SELECT MAX(operation_id) AS max_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
+  AND checkpoint <= '${checkpoint}'
 `,
   )
   .join(
     `
   UNION ALL
 `,
-  )}) SELECT checkpoint, operation_id FROM max_op_all
-WHERE operation_id = (
-  SELECT MAX(operation_id)
-  FROM max_op_all
-)
+  )}) AS all_maxs
 `),
             )
             .then((result) => {
-              if (
-                !result.rows[0] ||
-                result.rows[0].checkpoint === null ||
-                result.rows[0].operation_id === null
-              ) {
+              if (!result.rows[0]) {
                 return null;
               }
 
-              return {
-                checkpoint: result.rows[0].checkpoint as string,
-                id: result.rows[0].operation_id as number,
-              };
+              // @ts-ignore
+              return result.rows[0].global_max_op_id as number | null;
             });
 
           const min_op_id = await db
@@ -1295,31 +1277,13 @@ UNION ALL
           await Promise.all(
             tables.map(async (table) => {
               const result = await db.execute(
-                min_op_id === null
-                  ? max_op !== null
-                    ? sql.raw(`
+                sql.raw(`
 WITH deleted AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE operation_id <= ${max_op.id}
+  WHERE ${min_op_id !== null ? `operation_id < ${min_op_id}` : max_op_id !== null ? `operation_id <= ${max_op_id}` : `checkpoint <= '${checkpoint}'`}
   RETURNING *
-) SELECT COUNT(*) FROM deleted as count;
-`)
-                    : sql.raw(`
-WITH deleted AS (
-  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE checkpoint <= '${checkpoint}'
-  RETURNING *
-) SELECT COUNT(*) FROM deleted as count;
-`)
-                  : sql.raw(
-                      `
-WITH deleted AS (
-  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE operation_id < ${min_op_id}
-  RETURNING *
-) SELECT COUNT(*) FROM deleted as count; 
-`,
-                    ),
+) SELECT COUNT(*) FROM deleted AS count; 
+`),
               );
 
               common.logger.info({
