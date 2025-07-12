@@ -140,14 +140,14 @@ test("sync() with log filter", async (context) => {
 
   await historicalSync.sync([1, 2]);
 
-  const logs = await database.qb.sync
+  const logs = await database.syncQB
     .select()
     .from(ponderSyncSchema.logs)
     .execute();
 
   expect(logs).toHaveLength(1);
 
-  const intervals = await database.qb.sync
+  const intervals = await database.syncQB
     .select()
     .from(ponderSyncSchema.intervals)
     .execute();
@@ -194,14 +194,14 @@ test("sync() with log filter and transaction receipts", async (context) => {
 
   await historicalSync.sync([1, 2]);
 
-  const transactionReceipts = await database.qb.sync
+  const transactionReceipts = await database.syncQB
     .select()
     .from(ponderSyncSchema.transactionReceipts)
     .execute();
 
   expect(transactionReceipts).toHaveLength(1);
 
-  const intervals = await database.qb.sync
+  const intervals = await database.syncQB
     .select()
     .from(ponderSyncSchema.intervals)
     .execute();
@@ -241,14 +241,14 @@ test("sync() with block filter", async (context) => {
 
   await historicalSync.sync([1, 3]);
 
-  const blocks = await database.qb.sync
+  const blocks = await database.syncQB
     .select()
     .from(ponderSyncSchema.blocks)
     .execute();
 
   expect(blocks).toHaveLength(3);
 
-  const intervals = await database.qb.sync
+  const intervals = await database.syncQB
     .select()
     .from(ponderSyncSchema.intervals)
     .execute();
@@ -297,11 +297,11 @@ test("sync() with log factory", async (context) => {
 
   await historicalSync.sync([1, 3]);
 
-  const logs = await database.qb.sync
+  const logs = await database.syncQB
     .select()
     .from(ponderSyncSchema.logs)
     .execute();
-  const factories = await database.qb.sync
+  const factories = await database.syncQB
     .select()
     .from(ponderSyncSchema.factories)
     .execute();
@@ -309,7 +309,7 @@ test("sync() with log factory", async (context) => {
   expect(logs).toHaveLength(1);
   expect(factories).toHaveLength(1);
 
-  const intervals = await database.qb.sync
+  const intervals = await database.syncQB
     .select()
     .from(ponderSyncSchema.intervals)
     .execute();
@@ -399,14 +399,14 @@ test("sync() with trace filter", async (context) => {
 
   await historicalSync.sync([1, 3]);
 
-  const traces = await database.qb.sync
+  const traces = await database.syncQB
     .select()
     .from(ponderSyncSchema.traces)
     .execute();
 
   expect(traces).toHaveLength(1);
 
-  const intervals = await database.qb.sync
+  const intervals = await database.syncQB
     .select()
     .from(ponderSyncSchema.intervals)
     .execute();
@@ -452,21 +452,21 @@ test("sync() with transaction filter", async (context) => {
 
   await historicalSync.sync([1, 1]);
 
-  const transactions = await database.qb.sync
+  const transactions = await database.syncQB
     .select()
     .from(ponderSyncSchema.transactions)
     .execute();
 
   expect(transactions).toHaveLength(1);
 
-  const transactionReceipts = await database.qb.sync
+  const transactionReceipts = await database.syncQB
     .select()
     .from(ponderSyncSchema.transactionReceipts)
     .execute();
 
   expect(transactionReceipts).toHaveLength(1);
 
-  const intervals = await database.qb.sync
+  const intervals = await database.syncQB
     .select()
     .from(ponderSyncSchema.intervals)
     .execute();
@@ -540,14 +540,14 @@ test("sync() with transfer filter", async (context) => {
 
   await historicalSync.sync([1, 1]);
 
-  const transactions = await database.qb.sync
+  const transactions = await database.syncQB
     .select()
     .from(ponderSyncSchema.transactions)
     .execute();
 
   expect(transactions).toHaveLength(1);
 
-  const intervals = await database.qb.sync
+  const intervals = await database.syncQB
     .select()
     .from(ponderSyncSchema.intervals)
     .execute();
@@ -598,19 +598,19 @@ test("sync() with many filters", async (context) => {
 
   await historicalSync.sync([1, 2]);
 
-  const logs = await database.qb.sync
+  const logs = await database.syncQB
     .select()
     .from(ponderSyncSchema.logs)
     .execute();
   expect(logs).toHaveLength(1);
 
-  const blocks = await database.qb.sync
+  const blocks = await database.syncQB
     .select()
     .from(ponderSyncSchema.blocks)
     .execute();
   expect(blocks).toHaveLength(2);
 
-  const intervals = await database.qb.sync
+  const intervals = await database.syncQB
     .select()
     .from(ponderSyncSchema.intervals)
     .execute();
@@ -881,11 +881,11 @@ test("syncAddress() handles many addresses", async (context) => {
 
   await historicalSync.sync([1, 13]);
 
-  const logs = await database.qb.sync
+  const logs = await database.syncQB
     .select()
     .from(ponderSyncSchema.logs)
     .execute();
-  const factories = await database.qb.sync
+  const factories = await database.syncQB
     .select()
     .from(ponderSyncSchema.factoryAddresses)
     .execute();

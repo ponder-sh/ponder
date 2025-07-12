@@ -26,6 +26,12 @@ import {
 import { PgBigintBuilder, type PgBigintBuilderInitial } from "./bigint.js";
 import { PgBytesBuilder, type PgBytesBuilderInitial } from "./bytes.js";
 import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
+import {
+  PgJsonBuilder,
+  type PgJsonBuilderInitial,
+  PgJsonbBuilder,
+  type PgJsonbBuilderInitial,
+} from "./json.js";
 import { PgTextBuilder, type PgTextBuilderInitial } from "./text.js";
 
 /** @internal */
@@ -54,6 +60,22 @@ export function bigint<name extends string>(
 ): PgBigintBuilderInitial<name>;
 export function bigint(columnName?: string) {
   return new PgBigintBuilder(columnName ?? "");
+}
+
+export function json(): PgJsonBuilderInitial<"">;
+export function json<name extends string>(
+  name: name,
+): PgJsonBuilderInitial<name>;
+export function json(name?: string) {
+  return new PgJsonBuilder(name ?? "");
+}
+
+export function jsonb(): PgJsonbBuilderInitial<"">;
+export function jsonb<name extends string>(
+  name: name,
+): PgJsonbBuilderInitial<name>;
+export function jsonb(name?: string) {
+  return new PgJsonbBuilder(name ?? "");
 }
 
 // @ts-ignore
@@ -121,7 +143,7 @@ export type BuildExtraConfigColumns<
 
 export type PgColumnsBuilders = Omit<
   _PgColumnsBuilders,
-  "bigint" | "serial" | "smallserial" | "bigserial"
+  "bigint" | "serial" | "smallserial" | "bigserial" | "json" | "jsonb"
 > & {
   /**
    * Create an 8 byte number column.
@@ -166,6 +188,8 @@ export type PgColumnsBuilders = Omit<
    * }));
    */
   bytes: typeof bytes;
+  json: typeof json;
+  jsonb: typeof jsonb;
 };
 
 /**
@@ -273,7 +297,7 @@ function pgTableWithSchema<
 
   const parsedColumns: columns =
     typeof columns === "function"
-      ? columns({ ...restColumns, int8, hex, bigint, bytes, text })
+      ? columns({ ...restColumns, int8, hex, bigint, bytes, text, json, jsonb })
       : columns;
 
   const builtColumns = Object.fromEntries(
