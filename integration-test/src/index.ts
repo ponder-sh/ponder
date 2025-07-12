@@ -66,7 +66,7 @@ const APP_ID = process.argv[2];
 const APP_DIR = `./apps/${APP_ID}`;
 export const SEED = process.env.SEED ?? crypto.randomBytes(32).toString("hex");
 export const UUID = process.env.UUID ?? crypto.randomUUID();
-export const PORT = Number(process.env.PORT) ?? 42069;
+export const PORT = process.env.PORT ?? 42069;
 
 if (APP_ID === undefined) {
   throw new Error("App ID is required. Example: 'pnpm test [app id]'");
