@@ -1218,34 +1218,6 @@ WITH reverted1 AS (
       await this.record(
         { method: "finalize", includeTraceLogs: true },
         async () => {
-          const max_op_id = await db
-            .execute(
-              sql.raw(`
-SELECT MAX(max_op_id) AS global_max_op_id FROM (
-${tables
-  .map(
-    (table) => `
-  SELECT MAX(operation_id) AS max_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
-  AND checkpoint <= '${checkpoint}'
-`,
-  )
-  .join(
-    `
-  UNION ALL
-`,
-  )}) AS all_maxs
-`),
-            )
-            .then((result) => {
-              if (!result.rows[0]) {
-                return null;
-              }
-
-              // @ts-ignore
-              return result.rows[0].global_max_op_id as number | null;
-            });
-
           const min_op_id = await db
             .execute(
               sql.raw(`
@@ -1280,7 +1252,7 @@ UNION ALL
                 sql.raw(`
 WITH deleted AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE ${min_op_id !== null ? `operation_id < ${min_op_id}` : max_op_id !== null ? `operation_id <= ${max_op_id}` : `checkpoint <= '${checkpoint}'`}
+  WHERE ${min_op_id !== null ? `operation_id < ${min_op_id}` : `checkpoint <= '${checkpoint}'`}
   RETURNING *
 ) SELECT COUNT(*) FROM deleted AS count; 
 `),
