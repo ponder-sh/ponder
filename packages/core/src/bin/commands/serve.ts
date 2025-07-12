@@ -117,6 +117,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     namespace: namespaceResult.result,
     preBuild,
     schemaBuild,
+    ordering: configResult.result.config.ordering ?? "multichain",
   });
 
   const apiResult = await build.executeApi({

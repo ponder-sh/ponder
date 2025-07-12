@@ -35,7 +35,6 @@ import {
   getTableColumns,
   getTableName,
   is,
-  lte,
   sql,
 } from "drizzle-orm";
 import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
@@ -57,6 +56,7 @@ export type Database = {
   qb: QueryBuilder;
   PONDER_META: ReturnType<typeof getPonderMetaTable>;
   PONDER_CHECKPOINT: ReturnType<typeof getPonderCheckpointTable>;
+  ordering: "multichain" | "omnichain";
   retry: <T>(fn: () => Promise<T>) => Promise<T>;
   record: <T>(
     options: { method: string; includeTraceLogs?: boolean },
@@ -204,11 +204,13 @@ export const createDatabase = async ({
   namespace,
   preBuild,
   schemaBuild,
+  ordering,
 }: {
   common: Common;
   namespace: NamespaceBuild;
   preBuild: Pick<PreBuild, "databaseConfig">;
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
+  ordering: "multichain" | "omnichain";
 }): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
 
@@ -411,6 +413,7 @@ export const createDatabase = async ({
     qb,
     PONDER_META,
     PONDER_CHECKPOINT,
+    ordering,
     async retry(fn) {
       const RETRY_COUNT = 9;
       const BASE_DURATION = 125;
@@ -757,6 +760,22 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
         }
       };
 
+      const createSequences = async (tx: Drizzle<Schema>) => {
+        for (let i = 0; i < schemaBuild.statements.sequences.sql.length; i++) {
+          await tx
+            .execute(sql.raw(schemaBuild.statements.sequences.sql[i]!))
+            .catch((_error) => {
+              const error = _error as Error;
+              if (!error.message.includes("already exists")) throw error;
+              const e = new NonRetryableError(
+                `Unable to create sequence '${namespace.schema}'.'${schemaBuild.statements.sequences.json[i]!.name}' because a sequence with that name already exists.`,
+              );
+              e.stack = undefined;
+              throw e;
+            });
+        }
+      };
+
       const tryAcquireLockAndMigrate = () =>
         this.wrap({ method: "migrate", includeTraceLogs: true }, () =>
           qb.drizzle.transaction(async (tx) => {
@@ -779,6 +798,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
             } satisfies PonderApp;
 
             if (previousApp === undefined) {
+              await createSequences(tx);
               await createEnums(tx);
               await createTables(tx);
 
@@ -820,6 +840,14 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
                   ),
                 );
               }
+              for (const sequenceName of schemaBuild.statements.sequences
+                .json) {
+                await tx.execute(
+                  sql.raw(
+                    `DROP SEQUENCE IF EXISTS "${namespace.schema}"."${sequenceName.name}"`,
+                  ),
+                );
+              }
 
               await tx.execute(
                 sql.raw(
@@ -827,6 +855,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
                 ),
               );
 
+              await createSequences(tx);
               await createEnums(tx);
               await createTables(tx);
 
@@ -1080,21 +1109,65 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).trigg
         return qb.drizzle
           .select()
           .from(PONDER_META)
-          .then((result) => result[0]?.value.is_ready === 1 ?? false);
+          .then((result) => result[0]?.value.is_ready === 1);
       });
     },
     async revert({ checkpoint, tx }) {
-      await this.record({ method: "revert", includeTraceLogs: true }, () =>
-        Promise.all(
-          tables.map(async (table) => {
-            const primaryKeyColumns = getPrimaryKeyColumns(table);
+      await this.record(
+        { method: "revert", includeTraceLogs: true },
+        async () => {
+          const min_op_id: number | null =
+            this.ordering === "omnichain"
+              ? null
+              : await tx
+                  .execute(
+                    sql.raw(`
+SELECT MIN(min_op_id) AS global_min_op_id FROM (
+${tables
+  .map(
+    (table) => `
+  SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
+  AND checkpoint > '${checkpoint}'
+`,
+  )
+  .join(
+    `
+  UNION ALL
+`,
+  )}) AS all_mins             
+`),
+                  )
+                  .then((result) => {
+                    // @ts-ignore
+                    if (!result.rows) {
+                      return null;
+                    }
 
-            const result = await tx.execute(
-              sql.raw(`
+                    // @ts-ignore
+                    return result.rows[0]!.global_min_op_id;
+                  });
+
+          Promise.all(
+            tables.map(async (table) => {
+              const primaryKeyColumns = getPrimaryKeyColumns(table);
+
+              const result = await tx.execute(
+                sql.raw(`
+${
+  this.ordering === "omnichain"
+    ? `
 WITH reverted1 AS (
- DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE checkpoint > '${checkpoint}' RETURNING *
-), reverted2 AS (
+)`
+    : `
+WITH reverted1 AS (
+  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE ${min_op_id} IS NOT NULL AND operation_id >= ${min_op_id}
+  RETURNING *
+)`
+}, reverted2 AS (
   SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1
   GROUP BY ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}
 ), reverted3 AS (
@@ -1129,27 +1202,68 @@ WITH reverted1 AS (
   RETURNING *
 ) SELECT COUNT(*) FROM reverted1 as count;
 `),
-            );
+              );
 
-            common.logger.info({
-              service: "database",
-              // @ts-ignore
-              msg: `Reverted ${result.rows[0]!.count} unfinalized operations from '${getTableName(table)}'`,
-            });
-          }),
-        ),
+              common.logger.info({
+                service: "database",
+                // @ts-ignore
+                msg: `Reverted ${result.rows[0]!.count} unfinalized operations from '${getTableName(table)}'`,
+              });
+            }),
+          );
+        },
       );
     },
     async finalize({ checkpoint, db }) {
       await this.record(
         { method: "finalize", includeTraceLogs: true },
         async () => {
+          const min_op_id = await db
+            .execute(
+              sql.raw(`
+SELECT MIN(min_op_id) AS global_min_op_id FROM (
+${tables
+  .map(
+    (table) => `
+SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+WHERE checkpoint > '${checkpoint}'
+`,
+  )
+  .join(
+    `
+UNION ALL  
+`,
+  )}) AS all_mins            
+`),
+            )
+            .then((result) => {
+              // @ts-ignore
+              if (!result.rows) {
+                return null;
+              }
+
+              // @ts-ignore
+              return result.rows[0]!.global_min_op_id as number | null;
+            });
+
           await Promise.all(
-            tables.map((table) =>
-              db
-                .delete(getReorgTable(table))
-                .where(lte(getReorgTable(table).checkpoint, checkpoint)),
-            ),
+            tables.map(async (table) => {
+              const result = await db.execute(
+                sql.raw(`
+WITH deleted AS (
+  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE ${min_op_id !== null ? `operation_id < ${min_op_id}` : `checkpoint <= '${checkpoint}'`}
+  RETURNING *
+) SELECT COUNT(*) FROM deleted AS count; 
+`),
+              );
+
+              common.logger.info({
+                service: "database",
+                // @ts-ignore
+                msg: `Finalized ${result.rows[0]!.count} operations from '${getTableName(table)}'`,
+              });
+            }),
           );
         },
       );

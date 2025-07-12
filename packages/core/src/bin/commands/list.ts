@@ -24,6 +24,7 @@ const emptySchemaBuild = {
     tables: { sql: [], json: [] },
     enums: { sql: [], json: [] },
     indexes: { sql: [], json: [] },
+    sequences: { sql: [], json: [] },
   },
 };
 
@@ -63,6 +64,7 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
     namespace: { schema: "public", viewsSchema: undefined },
     preBuild: buildResult.result,
     schemaBuild: emptySchemaBuild,
+    ordering: configResult.result.config.ordering ?? "multichain",
   });
 
   const ponderSchemas = await database.qb.drizzle

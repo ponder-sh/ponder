@@ -175,6 +175,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           namespace: { schema, viewsSchema: undefined },
           preBuild,
           schemaBuild,
+          ordering: configResult.result.config.ordering ?? "multichain",
         });
         crashRecoveryCheckpoint = await database.migrate(
           indexingBuildResult.result,

@@ -46,3 +46,4 @@ jobs:
           PONDER_RPC_URL_11155420: ${{ secrets.PONDER_RPC_URL_11155420 }}
           PGDATABASE: railway
           PGSSLMODE: disable
+          PONDER_LOG_LEVEL: debug
