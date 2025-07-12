@@ -707,44 +707,23 @@ export const createSync = async (params: {
         // Remove all finalized data
         let finalizeIndex: number | undefined = undefined;
         for (const [index, event] of executedEvents.entries()) {
-          if (event.chainId === chain.id) {
-            if (event.checkpoint <= to) {
-              finalizeIndex = index;
-            } else {
-              break;
-            }
+          if (event.checkpoint > to) {
+            finalizeIndex = index;
+            break;
           }
         }
 
-        let leftIndex: number | undefined = undefined;
-
-        for (const [index, event] of executedEvents.entries()) {
-          if (finalizeIndex === undefined) {
-            if (event.checkpoint > to) {
-              leftIndex = index;
-              break;
-            }
-          } else {
-            if (event.checkpoint > to && index < finalizeIndex) {
-              leftIndex = index;
-              break;
-            }
-          }
-        }
-
-        executedEvents = executedEvents.filter((_, i) => {
-          if (leftIndex !== undefined) {
-            if (i < leftIndex) {
+        executedEvents = executedEvents.filter((event, i) => {
+          if (finalizeIndex !== undefined) {
+            if (i < finalizeIndex) {
               _finalizedEvents++;
               return false;
-            } else {
-              return true;
             }
-          }
-
-          if (finalizeIndex !== undefined && i <= finalizeIndex) {
-            _finalizedEvents++;
-            return false;
+          } else {
+            if (event.checkpoint <= to) {
+              _finalizedEvents++;
+              return false;
+            }
           }
 
           return true;

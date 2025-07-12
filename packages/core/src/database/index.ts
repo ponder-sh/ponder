@@ -768,7 +768,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
               const error = _error as Error;
               if (!error.message.includes("already exists")) throw error;
               const e = new NonRetryableError(
-                `Unable to create sequence '${namespace.schema}'.'${schemaBuild.statements.sequences.json[i]!.name}' because an enum with that name already exists.`,
+                `Unable to create sequence '${namespace.schema}'.'${schemaBuild.statements.sequences.json[i]!.name}' because a sequence with that name already exists.`,
               );
               e.stack = undefined;
               throw e;
