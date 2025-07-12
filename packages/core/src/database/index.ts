@@ -19,13 +19,16 @@ import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
 import { eq, getTableName, isTable, sql } from "drizzle-orm";
-import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
 import { pgSchema, pgTable } from "drizzle-orm/pg-core";
-import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
 import type { Pool, PoolClient } from "pg";
 import prometheus from "prom-client";
-import { type QB, createQB, parseSqlError } from "./queryBuilder.js";
+import {
+  type QB,
+  createQBNodePg,
+  createQBPGlite,
+  parseSqlError,
+} from "./queryBuilder.js";
 import { revert } from "./utils.js";
 
 export type Database = {
@@ -190,34 +193,30 @@ export const createDatabase = async ({
     );
     await driver.instance.query(`SET search_path TO "${namespace.schema}"`);
 
-    syncQB = createQB(
-      drizzlePglite((driver as PGliteDriver).instance, {
-        casing: "snake_case",
-        schema: PONDER_SYNC,
-      }),
-      { common, isAdmin: false },
-    );
-    adminQB = createQB(
-      drizzlePglite((driver as PGliteDriver).instance, {
-        casing: "snake_case",
-        schema: schemaBuild.schema,
-      }),
-      { common, isAdmin: true },
-    );
-    userQB = createQB(
-      drizzlePglite((driver as PGliteDriver).instance, {
-        casing: "snake_case",
-        schema: schemaBuild.schema,
-      }),
-      { common, isAdmin: false },
-    );
-    readonlyQB = createQB(
-      drizzlePglite((driver as PGliteDriver).instance, {
-        casing: "snake_case",
-        schema: schemaBuild.schema,
-      }),
-      { common, isAdmin: false },
-    );
+    syncQB = createQBPGlite((driver as PGliteDriver).instance, {
+      casing: "snake_case",
+      schema: PONDER_SYNC,
+      common,
+      isAdmin: false,
+    });
+    adminQB = createQBPGlite((driver as PGliteDriver).instance, {
+      casing: "snake_case",
+      schema: schemaBuild.schema,
+      common,
+      isAdmin: true,
+    });
+    userQB = createQBPGlite((driver as PGliteDriver).instance, {
+      casing: "snake_case",
+      schema: schemaBuild.schema,
+      common,
+      isAdmin: false,
+    });
+    readonlyQB = createQBPGlite((driver as PGliteDriver).instance, {
+      casing: "snake_case",
+      schema: schemaBuild.schema,
+      common,
+      isAdmin: false,
+    });
   } else {
     const internalMax = 2;
     const equalMax = Math.floor(
@@ -271,34 +270,30 @@ export const createDatabase = async ({
       `CREATE SCHEMA IF NOT EXISTS "${namespace.schema}"`,
     );
 
-    syncQB = createQB(
-      drizzleNodePg(driver.sync, {
-        casing: "snake_case",
-        schema: PONDER_SYNC,
-      }),
-      { common, isAdmin: false },
-    );
-    adminQB = createQB(
-      drizzleNodePg(driver.admin, {
-        casing: "snake_case",
-        schema: schemaBuild.schema,
-      }),
-      { common, isAdmin: true },
-    );
-    userQB = createQB(
-      drizzleNodePg(driver.user, {
-        casing: "snake_case",
-        schema: schemaBuild.schema,
-      }),
-      { common, isAdmin: false },
-    );
-    readonlyQB = createQB(
-      drizzleNodePg(driver.readonly, {
-        casing: "snake_case",
-        schema: schemaBuild.schema,
-      }),
-      { common, isAdmin: false },
-    );
+    syncQB = createQBNodePg(driver.sync, {
+      casing: "snake_case",
+      schema: PONDER_SYNC,
+      common,
+      isAdmin: false,
+    });
+    adminQB = createQBNodePg(driver.admin, {
+      casing: "snake_case",
+      schema: schemaBuild.schema,
+      common,
+      isAdmin: true,
+    });
+    userQB = createQBNodePg(driver.user, {
+      casing: "snake_case",
+      schema: schemaBuild.schema,
+      common,
+      isAdmin: false,
+    });
+    readonlyQB = createQBNodePg(driver.readonly, {
+      casing: "snake_case",
+      schema: schemaBuild.schema,
+      common,
+      isAdmin: false,
+    });
 
     common.shutdown.add(async () => {
       clearInterval(heartbeatInterval);
