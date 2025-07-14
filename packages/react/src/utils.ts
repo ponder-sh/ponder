@@ -27,3 +27,8 @@ export function getPonderQueryOptions<T>(
     queryFn: () => queryPromise,
   };
 }
+
+export const getQueryKey = (query: SQLWrapper) => {
+  const compiledQuery = compileQuery(query);
+  return ["__ponder_react", compiledQuery.sql, stringify(compiledQuery.params)];
+};

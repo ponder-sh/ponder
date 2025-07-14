@@ -1,8 +1,8 @@
-# SQL client [Query with custom SQL over HTTP]
+# SQL over HTTP [Query with custom SQL over HTTP]
 
 Ponder natively supports SQL queries over HTTP using the `@ponder/client` and `@ponder/react` packages.
 
-The SQL client is a more powerful alternative to [GraphQL](/docs/query/graphql) that offers zero-codegen type inference, live queries, and the flexibility of SQL directly in your client code.
+The SQL over HTTP is a more powerful alternative to [GraphQL](/docs/query/graphql) that offers zero-codegen type inference, live queries, and the flexibility of SQL directly in your client code.
 
 ## Setup
 
@@ -10,7 +10,7 @@ The SQL client is a more powerful alternative to [GraphQL](/docs/query/graphql) 
 
 ### Enable on the server
 
-Use the `client` Hono middleware to enable SQL client queries.
+Use the `client` Hono middleware to enable SQL over HTTP queries.
 
 ```ts [src/api/index.ts]
 import { db } from "ponder:api";
@@ -79,7 +79,7 @@ The `@ponder/react` package provides React hooks for querying your Ponder databa
 
 ### Set up `@ponder/client`
 
-First, follow the [steps above](#guide) to set up a SQL client instance using `@ponder/client`.
+First, follow the [steps above](#guide) to set up a SQL over HTTP instance using `@ponder/client`.
 
 ### Install dependencies
 
@@ -144,7 +144,7 @@ function App() {
 
 ## Querying
 
-The SQL client can be used to read indexed data from your Ponder database.
+The SQL over HTTP can be used to read indexed data from your Ponder database.
 
 It's different than [direct SQL](/docs/query/direct-sql) in two key areas:
 - Schema names are automatically applied on the server using Postgres's [`search_path`](https://www.postgresql.org/docs/current/ddl-schemas.html#DDL-SCHEMAS-PATH). Table names should be unqualified.
@@ -240,7 +240,7 @@ const query = usePonderQuery({
 
 ### Pagination
 
-The SQL client supports both limit/offset and cursor-based pagination patterns to handle large result sets efficiently.
+The SQL over HTTP supports both limit/offset and cursor-based pagination patterns to handle large result sets efficiently.
 
 :::code-group
 
@@ -282,7 +282,7 @@ const query = usePonderQuery({
 
 ### Relational query builder
 
-The SQL client also supports the [Drizzle query builder](https://orm.drizzle.team/docs/rqb) with some additional setup required.
+The SQL over HTTP also supports the [Drizzle query builder](https://orm.drizzle.team/docs/rqb) with some additional setup required.
 
 The `createClient` function accepts a `schema` option to enable the Drizzle query builder.
 
@@ -328,6 +328,65 @@ const query = usePonderQuery({
 
 - [Basic usage](https://github.com/ponder-sh/ponder/blob/main/examples/with-client/client/src/index.ts) (`@ponder/client` only)
 - [Usage with Next.js](https://github.com/ponder-sh/ponder/blob/main/examples/with-nextjs/frontend/src/pages/index.ts#L11-L18) (`@ponder/client` and `@ponder/react`)
+- Usage with `useInfiniteQuery`
+
+```ts [ponder.schema.ts]
+import { onchainTable } from "ponder";
+
+export const person = onchainTable("person", (t) => ({
+  id: t.integer().primaryKey(),
+  name: t.text().notNull(),
+  age: t.integer(),
+}));
+```
+
+```ts 
+import { type SQL, asc } from "@ponder/client";
+import { usePonderClient, getQueryKey } from "@ponder/react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+
+export const useInfinitePersonsQuery = (params: {
+  where: SQL | undefined;
+  limit: number;
+}) => {
+  const client = usePonderClient();
+
+  return useInfiniteQuery({
+    queryKey: ["pools", ...getQueryKey(params.where), params.limit],
+    queryFn: ({ pageParam }) =>
+      client.db
+        .select()
+        .from(schema.person)
+        .where(params.where)
+        .orderBy(asc(schema.person.id))
+        .limit(params.limit)
+        .offset(pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, pages) =>
+      lastPage.length === params.limit
+        ? undefined
+        : pages.length * params.limit,
+  });
+};
+```
+
+- Doppler
+
+
+
+https://github.com/whetstoneresearch/doppler-sdk/blob/main/packages/doppler-v3-indexer/ponder.schema.ts
+
+```ts
+export const usePools = (params: {
+  limit = 10,
+}) => {
+  return usePonderQuery({
+    queryFn: (db) => db.query.pool.findMany({
+
+    })
+  })
+}
+```
 
 ## Frequently asked questions
 

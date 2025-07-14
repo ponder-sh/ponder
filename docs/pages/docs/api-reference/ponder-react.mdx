@@ -2,7 +2,7 @@
 
 :::tip
 This is a low-level reference. For an introduction, visit the
-[SQL Client](/docs/query/sql-client) page.
+[SQL over HTTP](/docs/query/sql-over-http) page.
 :::
 
 The `@ponder/react` package provides React hooks for subscribing to live updates from your database.
@@ -32,7 +32,7 @@ npm add @ponder/react @ponder/client @tanstack/react-query
 
 ## `PonderProvider`
 
-React Context Provider that makes the SQL client instance available to all child components.
+React Context Provider that makes the SQL over HTTP client instance available to all child components.
 
 #### Usage
 
@@ -152,7 +152,7 @@ Returns a normal TanStack `useQuery` result containing the indexing [status obje
 
 ## `getPonderQueryOptions`
 
-Helper function to build the TanStack Query `queryFn` and `queryKey` for a SQL client query.
+Helper function to build the TanStack Query `queryFn` and `queryKey` for a SQL over HTTP query.
 
 ```tsx [index.ts]
 import { getPonderQueryOptions } from "@ponder/react";
