@@ -60,7 +60,7 @@ export const sidebar = {
     {
       text: "Guides",
       items: [
-        { text: "Offchain data", link: "/docs/guides/offchain" },
+        { text: "Offchain data", link: "/docs/guides/offchain-data" },
         { text: "Factory pattern", link: "/docs/guides/factory" },
         { text: "Call traces", link: "/docs/guides/call-traces" },
         { text: "Transaction receipts", link: "/docs/guides/receipts" },

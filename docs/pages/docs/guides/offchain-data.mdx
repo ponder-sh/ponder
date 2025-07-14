@@ -1,24 +1,18 @@
 # Offchain data [Combine onchain and offchain data]
 
-Ponder supports combining its indexed data with data from external (offchain) sources.
+Ponder supports querying onchain data (Ponder-managed tables) alongside offchain data (other tables in the same PostgreSQL database) using Drizzle.
 
 :::info
-  Ponder doesn't natively support offchain data because it interferes with the reorg reconcilation and other core indexing features.
+  Ponder does not support reading or writing offchain data within indexing functions. This guide only applies to read-only SQL queries from custom API endpoints or standalone Node.js code.
 :::
 
-## Guide
+## Setup
 
-This guide uses `drizzle-orm` and `drizzle-kit`, however, the same principles apply to any method of interacting with a Postgres database.
+::::steps
 
-:::info
-  It is important to make sure the `drizzle-orm` version matches the one used by `ponder`. Currently, that version is **`0.41.0`**.
-:::
+### Define the Ponder schema
 
-:::steps
-
-### Define `ponder.schema.ts`
-
-Start by creating a `ponder.schema.ts` file in your Ponder project. No special configuration is required.
+Create a `ponder.schema.ts` file in your Ponder project. No special configuration is required.
 
 ```ts [ponder.schema.ts]
 import { onchainTable } from "ponder";
@@ -41,9 +35,9 @@ export const transferEvent = onchainTable("transfer_event", (t) => ({
 }));
 ```
 
-### Define the schema for the offchain data
+### Define the offchain schema
 
-Next, create a schema definition file for the offchain data.
+Next, create a schema definition file for the offchain data using Drizzle ([docs](https://orm.drizzle.team/docs/sql-schema-declaration#example)).
 
 ```ts [offchain.ts]
 import { json, numeric, pgSchema } from "drizzle-orm/pg-core";
@@ -57,12 +51,12 @@ export const metadataTable = offchainSchema.table("metadata", {
 ```
 
 :::info
-  There are no restrictions for the database schema defined by `pgSchema`. Ponder will avoid dropping tables not created in `ponder.schema.ts` and throw errors in the case of naming conflicts.
+  Be sure to use the same `drizzle-orm` version that your installed version of `ponder` uses. At time of writing, this is `drizzle-orm@0.41.0`.
 :::
 
-### Define the combined schema
+### Combine the schemas
 
-In a separate file, combine the onchain and offchain schemas including any relations between them.
+In a separate file, combine the onchain and offchain schemas. You can also define Drizzle relations that connect tables across the two schemas.
 
 ```ts [schema.ts]
 import { setDatabaseSchema } from "@ponder/client";
@@ -90,10 +84,16 @@ export const schema = {
 ```
 
 :::info
-  The database schema for Ponder tables and enums must be set manually with `setDatabaseSchema`. To avoid having to update the schema for each deployment, see the [views pattern](/docs/production/self-hosting#views-pattern).
+  Set the _database schema_ for Ponder tables and enums explicitly using `setDatabaseSchema`. To avoid having to update the schema name for each deployment, use the [views pattern](/docs/production/self-hosting#views-pattern).
 :::
 
-### Query with direct SQL
+::::
+
+## Query
+
+### From Node.js
+
+Once you've defined the combined schema, you can start writing queries from any Node.js code.
 
 ```ts [index.ts]
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -110,7 +110,9 @@ const result = await db.query.metadataTable.findMany({
 console.log(result);
 ```
 
-### Query with API functions
+### From Ponder API endpoints
+
+It's also possible to query offchain (or combined) data directly from custom API endpoints.
 
 ```ts [api/index.ts]
 import { Hono } from "hono";
