@@ -26,6 +26,7 @@ export class MetricsService {
     }[];
     previousTimestamp: number;
     previousCompletedSeconds: number;
+    rate: number;
   };
 
   rps: { [chain: string]: { count: number; timestamp: number }[] };
@@ -107,6 +108,7 @@ export class MetricsService {
       progress: [{ elapsedSeconds: 0, completedSeconds: 0 }],
       previousTimestamp: Date.now(),
       previousCompletedSeconds: 0,
+      rate: 0,
     };
     this.rps = {};
 
@@ -638,34 +640,33 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
         completedSeconds: 0,
       });
 
+      if (metrics.progressMetadata.progress.length > 10) {
+        metrics.progressMetadata.progress.shift();
+      }
+
       metrics.progressMetadata.previousCompletedSeconds =
         indexing.overall.completedSeconds;
       metrics.progressMetadata.previousTimestamp = currentTimestamp;
+
+      const averages: number[] = [];
+      let count = 0;
+
+      for (let i = 0; i < metrics.progressMetadata.progress.length - 1; ++i) {
+        const multiplier = 1 / 1.5 ** (9 - i);
+        averages.push(
+          (multiplier * metrics.progressMetadata.progress[i]!.elapsedSeconds) /
+            metrics.progressMetadata.progress[i]!.completedSeconds,
+        );
+        count += multiplier;
+      }
+
+      metrics.progressMetadata.rate =
+        count === 0
+          ? 0
+          : averages.reduce((prev, curr) => prev + curr, 0) / count;
     }
 
-    if (metrics.progressMetadata.progress.length > 10) {
-      metrics.progressMetadata.progress.splice(
-        0,
-        metrics.progressMetadata.progress.length - 10,
-      );
-    }
-
-    const averages: number[] = [];
-    let count = 0;
-
-    for (let i = 0; i < metrics.progressMetadata.progress.length - 1; ++i) {
-      const multiplier = 1 / 1.5 ** (9 - i);
-      averages.push(
-        (multiplier * metrics.progressMetadata.progress[i]!.elapsedSeconds) /
-          metrics.progressMetadata.progress[i]!.completedSeconds,
-      );
-      count += multiplier;
-    }
-
-    const rate =
-      count === 0 ? 0 : averages.reduce((prev, curr) => prev + curr, 0) / count;
-
-    eta = rate * remainingSeconds;
+    eta = metrics.progressMetadata.rate * remainingSeconds;
   }
 
   return {
