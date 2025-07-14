@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { getPrimaryKeyColumns, getTableNames } from "@/drizzle/index.js";
 import {
+  SHARED_OPERATION_ID_SEQUENCE,
   getColumnCasing,
   getReorgTable,
   sqlToReorgTableName,
@@ -761,19 +762,17 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
       };
 
       const createSequences = async (tx: Drizzle<Schema>) => {
-        for (let i = 0; i < schemaBuild.statements.sequences.sql.length; i++) {
-          await tx
-            .execute(sql.raw(schemaBuild.statements.sequences.sql[i]!))
-            .catch((_error) => {
-              const error = _error as Error;
-              if (!error.message.includes("already exists")) throw error;
-              const e = new NonRetryableError(
-                `Unable to create sequence '${namespace.schema}'.'${schemaBuild.statements.sequences.json[i]!.name}' because a sequence with that name already exists.`,
-              );
-              e.stack = undefined;
-              throw e;
-            });
-        }
+        await tx
+          .execute(`CREATE SEQUENCE ${SHARED_OPERATION_ID_SEQUENCE};\n`)
+          .catch((_error) => {
+            const error = _error as Error;
+            if (!error.message.includes("already exists")) throw error;
+            const e = new NonRetryableError(
+              `Unable to create sequence '${namespace.schema}'.'${SHARED_OPERATION_ID_SEQUENCE}' because a sequence with that name already exists.`,
+            );
+            e.stack = undefined;
+            throw e;
+          });
       };
 
       const tryAcquireLockAndMigrate = () =>
@@ -840,14 +839,11 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
                   ),
                 );
               }
-              for (const sequenceName of schemaBuild.statements.sequences
-                .json) {
-                await tx.execute(
-                  sql.raw(
-                    `DROP SEQUENCE IF EXISTS "${namespace.schema}"."${sequenceName.name}"`,
-                  ),
-                );
-              }
+              await tx.execute(
+                sql.raw(
+                  `DROP SEQUENCE IF EXISTS "${namespace.schema}"."${SHARED_OPERATION_ID_SEQUENCE}"`,
+                ),
+              );
 
               await tx.execute(
                 sql.raw(
@@ -1116,9 +1112,9 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).trigg
       await this.record(
         { method: "revert", includeTraceLogs: true },
         async () => {
-          const min_op_id: number | null =
+          const min_op_id: number | undefined =
             this.ordering === "omnichain"
-              ? null
+              ? undefined
               : await tx
                   .execute(
                     sql.raw(`
@@ -1141,11 +1137,11 @@ ${tables
                   .then((result) => {
                     // @ts-ignore
                     if (!result.rows) {
-                      return null;
+                      return undefined;
                     }
 
                     // @ts-ignore
-                    return result.rows[0]!.global_min_op_id;
+                    return result.rows[0]?.global_min_op_id;
                   });
 
           Promise.all(
@@ -1218,7 +1214,7 @@ WITH reverted1 AS (
       await this.record(
         { method: "finalize", includeTraceLogs: true },
         async () => {
-          const min_op_id = await db
+          const min_op_id: number | undefined = await db
             .execute(
               sql.raw(`
 SELECT MIN(min_op_id) AS global_min_op_id FROM (
@@ -1239,11 +1235,11 @@ UNION ALL
             .then((result) => {
               // @ts-ignore
               if (!result.rows) {
-                return null;
+                return undefined;
               }
 
               // @ts-ignore
-              return result.rows[0]!.global_min_op_id as number | null;
+              return result.rows[0]?.global_min_op_id as number | undefined;
             });
 
           await Promise.all(

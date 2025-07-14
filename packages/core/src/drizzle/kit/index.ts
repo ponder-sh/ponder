@@ -34,13 +34,12 @@ export type SqlStatements = {
     json: JsonCreateEnumStatement[];
   };
   indexes: { sql: string[]; json: JsonPgCreateIndexStatement[] };
-  sequences: { sql: string[]; json: JsonCreateSequenceStatement[] };
 };
 
 export const sqlToReorgTableName = (tableName: string) =>
   `_reorg__${tableName}`;
 
-const SHARED_OPERATION_ID_SEQUENCE = "operation_id_seq";
+export const SHARED_OPERATION_ID_SEQUENCE = "operation_id_seq";
 
 export const getReorgTable = <config extends TableConfig>(
   table: PgTableWithColumns<config>,
@@ -127,10 +126,6 @@ export const getSql = (schema: { [name: string]: unknown }): SqlStatements => {
     indexes: {
       sql: fromJson(jsonCreateIndexesForCreatedTables),
       json: jsonCreateIndexesForCreatedTables,
-    },
-    sequences: {
-      sql: [`CREATE SEQUENCE ${SHARED_OPERATION_ID_SEQUENCE};\n`],
-      json: [prepareCreateSequenceJson(SHARED_OPERATION_ID_SEQUENCE)],
     },
   };
 };
@@ -328,11 +323,6 @@ interface JsonCreateReferenceStatement {
   columnType?: string;
 }
 
-interface JsonCreateSequenceStatement {
-  type: "create_sequence";
-  name: string;
-}
-
 type JsonStatement =
   | JsonCreateTableStatement
   | JsonCreateEnumStatement
@@ -342,8 +332,7 @@ type JsonStatement =
   | JsonCreateCompositePK
   | JsonCreateUniqueConstraint
   | JsonCreateSchema
-  | JsonCreateCheckConstraint
-  | JsonCreateSequenceStatement;
+  | JsonCreateCheckConstraint;
 
 ////////
 // Generator
@@ -678,15 +667,6 @@ const prepareCreateEnumJson = (
     name: name,
     schema: schema,
     values,
-  };
-};
-
-const prepareCreateSequenceJson = (
-  name: string,
-): JsonCreateSequenceStatement => {
-  return {
-    type: "create_sequence",
-    name,
   };
 };
 
