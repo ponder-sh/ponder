@@ -19,6 +19,15 @@ const httpRequestSizeBytes = [
 export class MetricsService {
   registry: prometheus.Registry;
   start_timestamp: number;
+  progressMetadata: {
+    progress: {
+      elapsedSeconds: number;
+      completedSeconds: number;
+    }[];
+    previousTimestamp: number;
+    previousCompletedSeconds: number;
+  };
+
   rps: { [chain: string]: { count: number; timestamp: number }[] };
 
   ponder_version_info: prometheus.Gauge<
@@ -94,6 +103,11 @@ export class MetricsService {
   constructor() {
     this.registry = new prometheus.Registry();
     this.start_timestamp = Date.now();
+    this.progressMetadata = {
+      progress: [{ elapsedSeconds: 0, completedSeconds: 0 }],
+      previousTimestamp: Date.now(),
+      previousCompletedSeconds: 0,
+    };
     this.rps = {};
 
     this.ponder_version_info = new prometheus.Gauge({
@@ -600,12 +614,59 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
   const remainingSeconds =
     indexing.overall.totalSeconds -
     (indexing.overall.completedSeconds + indexing.overall.cachedSeconds);
-  const elapsedSeconds = (Date.now() - metrics.start_timestamp) / 1_000;
 
-  const eta =
-    indexing.overall.completedSeconds === 0
-      ? 0
-      : (elapsedSeconds / indexing.overall.completedSeconds) * remainingSeconds;
+  let eta: number;
+
+  if (indexing.overall.completedSeconds === 0) {
+    eta = 0;
+  } else {
+    const currentTimestamp = Date.now();
+
+    metrics.progressMetadata.progress.at(-1)!.elapsedSeconds =
+      (currentTimestamp - metrics.progressMetadata.previousTimestamp) / 1_000;
+    metrics.progressMetadata.progress.at(-1)!.completedSeconds =
+      indexing.overall.completedSeconds -
+      metrics.progressMetadata.previousCompletedSeconds;
+
+    if (
+      indexing.overall.completedSeconds -
+        metrics.progressMetadata.previousCompletedSeconds >
+      100
+    ) {
+      metrics.progressMetadata.progress.push({
+        elapsedSeconds: 0,
+        completedSeconds: 0,
+      });
+
+      metrics.progressMetadata.previousCompletedSeconds =
+        indexing.overall.completedSeconds;
+      metrics.progressMetadata.previousTimestamp = currentTimestamp;
+    }
+
+    if (metrics.progressMetadata.progress.length > 10) {
+      metrics.progressMetadata.progress.splice(
+        0,
+        metrics.progressMetadata.progress.length - 10,
+      );
+    }
+
+    const averages: number[] = [];
+    let count = 0;
+
+    for (let i = 0; i < metrics.progressMetadata.progress.length - 1; ++i) {
+      const multiplier = 1 / 1.5 ** (9 - i);
+      averages.push(
+        (multiplier * metrics.progressMetadata.progress[i]!.elapsedSeconds) /
+          metrics.progressMetadata.progress[i]!.completedSeconds,
+      );
+      count += multiplier;
+    }
+
+    const rate =
+      count === 0 ? 0 : averages.reduce((prev, curr) => prev + curr, 0) / count;
+
+    eta = rate * remainingSeconds;
+  }
 
   return {
     mode: indexing.overall.progress === 1 ? "realtime" : "historical",
