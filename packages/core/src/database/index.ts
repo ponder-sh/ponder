@@ -147,7 +147,7 @@ export type PonderApp = {
   heartbeat_at: number;
 };
 
-const VERSION = "2";
+const VERSION = "3";
 
 type PGliteDriver = { instance: PGlite };
 
@@ -701,6 +701,10 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
 )`),
           );
 
+          await qb.drizzle.execute(
+            `CREATE SEQUENCE IF NOT EXISTS ${SHARED_OPERATION_ID_SEQUENCE} AS integer INCREMENT BY 1`,
+          );
+
           const trigger = "status_trigger";
           const notification = "status_notify()";
           const channel = `${namespace.schema}_status_channel`;
@@ -761,20 +765,6 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
         }
       };
 
-      const createSequences = async (tx: Drizzle<Schema>) => {
-        await tx
-          .execute(`CREATE SEQUENCE ${SHARED_OPERATION_ID_SEQUENCE};\n`)
-          .catch((_error) => {
-            const error = _error as Error;
-            if (!error.message.includes("already exists")) throw error;
-            const e = new NonRetryableError(
-              `Unable to create sequence '${namespace.schema}'.'${SHARED_OPERATION_ID_SEQUENCE}' because a sequence with that name already exists.`,
-            );
-            e.stack = undefined;
-            throw e;
-          });
-      };
-
       const tryAcquireLockAndMigrate = () =>
         this.wrap({ method: "migrate", includeTraceLogs: true }, () =>
           qb.drizzle.transaction(async (tx) => {
@@ -797,7 +787,6 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
             } satisfies PonderApp;
 
             if (previousApp === undefined) {
-              await createSequences(tx);
               await createEnums(tx);
               await createTables(tx);
 
@@ -851,7 +840,6 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
                 ),
               );
 
-              await createSequences(tx);
               await createEnums(tx);
               await createTables(tx);
 
@@ -1112,7 +1100,7 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).trigg
       await this.record(
         { method: "revert", includeTraceLogs: true },
         async () => {
-          const min_op_id: number | undefined =
+          const min_op_id =
             this.ordering === "omnichain"
               ? undefined
               : await tx
@@ -1136,12 +1124,9 @@ ${tables
                   )
                   .then((result) => {
                     // @ts-ignore
-                    if (!result.rows) {
-                      return undefined;
-                    }
-
-                    // @ts-ignore
-                    return result.rows[0]?.global_min_op_id;
+                    return result.rows[0]?.global_min_op_id as
+                      | number
+                      | undefined;
                   });
 
           Promise.all(
