@@ -702,9 +702,11 @@ export const createSync = async (params: {
           });
         }
 
-        let _finalizedEvents = 0;
+        if (to <= from) {
+          break;
+        }
 
-        // Remove all finalized data
+        // index of the first unfinalized event
         let finalizeIndex: number | undefined = undefined;
         for (const [index, event] of executedEvents.entries()) {
           if (event.checkpoint > to) {
@@ -713,59 +715,60 @@ export const createSync = async (params: {
           }
         }
 
-        executedEvents = executedEvents.filter((event, i) => {
-          if (finalizeIndex !== undefined) {
-            if (i < finalizeIndex) {
-              _finalizedEvents++;
-              return false;
-            }
-          } else {
-            if (event.checkpoint <= to) {
-              _finalizedEvents++;
-              return false;
-            }
-          }
+        let finalizedEvents: Event[];
 
-          return true;
-        });
+        if (finalizeIndex === undefined) {
+          finalizedEvents = executedEvents;
+          executedEvents = [];
+        } else {
+          finalizedEvents = executedEvents.slice(0, finalizeIndex);
+          executedEvents = executedEvents.slice(finalizeIndex);
+        }
 
         // Raise event to parent function (runtime)
-        if (to > from) {
-          params.onRealtimeEvent({ type: "finalize", chain, checkpoint: to });
-        }
+        params.onRealtimeEvent({ type: "finalize", chain, checkpoint: to });
 
         params.common.logger.debug({
           service: "sync",
-          msg: `Finalized ${_finalizedEvents} executed events`,
+          msg: `Finalized ${finalizedEvents.length} executed events`,
         });
 
         break;
       }
 
       case "reorg": {
-        // Remove all reorged data
-
-        let _reorgedEvents = 0;
+        const isReorgedEvent = (_event: Event) => {
+          if (
+            _event.chainId === chain.id &&
+            Number(_event.event.block.number) > hexToNumber(event.block.number)
+          ) {
+            return true;
+          }
+          return false;
+        };
 
         if (params.ordering === "multichain") {
           // Note: `checkpoints.current` not used in multichain ordering
           const checkpoint = getMultichainCheckpoint({ tag: "current", chain });
 
-          // Move events from executed to pending
+          // index of the first reorged event
           let reorgIndex: number | undefined = undefined;
           for (const [index, event] of executedEvents.entries()) {
-            if (event.chainId === chain.id && event.checkpoint > checkpoint) {
+            if (event.checkpoint > checkpoint) {
               reorgIndex = index;
               break;
             }
           }
 
-          const reorgedEvents = executedEvents.filter(
-            (_, i) => reorgIndex !== undefined && i >= reorgIndex,
-          );
-          executedEvents = executedEvents.filter(
-            (_, i) => reorgIndex === undefined || i < reorgIndex,
-          );
+          if (reorgIndex === undefined) {
+            break;
+          }
+
+          // Move events from executed to pending
+
+          const reorgedEvents = executedEvents.slice(reorgIndex);
+          executedEvents = executedEvents.slice(0, reorgIndex);
+          pendingEvents = pendingEvents.concat(reorgedEvents);
 
           params.common.logger.debug({
             service: "sync",
@@ -774,16 +777,17 @@ export const createSync = async (params: {
 
           params.onRealtimeEvent({ type: "reorg", chain, checkpoint });
 
-          const replayableEvents = reorgedEvents.filter(
-            (e) => e.chainId !== chain.id,
+          pendingEvents = pendingEvents.filter(
+            (e) => isReorgedEvent(e) === false,
           );
-          pendingEvents = pendingEvents.concat(replayableEvents);
-
-          _reorgedEvents = reorgedEvents.length - replayableEvents.length;
         } else {
           const from = checkpoints.current;
           checkpoints.current = getOmnichainCheckpoint({ tag: "current" });
           const to = getOmnichainCheckpoint({ tag: "current" });
+
+          if (to >= from) {
+            break;
+          }
 
           // Move events from executed to pending
 
@@ -796,30 +800,12 @@ export const createSync = async (params: {
             msg: `Rescheduled ${reorgedEvents.length} reorged events`,
           });
 
-          if (to < from) {
-            params.onRealtimeEvent({ type: "reorg", chain, checkpoint: to });
-          }
-
-          const isReorgedEvent = (e: Event) => {
-            if (
-              e.chainId === chain.id &&
-              Number(e.event.block.number) > hexToNumber(event.block.number)
-            ) {
-              _reorgedEvents++;
-              return true;
-            }
-            return false;
-          };
+          params.onRealtimeEvent({ type: "reorg", chain, checkpoint: to });
 
           pendingEvents = pendingEvents.filter(
             (e) => isReorgedEvent(e) === false,
           );
         }
-
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Removed ${_reorgedEvents} reorged '${chain.name}' events`,
-        });
 
         break;
       }

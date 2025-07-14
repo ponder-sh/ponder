@@ -82,7 +82,6 @@ export async function createViews({
     },
     preBuild: buildResult.result,
     schemaBuild: emptySchemaBuild,
-    ordering: configResult.result.config.ordering ?? "multichain",
   });
 
   const PONDER_META = getPonderMetaTable(cliOptions.schema);

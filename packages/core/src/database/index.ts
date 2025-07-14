@@ -57,7 +57,6 @@ export type Database = {
   qb: QueryBuilder;
   PONDER_META: ReturnType<typeof getPonderMetaTable>;
   PONDER_CHECKPOINT: ReturnType<typeof getPonderCheckpointTable>;
-  ordering: "multichain" | "omnichain";
   retry: <T>(fn: () => Promise<T>) => Promise<T>;
   record: <T>(
     options: { method: string; includeTraceLogs?: boolean },
@@ -205,13 +204,11 @@ export const createDatabase = async ({
   namespace,
   preBuild,
   schemaBuild,
-  ordering,
 }: {
   common: Common;
   namespace: NamespaceBuild;
   preBuild: Pick<PreBuild, "databaseConfig">;
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
-  ordering: "multichain" | "omnichain";
 }): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
 
@@ -414,7 +411,6 @@ export const createDatabase = async ({
     qb,
     PONDER_META,
     PONDER_CHECKPOINT,
-    ordering,
     async retry(fn) {
       const RETRY_COUNT = 9;
       const BASE_DURATION = 125;
@@ -1100,55 +1096,35 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).trigg
       await this.record(
         { method: "revert", includeTraceLogs: true },
         async () => {
-          const min_op_id =
-            this.ordering === "omnichain"
-              ? undefined
-              : await tx
-                  .execute(
-                    sql.raw(`
+          const min_op_id = await tx
+            .execute(
+              sql.raw(`
 SELECT MIN(min_op_id) AS global_min_op_id FROM (
 ${tables
   .map(
     (table) => `
   SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
-  AND checkpoint > '${checkpoint}'
+  WHERE checkpoint > '${checkpoint}'
 `,
   )
-  .join(
-    `
-  UNION ALL
-`,
-  )}) AS all_mins             
+  .join(" UNION ALL ")}) AS all_mins             
 `),
-                  )
-                  .then((result) => {
-                    // @ts-ignore
-                    return result.rows[0]?.global_min_op_id as
-                      | number
-                      | undefined;
-                  });
+            )
+            .then((result) => {
+              // @ts-ignore
+              return result.rows[0]?.global_min_op_id as number | undefined;
+            });
 
-          Promise.all(
-            tables.map(async (table) => {
-              const primaryKeyColumns = getPrimaryKeyColumns(table);
+          for (const table of tables) {
+            const primaryKeyColumns = getPrimaryKeyColumns(table);
 
-              const result = await tx.execute(
-                sql.raw(`
-${
-  this.ordering === "omnichain"
-    ? `
-WITH reverted1 AS (
-  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE checkpoint > '${checkpoint}' RETURNING *
-)`
-    : `
+            const result = await tx.execute(
+              sql.raw(`
 WITH reverted1 AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE ${min_op_id} IS NOT NULL AND operation_id >= ${min_op_id}
   RETURNING *
-)`
-}, reverted2 AS (
+), reverted2 AS (
   SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1
   GROUP BY ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}
 ), reverted3 AS (
@@ -1183,15 +1159,14 @@ WITH reverted1 AS (
   RETURNING *
 ) SELECT COUNT(*) FROM reverted1 as count;
 `),
-              );
+            );
 
-              common.logger.info({
-                service: "database",
-                // @ts-ignore
-                msg: `Reverted ${result.rows[0]!.count} unfinalized operations from '${getTableName(table)}'`,
-              });
-            }),
-          );
+            common.logger.info({
+              service: "database",
+              // @ts-ignore
+              msg: `Reverted ${result.rows[0]!.count} unfinalized operations from '${getTableName(table)}'`,
+            });
+          }
         },
       );
     },
@@ -1199,7 +1174,7 @@ WITH reverted1 AS (
       await this.record(
         { method: "finalize", includeTraceLogs: true },
         async () => {
-          const min_op_id: number | undefined = await db
+          const min_op_id = await db
             .execute(
               sql.raw(`
 SELECT MIN(min_op_id) AS global_min_op_id FROM (
@@ -1210,42 +1185,31 @@ SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName
 WHERE checkpoint > '${checkpoint}'
 `,
   )
-  .join(
-    `
-UNION ALL  
-`,
-  )}) AS all_mins            
+  .join(" UNION ALL ")}) AS all_mins            
 `),
             )
             .then((result) => {
               // @ts-ignore
-              if (!result.rows) {
-                return undefined;
-              }
-
-              // @ts-ignore
               return result.rows[0]?.global_min_op_id as number | undefined;
             });
 
-          await Promise.all(
-            tables.map(async (table) => {
-              const result = await db.execute(
-                sql.raw(`
+          for (const table of tables) {
+            const result = await db.execute(
+              sql.raw(`
 WITH deleted AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE ${min_op_id !== null ? `operation_id < ${min_op_id}` : `checkpoint <= '${checkpoint}'`}
+  WHERE ${min_op_id} IS NULL OR operation_id < ${min_op_id}
   RETURNING *
 ) SELECT COUNT(*) FROM deleted AS count; 
 `),
-              );
+            );
 
-              common.logger.info({
-                service: "database",
-                // @ts-ignore
-                msg: `Finalized ${result.rows[0]!.count} operations from '${getTableName(table)}'`,
-              });
-            }),
-          );
+            common.logger.info({
+              service: "database",
+              // @ts-ignore
+              msg: `Finalized ${result.rows[0]!.count} operations from '${getTableName(table)}'`,
+            });
+          }
         },
       );
 
