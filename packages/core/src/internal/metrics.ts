@@ -20,7 +20,7 @@ export class MetricsService {
   registry: prometheus.Registry;
   start_timestamp: number;
   progressMetadata: {
-    progress: {
+    batches: {
       elapsedSeconds: number;
       completedSeconds: number;
     }[];
@@ -105,7 +105,7 @@ export class MetricsService {
     this.registry = new prometheus.Registry();
     this.start_timestamp = Date.now();
     this.progressMetadata = {
-      progress: [{ elapsedSeconds: 0, completedSeconds: 0 }],
+      batches: [{ elapsedSeconds: 0, completedSeconds: 0 }],
       previousTimestamp: Date.now(),
       previousCompletedSeconds: 0,
       rate: 0,
@@ -624,9 +624,9 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
   } else {
     const currentTimestamp = Date.now();
 
-    metrics.progressMetadata.progress.at(-1)!.elapsedSeconds =
+    metrics.progressMetadata.batches.at(-1)!.elapsedSeconds =
       (currentTimestamp - metrics.progressMetadata.previousTimestamp) / 1_000;
-    metrics.progressMetadata.progress.at(-1)!.completedSeconds =
+    metrics.progressMetadata.batches.at(-1)!.completedSeconds =
       indexing.overall.completedSeconds -
       metrics.progressMetadata.previousCompletedSeconds;
 
@@ -635,13 +635,13 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
         metrics.progressMetadata.previousCompletedSeconds >
       100
     ) {
-      metrics.progressMetadata.progress.push({
+      metrics.progressMetadata.batches.push({
         elapsedSeconds: 0,
         completedSeconds: 0,
       });
 
-      if (metrics.progressMetadata.progress.length > 10) {
-        metrics.progressMetadata.progress.shift();
+      if (metrics.progressMetadata.batches.length > 10) {
+        metrics.progressMetadata.batches.shift();
       }
 
       metrics.progressMetadata.previousCompletedSeconds =
@@ -651,11 +651,11 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
       const averages: number[] = [];
       let count = 0;
 
-      for (let i = 0; i < metrics.progressMetadata.progress.length - 1; ++i) {
+      for (let i = 0; i < metrics.progressMetadata.batches.length - 1; ++i) {
         const multiplier = 1 / 1.5 ** (9 - i);
         averages.push(
-          (multiplier * metrics.progressMetadata.progress[i]!.elapsedSeconds) /
-            metrics.progressMetadata.progress[i]!.completedSeconds,
+          (multiplier * metrics.progressMetadata.batches[i]!.elapsedSeconds) /
+            metrics.progressMetadata.batches[i]!.completedSeconds,
         );
         count += multiplier;
       }
