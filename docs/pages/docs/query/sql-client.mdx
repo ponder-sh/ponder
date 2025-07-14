@@ -62,7 +62,8 @@ Import your schema from `ponder.schema.ts`. [Read more](#use-schema-from-a-diffe
 ```ts [Client project]
 import * as schema from "../../ponder/ponder.schema";
 
-schema.account.address;
+type Account = typeof schema.account.$inferSelect;
+//   ^? { address: string; balance: bigint; }
 ```
 
 ::::
