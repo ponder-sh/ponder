@@ -60,10 +60,13 @@ const client = createClient("http://localhost:42069/sql");
 Import your schema from `ponder.schema.ts`. [Read more](#use-schema-from-a-different-repo) about schema portability.
 
 ```ts [Client project]
-import * as schema from "../../ponder/ponder.schema";
+import { createClient } from "@ponder/client";
+import * as schema from "../../ponder/ponder.schema"; // [!code focus]
 
-type Account = typeof schema.account.$inferSelect;
-//   ^? { address: `0x${string}`; balance: bigint; }
+const client = createClient("http://localhost:42069/sql");
+
+const result = await client.db.select().from(schema.account);
+//   ^? { address: `0x${string}`; balance: bigint; }[]
 ```
 
 ::::
@@ -149,7 +152,7 @@ It's different than [direct SQL](/docs/query/direct-sql) in two key areas:
 
 :::code-group
 
-```ts [index.ts (@ponder/client)] 
+```ts [index.ts Node.js] 
 import { desc } from "@ponder/client";
 import * as schema from "../../ponder/ponder.schema";
 
@@ -159,7 +162,7 @@ const result = await client.db
   .orderBy(desc(schema.account.balance));
 ```
 
-```ts [index.ts (@ponder/react)]
+```ts [index.ts React]
 import { desc } from "@ponder/client";
 import { usePonderQuery } from "@ponder/react";
 import * as schema from "../../ponder/ponder.schema";
@@ -182,7 +185,7 @@ Live queries are automatically updated when the underlying data changes. Ponder 
 
 :::code-group
 
-```ts [index.ts (@ponder/client)] 
+```ts [index.ts Node.js] 
 import { desc } from "@ponder/client";
 import * as schema from "../../ponder/ponder.schema";
 
@@ -198,7 +201,7 @@ await client.live(
 );
 ```
 
-```ts [index.ts (@ponder/react)]
+```ts [index.ts React]
 import { desc } from "@ponder/client";
 import { usePonderQuery } from "@ponder/react";
 import * as schema from "../../ponder/ponder.schema";
@@ -218,13 +221,13 @@ It's also possible to query the Ponder database without relying on importing `po
 
 :::code-group
 
-```ts [index.ts (@ponder/client)] 
+```ts [index.ts Node.js] 
 import { sql } from "@ponder/client";
 
 const result = await client.db.execute(sql`SELECT * FROM account limit 10;`);
 ```
 
-```ts [index.ts (@ponder/react)]
+```ts [index.ts React]
 import { sql } from "@ponder/client";
 import { usePonderQuery } from "@ponder/react";
 
@@ -241,7 +244,7 @@ The SQL client supports both limit/offset and cursor-based pagination patterns t
 
 :::code-group
 
-```ts [index.ts (@ponder/client)] 
+```ts [index.ts Node.js] 
 import { desc } from "@ponder/client";
 import * as schema from "../../ponder/ponder.schema";
 
@@ -255,7 +258,7 @@ const result = await client.db
   .offset(500);
 ```
 
-```ts [index.ts (@ponder/react)]
+```ts [index.ts React]
 import { desc } from "@ponder/client";
 import { usePonderQuery } from "@ponder/react";
 import * as schema from "../../ponder/ponder.schema";
@@ -279,9 +282,7 @@ const query = usePonderQuery({
 
 ### Relational query builder
 
-The SQL client also supports the [Drizzle query builder](https://orm.drizzle.team/docs/rqb) with some additial setup required.
-
-#### `@ponder/client`
+The SQL client also supports the [Drizzle query builder](https://orm.drizzle.team/docs/rqb) with some additional setup required.
 
 The `createClient` function accepts a `schema` option to enable the Drizzle query builder.
 
@@ -296,7 +297,7 @@ const result = await client.db.query.account.findMany({
 });
 ```
 
-#### `@ponder/react`
+#### React
 
 In addition to the step above, you need to "register" your `schema` globally with TypeScript using [declaration merging](https://www.typescriptlang.org/docs/handbook/declaration-merging.html).
 
@@ -332,10 +333,11 @@ const query = usePonderQuery({
 
 ### Use schema from a different repo
 
-The `@ponder/client` package needs the `onchainTable` objects exported by `ponder.schema.ts` to properly compile the SQL queries client-side.
+The `@ponder/client` package needs the `onchainTable` objects exported by `ponder.schema.ts` to properly compile the Drizzle queries client-side.
 
 If the client project is in a different repo from the Ponder project, there are a few other options:
 
+- Import the `ponder.schema.ts` locally using a monorepo.
 - Publish the `ponder.schema.ts` to npm.
 - Copy the `ponder.schema.ts` into the client project and install `ponder` to get access to the `onchainTable` function.
 - Forfeit type safety and use [untyped queries](#untyped-queries).
