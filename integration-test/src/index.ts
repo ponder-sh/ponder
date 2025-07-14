@@ -31,7 +31,6 @@ import {
   type PonderApp,
   start,
 } from "../../packages/core/src/bin/commands/start.js";
-import { createQB } from "../../packages/core/src/database/queryBuilder.js";
 import { getPrimaryKeyColumns } from "../../packages/core/src/drizzle/index.js";
 import type {
   Factory,
@@ -122,15 +121,16 @@ export const SIM_PARAMS = {
   ),
 };
 
-const db = drizzle(DATABASE_URL!, { casing: "snake_case" });
+export const DB = drizzle(DATABASE_URL!, { casing: "snake_case" });
+export const APP_DB = drizzle(`${DATABASE_URL!}/${UUID}`, {
+  casing: "snake_case",
+});
 
 // 1. Setup database
 
-await db.execute(sql.raw(`CREATE DATABASE "${UUID}" TEMPLATE "${APP_ID}"`));
+await DB.execute(sql.raw(`CREATE DATABASE "${UUID}" TEMPLATE "${APP_ID}"`));
 
-const appDb = drizzle(`${DATABASE_URL!}/${UUID}`, { casing: "snake_case" });
-
-await appDb.execute(
+await APP_DB.execute(
   sql.raw(
     "CREATE TABLE ponder_sync.expected_intervals AS SELECT * FROM ponder_sync.intervals",
   ),
@@ -161,16 +161,14 @@ const getAddressCondition = <
 
     return inArray(
       addressColumn,
-      appDb
-        .select({ address: PONDER_SYNC.factoryAddresses.address })
+      APP_DB.select({ address: PONDER_SYNC.factoryAddresses.address })
         .from(PONDER_SYNC.factoryAddresses)
         .where(
           and(
             gte(table.blockNumber, PONDER_SYNC.factoryAddresses.blockNumber),
             eq(
               PONDER_SYNC.factoryAddresses.factoryId,
-              appDb
-                .select({ id: PONDER_SYNC.factories.id })
+              APP_DB.select({ id: PONDER_SYNC.factories.id })
                 .from(PONDER_SYNC.factories)
                 .where(
                   eq(
@@ -194,7 +192,7 @@ const getAddressCondition = <
 const branch = await $`git rev-parse --abbrev-ref HEAD`.text();
 const commit = await $`git rev-parse HEAD`.text();
 
-await db.insert(metadata).values({
+await DB.insert(metadata).values({
   id: UUID,
   seed: SEED,
   app: APP_ID,
@@ -320,7 +318,7 @@ const onBuild = async (app: PonderApp) => {
 
     // build super assessment expected tables
 
-    await migrate(appDb, {
+    await migrate(APP_DB, {
       migrationsFolder: "./apps/super-assessment/migrations",
     });
 
@@ -348,15 +346,14 @@ const onBuild = async (app: PonderApp) => {
             '0000000000000000')`,
             );
 
-            await appDb.insert(SUPER_ASSESSMENT.blocks).select(
-              appDb
-                .select({
-                  name: sql.raw(`'${source.name}:block'`).as("name"),
-                  id: blockCheckpoint.as("id"),
-                  chainId: PONDER_SYNC.blocks.chainId,
-                  number: PONDER_SYNC.blocks.number,
-                  hash: PONDER_SYNC.blocks.hash,
-                })
+            await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
+              APP_DB.select({
+                name: sql.raw(`'${source.name}:block'`).as("name"),
+                id: blockCheckpoint.as("id"),
+                chainId: PONDER_SYNC.blocks.chainId,
+                number: PONDER_SYNC.blocks.number,
+                hash: PONDER_SYNC.blocks.hash,
+              })
                 .from(PONDER_SYNC.blocks)
                 .where(
                   and(
@@ -400,19 +397,16 @@ const onBuild = async (app: PonderApp) => {
 
             const isFrom = fragment.toAddress === null;
 
-            await appDb.insert(SUPER_ASSESSMENT.blocks).select(
-              appDb
-                .select({
-                  name: sql
-                    .raw(
-                      `'${source.name}:transaction:${isFrom ? "from" : "to"}'`,
-                    )
-                    .as("name"),
-                  id: transactionCheckpoint.as("id"),
-                  chainId: PONDER_SYNC.transactions.chainId,
-                  number: PONDER_SYNC.blocks.number,
-                  hash: PONDER_SYNC.blocks.hash,
-                })
+            await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
+              APP_DB.select({
+                name: sql
+                  .raw(`'${source.name}:transaction:${isFrom ? "from" : "to"}'`)
+                  .as("name"),
+                id: transactionCheckpoint.as("id"),
+                chainId: PONDER_SYNC.transactions.chainId,
+                number: PONDER_SYNC.blocks.number,
+                hash: PONDER_SYNC.blocks.hash,
+              })
                 .from(PONDER_SYNC.transactions)
                 .innerJoin(
                   PONDER_SYNC.blocks,
@@ -431,19 +425,16 @@ const onBuild = async (app: PonderApp) => {
                 .where(condition),
             );
 
-            await appDb.insert(SUPER_ASSESSMENT.transactions).select(
-              appDb
-                .select({
-                  name: sql
-                    .raw(
-                      `'${source.name}:transaction:${isFrom ? "from" : "to"}'`,
-                    )
-                    .as("name"),
-                  id: transactionCheckpoint.as("id"),
-                  chainId: PONDER_SYNC.transactions.chainId,
-                  transactionIndex: PONDER_SYNC.transactions.transactionIndex,
-                  hash: PONDER_SYNC.transactions.hash,
-                })
+            await APP_DB.insert(SUPER_ASSESSMENT.transactions).select(
+              APP_DB.select({
+                name: sql
+                  .raw(`'${source.name}:transaction:${isFrom ? "from" : "to"}'`)
+                  .as("name"),
+                id: transactionCheckpoint.as("id"),
+                chainId: PONDER_SYNC.transactions.chainId,
+                transactionIndex: PONDER_SYNC.transactions.transactionIndex,
+                hash: PONDER_SYNC.transactions.hash,
+              })
                 .from(PONDER_SYNC.transactions)
                 .innerJoin(
                   PONDER_SYNC.blocks,
@@ -462,20 +453,17 @@ const onBuild = async (app: PonderApp) => {
                 .where(condition),
             );
 
-            await appDb.insert(SUPER_ASSESSMENT.transactionReceipts).select(
-              appDb
-                .select({
-                  name: sql
-                    .raw(
-                      `'${source.name}:transaction:${isFrom ? "from" : "to"}'`,
-                    )
-                    .as("name"),
-                  id: transactionCheckpoint.as("id"),
-                  chainId: PONDER_SYNC.transactions.chainId,
-                  transactionIndex:
-                    PONDER_SYNC.transactionReceipts.transactionIndex,
-                  hash: PONDER_SYNC.transactionReceipts.transactionHash,
-                })
+            await APP_DB.insert(SUPER_ASSESSMENT.transactionReceipts).select(
+              APP_DB.select({
+                name: sql
+                  .raw(`'${source.name}:transaction:${isFrom ? "from" : "to"}'`)
+                  .as("name"),
+                id: transactionCheckpoint.as("id"),
+                chainId: PONDER_SYNC.transactions.chainId,
+                transactionIndex:
+                  PONDER_SYNC.transactionReceipts.transactionIndex,
+                hash: PONDER_SYNC.transactionReceipts.transactionHash,
+              })
                 .from(PONDER_SYNC.transactions)
                 .innerJoin(
                   PONDER_SYNC.blocks,
@@ -536,15 +524,14 @@ const onBuild = async (app: PonderApp) => {
               ...blockConditions,
             );
 
-            await appDb.insert(SUPER_ASSESSMENT.blocks).select(
-              appDb
-                .select({
-                  name: sql.raw(`'${source.name}.transfer()'`).as("name"),
-                  id: traceCheckpoint.as("id"),
-                  chainId: PONDER_SYNC.traces.chainId,
-                  number: PONDER_SYNC.blocks.number,
-                  hash: PONDER_SYNC.blocks.hash,
-                })
+            await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
+              APP_DB.select({
+                name: sql.raw(`'${source.name}.transfer()'`).as("name"),
+                id: traceCheckpoint.as("id"),
+                chainId: PONDER_SYNC.traces.chainId,
+                number: PONDER_SYNC.blocks.number,
+                hash: PONDER_SYNC.blocks.hash,
+              })
                 .from(PONDER_SYNC.traces)
                 .innerJoin(
                   PONDER_SYNC.blocks,
@@ -553,15 +540,14 @@ const onBuild = async (app: PonderApp) => {
                 .where(condition),
             );
 
-            await appDb.insert(SUPER_ASSESSMENT.transactions).select(
-              appDb
-                .select({
-                  name: sql.raw(`'${source.name}.transfer()'`).as("name"),
-                  id: traceCheckpoint.as("id"),
-                  chainId: PONDER_SYNC.traces.chainId,
-                  transactionIndex: PONDER_SYNC.transactions.transactionIndex,
-                  hash: PONDER_SYNC.transactions.hash,
-                })
+            await APP_DB.insert(SUPER_ASSESSMENT.transactions).select(
+              APP_DB.select({
+                name: sql.raw(`'${source.name}.transfer()'`).as("name"),
+                id: traceCheckpoint.as("id"),
+                chainId: PONDER_SYNC.traces.chainId,
+                transactionIndex: PONDER_SYNC.transactions.transactionIndex,
+                hash: PONDER_SYNC.transactions.hash,
+              })
                 .from(PONDER_SYNC.traces)
                 .innerJoin(
                   PONDER_SYNC.blocks,
@@ -578,16 +564,15 @@ const onBuild = async (app: PonderApp) => {
             );
 
             if (fragment.includeTransactionReceipts) {
-              await appDb.insert(SUPER_ASSESSMENT.transactionReceipts).select(
-                appDb
-                  .select({
-                    name: sql.raw(`'${source.name}.transfer()'`).as("name"),
-                    id: traceCheckpoint.as("id"),
-                    chainId: PONDER_SYNC.traces.chainId,
-                    transactionIndex:
-                      PONDER_SYNC.transactionReceipts.transactionIndex,
-                    hash: PONDER_SYNC.transactionReceipts.transactionHash,
-                  })
+              await APP_DB.insert(SUPER_ASSESSMENT.transactionReceipts).select(
+                APP_DB.select({
+                  name: sql.raw(`'${source.name}.transfer()'`).as("name"),
+                  id: traceCheckpoint.as("id"),
+                  chainId: PONDER_SYNC.traces.chainId,
+                  transactionIndex:
+                    PONDER_SYNC.transactionReceipts.transactionIndex,
+                  hash: PONDER_SYNC.transactionReceipts.transactionHash,
+                })
                   .from(PONDER_SYNC.traces)
                   .innerJoin(
                     PONDER_SYNC.blocks,
@@ -604,14 +589,13 @@ const onBuild = async (app: PonderApp) => {
               );
             }
 
-            await appDb.insert(SUPER_ASSESSMENT.traces).select(
-              appDb
-                .select({
-                  name: sql.raw(`'${source.name}.transfer()'`).as("name"),
-                  id: traceCheckpoint.as("id"),
-                  chainId: PONDER_SYNC.traces.chainId,
-                  traceIndex: PONDER_SYNC.traces.traceIndex,
-                })
+            await APP_DB.insert(SUPER_ASSESSMENT.traces).select(
+              APP_DB.select({
+                name: sql.raw(`'${source.name}.transfer()'`).as("name"),
+                id: traceCheckpoint.as("id"),
+                chainId: PONDER_SYNC.traces.chainId,
+                traceIndex: PONDER_SYNC.traces.traceIndex,
+              })
                 .from(PONDER_SYNC.traces)
                 .innerJoin(
                   PONDER_SYNC.blocks,
@@ -656,15 +640,14 @@ const onBuild = async (app: PonderApp) => {
               ...blockConditions,
             );
 
-            await appDb.insert(SUPER_ASSESSMENT.blocks).select(
-              appDb
-                .select({
-                  name: sql.raw(`'${source.name}:Transfer'`).as("name"),
-                  id: logCheckpoint.as("id"),
-                  chainId: PONDER_SYNC.logs.chainId,
-                  number: PONDER_SYNC.blocks.number,
-                  hash: PONDER_SYNC.blocks.hash,
-                })
+            await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
+              APP_DB.select({
+                name: sql.raw(`'${source.name}:Transfer'`).as("name"),
+                id: logCheckpoint.as("id"),
+                chainId: PONDER_SYNC.logs.chainId,
+                number: PONDER_SYNC.blocks.number,
+                hash: PONDER_SYNC.blocks.hash,
+              })
                 .from(PONDER_SYNC.logs)
                 .innerJoin(
                   PONDER_SYNC.blocks,
@@ -673,15 +656,14 @@ const onBuild = async (app: PonderApp) => {
                 .where(condition),
             );
 
-            await appDb.insert(SUPER_ASSESSMENT.transactions).select(
-              appDb
-                .select({
-                  name: sql.raw(`'${source.name}:Transfer'`).as("name"),
-                  id: logCheckpoint.as("id"),
-                  chainId: PONDER_SYNC.logs.chainId,
-                  transactionIndex: PONDER_SYNC.transactions.transactionIndex,
-                  hash: PONDER_SYNC.transactions.hash,
-                })
+            await APP_DB.insert(SUPER_ASSESSMENT.transactions).select(
+              APP_DB.select({
+                name: sql.raw(`'${source.name}:Transfer'`).as("name"),
+                id: logCheckpoint.as("id"),
+                chainId: PONDER_SYNC.logs.chainId,
+                transactionIndex: PONDER_SYNC.transactions.transactionIndex,
+                hash: PONDER_SYNC.transactions.hash,
+              })
                 .from(PONDER_SYNC.logs)
                 .innerJoin(
                   PONDER_SYNC.blocks,
@@ -695,16 +677,15 @@ const onBuild = async (app: PonderApp) => {
             );
 
             if (fragment.includeTransactionReceipts) {
-              await appDb.insert(SUPER_ASSESSMENT.transactionReceipts).select(
-                appDb
-                  .select({
-                    name: sql.raw(`'${source.name}:Transfer'`).as("name"),
-                    id: logCheckpoint.as("id"),
-                    chainId: PONDER_SYNC.logs.chainId,
-                    transactionIndex:
-                      PONDER_SYNC.transactionReceipts.transactionIndex,
-                    hash: PONDER_SYNC.transactionReceipts.transactionHash,
-                  })
+              await APP_DB.insert(SUPER_ASSESSMENT.transactionReceipts).select(
+                APP_DB.select({
+                  name: sql.raw(`'${source.name}:Transfer'`).as("name"),
+                  id: logCheckpoint.as("id"),
+                  chainId: PONDER_SYNC.logs.chainId,
+                  transactionIndex:
+                    PONDER_SYNC.transactionReceipts.transactionIndex,
+                  hash: PONDER_SYNC.transactionReceipts.transactionHash,
+                })
                   .from(PONDER_SYNC.logs)
                   .innerJoin(
                     PONDER_SYNC.blocks,
@@ -721,14 +702,13 @@ const onBuild = async (app: PonderApp) => {
               );
             }
 
-            await appDb.insert(SUPER_ASSESSMENT.logs).select(
-              appDb
-                .select({
-                  name: sql.raw(`'${source.name}:Transfer'`).as("name"),
-                  id: logCheckpoint.as("id"),
-                  chainId: PONDER_SYNC.logs.chainId,
-                  logIndex: PONDER_SYNC.logs.logIndex,
-                })
+            await APP_DB.insert(SUPER_ASSESSMENT.logs).select(
+              APP_DB.select({
+                name: sql.raw(`'${source.name}:Transfer'`).as("name"),
+                id: logCheckpoint.as("id"),
+                chainId: PONDER_SYNC.logs.chainId,
+                logIndex: PONDER_SYNC.logs.logIndex,
+              })
                 .from(PONDER_SYNC.logs)
                 .innerJoin(
                   PONDER_SYNC.blocks,
@@ -774,17 +754,16 @@ const onBuild = async (app: PonderApp) => {
 
             const isFrom = fragment.toAddress === null;
 
-            await appDb.insert(SUPER_ASSESSMENT.blocks).select(
-              appDb
-                .select({
-                  name: sql
-                    .raw(`'${source.name}:transfer:${isFrom ? "from" : "to"}'`)
-                    .as("name"),
-                  id: transferCheckpoint.as("id"),
-                  chainId: PONDER_SYNC.traces.chainId,
-                  number: PONDER_SYNC.blocks.number,
-                  hash: PONDER_SYNC.blocks.hash,
-                })
+            await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
+              APP_DB.select({
+                name: sql
+                  .raw(`'${source.name}:transfer:${isFrom ? "from" : "to"}'`)
+                  .as("name"),
+                id: transferCheckpoint.as("id"),
+                chainId: PONDER_SYNC.traces.chainId,
+                number: PONDER_SYNC.blocks.number,
+                hash: PONDER_SYNC.blocks.hash,
+              })
                 .from(PONDER_SYNC.traces)
                 .innerJoin(
                   PONDER_SYNC.blocks,
@@ -793,17 +772,16 @@ const onBuild = async (app: PonderApp) => {
                 .where(condition),
             );
 
-            await appDb.insert(SUPER_ASSESSMENT.transactions).select(
-              appDb
-                .select({
-                  name: sql
-                    .raw(`'${source.name}:transfer:${isFrom ? "from" : "to"}'`)
-                    .as("name"),
-                  id: transferCheckpoint.as("id"),
-                  chainId: PONDER_SYNC.traces.chainId,
-                  transactionIndex: PONDER_SYNC.transactions.transactionIndex,
-                  hash: PONDER_SYNC.transactions.hash,
-                })
+            await APP_DB.insert(SUPER_ASSESSMENT.transactions).select(
+              APP_DB.select({
+                name: sql
+                  .raw(`'${source.name}:transfer:${isFrom ? "from" : "to"}'`)
+                  .as("name"),
+                id: transferCheckpoint.as("id"),
+                chainId: PONDER_SYNC.traces.chainId,
+                transactionIndex: PONDER_SYNC.transactions.transactionIndex,
+                hash: PONDER_SYNC.transactions.hash,
+              })
                 .from(PONDER_SYNC.traces)
                 .innerJoin(
                   PONDER_SYNC.blocks,
@@ -820,20 +798,17 @@ const onBuild = async (app: PonderApp) => {
             );
 
             if (fragment.includeTransactionReceipts) {
-              await appDb.insert(SUPER_ASSESSMENT.transactionReceipts).select(
-                appDb
-                  .select({
-                    name: sql
-                      .raw(
-                        `'${source.name}:transfer:${isFrom ? "from" : "to"}'`,
-                      )
-                      .as("name"),
-                    id: transferCheckpoint.as("id"),
-                    chainId: PONDER_SYNC.traces.chainId,
-                    transactionIndex:
-                      PONDER_SYNC.transactionReceipts.transactionIndex,
-                    hash: PONDER_SYNC.transactionReceipts.transactionHash,
-                  })
+              await APP_DB.insert(SUPER_ASSESSMENT.transactionReceipts).select(
+                APP_DB.select({
+                  name: sql
+                    .raw(`'${source.name}:transfer:${isFrom ? "from" : "to"}'`)
+                    .as("name"),
+                  id: transferCheckpoint.as("id"),
+                  chainId: PONDER_SYNC.traces.chainId,
+                  transactionIndex:
+                    PONDER_SYNC.transactionReceipts.transactionIndex,
+                  hash: PONDER_SYNC.transactionReceipts.transactionHash,
+                })
                   .from(PONDER_SYNC.traces)
                   .innerJoin(
                     PONDER_SYNC.blocks,
@@ -850,16 +825,15 @@ const onBuild = async (app: PonderApp) => {
               );
             }
 
-            await appDb.insert(SUPER_ASSESSMENT.traces).select(
-              appDb
-                .select({
-                  name: sql
-                    .raw(`'${source.name}:transfer:${isFrom ? "from" : "to"}'`)
-                    .as("name"),
-                  id: transferCheckpoint.as("id"),
-                  chainId: PONDER_SYNC.traces.chainId,
-                  traceIndex: PONDER_SYNC.traces.traceIndex,
-                })
+            await APP_DB.insert(SUPER_ASSESSMENT.traces).select(
+              APP_DB.select({
+                name: sql
+                  .raw(`'${source.name}:transfer:${isFrom ? "from" : "to"}'`)
+                  .as("name"),
+                id: transferCheckpoint.as("id"),
+                chainId: PONDER_SYNC.traces.chainId,
+                traceIndex: PONDER_SYNC.traces.traceIndex,
+              })
                 .from(PONDER_SYNC.traces)
                 .innerJoin(
                   PONDER_SYNC.blocks,
@@ -878,7 +852,7 @@ const onBuild = async (app: PonderApp) => {
   // remove uncached data
 
   if (SIM_PARAMS.MAX_UNCACHED_BLOCKS > 0) {
-    for (const interval of await appDb.select().from(PONDER_SYNC.intervals)) {
+    for (const interval of await APP_DB.select().from(PONDER_SYNC.intervals)) {
       const intervals: [number, number][] = JSON.parse(
         `[${interval.blocks.slice(1, -1)}]`,
       );
@@ -944,8 +918,7 @@ const onBuild = async (app: PonderApp) => {
 
             blockConditions.push(
               exists(
-                appDb
-                  .select()
+                APP_DB.select()
                   .from(PONDER_SYNC.transactions)
                   .where(
                     and(
@@ -961,8 +934,7 @@ const onBuild = async (app: PonderApp) => {
             transactionConditions.push(condition);
             transactionReceiptConditions.push(
               exists(
-                appDb
-                  .select()
+                APP_DB.select()
                   .from(PONDER_SYNC.transactions)
                   .where(
                     and(
@@ -1000,8 +972,7 @@ const onBuild = async (app: PonderApp) => {
 
             blockConditions.push(
               exists(
-                appDb
-                  .select()
+                APP_DB.select()
                   .from(PONDER_SYNC.traces)
                   .where(
                     and(
@@ -1013,8 +984,7 @@ const onBuild = async (app: PonderApp) => {
             );
             transactionConditions.push(
               exists(
-                appDb
-                  .select()
+                APP_DB.select()
                   .from(PONDER_SYNC.traces)
                   .where(
                     and(
@@ -1030,8 +1000,7 @@ const onBuild = async (app: PonderApp) => {
             if (fragment.includeTransactionReceipts) {
               transactionReceiptConditions.push(
                 exists(
-                  appDb
-                    .select()
+                  APP_DB.select()
                     .from(PONDER_SYNC.traces)
                     .where(
                       and(
@@ -1075,8 +1044,7 @@ const onBuild = async (app: PonderApp) => {
 
             blockConditions.push(
               exists(
-                appDb
-                  .select()
+                APP_DB.select()
                   .from(PONDER_SYNC.logs)
                   .where(
                     and(
@@ -1088,8 +1056,7 @@ const onBuild = async (app: PonderApp) => {
             );
             transactionConditions.push(
               exists(
-                appDb
-                  .select()
+                APP_DB.select()
                   .from(PONDER_SYNC.logs)
                   .where(
                     and(
@@ -1105,8 +1072,7 @@ const onBuild = async (app: PonderApp) => {
             if (fragment.includeTransactionReceipts) {
               transactionReceiptConditions.push(
                 exists(
-                  appDb
-                    .select()
+                  APP_DB.select()
                     .from(PONDER_SYNC.logs)
                     .where(
                       and(
@@ -1140,8 +1106,7 @@ const onBuild = async (app: PonderApp) => {
 
             blockConditions.push(
               exists(
-                appDb
-                  .select()
+                APP_DB.select()
                   .from(PONDER_SYNC.traces)
                   .where(
                     and(
@@ -1153,8 +1118,7 @@ const onBuild = async (app: PonderApp) => {
             );
             transactionConditions.push(
               exists(
-                appDb
-                  .select()
+                APP_DB.select()
                   .from(PONDER_SYNC.traces)
                   .where(
                     and(
@@ -1170,8 +1134,7 @@ const onBuild = async (app: PonderApp) => {
             if (fragment.includeTransactionReceipts) {
               transactionReceiptConditions.push(
                 exists(
-                  appDb
-                    .select()
+                  APP_DB.select()
                     .from(PONDER_SYNC.traces)
                     .where(
                       and(
@@ -1193,9 +1156,9 @@ const onBuild = async (app: PonderApp) => {
       }
 
       if (resultIntervals.length === 0) {
-        await appDb
-          .delete(PONDER_SYNC.intervals)
-          .where(eq(PONDER_SYNC.intervals.fragmentId, interval.fragmentId));
+        await APP_DB.delete(PONDER_SYNC.intervals).where(
+          eq(PONDER_SYNC.intervals.fragmentId, interval.fragmentId),
+        );
       } else {
         const numranges = resultIntervals
           .map((interval) => {
@@ -1204,49 +1167,48 @@ const onBuild = async (app: PonderApp) => {
             return `numrange(${start}, ${end}, '[]')`;
           })
           .join(", ");
-        await appDb
-          .update(PONDER_SYNC.intervals)
+        await APP_DB.update(PONDER_SYNC.intervals)
           .set({ blocks: sql.raw(`nummultirange(${numranges})`) })
           .where(eq(PONDER_SYNC.intervals.fragmentId, interval.fragmentId));
       }
     }
 
     if (blockConditions.length > 0) {
-      await appDb
-        .delete(PONDER_SYNC.blocks)
-        .where(not(or(...blockConditions)!));
+      await APP_DB.delete(PONDER_SYNC.blocks).where(
+        not(or(...blockConditions)!),
+      );
     } else {
-      await appDb.delete(PONDER_SYNC.blocks);
+      await APP_DB.delete(PONDER_SYNC.blocks);
     }
 
     if (transactionConditions.length > 0) {
-      await appDb
-        .delete(PONDER_SYNC.transactions)
-        .where(not(or(...transactionConditions)!));
+      await APP_DB.delete(PONDER_SYNC.transactions).where(
+        not(or(...transactionConditions)!),
+      );
     } else {
-      await appDb.delete(PONDER_SYNC.transactions);
+      await APP_DB.delete(PONDER_SYNC.transactions);
     }
 
     if (transactionReceiptConditions.length > 0) {
-      await appDb
-        .delete(PONDER_SYNC.transactionReceipts)
-        .where(not(or(...transactionReceiptConditions)!));
+      await APP_DB.delete(PONDER_SYNC.transactionReceipts).where(
+        not(or(...transactionReceiptConditions)!),
+      );
     } else {
-      await appDb.delete(PONDER_SYNC.transactionReceipts);
+      await APP_DB.delete(PONDER_SYNC.transactionReceipts);
     }
 
     if (traceConditions.length > 0) {
-      await appDb
-        .delete(PONDER_SYNC.traces)
-        .where(not(or(...traceConditions)!));
+      await APP_DB.delete(PONDER_SYNC.traces).where(
+        not(or(...traceConditions)!),
+      );
     } else {
-      await appDb.delete(PONDER_SYNC.traces);
+      await APP_DB.delete(PONDER_SYNC.traces);
     }
 
     if (logConditions.length > 0) {
-      await appDb.delete(PONDER_SYNC.logs).where(not(or(...logConditions)!));
+      await APP_DB.delete(PONDER_SYNC.logs).where(not(or(...logConditions)!));
     } else {
-      await appDb.delete(PONDER_SYNC.logs);
+      await APP_DB.delete(PONDER_SYNC.logs);
     }
 
     // TODO(kyle) delete factories
@@ -1274,7 +1236,7 @@ const onBuild = async (app: PonderApp) => {
     // TODO(kyle) delete unfinalized data
 
     // if (SIM_PARAMS.FINALIZED_RATE === 0) {
-    //   await appDb
+    //   await APP_DB
     //     .delete(PONDER_SYNC.intervals)
     //     .where(eq(PONDER_SYNC.intervals.chainId, BigInt(chain.id)));
     // }
@@ -1287,7 +1249,6 @@ const onBuild = async (app: PonderApp) => {
           return rpc.request(body);
         },
       }),
-      DATABASE_URL!,
     );
 
     app.indexingBuild.rpcs[i] = createRpc({
@@ -1313,10 +1274,7 @@ const onBuild = async (app: PonderApp) => {
     });
   }
 
-  const getRealtimeBlockGenerator = await realtimeBlockEngine(
-    chains,
-    DATABASE_URL!,
-  );
+  const getRealtimeBlockGenerator = await realtimeBlockEngine(chains);
 
   let finishCount = 0;
   for (let i = 0; i < app.indexingBuild.chains.length; i++) {
@@ -1524,7 +1482,7 @@ for (const key of Object.keys(schema)) {
     const tableName = getTableName(table);
 
     await compareTables(
-      appDb,
+      APP_DB,
       table,
       `expected."${tableName}"`,
       `"${tableName}"`,
@@ -1533,12 +1491,12 @@ for (const key of Object.keys(schema)) {
 }
 
 // await compareTables(
-//   appDb,
+//   APP_DB,
 //   INTERVALS,
 //   "ponder_sync.expected_intervals",
 //   "ponder_sync.intervals",
 // );
 
-await db.update(metadata).set({ success: true }).where(eq(metadata.id, UUID));
+await DB.update(metadata).set({ success: true }).where(eq(metadata.id, UUID));
 
 process.exit(0);
