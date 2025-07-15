@@ -634,7 +634,10 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
       indexing.overall.completedSeconds -
       metrics.progressMetadata.previousCompletedSeconds;
 
-    if (currentTimestamp - metrics.progressMetadata.previousTimestamp > 5_000) {
+    if (
+      currentTimestamp - metrics.progressMetadata.previousTimestamp > 5_000 &&
+      metrics.progressMetadata.batches.at(-1)!.completedSeconds > 0
+    ) {
       metrics.progressMetadata.batches.push({
         elapsedSeconds: 0,
         completedSeconds: 0,
