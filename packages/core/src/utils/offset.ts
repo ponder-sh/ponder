@@ -59,6 +59,52 @@ export function getBytesConsumedByParam(param: AbiParameter): number {
   });
 }
 
+type TupleAbiParameter = AbiParameter & { components: readonly AbiParameter[] };
+
+export function getNestedParamOffset(
+  param: AbiParameter,
+  names: string[],
+): number | undefined {
+  if (param.type === "tuple") {
+    // If the tuple has dynamic children, it uses the dynamic encoding
+    // scheme (32 byte header).
+    let consumed = 0;
+    let isFound = false;
+    for (const component of (param as TupleAbiParameter).components) {
+      if (component.name === names[0]) {
+        // the right branch, go deeper
+        if (names.length === 1) {
+          isFound = true;
+          return hasDynamicChild(component) ? undefined : consumed;
+        }
+
+        if (component.type === "tuple") {
+          const nestedConsumed = getNestedParamOffset(
+            component,
+            names.slice(1),
+          );
+          if (nestedConsumed === undefined) return undefined;
+          return consumed + nestedConsumed;
+        }
+
+        return undefined;
+      } else {
+        // not the right branhc, if dynamic undefined; if not getbytesbyparam
+        if (hasDynamicChild(component)) return undefined;
+        consumed += getBytesConsumedByParam(component);
+      }
+    }
+
+    if (!isFound) return undefined;
+
+    return consumed;
+  }
+
+  throw new InvalidAbiDecodingTypeError(param.type, {
+    docsPath: "/docs/contract/decodeAbiParameters",
+  });
+}
+
 function hasDynamicChild(param: AbiParameter) {
   const { type } = param;
   if (type === "string") return true;
