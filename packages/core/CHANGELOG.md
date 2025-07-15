@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.29
+
+### Patch Changes
+
+- [#1887](https://github.com/ponder-sh/ponder/pull/1887) [`8bfaa4e`](https://github.com/ponder-sh/ponder/commit/8bfaa4eadf89680b36f23650c59c4ff84794ef73) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue introduced in `v0.11.28` causing the error: `error: relation "operation_id_seq" does not exist`.
+
 ## 0.11.28
 
 ### Patch Changes
