@@ -2380,6 +2380,156 @@ test("cursor pagination composite primary key", async (context) => {
   });
 });
 
+test("cursor pagination with date order", async (context) => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text().notNull(),
+    createdAt: t.date({ mode: "date" }).notNull(),
+  }));
+  const schema = { pet };
+
+  const { database, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await indexingStore.insert(schema.pet).values([
+    { id: "id1", name: "Skip", createdAt: new Date("2021-01-01") },
+    { id: "id2", name: "Foo", createdAt: new Date("2021-01-02") },
+    { id: "id3", name: "Bar", createdAt: new Date("2021-01-03") },
+    { id: "id4", name: "Zarbar", createdAt: new Date("2021-01-04") },
+    { id: "id5", name: "Winston", createdAt: new Date("2021-01-05") },
+    { id: "id6", name: "Book", createdAt: new Date("2021-01-06") },
+    { id: "id7", name: "Shea", createdAt: new Date("2021-01-07") },
+    { id: "id8", name: "Snack", createdAt: new Date("2021-01-08") },
+    { id: "id9", name: "Last", createdAt: new Date("2021-01-09") },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets(orderBy: "createdAt", orderDirection: "asc", limit: 5) {
+        items {
+          id
+          name
+          createdAt
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+        totalCount
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchInlineSnapshot(`
+    {
+      "pets": {
+        "items": [
+          {
+            "createdAt": "1609459200000",
+            "id": "id1",
+            "name": "Skip",
+          },
+          {
+            "createdAt": "1609545600000",
+            "id": "id2",
+            "name": "Foo",
+          },
+          {
+            "createdAt": "1609632000000",
+            "id": "id3",
+            "name": "Bar",
+          },
+          {
+            "createdAt": "1609718400000",
+            "id": "id4",
+            "name": "Zarbar",
+          },
+          {
+            "createdAt": "1609804800000",
+            "id": "id5",
+            "name": "Winston",
+          },
+        ],
+        "pageInfo": {
+          "endCursor": "eyJjcmVhdGVkQXQiOiIyMDIxLTAxLTA1VDAwOjAwOjAwLjAwMFoiLCJpZCI6ImlkNSJ9",
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJjcmVhdGVkQXQiOiIyMDIxLTAxLTAxVDAwOjAwOjAwLjAwMFoiLCJpZCI6ImlkMSJ9",
+        },
+        "totalCount": 9,
+      },
+    }
+  `);
+
+  // @ts-ignore
+  const endCursor = result.data.pets.pageInfo.endCursor;
+
+  result = await query(`
+    query {
+      pets(orderBy: "id", orderDirection: "asc", after: "${endCursor}") {
+        items {
+          id
+          name
+          createdAt
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+        totalCount
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchInlineSnapshot(`
+    {
+      "pets": {
+        "items": [
+          {
+            "createdAt": "1609804800000",
+            "id": "id5",
+            "name": "Winston",
+          },
+          {
+            "createdAt": "1609891200000",
+            "id": "id6",
+            "name": "Book",
+          },
+          {
+            "createdAt": "1609977600000",
+            "id": "id7",
+            "name": "Shea",
+          },
+          {
+            "createdAt": "1610064000000",
+            "id": "id8",
+            "name": "Snack",
+          },
+        ],
+        "pageInfo": {
+          "endCursor": "eyJpZCI6ImlkOCJ9",
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": "eyJpZCI6ImlkNSJ9",
+        },
+        "totalCount": 9,
+      },
+    }
+  `);
+});
+
 test("column casing", async (context) => {
   const schema = {
     table: onchainTable("table", (t) => ({
