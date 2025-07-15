@@ -619,9 +619,7 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
 
   let eta: number;
 
-  if (indexing.overall.completedSeconds === 0) {
-    eta = 0;
-  } else {
+  if (indexing.overall.completedSeconds > 0) {
     const currentTimestamp = Date.now();
 
     metrics.progressMetadata.batches.at(-1)!.elapsedSeconds =
@@ -630,11 +628,7 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
       indexing.overall.completedSeconds -
       metrics.progressMetadata.previousCompletedSeconds;
 
-    if (
-      indexing.overall.completedSeconds -
-        metrics.progressMetadata.previousCompletedSeconds >
-      100
-    ) {
+    if (currentTimestamp - metrics.progressMetadata.previousTimestamp > 5_000) {
       metrics.progressMetadata.batches.push({
         elapsedSeconds: 0,
         completedSeconds: 0,
@@ -651,22 +645,28 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
       const averages: number[] = [];
       let count = 0;
 
-      for (let i = 0; i < metrics.progressMetadata.batches.length - 1; ++i) {
-        const multiplier = 1 / 1.5 ** (9 - i);
-        averages.push(
-          (multiplier * metrics.progressMetadata.batches[i]!.elapsedSeconds) /
-            metrics.progressMetadata.batches[i]!.completedSeconds,
-        );
-        count += multiplier;
-      }
+      // Note: Calculate ETA only after at least 3 batches were collected for stable eta.
+      if (metrics.progressMetadata.batches.length >= 3) {
+        for (let i = 0; i < metrics.progressMetadata.batches.length - 1; ++i) {
+          const batch = metrics.progressMetadata.batches[i]!;
+          if (batch.completedSeconds === 0) continue;
+          const multiplier = 1 / 1.5 ** (9 - i);
+          averages.push(
+            (multiplier * batch.elapsedSeconds) / batch.completedSeconds,
+          );
+          count += multiplier;
+        }
 
-      metrics.progressMetadata.rate =
-        count === 0
-          ? 0
-          : averages.reduce((prev, curr) => prev + curr, 0) / count;
+        metrics.progressMetadata.rate =
+          count === 0
+            ? 0
+            : averages.reduce((prev, curr) => prev + curr, 0) / count;
+      }
     }
 
     eta = metrics.progressMetadata.rate * remainingSeconds;
+  } else {
+    eta = 0;
   }
 
   return {
