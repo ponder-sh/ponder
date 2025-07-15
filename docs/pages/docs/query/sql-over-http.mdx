@@ -328,7 +328,9 @@ const query = usePonderQuery({
 
 - [Basic usage](https://github.com/ponder-sh/ponder/blob/main/examples/with-client/client/src/index.ts) (`@ponder/client` only)
 - [Usage with Next.js](https://github.com/ponder-sh/ponder/blob/main/examples/with-nextjs/frontend/src/pages/index.ts#L11-L18) (`@ponder/client` and `@ponder/react`)
-- Usage with `useInfiniteQuery`
+- Usage with [`useInfiniteQuery`](https://tanstack.com/query/latest/docs/framework/react/guides/infinite-queries)
+
+For this example, we'll use the following schema.
 
 ```ts [ponder.schema.ts]
 import { onchainTable } from "ponder";
@@ -340,52 +342,98 @@ export const person = onchainTable("person", (t) => ({
 }));
 ```
 
+Get all `person` records with an `age` greater than `32`.
+
 ```ts 
-import { type SQL, asc } from "@ponder/client";
-import { usePonderClient, getQueryKey } from "@ponder/react";
+import { asc, gt } from "@ponder/client";
+import { usePonderClient } from "@ponder/react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 
-export const useInfinitePersonsQuery = (params: {
-  where: SQL | undefined;
-  limit: number;
-}) => {
-  const client = usePonderClient();
+const client = usePonderClient();
 
-  return useInfiniteQuery({
-    queryKey: ["pools", ...getQueryKey(params.where), params.limit],
-    queryFn: ({ pageParam }) =>
-      client.db
-        .select()
-        .from(schema.person)
-        .where(params.where)
-        .orderBy(asc(schema.person.id))
-        .limit(params.limit)
-        .offset(pageParam),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, pages) =>
-      lastPage.length === params.limit
-        ? undefined
-        : pages.length * params.limit,
-  });
-};
+const personQuery = useInfiniteQuery({
+  queryKey: ["persons"],
+  queryFn: ({ pageParam }) =>
+    client.db
+      .select()
+      .from(schema.person)
+      .where(gt(schema.person.age, 32))
+      .orderBy(asc(schema.person.id))
+      .limit(100)
+      .offset(pageParam),
+  initialPageParam: 0,
+  getNextPageParam: (lastPage, pages) =>
+    lastPage.length === 100
+      ? undefined
+      : pages.length * 100,
+});
 ```
 
-- Doppler
+- [Uniswap v4](https://github.com/marktoda/v4-ponder)
 
+For this example, we'll use the following schema.
 
+```ts [ponder.schema.ts]
+import { index, relations, primaryKey, onchainTable } from "ponder";
 
-https://github.com/whetstoneresearch/doppler-sdk/blob/main/packages/doppler-v3-indexer/ponder.schema.ts
+export const token = onchainTable("token", (t) => ({
+  address: t.hex().notNull(),
+  chainId: t.integer().notNull(),
+  name: t.text().notNull(),
+  symbol: t.text().notNull(),
+  decimals: t.integer().notNull(),
+  creationBlock: t.integer().notNull(),
+}),
+  (table) => ({
+    pk: primaryKey({ columns: [table.address, table.chainId] }),
+    addressIndex: index().on(table.address),
+    chainIdIndex: index().on(table.chainId),
+  })
+);
+
+export const tokenRelations = relations(token, ({ many }) => ({
+  pools: many(pool),
+}));
+
+export const pool = onchainTable("pool", (t) => ({
+  poolId: t.hex().notNull(),
+  currency0: t.hex().notNull(),
+  currency1: t.hex().notNull(),
+  fee: t.integer().notNull(),
+  tickSpacing: t.integer().notNull(),
+  hooks: t.hex().notNull(),
+  chainId: t.integer().notNull(),
+  creationBlock: t.integer().notNull(),
+}),
+  (table) => ({
+    pk: primaryKey({ columns: [table.poolId, table.chainId] }),
+    poolIdIndex: index().on(table.poolId),
+    chainIdIndex: index().on(table.chainId),
+  })
+);
+
+export const poolRelations = relations(pool, ({ many, one }) => ({
+  token0: one(token, { fields: [pool.currency0, pool.chainId], references: [token.address, token.chainId] }),
+  token1: one(token, { fields: [pool.currency1, pool.chainId], references: [token.address, token.chainId] }),
+}));
+```
+
+Get all `pool` records with a `chainId` of `1` and a `fee` of `0` and include the `token0` and `token1` data.
 
 ```ts
-export const usePools = (params: {
-  limit = 10,
-}) => {
-  return usePonderQuery({
-    queryFn: (db) => db.query.pool.findMany({
+import { usePonderQuery } from "@ponder/react";
 
-    })
-  })
-}
+const query = usePonderQuery({
+  queryFn: (db) =>
+    qb.query.pool.findMany({
+      where: (pool, { and, eq }) => and(eq(pool.chainId, 1), eq(pool.fee, 0)),
+      orderBy: (pool, { desc }) => desc(pool.creationBlock),
+      with: {
+        token0: true,
+        token1: true,
+      },
+    }),
+});
 ```
 
 ## Frequently asked questions
