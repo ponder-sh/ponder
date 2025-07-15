@@ -1,5 +1,6 @@
 import {
   type QueryWithTypings,
+  SQL,
   type SQLWrapper,
   Table,
   isTable,
@@ -212,6 +213,7 @@ export {
   max,
   min,
   relations,
+  SQL,
 } from "drizzle-orm";
 
 export {

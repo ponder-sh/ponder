@@ -2,10 +2,10 @@
 
 :::tip
 This is a low-level reference. For an introduction, visit the
-[SQL client](/docs/query/sql-client) page.
+[SQL over HTTP](/docs/query/sql-over-http) page.
 :::
 
-The `@ponder/client` package provides a typed SQL client for querying your Ponder database from client applications.
+The `@ponder/client` package provides a typed SQL over HTTP client for querying your Ponder database from client applications.
 
 ## Installation
 
@@ -42,10 +42,10 @@ export { client, schema };
 
 #### Parameters
 
-| Parameter        | Type     | Description                                                |
-| ---------------- | -------- | ---------------------------------------------------------- |
-| `baseUrl`        | `string` | Ponder server URL where the `client` middleware is running |
-| `options.schema` | `Schema` | The schema exported by `ponder.schema.ts`                  |
+| Parameter        | Type                  | Description                                                |
+| ---------------- | --------------------- | ---------------------------------------------------------- |
+| `baseUrl`        | `string`              | Ponder server URL where the `client` middleware is running |
+| `options.schema` | `Schema \| undefined` | The schema exported by `ponder.schema.ts`                  |
 
 #### Returns
 

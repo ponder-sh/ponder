@@ -2,7 +2,7 @@
 
 :::tip
 This is a low-level reference. For an introduction, visit the
-[SQL Client](/docs/query/sql-client) page.
+[SQL over HTTP](/docs/query/sql-over-http) page.
 :::
 
 The `@ponder/react` package provides React hooks for subscribing to live updates from your database.
@@ -32,7 +32,7 @@ npm add @ponder/react @ponder/client @tanstack/react-query
 
 ## `PonderProvider`
 
-React Context Provider that makes the SQL client instance available to all child components.
+React Context Provider that makes the SQL over HTTP client instance available to all child components.
 
 #### Usage
 
@@ -152,65 +152,18 @@ Returns a normal TanStack `useQuery` result containing the indexing [status obje
 
 ## `getPonderQueryOptions`
 
-Helper function to build the TanStack Query `queryFn` and `queryKey` for a SQL client query.
+Helper function to build the TanStack Query `queryFn` and `queryKey` for a SQL over HTTP query.
 
-**Usage with Next.js App Router**
-
-Use `getPonderQueryOptions` in a Next.js App Router project to prefetch data on the server. [Read more](https://github.com/ponder-sh/ponder/blob/main/examples/with-nextjs/frontend/app/page.tsx#L11) in the full example app.
-
-:::code-group
-
-```tsx [lib/deposits-query.ts]
+```tsx [index.ts]
 import { getPonderQueryOptions } from "@ponder/react";
 import { client, schema } from "../lib/ponder";
-import { useQuery, QueryClient } from "@tanstack/react-query";
 
-export const accountsQueryOptions = getPonderQueryOptions(client, (db) =>
+const accountsQueryOptions = getPonderQueryOptions(client, (db) =>
   db.select().from(schema.account).limit(10)
 );
+
+const query = usePonderQuery(accountsQueryOptions);
 ```
-
-```tsx [app/page.tsx]
-import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
-import { getQueryClient } from "../lib/react-query";
-import { depositsQueryOptions } from "../lib/deposits-query";
-import { DepositsTable } from "../components/deposits-table";
-
-export default async function DepositsPage() {
-  const queryClient = getQueryClient();
-  await queryClient.prefetchQuery(depositsQueryOptions);
-
-  return (
-    <div>
-      <h1>10 latest WETH mints</h1>
-      <HydrationBoundary state={dehydrate(queryClient)}>
-        <DepositsTable />
-      </HydrationBoundary>
-    </div>
-  );
-}
-```
-
-```tsx [components/deposits-table.tsx]
-"use client";
-
-import { useQuery } from "@tanstack/react-query";
-import { depositsQueryOptions } from "../lib/deposits-query";
-
-export function DepositsTable() {
-  const { data: deposits } = useQuery(depositsQueryOptions);
-
-  return (
-    <div>
-      {deposits?.map((deposit) => (
-        <div key={deposit.id}>{deposit.amount}</div>
-      ))}
-    </div>
-  );
-}
-```
-
-:::
 
 #### Parameters
 
@@ -225,3 +178,46 @@ export function DepositsTable() {
 | ---------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `queryKey` | `QueryKey`              | A TanStack Query [Key](https://tanstack.com/query/latest/docs/framework/react/guides/query-keys) that encodes the SQL statement                  |
 | `queryFn`  | `() => Promise<Result>` | A TanStack Query [Function](https://tanstack.com/query/latest/docs/framework/react/guides/query-functions) that executes the SQL query over HTTP |
+
+
+## `usePonderQueryOptions`
+
+Same as [`getPonderQueryOptions`](#getponderqueryoptions), but uses the `PonderProvider` context to get the client instance.
+
+```tsx [index.ts]
+import { usePonderQueryOptions } from "@ponder/react";
+import { schema } from "../lib/ponder";
+
+const accountsQueryOptions = usePonderQueryOptions((db) =>
+  db.select().from(schema.account).limit(10)
+);
+
+const query = usePonderQuery(accountsQueryOptions);
+```
+
+#### Parameters
+
+| Parameter | Type                                    | Description                                                                         |
+| --------- | --------------------------------------- | ----------------------------------------------------------------------------------- |
+| `queryFn` | `(db: Client["db"]) => Promise<Result>` | Function that receives the Drizzle query builder and returns a query result promise |
+
+#### Returns
+
+| Property   | Type                    | Description                                                                                                                                      |
+| ---------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `queryKey` | `QueryKey`              | A TanStack Query [Key](https://tanstack.com/query/latest/docs/framework/react/guides/query-keys) that encodes the SQL statement                  |
+| `queryFn`  | `() => Promise<Result>` | A TanStack Query [Function](https://tanstack.com/query/latest/docs/framework/react/guides/query-functions) that executes the SQL query over HTTP |
+
+## `usePonderClient`
+
+Hook to get the `client` instance from the `PonderProvider` context.
+
+```ts [index.ts]
+import { usePonderClient } from "@ponder/react";
+
+const client = usePonderClient();
+```
+
+#### Returns
+
+Returns the `client` instance from the `PonderProvider` context.

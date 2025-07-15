@@ -215,7 +215,11 @@
     },
     {
       "source": "/docs/query/client",
-      "destination": "/docs/query/sql-client"
+      "destination": "/docs/query/sql-over-http"
+    },
+    {
+      "source": "/docs/query/sql-client",
+      "destination": "/docs/query/sql-over-http"
     },
     {
       "source": "/docs/schema",

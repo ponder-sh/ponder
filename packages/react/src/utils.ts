@@ -1,18 +1,20 @@
 import { type Client, compileQuery } from "@ponder/client";
 import type { QueryKey } from "@tanstack/react-query";
 import { stringify } from "superjson";
+import type { ResolvedSchema } from "./index.js";
 
 export type SQLWrapper = Exclude<Parameters<typeof compileQuery>[0], string>;
 
-export function getPonderQueryOptions<result>(
-  client: Client,
-  queryFn: (db: Client["db"]) => Promise<result>,
+export function getPonderQueryOptions<T>(
+  client: Client<ResolvedSchema>,
+  queryFn: (db: Client<ResolvedSchema>["db"]) => T,
 ): {
   queryKey: QueryKey;
-  queryFn: () => Promise<result>;
+  queryFn: () => T;
 } {
   const queryPromise = queryFn(client.db);
 
+  // @ts-expect-error
   if ("getSQL" in queryPromise === false) {
     throw new Error('"queryFn" must return SQL');
   }
@@ -25,3 +27,8 @@ export function getPonderQueryOptions<result>(
     queryFn: () => queryPromise,
   };
 }
+
+export const getQueryKey = (query: SQLWrapper) => {
+  const compiledQuery = compileQuery(query);
+  return ["__ponder_react", compiledQuery.sql, stringify(compiledQuery.params)];
+};

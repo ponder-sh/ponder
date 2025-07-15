@@ -1,12 +1,20 @@
 "use client";
 
+import { desc } from "@ponder/client";
 import { usePonderQuery } from "@ponder/react";
 import CountUp from "react-countup";
 import { formatEther } from "viem";
-import { depositsQueryOptions } from "../lib/ponder";
+import { schema } from "../lib/ponder";
 
 export default function DepositsTable() {
-  const depositsQuery = usePonderQuery(depositsQueryOptions);
+  const depositsQuery = usePonderQuery({
+    queryFn: (db) =>
+      db
+        .select()
+        .from(schema.depositEvent)
+        .orderBy(desc(schema.depositEvent.timestamp))
+        .limit(10),
+  });
 
   return (
     <div className="flex flex-col gap-1 justify-between items-center w-full">

@@ -2,7 +2,7 @@
 
 Ponder supports **custom API endpoints** with direct access to the database and other useful resources.
 
-Custom API endpoints offer more flexibility than GraphQL or SQL client queries, making it possible to serve web requests with complex SQL queries, data from external sources, authentication, and more.
+Custom API endpoints offer more flexibility than GraphQL or SQL over HTTP queries, making it possible to serve web requests with complex SQL queries, data from external sources, authentication, and more.
 
 ## Guide
 
@@ -55,7 +55,7 @@ The `ponder:api` virtual module includes useful resources for custom API endpoin
 
 ### Database queries
 
-The `db` object exported from `ponder:api` is a ready-to-use Drizzle database instance. This is the same database instance that powers GraphQL and SQL client queries.
+The `db` object exported from `ponder:api` is a ready-to-use Drizzle database instance. This is the same database instance that powers GraphQL and SQL over HTTP queries.
 
 Use the `db` object to run read-only SQL queries within custom API endpoints.
 

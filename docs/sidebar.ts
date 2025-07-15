@@ -41,8 +41,8 @@ export const sidebar = {
         {
           text: "HTTP",
           items: [
+            { text: "SQL over HTTP", link: "/docs/query/sql-over-http" },
             { text: "GraphQL", link: "/docs/query/graphql" },
-            { text: "SQL client", link: "/docs/query/sql-client" },
             { text: "API endpoints", link: "/docs/query/api-endpoints" },
           ],
         },
