@@ -138,9 +138,10 @@ export async function start({
     preBuild,
     schemaBuild,
   });
-  const crashRecoveryCheckpoint = await database.migrate(
-    indexingBuildResult.result,
-  );
+  const crashRecoveryCheckpoint = await database.migrate({
+    buildId: indexingBuildResult.result.buildId,
+    ordering: preBuild.ordering,
+  });
 
   const apiResult = await build.executeApi({
     indexingBuild: indexingBuildResult.result,

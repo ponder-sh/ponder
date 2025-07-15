@@ -78,7 +78,10 @@ export type Database = {
    */
   migrate({
     buildId,
-  }: Pick<IndexingBuild, "buildId">): Promise<CrashRecoveryCheckpoint>;
+    ordering,
+  }: Pick<IndexingBuild, "buildId"> & {
+    ordering: "omnichain" | "multichain";
+  }): Promise<CrashRecoveryCheckpoint>;
   createIndexes(): Promise<void>;
   createTriggers(): Promise<void>;
   removeTriggers(): Promise<void>;
@@ -112,6 +115,7 @@ export type Database = {
   getReady(): Promise<boolean>;
   revert(args: {
     checkpoint: string;
+    ordering: "multichain" | "omnichain";
     tx: PgTransaction<PgQueryResultHKT, Schema>;
   }): Promise<void>;
   finalize(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
@@ -675,7 +679,7 @@ export const createDatabase = async ({
         },
       );
     },
-    async migrate({ buildId }) {
+    async migrate({ buildId, ordering }) {
       await this.wrap(
         { method: "createPonderSystemTables", includeTraceLogs: true },
         async () => {
@@ -930,7 +934,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
               ...checkpoints.map((c) => c.safeCheckpoint),
             );
 
-            await this.revert({ checkpoint: revertCheckpoint, tx });
+            await this.revert({ checkpoint: revertCheckpoint, ordering, tx });
 
             // Note: We don't update the `_ponder_checkpoint` table here, instead we wait for it to be updated
             // in the runtime script.
@@ -1092,39 +1096,38 @@ FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).trigg
           .then((result) => result[0]?.value.is_ready === 1);
       });
     },
-    async revert({ checkpoint, tx }) {
+    async revert({ checkpoint, ordering, tx }) {
       await this.record(
         { method: "revert", includeTraceLogs: true },
         async () => {
-          const min_op_id = await tx
-            .execute(
-              sql.raw(`
+          let minOperationId: number | undefined;
+          if (ordering === "multichain") {
+            minOperationId = await tx
+              .execute(
+                sql.raw(`
 SELECT MIN(min_op_id) AS global_min_op_id FROM (
 ${tables
   .map(
     (table) => `
   SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE checkpoint > '${checkpoint}'
+  WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
+  AND checkpoint > '${checkpoint}'
 `,
   )
   .join(" UNION ALL ")}) AS all_mins             
 `),
-            )
-            .then((result) => {
-              // @ts-ignore
-              return result.rows[0]?.global_min_op_id as number | undefined;
-            });
+              )
+              .then((result) => {
+                // @ts-ignore
+                return result.rows[0]?.global_min_op_id as number | undefined;
+              });
+          }
 
           for (const table of tables) {
             const primaryKeyColumns = getPrimaryKeyColumns(table);
 
-            const result = await tx.execute(
-              sql.raw(`
-WITH reverted1 AS (
-  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE ${min_op_id} IS NOT NULL AND operation_id >= ${min_op_id}
-  RETURNING *
-), reverted2 AS (
+            const baseQuery = `
+reverted2 AS (
   SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1
   GROUP BY ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}
 ), reverted3 AS (
@@ -1157,9 +1160,23 @@ WITH reverted1 AS (
       )
       .join(", ")}
   RETURNING *
-) SELECT COUNT(*) FROM reverted1 as count;
-`),
-            );
+) SELECT COUNT(*) FROM reverted1 as count;`;
+
+            let result: unknown;
+            if (ordering === "multichain") {
+              result = await tx.execute(`
+WITH reverted1 AS (
+  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE ${minOperationId!} IS NOT NULL AND operation_id >= ${minOperationId!}
+  RETURNING *
+), ${baseQuery}`);
+            } else {
+              result = await tx.execute(`
+WITH reverted1 AS (
+  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE checkpoint > '${checkpoint}' RETURNING *
+), ${baseQuery}`);
+            }
 
             common.logger.info({
               service: "database",

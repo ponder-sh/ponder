@@ -754,7 +754,7 @@ export const createSync = async (params: {
           // index of the first reorged event
           let reorgIndex: number | undefined = undefined;
           for (const [index, event] of executedEvents.entries()) {
-            if (event.checkpoint > checkpoint) {
+            if (event.chainId === chain.id && event.checkpoint > checkpoint) {
               reorgIndex = index;
               break;
             }
