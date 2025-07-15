@@ -713,40 +713,72 @@ export const createSync = async (params: {
           });
         }
 
-        // Remove all finalized data
+        if (to <= from) {
+          break;
+        }
 
-        executedEvents = executedEvents.filter((e) => e.checkpoint > to);
+        // index of the first unfinalized event
+        let finalizeIndex: number | undefined = undefined;
+        for (const [index, event] of executedEvents.entries()) {
+          if (event.checkpoint > to) {
+            finalizeIndex = index;
+            break;
+          }
+        }
+
+        let finalizedEvents: Event[];
+
+        if (finalizeIndex === undefined) {
+          finalizedEvents = executedEvents;
+          executedEvents = [];
+        } else {
+          finalizedEvents = executedEvents.slice(0, finalizeIndex);
+          executedEvents = executedEvents.slice(finalizeIndex);
+        }
 
         // Raise event to parent function (runtime)
-        if (to > from) {
-          params.onRealtimeEvent({ type: "finalize", chain, checkpoint: to });
-        }
+        params.onRealtimeEvent({ type: "finalize", chain, checkpoint: to });
+
+        params.common.logger.debug({
+          service: "sync",
+          msg: `Finalized ${finalizedEvents.length} executed events`,
+        });
 
         break;
       }
 
       case "reorg": {
-        // Remove all reorged data
-
-        let reorgedEvents = 0;
-
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Removed ${reorgedEvents} reorged '${chain.name}' events`,
-        });
+        const isReorgedEvent = (_event: Event) => {
+          if (
+            _event.chainId === chain.id &&
+            Number(_event.event.block.number) > hexToNumber(event.block.number)
+          ) {
+            return true;
+          }
+          return false;
+        };
 
         if (params.ordering === "multichain") {
           // Note: `checkpoints.current` not used in multichain ordering
           const checkpoint = getMultichainCheckpoint({ tag: "current", chain });
 
+          // index of the first reorged event
+          let reorgIndex: number | undefined = undefined;
+          for (const [index, event] of executedEvents.entries()) {
+            if (event.chainId === chain.id && event.checkpoint > checkpoint) {
+              reorgIndex = index;
+              break;
+            }
+          }
+
+          if (reorgIndex === undefined) {
+            break;
+          }
+
           // Move events from executed to pending
 
-          const reorgedEvents = executedEvents.filter(
-            (e) => e.checkpoint > checkpoint,
-          );
-          executedEvents = executedEvents.filter(
-            (e) => e.checkpoint < checkpoint,
-          );
+          const reorgedEvents = executedEvents.slice(reorgIndex);
+          executedEvents = executedEvents.slice(0, reorgIndex);
           pendingEvents = pendingEvents.concat(reorgedEvents);
 
           params.common.logger.debug({
@@ -755,10 +787,18 @@ export const createSync = async (params: {
           });
 
           params.onRealtimeEvent({ type: "reorg", chain, checkpoint });
+
+          pendingEvents = pendingEvents.filter(
+            (e) => isReorgedEvent(e) === false,
+          );
         } else {
           const from = checkpoints.current;
           checkpoints.current = getOmnichainCheckpoint({ tag: "current" });
           const to = getOmnichainCheckpoint({ tag: "current" });
+
+          if (to >= from) {
+            break;
+          }
 
           // Move events from executed to pending
 
@@ -771,28 +811,12 @@ export const createSync = async (params: {
             msg: `Rescheduled ${reorgedEvents.length} reorged events`,
           });
 
-          if (to < from) {
-            params.onRealtimeEvent({ type: "reorg", chain, checkpoint: to });
-          }
+          params.onRealtimeEvent({ type: "reorg", chain, checkpoint: to });
+
+          pendingEvents = pendingEvents.filter(
+            (e) => isReorgedEvent(e) === false,
+          );
         }
-
-        const isReorgedEvent = ({ chainId, event: { block } }: Event) => {
-          if (
-            chainId === chain.id &&
-            Number(block.number) > hexToNumber(event.block.number)
-          ) {
-            reorgedEvents++;
-            return true;
-          }
-          return false;
-        };
-
-        pendingEvents = pendingEvents.filter(
-          (e) => isReorgedEvent(e) === false,
-        );
-        executedEvents = executedEvents.filter(
-          (e) => isReorgedEvent(e) === false,
-        );
 
         break;
       }

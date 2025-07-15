@@ -563,7 +563,11 @@ export async function run({
         await database.removeTriggers();
         await database.retry(async () => {
           await database.qb.drizzle.transaction(async (tx) => {
-            await database.revert({ checkpoint: event.checkpoint, tx });
+            await database.revert({
+              checkpoint: event.checkpoint,
+              ordering: preBuild.ordering,
+              tx,
+            });
           });
         });
         await database.createTriggers();
