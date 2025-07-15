@@ -1,5 +1,13 @@
 # ponder
 
+## 0.11.28
+
+### Patch Changes
+
+- [#1881](https://github.com/ponder-sh/ponder/pull/1881) [`74ea4e1`](https://github.com/ponder-sh/ponder/commit/74ea4e1cf083301bae13c46e8ddcdba81f597e42) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Fixed a bug with reorg reconcilation when `ordering: "multichain"` causing missed or duplicate events.
+
+- [#1885](https://github.com/ponder-sh/ponder/pull/1885) [`816ecbf`](https://github.com/ponder-sh/ponder/commit/816ecbff602fe858ca6d5e4a977fa10c0767257b) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Improve eta prediction on the ui.
+
 ## 0.11.27
 
 ### Patch Changes
