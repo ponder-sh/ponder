@@ -150,7 +150,11 @@ const createReorgTableStatement = (statement: JsonCreateTableStatement) => {
             operation_id: integer()
               .notNull()
               .primaryKey()
-              .default(sql.raw(`nextval('${SHARED_OPERATION_ID_SEQUENCE}')`)),
+              .default(
+                sql.raw(
+                  `nextval('"${statement.schema}"."${SHARED_OPERATION_ID_SEQUENCE}"')`,
+                ),
+              ),
             operation: integer().notNull(),
             checkpoint: varchar({
               length: 75,
