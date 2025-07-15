@@ -1,5 +1,16 @@
 # @ponder/react
 
+## 0.11.30
+
+### Patch Changes
+
+- [#1884](https://github.com/ponder-sh/ponder/pull/1884) [`c03f94f`](https://github.com/ponder-sh/ponder/commit/c03f94fdb08865ed75c1c5f64759600d7785c1ad) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `usePonderQueryOptions` and `usePonderClient` helper functions.
+
+- [#1884](https://github.com/ponder-sh/ponder/pull/1884) [`c03f94f`](https://github.com/ponder-sh/ponder/commit/c03f94fdb08865ed75c1c5f64759600d7785c1ad) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for relational query building.
+
+- Updated dependencies []:
+  - @ponder/client@0.11.30
+
 ## 0.11.29
 
 ### Patch Changes
