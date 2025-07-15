@@ -391,6 +391,12 @@ export class MetricsService {
   resetIndexingMetrics() {
     this.start_timestamp = Date.now();
     this.rps = {};
+    this.progressMetadata = {
+      batches: [{ elapsedSeconds: 0, completedSeconds: 0 }],
+      previousTimestamp: Date.now(),
+      previousCompletedSeconds: 0,
+      rate: 0,
+    };
 
     this.ponder_settings_info.reset();
     this.ponder_historical_start_timestamp_seconds.reset();
@@ -617,7 +623,7 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
     indexing.overall.totalSeconds -
     (indexing.overall.completedSeconds + indexing.overall.cachedSeconds);
 
-  let eta: number;
+  let eta: number | undefined = undefined;
 
   if (indexing.overall.completedSeconds > 0) {
     const currentTimestamp = Date.now();
@@ -664,9 +670,9 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
       }
     }
 
-    eta = metrics.progressMetadata.rate * remainingSeconds;
-  } else {
-    eta = 0;
+    if (metrics.progressMetadata.batches.length >= 3) {
+      eta = metrics.progressMetadata.rate * remainingSeconds;
+    }
   }
 
   return {
