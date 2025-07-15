@@ -17,7 +17,6 @@ import type {
 } from "@/internal/types.js";
 import { getNextAvailablePort } from "@/utils/port.js";
 import type { Result } from "@/utils/result.js";
-import { serialize } from "@/utils/serialize.js";
 import { glob } from "glob";
 import { Hono } from "hono";
 import { createServer } from "vite";
@@ -181,6 +180,8 @@ export const createBuild = async ({
       }
 
       const config = executeResult.exports.default as Config;
+
+      // Note: use `superjson` for serialization in the next minor version
 
       const contentHash = createHash("sha256")
         .update(
