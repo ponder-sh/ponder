@@ -1,3 +1,5 @@
+import superjson from "superjson";
+
 /**
  * Serialize function that handles BigInt.
  *
@@ -7,9 +9,7 @@
  * @returns the stringified output
  */
 export function serialize(value: any) {
-  return JSON.stringify(value, (_, v) =>
-    typeof v === "bigint" ? { __type: "bigint", value: v.toString() } : v,
-  );
+  return superjson.stringify(value);
 }
 
 /**
@@ -20,8 +20,6 @@ export function serialize(value: any) {
  * @param value to parse
  * @returns the output object
  */
-export function deserialize(value: string) {
-  return JSON.parse(value, (_, value_) =>
-    value_?.__type === "bigint" ? BigInt(value_.value) : value_,
-  );
+export function deserialize(value: string): any {
+  return superjson.parse(value);
 }

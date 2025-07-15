@@ -2460,10 +2460,10 @@ test("cursor pagination with date order", async (context) => {
           },
         ],
         "pageInfo": {
-          "endCursor": "eyJjcmVhdGVkQXQiOiIyMDIxLTAxLTA1VDAwOjAwOjAwLjAwMFoiLCJpZCI6ImlkNSJ9",
+          "endCursor": "eyJqc29uIjp7ImNyZWF0ZWRBdCI6IjIwMjEtMDEtMDVUMDA6MDA6MDAuMDAwWiIsImlkIjoiaWQ1In0sIm1ldGEiOnsidmFsdWVzIjp7ImNyZWF0ZWRBdCI6WyJEYXRlIl19fX0=",
           "hasNextPage": true,
           "hasPreviousPage": false,
-          "startCursor": "eyJjcmVhdGVkQXQiOiIyMDIxLTAxLTAxVDAwOjAwOjAwLjAwMFoiLCJpZCI6ImlkMSJ9",
+          "startCursor": "eyJqc29uIjp7ImNyZWF0ZWRBdCI6IjIwMjEtMDEtMDFUMDA6MDA6MDAuMDAwWiIsImlkIjoiaWQxIn0sIm1ldGEiOnsidmFsdWVzIjp7ImNyZWF0ZWRBdCI6WyJEYXRlIl19fX0=",
         },
         "totalCount": 9,
       },
@@ -2475,7 +2475,7 @@ test("cursor pagination with date order", async (context) => {
 
   result = await query(`
     query {
-      pets(orderBy: "id", orderDirection: "asc", after: "${endCursor}") {
+      pets(orderBy: "createdAt", orderDirection: "asc", after: "${endCursor}") {
         items {
           id
           name
@@ -2498,11 +2498,6 @@ test("cursor pagination with date order", async (context) => {
       "pets": {
         "items": [
           {
-            "createdAt": "1609804800000",
-            "id": "id5",
-            "name": "Winston",
-          },
-          {
             "createdAt": "1609891200000",
             "id": "id6",
             "name": "Book",
@@ -2517,12 +2512,17 @@ test("cursor pagination with date order", async (context) => {
             "id": "id8",
             "name": "Snack",
           },
+          {
+            "createdAt": "1610150400000",
+            "id": "id9",
+            "name": "Last",
+          },
         ],
         "pageInfo": {
-          "endCursor": "eyJpZCI6ImlkOCJ9",
+          "endCursor": "eyJqc29uIjp7ImNyZWF0ZWRBdCI6IjIwMjEtMDEtMDlUMDA6MDA6MDAuMDAwWiIsImlkIjoiaWQ5In0sIm1ldGEiOnsidmFsdWVzIjp7ImNyZWF0ZWRBdCI6WyJEYXRlIl19fX0=",
           "hasNextPage": false,
-          "hasPreviousPage": false,
-          "startCursor": "eyJpZCI6ImlkNSJ9",
+          "hasPreviousPage": true,
+          "startCursor": "eyJqc29uIjp7ImNyZWF0ZWRBdCI6IjIwMjEtMDEtMDZUMDA6MDA6MDAuMDAwWiIsImlkIjoiaWQ2In0sIm1ldGEiOnsidmFsdWVzIjp7ImNyZWF0ZWRBdCI6WyJEYXRlIl19fX0=",
         },
         "totalCount": 9,
       },
