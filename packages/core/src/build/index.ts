@@ -183,7 +183,13 @@ export const createBuild = async ({
       const config = executeResult.exports.default as Config;
 
       const contentHash = createHash("sha256")
-        .update(serialize(config))
+        .update(
+          JSON.stringify(config, (_, v) =>
+            typeof v === "bigint"
+              ? { __type: "bigint", value: v.toString() }
+              : v,
+          ),
+        )
         .digest("hex");
 
       return {
