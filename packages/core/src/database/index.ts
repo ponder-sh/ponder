@@ -702,7 +702,7 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
           );
 
           await qb.drizzle.execute(
-            `CREATE SEQUENCE IF NOT EXISTS ${SHARED_OPERATION_ID_SEQUENCE} AS integer INCREMENT BY 1`,
+            `CREATE SEQUENCE IF NOT EXISTS "${namespace.schema}"."${SHARED_OPERATION_ID_SEQUENCE}" AS integer INCREMENT BY 1`,
           );
 
           const trigger = "status_trigger";
@@ -828,11 +828,6 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
                   ),
                 );
               }
-              await tx.execute(
-                sql.raw(
-                  `DROP SEQUENCE IF EXISTS "${namespace.schema}"."${SHARED_OPERATION_ID_SEQUENCE}"`,
-                ),
-              );
 
               await tx.execute(
                 sql.raw(
