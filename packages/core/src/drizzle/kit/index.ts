@@ -152,7 +152,7 @@ const createReorgTableStatement = (statement: JsonCreateTableStatement) => {
               .primaryKey()
               .default(
                 sql.raw(
-                  `nextval('"${statement.schema}"."${SHARED_OPERATION_ID_SEQUENCE}"')`,
+                  `nextval('"${statement.schema === "" ? "public" : statement.schema}"."${SHARED_OPERATION_ID_SEQUENCE}"')`,
                 ),
               ),
             operation: integer().notNull(),
