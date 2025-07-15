@@ -1,6 +1,5 @@
 import {
   type QueryWithTypings,
-  SQL,
   type SQLWrapper,
   Table,
   isTable,
