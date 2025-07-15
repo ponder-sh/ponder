@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.31
+
+### Patch Changes
+
+- [#1880](https://github.com/ponder-sh/ponder/pull/1880) [`291249a`](https://github.com/ponder-sh/ponder/commit/291249a4eda361a2f9e36cd840b0d1c073a76e9c) Thanks [@normanzb](https://github.com/normanzb)! - Fixed a bug with date column encoding for GraphQL. This bug would cause the error: `value.toISOString is not a function`.
+
 ## 0.11.30
 
 ## 0.11.29
