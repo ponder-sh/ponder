@@ -123,14 +123,24 @@ export async function createViews({
   });
 
   await database.qb.drizzle.execute(
+    sql.raw(`DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."_ponder_meta"`),
+  );
+
+  await database.qb.drizzle.execute(
     sql.raw(
-      `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${cliOptions.schema}"."_ponder_meta"`,
+      `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."_ponder_checkpoint"`,
     ),
   );
 
   await database.qb.drizzle.execute(
     sql.raw(
-      `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${cliOptions.schema}"."_ponder_checkpoint"`,
+      `CREATE VIEW "${cliOptions.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${cliOptions.schema}"."_ponder_meta"`,
+    ),
+  );
+
+  await database.qb.drizzle.execute(
+    sql.raw(
+      `CREATE VIEW "${cliOptions.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${cliOptions.schema}"."_ponder_checkpoint"`,
     ),
   );
 

@@ -435,13 +435,25 @@ export async function run({
 
       await database.qb.drizzle.execute(
         sql.raw(
-          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_meta"`,
+          `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."_ponder_meta"`,
         ),
       );
 
       await database.qb.drizzle.execute(
         sql.raw(
-          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_checkpoint"`,
+          `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."_ponder_checkpoint"`,
+        ),
+      );
+
+      await database.qb.drizzle.execute(
+        sql.raw(
+          `CREATE VIEW "${namespaceBuild.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_meta"`,
+        ),
+      );
+
+      await database.qb.drizzle.execute(
+        sql.raw(
+          `CREATE VIEW "${namespaceBuild.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_checkpoint"`,
         ),
       );
 
