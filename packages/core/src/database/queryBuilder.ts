@@ -402,17 +402,17 @@ export const createQBPGlite = <
       // @ts-ignore
       tx._.session.prepareQuery = (...args) => {
         const result = prepareQuery(...args);
-        // const execute = result.execute.bind(result);
-        // result.execute = async (..._args) => {
-        //   return wrap(
-        //     () =>
-        //       execute(..._args).catch((error) => {
-        //         throw new TransactionError(error.message);
-        //       }),
-        //     args[0].sql,
-        //     params,
-        //   );
-        // };
+        const execute = result.execute.bind(result);
+        result.execute = async (..._args) => {
+          return wrap(
+            () =>
+              execute(..._args).catch((error) => {
+                throw new TransactionError(error.message);
+              }),
+            args[0].sql,
+            params,
+          );
+        };
         return result;
       };
 
@@ -470,17 +470,17 @@ export const createQBPGlite = <
         // @ts-ignore
         tx._.session.prepareQuery = (...args) => {
           const result = prepareQuery(...args);
-          // const execute = result.execute.bind(result);
-          // result.execute = async (..._args) => {
-          //   return wrap(
-          //     () =>
-          //       execute(..._args).catch((error) => {
-          //         throw new TransactionError(error.message);
-          //       }),
-          //     args[0].sql,
-          //     { ...params, label },
-          //   );
-          // };
+          const execute = result.execute.bind(result);
+          result.execute = async (..._args) => {
+            return wrap(
+              () =>
+                execute(..._args).catch((error) => {
+                  throw new TransactionError(error.message);
+                }),
+              args[0].sql,
+              { ...params, label },
+            );
+          };
           return result;
         };
 
