@@ -14,6 +14,7 @@ import {
 } from "viem";
 import { zeroLogsBloom } from "../../packages/core/src/sync-realtime/bloom.js";
 import { promiseWithResolvers } from "../../packages/core/src/utils/promiseWithResolvers.js";
+import { createQueue } from "../../packages/core/src/utils/queue.js";
 import * as RPC_SCHEMA from "../schema.js";
 import { SEED, SIM_PARAMS } from "./index.js";
 
@@ -28,6 +29,13 @@ const PONDER_RPC_METHODS = [
   "debug_traceBlockByHash",
   "eth_call",
 ] as const;
+
+const FIFO_QUEUE = createQueue<any, () => Promise<any>>({
+  concurrency: 1,
+  initialStart: true,
+  browser: false,
+  worker: (callback) => callback(),
+});
 
 /**
  * Simulated transport.
@@ -60,6 +68,8 @@ export const sim =
         return toHex(chain!.id);
       }
 
+      // TODO(kyle) add request to FIFO queue
+
       // same request returns the same response, regardless of order
       const id = JSON.stringify(body);
 
@@ -72,7 +82,7 @@ export const sim =
 
       requestCount.set(id, nonce + 1);
 
-      if (seedrandom(SEED + id + nonce)() < SIM_PARAMS.RPC_ERROR_RATE) {
+      if (seedrandom(SEED + id + nonce)() < SIM_PARAMS.ERROR_RATE) {
         throw new Error("Simulated error");
       }
 
@@ -500,7 +510,10 @@ export const sim =
       return result;
     };
 
-    return custom({ request })({ chain, retryCount: 0 });
+    return custom({ request: (body) => FIFO_QUEUE.add(() => request(body)) })({
+      chain,
+      retryCount: 0,
+    });
   };
 
 export type RpcBlockHeader = Omit<RpcBlock, "transactions"> & {
