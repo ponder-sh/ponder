@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.33
+
+### Patch Changes
+
+- [#1894](https://github.com/ponder-sh/ponder/pull/1894) [`52db251`](https://github.com/ponder-sh/ponder/commit/52db2516a7de4e56f3c635d7461d04dc4aae0ae1) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for chain IDs between 2147483647 (Postgres max integer) and 9007199254740991 (JavaScript Number.MAX_SAFE_INTEGER).
+
 ## 0.11.32
 
 ### Patch Changes
