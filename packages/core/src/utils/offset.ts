@@ -64,7 +64,7 @@ type TupleAbiParameter = AbiParameter & { components: readonly AbiParameter[] };
 export function getNestedParamOffset(
   param: AbiParameter,
   names: string[],
-): number | undefined {
+): number {
   if (param.type === "tuple") {
     // If the tuple has dynamic children, it uses the dynamic encoding
     // scheme (32 byte header).
@@ -72,30 +72,34 @@ export function getNestedParamOffset(
     let isFound = false;
     for (const component of (param as TupleAbiParameter).components) {
       if (component.name === names[0]) {
-        // the right branch, go deeper
+        // the end of the branch
         if (names.length === 1) {
           isFound = true;
-          return hasDynamicChild(component) ? undefined : consumed;
+          break;
         }
 
+        // additional nesting
         if (component.type === "tuple") {
           const nestedConsumed = getNestedParamOffset(
             component,
             names.slice(1),
           );
-          if (nestedConsumed === undefined) return undefined;
           return consumed + nestedConsumed;
+        } else {
+          throw new Error(
+            `Factory event parameter '${param.name}.${names.join(".")}' is not valid for ${param.name} struct signature.`,
+          );
         }
-
-        return undefined;
       } else {
-        // not the right branhc, if dynamic undefined; if not getbytesbyparam
-        if (hasDynamicChild(component)) return undefined;
         consumed += getBytesConsumedByParam(component);
       }
     }
 
-    if (!isFound) return undefined;
+    if (!isFound) {
+      throw new Error(
+        `Factory event parameter '${param.name}.${names.join(".")}' not found in ${param.name} struct signature.`,
+      );
+    }
 
     return consumed;
   }
