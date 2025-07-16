@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.32
+
+### Patch Changes
+
+- [#1891](https://github.com/ponder-sh/ponder/pull/1891) [`c5340ca`](https://github.com/ponder-sh/ponder/commit/c5340ca938214472b6f12b57808c2ec813062469) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug in `v0.11.31` breaking backwards compatibility with crash recovery.
+
 ## 0.11.31
 
 ### Patch Changes
