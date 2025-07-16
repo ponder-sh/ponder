@@ -31,6 +31,7 @@ import {
   type PonderApp,
   start,
 } from "../../packages/core/src/bin/commands/start.js";
+import { createQBNodePg } from "../../packages/core/src/database/queryBuilder.js";
 import { getPrimaryKeyColumns } from "../../packages/core/src/drizzle/index.js";
 import type {
   Factory,
@@ -51,7 +52,7 @@ import { promiseWithResolvers } from "../../packages/core/src/utils/promiseWithR
 import { _eth_getBlockByNumber } from "../../packages/core/src/utils/rpc.js";
 import * as SUPER_ASSESSMENT from "../apps/super-assessment/schema.js";
 import { metadata } from "../schema.js";
-import { dbSim } from "./db-sim";
+import { dbSim } from "./db-sim.js";
 import { type RpcBlockHeader, realtimeBlockEngine, sim } from "./rpc-sim.js";
 import { getJoinConditions } from "./sql.js";
 
@@ -256,12 +257,12 @@ const onBuild = async (app: PonderApp) => {
     msg: "Mocking syncQB, adminQB, userQB, and readonlyQB",
   });
 
-  // app.database.syncQB = createQB(
+  // app.database.syncQB = createQBNodePg(
   //   dbSim(drizzle(app.database.driver.sync!, { casing: "snake_case" })),
   //   { common: app.common },
   // );
 
-  // app.database.adminQB = createQB(
+  // app.database.adminQB = createQBNodePg(
   //   dbSim(drizzle(app.database.driver.admin!, { casing: "snake_case" })),
   //   {
   //     common: app.common,
