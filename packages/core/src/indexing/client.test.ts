@@ -13,8 +13,8 @@ import {
   deployRevert,
   mintErc20,
 } from "@/_test/simulate.js";
-import { getChain, publicClient } from "@/_test/utils.js";
-import type { LogEvent } from "@/internal/types.js";
+import { getChain, publicClient, testClient } from "@/_test/utils.js";
+import type { BlockEvent, LogEvent } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import {
@@ -459,4 +459,96 @@ test("request() revert", async (context) => {
   }).catch((error) => error);
 
   expect(response1).toBeInstanceOf(Error);
+});
+
+test("readContract() action retry", async (context) => {
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { syncStore } = await setupDatabaseServices(context);
+
+  await testClient.mine({ blocks: 1 });
+
+  const requestSpy = vi.spyOn(rpc, "request");
+
+  requestSpy.mockReturnValueOnce(Promise.resolve("0x"));
+
+  const event = {
+    type: "block",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "Contract:block",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      block: { number: 1n } as LogEvent["event"]["block"],
+    },
+  } satisfies BlockEvent;
+
+  const cachedViemClient = createCachedViemClient({
+    common: context.common,
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
+    syncStore,
+    eventCount: {},
+  });
+
+  cachedViemClient.event = event;
+
+  await cachedViemClient.getClient(chain).readContract({
+    abi: erc20ABI,
+    functionName: "totalSupply",
+    address,
+  });
+
+  expect(requestSpy).toHaveBeenCalledTimes(2);
+});
+
+test("getBlock() action retry", async (context) => {
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  await testClient.mine({ blocks: 1 });
+
+  const { syncStore } = await setupDatabaseServices(context);
+
+  const requestSpy = vi.spyOn(rpc, "request");
+
+  requestSpy.mockReturnValueOnce(Promise.resolve(null));
+
+  const event = {
+    type: "block",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "Contract:block",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      block: { number: 1n } as LogEvent["event"]["block"],
+    },
+  } satisfies BlockEvent;
+
+  const cachedViemClient = createCachedViemClient({
+    common: context.common,
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
+    syncStore,
+    eventCount: {},
+  });
+
+  cachedViemClient.event = event;
+
+  await cachedViemClient.getClient(chain).getBlock({ blockNumber: 1n });
+
+  expect(requestSpy).toHaveBeenCalledTimes(2);
 });
