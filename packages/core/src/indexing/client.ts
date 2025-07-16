@@ -11,6 +11,7 @@ import {
   type Abi,
   type Account,
   type Address,
+  BlockNotFoundError,
   type Client,
   type ContractFunctionArgs,
   type ContractFunctionName,
@@ -30,6 +31,8 @@ import {
   type ReadContractReturnType,
   type SimulateContractParameters,
   type SimulateContractReturnType,
+  TransactionNotFoundError,
+  TransactionReceiptNotFoundError,
   type Transport,
   type Chain as ViemChain,
   createClient,
@@ -68,6 +71,15 @@ const SAMPLING_RATE = 10;
 const DB_PREDICTION_THRESHOLD = 0.2;
 const RPC_PREDICTION_THRESHOLD = 0.8;
 const MAX_CONSTANT_PATTERN_COUNT = 10;
+
+/**
+ * RPC responses that are not cached. These are valid responses
+ * that are sometimes erroneously returned by the RPC.
+ *
+ * `"0x"` is returned by `eth_call` and causes the `ContractFunctionZeroDataError`.
+ * `null` is returned by `eth_getBlockByNumber` and `eth_getBlockByHash` and causes the `BlockNotFoundError`.
+ */
+const UNCACHED_RESPONSES = ["0x", null] as any[];
 
 /** RPC methods that reference a block number. */
 const blockDependentMethods = new Set([
@@ -119,6 +131,17 @@ const blockDependentActions = [
 
 /** Viem actions where the `block` property is non-existent. */
 const nonBlockDependentActions = [
+  "getTransaction",
+  "getTransactionReceipt",
+  "getTransactionConfirmations",
+] as const satisfies readonly (keyof ReturnType<typeof publicActions>)[];
+
+/** Viem actions that should be retried if they fail. */
+const retryableActions = [
+  "readContract",
+  "simulateContract",
+  "multicall",
+  "getBlock",
   "getTransaction",
   "getTransactionReceipt",
   "getTransactionConfirmations",
@@ -513,8 +536,13 @@ export const createCachedViemClient = ({
             return await action(...args);
           } catch (error) {
             if (
-              (error as Error)?.message?.includes("returned no data") ===
-                false ||
+              (error instanceof BlockNotFoundError === false &&
+                error instanceof TransactionNotFoundError === false &&
+                error instanceof TransactionReceiptNotFoundError === false &&
+                // Note: Another way to catch this error is:
+                // `error instanceof ContractFunctionExecutionError && error.cause instanceOf ContractFunctionZeroDataError`
+                (error as Error)?.message?.includes("returned no data") ===
+                  false) ||
               i === RETRY_COUNT
             ) {
               throw error;
@@ -529,13 +557,11 @@ export const createCachedViemClient = ({
     }
 
     // @ts-ignore
-    actions.multicall = getRetryAction(getPonderAction("multicall"));
+    actions.multicall = getPonderAction("multicall");
     // @ts-ignore
-    actions.readContract = getRetryAction(getPonderAction("readContract"));
-    actions.simulateContract = getRetryAction(
-      // @ts-ignore
-      getPonderAction("simulateContract"),
-    );
+    actions.readContract = getPonderAction("readContract");
+    // @ts-ignore
+    actions.simulateContract = getPonderAction("simulateContract");
 
     for (const action of nonBlockDependentActions) {
       // @ts-ignore
@@ -551,6 +577,11 @@ export const createCachedViemClient = ({
     ] as const) {
       // @ts-ignore
       actions[action] = _publicActions[action];
+    }
+
+    for (const action of retryableActions) {
+      // @ts-ignore
+      actions[action] = getRetryAction(actions[action]);
     }
 
     const actionsWithMetrics = {} as PonderActions;
@@ -777,7 +808,7 @@ export const cachedTransport =
 
                 if (result instanceof Error) continue;
 
-                if (result !== "0x") {
+                if (UNCACHED_RESPONSES.includes(result) === false) {
                   requestsToInsert.add(request);
                 }
 
@@ -862,7 +893,10 @@ export const cachedTransport =
               const request = _requests[i]!;
               const result = multicallResult[i]!;
 
-              if (result.success && result.returnData !== "0x") {
+              if (
+                result.success &&
+                UNCACHED_RESPONSES.includes(result.returnData) === false
+              ) {
                 requestsToInsert.add(request);
               }
 
@@ -975,9 +1009,7 @@ export const cachedTransport =
 
               if (result instanceof Error) throw result;
 
-              // Note: "0x" is a valid response for some requests, but is sometimes erroneously returned by the RPC.
-              // Because the frequency of these valid requests with no return data is very low, we don't cache it.
-              if (result !== "0x") {
+              if (UNCACHED_RESPONSES.includes(result) === false) {
                 // Note: insertRpcRequestResults errors can be ignored and not awaited, since
                 // the response is already fetched.
                 syncStore
@@ -1029,9 +1061,7 @@ export const cachedTransport =
 
           const response = await rpc.request(body);
 
-          // Note: "0x" is a valid response for some requests, but is sometimes erroneously returned by the RPC.
-          // Because the frequency of these valid requests with no return data is very low, we don't cache it.
-          if (response !== "0x") {
+          if (UNCACHED_RESPONSES.includes(response) === false) {
             // Note: insertRpcRequestResults errors can be ignored and not awaited, since
             // the response is already fetched.
             syncStore
