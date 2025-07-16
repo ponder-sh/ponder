@@ -1,5 +1,13 @@
 # ponder
 
+## 0.11.34
+
+### Patch Changes
+
+- [#1893](https://github.com/ponder-sh/ponder/pull/1893) [`db745eb`](https://github.com/ponder-sh/ponder/commit/db745ebfbb31cb37b11a324f505fa2d745d5cf27) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved retry behavior for `context.client.getBlock()`, `context.client.getTransaction()`, `context.client.getTransactionReceipt()`, and `context.client.getTransactionConfirmations()`. Now, the error `BlockNotFoundError: Block at number "[number]" could not be found` will be retried properly. This solves a common issue where RPCs return empty data for near-tip blocks.
+
+  To remove incorrect cached rpc respones, run the SQL statement: `DELETE FROM ponder_sync.rpc_request_results WHERE result = 'null'`;
+
 ## 0.11.33
 
 ### Patch Changes
