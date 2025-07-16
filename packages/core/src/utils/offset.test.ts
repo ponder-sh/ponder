@@ -51,42 +51,46 @@ test("getBytesConsumedByParam returns expanded byte amount for static tuple type
   ).toBe(32 * 3);
 });
 
-// test("getNestedParamOffset fully static tuple", () => {
-//   const signature1 = ['struct Foo { address bar; bool v; int z; address y }', 'Foo indexed foo'];
-
-//   expect(getNestedParamOffset(parseAbiParameter(signature1), "y".split("."))).toEqual(32 * 3);
-// });
-
-test("getNestedParamOffset fully static nested tuple", () => {
-  const signature = [
-    "struct Bar { address x; address y; address z }",
-    "struct Foo { address a; bool b; int c; Bar d; address e }",
+test("getNestedParamOffset", () => {
+  // fully static tuple
+  let signature = [
+    "struct Foo { address bar; bool v; int z; address y }",
     "Foo indexed foo",
+  ];
+  expect(
+    getNestedParamOffset(parseAbiParameter(signature), "y".split(".")),
+  ).toEqual(32 * 3);
+
+  // fully static nested tuple
+  signature = [
+    "struct Bar { address x; address y; address z }",
+    "struct Fooo { address a; bool b; int c; Bar d; address e }",
+    "Fooo indexed foo",
   ];
 
   expect(
     getNestedParamOffset(parseAbiParameter(signature), "d.y".split(".")),
   ).toEqual(32 * 4);
-});
 
-test("getNestedParamOffset dynamic nested tuple with dynamic parameter after", () => {
-  const signature = [
-    "struct Bar { address x; address y; address z }",
-    "struct Foo { address a; bool b; int c; Bar d; string e }",
-    "Foo indexed foo",
+  // dynamic nested tuple with dynamic parameter after
+  signature = [
+    "struct Barr { address x; address y; address z }",
+    "struct Foooo { address a; bool b; int c; Barr d; string e }",
+    "Foooo indexed foo",
   ];
 
   expect(
     getNestedParamOffset(parseAbiParameter(signature), "d.y".split(".")),
   ).toEqual(32 * 4);
-});
 
-test("getNestedParamOffset dynamic nested tuple with dynamic parameter before", () => {
-  const signature = [
-    "struct Bar { address x; address y; address z }",
-    "struct Foo { string a; bool b; int c; Bar d; address e }",
-    "Foo indexed foo",
+  // dynamic nested tuple with dynamic parameter before
+  signature = [
+    "struct Barrr { address x; address y; address z }",
+    "struct Fooooo { string a; bool b; int c; Barrr d; address e }",
+    "Fooooo indexed foo",
   ];
 
-  expect(parseAbiParameter(signature)).toEqual(32 * 4);
+  expect(
+    getNestedParamOffset(parseAbiParameter(signature), "d.y".split(".")),
+  ).toEqual(undefined);
 });
