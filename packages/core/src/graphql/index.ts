@@ -5,7 +5,6 @@ import type { Schema, Status } from "@/internal/types.js";
 import type { Drizzle, ReadonlyDrizzle } from "@/types/db.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
-import { deserialize, serialize } from "@/utils/serialize.js";
 import DataLoader from "dataloader";
 import {
   type Column,
@@ -64,6 +63,7 @@ import {
   GraphQLSchema,
   GraphQLString,
 } from "graphql";
+import superjson from "superjson";
 import { GraphQLJSON } from "./json.js";
 
 type Parent = Record<string, any>;
@@ -959,12 +959,12 @@ function decodeCursor(cursor: string): { [k: string]: unknown } {
 }
 
 function encodeRowFragment(rowFragment: { [k: string]: unknown }): string {
-  return Buffer.from(serialize(rowFragment)).toString("base64");
+  return Buffer.from(superjson.stringify(rowFragment)).toString("base64");
 }
 function decodeRowFragment(encodedRowFragment: string): {
   [k: string]: unknown;
 } {
-  return deserialize(Buffer.from(encodedRowFragment, "base64").toString());
+  return superjson.parse(Buffer.from(encodedRowFragment, "base64").toString());
 }
 
 function buildCursorCondition(
