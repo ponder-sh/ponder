@@ -16,14 +16,14 @@ import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
 import type { DrizzleConfig } from "drizzle-orm";
 import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
-import type {
-  PgDatabase,
-  // PgDialect,
-  PgQueryResultHKT,
-  PgTransactionConfig,
+import {
+  type PgDatabase,
+  PgDialect,
+  type PgQueryResultHKT,
+  type PgTransactionConfig,
 } from "drizzle-orm/pg-core";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
-import type pg from "pg";
+import pg from "pg";
 
 const RETRY_COUNT = 9;
 const BASE_DURATION = 125;
@@ -98,8 +98,8 @@ export const createQBNodePg = <
 ): QB<TSchema, pg.Pool | pg.PoolClient> => {
   const db = drizzleNodePg(client, params);
 
-  // const dialect = new PgDialect({ casing: "snake_case" });
-  // const isPool = client instanceof pg.Pool;
+  const dialect = new PgDialect({ casing: "snake_case" });
+  const isPool = client instanceof pg.Pool;
 
   const wrapTx = (db: PgDatabase<PgQueryResultHKT, TSchema>) => {
     const _transaction = db.transaction.bind(db);
@@ -138,143 +138,143 @@ export const createQBNodePg = <
 
   // non-transaction queries (retryable)
 
-  // const execute = db._.session.execute.bind(db._.session);
-  // db._.session.execute = async (...args) => {
-  //   return wrap(
-  //     () => execute(...args),
-  //     dialect.sqlToQuery(args[0]).sql,
-  //     params,
-  //   );
-  // };
+  const execute = db._.session.execute.bind(db._.session);
+  db._.session.execute = async (...args) => {
+    return wrap(
+      () => execute(...args),
+      dialect.sqlToQuery(args[0]).sql,
+      params,
+    );
+  };
 
-  // const prepareQuery = db._.session.prepareQuery.bind(db._.session);
-  // db._.session.prepareQuery = (...args) => {
-  //   const result = prepareQuery(...args);
-  //   const execute = result.execute.bind(result);
-  //   result.execute = async (..._args) => {
-  //     return wrap(() => execute(..._args), args[0].sql, params);
-  //   };
-  //   return result;
-  // };
+  const prepareQuery = db._.session.prepareQuery.bind(db._.session);
+  db._.session.prepareQuery = (...args) => {
+    const result = prepareQuery(...args);
+    const execute = result.execute.bind(result);
+    result.execute = async (..._args) => {
+      return wrap(() => execute(..._args), args[0].sql, params);
+    };
+    return result;
+  };
 
   // transaction queries (non-retryable)
 
-  // const transaction = db._.session.transaction.bind(db._.session);
-  // db._.session.transaction = async (...args) => {
-  //   const callback = args[0];
-  //   args[0] = async (..._args) => {
-  //     const tx = _args[0] as PgDatabase<PgQueryResultHKT, TSchema>;
-  //     const txExecute = isPool
-  //       ? tx._.session.execute.bind(tx._.session)
-  //       : execute;
-  //     // @ts-expect-error
-  //     tx._.session.execute = async (...args) => {
-  //       return wrap(
-  //         () =>
-  //           txExecute(...args).catch((error) => {
-  //             throw new TransactionError(error.message);
-  //           }),
-  //         dialect.sqlToQuery(args[0]).sql,
-  //         params,
-  //       );
-  //     };
+  const transaction = db._.session.transaction.bind(db._.session);
+  db._.session.transaction = async (...args) => {
+    const callback = args[0];
+    args[0] = async (..._args) => {
+      const tx = _args[0] as PgDatabase<PgQueryResultHKT, TSchema>;
+      const txExecute = isPool
+        ? tx._.session.execute.bind(tx._.session)
+        : execute;
+      // @ts-expect-error
+      tx._.session.execute = async (...args) => {
+        return wrap(
+          () =>
+            txExecute(...args).catch((error) => {
+              throw new TransactionError(error.message);
+            }),
+          dialect.sqlToQuery(args[0]).sql,
+          params,
+        );
+      };
 
-  //     const txPrepareQuery = isPool
-  //       ? tx._.session.prepareQuery.bind(tx._.session)
-  //       : prepareQuery;
-  //     // @ts-ignore
-  //     tx._.session.prepareQuery = (...args) => {
-  //       const result = txPrepareQuery(...args);
-  //       const execute = result.execute.bind(result);
-  //       result.execute = async (..._args) => {
-  //         return wrap(
-  //           () =>
-  //             execute(..._args).catch((error) => {
-  //               throw new TransactionError(error.message);
-  //             }),
-  //           args[0].sql,
-  //           params,
-  //         );
-  //       };
-  //       return result;
-  //     };
+      const txPrepareQuery = isPool
+        ? tx._.session.prepareQuery.bind(tx._.session)
+        : prepareQuery;
+      // @ts-ignore
+      tx._.session.prepareQuery = (...args) => {
+        const result = txPrepareQuery(...args);
+        const execute = result.execute.bind(result);
+        result.execute = async (..._args) => {
+          return wrap(
+            () =>
+              execute(..._args).catch((error) => {
+                throw new TransactionError(error.message);
+              }),
+            args[0].sql,
+            params,
+          );
+        };
+        return result;
+      };
 
-  //     return callback(..._args);
-  //   };
+      return callback(..._args);
+    };
 
-  //   return wrap(() => transaction(...args), "begin", params);
-  // };
+    return wrap(() => transaction(...args), "begin", params);
+  };
 
   wrapTx(db);
 
-  let qb = ((_label: string) => {
+  let qb = ((label: string) => {
     const db = drizzleNodePg(client, params);
 
-    // const execute = db._.session.execute.bind(db._.session);
-    // db._.session.execute = async (...args) => {
-    //   return wrap(() => execute(...args), dialect.sqlToQuery(args[0]).sql, {
-    //     ...params,
-    //     label,
-    //   });
-    // };
+    const execute = db._.session.execute.bind(db._.session);
+    db._.session.execute = async (...args) => {
+      return wrap(() => execute(...args), dialect.sqlToQuery(args[0]).sql, {
+        ...params,
+        label,
+      });
+    };
 
-    // const prepareQuery = db._.session.prepareQuery.bind(db._.session);
-    // db._.session.prepareQuery = (...args) => {
-    //   const result = prepareQuery(...args);
-    //   const execute = result.execute.bind(result);
-    //   result.execute = async (..._args) => {
-    //     return wrap(() => execute(..._args), args[0].sql, { ...params, label });
-    //   };
-    //   return result;
-    // };
+    const prepareQuery = db._.session.prepareQuery.bind(db._.session);
+    db._.session.prepareQuery = (...args) => {
+      const result = prepareQuery(...args);
+      const execute = result.execute.bind(result);
+      result.execute = async (..._args) => {
+        return wrap(() => execute(..._args), args[0].sql, { ...params, label });
+      };
+      return result;
+    };
 
     // transaction queries (non-retryable)
 
-    // const transaction = db._.session.transaction.bind(db._.session);
-    // db._.session.transaction = async (...args) => {
-    //   const callback = args[0];
-    //   args[0] = async (..._args) => {
-    //     const tx = _args[0] as PgDatabase<PgQueryResultHKT, TSchema>;
-    //     const txExecute = isPool
-    //       ? tx._.session.execute.bind(tx._.session)
-    //       : execute;
-    //     // @ts-expect-error
-    //     tx._.session.execute = async (...args) => {
-    //       return wrap(
-    //         () =>
-    //           txExecute(...args).catch((error) => {
-    //             throw new TransactionError(error.message);
-    //           }),
-    //         dialect.sqlToQuery(args[0]).sql,
-    //         { ...params, label },
-    //       );
-    //     };
+    const transaction = db._.session.transaction.bind(db._.session);
+    db._.session.transaction = async (...args) => {
+      const callback = args[0];
+      args[0] = async (..._args) => {
+        const tx = _args[0] as PgDatabase<PgQueryResultHKT, TSchema>;
+        const txExecute = isPool
+          ? tx._.session.execute.bind(tx._.session)
+          : execute;
+        // @ts-expect-error
+        tx._.session.execute = async (...args) => {
+          return wrap(
+            () =>
+              txExecute(...args).catch((error) => {
+                throw new TransactionError(error.message);
+              }),
+            dialect.sqlToQuery(args[0]).sql,
+            { ...params, label },
+          );
+        };
 
-    //     const txPrepareQuery = isPool
-    //       ? tx._.session.prepareQuery.bind(tx._.session)
-    //       : prepareQuery;
-    //     // @ts-ignore
-    //     tx._.session.prepareQuery = (...args) => {
-    //       const result = txPrepareQuery(...args);
-    //       const execute = result.execute.bind(result);
-    //       result.execute = async (..._args) => {
-    //         return wrap(
-    //           () =>
-    //             execute(..._args).catch((error) => {
-    //               throw new TransactionError(error.message);
-    //             }),
-    //           args[0].sql,
-    //           { ...params, label },
-    //         );
-    //       };
-    //       return result;
-    //     };
+        const txPrepareQuery = isPool
+          ? tx._.session.prepareQuery.bind(tx._.session)
+          : prepareQuery;
+        // @ts-ignore
+        tx._.session.prepareQuery = (...args) => {
+          const result = txPrepareQuery(...args);
+          const execute = result.execute.bind(result);
+          result.execute = async (..._args) => {
+            return wrap(
+              () =>
+                execute(..._args).catch((error) => {
+                  throw new TransactionError(error.message);
+                }),
+              args[0].sql,
+              { ...params, label },
+            );
+          };
+          return result;
+        };
 
-    //     return callback(..._args);
-    //   };
+        return callback(..._args);
+      };
 
-    //   return wrap(() => transaction(...args), "begin", { ...params, label });
-    // };
+      return wrap(() => transaction(...args), "begin", { ...params, label });
+    };
 
     wrapTx(db);
 
@@ -320,7 +320,7 @@ export const createQBPGlite = <
 ): QB<TSchema, pg.Pool | pg.PoolClient> => {
   const db = drizzlePglite(client, params);
 
-  // const dialect = new PgDialect({ casing: "snake_case" });
+  const dialect = new PgDialect({ casing: "snake_case" });
 
   const wrapTx = (db: PgDatabase<PgQueryResultHKT, TSchema>) => {
     const _transaction = db.transaction.bind(db);
@@ -359,135 +359,136 @@ export const createQBPGlite = <
 
   // non-transaction queries (retryable)
 
-  // const execute = db._.session.execute.bind(db._.session);
-  // db._.session.execute = async (...args) => {
-  //   return wrap(
-  //     () => execute(...args),
-  //     dialect.sqlToQuery(args[0]).sql,
-  //     params,
-  //   );
-  // };
+  const execute = db._.session.execute.bind(db._.session);
+  db._.session.execute = async (...args) => {
+    return wrap(
+      () => execute(...args),
+      dialect.sqlToQuery(args[0]).sql,
+      params,
+    );
+  };
 
-  // const prepareQuery = db._.session.prepareQuery.bind(db._.session);
-  // db._.session.prepareQuery = (...args) => {
-  //   const result = prepareQuery(...args);
-  //   const execute = result.execute.bind(result);
-  //   result.execute = async (..._args) => {
-  //     return wrap(() => execute(..._args), args[0].sql, params);
-  //   };
-  //   return result;
-  // };
+  const prepareQuery = db._.session.prepareQuery.bind(db._.session);
+  db._.session.prepareQuery = (...args) => {
+    const result = prepareQuery(...args);
+    const execute = result.execute.bind(result);
+    result.execute = async (..._args) => {
+      return wrap(() => execute(..._args), args[0].sql, params);
+    };
+    return result;
+  };
 
   // transaction queries (non-retryable)
 
-  // const transaction = db._.session.transaction.bind(db._.session);
-  // db._.session.transaction = async (...args) => {
-  //   const callback = args[0];
-  //   args[0] = async (..._args) => {
-  //     const tx = _args[0] as PgDatabase<PgQueryResultHKT, TSchema>;
-  //     const txExecute = execute;
-  //     // @ts-expect-error
-  //     tx._.session.execute = async (...args) => {
-  //       return wrap(
-  //         () =>
-  //           txExecute(...args).catch((error) => {
-  //             throw new TransactionError(error.message);
-  //           }),
-  //         dialect.sqlToQuery(args[0]).sql,
-  //         params,
-  //       );
-  //     };
+  const transaction = db._.session.transaction.bind(db._.session);
+  db._.session.transaction = async (...args) => {
+    const callback = args[0];
+    args[0] = async (..._args) => {
+      const tx = _args[0] as PgDatabase<PgQueryResultHKT, TSchema>;
+      const execute = tx._.session.execute.bind(tx._.session);
+      // @ts-expect-error
+      tx._.session.execute = async (...args) => {
+        return wrap(
+          () =>
+            execute(...args).catch((error) => {
+              throw new TransactionError(error.message);
+            }),
+          dialect.sqlToQuery(args[0]).sql,
+          params,
+        );
+      };
 
-  //     const txPrepareQuery = prepareQuery;
-  //     // @ts-ignore
-  //     tx._.session.prepareQuery = (...args) => {
-  //       const result = txPrepareQuery(...args);
-  //       const execute = result.execute.bind(result);
-  //       result.execute = async (..._args) => {
-  //         return wrap(
-  //           () =>
-  //             execute(..._args).catch((error) => {
-  //               throw new TransactionError(error.message);
-  //             }),
-  //           args[0].sql,
-  //           params,
-  //         );
-  //       };
-  //       return result;
-  //     };
+      const prepareQuery = tx._.session.prepareQuery.bind(tx._.session);
+      // @ts-ignore
+      tx._.session.prepareQuery = (...args) => {
+        const result = prepareQuery(...args);
+        // const execute = result.execute.bind(result);
+        // result.execute = async (..._args) => {
+        //   return wrap(
+        //     () =>
+        //       execute(..._args).catch((error) => {
+        //         throw new TransactionError(error.message);
+        //       }),
+        //     args[0].sql,
+        //     params,
+        //   );
+        // };
+        return result;
+      };
 
-  //     return callback(..._args);
-  //   };
+      return callback(..._args);
+    };
 
-  //   return wrap(() => transaction(...args), "begin", params);
-  // };
+    return wrap(() => transaction(...args), "begin", params);
+  };
 
   wrapTx(db);
 
-  let qb = ((_label: string) => {
+  let qb = ((label: string) => {
     const db = drizzlePglite(client, params);
 
-    // const execute = db._.session.execute.bind(db._.session);
-    // db._.session.execute = async (...args) => {
-    //   return wrap(() => execute(...args), dialect.sqlToQuery(args[0]).sql, {
-    //     ...params,
-    //     label,
-    //   });
-    // };
+    const execute = db._.session.execute.bind(db._.session);
+    db._.session.execute = async (...args) => {
+      return wrap(() => execute(...args), dialect.sqlToQuery(args[0]).sql, {
+        ...params,
+        label,
+      });
+    };
 
-    // const prepareQuery = db._.session.prepareQuery.bind(db._.session);
-    // db._.session.prepareQuery = (...args) => {
-    //   const result = prepareQuery(...args);
-    //   const execute = result.execute.bind(result);
-    //   result.execute = async (..._args) => {
-    //     return wrap(() => execute(..._args), args[0].sql, { ...params, label });
-    //   };
-    //   return result;
-    // };
+    const prepareQuery = db._.session.prepareQuery.bind(db._.session);
+    db._.session.prepareQuery = (...args) => {
+      const result = prepareQuery(...args);
+      const execute = result.execute.bind(result);
+      result.execute = async (..._args) => {
+        return wrap(() => execute(..._args), args[0].sql, { ...params, label });
+      };
+      return result;
+    };
 
     // transaction queries (non-retryable)
 
-    // const transaction = db._.session.transaction.bind(db._.session);
-    // db._.session.transaction = async (...args) => {
-    //   const callback = args[0];
-    //   args[0] = async (..._args) => {
-    //     const tx = _args[0] as PgDatabase<PgQueryResultHKT, TSchema>;
-    //     const txExecute = execute;
-    //     // @ts-expect-error
-    //     tx._.session.execute = async (...args) => {
-    //       return wrap(
-    //         () =>
-    //           txExecute(...args).catch((error) => {
-    //             throw new TransactionError(error.message);
-    //           }),
-    //         dialect.sqlToQuery(args[0]).sql,
-    //         { ...params, label },
-    //       );
-    //     };
+    const transaction = db._.session.transaction.bind(db._.session);
+    db._.session.transaction = async (...args) => {
+      const callback = args[0];
+      args[0] = async (..._args) => {
+        const tx = _args[0] as PgDatabase<PgQueryResultHKT, TSchema>;
 
-    //     const txPrepareQuery = prepareQuery;
-    //     // @ts-ignore
-    //     tx._.session.prepareQuery = (...args) => {
-    //       const result = txPrepareQuery(...args);
-    //       const execute = result.execute.bind(result);
-    //       result.execute = async (..._args) => {
-    //         return wrap(
-    //           () =>
-    //             execute(..._args).catch((error) => {
-    //               throw new TransactionError(error.message);
-    //             }),
-    //           args[0].sql,
-    //           { ...params, label },
-    //         );
-    //       };
-    //       return result;
-    //     };
+        const execute = tx._.session.execute.bind(tx._.session);
+        // @ts-expect-error
+        tx._.session.execute = async (...args) => {
+          return wrap(
+            () =>
+              execute(...args).catch((error) => {
+                throw new TransactionError(error.message);
+              }),
+            dialect.sqlToQuery(args[0]).sql,
+            { ...params, label },
+          );
+        };
 
-    //     return callback(..._args);
-    //   };
+        const prepareQuery = tx._.session.prepareQuery.bind(tx._.session);
+        // @ts-ignore
+        tx._.session.prepareQuery = (...args) => {
+          const result = prepareQuery(...args);
+          // const execute = result.execute.bind(result);
+          // result.execute = async (..._args) => {
+          //   return wrap(
+          //     () =>
+          //       execute(..._args).catch((error) => {
+          //         throw new TransactionError(error.message);
+          //       }),
+          //     args[0].sql,
+          //     { ...params, label },
+          //   );
+          // };
+          return result;
+        };
 
-    //   return wrap(() => transaction(...args), "begin", { ...params, label });
-    // };
+        return callback(..._args);
+      };
+
+      return wrap(() => transaction(...args), "begin", { ...params, label });
+    };
 
     wrapTx(db);
 
@@ -515,7 +516,6 @@ export const createQBPGlite = <
   return qb;
 };
 
-// @ts-expect-error
 const wrap = async <T>(
   fn: () => Promise<T>,
   sql: string,
