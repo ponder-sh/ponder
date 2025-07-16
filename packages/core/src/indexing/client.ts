@@ -31,6 +31,8 @@ import {
   type ReadContractReturnType,
   type SimulateContractParameters,
   type SimulateContractReturnType,
+  TransactionNotFoundError,
+  TransactionReceiptNotFoundError,
   type Transport,
   type Chain as ViemChain,
   createClient,
@@ -129,6 +131,17 @@ const blockDependentActions = [
 
 /** Viem actions where the `block` property is non-existent. */
 const nonBlockDependentActions = [
+  "getTransaction",
+  "getTransactionReceipt",
+  "getTransactionConfirmations",
+] as const satisfies readonly (keyof ReturnType<typeof publicActions>)[];
+
+/** Viem actions that should be retried if they fail. */
+const retryableActions = [
+  "readContract",
+  "simulateContract",
+  "multicall",
+  "getBlock",
   "getTransaction",
   "getTransactionReceipt",
   "getTransactionConfirmations",
@@ -524,6 +537,8 @@ export const createCachedViemClient = ({
           } catch (error) {
             if (
               (error instanceof BlockNotFoundError === false &&
+                error instanceof TransactionNotFoundError === false &&
+                error instanceof TransactionReceiptNotFoundError === false &&
                 // Note: Another way to catch this error is:
                 // `error instanceof ContractFunctionExecutionError && error.cause instanceOf ContractFunctionZeroDataError`
                 (error as Error)?.message?.includes("returned no data") ===
@@ -542,13 +557,11 @@ export const createCachedViemClient = ({
     }
 
     // @ts-ignore
-    actions.multicall = getRetryAction(getPonderAction("multicall"));
+    actions.multicall = getPonderAction("multicall");
     // @ts-ignore
-    actions.readContract = getRetryAction(getPonderAction("readContract"));
-    actions.simulateContract = getRetryAction(
-      // @ts-ignore
-      getPonderAction("simulateContract"),
-    );
+    actions.readContract = getPonderAction("readContract");
+    // @ts-ignore
+    actions.simulateContract = getPonderAction("simulateContract");
 
     for (const action of nonBlockDependentActions) {
       // @ts-ignore
@@ -558,6 +571,7 @@ export const createCachedViemClient = ({
     // required block actions
 
     for (const action of [
+      "getBlock",
       "getBlockTransactionCount",
       "getTransactionCount",
     ] as const) {
@@ -565,8 +579,10 @@ export const createCachedViemClient = ({
       actions[action] = _publicActions[action];
     }
 
-    // @ts-ignore
-    actions.getBlock = getRetryAction(_publicActions.getBlock);
+    for (const action of retryableActions) {
+      // @ts-ignore
+      actions[action] = getRetryAction(actions[action]);
+    }
 
     const actionsWithMetrics = {} as PonderActions;
 
