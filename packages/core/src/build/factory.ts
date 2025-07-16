@@ -81,12 +81,6 @@ export function buildLogFactory({
       params.slice(1),
     );
 
-    if (nestedOffset === undefined) {
-      throw new Error(
-        "Factory event parameter invalid or has dynamic parameter in front.",
-      );
-    }
-
     offset += nestedOffset;
   }
 
