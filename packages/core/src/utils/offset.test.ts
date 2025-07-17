@@ -54,8 +54,8 @@ test("getBytesConsumedByParam returns expanded byte amount for static tuple type
 test("getNestedParamOffset", () => {
   // fully static tuple
   let signature = [
-    "struct Foo { address bar; bool v; int z; address y }",
-    "Foo indexed foo",
+    "struct Foo_a { address bar; bool v; int z; address y }",
+    "Foo_a indexed foo",
   ];
   expect(
     getNestedParamOffset(parseAbiParameter(signature), "y".split(".")),
@@ -63,9 +63,9 @@ test("getNestedParamOffset", () => {
 
   // fully static nested tuple
   signature = [
-    "struct Bar { address x; address y; address z }",
-    "struct Fooo { address a; bool b; int c; Bar d; address e }",
-    "Fooo indexed foo",
+    "struct Bar_a { address x; address y; address z }",
+    "struct Foo_b { address a; bool b; int c; Bar_a d; address e }",
+    "Foo_b indexed foo",
   ];
 
   expect(
@@ -74,9 +74,9 @@ test("getNestedParamOffset", () => {
 
   // dynamic nested tuple with dynamic parameter after
   signature = [
-    "struct Barr { address x; address y; address z }",
-    "struct Foooo { address a; bool b; int c; Barr d; string e }",
-    "Foooo indexed foo",
+    "struct Bar_b { address x; address y; address z }",
+    "struct Foo_c { address a; bool b; int c; Bar_b d; string e }",
+    "Foo_c indexed foo",
   ];
 
   expect(
@@ -85,12 +85,12 @@ test("getNestedParamOffset", () => {
 
   // dynamic nested tuple with dynamic parameter before
   signature = [
-    "struct Barrr { address x; address y; address z }",
-    "struct Fooooo { string a; bool b; int c; Barrr d; address e }",
-    "Fooooo indexed foo",
+    "struct Bar_c { address x; address y; address z }",
+    "struct Foo_d { string a; Bar_c b; int c; Bar_c d; address e }",
+    "Foo_d indexed foo",
   ];
 
   expect(
     getNestedParamOffset(parseAbiParameter(signature), "d.y".split(".")),
-  ).toEqual(undefined);
+  ).toEqual(32 * 6);
 });
