@@ -59,54 +59,49 @@ export function getBytesConsumedByParam(param: AbiParameter): number {
   });
 }
 
-type TupleAbiParameter = AbiParameter & { components: readonly AbiParameter[] };
+export type TupleAbiParameter = AbiParameter & {
+  type: "tuple";
+  components: readonly AbiParameter[];
+};
 
 export function getNestedParamOffset(
-  param: AbiParameter,
+  param: TupleAbiParameter,
   names: string[],
 ): number {
-  if (param.type === "tuple") {
-    // If the tuple has dynamic children, it uses the dynamic encoding
-    // scheme (32 byte header).
-    let consumed = 0;
-    let isFound = false;
-    for (const component of (param as TupleAbiParameter).components) {
-      if (component.name === names[0]) {
-        // the end of the branch
-        if (names.length === 1) {
-          isFound = true;
-          break;
-        }
-
-        // additional nesting
-        if (component.type === "tuple") {
-          const nestedConsumed = getNestedParamOffset(
-            component,
-            names.slice(1),
-          );
-          return consumed + nestedConsumed;
-        } else {
-          throw new Error(
-            `Factory event parameter '${param.name}.${names.join(".")}' is not valid for ${param.name} struct signature.`,
-          );
-        }
-      } else {
-        consumed += getBytesConsumedByParam(component);
+  let consumed = 0;
+  let isFound = false;
+  for (const component of param.components) {
+    if (component.name === names[0]) {
+      // the end of the branch
+      if (names.length === 1) {
+        isFound = true;
+        break;
       }
-    }
 
-    if (!isFound) {
-      throw new Error(
-        `Factory event parameter '${param.name}.${names.join(".")}' not found in ${param.name} struct signature.`,
-      );
+      // additional nesting
+      if (component.type === "tuple") {
+        const nestedConsumed = getNestedParamOffset(
+          component as TupleAbiParameter,
+          names.slice(1),
+        );
+        return consumed + nestedConsumed;
+      } else {
+        throw new Error(
+          `Factory event parameter '${param.name}.${names.join(".")}' is not valid for ${param.name} struct signature.`,
+        );
+      }
+    } else {
+      consumed += getBytesConsumedByParam(component);
     }
-
-    return consumed;
   }
 
-  throw new InvalidAbiDecodingTypeError(param.type, {
-    docsPath: "/docs/contract/decodeAbiParameters",
-  });
+  if (!isFound) {
+    throw new Error(
+      `Factory event parameter '${param.name}.${names.join(".")}' not found in ${param.name} struct signature.`,
+    );
+  }
+
+  return consumed;
 }
 
 function hasDynamicChild(param: AbiParameter) {
