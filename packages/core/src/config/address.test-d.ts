@@ -35,15 +35,15 @@ test("factory", () => {
   });
 });
 
-const morphoEvent = parseAbiItem([
-  "struct MarketParams {address loanToken;address collateralToken;address oracle;address irm;uint256 lltv;}",
-  "event CreateMarket(Id indexed id, MarketParams marketParams)",
+const event1 = parseAbiItem([
+  "struct Foo {address arg0;address arg1;address arg2;address arg3;uint256 arg4;}",
+  "event CreateMarket(Id indexed id, Foo args)",
 ]);
 
 test("factory", () => {
   factory({
     address: "0xa",
-    event: morphoEvent,
-    parameter: "marketParams.oracle",
+    event: event1,
+    parameter: "args.arg2",
   });
 });

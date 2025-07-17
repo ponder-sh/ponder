@@ -55,13 +55,15 @@ test("buildLogFactory handles LlamaInstanceCreated llamaPolicy", () => {
   });
 });
 
-test("buildLogFactory hadnles struct parameters", () => {
+const morphoFactoryEvent = parseAbiItem([
+  "struct MarketParams { address loanToken; address collateralToken; address oracle; address irm; uint256 lltv;}",
+  "event CreateMarket(bytes32 indexed id, MarketParams marketParams)",
+]);
+
+test("buildLogFactory handles Morpho CreateMarket struct parameter", () => {
   const criteria = buildLogFactory({
     address: "0xa",
-    event: parseAbiItem([
-      "struct MarketParams { address loanToken; address collateralToken; address oracle; address irm; uint256 lltv;}",
-      "event CreateMarket(bytes32 indexed id, MarketParams marketParams)",
-    ]),
+    event: morphoFactoryEvent,
     parameter: "marketParams.oracle",
     chainId: 1,
     fromBlock: undefined,

@@ -1,7 +1,11 @@
 import { expect, test } from "vitest";
 
 import { parseAbiParameter } from "viem";
-import { getBytesConsumedByParam, getNestedParamOffset } from "./offset.js";
+import {
+  type TupleAbiParameter,
+  getBytesConsumedByParam,
+  getNestedParamOffset,
+} from "./offset.js";
 
 test("getBytesConsumedByParam returns 32 for static primitive types", () => {
   expect(getBytesConsumedByParam({ type: "uint" })).toBe(32);
@@ -58,7 +62,10 @@ test("getNestedParamOffset", () => {
     "Foo_a indexed foo",
   ];
   expect(
-    getNestedParamOffset(parseAbiParameter(signature), "y".split(".")),
+    getNestedParamOffset(
+      parseAbiParameter(signature) as TupleAbiParameter,
+      "y".split("."),
+    ),
   ).toEqual(32 * 3);
 
   // fully static nested tuple
@@ -69,7 +76,10 @@ test("getNestedParamOffset", () => {
   ];
 
   expect(
-    getNestedParamOffset(parseAbiParameter(signature), "d.y".split(".")),
+    getNestedParamOffset(
+      parseAbiParameter(signature) as TupleAbiParameter,
+      "d.y".split("."),
+    ),
   ).toEqual(32 * 4);
 
   // dynamic nested tuple with dynamic parameter after
@@ -80,7 +90,10 @@ test("getNestedParamOffset", () => {
   ];
 
   expect(
-    getNestedParamOffset(parseAbiParameter(signature), "d.y".split(".")),
+    getNestedParamOffset(
+      parseAbiParameter(signature) as TupleAbiParameter,
+      "d.y".split("."),
+    ),
   ).toEqual(32 * 4);
 
   // dynamic nested tuple with dynamic parameter before
@@ -91,6 +104,9 @@ test("getNestedParamOffset", () => {
   ];
 
   expect(
-    getNestedParamOffset(parseAbiParameter(signature), "d.y".split(".")),
+    getNestedParamOffset(
+      parseAbiParameter(signature) as TupleAbiParameter,
+      "d.y".split("."),
+    ),
   ).toEqual(32 * 6);
 });

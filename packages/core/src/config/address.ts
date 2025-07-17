@@ -1,5 +1,6 @@
 import type { AbiEvent, AbiParameter } from "viem";
 
+// Note: Currently limit the depth to 1 level.
 type ParameterNames<T extends AbiParameter> = T extends {
   components: readonly AbiParameter[];
 }

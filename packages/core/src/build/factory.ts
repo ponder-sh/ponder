@@ -2,6 +2,7 @@ import type { LogFactory } from "@/internal/types.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import {
+  type TupleAbiParameter,
   getBytesConsumedByParam,
   getNestedParamOffset,
 } from "@/utils/offset.js";
@@ -70,6 +71,20 @@ export function buildLogFactory({
     );
   }
 
+  const nonIndexedParameter = nonIndexedInputs[nonIndexedInputPosition]!;
+
+  if (nonIndexedParameter.type !== "address" && params.length === 1) {
+    throw new Error(
+      `Factory event parameter type is not valid. Got '${nonIndexedParameter.type}', expected 'address'.`,
+    );
+  }
+
+  if (params.length > 1 && nonIndexedParameter.type !== "tuple") {
+    throw new Error(
+      `Factory event parameter type is not valid. Got '${nonIndexedParameter.type}', expected 'tuple'.`,
+    );
+  }
+
   let offset = 0;
   for (let i = 0; i < nonIndexedInputPosition; i++) {
     offset += getBytesConsumedByParam(nonIndexedInputs[i]!);
@@ -77,7 +92,7 @@ export function buildLogFactory({
 
   if (params.length > 1) {
     const nestedOffset = getNestedParamOffset(
-      nonIndexedInputs[nonIndexedInputPosition]!,
+      nonIndexedInputs[nonIndexedInputPosition]! as TupleAbiParameter,
       params.slice(1),
     );
 
