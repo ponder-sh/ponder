@@ -59,6 +59,51 @@ export function getBytesConsumedByParam(param: AbiParameter): number {
   });
 }
 
+export type TupleAbiParameter = AbiParameter & {
+  type: "tuple";
+  components: readonly AbiParameter[];
+};
+
+export function getNestedParamOffset(
+  param: TupleAbiParameter,
+  names: string[],
+): number {
+  let consumed = 0;
+  let isFound = false;
+  for (const component of param.components) {
+    if (component.name === names[0]) {
+      // the end of the branch
+      if (names.length === 1) {
+        isFound = true;
+        break;
+      }
+
+      // additional nesting
+      if (component.type === "tuple") {
+        const nestedConsumed = getNestedParamOffset(
+          component as TupleAbiParameter,
+          names.slice(1),
+        );
+        return consumed + nestedConsumed;
+      } else {
+        throw new Error(
+          `Factory event parameter '${param.name}.${names.join(".")}' is not valid for ${param.name} struct signature.`,
+        );
+      }
+    } else {
+      consumed += getBytesConsumedByParam(component);
+    }
+  }
+
+  if (!isFound) {
+    throw new Error(
+      `Factory event parameter '${param.name}.${names.join(".")}' not found in ${param.name} struct signature.`,
+    );
+  }
+
+  return consumed;
+}
+
 function hasDynamicChild(param: AbiParameter) {
   const { type } = param;
   if (type === "string") return true;

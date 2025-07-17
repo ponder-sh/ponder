@@ -34,3 +34,16 @@ test("factory", () => {
     parameter: "arg",
   });
 });
+
+const event1 = parseAbiItem([
+  "struct Foo {address arg0;address arg1;address arg2;address arg3;uint256 arg4;}",
+  "event CreateMarket(Id indexed id, Foo args)",
+]);
+
+test("factory", () => {
+  factory({
+    address: "0xa",
+    event: event1,
+    parameter: "args.arg2",
+  });
+});

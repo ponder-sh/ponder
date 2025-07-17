@@ -54,3 +54,26 @@ test("buildLogFactory handles LlamaInstanceCreated llamaPolicy", () => {
     childAddressLocation: "offset64",
   });
 });
+
+const morphoFactoryEvent = parseAbiItem([
+  "struct MarketParams { address loanToken; address collateralToken; address oracle; address irm; uint256 lltv;}",
+  "event CreateMarket(bytes32 indexed id, MarketParams marketParams)",
+]);
+
+test("buildLogFactory handles Morpho CreateMarket struct parameter", () => {
+  const criteria = buildLogFactory({
+    address: "0xa",
+    event: morphoFactoryEvent,
+    parameter: "marketParams.oracle",
+    chainId: 1,
+    fromBlock: undefined,
+    toBlock: undefined,
+  });
+
+  expect(criteria).toMatchObject({
+    address: "0xa",
+    eventSelector:
+      "0xac4b2400f169220b0c0afdde7a0b32e775ba727ea1cb30b35f935cdaab8683ac",
+    childAddressLocation: "offset64",
+  });
+});
