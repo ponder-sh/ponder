@@ -65,13 +65,13 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   const configResult = await build.executeConfig();
   if (configResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed to execute config", code: 1 });
     return;
   }
 
   const schemaResult = await build.executeSchema();
   if (schemaResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed to execute schema", code: 1 });
     return;
   }
 
@@ -81,7 +81,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   ]);
 
   if (buildResult1.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed initial build", code: 1 });
     return;
   }
 
@@ -97,7 +97,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   const indexingResult = await build.executeIndexingFunctions();
   if (indexingResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed to execute indexing functions", code: 1 });
     return;
   }
 
@@ -108,7 +108,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   if (indexingBuildResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed to compile indexing", code: 1 });
     return;
   }
 
@@ -124,14 +124,14 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     database,
   });
   if (apiResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed to execute api", code: 1 });
     return;
   }
 
   const buildResult2 = await build.compileApi({ apiResult: apiResult.result });
 
   if (buildResult2.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed to compile api", code: 1 });
     return;
   }
 

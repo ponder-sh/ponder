@@ -46,14 +46,14 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
 
   const configResult = await build.executeConfig();
   if (configResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed to execute config", code: 1 });
     return;
   }
 
   const buildResult = build.preCompile(configResult.result);
 
   if (buildResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed to pre-compile", code: 1 });
     return;
   }
 

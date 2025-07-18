@@ -93,13 +93,13 @@ export async function start({
 
   const configResult = await build.executeConfig();
   if (configResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed to execute config", code: 1 });
     return;
   }
 
   const schemaResult = await build.executeSchema();
   if (schemaResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed to execute schema", code: 1 });
     return;
   }
 
@@ -109,7 +109,7 @@ export async function start({
   ]);
 
   if (buildResult1.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed to pre-compile", code: 1 });
     return;
   }
 
@@ -117,7 +117,7 @@ export async function start({
 
   const indexingResult = await build.executeIndexingFunctions();
   if (indexingResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed to execute indexing functions", code: 1 });
     return;
   }
 
@@ -128,7 +128,7 @@ export async function start({
   });
 
   if (indexingBuildResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed to compile indexing", code: 1 });
     return;
   }
 
@@ -148,7 +148,7 @@ export async function start({
     database,
   });
   if (apiResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed to execute api", code: 1 });
     return;
   }
 
@@ -157,7 +157,7 @@ export async function start({
   });
 
   if (apiBuildResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed to compile api", code: 1 });
     return;
   }
 
