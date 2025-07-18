@@ -20,13 +20,15 @@ export class MetricsService {
   registry: prometheus.Registry;
   start_timestamp: number;
   progressMetadata: {
-    batches: {
-      elapsedSeconds: number;
-      completedSeconds: number;
-    }[];
-    previousTimestamp: number;
-    previousCompletedSeconds: number;
-    rate: number;
+    [chain: string]: {
+      batches: {
+        elapsedSeconds: number;
+        completedSeconds: number;
+      }[];
+      previousTimestamp: number;
+      previousCompletedSeconds: number;
+      rate: number;
+    };
   };
 
   rps: { [chain: string]: { count: number; timestamp: number }[] };
@@ -105,10 +107,12 @@ export class MetricsService {
     this.registry = new prometheus.Registry();
     this.start_timestamp = Date.now();
     this.progressMetadata = {
-      batches: [{ elapsedSeconds: 0, completedSeconds: 0 }],
-      previousTimestamp: Date.now(),
-      previousCompletedSeconds: 0,
-      rate: 0,
+      general: {
+        batches: [{ elapsedSeconds: 0, completedSeconds: 0 }],
+        previousTimestamp: Date.now(),
+        previousCompletedSeconds: 0,
+        rate: 0,
+      },
     };
     this.rps = {};
 
@@ -392,10 +396,12 @@ export class MetricsService {
     this.start_timestamp = Date.now();
     this.rps = {};
     this.progressMetadata = {
-      batches: [{ elapsedSeconds: 0, completedSeconds: 0 }],
-      previousTimestamp: Date.now(),
-      previousCompletedSeconds: 0,
-      rate: 0,
+      general: {
+        batches: [{ elapsedSeconds: 0, completedSeconds: 0 }],
+        previousTimestamp: Date.now(),
+        previousCompletedSeconds: 0,
+        rate: 0,
+      },
     };
 
     this.ponder_settings_info.reset();
@@ -440,6 +446,13 @@ export class MetricsService {
   }
 }
 
+const extractMetric = (
+  metric: prometheus.MetricObjectWithValues<prometheus.MetricValue<"chain">>,
+  chain: string,
+) => {
+  return metric.values.find((m) => m.labels.chain === chain)?.value;
+};
+
 export async function getSyncProgress(metrics: MetricsService): Promise<
   {
     chainName: string;
@@ -460,13 +473,6 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
       syncDurationSum[m.labels.chain!] = m.value;
     }
   }
-
-  const extractMetric = (
-    metric: prometheus.MetricObjectWithValues<prometheus.MetricValue<"chain">>,
-    chain: string,
-  ) => {
-    return metric.values.find((m) => m.labels.chain === chain)?.value;
-  };
 
   const totalBlocksMetric = await metrics.ponder_historical_total_blocks.get();
   const cachedBlocksMetric =
@@ -541,34 +547,6 @@ export async function getIndexingProgress(metrics: MetricsService) {
     .values[0]?.value;
   const hasError = hasErrorMetric === 1;
 
-  const sum = (x: number[]) => x.reduce((a, b) => a + b, 0);
-  const max = (x: number[]) => x.reduce((a, b) => Math.max(a, b), 0);
-
-  const totalSeconds = await metrics.ponder_historical_total_indexing_seconds
-    .get()
-    .then(({ values }) => values.map(({ value }) => value))
-    .then(sum);
-  const cachedSeconds = await metrics.ponder_historical_cached_indexing_seconds
-    .get()
-    .then(({ values }) => values.map(({ value }) => value))
-    .then(sum);
-  const completedSeconds =
-    await metrics.ponder_historical_completed_indexing_seconds
-      .get()
-      .then(({ values }) => values.map(({ value }) => value))
-      .then(sum);
-  const timestamp = await metrics.ponder_indexing_timestamp
-    .get()
-    .then(({ values }) => values.map(({ value }) => value))
-    .then(max);
-
-  const progress =
-    timestamp === 0
-      ? 0
-      : totalSeconds === 0
-        ? 1
-        : (completedSeconds + cachedSeconds) / totalSeconds;
-
   const indexingCompletedEventsMetric = (
     await metrics.ponder_indexing_completed_events.get()
   ).values;
@@ -597,67 +575,181 @@ export async function getIndexingProgress(metrics: MetricsService) {
     return { eventName, count, averageDuration };
   });
 
-  const totalEvents = events.reduce((a, e) => a + e.count, 0);
-
   return {
     hasError,
-    overall: {
-      totalSeconds,
-      cachedSeconds,
-      completedSeconds,
-      progress,
-      totalEvents,
-    },
     events,
   };
 }
 
 export async function getAppProgress(metrics: MetricsService): Promise<{
   mode: "historical" | "realtime" | undefined;
-  progress: number;
+  progress: number | undefined;
   eta: number | undefined;
 }> {
-  const indexing = await getIndexingProgress(metrics);
+  const totalSecondsMetric =
+    await metrics.ponder_historical_total_indexing_seconds.get();
+  const cachedSecondsMetric =
+    await metrics.ponder_historical_cached_indexing_seconds.get();
+  const completedSecondsMetric =
+    await metrics.ponder_historical_completed_indexing_seconds.get();
+  const timestampMetric = await metrics.ponder_indexing_timestamp.get();
 
-  const remainingSeconds =
-    indexing.overall.totalSeconds -
-    (indexing.overall.completedSeconds + indexing.overall.cachedSeconds);
+  const ordering: "multichain" | "omnichain" | undefined =
+    await metrics.ponder_settings_info
+      .get()
+      .then((metric) => metric.values[0]?.labels.ordering as any);
+
+  if (ordering === "multichain") {
+    const perChainAppProgress: Awaited<ReturnType<typeof getAppProgress>>[] =
+      [];
+
+    for (const chainName of totalSecondsMetric.values.map(
+      ({ labels }) => labels.chain as string,
+    )) {
+      const totalSeconds = extractMetric(totalSecondsMetric, chainName) ?? 1;
+      const cachedSeconds = extractMetric(cachedSecondsMetric, chainName) ?? 0;
+      const completedSeconds =
+        extractMetric(completedSecondsMetric, chainName) ?? 0;
+      const timestamp = extractMetric(timestampMetric, chainName) ?? 0;
+
+      if (!totalSeconds || !cachedSeconds || !completedSeconds || !timestamp) {
+        perChainAppProgress.push({
+          mode: "historical",
+          progress: undefined,
+          eta: undefined,
+        });
+      }
+
+      const progress =
+        timestamp === 0
+          ? 0
+          : totalSeconds === 0
+            ? 1
+            : (completedSeconds + cachedSeconds) / totalSeconds;
+
+      if (!metrics.progressMetadata[chainName]) {
+        metrics.progressMetadata[chainName] = {
+          batches: [{ elapsedSeconds: 0, completedSeconds: 0 }],
+          previousTimestamp: Date.now(),
+          previousCompletedSeconds: 0,
+          rate: 0,
+        };
+      }
+
+      const eta: number | undefined = calculateEta(
+        metrics.progressMetadata[chainName]!,
+        totalSeconds,
+        cachedSeconds,
+        completedSeconds,
+      );
+      perChainAppProgress.push({
+        mode: progress === 1 ? "realtime" : "historical",
+        progress,
+        eta,
+      });
+    }
+
+    return perChainAppProgress.reduce(
+      (prev, curr) => ({
+        mode: curr.mode === "historical" ? curr.mode : prev.mode,
+        progress:
+          prev.progress === undefined || curr.progress === undefined
+            ? undefined
+            : Math.min(prev.progress, curr.progress),
+        eta:
+          prev.eta === undefined || curr.eta === undefined
+            ? undefined
+            : Math.max(prev.eta, curr.eta),
+      }),
+      {
+        mode: "realtime",
+        progress: 1,
+        eta: 0,
+      },
+    ) as any;
+  } else {
+    const totalSeconds = totalSecondsMetric.values
+      .map(({ value }) => value)
+      .reduce((prev, curr) => prev + curr, 0);
+    const cachedSeconds = cachedSecondsMetric.values
+      .map(({ value }) => value)
+      .reduce((prev, curr) => prev + curr, 0);
+    const completedSeconds = completedSecondsMetric.values
+      .map(({ value }) => value)
+      .reduce((prev, curr) => prev + curr, 0);
+    const timestamp = timestampMetric.values
+      .map(({ value }) => value)
+      .reduce((prev, curr) => Math.max(prev, curr), 0);
+
+    const progress =
+      timestamp === 0
+        ? 0
+        : totalSeconds === 0
+          ? 1
+          : (completedSeconds + cachedSeconds) / totalSeconds;
+
+    return {
+      mode: progress === 1 ? "realtime" : "historical",
+      progress: progress,
+      eta: calculateEta(
+        metrics.progressMetadata.general!,
+        totalSeconds,
+        cachedSeconds,
+        completedSeconds,
+      ),
+    };
+  }
+}
+
+function calculateEta(
+  progressMetadata: {
+    batches: {
+      elapsedSeconds: number;
+      completedSeconds: number;
+    }[];
+    previousTimestamp: number;
+    previousCompletedSeconds: number;
+    rate: number;
+  },
+  totalSeconds: number,
+  cachedSeconds: number,
+  completedSeconds: number,
+) {
+  const remainingSeconds = totalSeconds - (completedSeconds + cachedSeconds);
 
   let eta: number | undefined = undefined;
 
-  if (indexing.overall.completedSeconds > 0) {
+  if (completedSeconds > 0) {
     const currentTimestamp = Date.now();
 
-    metrics.progressMetadata.batches.at(-1)!.elapsedSeconds =
-      (currentTimestamp - metrics.progressMetadata.previousTimestamp) / 1_000;
-    metrics.progressMetadata.batches.at(-1)!.completedSeconds =
-      indexing.overall.completedSeconds -
-      metrics.progressMetadata.previousCompletedSeconds;
+    progressMetadata.batches.at(-1)!.elapsedSeconds =
+      (currentTimestamp - progressMetadata.previousTimestamp) / 1_000;
+    progressMetadata.batches.at(-1)!.completedSeconds =
+      completedSeconds - progressMetadata.previousCompletedSeconds;
 
     if (
-      currentTimestamp - metrics.progressMetadata.previousTimestamp > 5_000 &&
-      metrics.progressMetadata.batches.at(-1)!.completedSeconds > 0
+      currentTimestamp - progressMetadata.previousTimestamp > 5_000 &&
+      progressMetadata.batches.at(-1)!.completedSeconds > 0
     ) {
-      metrics.progressMetadata.batches.push({
+      progressMetadata.batches.push({
         elapsedSeconds: 0,
         completedSeconds: 0,
       });
 
-      if (metrics.progressMetadata.batches.length > 10) {
-        metrics.progressMetadata.batches.shift();
+      if (progressMetadata.batches.length > 10) {
+        progressMetadata.batches.shift();
       }
 
-      metrics.progressMetadata.previousCompletedSeconds =
-        indexing.overall.completedSeconds;
-      metrics.progressMetadata.previousTimestamp = currentTimestamp;
+      progressMetadata.previousCompletedSeconds = completedSeconds;
+      progressMetadata.previousTimestamp = currentTimestamp;
 
       const averages: number[] = [];
       let count = 0;
 
       // Note: Calculate ETA only after at least 3 batches were collected for stable eta.
-      if (metrics.progressMetadata.batches.length >= 3) {
-        for (let i = 0; i < metrics.progressMetadata.batches.length - 1; ++i) {
-          const batch = metrics.progressMetadata.batches[i]!;
+      if (progressMetadata.batches.length >= 3) {
+        for (let i = 0; i < progressMetadata.batches.length - 1; ++i) {
+          const batch = progressMetadata.batches[i]!;
           if (batch.completedSeconds === 0) continue;
           const multiplier = 1 / 1.5 ** (9 - i);
           averages.push(
@@ -666,21 +758,17 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
           count += multiplier;
         }
 
-        metrics.progressMetadata.rate =
+        progressMetadata.rate =
           count === 0
             ? 0
             : averages.reduce((prev, curr) => prev + curr, 0) / count;
       }
     }
 
-    if (metrics.progressMetadata.batches.length >= 3) {
-      eta = metrics.progressMetadata.rate * remainingSeconds;
+    if (progressMetadata.batches.length >= 3) {
+      eta = progressMetadata.rate * remainingSeconds;
     }
   }
 
-  return {
-    mode: indexing.overall.progress === 1 ? "realtime" : "historical",
-    progress: indexing.overall.progress,
-    eta,
-  };
+  return eta;
 }
