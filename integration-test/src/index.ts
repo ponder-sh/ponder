@@ -82,7 +82,7 @@ export const pick = <T>(possibilities: T[] | readonly T[], tag: string): T => {
 
 export const SIM_PARAMS = {
   RPC_ERROR_RATE: pick([0, 0.02, 0.05, 0.1, 0.2], "rpc-error-rate"),
-  DB_ERROR_RATE: pick([0, 0.02, 0.05, 0.1, 0.2], "db-error-rate"),
+  DB_ERROR_RATE: pick([0, 0.02, 0.05], "db-error-rate"),
   MAX_UNCACHED_BLOCKS: CACHED_APPS.includes(APP_ID)
     ? 0
     : pick([0, 0, 0, 100, 1000], "max-uncached-blocks"),

@@ -187,7 +187,7 @@ export const createQBNodePg = <
         return wrap(
           () =>
             txExecute(...args).catch((error) => {
-              throw new TransactionError(error.message);
+              throw new TransactionError(error.message, { cause: error });
             }),
           dialect.sqlToQuery(args[0]).sql,
           { ...params, label: txLabel },
@@ -205,7 +205,7 @@ export const createQBNodePg = <
           return wrap(
             () =>
               execute(..._args).catch((error) => {
-                throw new TransactionError(error.message);
+                throw new TransactionError(error.message, { cause: error });
               }),
             args[0].sql,
             { ...params, label: txLabel },
@@ -268,7 +268,7 @@ export const createQBNodePg = <
           return wrap(
             () =>
               txExecute(...args).catch((error) => {
-                throw new TransactionError(error.message);
+                throw new TransactionError(error.message, { cause: error });
               }),
             dialect.sqlToQuery(args[0]).sql,
             { ...params, label: txLabel },
@@ -286,7 +286,7 @@ export const createQBNodePg = <
             return wrap(
               () =>
                 execute(..._args).catch((error) => {
-                  throw new TransactionError(error.message);
+                  throw new TransactionError(error.message, { cause: error });
                 }),
               args[0].sql,
               { ...params, label: txLabel },
@@ -438,7 +438,7 @@ export const createQBPGlite = <
         return wrap(
           () =>
             execute(...args).catch((error) => {
-              throw new TransactionError(error.message);
+              throw new TransactionError(error.message, { cause: error });
             }),
           dialect.sqlToQuery(args[0]).sql,
           { ...params, label: txLabel },
@@ -454,7 +454,7 @@ export const createQBPGlite = <
           return wrap(
             () =>
               execute(..._args).catch((error) => {
-                throw new TransactionError(error.message);
+                throw new TransactionError(error.message, { cause: error });
               }),
             args[0].sql,
             { ...params, label: txLabel },
@@ -516,7 +516,7 @@ export const createQBPGlite = <
           return wrap(
             () =>
               execute(...args).catch((error) => {
-                throw new TransactionError(error.message);
+                throw new TransactionError(error.message, { cause: error });
               }),
             dialect.sqlToQuery(args[0]).sql,
             { ...params, label: txLabel },
@@ -532,7 +532,7 @@ export const createQBPGlite = <
             return wrap(
               () =>
                 execute(..._args).catch((error) => {
-                  throw new TransactionError(error.message);
+                  throw new TransactionError(error.message, { cause: error });
                 }),
               args[0].sql,
               { ...params, label: txLabel },
@@ -648,8 +648,12 @@ const wrap = async <T>(
         firstError = error;
       }
 
-      if (error instanceof NonRetryableError) {
-        common.logger.warn({
+      if (
+        error instanceof TransactionError &&
+        sql.startsWith("rollback") === false &&
+        sql.startsWith("ROLLBACK") === false
+      ) {
+        common.logger.debug({
           service: "database",
           msg: `Failed '${sql.slice(0, SQL_LENGTH_LIMIT)}...' database query (id=${id})`,
           error,
@@ -657,11 +661,7 @@ const wrap = async <T>(
         throw error;
       }
 
-      if (
-        error instanceof TransactionError &&
-        sql.startsWith("rollback") === false &&
-        sql.startsWith("ROLLBACK") === false
-      ) {
+      if (error instanceof NonRetryableError) {
         common.logger.warn({
           service: "database",
           msg: `Failed '${sql.slice(0, SQL_LENGTH_LIMIT)}...' database query (id=${id})`,

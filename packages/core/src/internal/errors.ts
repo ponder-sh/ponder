@@ -128,7 +128,7 @@ export class ShutdownError extends NonRetryableError {
 }
 
 /** Database error that occurs inside `qb.transaction`. */
-export class TransactionError extends NonRetryableError {
+export class TransactionError extends BaseError {
   override name = "TransactionError";
 
   constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
