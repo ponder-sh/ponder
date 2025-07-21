@@ -918,6 +918,7 @@ export const createSync = async (params: {
 
   const seconds: Seconds = {};
 
+  // TODO: Should this be ordering dependent?
   for (const chain of params.indexingBuild.chains) {
     const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
       ({ chainId }) => chainId === chain.id,
