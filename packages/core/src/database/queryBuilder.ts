@@ -101,6 +101,8 @@ export const createQBNodePg = <
   const dialect = new PgDialect({ casing: "snake_case" });
   const isPool = client instanceof pg.Pool;
 
+  let txLabel: string | undefined;
+
   const wrapTx = (db: PgDatabase<PgQueryResultHKT, TSchema>) => {
     const _transaction = db.transaction.bind(db);
     db.transaction = async (...args) => {
@@ -108,7 +110,13 @@ export const createQBNodePg = <
       args[0] = async (_tx) => {
         wrapTx(_tx);
 
-        let tx = ((_label: string) => _tx) as unknown as QB<TSchema>;
+        const previousLabel = txLabel;
+
+        let tx = ((label: string) => {
+          txLabel = label;
+
+          return _tx;
+        }) as unknown as QB<TSchema>;
 
         tx = new Proxy(tx, {
           get(_, prop) {
@@ -130,7 +138,10 @@ export const createQBNodePg = <
         Object.assign(tx, { $client: _tx.session.client });
 
         // @ts-expect-error
-        return callback(tx);
+        const result = await callback(tx);
+
+        txLabel = previousLabel;
+        return result;
       };
       return _transaction(...args);
     };
@@ -175,7 +186,7 @@ export const createQBNodePg = <
               throw new TransactionError(error.message);
             }),
           dialect.sqlToQuery(args[0]).sql,
-          params,
+          { ...params, label: txLabel },
         );
       };
 
@@ -193,7 +204,7 @@ export const createQBNodePg = <
                 throw new TransactionError(error.message);
               }),
             args[0].sql,
-            params,
+            { ...params, label: txLabel },
           );
         };
         return result;
@@ -246,7 +257,7 @@ export const createQBNodePg = <
                 throw new TransactionError(error.message);
               }),
             dialect.sqlToQuery(args[0]).sql,
-            { ...params, label },
+            { ...params, label: txLabel },
           );
         };
 
@@ -264,7 +275,7 @@ export const createQBNodePg = <
                   throw new TransactionError(error.message);
                 }),
               args[0].sql,
-              { ...params, label },
+              { ...params, label: txLabel },
             );
           };
           return result;
@@ -277,6 +288,7 @@ export const createQBNodePg = <
     };
 
     wrapTx(db);
+    txLabel = label;
 
     return db;
   }) as unknown as QB<TSchema>;
@@ -322,6 +334,8 @@ export const createQBPGlite = <
 
   const dialect = new PgDialect({ casing: "snake_case" });
 
+  let txLabel: string | undefined;
+
   const wrapTx = (db: PgDatabase<PgQueryResultHKT, TSchema>) => {
     const _transaction = db.transaction.bind(db);
     db.transaction = async (...args) => {
@@ -329,7 +343,13 @@ export const createQBPGlite = <
       args[0] = async (_tx) => {
         wrapTx(_tx);
 
-        let tx = ((_label: string) => _tx) as unknown as QB<TSchema>;
+        const previousLabel = txLabel;
+
+        let tx = ((label: string) => {
+          txLabel = label;
+
+          return _tx;
+        }) as unknown as QB<TSchema>;
 
         tx = new Proxy(tx, {
           get(_, prop) {
@@ -351,7 +371,10 @@ export const createQBPGlite = <
         Object.assign(tx, { $client: _tx.session.client });
 
         // @ts-expect-error
-        return callback(tx);
+        const result = await callback(tx);
+
+        txLabel = previousLabel;
+        return result;
       };
       return _transaction(...args);
     };
@@ -394,7 +417,7 @@ export const createQBPGlite = <
               throw new TransactionError(error.message);
             }),
           dialect.sqlToQuery(args[0]).sql,
-          params,
+          { ...params, label: txLabel },
         );
       };
 
@@ -410,7 +433,7 @@ export const createQBPGlite = <
                 throw new TransactionError(error.message);
               }),
             args[0].sql,
-            params,
+            { ...params, label: txLabel },
           );
         };
         return result;
@@ -462,7 +485,7 @@ export const createQBPGlite = <
                 throw new TransactionError(error.message);
               }),
             dialect.sqlToQuery(args[0]).sql,
-            { ...params, label },
+            { ...params, label: txLabel },
           );
         };
 
@@ -478,7 +501,7 @@ export const createQBPGlite = <
                   throw new TransactionError(error.message);
                 }),
               args[0].sql,
-              { ...params, label },
+              { ...params, label: txLabel },
             );
           };
           return result;
@@ -491,6 +514,7 @@ export const createQBPGlite = <
     };
 
     wrapTx(db);
+    txLabel = label;
 
     return db;
   }) as unknown as QB<TSchema>;
