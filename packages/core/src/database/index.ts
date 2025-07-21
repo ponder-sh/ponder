@@ -491,7 +491,7 @@ export const createDatabase = async ({
             sql.raw(`
     CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
       "chain_name" TEXT PRIMARY KEY,
-      "chain_id" INTEGER NOT NULL,
+      "chain_id" BIGINT NOT NULL,
       "safe_checkpoint" VARCHAR(75) NOT NULL,
       "latest_checkpoint" VARCHAR(75) NOT NULL
     )`),
@@ -587,6 +587,9 @@ export const createDatabase = async ({
                 ),
               );
             }
+
+            await createEnums(tx);
+            await createTables(tx);
 
             await tx.execute(
               sql.raw(
