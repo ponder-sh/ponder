@@ -657,9 +657,11 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
             ? undefined
             : Math.min(prev.progress, curr.progress),
         eta:
-          prev.eta === undefined || curr.eta === undefined
-            ? undefined
-            : Math.max(prev.eta, curr.eta),
+          curr.progress === 1
+            ? prev.eta
+            : prev.eta === undefined || curr.eta === undefined
+              ? undefined
+              : Math.max(prev.eta, curr.eta),
       }),
       {
         mode: "realtime",
