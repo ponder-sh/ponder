@@ -58,51 +58,51 @@ export const dbSim = <
 
   // transaction queries (non-retryable)
 
-  // const transaction = db._.session.transaction.bind(db._.session);
-  // db._.session.transaction = async (...args) => {
-  //   const callback = args[0];
-  //   args[0] = async (..._args) => {
-  //     const session = new NodePgSession(
-  //       await db._.session.client.connect(),
-  //       db._.session.dialect,
-  //       db._.session.schema,
-  //       db._.session.options,
-  //     );
-  //     const tx = new NodePgTransaction(
-  //       db._.session.dialect,
-  //       session,
-  //       db._.session.schema,
-  //     );
+  const transaction = db._.session.transaction.bind(db._.session);
+  db._.session.transaction = async (...args) => {
+    const callback = args[0];
+    args[0] = async (..._args) => {
+      const session = new NodePgSession(
+        await db._.session.client.connect(),
+        db._.session.dialect,
+        db._.session.schema,
+        db._.session.options,
+      );
+      const tx = new NodePgTransaction(
+        db._.session.dialect,
+        session,
+        db._.session.schema,
+      );
 
-  //     const execute = tx._.session.execute.bind(tx._.session);
+      const execute = tx._.session.execute.bind(tx._.session);
 
-  //     tx._.session.execute = async (...args) => {
-  //       simError(dialect.sqlToQuery(args[0]).sql);
-  //       return execute(...args);
-  //     };
+      tx._.session.execute = async (...args) => {
+        simError(dialect.sqlToQuery(args[0]).sql);
+        return execute(...args);
+      };
 
-  //     const prepareQuery = tx._.session.prepareQuery.bind(tx._.session);
-  //     // @ts-ignore
-  //     tx._.session.prepareQuery = (...args) => {
-  //       const result = prepareQuery(...args);
-  //       const execute = result.execute.bind(result);
-  //       result.execute = async (..._args) => {
-  //         simError(args[0].sql);
-  //         return execute(..._args);
-  //       };
-  //       return result;
-  //     };
+      const prepareQuery = tx._.session.prepareQuery.bind(tx._.session);
+      // @ts-ignore
+      tx._.session.prepareQuery = (...args) => {
+        const result = prepareQuery(...args);
+        const execute = result.execute.bind(result);
+        result.execute = async (..._args) => {
+          simError(args[0].sql);
+          return execute(..._args);
+        };
+        return result;
+      };
 
-  //     try {
-  //       return await callback(tx);
-  //     } finally {
-  //       tx._.session.client.release();
-  //     }
-  //   };
+      try {
+        return await callback(tx);
+      } finally {
+        tx._.session.client.release();
+      }
+    };
 
-  //   simError("begin");
-  //   return transaction(...args);
-  // };
+    // simError("begin");
+    return transaction(...args);
+  };
 
   return db;
 };
