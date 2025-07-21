@@ -68,8 +68,6 @@ export const sim =
         return toHex(chain!.id);
       }
 
-      // TODO(kyle) add request to FIFO queue
-
       // same request returns the same response, regardless of order
       const id = JSON.stringify(body);
 
