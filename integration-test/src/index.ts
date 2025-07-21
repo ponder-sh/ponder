@@ -257,33 +257,33 @@ const onBuild = async (app: PonderApp) => {
     msg: "Mocking syncQB, adminQB, userQB, and readonlyQB",
   });
 
-  app.database.syncQB = createQBNodePg(app.database.driver.sync!, {
-    casing: "snake_case",
-    common: app.common,
-    isAdmin: false,
-    drizzle: dbSim,
-  });
+  // app.database.syncQB = createQBNodePg(app.database.driver.sync!, {
+  //   casing: "snake_case",
+  //   common: app.common,
+  //   isAdmin: false,
+  //   drizzle: dbSim,
+  // });
 
-  app.database.adminQB = createQBNodePg(app.database.driver.admin!, {
-    casing: "snake_case",
-    common: app.common,
-    isAdmin: true,
-    drizzle: dbSim,
-  });
+  // app.database.adminQB = createQBNodePg(app.database.driver.admin!, {
+  //   casing: "snake_case",
+  //   common: app.common,
+  //   isAdmin: true,
+  //   drizzle: dbSim,
+  // });
 
-  app.database.userQB = createQBNodePg(app.database.driver.user!, {
-    casing: "snake_case",
-    common: app.common,
-    isAdmin: false,
-    drizzle: dbSim,
-  });
+  // app.database.userQB = createQBNodePg(app.database.driver.user!, {
+  //   casing: "snake_case",
+  //   common: app.common,
+  //   isAdmin: false,
+  //   drizzle: dbSim,
+  // });
 
-  app.database.readonlyQB = createQBNodePg(app.database.driver.readonly!, {
-    casing: "snake_case",
-    common: app.common,
-    isAdmin: false,
-    drizzle: dbSim,
-  });
+  // app.database.readonlyQB = createQBNodePg(app.database.driver.readonly!, {
+  //   casing: "snake_case",
+  //   common: app.common,
+  //   isAdmin: false,
+  //   drizzle: dbSim,
+  // });
 
   if (APP_ID === "super-assessment") {
     const random = seedrandom(`${SEED}_super_assessment_filter`);
