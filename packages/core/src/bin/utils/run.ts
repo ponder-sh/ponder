@@ -586,14 +586,20 @@ export async function run({
         await database.userQB.transaction(async (tx) => {
           for (const table of tables) {
             await dropTrigger(tx, { table });
-            const count = await revert(tx, {
-              table,
-              checkpoint: event.checkpoint,
-            });
+          }
+
+          const counts = await revert(tx, {
+            tables,
+            checkpoint: event.checkpoint,
+            ordering: preBuild.ordering,
+          });
+
+          for (const [index, table] of tables.entries()) {
             common.logger.info({
               service: "database",
-              msg: `Reverted ${count} unfinalized operations from '${getTableName(table)}'`,
+              msg: `Reverted ${counts[index]} unfinalized operations from '${getTableName(table)}'`,
             });
+
             await createTrigger(tx, { table });
           }
         });
@@ -606,8 +612,16 @@ export async function run({
             safeCheckpoint: event.checkpoint,
           });
 
-          for (const table of tables) {
-            await finalize(tx, { table, checkpoint: event.checkpoint });
+          const counts = await finalize(tx, {
+            tables,
+            checkpoint: event.checkpoint,
+          });
+
+          for (const [index, table] of tables.entries()) {
+            common.logger.info({
+              service: "database",
+              msg: `Finalized ${counts[index]} operations from '${getTableName(table)}'`,
+            });
           }
 
           const decoded = decodeCheckpoint(event.checkpoint);

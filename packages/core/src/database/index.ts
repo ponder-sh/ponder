@@ -1,5 +1,8 @@
 import { getTableNames } from "@/drizzle/index.js";
-import { sqlToReorgTableName } from "@/drizzle/kit/index.js";
+import {
+  SHARED_OPERATION_ID_SEQUENCE,
+  sqlToReorgTableName,
+} from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
 import { NonRetryableError, ShutdownError } from "@/internal/errors.js";
 import type {
@@ -46,7 +49,10 @@ export type Database = {
    */
   migrate({
     buildId,
-  }: Pick<IndexingBuild, "buildId">): Promise<CrashRecoveryCheckpoint>;
+    ordering,
+  }: Pick<IndexingBuild, "buildId"> & {
+    ordering: "multichain" | "omnichain";
+  }): Promise<CrashRecoveryCheckpoint>;
 };
 
 export const SCHEMATA = pgSchema("information_schema").table(
@@ -438,7 +444,7 @@ export const createDatabase = async ({
         }
       }
     },
-    async migrate({ buildId }) {
+    async migrate({ buildId, ordering }) {
       const createTables = async (tx: QB) => {
         for (let i = 0; i < schemaBuild.statements.tables.sql.length; i++) {
           await tx
@@ -489,6 +495,10 @@ export const createDatabase = async ({
       "safe_checkpoint" VARCHAR(75) NOT NULL,
       "latest_checkpoint" VARCHAR(75) NOT NULL
     )`),
+          );
+
+          await tx.execute(
+            `CREATE SEQUENCE IF NOT EXISTS "${namespace.schema}"."${SHARED_OPERATION_ID_SEQUENCE}" AS integer INCREMENT BY 1`,
           );
 
           const trigger = "status_trigger";
@@ -674,11 +684,7 @@ export const createDatabase = async ({
             ...checkpoints.map((c) => c.safeCheckpoint),
           );
 
-          await Promise.all(
-            tables.map((table) =>
-              revert(tx, { checkpoint: revertCheckpoint, table }),
-            ),
-          );
+          await revert(tx, { checkpoint: revertCheckpoint, tables, ordering });
 
           // Note: We don't update the `_ponder_checkpoint` table here, instead we wait for it to be updated
           // in the runtime script.

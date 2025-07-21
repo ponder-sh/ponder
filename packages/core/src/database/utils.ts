@@ -2,8 +2,8 @@ import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getTableNames } from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import type { SchemaBuild } from "@/internal/types.js";
-import { MAX_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
-import { eq, getTableColumns, getTableName, lte, sql } from "drizzle-orm";
+import { MAX_CHECKPOINT_STRING, decodeCheckpoint } from "@/utils/checkpoint.js";
+import { eq, getTableColumns, getTableName, sql } from "drizzle-orm";
 import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
 import type { QB } from "./queryBuilder.js";
 
@@ -71,63 +71,144 @@ export const dropTrigger = async (qb: QB, { table }: { table: PgTable }) => {
 
 export const revert = async (
   qb: QB,
-  { checkpoint, table }: { checkpoint: string; table: PgTable },
-): Promise<number> => {
-  const primaryKeyColumns = getPrimaryKeyColumns(table);
-  const schema = getTableConfig(table).schema ?? "public";
+  {
+    checkpoint,
+    tables,
+    ordering,
+  }: {
+    checkpoint: string;
+    tables: PgTable[];
+    ordering: "multichain" | "omnichain";
+  },
+): Promise<number[]> => {
+  let minOperationId: number | undefined;
+  if (ordering === "multichain") {
+    minOperationId = await qb("revert")
+      .execute(
+        sql.raw(`
+SELECT MIN(min_op_id) AS global_min_op_id FROM (
+${tables
+  .map(
+    (table) => `
+SELECT MIN(operation_id) AS min_op_id FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(getReorgTable(table))}"
+WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
+AND checkpoint > '${checkpoint}'
+`,
+  )
+  .join(" UNION ALL ")}) AS all_mins             
+`),
+      )
+      .then((result) => {
+        // @ts-ignore
+        return result.rows[0]?.global_min_op_id as number | undefined;
+      });
+  }
 
-  const result = await qb("revert").execute(
-    sql.raw(`
+  const counts: number[] = [];
+  for (const table of tables) {
+    const primaryKeyColumns = getPrimaryKeyColumns(table);
+    const schema = getTableConfig(table).schema ?? "public";
+
+    const baseQuery = `
+    reverted2 AS (
+      SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1
+      GROUP BY ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}
+    ), reverted3 AS (
+      SELECT ${Object.values(getTableColumns(table))
+        .map((column) => `reverted1."${getColumnCasing(column, "snake_case")}"`)
+        .join(", ")}, reverted1.operation FROM reverted2
+      INNER JOIN reverted1
+      ON ${primaryKeyColumns.map(({ sql }) => `reverted2."${sql}" = reverted1."${sql}"`).join("AND ")}
+      AND reverted2.operation_id = reverted1.operation_id
+    ), inserted AS (
+      DELETE FROM "${schema}"."${getTableName(table)}" as t
+      WHERE EXISTS (
+        SELECT * FROM reverted3
+        WHERE ${primaryKeyColumns.map(({ sql }) => `t."${sql}" = reverted3."${sql}"`).join("AND ")}
+        AND OPERATION = 0
+      )
+      RETURNING *
+    ), updated_or_deleted AS (
+      INSERT INTO  "${schema}"."${getTableName(table)}"
+      SELECT ${Object.values(getTableColumns(table))
+        .map((column) => `"${getColumnCasing(column, "snake_case")}"`)
+        .join(", ")} FROM reverted3
+      WHERE operation = 1 OR operation = 2
+      ON CONFLICT (${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")})
+      DO UPDATE SET
+        ${Object.values(getTableColumns(table))
+          .map(
+            (column) =>
+              `"${getColumnCasing(column, "snake_case")}" = EXCLUDED."${getColumnCasing(column, "snake_case")}"`,
+          )
+          .join(", ")}
+      RETURNING *
+    ) SELECT COUNT(*) FROM reverted1 as count;`;
+
+    let result: unknown;
+    if (ordering === "multichain") {
+      result = await qb("revert").execute(`
+WITH reverted1 AS (
+DELETE FROM "${schema}"."${getTableName(getReorgTable(table))}"
+WHERE ${minOperationId!} IS NOT NULL AND operation_id >= ${minOperationId!}
+RETURNING *
+), ${baseQuery}`);
+    } else {
+      result = await qb("revert").execute(`
 WITH reverted1 AS (
 DELETE FROM "${schema}"."${getTableName(getReorgTable(table))}"
 WHERE checkpoint > '${checkpoint}' RETURNING *
-), reverted2 AS (
-SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1
-GROUP BY ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}
-), reverted3 AS (
-SELECT ${Object.values(getTableColumns(table))
-      .map((column) => `reverted1."${getColumnCasing(column, "snake_case")}"`)
-      .join(", ")}, reverted1.operation FROM reverted2
-INNER JOIN reverted1
-ON ${primaryKeyColumns.map(({ sql }) => `reverted2."${sql}" = reverted1."${sql}"`).join("AND ")}
-AND reverted2.operation_id = reverted1.operation_id
-), inserted AS (
-DELETE FROM "${schema}"."${getTableName(table)}" as t
-WHERE EXISTS (
-SELECT * FROM reverted3
-WHERE ${primaryKeyColumns.map(({ sql }) => `t."${sql}" = reverted3."${sql}"`).join("AND ")}
-AND OPERATION = 0
-)
-RETURNING *
-), updated_or_deleted AS (
-INSERT INTO  "${schema}"."${getTableName(table)}"
-SELECT ${Object.values(getTableColumns(table))
-      .map((column) => `"${getColumnCasing(column, "snake_case")}"`)
-      .join(", ")} FROM reverted3
-WHERE operation = 1 OR operation = 2
-ON CONFLICT (${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")})
-DO UPDATE SET
-${Object.values(getTableColumns(table))
-  .map(
-    (column) =>
-      `"${getColumnCasing(column, "snake_case")}" = EXCLUDED."${getColumnCasing(column, "snake_case")}"`,
-  )
-  .join(", ")}
-RETURNING *
-) SELECT COUNT(*) FROM reverted1 as count;
-`),
-  );
+), ${baseQuery}`);
+    }
 
-  return result.rows[0]!.count as number;
+    // @ts-ignore
+    counts.push(result.rows[0]!.count);
+  }
+
+  return counts;
 };
 
 export const finalize = async (
   qb: QB,
-  { checkpoint, table }: { checkpoint: string; table: PgTable },
-) => {
-  await qb("finalize")
-    .delete(getReorgTable(table))
-    .where(lte(getReorgTable(table).checkpoint, checkpoint));
+  { checkpoint, tables }: { checkpoint: string; tables: PgTable[] },
+): Promise<number[]> => {
+  const min_op_id = await qb("finalize")
+    .execute(
+      sql.raw(`
+SELECT MIN(min_op_id) AS global_min_op_id FROM (
+${tables
+  .map(
+    (table) => `
+SELECT MIN(operation_id) AS min_op_id FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(getReorgTable(table))}"
+WHERE checkpoint > '${checkpoint}'
+`,
+  )
+  .join(" UNION ALL ")}) AS all_mins            
+`),
+    )
+    .then((result) => {
+      // @ts-ignore
+      return result.rows[0]?.global_min_op_id as number | undefined;
+    });
+
+  const counts: number[] = [];
+  for (const table of tables) {
+    const schema = getTableConfig(table).schema ?? "public";
+    const result = await qb("finalize").execute(
+      sql.raw(`
+WITH deleted AS (
+DELETE FROM "${schema}"."${getTableName(getReorgTable(table))}"
+WHERE ${min_op_id} IS NULL OR operation_id < ${min_op_id}
+RETURNING *
+) SELECT COUNT(*) FROM deleted AS count; 
+`),
+    );
+
+    // @ts-ignore
+    counts.push(result.rows[0]!.count);
+  }
+
+  return counts;
 };
 
 export const commitBlock = async (

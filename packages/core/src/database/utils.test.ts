@@ -79,7 +79,7 @@ test("finalize()", async (context) => {
 
   await finalize(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-    table: account,
+    tables: [account],
   });
 
   // reorg tables
@@ -238,7 +238,8 @@ test("revert()", async (context) => {
   await database.userQB.transaction(async (tx) => {
     await revert(tx, {
       checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
-      table: account,
+      tables: [account],
+      ordering: "multichain",
     });
   });
 
@@ -291,7 +292,8 @@ test("revert() with composite primary key", async (context) => {
   await database.userQB.transaction(async (tx) => {
     await revert(tx, {
       checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
-      table: test,
+      tables: [test],
+      ordering: "multichain",
     });
   });
 

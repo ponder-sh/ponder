@@ -276,7 +276,7 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
       statements: buildSchema({ schema: { account } }).statements,
     },
   });
-  await database.migrate({ buildId: "abc" });
+  await database.migrate({ buildId: "abc", ordering: "multichain" });
 
   const databaseTwo = await createDatabase({
     common: context.common,
