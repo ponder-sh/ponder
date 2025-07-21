@@ -217,7 +217,17 @@ export const createQBNodePg = <
       return callback(..._args);
     };
 
-    return wrap(() => transaction(...args), "begin", params);
+    return wrap(
+      () =>
+        transaction(...args).catch((error) => {
+          if (error instanceof TransactionError) {
+            throw error.cause;
+          }
+          throw error;
+        }),
+      "transaction",
+      params,
+    );
   };
 
   wrapTx(db);
@@ -288,7 +298,17 @@ export const createQBNodePg = <
         return callback(..._args);
       };
 
-      return wrap(() => transaction(...args), "begin", { ...params, label });
+      return wrap(
+        () =>
+          transaction(...args).catch((error) => {
+            if (error instanceof TransactionError) {
+              throw error.cause;
+            }
+            throw error;
+          }),
+        "transaction",
+        { ...params, label },
+      );
     };
 
     wrapTx(db);
@@ -446,7 +466,17 @@ export const createQBPGlite = <
       return callback(..._args);
     };
 
-    return wrap(() => transaction(...args), "begin", params);
+    return wrap(
+      () =>
+        transaction(...args).catch((error) => {
+          if (error instanceof TransactionError) {
+            throw error.cause;
+          }
+          throw error;
+        }),
+      "transaction",
+      params,
+    );
   };
 
   wrapTx(db);
@@ -514,7 +544,17 @@ export const createQBPGlite = <
         return callback(..._args);
       };
 
-      return wrap(() => transaction(...args), "begin", { ...params, label });
+      return wrap(
+        () =>
+          transaction(...args).catch((error) => {
+            if (error instanceof TransactionError) {
+              throw error.cause;
+            }
+            throw error;
+          }),
+        "transaction",
+        { ...params, label },
+      );
     };
 
     wrapTx(db);
@@ -608,9 +648,19 @@ const wrap = async <T>(
         firstError = error;
       }
 
+      if (error instanceof NonRetryableError) {
+        common.logger.warn({
+          service: "database",
+          msg: `Failed '${sql.slice(0, SQL_LENGTH_LIMIT)}...' database query (id=${id})`,
+          error,
+        });
+        throw error;
+      }
+
       if (
-        error instanceof NonRetryableError &&
-        error instanceof TransactionError === false
+        error instanceof TransactionError &&
+        sql.startsWith("rollback") === false &&
+        sql.startsWith("ROLLBACK") === false
       ) {
         common.logger.warn({
           service: "database",

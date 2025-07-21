@@ -100,7 +100,7 @@ export const dbSim = <
       }
     };
 
-    // simError("begin");
+    simError("begin");
     return transaction(...args);
   };
 

@@ -3,8 +3,8 @@ export class BaseError extends Error {
 
   meta: string[] = [];
 
-  constructor(message?: string | undefined) {
-    super(message);
+  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
+    super(message, { cause });
     Object.setPrototypeOf(this, BaseError.prototype);
   }
 }
@@ -29,8 +29,8 @@ export class BuildError extends BaseError {
 export class NonRetryableError extends BaseError {
   override name = "NonRetryableError";
 
-  constructor(message?: string | undefined) {
-    super(message);
+  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
+    super(message, { cause });
     Object.setPrototypeOf(this, NonRetryableError.prototype);
   }
 }
@@ -127,11 +127,12 @@ export class ShutdownError extends NonRetryableError {
   }
 }
 
+/** Database error that occurs inside `qb.transaction`. */
 export class TransactionError extends NonRetryableError {
   override name = "TransactionError";
 
-  constructor(message?: string | undefined) {
-    super(message);
+  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
+    super(message, { cause });
     Object.setPrototypeOf(this, TransactionError.prototype);
   }
 }
