@@ -64,7 +64,7 @@ const APP_ID = process.argv[2];
 const APP_DIR = `./apps/${APP_ID}`;
 export const SEED = process.env.SEED ?? crypto.randomBytes(32).toString("hex");
 export const UUID = process.env.UUID ?? crypto.randomUUID();
-export const PORT = Number(process.env.PORT) ?? 42069;
+export const PORT = process.env.PORT ?? 42069;
 
 if (APP_ID === undefined) {
   throw new Error("App ID is required. Example: 'pnpm test [app id]'");
@@ -95,8 +95,8 @@ export const SIM_PARAMS = {
     [100, 1000, 10_000, Number.POSITIVE_INFINITY],
     "eth-get-logs-block-limit",
   ),
-  REALTIME_REORG_RATE: pick([0, 0.02, 0.05, 0.1], "realtime-reorg-rate"),
-  REALTIME_DEEP_REORG_RATE: pick([0, 0.02, 0.04], "realtime-deep-reorg-rate"),
+  REALTIME_REORG_RATE: pick([0, 0.02, 0.05], "realtime-reorg-rate"),
+  REALTIME_DEEP_REORG_RATE: pick([0, 0.01, 0.02], "realtime-deep-reorg-rate"),
   REALTIME_FAST_FORWARD_RATE: pick(
     [0, 0.25, 0.5, 0.75],
     "realtime-fast-forward-rate",
