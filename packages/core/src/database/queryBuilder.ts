@@ -94,9 +94,13 @@ export const createQBNodePg = <
   TSchema extends Schema = { [name: string]: never },
 >(
   client: pg.Pool | pg.PoolClient,
-  params: DrizzleConfig<TSchema> & { common: Common; isAdmin?: boolean },
+  params: DrizzleConfig<TSchema> & {
+    common: Common;
+    isAdmin?: boolean;
+    drizzle?: typeof drizzleNodePg;
+  },
 ): QB<TSchema, pg.Pool | pg.PoolClient> => {
-  const db = drizzleNodePg(client, params);
+  const db = (params.drizzle ?? drizzleNodePg)(client, params);
 
   const dialect = new PgDialect({ casing: "snake_case" });
   const isPool = client instanceof pg.Pool;
@@ -219,7 +223,7 @@ export const createQBNodePg = <
   wrapTx(db);
 
   let qb = ((label: string) => {
-    const db = drizzleNodePg(client, params);
+    const db = (params.drizzle ?? drizzleNodePg)(client, params);
 
     const execute = db._.session.execute.bind(db._.session);
     db._.session.execute = async (...args) => {

@@ -1,4 +1,6 @@
+import type { DrizzleConfig } from "drizzle-orm";
 import { NodePgSession, NodePgTransaction } from "drizzle-orm/node-postgres";
+import { drizzle } from "drizzle-orm/node-postgres";
 import {
   type PgDatabase,
   PgDialect,
@@ -12,8 +14,10 @@ export const dbSim = <
   TSchema extends { [name: string]: unknown } = { [name: string]: never },
   TClient extends pg.Pool | pg.PoolClient = pg.Pool | pg.PoolClient,
 >(
-  db: PgDatabase<PgQueryResultHKT, TSchema> & { $client: TClient },
+  ...params: [TClient, DrizzleConfig<TSchema>]
 ): PgDatabase<PgQueryResultHKT, TSchema> & { $client: TClient } => {
+  const db = drizzle(...params);
+
   const dialect = new PgDialect({ casing: "snake_case" });
   const queryCount = new Map<string, number>();
 
