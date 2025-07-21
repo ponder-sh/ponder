@@ -606,18 +606,18 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
     for (const chainName of totalSecondsMetric.values.map(
       ({ labels }) => labels.chain as string,
     )) {
-      const totalSeconds = extractMetric(totalSecondsMetric, chainName) ?? 1;
-      const cachedSeconds = extractMetric(cachedSecondsMetric, chainName) ?? 0;
-      const completedSeconds =
-        extractMetric(completedSecondsMetric, chainName) ?? 0;
-      const timestamp = extractMetric(timestampMetric, chainName) ?? 0;
+      const totalSeconds = extractMetric(totalSecondsMetric, chainName);
+      const cachedSeconds = extractMetric(cachedSecondsMetric, chainName);
+      const completedSeconds = extractMetric(completedSecondsMetric, chainName);
+      const timestamp = extractMetric(timestampMetric, chainName);
 
-      if (!totalSeconds || !cachedSeconds || !completedSeconds || !timestamp) {
-        perChainAppProgress.push({
-          mode: "historical",
-          progress: undefined,
-          eta: undefined,
-        });
+      if (
+        totalSeconds === undefined ||
+        cachedSeconds === undefined ||
+        completedSeconds === undefined ||
+        timestamp === undefined
+      ) {
+        continue;
       }
 
       const progress =
