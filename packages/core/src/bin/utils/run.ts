@@ -37,7 +37,6 @@ import { mutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
 import { getTableName, isTable, sql } from "drizzle-orm";
-import pg from "pg";
 
 /** Starts the sync and indexing services for the specified build. */
 export async function run({
