@@ -181,7 +181,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
 
   if (tablesToDrop.length > 0) {
     await database.adminQB.execute(
-      sql.raw(`DROP TABLE IF EXISTS ${tablesToDrop.join(", ")} CASCADE`),
+      `DROP TABLE IF EXISTS ${tablesToDrop.join(", ")} CASCADE`,
     );
 
     logger.warn({
@@ -192,7 +192,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
 
   if (viewsToDrop.length > 0) {
     await database.adminQB.execute(
-      sql.raw(`DROP VIEW IF EXISTS ${viewsToDrop.join(", ")} CASCADE`),
+      `DROP VIEW IF EXISTS ${viewsToDrop.join(", ")} CASCADE`,
     );
 
     logger.warn({
@@ -203,7 +203,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
 
   if (functionsToDrop.length > 0) {
     await database.adminQB.execute(
-      sql.raw(`DROP FUNCTION IF EXISTS ${functionsToDrop.join(", ")} CASCADE`),
+      `DROP FUNCTION IF EXISTS ${functionsToDrop.join(", ")} CASCADE`,
     );
 
     logger.warn({
@@ -214,7 +214,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
 
   if (schemasToDrop.length > 0) {
     await database.adminQB.execute(
-      sql.raw(`DROP SCHEMA IF EXISTS ${schemasToDrop.join(", ")} CASCADE`),
+      `DROP SCHEMA IF EXISTS ${schemasToDrop.join(", ")} CASCADE`,
     );
 
     logger.warn({

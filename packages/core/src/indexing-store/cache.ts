@@ -5,7 +5,7 @@ import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import { addErrorMeta, toErrorMeta } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
-import { FlushError, TransactionError } from "@/internal/errors.js";
+import { FlushError, TransactionStatementError } from "@/internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
   Event,
@@ -228,7 +228,7 @@ export const getCopyHelper = (qb: QB) => {
         // Note: `TransactionError` is applied because the query
         // uses the low-level `$client.query` method.
         .catch((error) => {
-          throw new TransactionError(error.message);
+          throw new TransactionStatementError(error.message);
         });
     };
   } else {
@@ -245,7 +245,7 @@ export const getCopyHelper = (qb: QB) => {
         // Note: `TransactionError` is applied because the query
         // uses the low-level `$client.query` method.
         .catch((error) => {
-          throw new TransactionError(error.message);
+          throw new TransactionStatementError(error.message);
         });
     };
   }
@@ -539,7 +539,6 @@ export const createIndexingCache = ({
               // @ts-ignore remove meta from error
               error.meta = undefined;
             } else {
-              error = new FlushError(error.message);
               error.stack = undefined;
 
               common.logger.warn({
@@ -676,7 +675,6 @@ export const createIndexingCache = ({
               // @ts-ignore remove meta from error
               error.meta = undefined;
             } else {
-              error = new FlushError(error.message);
               error.stack = undefined;
 
               common.logger.warn({

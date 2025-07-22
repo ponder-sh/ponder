@@ -5,7 +5,7 @@ import {
   NonRetryableError,
   NotNullConstraintError,
   ShutdownError,
-  TransactionError,
+  TransactionStatementError,
   UniqueConstraintError,
   getBaseError,
 } from "@/internal/errors.js";
@@ -13,21 +13,18 @@ import type { Schema } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
-import type { PGlite } from "@electric-sql/pglite";
-import type { DrizzleConfig } from "drizzle-orm";
-import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
-import {
-  type PgDatabase,
-  PgDialect,
-  type PgQueryResultHKT,
-  type PgTransactionConfig,
+import { PGlite } from "@electric-sql/pglite";
+import type { ExtractTablesWithRelations } from "drizzle-orm";
+import type {
+  PgDatabase,
+  PgQueryResultHKT,
+  PgTransaction,
+  PgTransactionConfig,
 } from "drizzle-orm/pg-core";
-import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
-import pg from "pg";
+import type pg from "pg";
 
 const RETRY_COUNT = 9;
 const BASE_DURATION = 125;
-const SQL_LENGTH_LIMIT = 50;
 
 /**
  * Query builder with built-in retry logic, logging, and metrics.
@@ -38,18 +35,22 @@ export type QB<
     | PGlite
     | pg.Pool
     | pg.PoolClient,
-> = ((label: string) => Omit<Drizzle<TSchema>, "transaction"> & {
+> = (Omit<Drizzle<TSchema>, "transaction"> & {
   transaction<T>(
     transaction: (tx: QB<TSchema, TClient>) => Promise<T>,
     config?: PgTransactionConfig,
   ): Promise<T>;
+  transaction<T>(
+    { label }: { label: string },
+    transaction: (tx: QB<TSchema, TClient>) => Promise<T>,
+    config?: PgTransactionConfig,
+  ): Promise<T>;
+  wrap<T>(query: (db: Omit<QB<TSchema, TClient>, "wrap">) => T): T;
+  wrap<T>(
+    { label }: { label: string },
+    query: (db: Omit<QB<TSchema, TClient>, "wrap">) => T,
+  ): T;
 }) &
-  (Omit<Drizzle<TSchema>, "transaction"> & {
-    transaction<T>(
-      transaction: (tx: QB<TSchema, TClient>) => Promise<T>,
-      config?: PgTransactionConfig,
-    ): Promise<T>;
-  }) &
   (
     | { $dialect: "pglite"; $client: PGlite }
     | { $dialect: "postgres"; $client: pg.Pool | pg.PoolClient }
@@ -85,513 +86,197 @@ export const parseSqlError = (e: any): Error => {
  *
  * @example
  * ```ts
- * const qb = createQBNodePg(pool, { casing: "snake_case", common });
+ * const qb = createQB(drizzle(pool), { casing: "snake_case", common });
  * const result1 = await qb.select().from(accounts);
- * const result2 = await qb("label").select().from(accounts);
+ * const result2 = await qb.wrap({ label: "label" }, (db) => db.select().from(accounts));
  * ```
  */
-export const createQBNodePg = <
-  TSchema extends Schema = { [name: string]: never },
->(
-  client: pg.Pool | pg.PoolClient,
-  params: DrizzleConfig<TSchema> & {
-    common: Common;
-    isAdmin?: boolean;
-    drizzle?: typeof drizzleNodePg;
-  },
-): QB<TSchema, pg.Pool | pg.PoolClient> => {
-  const db = (params.drizzle ?? drizzleNodePg)(client, params);
-
-  const dialect = new PgDialect({ casing: "snake_case" });
-  const isPool = client instanceof pg.Pool;
-
-  let txLabel: string | undefined;
+export const createQB = <TSchema extends Schema = { [name: string]: never }>(
+  db: Drizzle<TSchema> & { $client: PGlite | pg.Pool | pg.PoolClient },
+  { common, isAdmin }: { common: Common; isAdmin?: boolean },
+): QB<TSchema, PGlite | pg.Pool | pg.PoolClient> => {
+  const dialect = db.$client instanceof PGlite ? "pglite" : "postgres";
 
   const wrapTx = (db: PgDatabase<PgQueryResultHKT, TSchema>) => {
     const _transaction = db.transaction.bind(db);
+    // @ts-ignore
     db.transaction = async (...args) => {
-      const callback = args[0];
-      args[0] = async (_tx) => {
-        wrapTx(_tx);
+      if (typeof args[0] === "function") {
+        const [callback, config] = args as [
+          (
+            tx: PgTransaction<
+              PgQueryResultHKT,
+              TSchema,
+              ExtractTablesWithRelations<TSchema>
+            >,
+          ) => Promise<unknown>,
+          PgTransactionConfig | undefined,
+        ];
 
-        const previousLabel = txLabel;
+        // Note: We want to retry errors from `callback` but include
+        // the transaction control statements in `_transaction`.
 
-        let tx = ((label: string) => {
-          txLabel = label;
-
-          return _tx;
-        }) as unknown as QB<TSchema>;
-
-        tx = new Proxy(tx, {
-          get(_, prop) {
-            return Reflect.get(_tx, prop);
-          },
-          set(_, prop, value) {
-            return Reflect.set(_tx, prop, value);
-          },
-          has(_, prop) {
-            return Reflect.has(_tx, prop);
-          },
-          ownKeys() {
-            return Reflect.ownKeys(_tx);
-          },
-        });
-
-        Object.assign(tx, { $dialect: "postgres" });
-        // @ts-expect-error
-        Object.assign(tx, { $client: _tx.session.client });
-
-        // @ts-expect-error
-        const result = await callback(tx);
-
-        txLabel = previousLabel;
-        return result;
-      };
-      return _transaction(...args);
-    };
-  };
-
-  // non-transaction queries (retryable)
-
-  const execute = db._.session.execute.bind(db._.session);
-  db._.session.execute = async (...args) => {
-    return wrap(
-      () => execute(...args),
-      dialect.sqlToQuery(args[0]).sql,
-      params,
-    );
-  };
-
-  const prepareQuery = db._.session.prepareQuery.bind(db._.session);
-  db._.session.prepareQuery = (...args) => {
-    const result = prepareQuery(...args);
-    const execute = result.execute.bind(result);
-    result.execute = async (..._args) => {
-      return wrap(() => execute(..._args), args[0].sql, params);
-    };
-    return result;
-  };
-
-  // transaction queries (non-retryable)
-
-  const transaction = db._.session.transaction.bind(db._.session);
-  db._.session.transaction = async (...args) => {
-    const callback = args[0];
-    args[0] = async (..._args) => {
-      const tx = _args[0] as PgDatabase<PgQueryResultHKT, TSchema>;
-      const txExecute = isPool
-        ? tx._.session.execute.bind(tx._.session)
-        : execute;
-      // @ts-expect-error
-      tx._.session.execute = async (...args) => {
+        // @ts-ignore
         return wrap(
           () =>
-            txExecute(...args).catch((error) => {
-              throw new TransactionError(error.message, { cause: error });
-            }),
-          dialect.sqlToQuery(args[0]).sql,
-          { ...params, label: txLabel },
+            _transaction((tx) => {
+              wrapTx(tx);
+
+              Object.assign(tx, { $dialect: dialect });
+              // @ts-expect-error
+              Object.assign(tx, { $client: tx.session.client });
+
+              // Note: `tx.wrap` should not retry errors, because the transaction will be aborted
+              // @ts-ignore
+              (tx as unknown as QB<TSchema>).wrap = ({ label }, query) => {
+                return wrap(
+                  async () => {
+                    try {
+                      return await query(tx as unknown as QB<TSchema>);
+                    } catch (error) {
+                      if (error instanceof NonRetryableError) {
+                        throw error;
+                      }
+
+                      throw new TransactionStatementError(
+                        (error as Error).message,
+                      );
+                    }
+                  },
+                  {
+                    label,
+                    isTransactionCallback: true,
+                    common,
+                    isAdmin,
+                  },
+                );
+              };
+
+              return callback(tx).catch((error) => {
+                if (error instanceof NonRetryableError) {
+                  throw error;
+                }
+
+                throw new TransactionStatementError(error.message);
+              });
+            }, config),
+          {
+            isTransactionCallback: false,
+            common,
+            isAdmin,
+          },
         );
-      };
+      } else {
+        const [{ label }, callback, config] = args as unknown as [
+          { label: string },
+          (
+            tx: PgTransaction<
+              PgQueryResultHKT,
+              TSchema,
+              ExtractTablesWithRelations<TSchema>
+            >,
+          ) => Promise<unknown>,
+          PgTransactionConfig | undefined,
+        ];
 
-      const txPrepareQuery = isPool
-        ? tx._.session.prepareQuery.bind(tx._.session)
-        : prepareQuery;
-      // @ts-ignore
-      tx._.session.prepareQuery = (...args) => {
-        const result = txPrepareQuery(...args);
-        const execute = result.execute.bind(result);
-        result.execute = async (..._args) => {
-          return wrap(
-            () =>
-              execute(..._args).catch((error) => {
-                throw new TransactionError(error.message, { cause: error });
-              }),
-            args[0].sql,
-            { ...params, label: txLabel },
-          );
-        };
-        return result;
-      };
+        // Note: We want to retry errors from `callback` but include
+        // the transaction control statements in `_transaction`.
 
-      return callback(..._args);
+        // @ts-ignore
+        return wrap(
+          () =>
+            _transaction((tx) => {
+              wrapTx(tx);
+
+              Object.assign(tx, { $dialect: dialect });
+              // @ts-expect-error
+              Object.assign(tx, { $client: tx.session.client });
+
+              // Note: `tx.wrap` should not retry errors, because the transaction will be aborted
+              // @ts-ignore
+              (tx as unknown as QB<TSchema>).wrap = ({ label }, query) => {
+                return wrap(
+                  async () => {
+                    try {
+                      return await query(tx as unknown as QB<TSchema>);
+                    } catch (error) {
+                      if (error instanceof NonRetryableError) {
+                        throw error;
+                      }
+
+                      throw new TransactionStatementError(
+                        (error as Error).message,
+                      );
+                    }
+                  },
+                  {
+                    label,
+                    isTransactionCallback: true,
+                    common,
+                    isAdmin,
+                  },
+                );
+              };
+
+              return callback(tx).catch((error) => {
+                if (error instanceof NonRetryableError) {
+                  throw error;
+                }
+
+                throw new TransactionStatementError((error as Error).message);
+              });
+            }, config),
+          { label, isTransactionCallback: false, common, isAdmin },
+        );
+      }
     };
-
-    return wrap(
-      () =>
-        transaction(...args).catch((error) => {
-          if (error instanceof TransactionError) {
-            throw error.cause;
-          }
-          throw error;
-        }),
-      "transaction",
-      params,
-    );
   };
 
   wrapTx(db);
 
-  let qb = ((label: string) => {
-    const db = (params.drizzle ?? drizzleNodePg)(client, params);
+  const qb = db as unknown as QB<TSchema>;
 
-    const execute = db._.session.execute.bind(db._.session);
-    db._.session.execute = async (...args) => {
-      return wrap(() => execute(...args), dialect.sqlToQuery(args[0]).sql, {
-        ...params,
-        label,
-      });
-    };
+  qb.$dialect = "postgres";
+  qb.$client = db.$client;
 
-    const prepareQuery = db._.session.prepareQuery.bind(db._.session);
-    db._.session.prepareQuery = (...args) => {
-      const result = prepareQuery(...args);
-      const execute = result.execute.bind(result);
-      result.execute = async (..._args) => {
-        return wrap(() => execute(..._args), args[0].sql, { ...params, label });
-      };
-      return result;
-    };
-
-    // transaction queries (non-retryable)
-
-    const transaction = db._.session.transaction.bind(db._.session);
-    db._.session.transaction = async (...args) => {
-      const callback = args[0];
-      args[0] = async (..._args) => {
-        const tx = _args[0] as PgDatabase<PgQueryResultHKT, TSchema>;
-        const txExecute = isPool
-          ? tx._.session.execute.bind(tx._.session)
-          : execute;
-        // @ts-expect-error
-        tx._.session.execute = async (...args) => {
-          return wrap(
-            () =>
-              txExecute(...args).catch((error) => {
-                throw new TransactionError(error.message, { cause: error });
-              }),
-            dialect.sqlToQuery(args[0]).sql,
-            { ...params, label: txLabel },
-          );
-        };
-
-        const txPrepareQuery = isPool
-          ? tx._.session.prepareQuery.bind(tx._.session)
-          : prepareQuery;
-        // @ts-ignore
-        tx._.session.prepareQuery = (...args) => {
-          const result = txPrepareQuery(...args);
-          const execute = result.execute.bind(result);
-          result.execute = async (..._args) => {
-            return wrap(
-              () =>
-                execute(..._args).catch((error) => {
-                  throw new TransactionError(error.message, { cause: error });
-                }),
-              args[0].sql,
-              { ...params, label: txLabel },
-            );
-          };
-          return result;
-        };
-
-        return callback(..._args);
-      };
-
-      return wrap(
-        () =>
-          transaction(...args).catch((error) => {
-            if (error instanceof TransactionError) {
-              throw error.cause;
-            }
-            throw error;
-          }),
-        "transaction",
-        { ...params, label },
-      );
-    };
-
-    wrapTx(db);
-    txLabel = label;
-
-    return db;
-  }) as unknown as QB<TSchema>;
-
-  qb = new Proxy(qb, {
-    get(_, prop) {
-      return Reflect.get(db, prop);
-    },
-    set(_, prop, value) {
-      return Reflect.set(db, prop, value);
-    },
-    has(_, prop) {
-      return Reflect.has(db, prop);
-    },
-    ownKeys() {
-      return Reflect.ownKeys(db);
-    },
-  });
-
-  Object.assign(qb, { $dialect: "postgres" });
-  Object.assign(qb, { $client: client });
-
-  return qb;
-};
-
-/**
- * Create a query builder.
- *
- * @example
- * ```ts
- * const qb = createQBPGlite(pglite, { casing: "snake_case", common });
- * const result1 = await qb.select().from(accounts);
- * const result2 = await qb("label").select().from(accounts);
- * ```
- */
-export const createQBPGlite = <
-  TSchema extends Schema = { [name: string]: never },
->(
-  client: PGlite,
-  params: DrizzleConfig<TSchema> & { common: Common; isAdmin?: boolean },
-): QB<TSchema, pg.Pool | pg.PoolClient> => {
-  const db = drizzlePglite(client, params);
-
-  const dialect = new PgDialect({ casing: "snake_case" });
-
-  let txLabel: string | undefined;
-
-  const wrapTx = (db: PgDatabase<PgQueryResultHKT, TSchema>) => {
-    const _transaction = db.transaction.bind(db);
-    db.transaction = async (...args) => {
-      const callback = args[0];
-      args[0] = async (_tx) => {
-        wrapTx(_tx);
-
-        const previousLabel = txLabel;
-
-        let tx = ((label: string) => {
-          txLabel = label;
-
-          return _tx;
-        }) as unknown as QB<TSchema>;
-
-        tx = new Proxy(tx, {
-          get(_, prop) {
-            return Reflect.get(_tx, prop);
-          },
-          set(_, prop, value) {
-            return Reflect.set(_tx, prop, value);
-          },
-          has(_, prop) {
-            return Reflect.has(_tx, prop);
-          },
-          ownKeys() {
-            return Reflect.ownKeys(_tx);
-          },
-        });
-
-        Object.assign(tx, { $dialect: "pglite" });
-        // @ts-expect-error
-        Object.assign(tx, { $client: _tx.session.client });
-
-        // @ts-expect-error
-        const result = await callback(tx);
-
-        txLabel = previousLabel;
-        return result;
-      };
-      return _transaction(...args);
-    };
-  };
-
-  // non-transaction queries (retryable)
-
-  const execute = db._.session.execute.bind(db._.session);
-  db._.session.execute = async (...args) => {
-    return wrap(
-      () => execute(...args),
-      dialect.sqlToQuery(args[0]).sql,
-      params,
-    );
-  };
-
-  const prepareQuery = db._.session.prepareQuery.bind(db._.session);
-  db._.session.prepareQuery = (...args) => {
-    const result = prepareQuery(...args);
-    const execute = result.execute.bind(result);
-    result.execute = async (..._args) => {
-      return wrap(() => execute(..._args), args[0].sql, params);
-    };
-    return result;
-  };
-
-  // transaction queries (non-retryable)
-
-  const transaction = db._.session.transaction.bind(db._.session);
-  db._.session.transaction = async (...args) => {
-    const callback = args[0];
-    args[0] = async (..._args) => {
-      const tx = _args[0] as PgDatabase<PgQueryResultHKT, TSchema>;
-      const execute = tx._.session.execute.bind(tx._.session);
-      // @ts-expect-error
-      tx._.session.execute = async (...args) => {
-        return wrap(
-          () =>
-            execute(...args).catch((error) => {
-              throw new TransactionError(error.message, { cause: error });
-            }),
-          dialect.sqlToQuery(args[0]).sql,
-          { ...params, label: txLabel },
-        );
-      };
-
-      const prepareQuery = tx._.session.prepareQuery.bind(tx._.session);
+  // @ts-ignore
+  qb.wrap = (...args) => {
+    if (typeof args[0] === "function") {
+      const [query] = args;
       // @ts-ignore
-      tx._.session.prepareQuery = (...args) => {
-        const result = prepareQuery(...args);
-        const execute = result.execute.bind(result);
-        result.execute = async (..._args) => {
-          return wrap(
-            () =>
-              execute(..._args).catch((error) => {
-                throw new TransactionError(error.message, { cause: error });
-              }),
-            args[0].sql,
-            { ...params, label: txLabel },
-          );
-        };
-        return result;
-      };
-
-      return callback(..._args);
-    };
-
-    return wrap(
-      () =>
-        transaction(...args).catch((error) => {
-          if (error instanceof TransactionError) {
-            throw error.cause;
-          }
-          throw error;
-        }),
-      "transaction",
-      params,
-    );
-  };
-
-  wrapTx(db);
-
-  let qb = ((label: string) => {
-    const db = drizzlePglite(client, params);
-
-    const execute = db._.session.execute.bind(db._.session);
-    db._.session.execute = async (...args) => {
-      return wrap(() => execute(...args), dialect.sqlToQuery(args[0]).sql, {
-        ...params,
-        label,
+      return wrap(() => query(qb), {
+        isTransactionCallback: false,
+        common,
+        isAdmin,
       });
-    };
-
-    const prepareQuery = db._.session.prepareQuery.bind(db._.session);
-    db._.session.prepareQuery = (...args) => {
-      const result = prepareQuery(...args);
-      const execute = result.execute.bind(result);
-      result.execute = async (..._args) => {
-        return wrap(() => execute(..._args), args[0].sql, { ...params, label });
-      };
-      return result;
-    };
-
-    // transaction queries (non-retryable)
-
-    const transaction = db._.session.transaction.bind(db._.session);
-    db._.session.transaction = async (...args) => {
-      const callback = args[0];
-      args[0] = async (..._args) => {
-        const tx = _args[0] as PgDatabase<PgQueryResultHKT, TSchema>;
-
-        const execute = tx._.session.execute.bind(tx._.session);
-        // @ts-expect-error
-        tx._.session.execute = async (...args) => {
-          return wrap(
-            () =>
-              execute(...args).catch((error) => {
-                throw new TransactionError(error.message, { cause: error });
-              }),
-            dialect.sqlToQuery(args[0]).sql,
-            { ...params, label: txLabel },
-          );
-        };
-
-        const prepareQuery = tx._.session.prepareQuery.bind(tx._.session);
-        // @ts-ignore
-        tx._.session.prepareQuery = (...args) => {
-          const result = prepareQuery(...args);
-          const execute = result.execute.bind(result);
-          result.execute = async (..._args) => {
-            return wrap(
-              () =>
-                execute(..._args).catch((error) => {
-                  throw new TransactionError(error.message, { cause: error });
-                }),
-              args[0].sql,
-              { ...params, label: txLabel },
-            );
-          };
-          return result;
-        };
-
-        return callback(..._args);
-      };
-
-      return wrap(
-        () =>
-          transaction(...args).catch((error) => {
-            if (error instanceof TransactionError) {
-              throw error.cause;
-            }
-            throw error;
-          }),
-        "transaction",
-        { ...params, label },
-      );
-    };
-
-    wrapTx(db);
-    txLabel = label;
-
-    return db;
-  }) as unknown as QB<TSchema>;
-
-  qb = new Proxy(qb, {
-    get(_, prop) {
-      return Reflect.get(db, prop);
-    },
-    set(_, prop, value) {
-      return Reflect.set(db, prop, value);
-    },
-    has(_, prop) {
-      return Reflect.has(db, prop);
-    },
-    ownKeys() {
-      return Reflect.ownKeys(db);
-    },
-  });
-
-  Object.assign(qb, { $dialect: "pglite" });
-  Object.assign(qb, { $client: client });
+    } else {
+      const [{ label }, query] = args;
+      // @ts-ignore
+      return wrap(() => query(qb), {
+        isTransactionCallback: false,
+        label,
+        common,
+        isAdmin,
+      });
+    }
+  };
 
   return qb;
 };
 
 const wrap = async <T>(
   fn: () => Promise<T>,
-  sql: string,
   {
     common,
+    isTransactionCallback,
     label,
     isAdmin,
-  }: { common: Common; label?: string; isAdmin?: boolean },
+  }: {
+    common: Common;
+    isTransactionCallback: boolean;
+    label?: string;
+    isAdmin?: boolean;
+  },
 ): Promise<T> => {
   // First error thrown is often the most useful
   let firstError: any;
@@ -648,23 +333,24 @@ const wrap = async <T>(
         firstError = error;
       }
 
-      if (
-        error instanceof TransactionError &&
-        sql.startsWith("rollback") === false &&
-        sql.startsWith("ROLLBACK") === false
-      ) {
-        common.logger.debug({
-          service: "database",
-          msg: `Failed '${sql.slice(0, SQL_LENGTH_LIMIT)}...' database query (id=${id})`,
-          error,
-        });
-        throw error;
-      }
+      // Two types of transaction enviroments
+      // 1. Inside callback (running user statements or control flow statements)
+      // 2. Outside callback (running entire transaction, user statements + control flow statements)
 
-      if (error instanceof NonRetryableError) {
+      // Three transaction error cases to consider:
+      // 1. `TransactionStatementError` + inside callback: Throw error, retry later. We want the error bubbled
+      // up out of the callback, so the transaction is properly rolled back.
+      // 2. `TransactionStatementError` + outside callback: Retry immediately.
+      // 3. Not `TransactionStatementError`: Transaction control statements ("begin", "commit", "rollback", "savepoint", "release").
+      // These are treated the same as non-transaction errors. They are retried immediately.
+
+      if (
+        error instanceof NonRetryableError ||
+        (isTransactionCallback && error instanceof TransactionStatementError)
+      ) {
         common.logger.warn({
           service: "database",
-          msg: `Failed '${sql.slice(0, SQL_LENGTH_LIMIT)}...' database query (id=${id})`,
+          msg: `Failed '${label}' database query (id=${id})`,
           error,
         });
         throw error;
@@ -673,7 +359,7 @@ const wrap = async <T>(
       if (i === RETRY_COUNT) {
         common.logger.warn({
           service: "database",
-          msg: `Failed '${sql.slice(0, SQL_LENGTH_LIMIT)}...' database query after '${i + 1}' attempts (id=${id})`,
+          msg: `Failed '${label}' database query after '${i + 1}' attempts (id=${id})`,
           error,
         });
         throw firstError;
@@ -682,7 +368,7 @@ const wrap = async <T>(
       const duration = BASE_DURATION * 2 ** i;
       common.logger.debug({
         service: "database",
-        msg: `Failed '${sql.slice(0, SQL_LENGTH_LIMIT)}...' database query, retrying after ${duration} milliseconds (id=${id})`,
+        msg: `Failed '${label}' database query, retrying after ${duration} milliseconds (id=${id})`,
         error,
       });
       await wait(duration);

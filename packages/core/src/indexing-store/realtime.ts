@@ -22,11 +22,13 @@ export const createRealtimeIndexingStore = ({
 }): IndexingStore => {
   let qb: QB = undefined!;
   const find = (table: Table, key: object) => {
-    return qb
-      .select()
-      .from(table)
-      .where(getWhereCondition(table, key))
-      .then((res) => (res.length === 0 ? null : res[0]!));
+    return qb.wrap((db) =>
+      db
+        .select()
+        .from(table)
+        .where(getWhereCondition(table, key))
+        .then((res) => (res.length === 0 ? null : res[0]!)),
+    );
   };
 
   return {
@@ -78,12 +80,14 @@ export const createRealtimeIndexingStore = ({
                 return rows;
               };
 
-              return qb
-                .insert(table)
-                .values(values)
-                .onConflictDoNothing()
-                .returning()
-                .then(parseResult);
+              return qb.wrap((db) =>
+                db
+                  .insert(table)
+                  .values(values)
+                  .onConflictDoNothing()
+                  .returning()
+                  .then(parseResult),
+              );
             },
             onConflictDoUpdate: async (valuesU: any) => {
               common.metrics.ponder_indexing_store_queries_total.inc({
@@ -104,20 +108,24 @@ export const createRealtimeIndexingStore = ({
                         : validateUpdateSet(table, valuesU, row);
 
                     rows.push(
-                      await qb
-                        .update(table)
-                        .set(set)
-                        .where(getWhereCondition(table, value))
-                        .returning()
-                        .then((res) => res[0]),
+                      await qb.wrap((db) =>
+                        db
+                          .update(table)
+                          .set(set)
+                          .where(getWhereCondition(table, value))
+                          .returning()
+                          .then((res) => res[0]),
+                      ),
                     );
                   } else {
                     rows.push(
-                      await qb
-                        .insert(table)
-                        .values(value)
-                        .returning()
-                        .then((res) => res[0]),
+                      await qb.wrap((db) =>
+                        db
+                          .insert(table)
+                          .values(value)
+                          .returning()
+                          .then((res) => res[0]),
+                      ),
                     );
                   }
                 }
@@ -131,18 +139,22 @@ export const createRealtimeIndexingStore = ({
                       ? validateUpdateSet(table, valuesU(row), row)
                       : validateUpdateSet(table, valuesU, row);
 
-                  return qb
-                    .update(table)
-                    .set(set)
-                    .where(getWhereCondition(table, values))
-                    .returning()
-                    .then((res) => res[0]);
+                  return qb.wrap((db) =>
+                    db
+                      .update(table)
+                      .set(set)
+                      .where(getWhereCondition(table, values))
+                      .returning()
+                      .then((res) => res[0]),
+                  );
                 } else {
-                  return qb
-                    .insert(table)
-                    .values(values)
-                    .returning()
-                    .then((res) => res[0]);
+                  return qb.wrap((db) =>
+                    db
+                      .insert(table)
+                      .values(values)
+                      .returning()
+                      .then((res) => res[0]),
+                  );
                 }
               }
             },
@@ -155,11 +167,13 @@ export const createRealtimeIndexingStore = ({
                 });
                 checkOnchainTable(table, "insert");
 
-                return qb
-                  .insert(table)
-                  .values(values)
-                  .returning()
-                  .then((res) => (Array.isArray(values) ? res : res[0]));
+                return qb.wrap((db) =>
+                  db
+                    .insert(table)
+                    .values(values)
+                    .returning()
+                    .then((res) => (Array.isArray(values) ? res : res[0])),
+                );
               })().then(onFulfilled, onRejected),
             catch: (onRejected) => inner.then(undefined, onRejected),
             finally: (onFinally) =>
@@ -201,20 +215,24 @@ export const createRealtimeIndexingStore = ({
             }
 
             const set = validateUpdateSet(table, values(row), row);
-            return qb
-              .update(table)
-              .set(set)
-              .where(getWhereCondition(table, key))
-              .returning()
-              .then((res) => res[0]);
+            return qb.wrap((db) =>
+              db
+                .update(table)
+                .set(set)
+                .where(getWhereCondition(table, key))
+                .returning()
+                .then((res) => res[0]),
+            );
           } else {
             const set = validateUpdateSet(table, values, row!);
-            return qb
-              .update(table)
-              .set(set)
-              .where(getWhereCondition(table, key))
-              .returning()
-              .then((res) => res[0]);
+            return qb.wrap((db) =>
+              db
+                .update(table)
+                .set(set)
+                .where(getWhereCondition(table, key))
+                .returning()
+                .then((res) => res[0]),
+            );
           }
         },
       };
@@ -227,10 +245,9 @@ export const createRealtimeIndexingStore = ({
       });
       checkOnchainTable(table, "delete");
 
-      const deleted = await qb
-        .delete(table)
-        .where(getWhereCondition(table, key))
-        .returning();
+      const deleted = await qb.wrap((db) =>
+        db.delete(table).where(getWhereCondition(table, key)).returning(),
+      );
 
       return deleted.length > 0;
     },
@@ -242,9 +259,11 @@ export const createRealtimeIndexingStore = ({
         const endClock = startClock();
 
         try {
-          const result = await qb._.session
-            .prepareQuery(query, undefined, undefined, method === "all")
-            .execute();
+          const result = await qb.wrap((db) =>
+            db._.session
+              .prepareQuery(query, undefined, undefined, method === "all")
+              .execute(),
+          );
 
           // @ts-ignore
           return { rows: result.rows.map((row) => Object.values(row)) };

@@ -22,16 +22,13 @@ import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
 import { eq, getTableName, isTable, sql } from "drizzle-orm";
+import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
 import { pgSchema, pgTable } from "drizzle-orm/pg-core";
+import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
 import type { Pool, PoolClient } from "pg";
 import prometheus from "prom-client";
-import {
-  type QB,
-  createQBNodePg,
-  createQBPGlite,
-  parseSqlError,
-} from "./queryBuilder.js";
+import { type QB, createQB, parseSqlError } from "./queryBuilder.js";
 import { revert } from "./utils.js";
 
 export type Database = {
@@ -184,9 +181,11 @@ export const createDatabase = async ({
       clearInterval(heartbeatInterval);
 
       if (["start", "dev"].includes(common.options.command)) {
-        await adminQB("unlock")
-          .update(PONDER_META)
-          .set({ value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))` });
+        await adminQB.wrap({ label: "unlock" }, (db) =>
+          db
+            .update(PONDER_META)
+            .set({ value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))` }),
+        );
       }
 
       if (dialect === "pglite") {
@@ -199,30 +198,34 @@ export const createDatabase = async ({
     );
     await driver.instance.query(`SET search_path TO "${namespace.schema}"`);
 
-    syncQB = createQBPGlite((driver as PGliteDriver).instance, {
-      casing: "snake_case",
-      schema: PONDER_SYNC,
-      common,
-      isAdmin: false,
-    });
-    adminQB = createQBPGlite((driver as PGliteDriver).instance, {
-      casing: "snake_case",
-      schema: schemaBuild.schema,
-      common,
-      isAdmin: true,
-    });
-    userQB = createQBPGlite((driver as PGliteDriver).instance, {
-      casing: "snake_case",
-      schema: schemaBuild.schema,
-      common,
-      isAdmin: false,
-    });
-    readonlyQB = createQBPGlite((driver as PGliteDriver).instance, {
-      casing: "snake_case",
-      schema: schemaBuild.schema,
-      common,
-      isAdmin: false,
-    });
+    syncQB = createQB(
+      drizzlePglite((driver as PGliteDriver).instance, {
+        casing: "snake_case",
+        schema: PONDER_SYNC,
+      }),
+      { common, isAdmin: false },
+    );
+    adminQB = createQB(
+      drizzlePglite((driver as PGliteDriver).instance, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
+      { common, isAdmin: true },
+    );
+    userQB = createQB(
+      drizzlePglite((driver as PGliteDriver).instance, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
+      { common, isAdmin: false },
+    );
+    readonlyQB = createQB(
+      drizzlePglite((driver as PGliteDriver).instance, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
+      { common, isAdmin: false },
+    );
   } else {
     const internalMax = 2;
     const equalMax = Math.floor(
@@ -276,38 +279,44 @@ export const createDatabase = async ({
       `CREATE SCHEMA IF NOT EXISTS "${namespace.schema}"`,
     );
 
-    syncQB = createQBNodePg(driver.sync, {
-      casing: "snake_case",
-      schema: PONDER_SYNC,
-      common,
-      isAdmin: false,
-    });
-    adminQB = createQBNodePg(driver.admin, {
-      casing: "snake_case",
-      schema: schemaBuild.schema,
-      common,
-      isAdmin: true,
-    });
-    userQB = createQBNodePg(driver.user, {
-      casing: "snake_case",
-      schema: schemaBuild.schema,
-      common,
-      isAdmin: false,
-    });
-    readonlyQB = createQBNodePg(driver.readonly, {
-      casing: "snake_case",
-      schema: schemaBuild.schema,
-      common,
-      isAdmin: false,
-    });
+    syncQB = createQB(
+      drizzleNodePg(driver.sync, {
+        casing: "snake_case",
+        schema: PONDER_SYNC,
+      }),
+      { common, isAdmin: false },
+    );
+    adminQB = createQB(
+      drizzleNodePg(driver.admin, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
+      { common, isAdmin: true },
+    );
+    userQB = createQB(
+      drizzleNodePg(driver.user, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
+      { common, isAdmin: false },
+    );
+    readonlyQB = createQB(
+      drizzleNodePg(driver.readonly, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
+      { common, isAdmin: false },
+    );
 
     common.shutdown.add(async () => {
       clearInterval(heartbeatInterval);
 
       if (["start", "dev"].includes(common.options.command)) {
-        await adminQB("unlock")
-          .update(PONDER_META)
-          .set({ value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))` });
+        await adminQB.wrap({ label: "unlock" }, (db) =>
+          db
+            .update(PONDER_META)
+            .set({ value: sql`jsonb_set(value, '{is_locked}', to_jsonb(0))` }),
+        );
       }
 
       const d = driver as PostgresDriver;
@@ -448,7 +457,7 @@ export const createDatabase = async ({
       const createTables = async (tx: QB) => {
         for (let i = 0; i < schemaBuild.statements.tables.sql.length; i++) {
           await tx
-            .execute(sql.raw(schemaBuild.statements.tables.sql[i]!))
+            .execute(schemaBuild.statements.tables.sql[i]!)
             .catch((_error) => {
               const error = _error as Error;
               if (!error.message.includes("already exists")) throw error;
@@ -464,7 +473,7 @@ export const createDatabase = async ({
       const createEnums = async (tx: QB) => {
         for (let i = 0; i < schemaBuild.statements.enums.sql.length; i++) {
           await tx
-            .execute(sql.raw(schemaBuild.statements.enums.sql[i]!))
+            .execute(schemaBuild.statements.enums.sql[i]!)
             .catch((_error) => {
               const error = _error as Error;
               if (!error.message.includes("already exists")) throw error;
@@ -478,23 +487,23 @@ export const createDatabase = async ({
       };
 
       const tryAcquireLockAndMigrate = () =>
-        adminQB("migrate").transaction(async (tx) => {
+        adminQB.transaction({ label: "migrate" }, async (tx) => {
           await tx.execute(
-            sql.raw(`
-    CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_meta" (
-      "key" TEXT PRIMARY KEY,
-      "value" JSONB NOT NULL
-    )`),
+            `
+CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_meta" (
+  "key" TEXT PRIMARY KEY,
+  "value" JSONB NOT NULL
+)`,
           );
 
           await tx.execute(
-            sql.raw(`
-    CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
-      "chain_name" TEXT PRIMARY KEY,
-      "chain_id" BIGINT NOT NULL,
-      "safe_checkpoint" VARCHAR(75) NOT NULL,
-      "latest_checkpoint" VARCHAR(75) NOT NULL
-    )`),
+            `
+CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
+  "chain_name" TEXT PRIMARY KEY,
+  "chain_id" BIGINT NOT NULL,
+  "safe_checkpoint" VARCHAR(75) NOT NULL,
+  "latest_checkpoint" VARCHAR(75) NOT NULL
+)`,
           );
 
           await tx.execute(
@@ -506,25 +515,25 @@ export const createDatabase = async ({
           const channel = `${namespace.schema}_status_channel`;
 
           await tx.execute(
-            sql.raw(`
-    CREATE OR REPLACE FUNCTION "${namespace.schema}".${notification}
-    RETURNS TRIGGER
-    LANGUAGE plpgsql
-    AS $$
-    BEGIN
-    NOTIFY "${channel}";
-    RETURN NULL;
-    END;
-    $$;`),
+            `
+CREATE OR REPLACE FUNCTION "${namespace.schema}".${notification}
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+NOTIFY "${channel}";
+RETURN NULL;
+END;
+$$;`,
           );
 
           await tx.execute(
-            sql.raw(`
-    CREATE OR REPLACE TRIGGER "${trigger}"
-    AFTER INSERT OR UPDATE OR DELETE
-    ON "${namespace.schema}"._ponder_checkpoint
-    FOR EACH STATEMENT
-    EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
+            `
+CREATE OR REPLACE TRIGGER "${trigger}"
+AFTER INSERT OR UPDATE OR DELETE
+ON "${namespace.schema}"._ponder_checkpoint
+FOR EACH STATEMENT
+EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
           );
 
           // Note: All ponder versions are compatible with the next query (every version of the "_ponder_meta" table have the same columns)
@@ -570,21 +579,15 @@ export const createDatabase = async ({
           ) {
             for (const table of previousApp.table_names) {
               await tx.execute(
-                sql.raw(
-                  `DROP TABLE IF EXISTS "${namespace.schema}"."${table}" CASCADE`,
-                ),
+                `DROP TABLE IF EXISTS "${namespace.schema}"."${table}" CASCADE`,
               );
               await tx.execute(
-                sql.raw(
-                  `DROP TABLE IF EXISTS "${namespace.schema}"."${sqlToReorgTableName(table)}" CASCADE`,
-                ),
+                `DROP TABLE IF EXISTS "${namespace.schema}"."${sqlToReorgTableName(table)}" CASCADE`,
               );
             }
             for (const enumName of schemaBuild.statements.enums.json) {
               await tx.execute(
-                sql.raw(
-                  `DROP TYPE IF EXISTS "${namespace.schema}"."${enumName.name}"`,
-                ),
+                `DROP TYPE IF EXISTS "${namespace.schema}"."${enumName.name}"`,
               );
             }
 
@@ -592,9 +595,7 @@ export const createDatabase = async ({
             await createTables(tx);
 
             await tx.execute(
-              sql.raw(
-                `TRUNCATE TABLE "${namespace.schema}"."${getTableName(PONDER_CHECKPOINT)}" CASCADE`,
-              ),
+              `TRUNCATE TABLE "${namespace.schema}"."${getTableName(PONDER_CHECKPOINT)}" CASCADE`,
             );
 
             common.logger.info({
@@ -662,9 +663,7 @@ export const createDatabase = async ({
 
           for (const table of tables) {
             await tx.execute(
-              sql.raw(
-                `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
-              ),
+              `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
             );
           }
 
@@ -672,9 +671,7 @@ export const createDatabase = async ({
 
           for (const indexStatement of schemaBuild.statements.indexes.json) {
             await tx.execute(
-              sql.raw(
-                `DROP INDEX IF EXISTS "${namespace.schema}"."${indexStatement.data.name}"`,
-              ),
+              `DROP INDEX IF EXISTS "${namespace.schema}"."${indexStatement.data.name}"`,
             );
             common.logger.debug({
               service: "database",
@@ -724,11 +721,11 @@ export const createDatabase = async ({
         try {
           const heartbeat = Date.now();
 
-          await adminQB("update_heartbeat")
-            .update(PONDER_META)
-            .set({
+          await adminQB.wrap({ label: "update_heartbeat" }, (db) =>
+            db.update(PONDER_META).set({
               value: sql`jsonb_set(value, '{heartbeat_at}', ${heartbeat})`,
-            });
+            }),
+          );
 
           common.logger.trace({
             service: "database",

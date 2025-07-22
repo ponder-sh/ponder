@@ -1,6 +1,4 @@
-import type { DrizzleConfig } from "drizzle-orm";
 import { NodePgSession, NodePgTransaction } from "drizzle-orm/node-postgres";
-import { drizzle } from "drizzle-orm/node-postgres";
 import {
   type PgDatabase,
   PgDialect,
@@ -14,10 +12,8 @@ export const dbSim = <
   TSchema extends { [name: string]: unknown } = { [name: string]: never },
   TClient extends pg.Pool | pg.PoolClient = pg.Pool | pg.PoolClient,
 >(
-  ...params: [TClient, DrizzleConfig<TSchema>]
+  db: PgDatabase<PgQueryResultHKT, TSchema> & { $client: TClient },
 ): PgDatabase<PgQueryResultHKT, TSchema> & { $client: TClient } => {
-  const db = drizzle(...params);
-
   const dialect = new PgDialect({ casing: "snake_case" });
   const queryCount = new Map<string, number>();
 
@@ -58,51 +54,63 @@ export const dbSim = <
 
   // transaction queries (non-retryable)
 
-  const transaction = db._.session.transaction.bind(db._.session);
-  db._.session.transaction = async (...args) => {
-    const callback = args[0];
-    args[0] = async (..._args) => {
-      const session = new NodePgSession(
-        await db._.session.client.connect(),
-        db._.session.dialect,
-        db._.session.schema,
-        db._.session.options,
-      );
-      const tx = new NodePgTransaction(
-        db._.session.dialect,
-        session,
-        db._.session.schema,
-      );
+  // const transaction = db.transaction.bind(db);
+  // db.transaction = async (callback, config) => {
 
-      const execute = tx._.session.execute.bind(tx._.session);
+  // }
 
-      tx._.session.execute = async (...args) => {
-        simError(dialect.sqlToQuery(args[0]).sql);
-        return execute(...args);
-      };
+  // const transaction = db._.session.transaction.bind(db._.session);
+  // db._.session.transaction = async (...args) => {
+  //   const callback = args[0];
+  //   args[0] = async () => {
+  //     // Note: In order to ...
 
-      const prepareQuery = tx._.session.prepareQuery.bind(tx._.session);
-      // @ts-ignore
-      tx._.session.prepareQuery = (...args) => {
-        const result = prepareQuery(...args);
-        const execute = result.execute.bind(result);
-        result.execute = async (..._args) => {
-          simError(args[0].sql);
-          return execute(..._args);
-        };
-        return result;
-      };
+  //     const session = new NodePgSession(
+  //       await db._.session.client.connect(),
+  //       db._.session.dialect,
+  //       db._.session.schema,
+  //       db._.session.options,
+  //     );
+  //     const tx = new NodePgTransaction(
+  //       db._.session.dialect,
+  //       session,
+  //       db._.session.schema,
+  //     );
 
-      try {
-        return await callback(tx);
-      } finally {
-        tx._.session.client.release();
-      }
-    };
+  //     const execute = tx._.session.execute.bind(tx._.session);
 
-    simError("begin");
-    return transaction(...args);
-  };
+  //     tx._.session.execute = async (...args) => {
+  //       simError(dialect.sqlToQuery(args[0]).sql);
+  //       return execute(...args);
+  //     };
+
+  //     const prepareQuery = tx._.session.prepareQuery.bind(tx._.session);
+  //     // @ts-ignore
+  //     tx._.session.prepareQuery = (...args) => {
+  //       const result = prepareQuery(...args);
+  //       const execute = result.execute.bind(result);
+  //       result.execute = async (..._args) => {
+  //         simError(args[0].sql);
+  //         return execute(..._args);
+  //       };
+  //       return result;
+  //     };
+
+  //     try {
+  //       // callback is qb
+  //       // console.log("callback 1", callback.toString());
+  //       return await callback(tx);
+  //     } catch (error) {
+  //       // console.log("error in sim", error);
+  //     } finally {
+  //       // console.log("sim release");
+  //       tx._.session.client.release();
+  //     }
+  //   };
+
+  //   // simError("begin");
+  //   return transaction(...args);
+  // };
 
   return db;
 };

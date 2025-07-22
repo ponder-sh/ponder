@@ -5,7 +5,7 @@ import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { createTelemetry } from "@/internal/telemetry.js";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 
@@ -101,19 +101,17 @@ export async function createViews({
   }
 
   await database.adminQB.execute(
-    sql.raw(`CREATE SCHEMA IF NOT EXISTS "${cliOptions.viewsSchema}"`),
+    `CREATE SCHEMA IF NOT EXISTS "${cliOptions.viewsSchema}"`,
   );
 
   for (const table of meta[0]!.app.table_names) {
     // Note: drop views before creating new ones to avoid enum errors.
     await database.adminQB.execute(
-      sql.raw(`DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${table}"`),
+      `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${table}"`,
     );
 
     await database.adminQB.execute(
-      sql.raw(
-        `CREATE VIEW "${cliOptions.viewsSchema}"."${table}" AS SELECT * FROM "${cliOptions.schema}"."${table}"`,
-      ),
+      `CREATE VIEW "${cliOptions.viewsSchema}"."${table}" AS SELECT * FROM "${cliOptions.schema}"."${table}"`,
     );
   }
 
@@ -123,15 +121,11 @@ export async function createViews({
   });
 
   await database.adminQB.execute(
-    sql.raw(
-      `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${cliOptions.schema}"."_ponder_meta"`,
-    ),
+    `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${cliOptions.schema}"."_ponder_meta"`,
   );
 
   await database.adminQB.execute(
-    sql.raw(
-      `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${cliOptions.schema}"."_ponder_checkpoint"`,
-    ),
+    `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${cliOptions.schema}"."_ponder_checkpoint"`,
   );
 
   const trigger = `status_${cliOptions.viewsSchema}_trigger`;
@@ -139,7 +133,7 @@ export async function createViews({
   const channel = `${cliOptions.viewsSchema}_status_channel`;
 
   await database.adminQB.execute(
-    sql.raw(`
+    `
 CREATE OR REPLACE FUNCTION "${cliOptions.viewsSchema}".${notification}
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -148,16 +142,16 @@ BEGIN
 NOTIFY "${channel}";
 RETURN NULL;
 END;
-$$;`),
+$$;`,
   );
 
   await database.adminQB.execute(
-    sql.raw(`
+    `
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
 ON "${cliOptions.schema}"._ponder_checkpoint
 FOR EACH STATEMENT
-EXECUTE PROCEDURE "${cliOptions.viewsSchema}".${notification};`),
+EXECUTE PROCEDURE "${cliOptions.viewsSchema}".${notification};`,
   );
 
   await exit({ reason: "Success", code: 0 });

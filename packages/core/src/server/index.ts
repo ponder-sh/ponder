@@ -87,11 +87,14 @@ export async function createServer({
       return c.text("", 200);
     })
     .get("/ready", async (c) => {
-      const isReady = await database
-        .readonlyQB("select_ready")
-        .select()
-        .from(getPonderMetaTable())
-        .then((result) => result[0]!.value.is_ready === 1);
+      const isReady = await database.readonlyQB.wrap(
+        { label: "select_ready" },
+        (db) =>
+          db
+            .select()
+            .from(getPonderMetaTable())
+            .then((result) => result[0]!.value.is_ready === 1),
+      );
       if (isReady) {
         return c.text("", 200);
       }
@@ -99,10 +102,10 @@ export async function createServer({
       return c.text("Historical indexing is not complete.", 503);
     })
     .get("/status", async (c) => {
-      const checkpoints = await database
-        .readonlyQB("select_checkpoints")
-        .select()
-        .from(getPonderCheckpointTable());
+      const checkpoints = await database.readonlyQB.wrap(
+        { label: "select_checkpoints" },
+        (db) => db.select().from(getPonderCheckpointTable()),
+      );
       const status: Status = {};
       for (const { chainName, chainId, latestCheckpoint } of checkpoints) {
         status[chainName] = {

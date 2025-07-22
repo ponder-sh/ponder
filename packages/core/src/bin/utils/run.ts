@@ -37,6 +37,7 @@ import { mutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
 import { getTableName, isTable, sql } from "drizzle-orm";
+import pg from "pg";
 
 /** Starts the sync and indexing services for the specified build. */
 export async function run({
@@ -171,23 +172,25 @@ export async function run({
         throw error;
       }
 
-      await tx("update_checkpoints")
-        .insert(PONDER_CHECKPOINT)
-        .values(
-          indexingBuild.chains.map((chain) => ({
-            chainName: chain.name,
-            chainId: chain.id,
-            latestCheckpoint: sync.getStartCheckpoint(chain),
-            safeCheckpoint: sync.getStartCheckpoint(chain),
-          })),
-        )
-        .onConflictDoUpdate({
-          target: PONDER_CHECKPOINT.chainName,
-          set: {
-            safeCheckpoint: sql`excluded.safe_checkpoint`,
-            latestCheckpoint: sql`excluded.latest_checkpoint`,
-          },
-        });
+      await tx.wrap({ label: "test" }, (tx) =>
+        tx
+          .insert(PONDER_CHECKPOINT)
+          .values(
+            indexingBuild.chains.map((chain) => ({
+              chainName: chain.name,
+              chainId: chain.id,
+              latestCheckpoint: sync.getStartCheckpoint(chain),
+              safeCheckpoint: sync.getStartCheckpoint(chain),
+            })),
+          )
+          .onConflictDoUpdate({
+            target: PONDER_CHECKPOINT.chainName,
+            set: {
+              safeCheckpoint: sql`excluded.safe_checkpoint`,
+              latestCheckpoint: sql`excluded.latest_checkpoint`,
+            },
+          }),
+      );
     });
   }
 
@@ -344,25 +347,27 @@ export async function run({
           endClock = startClock();
 
           if (events.checkpoints.length > 0) {
-            await tx("update_checkpoints")
-              .insert(PONDER_CHECKPOINT)
-              .values(
-                events.checkpoints.map(({ chainId, checkpoint }) => ({
-                  chainName: indexingBuild.chains.find(
-                    (chain) => chain.id === chainId,
-                  )!.name,
-                  chainId,
-                  latestCheckpoint: checkpoint,
-                  safeCheckpoint: checkpoint,
-                })),
-              )
-              .onConflictDoUpdate({
-                target: PONDER_CHECKPOINT.chainName,
-                set: {
-                  safeCheckpoint: sql`excluded.safe_checkpoint`,
-                  latestCheckpoint: sql`excluded.latest_checkpoint`,
-                },
-              });
+            await tx.wrap({ label: "update_checkpoints" }, (tx) =>
+              tx
+                .insert(PONDER_CHECKPOINT)
+                .values(
+                  events.checkpoints.map(({ chainId, checkpoint }) => ({
+                    chainName: indexingBuild.chains.find(
+                      (chain) => chain.id === chainId,
+                    )!.name,
+                    chainId,
+                    latestCheckpoint: checkpoint,
+                    safeCheckpoint: checkpoint,
+                  })),
+                )
+                .onConflictDoUpdate({
+                  target: PONDER_CHECKPOINT.chainName,
+                  set: {
+                    safeCheckpoint: sql`excluded.safe_checkpoint`,
+                    latestCheckpoint: sql`excluded.latest_checkpoint`,
+                  },
+                }),
+            );
           }
 
           common.metrics.ponder_historical_transform_duration.inc(
@@ -427,75 +432,67 @@ export async function run({
   );
 
   if (namespaceBuild.viewsSchema) {
-    await database.adminQB("create_views").transaction(async (tx) => {
-      await tx.execute(
-        sql.raw(`CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.viewsSchema}"`),
-      );
-
-      for (const table of tables) {
-        // Note: drop views before creating new ones to avoid enum errors.
+    await database.adminQB.transaction(
+      { label: "create_views" },
+      async (tx) => {
         await tx.execute(
-          sql.raw(
+          `CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.viewsSchema}"`,
+        );
+
+        for (const table of tables) {
+          // Note: drop views before creating new ones to avoid enum errors.
+          await tx.execute(
             `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${getTableName(table)}"`,
-          ),
+          );
+
+          await tx.execute(
+            `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
+          );
+        }
+
+        common.logger.info({
+          service: "app",
+          msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
+        });
+
+        await tx.execute(
+          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_meta"`,
         );
 
         await tx.execute(
-          sql.raw(
-            `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
-          ),
-        );
-      }
-
-      common.logger.info({
-        service: "app",
-        msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
-      });
-
-      await tx.execute(
-        sql.raw(
-          `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_meta"`,
-        ),
-      );
-
-      await tx.execute(
-        sql.raw(
           `CREATE OR REPLACE VIEW "${namespaceBuild.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_checkpoint"`,
-        ),
-      );
+        );
 
-      const trigger = `status_${namespaceBuild.viewsSchema}_trigger`;
-      const notification = "status_notify()";
-      const channel = `${namespaceBuild.viewsSchema}_status_channel`;
+        const trigger = `status_${namespaceBuild.viewsSchema}_trigger`;
+        const notification = "status_notify()";
+        const channel = `${namespaceBuild.viewsSchema}_status_channel`;
 
-      await tx.execute(
-        sql.raw(`
-    CREATE OR REPLACE FUNCTION "${namespaceBuild.viewsSchema}".${notification}
-    RETURNS TRIGGER
-    LANGUAGE plpgsql
-    AS $$
-    BEGIN
-    NOTIFY "${channel}";
-    RETURN NULL;
-    END;
-    $$;`),
-      );
+        await tx.execute(`
+CREATE OR REPLACE FUNCTION "${namespaceBuild.viewsSchema}".${notification}
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+NOTIFY "${channel}";
+RETURN NULL;
+END;
+$$;`);
 
-      await tx.execute(
-        sql.raw(`
-    CREATE OR REPLACE TRIGGER "${trigger}"
-    AFTER INSERT OR UPDATE OR DELETE
-    ON "${namespaceBuild.schema}"._ponder_checkpoint
-    FOR EACH STATEMENT
-    EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
-      );
-    });
+        await tx.execute(`
+CREATE OR REPLACE TRIGGER "${trigger}"
+AFTER INSERT OR UPDATE OR DELETE
+ON "${namespaceBuild.schema}"._ponder_checkpoint
+FOR EACH STATEMENT
+EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`);
+      },
+    );
   }
 
-  await database
-    .adminQB("update_ready")
-    .update(PONDER_META)
-    .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` });
+  await database.adminQB.wrap({ label: "update_ready" }, (db) =>
+    db
+      .update(PONDER_META)
+      .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` }),
+  );
 
   const realtimeIndexingStore = createRealtimeIndexingStore({
     common,
@@ -558,23 +555,24 @@ export async function run({
         }
 
         if (event.checkpoints.length > 0) {
-          await database
-            .userQB("update_checkpoints")
-            .insert(PONDER_CHECKPOINT)
-            .values(
-              event.checkpoints.map(({ chainId, checkpoint }) => ({
-                chainName: indexingBuild.chains.find(
-                  (chain) => chain.id === chainId,
-                )!.name,
-                chainId,
-                safeCheckpoint: checkpoint,
-                latestCheckpoint: checkpoint,
-              })),
-            )
-            .onConflictDoUpdate({
-              target: PONDER_CHECKPOINT.chainName,
-              set: { latestCheckpoint: sql`excluded.latest_checkpoint` },
-            });
+          await database.userQB.wrap({ label: "update_checkpoints" }, (db) =>
+            db
+              .insert(PONDER_CHECKPOINT)
+              .values(
+                event.checkpoints.map(({ chainId, checkpoint }) => ({
+                  chainName: indexingBuild.chains.find(
+                    (chain) => chain.id === chainId,
+                  )!.name,
+                  chainId,
+                  safeCheckpoint: checkpoint,
+                  latestCheckpoint: checkpoint,
+                })),
+              )
+              .onConflictDoUpdate({
+                target: PONDER_CHECKPOINT.chainName,
+                set: { latestCheckpoint: sql`excluded.latest_checkpoint` },
+              }),
+          );
         }
 
         break;

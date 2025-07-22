@@ -24,7 +24,7 @@ test("QB query", async (context) => {
 
   await qb.execute(sql`SELECT * FROM information_schema.schemata`);
   const query = qb.select().from(SCHEMATA);
-  await qb("test1").select().from(SCHEMATA);
+  await qb.wrap({ label: "test" }, (db) => db.select().from(SCHEMATA));
   await query;
 });
 
@@ -39,20 +39,20 @@ test("QB transaction", async (context) => {
     common: context.common,
   });
 
-  await qb("test1").transaction(async (tx) => {
-    await tx("test2").select().from(SCHEMATA);
+  await qb.transaction({ label: "test1" }, async (tx) => {
+    await tx.wrap({ label: "test2" }, (db) => db.select().from(SCHEMATA));
   });
-  await qb("test3").transaction(async (tx) => {
-    await tx("test4").execute(sql`SELECT * FROM information_schema.schemata`);
+  await qb.transaction({ label: "test3" }, async (tx) => {
+    await tx.execute(sql`SELECT * FROM information_schema.schemata`);
   });
-  await qb("test4").transaction(async (tx) => {
-    await tx("test5").transaction(async (tx) => {
-      await tx("test6").select().from(SCHEMATA);
+  await qb.transaction({ label: "test4" }, async (tx) => {
+    await tx.transaction({ label: "test5" }, async (tx) => {
+      await tx.wrap({ label: "test6" }, (db) => db.select().from(SCHEMATA));
     });
   });
 });
 
-test("QB retries error", async (context) => {
+test("QB wrap retries error", async (context) => {
   if (context.databaseConfig.kind !== "postgres") return;
 
   const pool = createPool(
@@ -66,7 +66,7 @@ test("QB retries error", async (context) => {
   const querySpy = vi.spyOn(pool, "query");
   querySpy.mockRejectedValueOnce(new Error("Database connection error"));
 
-  await qb("test1").select().from(SCHEMATA);
+  await qb.wrap({ label: "test1" }, (db) => db.select().from(SCHEMATA));
 
   expect(querySpy).toHaveBeenCalledTimes(2);
 });
@@ -87,16 +87,16 @@ test("QB transaction retries error", async (context) => {
   querySpy.mockRejectedValueOnce(new Error("Database connection error"));
   let error = true;
 
-  await qb("test1").transaction(async (tx) => {
+  await qb.transaction({ label: "test1" }, async (tx) => {
     if (error) {
       error = false;
       querySpy.mockRejectedValueOnce(new Error("Database connection error"));
     }
-    await tx("test2").select().from(SCHEMATA);
+    await tx.wrap({ label: "test2" }, (db) => db.select().from(SCHEMATA));
   });
 
-  // BEGIN, BEGIN, ROLLBACK, SELECT, COMMIT
-  expect(querySpy).toHaveBeenCalledTimes(5);
+  // BEGIN, BEGIN, SELECT, ROLLBACK, BEGIN, SELECT, COMMIT
+  expect(querySpy).toHaveBeenCalledTimes(7);
 
   connection.release();
 });
@@ -115,9 +115,8 @@ test("QB parses error", async (context) => {
   const querySpy = vi.spyOn(pool, "query");
   querySpy.mockRejectedValueOnce(new Error("violates not-null constraint"));
 
-  const error = await qb("test1")
-    .select()
-    .from(SCHEMATA)
+  const error = await qb
+    .wrap({ label: "test1" }, (db) => db.select().from(SCHEMATA))
     .catch((error) => error);
 
   expect(querySpy).toHaveBeenCalledTimes(1);

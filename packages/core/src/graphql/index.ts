@@ -422,14 +422,15 @@ export function buildGraphQLSchema({
     type: GraphQLMeta,
     resolve: async (_source, _args, context) => {
       // Note: This is done to avoid non-browser compatible dependencies
-      const checkpoints = (await context
-        .qb("select_checkpoints")
-        .execute(
-          "SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint",
+      const checkpoints = (await context.qb
+        .wrap({ label: "select_checkpoints" }, (db) =>
+          db.execute(
+            "SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint",
+          ),
         )
         .then((res) => res.rows)) as {
         chain_name: string;
-        chain_id: number;
+        chain_id: string;
         latest_checkpoint: string;
         safe_checkpoint: string;
       }[];
@@ -437,7 +438,7 @@ export function buildGraphQLSchema({
       const status: Status = {};
       for (const { chain_name, chain_id, latest_checkpoint } of checkpoints) {
         status[chain_name] = {
-          id: chain_id,
+          id: Number(chain_id),
           block: {
             number: Number(decodeCheckpoint(latest_checkpoint).blockNumber),
             timestamp: Number(
