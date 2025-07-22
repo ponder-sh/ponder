@@ -67,10 +67,6 @@ export type IndexingCache = {
    */
   prefetch: (params: { events: Event[] }) => Promise<void>;
   /**
-   * Remove spillover and buffer entries.
-   */
-  rollback: () => void;
-  /**
    * Marks the cache as incomplete.
    */
   invalidate: () => void;
@@ -844,23 +840,6 @@ export const createIndexingCache = ({
     },
     invalidate() {
       isCacheComplete = false;
-    },
-    rollback() {
-      for (const tableCache of cache.values()) {
-        tableCache.clear();
-      }
-
-      for (const tableSpillover of spillover.values()) {
-        tableSpillover.clear();
-      }
-
-      for (const tableBuffer of insertBuffer.values()) {
-        tableBuffer.clear();
-      }
-
-      for (const tableBuffer of updateBuffer.values()) {
-        tableBuffer.clear();
-      }
     },
     clear() {
       for (const tableCache of cache.values()) {

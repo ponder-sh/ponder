@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { NodePgSession, NodePgTransaction } from "drizzle-orm/node-postgres";
 import {
   type PgDatabase,
@@ -54,63 +55,50 @@ export const dbSim = <
 
   // transaction queries (non-retryable)
 
-  // const transaction = db.transaction.bind(db);
-  // db.transaction = async (callback, config) => {
+  db.transaction = async (callback, config) => {
+    const session = new NodePgSession(
+      await db._.session.client.connect(),
+      db._.session.dialect,
+      db._.session.schema,
+      db._.session.options,
+    );
+    const tx = new NodePgTransaction(
+      db._.session.dialect,
+      session,
+      db._.session.schema,
+    );
 
-  // }
+    const execute = session.execute.bind(session);
+    session.execute = async (...args) => {
+      simError(dialect.sqlToQuery(args[0]).sql);
+      return execute(...args);
+    };
 
-  // const transaction = db._.session.transaction.bind(db._.session);
-  // db._.session.transaction = async (...args) => {
-  //   const callback = args[0];
-  //   args[0] = async () => {
-  //     // Note: In order to ...
+    const prepareQuery = session.prepareQuery.bind(session);
+    session.prepareQuery = (...args) => {
+      const result = prepareQuery(...args);
+      const execute = result.execute.bind(result);
+      result.execute = async (..._args) => {
+        simError(args[0].sql);
+        return execute(..._args);
+      };
+      return result;
+    };
 
-  //     const session = new NodePgSession(
-  //       await db._.session.client.connect(),
-  //       db._.session.dialect,
-  //       db._.session.schema,
-  //       db._.session.options,
-  //     );
-  //     const tx = new NodePgTransaction(
-  //       db._.session.dialect,
-  //       session,
-  //       db._.session.schema,
-  //     );
-
-  //     const execute = tx._.session.execute.bind(tx._.session);
-
-  //     tx._.session.execute = async (...args) => {
-  //       simError(dialect.sqlToQuery(args[0]).sql);
-  //       return execute(...args);
-  //     };
-
-  //     const prepareQuery = tx._.session.prepareQuery.bind(tx._.session);
-  //     // @ts-ignore
-  //     tx._.session.prepareQuery = (...args) => {
-  //       const result = prepareQuery(...args);
-  //       const execute = result.execute.bind(result);
-  //       result.execute = async (..._args) => {
-  //         simError(args[0].sql);
-  //         return execute(..._args);
-  //       };
-  //       return result;
-  //     };
-
-  //     try {
-  //       // callback is qb
-  //       // console.log("callback 1", callback.toString());
-  //       return await callback(tx);
-  //     } catch (error) {
-  //       // console.log("error in sim", error);
-  //     } finally {
-  //       // console.log("sim release");
-  //       tx._.session.client.release();
-  //     }
-  //   };
-
-  //   // simError("begin");
-  //   return transaction(...args);
-  // };
+    await tx.execute(
+      sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`,
+    );
+    try {
+      const result = await callback(tx);
+      await tx.execute(sql`commit`);
+      return result;
+    } catch (error) {
+      await tx.execute(sql`rollback`);
+      throw error;
+    } finally {
+      session.client.release();
+    }
+  };
 
   return db;
 };

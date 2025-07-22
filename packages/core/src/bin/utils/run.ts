@@ -220,8 +220,8 @@ export async function run({
     );
     if (events.events.length > 0) {
       endClock = startClock();
-      await database.userQB
-        .transaction(async (tx) => {
+      await database.userQB.transaction(async (tx) => {
+        try {
           historicalIndexingStore.qb = tx;
           indexingCache.qb = tx;
 
@@ -374,11 +374,12 @@ export async function run({
             endClock(),
           );
           endClock = startClock();
-        })
-        .catch((error) => {
-          indexingCache.rollback();
+        } catch (error) {
+          indexingCache.invalidate();
+          indexingCache.clear();
           throw error;
-        });
+        }
+      });
 
       cachedViemClient.clear();
       common.metrics.ponder_historical_transform_duration.inc(

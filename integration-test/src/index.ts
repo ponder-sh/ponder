@@ -257,54 +257,54 @@ const onBuild = async (app: PonderApp) => {
     msg: "Mocking syncQB, adminQB, userQB, and readonlyQB",
   });
 
-  // app.database.syncQB = createQB(
-  //   dbSim(
-  //     drizzle(app.database.driver.sync!, {
-  //       casing: "snake_case",
-  //       schema: PONDER_SYNC,
-  //     }),
-  //   ),
-  //   {
-  //     common: app.common,
-  //     isAdmin: false,
-  //   },
-  // );
+  app.database.syncQB = createQB(
+    dbSim(
+      drizzle(app.database.driver.sync!, {
+        casing: "snake_case",
+        schema: PONDER_SYNC,
+      }),
+    ),
+    {
+      common: app.common,
+      isAdmin: false,
+    },
+  );
 
-  // app.database.adminQB = createQB(
-  //   dbSim(
-  //     drizzle(app.database.driver.admin!, {
-  //       casing: "snake_case",
-  //     }),
-  //   ),
-  //   {
-  //     common: app.common,
-  //     isAdmin: true,
-  //   },
-  // );
+  app.database.adminQB = createQB(
+    dbSim(
+      drizzle(app.database.driver.admin!, {
+        casing: "snake_case",
+      }),
+    ),
+    {
+      common: app.common,
+      isAdmin: true,
+    },
+  );
 
-  // app.database.userQB = createQB(
-  //   dbSim(
-  //     drizzle(app.database.driver.user!, {
-  //       casing: "snake_case",
-  //     }),
-  //   ),
-  //   {
-  //     common: app.common,
-  //     isAdmin: false,
-  //   },
-  // );
+  app.database.userQB = createQB(
+    dbSim(
+      drizzle(app.database.driver.user!, {
+        casing: "snake_case",
+      }),
+    ),
+    {
+      common: app.common,
+      isAdmin: false,
+    },
+  );
 
-  // app.database.readonlyQB = createQB(
-  //   dbSim(
-  //     drizzle(app.database.driver.readonly!, {
-  //       casing: "snake_case",
-  //     }),
-  //   ),
-  //   {
-  //     common: app.common,
-  //     isAdmin: false,
-  //   },
-  // );
+  app.database.readonlyQB = createQB(
+    dbSim(
+      drizzle(app.database.driver.readonly!, {
+        casing: "snake_case",
+      }),
+    ),
+    {
+      common: app.common,
+      isAdmin: false,
+    },
+  );
 
   if (APP_ID === "super-assessment") {
     const random = seedrandom(`${SEED}_super_assessment_filter`);
