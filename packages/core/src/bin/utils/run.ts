@@ -23,6 +23,7 @@ import { getAppProgress } from "@/internal/metrics.js";
 import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
+  IndexingErrorHandler,
   NamespaceBuild,
   PreBuild,
   SchemaBuild,
@@ -93,11 +94,25 @@ export async function run({
     eventCount,
   });
 
+  const indexingErrorHandler: IndexingErrorHandler = {
+    getRetryableError: () => {
+      return indexingErrorHandler.error;
+    },
+    setRetryableError: (error: RetryableError) => {
+      indexingErrorHandler.error = error;
+    },
+    clearRetryableError: () => {
+      indexingErrorHandler.error = undefined;
+    },
+    error: undefined as RetryableError | undefined,
+  };
+
   const indexing = createIndexing({
     common,
     indexingBuild,
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const indexingCache = createIndexingCache({
@@ -111,6 +126,7 @@ export async function run({
     common,
     schemaBuild,
     indexingCache,
+    indexingErrorHandler,
   });
 
   for (const chain of indexingBuild.chains) {
@@ -527,6 +543,7 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
   const realtimeIndexingStore = createRealtimeIndexingStore({
     common,
     schemaBuild,
+    indexingErrorHandler,
   });
 
   const onRealtimeEvent = mutex(async (event: RealtimeEvent) => {

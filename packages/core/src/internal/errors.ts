@@ -170,3 +170,12 @@ export class DelayedInsertError extends NonRetryableUserError {
     Object.setPrototypeOf(this, DelayedInsertError.prototype);
   }
 }
+
+export class RawSqlError extends NonRetryableUserError {
+  override name = "RawSqlError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, RawSqlError.prototype);
+  }
+}

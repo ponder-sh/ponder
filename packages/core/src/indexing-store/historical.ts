@@ -1,8 +1,13 @@
 import { findTableNames, validateQuery } from "@/client/parse.js";
 import type { QB } from "@/database/queryBuilder.js";
 import type { Common } from "@/internal/common.js";
-import { RecordNotFoundError } from "@/internal/errors.js";
-import type { SchemaBuild } from "@/internal/types.js";
+import {
+  DbConnectionError,
+  RawSqlError,
+  RecordNotFoundError,
+  RetryableError,
+} from "@/internal/errors.js";
+import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
@@ -18,10 +23,12 @@ export const createHistoricalIndexingStore = ({
   common,
   schemaBuild: { schema },
   indexingCache,
+  indexingErrorHandler,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   indexingCache: IndexingCache;
+  indexingErrorHandler: IndexingErrorHandler;
 }): IndexingStore => {
   let qb: QB = undefined!;
 
@@ -30,8 +37,10 @@ export const createHistoricalIndexingStore = ({
       try {
         return await fn(...args);
       } catch (error) {
-        // TODO(kyle) callback for "retryable" errors
-        // biome-ignore lint/complexity/noUselessCatch: <explanation>
+        if (error instanceof RetryableError) {
+          indexingErrorHandler.setRetryableError(error);
+        }
+
         throw error;
       }
     };
@@ -178,7 +187,7 @@ export const createHistoricalIndexingStore = ({
               }
             }),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
-            then: (onFulfilled, onRejected) => {
+            then: errorHandler((onFulfilled, onRejected) => {
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -213,7 +222,7 @@ export const createHistoricalIndexingStore = ({
                 });
                 return Promise.resolve(result).then(onFulfilled, onRejected);
               }
-            },
+            }),
             catch: (onRejected) => inner.then(undefined, onRejected),
             finally: (onFinally) =>
               inner.then(
@@ -282,7 +291,7 @@ export const createHistoricalIndexingStore = ({
     }),
     // @ts-ignore
     sql: drizzle(
-      async (_sql, params, method, typings) => {
+      errorHandler(async (_sql, params, method, typings) => {
         let isSelectOnly = false;
         try {
           await validateQuery(_sql, false);
@@ -320,12 +329,18 @@ export const createHistoricalIndexingStore = ({
             // @ts-ignore
             return { rows: result.rows.map((row) => Object.values(row)) };
           });
+        } catch (error) {
+          if (error instanceof DbConnectionError) {
+            throw error;
+          }
+
+          throw new RawSqlError((error as Error).message);
         } finally {
           common.metrics.ponder_indexing_store_raw_sql_duration.observe(
             endClock(),
           );
         }
-      },
+      }),
       { schema, casing: "snake_case" },
     ),
     set qb(_qb: QB) {

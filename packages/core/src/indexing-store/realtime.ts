@@ -1,7 +1,12 @@
 import type { QB } from "@/database/queryBuilder.js";
 import type { Common } from "@/internal/common.js";
-import { RecordNotFoundError } from "@/internal/errors.js";
-import type { SchemaBuild } from "@/internal/types.js";
+import {
+  DbConnectionError,
+  RawSqlError,
+  RecordNotFoundError,
+  RetryableError,
+} from "@/internal/errors.js";
+import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
@@ -16,11 +21,28 @@ import { getCacheKey, getWhereCondition } from "./utils.js";
 export const createRealtimeIndexingStore = ({
   common,
   schemaBuild: { schema },
+  indexingErrorHandler,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
+  indexingErrorHandler: IndexingErrorHandler;
 }): IndexingStore => {
   let qb: QB = undefined!;
+
+  const errorHandler = (fn: (...args: any[]) => Promise<any>) => {
+    return async (...args: any[]) => {
+      try {
+        return await fn(...args);
+      } catch (error) {
+        if (error instanceof RetryableError) {
+          indexingErrorHandler.setRetryableError(error);
+        }
+
+        throw error;
+      }
+    };
+  };
+
   const find = (table: Table, key: object) => {
     return qb.wrap((db) =>
       db
@@ -33,21 +55,21 @@ export const createRealtimeIndexingStore = ({
 
   return {
     // @ts-ignore
-    find: async (table: Table, key) => {
+    find: errorHandler(async (table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "find",
       });
       checkOnchainTable(table, "find");
       return find(table, key);
-    },
+    }),
     // @ts-ignore
     insert(table: Table) {
       return {
         values: (values: any) => {
           // @ts-ignore
           const inner = {
-            onConflictDoNothing: async () => {
+            onConflictDoNothing: errorHandler(async () => {
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -88,8 +110,8 @@ export const createRealtimeIndexingStore = ({
                   .returning()
                   .then(parseResult),
               );
-            },
-            onConflictDoUpdate: async (valuesU: any) => {
+            }),
+            onConflictDoUpdate: errorHandler(async (valuesU: any) => {
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -157,9 +179,9 @@ export const createRealtimeIndexingStore = ({
                   );
                 }
               }
-            },
+            }),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
-            then: (onFulfilled, onRejected) =>
+            then: errorHandler((onFulfilled, onRejected) =>
               (async () => {
                 common.metrics.ponder_indexing_store_queries_total.inc({
                   table: getTableName(table),
@@ -175,6 +197,7 @@ export const createRealtimeIndexingStore = ({
                     .then((res) => (Array.isArray(values) ? res : res[0])),
                 );
               })().then(onFulfilled, onRejected),
+            ),
             catch: (onRejected) => inner.then(undefined, onRejected),
             finally: (onFinally) =>
               inner.then(
@@ -197,7 +220,7 @@ export const createRealtimeIndexingStore = ({
     // @ts-ignore
     update(table: Table, key) {
       return {
-        set: async (values: any) => {
+        set: errorHandler(async (values: any) => {
           common.metrics.ponder_indexing_store_queries_total.inc({
             table: getTableName(table),
             method: "update",
@@ -234,11 +257,11 @@ export const createRealtimeIndexingStore = ({
                 .then((res) => res[0]),
             );
           }
-        },
+        }),
       };
     },
     // @ts-ignore
-    delete: async (table: Table, key) => {
+    delete: errorHandler(async (table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "delete",
@@ -250,10 +273,10 @@ export const createRealtimeIndexingStore = ({
       );
 
       return deleted.length > 0;
-    },
+    }),
     // @ts-ignore
     sql: drizzle(
-      async (_sql, params, method, typings) => {
+      errorHandler(async (_sql, params, method, typings) => {
         const query: QueryWithTypings = { sql: _sql, params, typings };
 
         const endClock = startClock();
@@ -271,12 +294,18 @@ export const createRealtimeIndexingStore = ({
             // @ts-ignore
             return { rows: result.rows.map((row) => Object.values(row)) };
           });
+        } catch (error) {
+          if (error instanceof DbConnectionError) {
+            throw error;
+          }
+
+          throw new RawSqlError((error as Error).message);
         } finally {
           common.metrics.ponder_indexing_store_raw_sql_duration.observe(
             endClock(),
           );
         }
-      },
+      }),
       { schema, casing: "snake_case" },
     ),
     set qb(_qb: QB) {
