@@ -98,10 +98,9 @@ type createSyncParameters = {
 export const createSync = async (
   params: createSyncParameters,
 ): Promise<Sync> => {
-  const { chain, rpc, finalizedBlock, crashRecoveryCheckpoint } = params;
-  const sources = params.sources.filter(
-    ({ filter }) => filter.chainId === chain.id,
-  );
+  const { chain, rpc, finalizedBlock, crashRecoveryCheckpoint, sources } =
+    params;
+
   // Invalidate sync cache for devnet sources
   if (chain.disableCache) {
     params.common.logger.warn({
@@ -169,9 +168,7 @@ export const createSync = async (
   params.common.metrics.ponder_sync_is_complete.set({ chain: chain.name }, 0);
 
   const realtimeMutex = createMutex();
-  let realtimeSync: RealtimeSync | undefined = undefined;
-
-  return {
+  const sync: Sync = {
     async getEventGenerator(limit: number) {
       async function* decodeEventGenerator(
         eventGenerator: AsyncGenerator<{
@@ -226,7 +223,7 @@ export const createSync = async (
         const localSyncGenerator = getLocalSyncGenerator({
           common: params.common,
           chain: chain,
-          syncProgress: syncProgress,
+          syncProgress: sync.syncProgress,
           historicalSync: historicalSync,
         });
 
@@ -235,7 +232,11 @@ export const createSync = async (
         // is defined.
         let from: string;
         if (crashRecoveryCheckpoint === undefined) {
-          from = getChainCheckpoint({ tag: "start", chain, syncProgress });
+          from = getChainCheckpoint({
+            tag: "start",
+            chainId: chain.id,
+            syncProgress,
+          });
         } else if (
           Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) === chain.id
         ) {
@@ -249,7 +250,11 @@ export const createSync = async (
           });
 
           if (fromBlock === undefined) {
-            from = getChainCheckpoint({ tag: "start", chain, syncProgress });
+            from = getChainCheckpoint({
+              tag: "start",
+              chainId: chain.id,
+              syncProgress,
+            });
           } else {
             from = encodeCheckpoint({
               ...ZERO_CHECKPOINT,
@@ -269,8 +274,12 @@ export const createSync = async (
           childAddresses,
           from,
           to: min(
-            getChainCheckpoint({ tag: "finalized", chain, syncProgress }),
-            getChainCheckpoint({ tag: "end", chain, syncProgress }),
+            getChainCheckpoint({
+              tag: "finalized",
+              chainId: chain.id,
+              syncProgress,
+            }),
+            getChainCheckpoint({ tag: "end", chainId: chain.id, syncProgress }),
           ),
           limit,
         });
@@ -304,7 +313,7 @@ export const createSync = async (
           syncProgress,
         });
 
-        const realtimeSync_ = createRealtimeSync({
+        const realtimeSync = createRealtimeSync({
           common: params.common,
           chain,
           rpc,
@@ -320,7 +329,7 @@ export const createSync = async (
                 chain,
                 sources,
                 syncProgress,
-                realtimeSync: realtimeSync_,
+                realtimeSync: realtimeSync,
               });
 
               if (isSyncFinalized(syncProgress) && isSyncEnd(syncProgress)) {
@@ -356,7 +365,7 @@ export const createSync = async (
           onFatalError: params.onFatalError,
         });
 
-        realtimeSync = realtimeSync_;
+        sync.realtimeSync = realtimeSync;
 
         let childCount = 0;
         for (const [, childAddresses] of initialChildAddresses) {
@@ -373,7 +382,7 @@ export const createSync = async (
             const arrivalMs = Date.now();
 
             const endClock = startClock();
-            const syncResult = await realtimeSync_.sync(block);
+            const syncResult = await realtimeSync.sync(block);
 
             if (syncResult.type === "accepted") {
               syncResult.blockPromise.then(() => {
@@ -392,14 +401,16 @@ export const createSync = async (
             return syncResult;
           },
           onError: (error) => {
-            realtimeSync_.onError(error);
+            realtimeSync.onError(error);
           },
         });
       }
     },
-    syncProgress,
-    realtimeSync,
+    realtimeSync: undefined,
+    syncProgress: syncProgress,
   };
+
+  return sync;
 };
 
 /**

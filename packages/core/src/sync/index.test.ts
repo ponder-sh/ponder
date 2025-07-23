@@ -373,8 +373,16 @@ test("getLocalEventGenerator()", async (context) => {
     sources,
     localSyncGenerator: syncGenerator,
     childAddresses: new Map(),
-    from: getChainCheckpoint({ syncProgress, chain, tag: "start" })!,
-    to: getChainCheckpoint({ syncProgress, chain, tag: "finalized" })!,
+    from: getChainCheckpoint({
+      syncProgress,
+      chainId: chain.id,
+      tag: "start",
+    })!,
+    to: getChainCheckpoint({
+      syncProgress,
+      chainId: chain.id,
+      tag: "finalized",
+    })!,
     limit: 100,
   });
 
@@ -431,8 +439,16 @@ test("getLocalEventGenerator() pagination", async (context) => {
     sources,
     localSyncGenerator: syncGenerator,
     childAddresses: new Map(),
-    from: getChainCheckpoint({ syncProgress, chain, tag: "start" })!,
-    to: getChainCheckpoint({ syncProgress, chain, tag: "finalized" })!,
+    from: getChainCheckpoint({
+      syncProgress,
+      chainId: chain.id,
+      tag: "start",
+    })!,
+    to: getChainCheckpoint({
+      syncProgress,
+      chainId: chain.id,
+      tag: "finalized",
+    })!,
     limit: 1,
   });
 
@@ -489,8 +505,16 @@ test("getLocalEventGenerator() pagination with zero interval", async (context) =
     sources,
     localSyncGenerator: syncGenerator,
     childAddresses: new Map(),
-    from: getChainCheckpoint({ syncProgress, chain, tag: "start" })!,
-    to: getChainCheckpoint({ syncProgress, chain, tag: "finalized" })!,
+    from: getChainCheckpoint({
+      syncProgress,
+      chainId: chain.id,
+      tag: "start",
+    })!,
+    to: getChainCheckpoint({
+      syncProgress,
+      chainId: chain.id,
+      tag: "finalized",
+    })!,
     limit: 1,
   });
 

@@ -1,5 +1,4 @@
 import type {
-  Chain,
   Event,
   LightBlock,
   SyncBlock,
@@ -90,11 +89,11 @@ export const getChainCheckpoint = <
   tag extends "start" | "current" | "finalized" | "end",
 >({
   syncProgress,
-  chain,
+  chainId,
   tag,
 }: {
   syncProgress: SyncProgress;
-  chain: Chain;
+  chainId: number;
   tag: tag;
 }): tag extends "end" ? string | undefined : string => {
   if (tag === "end" && syncProgress.end === undefined) {
@@ -107,7 +106,7 @@ export const getChainCheckpoint = <
   return encodeCheckpoint(
     blockToCheckpoint(
       block,
-      chain.id,
+      chainId,
       // The checkpoint returned by this function is meant to be used in
       // a closed interval (includes endpoints), so "start" should be inclusive.
       tag === "start" ? "down" : "up",

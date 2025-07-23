@@ -96,8 +96,8 @@ export const createSyncManager = async (
   }: { tag: tag; chain: Chain }): tag extends "end"
     ? string | undefined
     : string => {
-    const syncProgress = perChainSync.get(chain)!.syncProgress;
-    return getChainCheckpoint({ syncProgress, chain, tag });
+    const syncProgress = perChainSync.get(chain.id)!.syncProgress;
+    return getChainCheckpoint({ syncProgress, chainId: chain.id, tag });
   };
 
   /**
@@ -109,8 +109,8 @@ export const createSyncManager = async (
     tag,
   }: { tag: tag }): tag extends "end" ? string | undefined : string => {
     const checkpoints = Array.from(perChainSync.entries()).map(
-      ([chain, { syncProgress }]) =>
-        getChainCheckpoint({ syncProgress, chain, tag }),
+      ([chainId, { syncProgress }]) =>
+        getChainCheckpoint({ syncProgress, chainId, tag }),
     );
 
     if (tag === "end") {
@@ -340,14 +340,22 @@ export const createSyncManager = async (
 
             const checkpoints: { chainId: number; checkpoint: string }[] = [];
             for (const chain of params.indexingBuild.chains) {
+              console.log("yes");
+              console.log(
+                `sync: ${JSON.stringify(
+                  perChainSync.get(chain.id)!.realtimeSync,
+                )}`,
+              );
               const localBlock = perChainSync
-                .get(chain)!
+                .get(chain.id)!
                 .realtimeSync!.unfinalizedBlocks.findLast((block) => {
                   const checkpoint = encodeCheckpoint(
                     blockToCheckpoint(block, chain.id, "up"),
                   );
                   return checkpoint > from && checkpoint <= to;
                 });
+
+              console.log("yes");
 
               if (localBlock) {
                 const checkpoint = encodeCheckpoint(
@@ -392,8 +400,11 @@ export const createSyncManager = async (
 
         if (
           params.ordering === "omnichain" &&
-          getChainCheckpoint({ syncProgress, chain, tag: "finalized" }) >
-            getOmnichainCheckpoint({ tag: "current" })
+          getChainCheckpoint({
+            syncProgress,
+            chainId: chain.id,
+            tag: "finalized",
+          }) > getOmnichainCheckpoint({ tag: "current" })
         ) {
           const chainId = Number(
             decodeCheckpoint(getOmnichainCheckpoint({ tag: "current" }))
@@ -521,7 +532,7 @@ export const createSyncManager = async (
     }
   };
 
-  const perChainSync = new Map<Chain, Sync>();
+  const perChainSync = new Map<number, Sync>();
 
   for (let i = 0; i < params.indexingBuild.chains.length; ++i) {
     const chain = params.indexingBuild.chains[i]!;
@@ -530,10 +541,13 @@ export const createSyncManager = async (
     const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
       ({ chainId }) => chainId === chain.id,
     )?.checkpoint;
-    const sources = params.indexingBuild.sources;
+    const sources = params.indexingBuild.sources.filter(
+      ({ filter }) => filter.chainId === chain.id,
+    );
 
     const sync = await createSync({
-      ...params,
+      common: params.common,
+      syncStore: params.syncStore,
       chain,
       rpc,
       sources,
@@ -543,7 +557,7 @@ export const createSyncManager = async (
       onRealtimeSyncEvent,
     });
 
-    perChainSync.set(chain, sync);
+    perChainSync.set(chain.id, sync);
   }
 
   const seconds: Seconds = {};
