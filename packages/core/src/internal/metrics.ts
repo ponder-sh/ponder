@@ -598,8 +598,13 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
     await metrics.ponder_settings_info
       .get()
       .then((metric) => metric.values[0]?.labels.ordering as any);
-
-  if (ordering === "multichain") {
+  if (ordering === undefined) {
+    return {
+      mode: "historical",
+      progress: undefined,
+      eta: undefined,
+    };
+  } else if (ordering === "multichain") {
     const perChainAppProgress: Awaited<ReturnType<typeof getAppProgress>>[] =
       [];
 
