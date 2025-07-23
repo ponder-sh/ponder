@@ -181,8 +181,8 @@ export const createRealtimeIndexingStore = ({
               }
             }),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
-            then: errorHandler((onFulfilled, onRejected) =>
-              (async () => {
+            then: (onFulfilled, onRejected) =>
+              errorHandler(async () => {
                 common.metrics.ponder_indexing_store_queries_total.inc({
                   table: getTableName(table),
                   method: "insert",
@@ -197,7 +197,6 @@ export const createRealtimeIndexingStore = ({
                     .then((res) => (Array.isArray(values) ? res : res[0])),
                 );
               })().then(onFulfilled, onRejected),
-            ),
             catch: (onRejected) => inner.then(undefined, onRejected),
             finally: (onFinally) =>
               inner.then(

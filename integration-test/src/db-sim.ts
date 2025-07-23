@@ -31,7 +31,7 @@ export const dbSim = <
 
     if (seedrandom(SEED + sql + nonce)() < SIM_PARAMS.DB_ERROR_RATE) {
       console.log("Simulated error:", sql);
-      if (sql !== "begin") {
+      if (sql !== "begin" && sql !== "rollback") {
         throw new Error("Connection terminated unexpectedly. Simulated error.");
       }
     }

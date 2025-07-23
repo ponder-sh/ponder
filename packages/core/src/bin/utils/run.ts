@@ -585,6 +585,7 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
                     throw result.error;
                   } else {
                     onReloadableError(result.error);
+                    onRealtimeEvent.pause();
                     return;
                   }
                 }

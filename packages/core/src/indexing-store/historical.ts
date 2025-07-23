@@ -187,42 +187,43 @@ export const createHistoricalIndexingStore = ({
               }
             }),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
-            then: errorHandler((onFulfilled, onRejected) => {
-              common.metrics.ponder_indexing_store_queries_total.inc({
-                table: getTableName(table),
-                method: "insert",
-              });
-              checkOnchainTable(table, "insert");
+            then: (onFulfilled, onRejected) =>
+              errorHandler(async () => {
+                common.metrics.ponder_indexing_store_queries_total.inc({
+                  table: getTableName(table),
+                  method: "insert",
+                });
+                checkOnchainTable(table, "insert");
 
-              if (Array.isArray(values)) {
-                const rows = [];
-                for (const value of values) {
+                if (Array.isArray(values)) {
+                  const rows = [];
+                  for (const value of values) {
+                    // Note: optimistic assumption that no conflict exists
+                    // because error is recovered at flush time
+
+                    rows.push(
+                      indexingCache.set({
+                        table,
+                        key: value,
+                        row: value,
+                        isUpdate: false,
+                      }),
+                    );
+                  }
+                  return Promise.resolve(rows).then(onFulfilled, onRejected);
+                } else {
                   // Note: optimistic assumption that no conflict exists
                   // because error is recovered at flush time
 
-                  rows.push(
-                    indexingCache.set({
-                      table,
-                      key: value,
-                      row: value,
-                      isUpdate: false,
-                    }),
-                  );
+                  const result = indexingCache.set({
+                    table,
+                    key: values,
+                    row: values,
+                    isUpdate: false,
+                  });
+                  return Promise.resolve(result).then(onFulfilled, onRejected);
                 }
-                return Promise.resolve(rows).then(onFulfilled, onRejected);
-              } else {
-                // Note: optimistic assumption that no conflict exists
-                // because error is recovered at flush time
-
-                const result = indexingCache.set({
-                  table,
-                  key: values,
-                  row: values,
-                  isUpdate: false,
-                });
-                return Promise.resolve(result).then(onFulfilled, onRejected);
-              }
-            }),
+              })().then(onFulfilled, onRejected),
             catch: (onRejected) => inner.then(undefined, onRejected),
             finally: (onFinally) =>
               inner.then(
