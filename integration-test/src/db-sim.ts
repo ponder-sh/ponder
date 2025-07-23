@@ -33,8 +33,10 @@ export const dbSim = <
       if (
         sql !== "begin" &&
         sql !== "rollback" &&
+        sql !== "commit" &&
         sql.startsWith("savepoint sp") === false &&
-        sql.startsWith("rollback to savepoint sp") === false
+        sql.startsWith("rollback to savepoint sp") === false &&
+        sql.startsWith("release savepoint sp") === false
       ) {
         // console.log("Simulated error:", sql);
         throw new Error("Connection terminated unexpectedly. Simulated error.");
