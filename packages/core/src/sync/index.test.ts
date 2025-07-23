@@ -32,16 +32,17 @@ import {
 } from "./events.js";
 import { getFragments } from "./fragments.js";
 import {
-  createSync,
+  createSyncManager,
+  mergeAsyncGeneratorsWithEventOrder,
+} from "./index.js";
+import {
   getCachedBlock,
-  getChainCheckpoint,
   getLocalEventGenerator,
   getLocalSyncGenerator,
   getLocalSyncProgress,
   getPerChainOnRealtimeSyncEvent,
-  mergeAsyncGeneratorsWithEventOrder,
-  splitEvents,
-} from "./index.js";
+} from "./sync.js";
+import { getChainCheckpoint, splitEvents } from "./utils.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
@@ -1111,7 +1112,7 @@ test("createSync()", async (context) => {
     rawIndexingFunctions,
   });
 
-  const sync = await createSync({
+  const sync = await createSyncManager({
     common: context.common,
     indexingBuild: {
       sources,
@@ -1147,7 +1148,7 @@ test("getEvents() multichain", async (context) => {
 
   await testClient.mine({ blocks: 1 });
 
-  const sync = await createSync({
+  const sync = await createSyncManager({
     syncStore,
     common: context.common,
     indexingBuild: {
@@ -1185,7 +1186,7 @@ test("getEvents() omnichain", async (context) => {
 
   await testClient.mine({ blocks: 1 });
 
-  const sync = await createSync({
+  const sync = await createSyncManager({
     syncStore,
     common: context.common,
     indexingBuild: {
@@ -1222,7 +1223,7 @@ test("getEvents() with crash recovery checkpoint", async (context) => {
 
   await testClient.mine({ blocks: 2 });
 
-  const sync = await createSync({
+  const sync = await createSyncManager({
     syncStore,
 
     common: context.common,
@@ -1265,7 +1266,7 @@ test.skip("startRealtime()", async (context) => {
 
   await testClient.mine({ blocks: 2 });
 
-  const sync = await createSync({
+  const sync = await createSyncManager({
     syncStore,
     common: context.common,
     indexingBuild: {
@@ -1306,7 +1307,7 @@ test("onEvent() multichain handles block", async (context) => {
 
   await testClient.mine({ blocks: 1 });
 
-  const sync = await createSync({
+  const sync = await createSyncManager({
     syncStore,
     common: context.common,
     indexingBuild: {
@@ -1351,7 +1352,7 @@ test("onEvent() omnichain handles block", async (context) => {
 
   const promise = promiseWithResolvers<void>();
 
-  const sync = await createSync({
+  const sync = await createSyncManager({
     common: context.common,
     indexingBuild: {
       sources,
@@ -1400,7 +1401,7 @@ test("onEvent() handles finalize", async (context) => {
 
   chain.finalityBlockCount = 2;
 
-  const sync = await createSync({
+  const sync = await createSyncManager({
     syncStore,
     common: context.common,
     indexingBuild: {
@@ -1456,7 +1457,7 @@ test("onEvent() kills realtime when finalized", async (context) => {
 
   chain.finalityBlockCount = 0;
 
-  const sync = await createSync({
+  const sync = await createSyncManager({
     syncStore,
     common: context.common,
     indexingBuild: {
@@ -1507,7 +1508,7 @@ test("onEvent() handles errors", async (context) => {
 
   const promise = promiseWithResolvers<void>();
 
-  const sync = await createSync({
+  const sync = await createSyncManager({
     syncStore,
     common: context.common,
     indexingBuild: {

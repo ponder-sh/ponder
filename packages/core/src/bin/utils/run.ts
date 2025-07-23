@@ -16,7 +16,9 @@ import type {
   SchemaBuild,
 } from "@/internal/types.js";
 import { createSyncStore } from "@/sync-store/index.js";
-import { type RealtimeEvent, createSync, splitEvents } from "@/sync/index.js";
+import { createSyncManager } from "@/sync/index.js";
+import type { RealtimeEvent } from "@/sync/sync.js";
+import { splitEvents } from "@/sync/utils.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
@@ -56,7 +58,7 @@ export async function run({
 
   const syncStore = createSyncStore({ common, database });
 
-  const sync = await createSync({
+  const sync = await createSyncManager({
     common,
     indexingBuild,
     syncStore,

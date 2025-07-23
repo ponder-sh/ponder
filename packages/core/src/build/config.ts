@@ -22,7 +22,7 @@ import {
   defaultTransactionReceiptInclude,
   defaultTransferFilterInclude,
 } from "@/sync/filter.js";
-import { syncBlockToLightBlock } from "@/sync/index.js";
+import { syncBlockToLightBlock } from "@/sync/utils.js";
 import { chains as viemChains } from "@/utils/chains.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { getFinalityBlockCount } from "@/utils/finality.js";
