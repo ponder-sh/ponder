@@ -16,8 +16,7 @@ import type {
   SchemaBuild,
 } from "@/internal/types.js";
 import { createSyncStore } from "@/sync-store/index.js";
-import { createSyncManager } from "@/sync/index.js";
-import type { RealtimeEvent } from "@/sync/sync.js";
+import { type RealtimeEvent, createSyncManager } from "@/sync/index.js";
 import { splitEvents } from "@/sync/utils.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";

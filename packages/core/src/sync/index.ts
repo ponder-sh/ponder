@@ -53,7 +53,7 @@ type createSyncMananagerParameters = {
   onFatalError(error: Error): void;
 };
 
-type RealtimeEvent =
+export type RealtimeEvent =
   | {
       type: "block";
       chain: Chain;
@@ -85,30 +85,6 @@ export type SyncManager = {
 export const createSyncManager = async (
   params: createSyncMananagerParameters,
 ): Promise<SyncManager> => {
-  const perChainSync = new Map<Chain, Sync>();
-
-  for (let i = 0; i < params.indexingBuild.chains.length; ++i) {
-    const chain = params.indexingBuild.chains[i]!;
-    const rpc = params.indexingBuild.rpcs[i]!;
-    const finalizedBlock = params.indexingBuild.finalizedBlocks[i]!;
-    const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
-      ({ chainId }) => chainId === chain.id,
-    )?.checkpoint;
-    const sources = params.indexingBuild.sources;
-
-    const sync = await createSync({
-      ...params,
-      chain,
-      rpc,
-      sources,
-      crashRecoveryCheckpoint,
-      finalizedBlock,
-      onFatalError: params.onFatalError,
-    });
-
-    perChainSync.set(chain, sync);
-  }
-
   /**
    * Compute the checkpoint for a single chain.
    */
@@ -545,6 +521,31 @@ export const createSyncManager = async (
     }
   };
 
+  const perChainSync = new Map<Chain, Sync>();
+
+  for (let i = 0; i < params.indexingBuild.chains.length; ++i) {
+    const chain = params.indexingBuild.chains[i]!;
+    const rpc = params.indexingBuild.rpcs[i]!;
+    const finalizedBlock = params.indexingBuild.finalizedBlocks[i]!;
+    const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
+      ({ chainId }) => chainId === chain.id,
+    )?.checkpoint;
+    const sources = params.indexingBuild.sources;
+
+    const sync = await createSync({
+      ...params,
+      chain,
+      rpc,
+      sources,
+      crashRecoveryCheckpoint,
+      finalizedBlock,
+      onFatalError: params.onFatalError,
+      onRealtimeSyncEvent,
+    });
+
+    perChainSync.set(chain, sync);
+  }
+
   const seconds: Seconds = {};
 
   for (const chain of params.indexingBuild.chains) {
@@ -581,7 +582,7 @@ export const createSyncManager = async (
     getEvents,
     async startRealtime() {
       for (const sync of perChainSync.values()) {
-        sync.startRealtime(onRealtimeSyncEvent);
+        sync.startRealtime();
       }
     },
     getStartCheckpoint(chain) {

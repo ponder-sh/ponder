@@ -58,22 +58,7 @@ export type Sync = {
   syncProgress: SyncProgress;
   realtimeSync: RealtimeSync | undefined;
   getEventGenerator(limit: number): Promise<EventGenerator>;
-  startRealtime(
-    onRealtimeSyncEvent: (
-      event: RealtimeSyncEvent,
-      {
-        chain,
-        sources,
-        syncProgress,
-        realtimeSync,
-      }: {
-        chain: Chain;
-        sources: Source[];
-        syncProgress: SyncProgress;
-        realtimeSync: RealtimeSync;
-      },
-    ) => Promise<void>,
-  ): Promise<void>;
+  startRealtime(): Promise<void>;
 };
 
 type EventGenerator = AsyncGenerator<{ events: Event[]; checkpoint: string }>;
@@ -93,6 +78,20 @@ type createSyncParameters = {
   sources: Source[];
   finalizedBlock: LightBlock;
   crashRecoveryCheckpoint: string | undefined;
+  onRealtimeSyncEvent: (
+    event: RealtimeSyncEvent,
+    {
+      chain,
+      sources,
+      syncProgress,
+      realtimeSync,
+    }: {
+      chain: Chain;
+      sources: Source[];
+      syncProgress: SyncProgress;
+      realtimeSync: RealtimeSync;
+    },
+  ) => Promise<void>;
   onFatalError(error: Error): void;
 };
 
@@ -283,7 +282,7 @@ export const createSync = async (
         sortCrashRecoveryEvents,
       });
     },
-    async startRealtime(onRealtimeSyncEvent) {
+    async startRealtime() {
       if (isSyncEnd(syncProgress)) {
         params.common.metrics.ponder_sync_is_complete.set(
           { chain: chain.name },
@@ -317,7 +316,7 @@ export const createSync = async (
               await perChainOnRealtimeSyncEvent(event);
               // Note: `promise` resolves when the event is fully processed, however,
               // awaiting it will cause a deadlock in "omnichain" ordering.
-              const promise = onRealtimeSyncEvent(event, {
+              const promise = params.onRealtimeSyncEvent(event, {
                 chain,
                 sources,
                 syncProgress,
