@@ -1407,6 +1407,8 @@ if (SIM_PARAMS.UNFINALIZED_BLOCKS === 0) {
   await pwr.promise;
 }
 
+console.log("Killing app");
+
 await kill!();
 
 // 4. Compare
@@ -1500,6 +1502,8 @@ const compareTables = async (
   }
 };
 
+console.log("Comparing tables");
+
 const schema = await import(`../apps/${APP_ID}/ponder.schema.ts`);
 for (const key of Object.keys(schema)) {
   if (APP_ID === "super-assessment" && key === "checkpoints") continue;
@@ -1523,6 +1527,8 @@ for (const key of Object.keys(schema)) {
 //   "ponder_sync.expected_intervals",
 //   "ponder_sync.intervals",
 // );
+
+console.log("Updating metadata");
 
 await DB.update(metadata).set({ success: true }).where(eq(metadata.id, UUID));
 

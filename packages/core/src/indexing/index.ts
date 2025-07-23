@@ -218,8 +218,6 @@ export const createIndexing = ({
         endClock(),
       );
     } catch (_error) {
-      console.log("caught error", _error instanceof RetryableError);
-
       const error =
         _error instanceof Error ? _error : new Error(String(_error));
 

@@ -18,7 +18,7 @@ import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import { createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
-import { NonRetryableUserError, RetryableError } from "@/internal/errors.js";
+import { DelayedInsertError, RetryableError } from "@/internal/errors.js";
 import { getAppProgress } from "@/internal/metrics.js";
 import type {
   CrashRecoveryCheckpoint,
@@ -168,7 +168,7 @@ export async function run({
       try {
         await indexingCache.flush();
       } catch (error) {
-        if (error instanceof NonRetryableUserError) {
+        if (error instanceof DelayedInsertError) {
           onReloadableError(error as Error);
           return;
         }
@@ -340,7 +340,7 @@ export async function run({
           try {
             await indexingCache.flush();
           } catch (error) {
-            if (error instanceof NonRetryableUserError) {
+            if (error instanceof DelayedInsertError) {
               onReloadableError(error as Error);
               return;
             }
@@ -389,8 +389,7 @@ export async function run({
           if (error instanceof RetryableError) {
             common.logger.warn({
               service: "app",
-              msg: "Failed processing batch of events. Retrying batch.",
-              error,
+              msg: "Retrying event batch",
             });
           }
 

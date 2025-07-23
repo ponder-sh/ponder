@@ -227,7 +227,7 @@ export const createQB = <
         ) {
           common.logger.warn({
             service: "database",
-            msg: `Failed ${label ? `'${label} ' ` : ""}database query (id=${id})`,
+            msg: `Failed ${label ? `'${label}' ` : ""}database query (id=${id})`,
             error,
           });
           throw error;
@@ -236,7 +236,7 @@ export const createQB = <
         if (i === RETRY_COUNT) {
           common.logger.warn({
             service: "database",
-            msg: `Failed ${label ? `'${label} ' ` : ""}database query after '${i + 1}' attempts (id=${id})`,
+            msg: `Failed ${label ? `'${label}' ` : ""}database query after '${i + 1}' attempts (id=${id})`,
             error,
           });
           throw firstError;
@@ -245,7 +245,7 @@ export const createQB = <
         const duration = BASE_DURATION * 2 ** i;
         common.logger.debug({
           service: "database",
-          msg: `Failed ${label ? `'${label} ' ` : ""}database query, retrying after ${duration} milliseconds (id=${id})`,
+          msg: `Failed ${label ? `'${label}' ` : ""}database query, retrying after ${duration} milliseconds (id=${id})`,
           error,
         });
         await wait(duration);

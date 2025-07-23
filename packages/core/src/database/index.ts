@@ -324,7 +324,15 @@ export const createDatabase = async ({
       }
 
       const d = driver as PostgresDriver;
+
+      // console.log("Admin pool:", {
+      //   totalCount: d.admin.totalCount,
+      //   idleCount: d.admin.idleCount,
+      //   waitingCount: d.admin.waitingCount,
+      // });
+
       d.listen?.release();
+
       await Promise.all([
         d.admin.end(),
         d.user.end(),
