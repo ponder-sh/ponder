@@ -30,7 +30,7 @@ export const createHistoricalIndexingStore = ({
       try {
         return await fn(...args);
       } catch (error) {
-        // TODO(kyle) callback
+        // TODO(kyle) callback for "retryable" errors
         // biome-ignore lint/complexity/noUselessCatch: <explanation>
         throw error;
       }
@@ -311,9 +311,12 @@ export const createHistoricalIndexingStore = ({
           // Note: Use transaction so that user-land queries don't affect the
           // in-progress transaction.
           return await qb.transaction(async (tx) => {
-            const result = await tx.raw._.session
-              .prepareQuery(query, undefined, undefined, method === "all")
-              .execute();
+            const result = await tx.wrap((tx) =>
+              tx._.session
+                .prepareQuery(query, undefined, undefined, method === "all")
+                .execute(),
+            );
+
             // @ts-ignore
             return { rows: result.rows.map((row) => Object.values(row)) };
           });

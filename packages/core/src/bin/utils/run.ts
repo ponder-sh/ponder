@@ -528,7 +528,6 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
     common,
     schemaBuild,
   });
-  realtimeIndexingStore.qb = database.userQB;
 
   const onRealtimeEvent = mutex(async (event: RealtimeEvent) => {
     switch (event.type) {
@@ -545,44 +544,60 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
           });
 
           for (const { checkpoint, events } of perBlockEvents) {
-            const chain = indexingBuild.chains.find(
-              (chain) =>
-                chain.id === Number(decodeCheckpoint(checkpoint).chainId),
-            )!;
+            await database.userQB.transaction(async (tx) => {
+              const chain = indexingBuild.chains.find(
+                (chain) =>
+                  chain.id === Number(decodeCheckpoint(checkpoint).chainId),
+              )!;
 
-            const result = await indexing.processEvents({
-              events,
-              db: realtimeIndexingStore,
-            });
+              try {
+                realtimeIndexingStore.qb = tx;
 
-            common.logger.info({
-              service: "app",
-              msg: `Indexed ${events.length} '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
-            });
+                const result = await indexing.processEvents({
+                  events,
+                  db: realtimeIndexingStore,
+                });
 
-            if (result.status === "error") {
-              onReloadableError(result.error);
-            }
+                common.logger.info({
+                  service: "app",
+                  msg: `Indexed ${events.length} '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
+                });
 
-            await Promise.all(
-              tables.map((table) =>
-                commitBlock(database.userQB, { table, checkpoint }),
-              ),
-            );
+                if (result.status === "error") {
+                  if (result.error instanceof RetryableError) {
+                    throw result.error;
+                  } else {
+                    onReloadableError(result.error);
+                    return;
+                  }
+                }
 
-            if (preBuild.ordering === "multichain") {
-              common.metrics.ponder_indexing_timestamp.set(
-                { chain: chain.name },
-                Number(decodeCheckpoint(checkpoint).blockTimestamp),
-              );
-            } else {
-              for (const chain of indexingBuild.chains) {
-                common.metrics.ponder_indexing_timestamp.set(
-                  { chain: chain.name },
-                  Number(decodeCheckpoint(checkpoint).blockTimestamp),
+                await Promise.all(
+                  tables.map((table) => commitBlock(tx, { table, checkpoint })),
                 );
+
+                if (preBuild.ordering === "multichain") {
+                  common.metrics.ponder_indexing_timestamp.set(
+                    { chain: chain.name },
+                    Number(decodeCheckpoint(checkpoint).blockTimestamp),
+                  );
+                } else {
+                  for (const chain of indexingBuild.chains) {
+                    common.metrics.ponder_indexing_timestamp.set(
+                      { chain: chain.name },
+                      Number(decodeCheckpoint(checkpoint).blockTimestamp),
+                    );
+                  }
+                }
+              } catch (error) {
+                common.logger.warn({
+                  service: "app",
+                  msg: `Retrying '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
+                });
+
+                throw error;
               }
-            }
+            });
           }
         }
 

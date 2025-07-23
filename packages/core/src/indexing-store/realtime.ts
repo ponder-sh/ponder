@@ -259,14 +259,18 @@ export const createRealtimeIndexingStore = ({
         const endClock = startClock();
 
         try {
-          const result = await qb.wrap((db) =>
-            db._.session
-              .prepareQuery(query, undefined, undefined, method === "all")
-              .execute(),
-          );
+          // Note: Use transaction so that user-land queries don't affect the
+          // in-progress transaction.
+          return await qb.transaction(async (tx) => {
+            const result = await tx.wrap((tx) =>
+              tx._.session
+                .prepareQuery(query, undefined, undefined, method === "all")
+                .execute(),
+            );
 
-          // @ts-ignore
-          return { rows: result.rows.map((row) => Object.values(row)) };
+            // @ts-ignore
+            return { rows: result.rows.map((row) => Object.values(row)) };
+          });
         } finally {
           common.metrics.ponder_indexing_store_raw_sql_duration.observe(
             endClock(),
