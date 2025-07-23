@@ -21,7 +21,6 @@ import { never } from "@/utils/never.js";
 import { partition } from "@/utils/partition.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
-import { zipperMany } from "@/utils/zipper.js";
 import { hexToNumber } from "viem";
 import {
   buildEvents,
@@ -32,22 +31,49 @@ import {
   syncTransactionReceiptToInternal,
   syncTransactionToInternal,
 } from "./events.js";
+import { type Sync, type SyncProgress, createSync } from "./sync.js";
 import {
-  type RealtimeEvent,
-  type Sync,
-  type SyncProgress,
-  createSync,
-} from "./sync.js";
-import { blockToCheckpoint, getChainCheckpoint, isSyncEnd } from "./utils.js";
+  type EventGenerator,
+  blockToCheckpoint,
+  getChainCheckpoint,
+  isSyncEnd,
+  mergeAsyncGeneratorsWithEventOrder,
+} from "./utils.js";
 
-type EventGenerator = AsyncGenerator<{
-  events: Event[];
-  /**
-   * Closest-to-tip checkpoint for each chain,
-   * excluding chains that were not updated with this batch of events.
-   */
-  checkpoints: { chainId: number; checkpoint: string }[];
-}>;
+type createSyncMananagerParameters = {
+  common: Common;
+  indexingBuild: Pick<
+    IndexingBuild,
+    "sources" | "chains" | "rpcs" | "finalizedBlocks"
+  >;
+  syncStore: SyncStore;
+  crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
+  ordering: "omnichain" | "multichain";
+  onRealtimeEvent(event: RealtimeEvent): Promise<void>;
+  onFatalError(error: Error): void;
+};
+
+type RealtimeEvent =
+  | {
+      type: "block";
+      chain: Chain;
+      events: Event[];
+      /**
+       * Closest-to-tip checkpoint for each chain,
+       * excluding chains that were not updated with this event.
+       */
+      checkpoints: { chainId: number; checkpoint: string }[];
+    }
+  | {
+      type: "reorg";
+      chain: Chain;
+      checkpoint: string;
+    }
+  | {
+      type: "finalize";
+      chain: Chain;
+      checkpoint: string;
+    };
 
 export type SyncManager = {
   getEvents(): EventGenerator;
@@ -56,18 +82,9 @@ export type SyncManager = {
   seconds: Seconds;
 };
 
-export const createSyncManager = async (params: {
-  common: Common;
-  indexingBuild: Pick<
-    IndexingBuild,
-    "sources" | "chains" | "rpcs" | "finalizedBlocks"
-  >;
-  syncStore: SyncStore;
-  onRealtimeEvent(event: RealtimeEvent): Promise<void>;
-  onFatalError(error: Error): void;
-  crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
-  ordering: "omnichain" | "multichain";
-}): Promise<SyncManager> => {
+export const createSyncManager = async (
+  params: createSyncMananagerParameters,
+): Promise<SyncManager> => {
   const perChainSync = new Map<Chain, Sync>();
 
   for (let i = 0; i < params.indexingBuild.chains.length; ++i) {
@@ -573,68 +590,3 @@ export const createSyncManager = async (params: {
     seconds,
   };
 };
-
-/**
- * Merges multiple event generators into a single generator while preserving
- * the order of events.
- *
- * @param generators - Generators to merge.
- * @returns A single generator that yields events from all generators.
- */
-export async function* mergeAsyncGeneratorsWithEventOrder(
-  generators: AsyncGenerator<{ events: Event[]; checkpoint: string }>[],
-): EventGenerator {
-  const results = await Promise.all(generators.map((gen) => gen.next()));
-
-  while (results.some((res) => res.done !== true)) {
-    const supremum = min(
-      ...results.map((res) => (res.done ? undefined : res.value.checkpoint)),
-    );
-
-    const eventArrays: {
-      events: Event[];
-      chainId: number;
-      checkpoint: string;
-    }[] = [];
-
-    for (const result of results) {
-      if (result.done === false) {
-        const [left, right] = partition(
-          result.value.events,
-          (event) => event.checkpoint <= supremum,
-        );
-
-        const event = left[left.length - 1];
-
-        if (event) {
-          eventArrays.push({
-            events: left,
-            chainId: event.chainId,
-            checkpoint: event.checkpoint,
-          });
-        }
-
-        result.value.events = right;
-      }
-    }
-
-    const events = zipperMany(eventArrays.map(({ events }) => events)).sort(
-      (a, b) => (a.checkpoint < b.checkpoint ? -1 : 1),
-    );
-
-    const index = results.findIndex(
-      (res) => res.done === false && res.value.checkpoint === supremum,
-    );
-
-    const resultPromise = generators[index]!.next();
-    if (events.length > 0) {
-      const checkpoints = eventArrays.map(({ chainId, checkpoint }) => ({
-        chainId,
-        checkpoint,
-      }));
-
-      yield { events, checkpoints };
-    }
-    results[index] = await resultPromise;
-  }
-}

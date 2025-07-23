@@ -10,7 +10,10 @@ import {
   MAX_CHECKPOINT,
   ZERO_CHECKPOINT,
   encodeCheckpoint,
+  min,
 } from "@/utils/checkpoint.js";
+import { partition } from "@/utils/partition.js";
+import { zipperMany } from "@/utils/zipper.js";
 import { type Hash, hexToBigInt, hexToNumber } from "viem";
 import type { SyncProgress } from "./sync.js";
 
@@ -137,3 +140,77 @@ export const blockToCheckpoint = (
     blockNumber: hexToBigInt(block.number),
   };
 };
+
+export type EventGenerator = AsyncGenerator<{
+  events: Event[];
+  /**
+   * Closest-to-tip checkpoint for each chain,
+   * excluding chains that were not updated with this batch of events.
+   */
+  checkpoints: { chainId: number; checkpoint: string }[];
+}>;
+
+/**
+ * Merges multiple event generators into a single generator while preserving
+ * the order of events.
+ *
+ * @param generators - Generators to merge.
+ * @returns A single generator that yields events from all generators.
+ */
+export async function* mergeAsyncGeneratorsWithEventOrder(
+  generators: AsyncGenerator<{ events: Event[]; checkpoint: string }>[],
+): EventGenerator {
+  const results = await Promise.all(generators.map((gen) => gen.next()));
+
+  while (results.some((res) => res.done !== true)) {
+    const supremum = min(
+      ...results.map((res) => (res.done ? undefined : res.value.checkpoint)),
+    );
+
+    const eventArrays: {
+      events: Event[];
+      chainId: number;
+      checkpoint: string;
+    }[] = [];
+
+    for (const result of results) {
+      if (result.done === false) {
+        const [left, right] = partition(
+          result.value.events,
+          (event) => event.checkpoint <= supremum,
+        );
+
+        const event = left[left.length - 1];
+
+        if (event) {
+          eventArrays.push({
+            events: left,
+            chainId: event.chainId,
+            checkpoint: event.checkpoint,
+          });
+        }
+
+        result.value.events = right;
+      }
+    }
+
+    const events = zipperMany(eventArrays.map(({ events }) => events)).sort(
+      (a, b) => (a.checkpoint < b.checkpoint ? -1 : 1),
+    );
+
+    const index = results.findIndex(
+      (res) => res.done === false && res.value.checkpoint === supremum,
+    );
+
+    const resultPromise = generators[index]!.next();
+    if (events.length > 0) {
+      const checkpoints = eventArrays.map(({ chainId, checkpoint }) => ({
+        chainId,
+        checkpoint,
+      }));
+
+      yield { events, checkpoints };
+    }
+    results[index] = await resultPromise;
+  }
+}

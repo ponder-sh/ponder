@@ -55,6 +55,8 @@ import {
 } from "./utils.js";
 
 export type Sync = {
+  syncProgress: SyncProgress;
+  realtimeSync: RealtimeSync | undefined;
   getEventGenerator(limit: number): Promise<EventGenerator>;
   startRealtime(
     onRealtimeSyncEvent: (
@@ -72,31 +74,7 @@ export type Sync = {
       },
     ) => Promise<void>,
   ): Promise<void>;
-  syncProgress: SyncProgress;
-  realtimeSync: RealtimeSync | undefined;
 };
-
-export type RealtimeEvent =
-  | {
-      type: "block";
-      chain: Chain;
-      events: Event[];
-      /**
-       * Closest-to-tip checkpoint for each chain,
-       * excluding chains that were not updated with this event.
-       */
-      checkpoints: { chainId: number; checkpoint: string }[];
-    }
-  | {
-      type: "reorg";
-      chain: Chain;
-      checkpoint: string;
-    }
-  | {
-      type: "finalize";
-      chain: Chain;
-      checkpoint: string;
-    };
 
 type EventGenerator = AsyncGenerator<{ events: Event[]; checkpoint: string }>;
 
@@ -107,7 +85,7 @@ export type SyncProgress = {
   finalized: SyncBlock | LightBlock;
 };
 
-export const createSync = async (params: {
+type createSyncParameters = {
   common: Common;
   syncStore: SyncStore;
   chain: Chain;
@@ -116,7 +94,11 @@ export const createSync = async (params: {
   finalizedBlock: LightBlock;
   crashRecoveryCheckpoint: string | undefined;
   onFatalError(error: Error): void;
-}): Promise<Sync> => {
+};
+
+export const createSync = async (
+  params: createSyncParameters,
+): Promise<Sync> => {
   const { chain, rpc, finalizedBlock, crashRecoveryCheckpoint } = params;
   const sources = params.sources.filter(
     ({ filter }) => filter.chainId === chain.id,

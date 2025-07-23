@@ -31,10 +31,7 @@ import {
   syncTransactionToInternal,
 } from "./events.js";
 import { getFragments } from "./fragments.js";
-import {
-  createSyncManager,
-  mergeAsyncGeneratorsWithEventOrder,
-} from "./index.js";
+import { createSyncManager } from "./index.js";
 import {
   getCachedBlock,
   getLocalEventGenerator,
@@ -42,7 +39,11 @@ import {
   getLocalSyncProgress,
   getPerChainOnRealtimeSyncEvent,
 } from "./sync.js";
-import { getChainCheckpoint, splitEvents } from "./utils.js";
+import {
+  getChainCheckpoint,
+  mergeAsyncGeneratorsWithEventOrder,
+  splitEvents,
+} from "./utils.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
