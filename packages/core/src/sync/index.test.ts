@@ -31,14 +31,13 @@ import {
   syncTransactionToInternal,
 } from "./events.js";
 import { getFragments } from "./fragments.js";
-import { createSyncManager } from "./index.js";
 import {
   getCachedBlock,
   getLocalEventGenerator,
   getLocalSyncGenerator,
   getLocalSyncProgress,
   getPerChainOnRealtimeSyncEvent,
-} from "./sync.js";
+} from "./index.js";
 import {
   getChainCheckpoint,
   mergeAsyncGeneratorsWithEventOrder,
@@ -1137,7 +1136,7 @@ test("createSync()", async (context) => {
     rawIndexingFunctions,
   });
 
-  const sync = await createSyncManager({
+  const sync = await createSync({
     common: context.common,
     indexingBuild: {
       sources,

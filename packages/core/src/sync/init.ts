@@ -8,7 +8,7 @@ import type {
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
 import type { HistoricalSync } from "@/sync-historical/index.js";
-import { type SyncProgress, getLocalSyncProgress } from "./sync.js";
+import { type SyncProgress, getLocalSyncProgress } from "./index.js";
 
 type RawEventGenerator = AsyncGenerator<{
   events: RawEvent[];

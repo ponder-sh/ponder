@@ -32,7 +32,7 @@ import {
   isTransferFilterMatched,
   shouldGetTransactionReceipt,
 } from "@/sync/filter.js";
-import type { SyncProgress } from "@/sync/sync.js";
+import type { SyncProgress } from "@/sync/index.js";
 import { syncBlockToLightBlock } from "@/sync/utils.js";
 import { mutex } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
