@@ -520,7 +520,7 @@ test("sql", async (context) => {
 
     // non-null constraint
 
-    await tx.execute("SAVEPOINT test");
+    await tx.wrap((db) => db.execute("SAVEPOINT test"));
 
     await expect(
       async () =>
@@ -535,7 +535,7 @@ test("sql", async (context) => {
 
     // unique constraint
 
-    await tx.execute("ROLLBACK TO test");
+    await tx.wrap((db) => db.execute("ROLLBACK TO test"));
 
     await expect(
       async () =>

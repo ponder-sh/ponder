@@ -403,9 +403,9 @@ export const createIndexingCache = ({
       const endClock = startClock();
 
       const result = await qb
-        .select()
-        .from(table)
-        .where(getWhereCondition(table, key))
+        .wrap((db) =>
+          db.select().from(table).where(getWhereCondition(table, key)),
+        )
         .then((res) => (res.length === 0 ? null : res[0]!))
         .then((row) => {
           cache.get(table)!.set(ck, structuredClone(row));
@@ -452,9 +452,9 @@ export const createIndexingCache = ({
       cache.get(table)!.delete(ck);
 
       const inDb = await qb
-        .delete(table)
-        .where(getWhereCondition(table, key))
-        .returning()
+        .wrap((db) =>
+          db.delete(table).where(getWhereCondition(table, key)).returning(),
+        )
         .then((result) => result.length > 0);
 
       return inInsertBuffer || inUpdateBuffer || inDb;
@@ -480,7 +480,7 @@ export const createIndexingCache = ({
         if (insertValues.length > 0) {
           const endClock = startClock();
 
-          await qb.execute("SAVEPOINT flush");
+          await qb.wrap((db) => db.execute("SAVEPOINT flush"));
 
           try {
             const text = getCopyText(
@@ -496,14 +496,14 @@ export const createIndexingCache = ({
             const result = await recoverBatchError(
               insertValues,
               async (values) => {
-                await qb.execute("ROLLBACK to flush");
+                await qb.wrap((db) => db.execute("ROLLBACK to flush"));
                 const text = getCopyText(
                   table,
                   values.map(({ row }) => row),
                 );
                 await copy(table, text);
 
-                await qb.execute("SAVEPOINT flush");
+                await qb.wrap((db) => db.execute("SAVEPOINT flush"));
               },
             );
 
@@ -615,8 +615,8 @@ export const createIndexingCache = ({
 
           const endClock = startClock();
 
-          await qb.execute(createTempTableQuery);
-          await qb.execute("SAVEPOINT flush");
+          await qb.wrap((db) => db.execute(createTempTableQuery));
+          await qb.wrap((db) => db.execute("SAVEPOINT flush"));
 
           try {
             const text = getCopyText(
@@ -632,14 +632,14 @@ export const createIndexingCache = ({
             const result = await recoverBatchError(
               updateValues,
               async (values) => {
-                await qb.execute("ROLLBACK to flush");
+                await qb.wrap((db) => db.execute("ROLLBACK to flush"));
                 const text = getCopyText(
                   table,
                   values.map(({ row }) => row),
                 );
                 await copy(table, text, false);
 
-                await qb.execute("SAVEPOINT flush");
+                await qb.wrap((db) => db.execute("SAVEPOINT flush"));
               },
             );
 
@@ -691,7 +691,7 @@ export const createIndexingCache = ({
             );
           }
 
-          await qb.execute(updateQuery);
+          await qb.wrap((db) => db.execute(updateQuery));
 
           common.metrics.ponder_indexing_cache_query_duration.observe(
             {
@@ -718,7 +718,7 @@ export const createIndexingCache = ({
         }
 
         if (insertValues.length > 0 || updateValues.length > 0) {
-          await qb.execute("RELEASE flush");
+          await qb.wrap((db) => db.execute("RELEASE flush"));
         }
       }
     },
@@ -804,9 +804,12 @@ export const createIndexingCache = ({
             const endClock = startClock();
 
             await qb
-              .select()
-              .from(table)
-              .where(or(...conditions))
+              .wrap((db) =>
+                db
+                  .select()
+                  .from(table)
+                  .where(or(...conditions)),
+              )
               .then((results) => {
                 common.logger.debug({
                   service: "indexing",

@@ -238,17 +238,15 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
     block,
   });
 
-  const blocks = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.blocks)
-    .execute();
+  const blocks = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.blocks).execute(),
+  );
 
   expect(blocks).toHaveLength(1);
 
-  const intervals = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   expect(intervals).toHaveLength(1);
   expect(intervals[0]!.blocks).toBe("{[0,2]}");
@@ -541,10 +539,9 @@ test("getLocalSyncGenerator()", async (context) => {
 
   await drainAsyncGenerator(syncGenerator);
 
-  const intervals = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   expect(intervals).toHaveLength(1);
   expect(intervals[0]!.blocks).toBe("{[0,2]}");
@@ -624,10 +621,9 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
 
   await drainAsyncGenerator(syncGenerator);
 
-  const intervals = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   expect(intervals).toHaveLength(1);
   expect(intervals[0]!.blocks).toBe("{[0,3]}");

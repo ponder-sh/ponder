@@ -83,9 +83,11 @@ test("ready", async (context) => {
     database,
   });
 
-  await database.adminQB
-    .update(getPonderMetaTable())
-    .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` });
+  await database.adminQB.wrap((db) =>
+    db.update(getPonderMetaTable()).set({
+      value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))`,
+    }),
+  );
 
   const response = await server.hono.request("/ready");
 

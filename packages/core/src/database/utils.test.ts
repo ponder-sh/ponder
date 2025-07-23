@@ -84,7 +84,9 @@ test("finalize()", async (context) => {
 
   // reorg tables
 
-  const rows = await database.userQB.select().from(getReorgTable(account));
+  const rows = await database.userQB.wrap((tx) =>
+    tx.select().from(getReorgTable(account)),
+  );
 
   expect(rows).toHaveLength(2);
 });
@@ -130,8 +132,8 @@ test("createTriggers()", async (context) => {
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
-  const { rows } = await database.userQB.execute(
-    sql`SELECT * FROM _reorg__account`,
+  const { rows } = await database.userQB.wrap((tx) =>
+    tx.execute(sql`SELECT * FROM _reorg__account`),
   );
 
   expect(rows).toStrictEqual([
@@ -176,8 +178,8 @@ test("commitBlock()", async (context) => {
     table: account,
   });
 
-  const { rows } = await database.userQB.execute(
-    sql`SELECT * FROM _reorg__account`,
+  const { rows } = await database.userQB.wrap((tx) =>
+    tx.execute(sql`SELECT * FROM _reorg__account`),
   );
 
   expect(rows).toStrictEqual([
@@ -243,7 +245,7 @@ test("revert()", async (context) => {
     });
   });
 
-  const rows = await database.userQB.select().from(account);
+  const rows = await database.userQB.wrap((tx) => tx.select().from(account));
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toStrictEqual({ address: zeroAddress, balance: 10n });
@@ -297,7 +299,7 @@ test("revert() with composite primary key", async (context) => {
     });
   });
 
-  const rows = await database.userQB.select().from(test);
+  const rows = await database.userQB.wrap((tx) => tx.select().from(test));
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toStrictEqual({ a: 1, b: 1, c: null });
@@ -308,11 +310,13 @@ async function getUserIndexNames(
   namespace: string,
   tableName: string,
 ) {
-  const rows = await database.userQB
-    .select({
-      name: sql<string>`indexname`.as("name"),
-    })
-    .from(sql`pg_indexes`)
-    .where(and(eq(sql`schemaname`, namespace), eq(sql`tablename`, tableName)));
+  const rows = await database.userQB.wrap((tx) =>
+    tx
+      .select({ name: sql<string>`indexname`.as("name") })
+      .from(sql`pg_indexes`)
+      .where(
+        and(eq(sql`schemaname`, namespace), eq(sql`tablename`, tableName)),
+      ),
+  );
   return rows.map((r) => r.name);
 }

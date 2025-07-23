@@ -22,10 +22,10 @@ test("QB query", async (context) => {
     common: context.common,
   });
 
-  await qb.execute(sql`SELECT * FROM information_schema.schemata`);
-  const query = qb.select().from(SCHEMATA);
+  await qb.wrap((qb) =>
+    qb.execute(sql`SELECT * FROM information_schema.schemata`),
+  );
   await qb.wrap({ label: "test" }, (db) => db.select().from(SCHEMATA));
-  await query;
 });
 
 test("QB transaction", async (context) => {
@@ -42,12 +42,9 @@ test("QB transaction", async (context) => {
   await qb.transaction({ label: "test1" }, async (tx) => {
     await tx.wrap({ label: "test2" }, (db) => db.select().from(SCHEMATA));
   });
-  await qb.transaction({ label: "test3" }, async (tx) => {
-    await tx.execute(sql`SELECT * FROM information_schema.schemata`);
-  });
-  await qb.transaction({ label: "test4" }, async (tx) => {
-    await tx.transaction({ label: "test5" }, async (tx) => {
-      await tx.wrap({ label: "test6" }, (db) => db.select().from(SCHEMATA));
+  await qb.transaction(async (tx) => {
+    await tx.transaction({ label: "test3" }, async (tx) => {
+      await tx.wrap({ label: "test4" }, (db) => db.select().from(SCHEMATA));
     });
   });
 });
@@ -64,7 +61,9 @@ test("QB wrap retries error", async (context) => {
   });
 
   const querySpy = vi.spyOn(pool, "query");
-  querySpy.mockRejectedValueOnce(new Error("Database connection error"));
+  querySpy.mockRejectedValueOnce(
+    new Error("Connection terminated unexpectedly"),
+  );
 
   await qb.wrap({ label: "test1" }, (db) => db.select().from(SCHEMATA));
 
@@ -84,13 +83,17 @@ test("QB transaction retries error", async (context) => {
   });
 
   const querySpy = vi.spyOn(connection, "query");
-  querySpy.mockRejectedValueOnce(new Error("Database connection error"));
+  querySpy.mockRejectedValueOnce(
+    new Error("Connection terminated unexpectedly"),
+  );
   let error = true;
 
   await qb.transaction({ label: "test1" }, async (tx) => {
     if (error) {
       error = false;
-      querySpy.mockRejectedValueOnce(new Error("Database connection error"));
+      querySpy.mockRejectedValueOnce(
+        new Error("Connection terminated unexpectedly"),
+      );
     }
     await tx.wrap({ label: "test2" }, (db) => db.select().from(SCHEMATA));
   });

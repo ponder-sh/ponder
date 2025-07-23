@@ -570,8 +570,8 @@ async function executePluralQuery(
   includeTotalCount: boolean,
   extraConditions: (SQL | undefined)[] = [],
 ) {
-  const rawTable = qb._.fullSchema[table.tsName];
-  const baseQuery = qb.query[table.tsName];
+  const rawTable = qb.raw._.fullSchema[table.tsName];
+  const baseQuery = qb.raw.query[table.tsName];
   if (rawTable === undefined || baseQuery === undefined)
     throw new Error(`Internal error: Table "${table.tsName}" not found in RQB`);
 
@@ -616,9 +616,12 @@ async function executePluralQuery(
 
   const totalCountPromise = includeTotalCount
     ? qb
-        .select({ count: count() })
-        .from(rawTable)
-        .where(and(...whereConditions, ...extraConditions))
+        .wrap((db) =>
+          db
+            .select({ count: count() })
+            .from(rawTable)
+            .where(and(...whereConditions, ...extraConditions)),
+        )
         .then((rows) => rows[0]?.count ?? null)
     : Promise.resolve(null);
 
@@ -1024,7 +1027,7 @@ export function buildDataLoaderCache(qb: QB) {
     DataLoader<string, any> | undefined
   >();
   return ({ table }: { table: TableRelationalConfig }) => {
-    const baseQuery = (qb as QB<{ [key: string]: OnchainTable }>).query[
+    const baseQuery = (qb as QB<{ [key: string]: OnchainTable }>).raw.query[
       table.tsName
     ];
     if (baseQuery === undefined)

@@ -36,26 +36,29 @@ test("metadata", async (context) => {
 
   const graphqlSchema = buildGraphQLSchema({ schema });
 
-  await database.adminQB.insert(getPonderCheckpointTable()).values({
-    chainId: 1,
-    chainName: "mainnet",
-    latestCheckpoint: encodeCheckpoint({
-      blockNumber: 10n,
-      chainId: 1n,
-      blockTimestamp: 20n,
-      transactionIndex: 0n,
-      eventType: EVENT_TYPES.blocks,
-      eventIndex: 0n,
+  await database.adminQB.wrap((db) =>
+    db.insert(getPonderCheckpointTable()).values({
+      chainId: 1,
+      chainName: "mainnet",
+      latestCheckpoint: encodeCheckpoint({
+        blockNumber: 10n,
+        chainId: 1n,
+        blockTimestamp: 20n,
+        transactionIndex: 0n,
+        eventType: EVENT_TYPES.blocks,
+        eventIndex: 0n,
+      }),
+      safeCheckpoint: encodeCheckpoint({
+        blockNumber: 10n,
+        chainId: 1n,
+        blockTimestamp: 20n,
+        transactionIndex: 0n,
+        eventType: EVENT_TYPES.blocks,
+        eventIndex: 0n,
+      }),
     }),
-    safeCheckpoint: encodeCheckpoint({
-      blockNumber: 10n,
-      chainId: 1n,
-      blockTimestamp: 20n,
-      transactionIndex: 0n,
-      eventType: EVENT_TYPES.blocks,
-      eventIndex: 0n,
-    }),
-  });
+  );
+
   const result = await query(`
     query {
       _meta {

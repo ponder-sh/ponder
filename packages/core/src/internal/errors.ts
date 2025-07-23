@@ -136,3 +136,12 @@ export class TransactionStatementError extends BaseError {
     Object.setPrototypeOf(this, TransactionStatementError.prototype);
   }
 }
+
+export class DbConnectionError extends BaseError {
+  override name = "DbConnectionError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, DbConnectionError.prototype);
+  }
+}

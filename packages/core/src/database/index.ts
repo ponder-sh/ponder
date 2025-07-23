@@ -28,7 +28,7 @@ import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
 import type { Pool, PoolClient } from "pg";
 import prometheus from "prom-client";
-import { type QB, createQB, parseSqlError } from "./queryBuilder.js";
+import { type QB, createQB, parseDbError } from "./queryBuilder.js";
 import { revert } from "./utils.js";
 
 export type Database = {
@@ -411,7 +411,7 @@ export const createDatabase = async ({
 
           return;
         } catch (_error) {
-          const error = parseSqlError(_error);
+          const error = parseDbError(_error);
 
           if (common.shutdown.isKilled) {
             throw new ShutdownError();
@@ -457,7 +457,7 @@ export const createDatabase = async ({
       const createTables = async (tx: QB) => {
         for (let i = 0; i < schemaBuild.statements.tables.sql.length; i++) {
           await tx
-            .execute(schemaBuild.statements.tables.sql[i]!)
+            .wrap((tx) => tx.execute(schemaBuild.statements.tables.sql[i]!))
             .catch((_error) => {
               const error = _error as Error;
               if (!error.message.includes("already exists")) throw error;
@@ -473,7 +473,7 @@ export const createDatabase = async ({
       const createEnums = async (tx: QB) => {
         for (let i = 0; i < schemaBuild.statements.enums.sql.length; i++) {
           await tx
-            .execute(schemaBuild.statements.enums.sql[i]!)
+            .wrap((tx) => tx.execute(schemaBuild.statements.enums.sql[i]!))
             .catch((_error) => {
               const error = _error as Error;
               if (!error.message.includes("already exists")) throw error;
@@ -488,34 +488,41 @@ export const createDatabase = async ({
 
       const tryAcquireLockAndMigrate = () =>
         adminQB.transaction({ label: "migrate" }, async (tx) => {
-          await tx.execute(
-            `
+          await tx.wrap((tx) =>
+            tx.execute(
+              `
 CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_meta" (
   "key" TEXT PRIMARY KEY,
   "value" JSONB NOT NULL
 )`,
+            ),
           );
 
-          await tx.execute(
-            `
+          await tx.wrap((tx) =>
+            tx.execute(
+              `
 CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
   "chain_name" TEXT PRIMARY KEY,
   "chain_id" BIGINT NOT NULL,
   "safe_checkpoint" VARCHAR(75) NOT NULL,
   "latest_checkpoint" VARCHAR(75) NOT NULL
 )`,
+            ),
           );
 
-          await tx.execute(
-            `CREATE SEQUENCE IF NOT EXISTS "${namespace.schema}"."${SHARED_OPERATION_ID_SEQUENCE}" AS integer INCREMENT BY 1`,
+          await tx.wrap((tx) =>
+            tx.execute(
+              `CREATE SEQUENCE IF NOT EXISTS "${namespace.schema}"."${SHARED_OPERATION_ID_SEQUENCE}" AS integer INCREMENT BY 1`,
+            ),
           );
 
           const trigger = "status_trigger";
           const notification = "status_notify()";
           const channel = `${namespace.schema}_status_channel`;
 
-          await tx.execute(
-            `
+          await tx.wrap((tx) =>
+            tx.execute(
+              `
 CREATE OR REPLACE FUNCTION "${namespace.schema}".${notification}
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -525,24 +532,29 @@ NOTIFY "${channel}";
 RETURN NULL;
 END;
 $$;`,
+            ),
           );
 
-          await tx.execute(
-            `
+          await tx.wrap((tx) =>
+            tx.execute(
+              `
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
 ON "${namespace.schema}"._ponder_checkpoint
 FOR EACH STATEMENT
 EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
+            ),
           );
 
           // Note: All ponder versions are compatible with the next query (every version of the "_ponder_meta" table have the same columns)
 
-          const previousApp = await tx
-            .select({ value: PONDER_META.value })
-            .from(PONDER_META)
-            .where(eq(PONDER_META.key, "app"))
-            .then((result) => result[0]?.value);
+          const previousApp = await tx.wrap((tx) =>
+            tx
+              .select({ value: PONDER_META.value })
+              .from(PONDER_META)
+              .where(eq(PONDER_META.key, "app"))
+              .then((result) => result[0]?.value),
+          );
 
           const metadata = {
             version: VERSION,
@@ -563,9 +575,9 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
               msg: `Created tables [${tables.map(getTableName).join(", ")}]`,
             });
 
-            await tx
-              .insert(PONDER_META)
-              .values({ key: "app", value: metadata });
+            await tx.wrap((tx) =>
+              tx.insert(PONDER_META).values({ key: "app", value: metadata }),
+            );
             return {
               status: "success",
               crashRecoveryCheckpoint: undefined,
@@ -578,24 +590,32 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
               previousApp.build_id !== buildId)
           ) {
             for (const table of previousApp.table_names) {
-              await tx.execute(
-                `DROP TABLE IF EXISTS "${namespace.schema}"."${table}" CASCADE`,
+              await tx.wrap((tx) =>
+                tx.execute(
+                  `DROP TABLE IF EXISTS "${namespace.schema}"."${table}" CASCADE`,
+                ),
               );
-              await tx.execute(
-                `DROP TABLE IF EXISTS "${namespace.schema}"."${sqlToReorgTableName(table)}" CASCADE`,
+              await tx.wrap((tx) =>
+                tx.execute(
+                  `DROP TABLE IF EXISTS "${namespace.schema}"."${sqlToReorgTableName(table)}" CASCADE`,
+                ),
               );
             }
             for (const enumName of schemaBuild.statements.enums.json) {
-              await tx.execute(
-                `DROP TYPE IF EXISTS "${namespace.schema}"."${enumName.name}"`,
+              await tx.wrap((tx) =>
+                tx.execute(
+                  `DROP TYPE IF EXISTS "${namespace.schema}"."${enumName.name}"`,
+                ),
               );
             }
 
             await createEnums(tx);
             await createTables(tx);
 
-            await tx.execute(
-              `TRUNCATE TABLE "${namespace.schema}"."${getTableName(PONDER_CHECKPOINT)}" CASCADE`,
+            await tx.wrap((tx) =>
+              tx.execute(
+                `TRUNCATE TABLE "${namespace.schema}"."${getTableName(PONDER_CHECKPOINT)}" CASCADE`,
+              ),
             );
 
             common.logger.info({
@@ -603,7 +623,9 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
               msg: `Created tables [${tables.map(getTableName).join(", ")}]`,
             });
 
-            await tx.update(PONDER_META).set({ value: metadata });
+            await tx.wrap((tx) =>
+              tx.update(PONDER_META).set({ value: metadata }),
+            );
             return {
               status: "success",
               crashRecoveryCheckpoint: undefined,
@@ -645,7 +667,9 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             msg: `Detected crash recovery for build '${buildId}' in schema '${namespace.schema}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
           });
 
-          const checkpoints = await tx.select().from(PONDER_CHECKPOINT);
+          const checkpoints = await tx.wrap((tx) =>
+            tx.select().from(PONDER_CHECKPOINT),
+          );
           const crashRecoveryCheckpoint =
             checkpoints.length === 0
               ? undefined
@@ -655,23 +679,29 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
                 }));
 
           if (previousApp.is_ready === 0) {
-            await tx.update(PONDER_META).set({ value: metadata });
+            await tx.wrap((tx) =>
+              tx.update(PONDER_META).set({ value: metadata }),
+            );
             return { status: "success", crashRecoveryCheckpoint } as const;
           }
 
           // Remove triggers
 
           for (const table of tables) {
-            await tx.execute(
-              `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
+            await tx.wrap((tx) =>
+              tx.execute(
+                `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
+              ),
             );
           }
 
           // Remove indexes
 
           for (const indexStatement of schemaBuild.statements.indexes.json) {
-            await tx.execute(
-              `DROP INDEX IF EXISTS "${namespace.schema}"."${indexStatement.data.name}"`,
+            await tx.wrap((tx) =>
+              tx.execute(
+                `DROP INDEX IF EXISTS "${namespace.schema}"."${indexStatement.data.name}"`,
+              ),
             );
             common.logger.debug({
               service: "database",
@@ -689,7 +719,9 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
           // Note: We don't update the `_ponder_checkpoint` table here, instead we wait for it to be updated
           // in the runtime script.
 
-          await tx.update(PONDER_META).set({ value: metadata });
+          await tx.wrap((tx) =>
+            tx.update(PONDER_META).set({ value: metadata }),
+          );
           return { status: "success", crashRecoveryCheckpoint } as const;
         });
 

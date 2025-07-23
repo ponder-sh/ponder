@@ -86,10 +86,12 @@ export async function createViews({
 
   const PONDER_META = getPonderMetaTable(cliOptions.schema);
 
-  const meta = await database.adminQB
-    .select({ app: PONDER_META.value })
-    .from(PONDER_META)
-    .where(eq(PONDER_META.key, "app"));
+  const meta = await database.adminQB.wrap((db) =>
+    db
+      .select({ app: PONDER_META.value })
+      .from(PONDER_META)
+      .where(eq(PONDER_META.key, "app")),
+  );
 
   if (meta.length === 0) {
     logger.warn({
@@ -100,18 +102,20 @@ export async function createViews({
     return;
   }
 
-  await database.adminQB.execute(
-    `CREATE SCHEMA IF NOT EXISTS "${cliOptions.viewsSchema}"`,
+  await database.adminQB.wrap((db) =>
+    db.execute(`CREATE SCHEMA IF NOT EXISTS "${cliOptions.viewsSchema}"`),
   );
 
   for (const table of meta[0]!.app.table_names) {
     // Note: drop views before creating new ones to avoid enum errors.
-    await database.adminQB.execute(
-      `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${table}"`,
+    await database.adminQB.wrap((db) =>
+      db.execute(`DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${table}"`),
     );
 
-    await database.adminQB.execute(
-      `CREATE VIEW "${cliOptions.viewsSchema}"."${table}" AS SELECT * FROM "${cliOptions.schema}"."${table}"`,
+    await database.adminQB.wrap((db) =>
+      db.execute(
+        `CREATE VIEW "${cliOptions.viewsSchema}"."${table}" AS SELECT * FROM "${cliOptions.schema}"."${table}"`,
+      ),
     );
   }
 
@@ -120,20 +124,25 @@ export async function createViews({
     msg: `Created ${meta[0]!.app.table_names.length} views in schema "${cliOptions.viewsSchema}"`,
   });
 
-  await database.adminQB.execute(
-    `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${cliOptions.schema}"."_ponder_meta"`,
+  await database.adminQB.wrap((db) =>
+    db.execute(
+      `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${cliOptions.schema}"."_ponder_meta"`,
+    ),
   );
 
-  await database.adminQB.execute(
-    `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${cliOptions.schema}"."_ponder_checkpoint"`,
+  await database.adminQB.wrap((db) =>
+    db.execute(
+      `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${cliOptions.schema}"."_ponder_checkpoint"`,
+    ),
   );
 
   const trigger = `status_${cliOptions.viewsSchema}_trigger`;
   const notification = "status_notify()";
   const channel = `${cliOptions.viewsSchema}_status_channel`;
 
-  await database.adminQB.execute(
-    `
+  await database.adminQB.wrap((db) =>
+    db.execute(
+      `
 CREATE OR REPLACE FUNCTION "${cliOptions.viewsSchema}".${notification}
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -143,15 +152,18 @@ NOTIFY "${channel}";
 RETURN NULL;
 END;
 $$;`,
+    ),
   );
 
-  await database.adminQB.execute(
-    `
+  await database.adminQB.wrap((db) =>
+    db.execute(
+      `
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
 ON "${cliOptions.schema}"._ponder_checkpoint
 FOR EACH STATEMENT
 EXECUTE PROCEDURE "${cliOptions.viewsSchema}".${notification};`,
+    ),
   );
 
   await exit({ reason: "Success", code: 0 });

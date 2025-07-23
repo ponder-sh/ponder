@@ -14,8 +14,8 @@ export const createIndexes = async (
   for (const statement of statements.indexes.sql) {
     await qb.transaction({ label: "create_indexes" }, async (tx) => {
       // 60 minutes
-      await tx.execute("SET statement_timeout = 3600000;");
-      await tx.execute(statement);
+      await tx.wrap((tx) => tx.execute("SET statement_timeout = 3600000;"));
+      await tx.wrap((tx) => tx.execute(statement));
     });
   }
 };
@@ -29,8 +29,9 @@ export const createTrigger = async (qb: QB, { table }: { table: PgTable }) => {
   );
 
   await qb.transaction({ label: "create_trigger" }, async (tx) => {
-    await tx.execute(
-      `
+    await tx.wrap((tx) =>
+      tx.execute(
+        `
 CREATE OR REPLACE FUNCTION "${schema}".${getTableNames(table).triggerFn}
 RETURNS TRIGGER AS $$
 BEGIN
@@ -47,14 +48,17 @@ END IF;
 RETURN NULL;
 END;
 $$ LANGUAGE plpgsql`,
+      ),
     );
 
-    await tx.execute(
-      `
+    await tx.wrap((tx) =>
+      tx.execute(
+        `
 CREATE OR REPLACE TRIGGER "${getTableNames(table).trigger}"
 AFTER INSERT OR UPDATE OR DELETE ON "${schema}"."${getTableName(table)}"
 FOR EACH ROW EXECUTE FUNCTION "${schema}".${getTableNames(table).triggerFn};
 `,
+      ),
     );
   });
 };
@@ -85,7 +89,8 @@ export const revert = async (
     let minOperationId: number | undefined;
     if (ordering === "multichain") {
       minOperationId = await tx
-        .execute(`
+        .wrap((tx) =>
+          tx.execute(`
 SELECT MIN(min_op_id) AS global_min_op_id FROM (
 ${tables
   .map(
@@ -96,7 +101,8 @@ AND checkpoint > '${checkpoint}'
 `,
   )
   .join(" UNION ALL ")}) AS all_mins             
-`)
+`),
+        )
         .then((result) => {
           // @ts-ignore
           return result.rows[0]?.global_min_op_id as number | undefined;
@@ -146,18 +152,22 @@ AND checkpoint > '${checkpoint}'
 
       let result: unknown;
       if (ordering === "multichain") {
-        result = await tx.execute(`
+        result = await tx.wrap((tx) =>
+          tx.execute(`
 WITH reverted1 AS (
 DELETE FROM "${schema}"."${getTableName(getReorgTable(table))}"
 WHERE ${minOperationId!} IS NOT NULL AND operation_id >= ${minOperationId!}
-RETURNING *
-), ${baseQuery}`);
+RETURNING * 
+), ${baseQuery}`),
+        );
       } else {
-        result = await tx.execute(`
+        result = await tx.wrap((tx) =>
+          tx.execute(`
 WITH reverted1 AS (
 DELETE FROM "${schema}"."${getTableName(getReorgTable(table))}"
 WHERE checkpoint > '${checkpoint}' RETURNING *
-), ${baseQuery}`);
+), ${baseQuery}`),
+        );
       }
 
       // @ts-ignore
@@ -174,7 +184,8 @@ export const finalize = async (
 ): Promise<number[]> => {
   return qb.transaction({ label: "finalize" }, async (tx) => {
     const min_op_id = await tx
-      .execute(`
+      .wrap((tx) =>
+        tx.execute(`
 SELECT MIN(min_op_id) AS global_min_op_id FROM (
 ${tables
   .map(
@@ -184,7 +195,8 @@ WHERE checkpoint > '${checkpoint}'
 `,
   )
   .join(" UNION ALL ")}) AS all_mins            
-`)
+`),
+      )
       .then((result) => {
         // @ts-ignore
         return result.rows[0]?.global_min_op_id as number | undefined;
@@ -193,14 +205,14 @@ WHERE checkpoint > '${checkpoint}'
     const counts: number[] = [];
     for (const table of tables) {
       const schema = getTableConfig(table).schema ?? "public";
-      const result = await tx.execute(
-        `
+      const result = await tx.wrap((tx) =>
+        tx.execute(`
 WITH deleted AS (
   DELETE FROM "${schema}"."${getTableName(getReorgTable(table))}"
   WHERE ${min_op_id} IS NULL OR operation_id < ${min_op_id}
   RETURNING *
 ) SELECT COUNT(*) FROM deleted AS count; 
-`,
+`),
       );
 
       // @ts-ignore

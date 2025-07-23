@@ -298,7 +298,7 @@ export const createHistoricalIndexingStore = ({
           // Note: Use transaction so that user-land queries don't affect the
           // in-progress transaction.
           return await qb.transaction(async (tx) => {
-            const result = await tx._.session
+            const result = await tx.raw._.session
               .prepareQuery(query, undefined, undefined, method === "all")
               .execute();
             // @ts-ignore

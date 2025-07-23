@@ -191,7 +191,7 @@ export const createSyncStore = ({
     const queries = filters.flatMap((filter, i) => {
       const fragments = getFragments(filter);
       return fragments.map((fragment, j) =>
-        database.syncQB
+        database.syncQB.raw
           .select({
             mergedBlocks: sql<string>`range_agg(unnested.blocks)`.as(
               "merged_blocks",
@@ -200,7 +200,7 @@ export const createSyncStore = ({
             fragment: sql.raw(`'${j}'`).as("fragment"),
           })
           .from(
-            database.syncQB
+            database.syncQB.raw
               .select({ blocks: sql.raw("unnest(blocks)").as("blocks") })
               .from(PONDER_SYNC.intervals)
               .where(
@@ -262,8 +262,8 @@ export const createSyncStore = ({
 
     const values: (typeof PONDER_SYNC.factoryAddresses.$inferInsert)[] = [];
 
-    const factoryInsert = database.syncQB.$with("factory_insert").as(
-      database.syncQB
+    const factoryInsert = database.syncQB.raw.$with("factory_insert").as(
+      database.syncQB.raw
         .insert(PONDER_SYNC.factories)
         .values({ factory: _factory })
         // @ts-expect-error bug with drizzle-orm
@@ -296,8 +296,8 @@ export const createSyncStore = ({
   getChildAddresses: ({ factory }) => {
     const { id, ..._factory } = factory;
 
-    const factoryInsert = database.syncQB.$with("factory_insert").as(
-      database.syncQB
+    const factoryInsert = database.syncQB.raw.$with("factory_insert").as(
+      database.syncQB.raw
         .insert(PONDER_SYNC.factories)
         .values({ factory: _factory })
         // @ts-expect-error bug with drizzle-orm
@@ -320,7 +320,7 @@ export const createSyncStore = ({
           .where(
             eq(
               PONDER_SYNC.factoryAddresses.factoryId,
-              database.syncQB
+              database.syncQB.raw
                 .select({ id: factoryInsert.id })
                 .from(factoryInsert),
             ),
@@ -575,7 +575,7 @@ export const createSyncStore = ({
         shouldGetTransactionReceipt,
       );
 
-      const blocksQuery = database.syncQB
+      const blocksQuery = database.syncQB.raw
         .select({
           number: PONDER_SYNC.blocks.number,
           timestamp: PONDER_SYNC.blocks.timestamp,
@@ -608,7 +608,7 @@ export const createSyncStore = ({
         .orderBy(asc(PONDER_SYNC.blocks.number))
         .limit(limit);
 
-      const transactionsQuery = database.syncQB
+      const transactionsQuery = database.syncQB.raw
         .select({
           blockNumber: PONDER_SYNC.transactions.blockNumber,
           transactionIndex: PONDER_SYNC.transactions.transactionIndex,
@@ -642,7 +642,7 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
-      const transactionReceiptsQuery = database.syncQB
+      const transactionReceiptsQuery = database.syncQB.raw
         .select({
           blockNumber: PONDER_SYNC.transactionReceipts.blockNumber,
           transactionIndex: PONDER_SYNC.transactionReceipts.transactionIndex,
@@ -670,7 +670,7 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
-      const logsQuery = database.syncQB
+      const logsQuery = database.syncQB.raw
         .select({
           blockNumber: PONDER_SYNC.logs.blockNumber,
           logIndex: PONDER_SYNC.logs.logIndex,
@@ -697,7 +697,7 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
-      const tracesQuery = database.syncQB
+      const tracesQuery = database.syncQB.raw
         .select({
           blockNumber: PONDER_SYNC.traces.blockNumber,
           transactionIndex: PONDER_SYNC.traces.transactionIndex,

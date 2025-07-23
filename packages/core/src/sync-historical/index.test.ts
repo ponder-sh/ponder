@@ -140,17 +140,15 @@ test("sync() with log filter", async (context) => {
 
   await historicalSync.sync([1, 2]);
 
-  const logs = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.logs)
-    .execute();
+  const logs = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.logs).execute(),
+  );
 
   expect(logs).toHaveLength(1);
 
-  const intervals = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   expect(intervals).toHaveLength(1);
 });
@@ -194,17 +192,15 @@ test("sync() with log filter and transaction receipts", async (context) => {
 
   await historicalSync.sync([1, 2]);
 
-  const transactionReceipts = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.transactionReceipts)
-    .execute();
+  const transactionReceipts = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.transactionReceipts).execute(),
+  );
 
   expect(transactionReceipts).toHaveLength(1);
 
-  const intervals = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   expect(intervals).toHaveLength(1);
 });
@@ -241,17 +237,15 @@ test("sync() with block filter", async (context) => {
 
   await historicalSync.sync([1, 3]);
 
-  const blocks = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.blocks)
-    .execute();
+  const blocks = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.blocks).execute(),
+  );
 
   expect(blocks).toHaveLength(3);
 
-  const intervals = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   expect(intervals).toHaveLength(1);
 });
@@ -297,22 +291,19 @@ test("sync() with log factory", async (context) => {
 
   await historicalSync.sync([1, 3]);
 
-  const logs = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.logs)
-    .execute();
-  const factories = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.factories)
-    .execute();
+  const logs = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.logs).execute(),
+  );
+  const factories = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.factories).execute(),
+  );
 
   expect(logs).toHaveLength(1);
   expect(factories).toHaveLength(1);
 
-  const intervals = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   expect(intervals).toHaveLength(1);
 });
@@ -399,17 +390,15 @@ test("sync() with trace filter", async (context) => {
 
   await historicalSync.sync([1, 3]);
 
-  const traces = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.traces)
-    .execute();
+  const traces = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.traces).execute(),
+  );
 
   expect(traces).toHaveLength(1);
 
-  const intervals = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   expect(intervals).toHaveLength(1);
 });
@@ -452,24 +441,21 @@ test("sync() with transaction filter", async (context) => {
 
   await historicalSync.sync([1, 1]);
 
-  const transactions = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.transactions)
-    .execute();
+  const transactions = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.transactions).execute(),
+  );
 
   expect(transactions).toHaveLength(1);
 
-  const transactionReceipts = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.transactionReceipts)
-    .execute();
+  const transactionReceipts = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.transactionReceipts).execute(),
+  );
 
   expect(transactionReceipts).toHaveLength(1);
 
-  const intervals = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   // transaction:from and transaction:to
   expect(intervals).toHaveLength(2);
@@ -540,17 +526,15 @@ test("sync() with transfer filter", async (context) => {
 
   await historicalSync.sync([1, 1]);
 
-  const transactions = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.transactions)
-    .execute();
+  const transactions = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.transactions).execute(),
+  );
 
   expect(transactions).toHaveLength(1);
 
-  const intervals = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   // transfer:from and transfer:to
   expect(intervals).toHaveLength(2);
@@ -598,22 +582,19 @@ test("sync() with many filters", async (context) => {
 
   await historicalSync.sync([1, 2]);
 
-  const logs = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.logs)
-    .execute();
+  const logs = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.logs).execute(),
+  );
   expect(logs).toHaveLength(1);
 
-  const blocks = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.blocks)
-    .execute();
+  const blocks = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.blocks).execute(),
+  );
   expect(blocks).toHaveLength(2);
 
-  const intervals = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   expect(intervals).toHaveLength(2);
 });
@@ -881,14 +862,12 @@ test("syncAddress() handles many addresses", async (context) => {
 
   await historicalSync.sync([1, 13]);
 
-  const logs = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.logs)
-    .execute();
-  const factories = await database.syncQB
-    .select()
-    .from(ponderSyncSchema.factoryAddresses)
-    .execute();
+  const logs = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.logs).execute(),
+  );
+  const factories = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.factoryAddresses).execute(),
+  );
   expect(logs).toHaveLength(1);
   expect(factories).toHaveLength(11);
 });
