@@ -219,7 +219,9 @@ export const createSyncStore = ({
         unionAll(...queries),
       );
     } else {
-      rows = await queries[0]!.execute();
+      rows = await database.syncQB.wrap({ label: "select_intervals" }, () =>
+        queries[0]!.execute(),
+      );
     }
 
     const result = new Map<
