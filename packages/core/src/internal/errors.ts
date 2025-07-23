@@ -105,16 +105,6 @@ export class CheckConstraintError extends NonRetryableUserError {
 
 // Retryable database errors
 
-/** Database error that occurs inside `qb.transaction`. */
-export class TransactionStatementError extends RetryableError {
-  override name = "TransactionStatementError";
-
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
-    Object.setPrototypeOf(this, TransactionStatementError.prototype);
-  }
-}
-
 export class DbConnectionError extends RetryableError {
   override name = "DbConnectionError";
 

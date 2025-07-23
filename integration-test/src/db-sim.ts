@@ -30,8 +30,13 @@ export const dbSim = <
     queryCount.set(sql, nonce + 1);
 
     if (seedrandom(SEED + sql + nonce)() < SIM_PARAMS.DB_ERROR_RATE) {
-      console.log("Simulated error:", sql);
-      if (sql !== "begin" && sql !== "rollback") {
+      if (
+        sql !== "begin" &&
+        sql !== "rollback" &&
+        sql.startsWith("savepoint sp") === false &&
+        sql.startsWith("rollback to savepoint sp") === false
+      ) {
+        // console.log("Simulated error:", sql);
         throw new Error("Connection terminated unexpectedly. Simulated error.");
       }
     }
@@ -88,10 +93,10 @@ export const dbSim = <
       return result;
     };
 
-    await tx.execute(
-      sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`,
-    );
     try {
+      await tx.execute(
+        sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`,
+      );
       const result = await callback(tx);
       await tx.execute(sql`commit`);
       return result;

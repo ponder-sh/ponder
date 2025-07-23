@@ -1,6 +1,5 @@
 import { ponder } from "ponder:registry";
 import schema from "ponder:schema";
-import { eq } from "ponder";
 
 ponder.on("PoolManager:Initialize", async ({ event, context }) => {
   await context.db.insert(schema.pool).values({
@@ -15,13 +14,6 @@ ponder.on("PoolManager:Initialize", async ({ event, context }) => {
 });
 
 ponder.on("PoolManager:Swap", async ({ event, context }) => {
-  const data = await context.db.sql
-    .select()
-    .from(schema.swap)
-    .where(eq(schema.swap.id, event.id));
-
-  if (data.length > 0) console.log(data);
-
   await context.db.insert(schema.swap).values({
     id: event.id,
     poolId: event.args.id,
