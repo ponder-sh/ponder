@@ -24,16 +24,29 @@ export const createHistoricalIndexingStore = ({
   indexingCache: IndexingCache;
 }): IndexingStore => {
   let qb: QB = undefined!;
+
+  const errorHandler = (fn: (...args: any[]) => Promise<any>) => {
+    return async (...args: any[]) => {
+      try {
+        return await fn(...args);
+      } catch (error) {
+        // TODO(kyle) callback
+        // biome-ignore lint/complexity/noUselessCatch: <explanation>
+        throw error;
+      }
+    };
+  };
+
   return {
     // @ts-ignore
-    find: (table: Table, key) => {
+    find: errorHandler((table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "find",
       });
       checkOnchainTable(table, "find");
       return indexingCache.get({ table, key });
-    },
+    }),
 
     // @ts-ignore
     insert(table: Table) {
@@ -41,7 +54,7 @@ export const createHistoricalIndexingStore = ({
         values: (values: any) => {
           // @ts-ignore
           const inner = {
-            onConflictDoNothing: async () => {
+            onConflictDoNothing: errorHandler(async () => {
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -81,8 +94,8 @@ export const createHistoricalIndexingStore = ({
                   isUpdate: false,
                 });
               }
-            },
-            onConflictDoUpdate: async (valuesU: any) => {
+            }),
+            onConflictDoUpdate: errorHandler(async (valuesU: any) => {
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -163,7 +176,7 @@ export const createHistoricalIndexingStore = ({
                   isUpdate: false,
                 });
               }
-            },
+            }),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
             then: (onFulfilled, onRejected) => {
               common.metrics.ponder_indexing_store_queries_total.inc({
@@ -223,7 +236,7 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     update(table: Table, key) {
       return {
-        set: async (values: any) => {
+        set: errorHandler(async (values: any) => {
           common.metrics.ponder_indexing_store_queries_total.inc({
             table: getTableName(table),
             method: "update",
@@ -255,18 +268,18 @@ export const createHistoricalIndexingStore = ({
           }
 
           return indexingCache.set({ table, key, row, isUpdate: true });
-        },
+        }),
       };
     },
     // @ts-ignore
-    delete: async (table: Table, key) => {
+    delete: errorHandler(async (table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "delete",
       });
       checkOnchainTable(table, "delete");
       return indexingCache.delete({ table, key });
-    },
+    }),
     // @ts-ignore
     sql: drizzle(
       async (_sql, params, method, typings) => {

@@ -5,7 +5,7 @@ import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import { addErrorMeta, toErrorMeta } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
-import { FlushError, TransactionStatementError } from "@/internal/errors.js";
+import { CopyFlushError, DelayedInsertError } from "@/internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
   Event,
@@ -224,7 +224,7 @@ export const getCopyHelper = (qb: QB) => {
         // Note: `TransactionError` is applied because the query
         // uses the low-level `$client.query` method.
         .catch((error) => {
-          throw new TransactionStatementError(error.message);
+          throw new CopyFlushError(error.message);
         });
     };
   } else {
@@ -241,7 +241,7 @@ export const getCopyHelper = (qb: QB) => {
         // Note: `TransactionError` is applied because the query
         // uses the low-level `$client.query` method.
         .catch((error) => {
-          throw new TransactionStatementError(error.message);
+          throw new CopyFlushError(error.message);
         });
     };
   }
@@ -402,6 +402,7 @@ export const createIndexingCache = ({
 
       const endClock = startClock();
 
+      // TODO(kyle) how to get stack to point to user code
       const result = await qb
         .wrap((db) =>
           db.select().from(table).where(getWhereCondition(table, key)),
@@ -508,7 +509,7 @@ export const createIndexingCache = ({
             );
 
             if (result.status === "error") {
-              error = new FlushError(result.error.message);
+              error = new DelayedInsertError(result.error.message);
               error.stack = undefined;
 
               addErrorMeta(
@@ -644,7 +645,7 @@ export const createIndexingCache = ({
             );
 
             if (result.status === "error") {
-              error = new FlushError(result.error.message);
+              error = new DelayedInsertError(result.error.message);
               error.stack = undefined;
 
               addErrorMeta(

@@ -18,7 +18,7 @@ import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import { createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
-import { FlushError } from "@/internal/errors.js";
+import { NonRetryableUserError, RetryableError } from "@/internal/errors.js";
 import { getAppProgress } from "@/internal/metrics.js";
 import type {
   CrashRecoveryCheckpoint,
@@ -157,14 +157,18 @@ export async function run({
       });
 
       if (result.status === "error") {
-        onReloadableError(result.error);
-        return;
+        if (result.error instanceof RetryableError) {
+          throw result.error;
+        } else {
+          onReloadableError(result.error);
+          return;
+        }
       }
 
       try {
         await indexingCache.flush();
       } catch (error) {
-        if (error instanceof FlushError) {
+        if (error instanceof NonRetryableUserError) {
           onReloadableError(error as Error);
           return;
         }
@@ -241,8 +245,12 @@ export async function run({
             });
 
             if (result.status === "error") {
-              onReloadableError(result.error);
-              return;
+              if (result.error instanceof RetryableError) {
+                throw result.error;
+              } else {
+                onReloadableError(result.error);
+                return;
+              }
             }
 
             const checkpoint = decodeCheckpoint(
@@ -332,7 +340,7 @@ export async function run({
           try {
             await indexingCache.flush();
           } catch (error) {
-            if (error instanceof FlushError) {
+            if (error instanceof NonRetryableUserError) {
               onReloadableError(error as Error);
               return;
             }
@@ -377,6 +385,15 @@ export async function run({
         } catch (error) {
           indexingCache.invalidate();
           indexingCache.clear();
+
+          if (error instanceof RetryableError) {
+            common.logger.warn({
+              service: "app",
+              msg: "Failed processing batch of events. Retrying batch.",
+              error,
+            });
+          }
+
           throw error;
         }
       });
@@ -544,7 +561,9 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
               msg: `Indexed ${events.length} '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
             });
 
-            if (result.status === "error") onReloadableError(result.error);
+            if (result.status === "error") {
+              onReloadableError(result.error);
+            }
 
             await Promise.all(
               tables.map((table) =>

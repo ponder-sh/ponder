@@ -3,7 +3,7 @@ import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { onchain } from "@/drizzle/onchain.js";
 import {
   InvalidStoreMethodError,
-  NonRetryableError,
+  NonRetryableUserError,
   UndefinedTableError,
 } from "@/internal/errors.js";
 import type { Schema } from "@/internal/types.js";
@@ -25,7 +25,7 @@ export const validateUpdateSet = (
     if (js in set) {
       // Note: Noop on the primary keys if they are identical, otherwise throw an error.
       if ((set as Row)[js] !== prev[js]) {
-        throw new NonRetryableError(
+        throw new NonRetryableUserError(
           `Primary key column '${js}' cannot be updated`,
         );
       }

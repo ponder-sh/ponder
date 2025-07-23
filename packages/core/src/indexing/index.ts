@@ -2,7 +2,7 @@ import type { IndexingCache } from "@/indexing-store/cache.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
 import type { CachedViemClient } from "@/indexing/client.js";
 import type { Common } from "@/internal/common.js";
-import { ShutdownError } from "@/internal/errors.js";
+import { RetryableError, ShutdownError } from "@/internal/errors.js";
 import type {
   Chain,
   ContractSource,
@@ -218,8 +218,14 @@ export const createIndexing = ({
         endClock(),
       );
     } catch (_error) {
+      console.log("caught error", _error instanceof RetryableError);
+
       const error =
         _error instanceof Error ? _error : new Error(String(_error));
+
+      if (error instanceof RetryableError) {
+        return { status: "error", error };
+      }
 
       if (common.shutdown.isKilled) {
         throw new ShutdownError();

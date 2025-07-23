@@ -3,10 +3,9 @@ import {
   BigIntSerializationError,
   CheckConstraintError,
   DbConnectionError,
-  NonRetryableError,
+  NonRetryableUserError,
   NotNullConstraintError,
   ShutdownError,
-  TransactionStatementError,
   UniqueConstraintError,
   getBaseError,
 } from "@/internal/errors.js";
@@ -80,7 +79,7 @@ export type QB<
     | { $dialect: "postgres"; $client: pg.Pool | pg.PoolClient }
   );
 
-export const parseDbError = (e: any, isTransactionCallback = false): Error => {
+export const parseDbError = (e: any): Error => {
   let error = getBaseError(e);
 
   if (error?.message?.includes("violates not-null constraint")) {
@@ -98,9 +97,9 @@ export const parseDbError = (e: any, isTransactionCallback = false): Error => {
       "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/api-reference/ponder-utils#replacebigints",
     );
   } else if (error?.message?.includes("does not exist")) {
-    error = new NonRetryableError(error.message);
+    error = new NonRetryableUserError(error.message);
   } else if (error?.message?.includes("already exists")) {
-    error = new NonRetryableError(error.message);
+    error = new NonRetryableUserError(error.message);
   } else if (
     error?.message?.includes(
       "terminating connection due to administrator command",
@@ -113,9 +112,9 @@ export const parseDbError = (e: any, isTransactionCallback = false): Error => {
     error?.message?.includes("timeout exceeded when trying to connect")
   ) {
     error = new DbConnectionError(error.message);
-  } else if (isTransactionCallback) {
-    error = new TransactionStatementError(error.message);
   }
+
+  // TODO(Kyle) default retryable error?
 
   error.stack = e.stack;
 
@@ -189,7 +188,7 @@ export const createQB = <
 
         return result;
       } catch (e) {
-        const error = parseDbError(e, isTransactionCallback);
+        const error = parseDbError(e);
 
         if (common.shutdown.isKilled) {
           throw new ShutdownError();
@@ -223,7 +222,7 @@ export const createQB = <
         // non-transaction errors. Retry immediately.
 
         if (
-          error instanceof NonRetryableError ||
+          error instanceof NonRetryableUserError ||
           (isTransactionCallback && error instanceof DbConnectionError)
         ) {
           common.logger.warn({

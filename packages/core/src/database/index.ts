@@ -4,7 +4,11 @@ import {
   sqlToReorgTableName,
 } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
-import { NonRetryableError, ShutdownError } from "@/internal/errors.js";
+import {
+  MigrationError,
+  NonRetryableUserError,
+  ShutdownError,
+} from "@/internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
@@ -425,7 +429,7 @@ export const createDatabase = async ({
             method: "migrate_sync",
           });
 
-          if (error instanceof NonRetryableError) {
+          if (error instanceof NonRetryableUserError) {
             common.logger.warn({
               service: "database",
               msg: `Failed 'migrate_sync' database query`,
@@ -461,7 +465,7 @@ export const createDatabase = async ({
             .catch((_error) => {
               const error = _error as Error;
               if (!error.message.includes("already exists")) throw error;
-              const e = new NonRetryableError(
+              const e = new MigrationError(
                 `Unable to create table '${namespace.schema}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
               );
               e.stack = undefined;
@@ -477,7 +481,7 @@ export const createDatabase = async ({
             .catch((_error) => {
               const error = _error as Error;
               if (!error.message.includes("already exists")) throw error;
-              const e = new NonRetryableError(
+              const e = new MigrationError(
                 `Unable to create enum '${namespace.schema}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
               );
               e.stack = undefined;
@@ -634,7 +638,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
 
           // Note: ponder <=0.8 will evaluate this as true because the version is undefined
           if (previousApp.version !== VERSION) {
-            const error = new NonRetryableError(
+            const error = new MigrationError(
               `Schema '${namespace.schema}' was previously used by a Ponder app with a different minor version. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/database#database-schema`,
             );
             error.stack = undefined;
@@ -645,7 +649,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             common.options.command === "dev" ||
             previousApp.build_id !== buildId
           ) {
-            const error = new NonRetryableError(
+            const error = new MigrationError(
               `Schema '${namespace.schema}' was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/database#database-schema`,
             );
             error.stack = undefined;
@@ -741,7 +745,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
 
         result = await tryAcquireLockAndMigrate();
         if (result.status === "locked") {
-          const error = new NonRetryableError(
+          const error = new MigrationError(
             `Failed to acquire lock on schema '${namespace.schema}'. A different Ponder app is actively using this schema.`,
           );
           error.stack = undefined;
