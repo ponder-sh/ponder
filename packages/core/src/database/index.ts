@@ -118,7 +118,11 @@ export type Database = {
     ordering: "multichain" | "omnichain" | "isolated";
     tx: PgTransaction<PgQueryResultHKT, Schema>;
   }): Promise<void>;
-  finalize(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
+  finalize(args: {
+    checkpoint: string;
+    db: Drizzle<Schema>;
+    ordering: "multichain" | "omnichain" | "isolated";
+  }): Promise<void>;
   commitBlock(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
 };
 
@@ -1192,13 +1196,16 @@ WITH reverted1 AS (
         },
       );
     },
-    async finalize({ checkpoint, db }) {
+    async finalize({ checkpoint, db, ordering }) {
       await this.record(
         { method: "finalize", includeTraceLogs: true },
         async () => {
-          const min_op_id = await db
-            .execute(
-              sql.raw(`
+          switch (ordering) {
+            case "multichain":
+            case "omnichain": {
+              const min_op_id = await db
+                .execute(
+                  sql.raw(`
 SELECT MIN(min_op_id) AS global_min_op_id FROM (
 ${tables
   .map(
@@ -1209,28 +1216,52 @@ WHERE checkpoint > '${checkpoint}'
   )
   .join(" UNION ALL ")}) AS all_mins            
 `),
-            )
-            .then((result) => {
-              // @ts-ignore
-              return result.rows[0]?.global_min_op_id as number | undefined;
-            });
+                )
+                .then((result) => {
+                  // @ts-ignore
+                  return result.rows[0]?.global_min_op_id as number | undefined;
+                });
 
-          for (const table of tables) {
-            const result = await db.execute(
-              sql.raw(`
+              for (const table of tables) {
+                const result = await db.execute(
+                  sql.raw(`
 WITH deleted AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE ${min_op_id} IS NULL OR operation_id < ${min_op_id}
   RETURNING *
 ) SELECT COUNT(*) FROM deleted AS count; 
 `),
-            );
+                );
 
-            common.logger.info({
-              service: "database",
-              // @ts-ignore
-              msg: `Finalized ${result.rows[0]!.count} operations from '${getTableName(table)}'`,
-            });
+                common.logger.info({
+                  service: "database",
+                  // @ts-ignore
+                  msg: `Finalized ${result.rows[0]!.count} operations from '${getTableName(table)}'`,
+                });
+              }
+
+              break;
+            }
+            case "isolated": {
+              for (const table of tables) {
+                const result = await db.execute(
+                  sql.raw(`
+WITH deleted AS (
+  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE checkpoint <= '${checkpoint}' AND  SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
+  RETURNING *
+) SELECT COUNT(*) FROM deleted AS count; 
+`),
+                );
+
+                common.logger.info({
+                  service: "database",
+                  // @ts-ignore
+                  msg: `Finalized ${result.rows[0]!.count} operations from '${getTableName(table)}'`,
+                });
+              }
+              break;
+            }
           }
         },
       );

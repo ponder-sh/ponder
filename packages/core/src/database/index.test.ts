@@ -280,6 +280,7 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
   await database.finalize({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     db: database.qb.drizzle,
+    ordering: "multichain",
   });
 
   const databaseTwo = await createDatabase({
@@ -635,6 +636,7 @@ test("finalize()", async (context) => {
   await database.finalize({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     db: database.qb.drizzle,
+    ordering: "multichain",
   });
 
   // reorg tables
