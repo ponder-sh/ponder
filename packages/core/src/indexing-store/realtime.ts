@@ -5,6 +5,7 @@ import {
   RawSqlError,
   RecordNotFoundError,
   RetryableError,
+  UniqueConstraintError,
 } from "@/internal/errors.js";
 import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
@@ -189,12 +190,30 @@ export const createRealtimeIndexingStore = ({
                 });
                 checkOnchainTable(table, "insert");
 
+                // Note: `onConflictDoNothing` is used to ensure the transaction will only fail
+                // for connection issues. This is a workaround to avoid the transaction being aborted.
+
+                const parseResult = (result: { [x: string]: any }[]) => {
+                  if (result.length !== values.length) {
+                    throw new UniqueConstraintError(
+                      `Primary key conflict in table '${getTableName(table)}'`,
+                    );
+                  }
+
+                  if (Array.isArray(values)) {
+                    return result;
+                  }
+
+                  return result[0];
+                };
+
                 return qb.wrap((db) =>
                   db
                     .insert(table)
                     .values(values)
+                    .onConflictDoNothing()
                     .returning()
-                    .then((res) => (Array.isArray(values) ? res : res[0])),
+                    .then(parseResult),
                 );
               })().then(onFulfilled, onRejected),
             catch: (onRejected) => inner.then(undefined, onRejected),
