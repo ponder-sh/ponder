@@ -251,6 +251,7 @@ const pwr = promiseWithResolvers<void>();
  */
 const onBuild = async (app: PonderApp) => {
   app.preBuild.ordering = SIM_PARAMS.ORDERING;
+  app.common.options.syncEventsQuerySize = 200;
 
   app.common.logger.warn({
     service: "sim",
