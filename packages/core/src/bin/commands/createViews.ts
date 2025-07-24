@@ -1,5 +1,6 @@
 import { createBuild } from "@/build/index.js";
 import { createDatabase, getPonderMetaTable } from "@/database/index.js";
+import { sql } from "@/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -126,13 +127,31 @@ export async function createViews({
 
   await database.adminQB.wrap((db) =>
     db.execute(
-      `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${cliOptions.schema}"."_ponder_meta"`,
+      sql.raw(`DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."_ponder_meta"`),
     ),
   );
 
   await database.adminQB.wrap((db) =>
     db.execute(
-      `CREATE OR REPLACE VIEW "${cliOptions.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${cliOptions.schema}"."_ponder_checkpoint"`,
+      sql.raw(
+        `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."_ponder_checkpoint"`,
+      ),
+    ),
+  );
+
+  await database.adminQB.wrap((db) =>
+    db.execute(
+      sql.raw(
+        `CREATE VIEW "${cliOptions.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${cliOptions.schema}"."_ponder_meta"`,
+      ),
+    ),
+  );
+
+  await database.adminQB.wrap((db) =>
+    db.execute(
+      sql.raw(
+        `CREATE VIEW "${cliOptions.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${cliOptions.schema}"."_ponder_checkpoint"`,
+      ),
     ),
   );
 

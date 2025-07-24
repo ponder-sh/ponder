@@ -7,6 +7,7 @@ import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
 import { startClock } from "@/utils/timer.js";
+import { wait } from "@/utils/wait.js";
 import {
   type Abi,
   type Account,
@@ -527,9 +528,13 @@ export const createCachedViemClient = ({
       };
     };
 
-    const getRetryAction = (action: PonderActions[keyof PonderActions]) => {
+    const getRetryAction = (
+      action: PonderActions[keyof PonderActions],
+      actionName: keyof PonderActions,
+    ) => {
       return async (...args: Parameters<typeof action>) => {
-        const RETRY_COUNT = 3;
+        const RETRY_COUNT = 9;
+        const BASE_DURATION = 125;
         for (let i = 0; i <= RETRY_COUNT; i++) {
           try {
             // @ts-ignore
@@ -545,8 +550,22 @@ export const createCachedViemClient = ({
                   false) ||
               i === RETRY_COUNT
             ) {
+              common.logger.warn({
+                service: "rpc",
+                msg: `Failed '${actionName}' RPC action`,
+                error: error as Error,
+              });
+
               throw error;
             }
+
+            const duration = BASE_DURATION * 2 ** i;
+            common.logger.warn({
+              service: "rpc",
+              msg: `Failed '${actionName}' RPC action, retrying after ${duration} milliseconds`,
+              error: error as Error,
+            });
+            await wait(duration);
           }
         }
       };
@@ -581,7 +600,7 @@ export const createCachedViemClient = ({
 
     for (const action of retryableActions) {
       // @ts-ignore
-      actions[action] = getRetryAction(actions[action]);
+      actions[action] = getRetryAction(actions[action], action);
     }
 
     const actionsWithMetrics = {} as PonderActions;

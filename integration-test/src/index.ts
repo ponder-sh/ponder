@@ -98,8 +98,8 @@ export const SIM_PARAMS = {
     [100, 1000, 10_000, Number.POSITIVE_INFINITY],
     "eth-get-logs-block-limit",
   ),
-  REALTIME_REORG_RATE: pick([0, 0.02, 0.05, 0.1], "realtime-reorg-rate"),
-  REALTIME_DEEP_REORG_RATE: pick([0, 0.02, 0.04], "realtime-deep-reorg-rate"),
+  REALTIME_REORG_RATE: pick([0, 0.02, 0.05], "realtime-reorg-rate"),
+  REALTIME_DEEP_REORG_RATE: pick([0, 0.01, 0.02], "realtime-deep-reorg-rate"),
   REALTIME_FAST_FORWARD_RATE: pick(
     [0, 0.25, 0.5, 0.75],
     "realtime-fast-forward-rate",

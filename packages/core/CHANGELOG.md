@@ -1,5 +1,13 @@
 # ponder
 
+## 0.11.35
+
+### Patch Changes
+
+- [#1898](https://github.com/ponder-sh/ponder/pull/1898) [`253faa9`](https://github.com/ponder-sh/ponder/commit/253faa9bf5a54a6583f71f46f58da4013b653f21) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression introduced in `v0.11.33` where creating views would cause the error: `cannot change data type of view column "chain_id" from integer to bigint`.
+
+- [#1902](https://github.com/ponder-sh/ponder/pull/1902) [`a48fcca`](https://github.com/ponder-sh/ponder/commit/a48fcca58d129125e4b7a8067a9db21d461e1ff6) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved logging and retry behavior for `context.client` errors.
+
 ## 0.11.34
 
 ### Patch Changes
