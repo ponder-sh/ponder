@@ -188,6 +188,11 @@ type RequiredBlockOptions =
     };
 
 type RetryableOptions = {
+  /**
+   * Whether or not to retry the action if the response is empty.
+   *
+   * @default true
+   */
   retryEmptyResponse?: boolean;
 };
 
