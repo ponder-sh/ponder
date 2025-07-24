@@ -1,3 +1,4 @@
+import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getSql } from "@/drizzle/kit/index.js";
 import { BuildError } from "@/internal/errors.js";
 import type { Schema } from "@/internal/types.js";
@@ -16,7 +17,7 @@ import {
 export const buildSchema = ({
   schema,
   ordering,
-}: { schema: Schema; ordering: "multichain" | "omnichain" | "isolated" }) => {
+}: { schema: Schema; ordering?: "multichain" | "omnichain" | "isolated" }) => {
   const statements = getSql(schema);
 
   const tableNames = new Set<string>();
@@ -86,15 +87,26 @@ export const buildSchema = ({
           }
         }
 
-        if (columnName === "chain_id") {
+        if (columnName === "chainId") {
           hasChainIdColumn = true;
         }
       }
 
-      if (ordering === "isolated" && hasChainIdColumn === false) {
-        throw new Error(
-          `Schema validation failed: '${name}' does not have required 'chain_id' column.`,
-        );
+      if (ordering === "isolated") {
+        if (hasChainIdColumn === false) {
+          throw new Error(
+            `Schema validation failed: '${name}' does not have required 'chain_id' column.`,
+          );
+        }
+
+        if (
+          getPrimaryKeyColumns(s).find(({ js }) => js === "chainId") ===
+          undefined
+        ) {
+          throw new Error(
+            `Schema validation failed: '${name}.chainId' has to be primary.`,
+          );
+        }
       }
 
       if (tableNames.has(getTableName(s))) {

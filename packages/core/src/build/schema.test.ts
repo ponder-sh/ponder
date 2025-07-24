@@ -48,16 +48,19 @@ test("buildSchema() success with composite primary key", () => {
     account: onchainTable(
       "account",
       (p) => ({
+        chainId: p.bigint(),
         address: p.hex().notNull(),
         balance: p.bigint().notNull(),
       }),
       (table) => ({
-        pk: primaryKey({ columns: [table.address, table.balance] }),
+        pk: primaryKey({
+          columns: [table.address, table.balance, table.chainId],
+        }),
       }),
     ),
   };
 
-  buildSchema({ schema });
+  buildSchema({ schema, ordering: "isolated" });
 });
 
 test("buildScheama() error with view", () => {
