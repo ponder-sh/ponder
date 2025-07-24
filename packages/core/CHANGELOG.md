@@ -1,5 +1,13 @@
 # ponder
 
+## 0.11.36
+
+### Patch Changes
+
+- [#1911](https://github.com/ponder-sh/ponder/pull/1911) [`3296389`](https://github.com/ponder-sh/ponder/commit/32963898a7ff6204bb1327f330fd624baaed181c) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `retryEmptyResponse` option to `context.client.readContract()`, `context.client.simulateContract()`, `context.client.multicall()`, `context.client.getBlock()`, `context.client.getTransaction()`, `context.client.getTransactionReceipt()`, and `context.client.getTransactionConfirmations()`.
+
+  This option specifies whether to retry the action if the response is empty. Default to `true`.
+
 ## 0.11.35
 
 ### Patch Changes
