@@ -80,7 +80,7 @@ export type Database = {
     buildId,
     ordering,
   }: Pick<IndexingBuild, "buildId"> & {
-    ordering: "omnichain" | "multichain";
+    ordering: "omnichain" | "multichain" | "isolated";
   }): Promise<CrashRecoveryCheckpoint>;
   createIndexes(): Promise<void>;
   createTriggers(): Promise<void>;
@@ -115,7 +115,7 @@ export type Database = {
   getReady(): Promise<boolean>;
   revert(args: {
     checkpoint: string;
-    ordering: "multichain" | "omnichain";
+    ordering: "multichain" | "omnichain" | "isolated";
     tx: PgTransaction<PgQueryResultHKT, Schema>;
   }): Promise<void>;
   finalize(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
@@ -1155,19 +1155,32 @@ reverted2 AS (
 ) SELECT COUNT(*) FROM reverted1 as count;`;
 
             let result: unknown;
-            if (ordering === "multichain") {
-              result = await tx.execute(`
+            switch (ordering) {
+              case "multichain": {
+                result = await tx.execute(`
 WITH reverted1 AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE ${minOperationId!} IS NOT NULL AND operation_id >= ${minOperationId!}
   RETURNING *
 ), ${baseQuery}`);
-            } else {
-              result = await tx.execute(`
+                break;
+              }
+              case "omnichain": {
+                result = await tx.execute(`
 WITH reverted1 AS (
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE checkpoint > '${checkpoint}' RETURNING *
 ), ${baseQuery}`);
+                break;
+              }
+              case "isolated": {
+                result = await tx.execute(`
+WITH reverted1 AS (
+  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE checkpoint > '${checkpoint}' AND SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
+)                  
+`);
+              }
             }
 
             common.logger.info({
