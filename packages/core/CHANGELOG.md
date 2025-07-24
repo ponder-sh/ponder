@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.37
+
+### Patch Changes
+
+- [#1895](https://github.com/ponder-sh/ponder/pull/1895) [`7b58d8c`](https://github.com/ponder-sh/ponder/commit/7b58d8c68429858619919c3ee6792d99a76da212) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Introduced a feature of specifying struct fields as a factory parameter.
+
 ## 0.11.36
 
 ### Patch Changes
