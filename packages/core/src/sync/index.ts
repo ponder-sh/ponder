@@ -1,10 +1,12 @@
 import type { Common } from "@/internal/common.js";
 import type {
   Chain,
+  CrashRecoveryCheckpoint,
   Event,
   Factory,
   FactoryId,
   Filter,
+  IndexingBuild,
   LightBlock,
   RawEvent,
   Source,
@@ -24,8 +26,10 @@ import type { SyncStore } from "@/sync-store/index.js";
 import {
   MAX_CHECKPOINT,
   ZERO_CHECKPOINT,
+  ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
   encodeCheckpoint,
+  max,
   min,
 } from "@/utils/checkpoint.js";
 import { formatPercentage } from "@/utils/format.js";
@@ -41,13 +45,23 @@ import {
 import { intervalUnion } from "@/utils/interval.js";
 import { createMutex } from "@/utils/mutex.js";
 import { partition } from "@/utils/partition.js";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
 import { type Address, hexToNumber, toHex } from "viem";
-import { buildEvents, decodeEvents } from "./events.js";
+import {
+  buildEvents,
+  decodeEvents,
+  syncBlockToInternal,
+  syncLogToInternal,
+  syncTraceToInternal,
+  syncTransactionReceiptToInternal,
+  syncTransactionToInternal,
+} from "./events.js";
 import { isAddressFactory } from "./filter.js";
 import { initGenerator, initSyncProgress } from "./init.js";
 import {
+  blockToCheckpoint,
   getChainCheckpoint,
   getHistoricalLast,
   isSyncEnd,
@@ -74,12 +88,20 @@ export type RealtimeEvent =
     };
 
 export type Sync = {
-  chain: Chain;
-  sources: Source[];
-  syncProgress: SyncProgress;
-  realtimeSync: RealtimeSync | undefined;
-  getEventGenerator(limit: number): Promise<EventGenerator>;
+  getEventGenerators(): Promise<EventGenerator[]>;
   startRealtime(): Promise<void>;
+  getStartCheckpoint(chain: Chain): string;
+};
+
+type SyncState = {
+  [chainId: number]: {
+    chain: Chain;
+    syncProgress: SyncProgress;
+    sources: Source[];
+    realtimeSync: RealtimeSync | undefined;
+    getEventGenerator(): Promise<EventGenerator>;
+    startRealtime(): Promise<void>;
+  };
 };
 
 type EventGenerator = AsyncGenerator<{ events: Event[]; checkpoint: string }>;
@@ -93,334 +115,783 @@ export type SyncProgress = {
 
 type createSyncParameters = {
   common: Common;
+  indexingBuild: Pick<
+    IndexingBuild,
+    "sources" | "chains" | "rpcs" | "finalizedBlocks"
+  >;
   syncStore: SyncStore;
-  chain: Chain;
-  rpc: Rpc;
-  sources: Source[];
-  finalizedBlock: LightBlock;
-  crashRecoveryCheckpoint: string | undefined;
-  onRealtimeSyncEvent: (
-    event: RealtimeSyncEvent,
-    chainId: number,
-  ) => Promise<void>;
+  crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
+  ordering: "multichain" | "omnichain";
+  onRealtimeEvent(event: RealtimeEvent): Promise<void>;
   onFatalError(error: Error): void;
 };
 
 export const createSync = async (
   params: createSyncParameters,
 ): Promise<Sync> => {
-  const { chain, rpc, finalizedBlock, crashRecoveryCheckpoint, sources } =
-    params;
+  const perChainSync = {} as SyncState;
 
-  // Invalidate sync cache for devnet sources
-  if (chain.disableCache) {
-    params.common.logger.warn({
-      service: "sync",
-      msg: `Deleting cache records for '${chain.name}'`,
-    });
+  await Promise.all(
+    params.indexingBuild.chains.map(async (chain, index) => {
+      const rpc = params.indexingBuild.rpcs[index]!;
+      const finalizedBlock = params.indexingBuild.finalizedBlocks[index]!;
+      const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
+        ({ chainId }) => chainId === chain.id,
+      )?.checkpoint;
+      const sources = params.indexingBuild.sources.filter(
+        ({ filter }) => filter.chainId === chain.id,
+      );
 
-    await params.syncStore.pruneByChain({
-      chainId: chain.id,
-    });
-  }
+      // Invalidate sync cache for devnet sources
+      if (chain.disableCache) {
+        params.common.logger.warn({
+          service: "sync",
+          msg: `Deleting cache records for '${chain.name}'`,
+        });
 
-  const childAddresses: Map<FactoryId, Map<Address, number>> = new Map();
-  for (const source of sources) {
-    switch (source.filter.type) {
-      case "log":
-        if (isAddressFactory(source.filter.address)) {
-          const _childAddresses = await params.syncStore.getChildAddresses({
-            factory: source.filter.address,
-          });
-          childAddresses.set(source.filter.address.id, _childAddresses);
+        await params.syncStore.pruneByChain({
+          chainId: chain.id,
+        });
+      }
+
+      const childAddresses: Map<FactoryId, Map<Address, number>> = new Map();
+      for (const source of sources) {
+        switch (source.filter.type) {
+          case "log":
+            if (isAddressFactory(source.filter.address)) {
+              const _childAddresses = await params.syncStore.getChildAddresses({
+                factory: source.filter.address,
+              });
+              childAddresses.set(source.filter.address.id, _childAddresses);
+            }
+            break;
+          case "transaction":
+          case "transfer":
+          case "trace":
+            if (isAddressFactory(source.filter.fromAddress)) {
+              const _childAddresses = await params.syncStore.getChildAddresses({
+                factory: source.filter.fromAddress,
+              });
+              childAddresses.set(source.filter.fromAddress.id, _childAddresses);
+            }
+
+            if (isAddressFactory(source.filter.toAddress)) {
+              const _childAddresses = await params.syncStore.getChildAddresses({
+                factory: source.filter.toAddress,
+              });
+              childAddresses.set(source.filter.toAddress.id, _childAddresses);
+            }
+
+            break;
         }
-        break;
-      case "transaction":
-      case "transfer":
-      case "trace":
-        if (isAddressFactory(source.filter.fromAddress)) {
-          const _childAddresses = await params.syncStore.getChildAddresses({
-            factory: source.filter.fromAddress,
+      }
+
+      const historicalSync = await createHistoricalSync({
+        common: params.common,
+        sources,
+        syncStore: params.syncStore,
+        childAddresses,
+        rpc,
+        chain,
+        onFatalError: params.onFatalError,
+      });
+
+      const syncProgress = await initSyncProgress({
+        common: params.common,
+        chain,
+        sources,
+        rpc,
+        finalizedBlock,
+        historicalSync,
+      });
+
+      params.common.metrics.ponder_sync_is_realtime.set(
+        { chain: chain.name },
+        0,
+      );
+      params.common.metrics.ponder_sync_is_complete.set(
+        { chain: chain.name },
+        0,
+      );
+
+      const realtimeMutex = createMutex();
+      perChainSync[chain.id] = {
+        chain,
+        syncProgress,
+        sources,
+        realtimeSync: undefined,
+        async getEventGenerator() {
+          async function* decodeEventGenerator(
+            eventGenerator: AsyncGenerator<{
+              events: RawEvent[];
+              checkpoint: string;
+            }>,
+          ) {
+            for await (const { events, checkpoint } of eventGenerator) {
+              const endClock = startClock();
+              const decodedEvents = decodeEvents(
+                params.common,
+                sources,
+                events,
+              );
+              params.common.logger.debug({
+                service: "app",
+                msg: `Decoded ${decodedEvents.length} '${chain.name}' events`,
+              });
+              params.common.metrics.ponder_historical_extract_duration.inc(
+                { step: "decode" },
+                endClock(),
+              );
+
+              await new Promise(setImmediate);
+
+              yield { events: decodedEvents, checkpoint };
+            }
+          }
+
+          // Removes events that have a checkpoint earlier than (or equal to)
+          // the crash recovery checkpoint.
+          async function* sortCrashRecoveryEvents(
+            eventGenerator: AsyncGenerator<{
+              events: Event[];
+              checkpoint: string;
+            }>,
+          ) {
+            for await (const { events, checkpoint } of eventGenerator) {
+              if (
+                crashRecoveryCheckpoint &&
+                events.length > 0 &&
+                events[0]!.checkpoint <= crashRecoveryCheckpoint
+              ) {
+                const [, right] = partition(
+                  events,
+                  (event) => event.checkpoint <= crashRecoveryCheckpoint,
+                );
+                yield { events: right, checkpoint };
+              } else {
+                yield { events, checkpoint };
+              }
+            }
+          }
+
+          const getLocalGenerator = async () => {
+            const localSyncGenerator = getLocalSyncGenerator({
+              common: params.common,
+              chain: chain,
+              syncProgress: syncProgress,
+              historicalSync: historicalSync,
+            });
+
+            // In order to speed up the "extract" phase when there is a crash recovery,
+            // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
+            // is defined.
+            let from: string;
+            if (crashRecoveryCheckpoint === undefined) {
+              from = getChainCheckpoint({
+                tag: "start",
+                chainId: chain.id,
+                syncProgress,
+              });
+            } else if (
+              Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) ===
+              chain.id
+            ) {
+              from = crashRecoveryCheckpoint;
+            } else {
+              const fromBlock =
+                await params.syncStore.getSafeCrashRecoveryBlock({
+                  chainId: chain.id,
+                  timestamp: Number(
+                    decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
+                  ),
+                });
+
+              if (fromBlock === undefined) {
+                from = getChainCheckpoint({
+                  tag: "start",
+                  chainId: chain.id,
+                  syncProgress,
+                });
+              } else {
+                from = encodeCheckpoint({
+                  ...ZERO_CHECKPOINT,
+                  blockNumber: fromBlock.number,
+                  blockTimestamp: fromBlock.timestamp,
+                  chainId: BigInt(chain.id),
+                });
+              }
+            }
+
+            return getLocalEventGenerator({
+              common: params.common,
+              chain,
+              syncStore: params.syncStore,
+              sources,
+              localSyncGenerator,
+              childAddresses,
+              from,
+              to: min(
+                getChainCheckpoint({
+                  tag: "finalized",
+                  chainId: chain.id,
+                  syncProgress,
+                }),
+                getChainCheckpoint({
+                  tag: "end",
+                  chainId: chain.id,
+                  syncProgress,
+                }),
+              ),
+              limit:
+                Math.round(
+                  params.common.options.syncEventsQuerySize /
+                    (params.indexingBuild.chains.length + 1),
+                ) + 6,
+            });
+          };
+
+          return initGenerator({
+            getLocalGenerator,
+            decodeEventGenerator,
+            sortCrashRecoveryEvents,
           });
-          childAddresses.set(source.filter.fromAddress.id, _childAddresses);
-        }
+        },
+        async startRealtime() {
+          if (isSyncEnd(syncProgress)) {
+            params.common.metrics.ponder_sync_is_complete.set(
+              { chain: chain.name },
+              1,
+            );
 
-        if (isAddressFactory(source.filter.toAddress)) {
-          const _childAddresses = await params.syncStore.getChildAddresses({
-            factory: source.filter.toAddress,
-          });
-          childAddresses.set(source.filter.toAddress.id, _childAddresses);
-        }
-
-        break;
-    }
-  }
-
-  const historicalSync = await createHistoricalSync({
-    common: params.common,
-    sources,
-    syncStore: params.syncStore,
-    childAddresses,
-    rpc,
-    chain,
-    onFatalError: params.onFatalError,
-  });
-
-  const syncProgress = await initSyncProgress({
-    common: params.common,
-    chain,
-    sources,
-    rpc,
-    finalizedBlock,
-    historicalSync,
-  });
-
-  params.common.metrics.ponder_sync_is_realtime.set({ chain: chain.name }, 0);
-  params.common.metrics.ponder_sync_is_complete.set({ chain: chain.name }, 0);
-
-  const realtimeMutex = createMutex();
-  const sync: Sync = {
-    async getEventGenerator(limit: number) {
-      async function* decodeEventGenerator(
-        eventGenerator: AsyncGenerator<{
-          events: RawEvent[];
-          checkpoint: string;
-        }>,
-      ) {
-        for await (const { events, checkpoint } of eventGenerator) {
-          const endClock = startClock();
-          const decodedEvents = decodeEvents(params.common, sources, events);
-          params.common.logger.debug({
-            service: "app",
-            msg: `Decoded ${decodedEvents.length} '${chain.name}' events`,
-          });
-          params.common.metrics.ponder_historical_extract_duration.inc(
-            { step: "decode" },
-            endClock(),
+            return;
+          }
+          params.common.metrics.ponder_sync_is_realtime.set(
+            { chain: chain.name },
+            1,
           );
 
-          await new Promise(setImmediate);
+          const initialChildAddresses = childAddresses;
 
-          yield { events: decodedEvents, checkpoint };
-        }
-      }
+          const perChainOnRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
+            common: params.common,
+            chain,
+            syncStore: params.syncStore,
+            sync: perChainSync,
+            ordering: params.ordering,
+          });
 
-      // Removes events that have a checkpoint earlier than (or equal to)
-      // the crash recovery checkpoint.
-      async function* sortCrashRecoveryEvents(
-        eventGenerator: AsyncGenerator<{
-          events: Event[];
-          checkpoint: string;
-        }>,
-      ) {
-        for await (const { events, checkpoint } of eventGenerator) {
-          if (
-            crashRecoveryCheckpoint &&
-            events.length > 0 &&
-            events[0]!.checkpoint <= crashRecoveryCheckpoint
-          ) {
-            const [, right] = partition(
-              events,
-              (event) => event.checkpoint <= crashRecoveryCheckpoint,
-            );
-            yield { events: right, checkpoint };
-          } else {
-            yield { events, checkpoint };
-          }
-        }
-      }
-
-      const getLocalGenerator = async () => {
-        const localSyncGenerator = getLocalSyncGenerator({
-          common: params.common,
-          chain: chain,
-          syncProgress: sync.syncProgress,
-          historicalSync: historicalSync,
-        });
-
-        // In order to speed up the "extract" phase when there is a crash recovery,
-        // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
-        // is defined.
-        let from: string;
-        if (crashRecoveryCheckpoint === undefined) {
-          from = getChainCheckpoint({
-            tag: "start",
-            chainId: chain.id,
+          const realtimeSync = createRealtimeSync({
+            common: params.common,
+            chain,
+            rpc,
+            sources,
             syncProgress,
-          });
-        } else if (
-          Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) === chain.id
-        ) {
-          from = crashRecoveryCheckpoint;
-        } else {
-          const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
-            chainId: chain.id,
-            timestamp: Number(
-              decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
-            ),
-          });
+            initialChildAddresses,
+            onEvent: realtimeMutex(async (event) => {
+              try {
+                // Note: `promise` resolves when the event is fully processed, however,
+                // awaiting it will cause a deadlock in "omnichain" ordering.
+                const p = await perChainOnRealtimeSyncEvent(event);
 
-          if (fromBlock === undefined) {
-            from = getChainCheckpoint({
-              tag: "start",
-              chainId: chain.id,
-              syncProgress,
-            });
-          } else {
-            from = encodeCheckpoint({
-              ...ZERO_CHECKPOINT,
-              blockNumber: fromBlock.number,
-              blockTimestamp: fromBlock.timestamp,
-              chainId: BigInt(chain.id),
-            });
-          }
-        }
+                if (isSyncFinalized(syncProgress) && isSyncEnd(syncProgress)) {
+                  // The realtime service can be killed if `endBlock` is
+                  // defined has become finalized.
 
-        return getLocalEventGenerator({
-          common: params.common,
-          chain,
-          syncStore: params.syncStore,
-          sources,
-          localSyncGenerator,
-          childAddresses,
-          from,
-          to: min(
-            getChainCheckpoint({
-              tag: "finalized",
-              chainId: chain.id,
-              syncProgress,
-            }),
-            getChainCheckpoint({ tag: "end", chainId: chain.id, syncProgress }),
-          ),
-          limit,
-        });
-      };
+                  params.common.metrics.ponder_sync_is_realtime.set(
+                    { chain: chain.name },
+                    0,
+                  );
+                  params.common.metrics.ponder_sync_is_complete.set(
+                    { chain: chain.name },
+                    1,
+                  );
+                  params.common.logger.info({
+                    service: "sync",
+                    msg: `Killing '${chain.name}' live indexing because the end block ${hexToNumber(syncProgress.end!.number)} has been finalized`,
+                  });
+                  rpc.unsubscribe();
+                }
 
-      return initGenerator({
-        getLocalGenerator,
-        decodeEventGenerator,
-        sortCrashRecoveryEvents,
-      });
-    },
-    async startRealtime() {
-      if (isSyncEnd(syncProgress)) {
-        params.common.metrics.ponder_sync_is_complete.set(
-          { chain: chain.name },
-          1,
-        );
-      } else {
-        params.common.metrics.ponder_sync_is_realtime.set(
-          { chain: chain.name },
-          1,
-        );
-
-        const initialChildAddresses = childAddresses;
-
-        const perChainOnRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
-          common: params.common,
-          chain,
-          sources,
-          syncStore: params.syncStore,
-          syncProgress,
-        });
-
-        const realtimeSync = createRealtimeSync({
-          common: params.common,
-          chain,
-          rpc,
-          sources,
-          syncProgress,
-          initialChildAddresses,
-          onEvent: realtimeMutex(async (event) => {
-            try {
-              await perChainOnRealtimeSyncEvent(event);
-              // Note: `promise` resolves when the event is fully processed, however,
-              // awaiting it will cause a deadlock in "omnichain" ordering.
-              const promise = params.onRealtimeSyncEvent(event, chain.id);
-
-              if (isSyncFinalized(syncProgress) && isSyncEnd(syncProgress)) {
-                // The realtime service can be killed if `endBlock` is
-                // defined has become finalized.
-
-                params.common.metrics.ponder_sync_is_realtime.set(
-                  { chain: chain.name },
-                  0,
-                );
-                params.common.metrics.ponder_sync_is_complete.set(
-                  { chain: chain.name },
-                  1,
-                );
-                params.common.logger.info({
+                return p ?? { promise: Promise.resolve() };
+              } catch (error) {
+                params.common.logger.error({
                   service: "sync",
-                  msg: `Killing '${chain.name}' live indexing because the end block ${hexToNumber(syncProgress.end!.number)} has been finalized`,
+                  msg: `Fatal error: Unable to process ${event.type} event`,
+                  error: error as Error,
                 });
-                rpc.unsubscribe();
+                params.onFatalError(error as Error);
+                return { promise: Promise.resolve() };
+              }
+            }),
+            onFatalError: params.onFatalError,
+          });
+
+          perChainSync[chain.id]!.realtimeSync = realtimeSync;
+
+          let childCount = 0;
+          for (const [, childAddresses] of initialChildAddresses) {
+            childCount += childAddresses.size;
+          }
+
+          params.common.logger.debug({
+            service: "sync",
+            msg: `Initialized '${chain.name}' realtime sync with ${childCount} factory child addresses`,
+          });
+
+          rpc.subscribe({
+            onBlock: async (block) => {
+              const arrivalMs = Date.now();
+
+              const endClock = startClock();
+              const syncResult = await realtimeSync.sync(block);
+
+              if (syncResult.type === "accepted") {
+                syncResult.blockPromise.then(() => {
+                  params.common.metrics.ponder_realtime_block_arrival_latency.observe(
+                    { chain: chain.name },
+                    arrivalMs - hexToNumber(block.timestamp) * 1_000,
+                  );
+
+                  params.common.metrics.ponder_realtime_latency.observe(
+                    { chain: chain.name },
+                    endClock(),
+                  );
+                });
               }
 
-              return { promise };
-            } catch (error) {
-              params.common.logger.error({
-                service: "sync",
-                msg: `Fatal error: Unable to process ${event.type} event`,
-                error: error as Error,
-              });
-              params.onFatalError(error as Error);
-              return { promise: Promise.resolve() };
-            }
-          }),
-          onFatalError: params.onFatalError,
-        });
+              return syncResult;
+            },
+            onError: (error) => {
+              realtimeSync.onError(error);
+            },
+          });
+        },
+      };
+    }),
+  );
 
-        sync.realtimeSync = realtimeSync;
-
-        let childCount = 0;
-        for (const [, childAddresses] of initialChildAddresses) {
-          childCount += childAddresses.size;
-        }
-
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Initialized '${chain.name}' realtime sync with ${childCount} factory child addresses`,
-        });
-
-        rpc.subscribe({
-          onBlock: async (block) => {
-            const arrivalMs = Date.now();
-
-            const endClock = startClock();
-            const syncResult = await realtimeSync.sync(block);
-
-            if (syncResult.type === "accepted") {
-              syncResult.blockPromise.then(() => {
-                params.common.metrics.ponder_realtime_block_arrival_latency.observe(
-                  { chain: chain.name },
-                  arrivalMs - hexToNumber(block.timestamp) * 1_000,
-                );
-
-                params.common.metrics.ponder_realtime_latency.observe(
-                  { chain: chain.name },
-                  endClock(),
-                );
-              });
-            }
-
-            return syncResult;
-          },
-          onError: (error) => {
-            realtimeSync.onError(error);
-          },
-        });
+  const sync: Awaited<ReturnType<typeof createSync>> = {
+    async getEventGenerators() {
+      return Promise.all(
+        Array.from(Object.values(perChainSync)).map(({ getEventGenerator }) =>
+          getEventGenerator(),
+        ),
+      );
+    },
+    async startRealtime() {
+      for (const { startRealtime } of Object.values(perChainSync)) {
+        await startRealtime();
       }
     },
-    chain,
-    sources,
-    realtimeSync: undefined,
-    syncProgress: syncProgress,
+    getStartCheckpoint(chain) {
+      const { syncProgress } = perChainSync[chain.id]!;
+      return getChainCheckpoint({
+        syncProgress,
+        chainId: chain.id,
+        tag: "start",
+      });
+    },
   };
 
   return sync;
 };
 
+// type createSyncParameters = {
+//   common: Common;
+//   syncStore: SyncStore;
+//   chain: Chain;
+//   rpc: Rpc;
+//   sources: Source[];
+//   finalizedBlock: LightBlock;
+//   crashRecoveryCheckpoint: string | undefined;
+//   onRealtimeSyncEvent: (
+//     event: RealtimeSyncEvent,
+//     chainId: number,
+//   ) => Promise<void>;
+//   onFatalError(error: Error): void;
+// };
+
+// export const createSync = async (
+//   params: createSyncParameters,
+// ): Promise<Sync> => {
+//   const { chain, rpc, finalizedBlock, crashRecoveryCheckpoint, sources } =
+//     params;
+
+//   // Invalidate sync cache for devnet sources
+//   if (chain.disableCache) {
+//     params.common.logger.warn({
+//       service: "sync",
+//       msg: `Deleting cache records for '${chain.name}'`,
+//     });
+
+//     await params.syncStore.pruneByChain({
+//       chainId: chain.id,
+//     });
+//   }
+
+//   const childAddresses: Map<FactoryId, Map<Address, number>> = new Map();
+//   for (const source of sources) {
+//     switch (source.filter.type) {
+//       case "log":
+//         if (isAddressFactory(source.filter.address)) {
+//           const _childAddresses = await params.syncStore.getChildAddresses({
+//             factory: source.filter.address,
+//           });
+//           childAddresses.set(source.filter.address.id, _childAddresses);
+//         }
+//         break;
+//       case "transaction":
+//       case "transfer":
+//       case "trace":
+//         if (isAddressFactory(source.filter.fromAddress)) {
+//           const _childAddresses = await params.syncStore.getChildAddresses({
+//             factory: source.filter.fromAddress,
+//           });
+//           childAddresses.set(source.filter.fromAddress.id, _childAddresses);
+//         }
+
+//         if (isAddressFactory(source.filter.toAddress)) {
+//           const _childAddresses = await params.syncStore.getChildAddresses({
+//             factory: source.filter.toAddress,
+//           });
+//           childAddresses.set(source.filter.toAddress.id, _childAddresses);
+//         }
+
+//         break;
+//     }
+//   }
+
+//   const historicalSync = await createHistoricalSync({
+//     common: params.common,
+//     sources,
+//     syncStore: params.syncStore,
+//     childAddresses,
+//     rpc,
+//     chain,
+//     onFatalError: params.onFatalError,
+//   });
+
+//   const syncProgress = await initSyncProgress({
+//     common: params.common,
+//     chain,
+//     sources,
+//     rpc,
+//     finalizedBlock,
+//     historicalSync,
+//   });
+
+//   params.common.metrics.ponder_sync_is_realtime.set({ chain: chain.name }, 0);
+//   params.common.metrics.ponder_sync_is_complete.set({ chain: chain.name }, 0);
+
+//   const realtimeMutex = createMutex();
+//   const sync: Sync = {
+//     async getEventGenerator(limit: number) {
+//       async function* decodeEventGenerator(
+//         eventGenerator: AsyncGenerator<{
+//           events: RawEvent[];
+//           checkpoint: string;
+//         }>,
+//       ) {
+//         for await (const { events, checkpoint } of eventGenerator) {
+//           const endClock = startClock();
+//           const decodedEvents = decodeEvents(params.common, sources, events);
+//           params.common.logger.debug({
+//             service: "app",
+//             msg: `Decoded ${decodedEvents.length} '${chain.name}' events`,
+//           });
+//           params.common.metrics.ponder_historical_extract_duration.inc(
+//             { step: "decode" },
+//             endClock(),
+//           );
+
+//           await new Promise(setImmediate);
+
+//           yield { events: decodedEvents, checkpoint };
+//         }
+//       }
+
+//       // Removes events that have a checkpoint earlier than (or equal to)
+//       // the crash recovery checkpoint.
+//       async function* sortCrashRecoveryEvents(
+//         eventGenerator: AsyncGenerator<{
+//           events: Event[];
+//           checkpoint: string;
+//         }>,
+//       ) {
+//         for await (const { events, checkpoint } of eventGenerator) {
+//           if (
+//             crashRecoveryCheckpoint &&
+//             events.length > 0 &&
+//             events[0]!.checkpoint <= crashRecoveryCheckpoint
+//           ) {
+//             const [, right] = partition(
+//               events,
+//               (event) => event.checkpoint <= crashRecoveryCheckpoint,
+//             );
+//             yield { events: right, checkpoint };
+//           } else {
+//             yield { events, checkpoint };
+//           }
+//         }
+//       }
+
+//       const getLocalGenerator = async () => {
+//         const localSyncGenerator = getLocalSyncGenerator({
+//           common: params.common,
+//           chain: chain,
+//           syncProgress: sync.syncProgress,
+//           historicalSync: historicalSync,
+//         });
+
+//         // In order to speed up the "extract" phase when there is a crash recovery,
+//         // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
+//         // is defined.
+//         let from: string;
+//         if (crashRecoveryCheckpoint === undefined) {
+//           from = getChainCheckpoint({
+//             tag: "start",
+//             chainId: chain.id,
+//             syncProgress,
+//           });
+//         } else if (
+//           Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) === chain.id
+//         ) {
+//           from = crashRecoveryCheckpoint;
+//         } else {
+//           const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
+//             chainId: chain.id,
+//             timestamp: Number(
+//               decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
+//             ),
+//           });
+
+//           if (fromBlock === undefined) {
+//             from = getChainCheckpoint({
+//               tag: "start",
+//               chainId: chain.id,
+//               syncProgress,
+//             });
+//           } else {
+//             from = encodeCheckpoint({
+//               ...ZERO_CHECKPOINT,
+//               blockNumber: fromBlock.number,
+//               blockTimestamp: fromBlock.timestamp,
+//               chainId: BigInt(chain.id),
+//             });
+//           }
+//         }
+
+//         return getLocalEventGenerator({
+//           common: params.common,
+//           chain,
+//           syncStore: params.syncStore,
+//           sources,
+//           localSyncGenerator,
+//           childAddresses,
+//           from,
+//           to: min(
+//             getChainCheckpoint({
+//               tag: "finalized",
+//               chainId: chain.id,
+//               syncProgress,
+//             }),
+//             getChainCheckpoint({ tag: "end", chainId: chain.id, syncProgress }),
+//           ),
+//           limit,
+//         });
+//       };
+
+//       return initGenerator({
+//         getLocalGenerator,
+//         decodeEventGenerator,
+//         sortCrashRecoveryEvents,
+//       });
+//     },
+//     async startRealtime() {
+//       if (isSyncEnd(syncProgress)) {
+//         params.common.metrics.ponder_sync_is_complete.set(
+//           { chain: chain.name },
+//           1,
+//         );
+//       } else {
+//         params.common.metrics.ponder_sync_is_realtime.set(
+//           { chain: chain.name },
+//           1,
+//         );
+
+//         const initialChildAddresses = childAddresses;
+
+//         const perChainOnRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
+//           common: params.common,
+//           chain,
+//           sources,
+//           syncStore: params.syncStore,
+//           syncProgress,
+//         });
+
+//         const realtimeSync = createRealtimeSync({
+//           common: params.common,
+//           chain,
+//           rpc,
+//           sources,
+//           syncProgress,
+//           initialChildAddresses,
+//           onEvent: realtimeMutex(async (event) => {
+//             try {
+//               await perChainOnRealtimeSyncEvent(event);
+//               // Note: `promise` resolves when the event is fully processed, however,
+//               // awaiting it will cause a deadlock in "omnichain" ordering.
+//               const promise = params.onRealtimeSyncEvent(event, chain.id);
+
+//               if (isSyncFinalized(syncProgress) && isSyncEnd(syncProgress)) {
+//                 // The realtime service can be killed if `endBlock` is
+//                 // defined has become finalized.
+
+//                 params.common.metrics.ponder_sync_is_realtime.set(
+//                   { chain: chain.name },
+//                   0,
+//                 );
+//                 params.common.metrics.ponder_sync_is_complete.set(
+//                   { chain: chain.name },
+//                   1,
+//                 );
+//                 params.common.logger.info({
+//                   service: "sync",
+//                   msg: `Killing '${chain.name}' live indexing because the end block ${hexToNumber(syncProgress.end!.number)} has been finalized`,
+//                 });
+//                 rpc.unsubscribe();
+//               }
+
+//               return { promise };
+//             } catch (error) {
+//               params.common.logger.error({
+//                 service: "sync",
+//                 msg: `Fatal error: Unable to process ${event.type} event`,
+//                 error: error as Error,
+//               });
+//               params.onFatalError(error as Error);
+//               return { promise: Promise.resolve() };
+//             }
+//           }),
+//           onFatalError: params.onFatalError,
+//         });
+
+//         sync.realtimeSync = realtimeSync;
+
+//         let childCount = 0;
+//         for (const [, childAddresses] of initialChildAddresses) {
+//           childCount += childAddresses.size;
+//         }
+
+//         params.common.logger.debug({
+//           service: "sync",
+//           msg: `Initialized '${chain.name}' realtime sync with ${childCount} factory child addresses`,
+//         });
+
+//         rpc.subscribe({
+//           onBlock: async (block) => {
+//             const arrivalMs = Date.now();
+
+//             const endClock = startClock();
+//             const syncResult = await realtimeSync.sync(block);
+
+//             if (syncResult.type === "accepted") {
+//               syncResult.blockPromise.then(() => {
+//                 params.common.metrics.ponder_realtime_block_arrival_latency.observe(
+//                   { chain: chain.name },
+//                   arrivalMs - hexToNumber(block.timestamp) * 1_000,
+//                 );
+
+//                 params.common.metrics.ponder_realtime_latency.observe(
+//                   { chain: chain.name },
+//                   endClock(),
+//                 );
+//               });
+//             }
+
+//             return syncResult;
+//           },
+//           onError: (error) => {
+//             realtimeSync.onError(error);
+//           },
+//         });
+//       }
+//     },
+//     chain,
+//     sources,
+//     realtimeSync: undefined,
+//     syncProgress: syncProgress,
+//   };
+
+//   return sync;
+// };
+
+function getMultichainCheckpoint<
+  tag extends "start" | "end" | "current" | "finalized",
+>({
+  sync,
+  chainId,
+  tag,
+}: {
+  sync: SyncState;
+  chainId: number;
+  tag: tag;
+}): tag extends "end" ? string | undefined : string {
+  const { syncProgress } = sync[chainId]!;
+  return getChainCheckpoint({ syncProgress, chainId, tag });
+}
+
+/**
+ * Compute the checkpoint across all chains.
+ */
+function getOmnichainCheckpoint<
+  tag extends "start" | "end" | "current" | "finalized",
+>({
+  sync,
+  tag,
+}: {
+  sync: SyncState;
+  tag: tag;
+}): tag extends "end" ? string | undefined : string {
+  const checkpoints = Array.from(Object.values(sync)).map(
+    ({ chain, syncProgress }) =>
+      getChainCheckpoint({ syncProgress, chainId: chain.id, tag }),
+  );
+
+  if (tag === "end") {
+    if (checkpoints.some((c) => c === undefined)) {
+      return undefined as typeof tag extends "end"
+        ? string | undefined
+        : string;
+    }
+    // Note: `max` is used here because `end` is an upper bound.
+    return max(...checkpoints) as typeof tag extends "end"
+      ? string | undefined
+      : string;
+  }
+
+  // Note: extra logic is needed for `current` because completed chains
+  // shouldn't be included in the minimum checkpoint. However, when all
+  // chains are completed, the maximum checkpoint should be computed across
+  // all chains.
+  if (tag === "current") {
+    const isComplete = Array.from(Object.values(sync)).map(({ syncProgress }) =>
+      isSyncEnd(syncProgress),
+    );
+    if (isComplete.every((c) => c)) {
+      return max(...checkpoints) as typeof tag extends "end"
+        ? string | undefined
+        : string;
+    }
+    return min(
+      ...checkpoints.filter((_, i) => isComplete[i] === false),
+    ) as typeof tag extends "end" ? string | undefined : string;
+  }
+
+  return min(...checkpoints) as typeof tag extends "end"
+    ? string | undefined
+    : string;
+}
 /**
  * Helpers
  */
@@ -428,22 +899,41 @@ export const createSync = async (
 export const getPerChainOnRealtimeSyncEvent = ({
   common,
   chain,
-  sources,
   syncStore,
-  syncProgress,
+  sync,
+  ordering,
 }: {
   common: Common;
   chain: Chain;
-  sources: Source[];
   syncStore: SyncStore;
-  syncProgress: SyncProgress;
+  sync: SyncState;
+  ordering: "multichain" | "omnichain";
 }) => {
+  const { syncProgress, sources, realtimeSync } = sync[chain.id]!;
+
   let unfinalizedBlocks: Omit<
     Extract<RealtimeSyncEvent, { type: "block" }>,
     "type"
   >[] = [];
 
-  return async (event: RealtimeSyncEvent): Promise<void> => {
+  /** Events that have been executed but not finalized. */
+  let executedEvents = [] as Event[];
+  /** Events that have not been executed. */
+  let pendingEvents = [] as Event[];
+  const checkpoints = {
+    // Note: `checkpoints.current` not used in multichain ordering
+    current: ZERO_CHECKPOINT_STRING,
+    finalized: ZERO_CHECKPOINT_STRING,
+  };
+  // Note: `omnichainCheckpointHooks` not used in multichain ordering
+  let omnichainHooks = [] as {
+    checkpoint: string;
+    callback: () => void;
+  }[];
+
+  return async (
+    event: RealtimeSyncEvent,
+  ): Promise<{ promise: Promise<void> } | void> => {
     switch (event.type) {
       case "block": {
         syncProgress.current = event.block;
@@ -460,7 +950,159 @@ export const getPerChainOnRealtimeSyncEvent = ({
 
         unfinalizedBlocks.push(event);
 
-        return;
+        /**
+         * Build events -> decode events
+         */
+
+        const events = buildEvents({
+          sources,
+          chainId: chain.id,
+          blockData: {
+            block: syncBlockToInternal({ block: event.block }),
+            logs: event.logs.map((log) => syncLogToInternal({ log })),
+            transactions: event.transactions.map((transaction) =>
+              syncTransactionToInternal({ transaction }),
+            ),
+            transactionReceipts: event.transactionReceipts.map(
+              (transactionReceipt) =>
+                syncTransactionReceiptToInternal({ transactionReceipt }),
+            ),
+            traces: event.traces.map((trace) =>
+              syncTraceToInternal({
+                trace,
+                block: event.block,
+                transaction: event.transactions.find(
+                  (t) => t.hash === trace.transactionHash,
+                )!,
+              }),
+            ),
+          },
+          childAddresses: realtimeSync!.childAddresses,
+        });
+
+        common.logger.debug({
+          service: "sync",
+          msg: `Extracted ${events.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
+        });
+
+        const decodedEvents = decodeEvents(common, sources, events);
+        common.logger.debug({
+          service: "sync",
+          msg: `Decoded ${decodedEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
+        });
+
+        /**
+         * Resolve ordering dependent chain of events.
+         */
+
+        if (ordering === "multichain") {
+          // Note: `checkpoints.current` not used in multichain ordering
+          const checkpoint = getMultichainCheckpoint({
+            tag: "current",
+            chainId: chain.id,
+            sync,
+          });
+
+          const readyEvents = decodedEvents
+            .concat(pendingEvents)
+            .sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
+          pendingEvents = [];
+          executedEvents = executedEvents.concat(readyEvents);
+
+          common.logger.debug({
+            service: "sync",
+            msg: `Sequenced ${readyEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
+          });
+
+          await onRealtimeEvent({
+            type: "block",
+            events: readyEvents,
+            checkpoints: [{ chainId: chain.id, checkpoint }],
+          });
+        } else {
+          const from = checkpoints.current;
+          checkpoints.current = getOmnichainCheckpoint({
+            tag: "current",
+            sync,
+          });
+          const to = getOmnichainCheckpoint({ sync, tag: "current" });
+
+          const pwr = promiseWithResolvers<void>();
+          omnichainHooks.push({
+            checkpoint: encodeCheckpoint(
+              blockToCheckpoint(event.block, chain.id, "down"),
+            ),
+            callback: () => pwr.resolve(),
+          });
+
+          if (to <= from) {
+            pendingEvents = pendingEvents.concat(decodedEvents);
+
+            return {
+              promise: pwr.promise,
+            };
+          } else {
+            // Move ready events from pending to executed
+            const readyEvents = pendingEvents
+              .concat(decodedEvents)
+              .filter(({ checkpoint }) => checkpoint < to)
+              .sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
+            pendingEvents = pendingEvents
+              .concat(decodedEvents)
+              .filter(({ checkpoint }) => checkpoint > to);
+            executedEvents = executedEvents.concat(readyEvents);
+
+            common.logger.debug({
+              service: "sync",
+              msg: `Sequenced ${readyEvents.length} events`,
+            });
+
+            const checkpoints: { chainId: number; checkpoint: string }[] = [];
+            for (const { chain } of Object.values(sync)) {
+              const localBlock = sync[
+                chain.id
+              ]!.realtimeSync!.unfinalizedBlocks.findLast((block) => {
+                const checkpoint = encodeCheckpoint(
+                  blockToCheckpoint(block, chain.id, "up"),
+                );
+                return checkpoint > from && checkpoint <= to;
+              });
+
+              if (localBlock) {
+                const checkpoint = encodeCheckpoint(
+                  blockToCheckpoint(localBlock, chain.id, "up"),
+                );
+
+                checkpoints.push({ chainId: chain.id, checkpoint });
+              }
+            }
+
+            await onRealtimeEvent({
+              type: "block",
+              events: readyEvents,
+              checkpoints,
+            });
+
+            const completedHooks = omnichainHooks.filter(
+              ({ checkpoint }) => checkpoint > from && checkpoint <= to,
+            );
+            omnichainHooks = omnichainHooks.filter(
+              ({ checkpoint }) =>
+                (checkpoint > from && checkpoint <= to) === false,
+            );
+            for (const { callback } of completedHooks) {
+              callback();
+            }
+
+            return {
+              promise: pwr.promise,
+            };
+          }
+        }
+
+        return {
+          promise: Promise.resolve(),
+        };
       }
 
       case "finalize": {
@@ -583,6 +1225,67 @@ export const getPerChainOnRealtimeSyncEvent = ({
           });
         }
 
+        /**
+         * Resolve ordering dependent chain of events.
+         */
+
+        const from = checkpoints.finalized;
+        checkpoints.finalized = getOmnichainCheckpoint({
+          tag: "finalized",
+          sync,
+        });
+        const to = getOmnichainCheckpoint({ sync, tag: "finalized" });
+
+        if (
+          ordering === "omnichain" &&
+          getMultichainCheckpoint({
+            chainId: chain.id,
+            tag: "finalized",
+            sync,
+          }) > getOmnichainCheckpoint({ sync, tag: "current" })
+        ) {
+          const chainId = Number(
+            decodeCheckpoint(getOmnichainCheckpoint({ sync, tag: "current" }))
+              .chainId,
+          );
+          const chain = sync[chainId]!.chain;
+          common.logger.warn({
+            service: "sync",
+            msg: `'${chain.name}' is lagging behind other chains`,
+          });
+        }
+
+        if (to <= from) {
+          return;
+        }
+
+        // index of the first unfinalized event
+        let finalizeIndex: number | undefined = undefined;
+        for (const [index, event] of executedEvents.entries()) {
+          if (event.checkpoint > to) {
+            finalizeIndex = index;
+            break;
+          }
+        }
+
+        let finalizedEvents: Event[];
+
+        if (finalizeIndex === undefined) {
+          finalizedEvents = executedEvents;
+          executedEvents = [];
+        } else {
+          finalizedEvents = executedEvents.slice(0, finalizeIndex);
+          executedEvents = executedEvents.slice(finalizeIndex);
+        }
+
+        // Raise event to parent function (runtime)
+        onRealtimeEvent({ type: "finalize", checkpoint: to });
+
+        common.logger.debug({
+          service: "sync",
+          msg: `Finalized ${finalizedEvents.length} executed events`,
+        });
+
         return;
       }
 
@@ -610,6 +1313,87 @@ export const getPerChainOnRealtimeSyncEvent = ({
           chainId: chain.id,
           blocks: event.reorgedBlocks,
         });
+
+        /**
+         * Resolve ordering dependent chain of events.
+         */
+
+        const isReorgedEvent = (_event: Event) => {
+          if (
+            _event.chainId === chain.id &&
+            Number(_event.event.block.number) > hexToNumber(event.block.number)
+          ) {
+            return true;
+          }
+          return false;
+        };
+
+        if (ordering === "multichain") {
+          // Note: `checkpoints.current` not used in multichain ordering
+          const checkpoint = getMultichainCheckpoint({
+            tag: "current",
+            chainId: chain.id,
+            sync,
+          });
+
+          // index of the first reorged event
+          let reorgIndex: number | undefined = undefined;
+          for (const [index, event] of executedEvents.entries()) {
+            if (event.chainId === chain.id && event.checkpoint > checkpoint) {
+              reorgIndex = index;
+              break;
+            }
+          }
+
+          if (reorgIndex === undefined) {
+            return;
+          }
+
+          // Move events from executed to pending
+
+          const reorgedEvents = executedEvents.slice(reorgIndex);
+          executedEvents = executedEvents.slice(0, reorgIndex);
+          pendingEvents = pendingEvents.concat(reorgedEvents);
+
+          common.logger.debug({
+            service: "sync",
+            msg: `Rescheduled ${reorgedEvents.length} reorged events`,
+          });
+
+          onRealtimeEvent({ type: "reorg", checkpoint });
+
+          pendingEvents = pendingEvents.filter(
+            (e) => isReorgedEvent(e) === false,
+          );
+        } else {
+          const from = checkpoints.current;
+          checkpoints.current = getOmnichainCheckpoint({
+            sync,
+            tag: "current",
+          });
+          const to = getOmnichainCheckpoint({ sync, tag: "current" });
+
+          if (to >= from) {
+            return;
+          }
+
+          // Move events from executed to pending
+
+          const reorgedEvents = executedEvents.filter((e) => e.checkpoint > to);
+          executedEvents = executedEvents.filter((e) => e.checkpoint < to);
+          pendingEvents = pendingEvents.concat(reorgedEvents);
+
+          common.logger.debug({
+            service: "sync",
+            msg: `Rescheduled ${reorgedEvents.length} reorged events`,
+          });
+
+          onRealtimeEvent({ type: "reorg", checkpoint: to });
+
+          pendingEvents = pendingEvents.filter(
+            (e) => isReorgedEvent(e) === false,
+          );
+        }
 
         return;
       }

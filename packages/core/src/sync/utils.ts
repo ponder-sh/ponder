@@ -9,78 +9,12 @@ import {
   MAX_CHECKPOINT,
   ZERO_CHECKPOINT,
   encodeCheckpoint,
-  max,
   min,
 } from "@/utils/checkpoint.js";
 import { partition } from "@/utils/partition.js";
 import { zipperMany } from "@/utils/zipper.js";
 import { type Hash, hexToBigInt, hexToNumber } from "viem";
-import type { Sync, SyncProgress } from "./index.js";
-
-/**
- * Compute the checkpoint for a single chain.
- */
-export const getMultichainCheckpoint = <
-  tag extends "start" | "end" | "current" | "finalized",
->({
-  perChainSync,
-  tag,
-  chainId,
-}: {
-  perChainSync: Map<number, Sync>;
-  tag: tag;
-  chainId: number;
-}): tag extends "end" ? string | undefined : string => {
-  const syncProgress = perChainSync.get(chainId)!.syncProgress;
-  return getChainCheckpoint({ syncProgress, chainId, tag });
-};
-
-/**
- * Compute the checkpoint across all chains.
- */
-export const getOmnichainCheckpoint = <
-  tag extends "start" | "end" | "current" | "finalized",
->({
-  perChainSync,
-  tag,
-}: { perChainSync: Map<number, Sync>; tag: tag }): tag extends "end"
-  ? string | undefined
-  : string => {
-  const checkpoints = Array.from(perChainSync.entries()).map(
-    ([chainId, { syncProgress }]) =>
-      getChainCheckpoint({ syncProgress, chainId, tag }),
-  );
-
-  if (tag === "end") {
-    if (checkpoints.some((c) => c === undefined)) {
-      return undefined as tag extends "end" ? string | undefined : string;
-    }
-    // Note: `max` is used here because `end` is an upper bound.
-    return max(...checkpoints) as tag extends "end"
-      ? string | undefined
-      : string;
-  }
-
-  // Note: extra logic is needed for `current` because completed chains
-  // shouldn't be included in the minimum checkpoint. However, when all
-  // chains are completed, the maximum checkpoint should be computed across
-  // all chains.
-  if (tag === "current") {
-    const isComplete = Array.from(perChainSync.values()).map(
-      ({ syncProgress }) => isSyncEnd(syncProgress),
-    );
-    if (isComplete.every((c) => c)) {
-      return max(...checkpoints) as tag extends "end"
-        ? string | undefined
-        : string;
-    }
-    return min(
-      ...checkpoints.filter((_, i) => isComplete[i] === false),
-    ) as tag extends "end" ? string | undefined : string;
-  }
-
-  return min(...checkpoints) as tag extends "end" ? string | undefined : string;
-};
+import type { SyncProgress } from "./index.js";
 
 /**
  * Returns true if all filters have a defined end block and the current

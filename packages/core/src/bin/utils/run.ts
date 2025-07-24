@@ -9,6 +9,7 @@ import type { Common } from "@/internal/common.js";
 import { FlushError } from "@/internal/errors.js";
 import { getAppProgress } from "@/internal/metrics.js";
 import type {
+  Chain,
   CrashRecoveryCheckpoint,
   Event,
   IndexingBuild,
@@ -32,9 +33,6 @@ import { type RealtimeEvent, type Sync, createSync } from "@/sync/index.js";
 import {
   type EventGenerator,
   blockToCheckpoint,
-  getChainCheckpoint,
-  getMultichainCheckpoint,
-  getOmnichainCheckpoint,
   mergeAsyncGeneratorsWithEventOrder,
   splitEvents,
 } from "@/sync/utils.js";
@@ -91,8 +89,8 @@ export async function run({
 
   async function* getEvents() {
     const to = min(
-      getOmnichainCheckpoint({ perChainSync, tag: "finalized" }),
-      getOmnichainCheckpoint({ perChainSync, tag: "end" }),
+      sync.getOmnichainCheckpoint({ tag: "finalized" }),
+      sync.getOmnichainCheckpoint({ tag: "end" }),
     );
 
     async function* sortCompletedAndPendingEvents(
@@ -120,16 +118,8 @@ export async function run({
       }
     }
 
-    const eventGenerators = await Promise.all(
-      Array.from(perChainSync.values()).map(async ({ getEventGenerator }) => {
-        const eventGenerator = await getEventGenerator(
-          Math.round(
-            common.options.syncEventsQuerySize /
-              (indexingBuild.chains.length + 1),
-          ) + 6,
-        );
-        return sortCompletedAndPendingEvents(eventGenerator);
-      }),
+    const eventGenerators = (await sync.getEventGenerators()).map((e) =>
+      sortCompletedAndPendingEvents(e),
     );
 
     let eventGenerator: EventGenerator;
@@ -179,12 +169,11 @@ export async function run({
     }[],
     onBlock: async (
       event: Extract<RealtimeSyncEvent, { type: "block" }>,
-      chainId: number,
+      chain: Chain,
     ): Promise<void> => {
-      const { sources, chain, realtimeSync } = perChainSync.get(chainId)!;
       const events = buildEvents({
         sources,
-        chainId,
+        chainId: chain.id,
         blockData: {
           block: syncBlockToInternal({ block: event.block }),
           logs: event.logs.map((log) => syncLogToInternal({ log })),
@@ -221,10 +210,9 @@ export async function run({
 
       if (preBuild.ordering === "multichain") {
         // Note: `checkpoints.current` not used in multichain ordering
-        const checkpoint = getMultichainCheckpoint({
-          perChainSync,
+        const checkpoint = sync.getMultichainCheckpoint({
           tag: "current",
-          chainId,
+          chainId: chain.id,
         });
 
         const readyEvents = decodedEvents
@@ -246,11 +234,10 @@ export async function run({
         });
       } else {
         const from = realtimeState.checkpoints.current;
-        realtimeState.checkpoints.current = getOmnichainCheckpoint({
-          perChainSync,
+        realtimeState.checkpoints.current = sync.getOmnichainCheckpoint({
           tag: "current",
         });
-        const to = getOmnichainCheckpoint({ perChainSync, tag: "current" });
+        const to = sync.getOmnichainCheckpoint({ tag: "current" });
 
         const pwr = promiseWithResolvers<void>();
         realtimeState.omnichainHooks.push({
@@ -334,29 +321,24 @@ export async function run({
     },
     onFinalize: async (
       _: Extract<RealtimeSyncEvent, { type: "finalize" }>,
-      chainId: number,
+      chain: Chain,
     ): Promise<void> => {
-      const { syncProgress } = perChainSync.get(chainId)!;
-
       const from = realtimeState.checkpoints.finalized;
-      realtimeState.checkpoints.finalized = getOmnichainCheckpoint({
-        perChainSync,
+      realtimeState.checkpoints.finalized = sync.getOmnichainCheckpoint({
         tag: "finalized",
       });
-      const to = getOmnichainCheckpoint({ perChainSync, tag: "finalized" });
+      const to = sync.getOmnichainCheckpoint({ tag: "finalized" });
 
       if (
         preBuild.ordering === "omnichain" &&
-        getChainCheckpoint({
-          syncProgress,
-          chainId: chainId,
+        sync.getMultichainCheckpoint({
+          chainId: chain.id,
           tag: "finalized",
-        }) > getOmnichainCheckpoint({ perChainSync, tag: "current" })
+        }) > sync.getOmnichainCheckpoint({ tag: "current" })
       ) {
         const chainId = Number(
-          decodeCheckpoint(
-            getOmnichainCheckpoint({ perChainSync, tag: "current" }),
-          ).chainId,
+          decodeCheckpoint(sync.getOmnichainCheckpoint({ tag: "current" }))
+            .chainId,
         );
         const chain = indexingBuild.chains.find(
           (chain) => chain.id === chainId,
@@ -401,11 +383,11 @@ export async function run({
     },
     onReorg: async (
       event: Extract<RealtimeSyncEvent, { type: "reorg" }>,
-      chainId: number,
+      chain: Chain,
     ): Promise<void> => {
       const isReorgedEvent = (_event: Event) => {
         if (
-          _event.chainId === chainId &&
+          _event.chainId === chain.id &&
           Number(_event.event.block.number) > hexToNumber(event.block.number)
         ) {
           return true;
@@ -415,16 +397,15 @@ export async function run({
 
       if (preBuild.ordering === "multichain") {
         // Note: `checkpoints.current` not used in multichain ordering
-        const checkpoint = getMultichainCheckpoint({
-          perChainSync,
+        const checkpoint = sync.getMultichainCheckpoint({
           tag: "current",
-          chainId,
+          chainId: chain.id,
         });
 
         // index of the first reorged event
         let reorgIndex: number | undefined = undefined;
         for (const [index, event] of realtimeState.executedEvents.entries()) {
-          if (event.chainId === chainId && event.checkpoint > checkpoint) {
+          if (event.chainId === chain.id && event.checkpoint > checkpoint) {
             reorgIndex = index;
             break;
           }
@@ -456,11 +437,10 @@ export async function run({
         );
       } else {
         const from = realtimeState.checkpoints.current;
-        realtimeState.checkpoints.current = getOmnichainCheckpoint({
-          perChainSync,
+        realtimeState.checkpoints.current = sync.getOmnichainCheckpoint({
           tag: "current",
         });
-        const to = getOmnichainCheckpoint({ perChainSync, tag: "current" });
+        const to = sync.getOmnichainCheckpoint({ tag: "current" });
 
         if (to >= from) {
           return;
@@ -491,66 +471,52 @@ export async function run({
     },
   };
 
-  const perChainSync = new Map<number, Sync>();
-  const seconds: Seconds = {};
+  const sync = await createSync({
+    common,
+    indexingBuild,
+    syncStore,
+    onRealtimeSyncEvent: async (event, chain) => {
+      switch (event.type) {
+        case "block":
+          return realtimeState.onBlock(event, chain);
+        case "finalize":
+          return realtimeState.onFinalize(event, chain);
+        case "reorg":
+          return realtimeState.onReorg(event, chain);
+      }
+    },
+    onFatalError,
+    crashRecoveryCheckpoint,
+  });
 
-  for (let i = 0; i < indexingBuild.chains.length; ++i) {
-    const chain = indexingBuild.chains[i]!;
-    const rpc = indexingBuild.rpcs[i]!;
-    const finalizedBlock = indexingBuild.finalizedBlocks[i]!;
+  const seconds: Seconds = {};
+  for (const chain of indexingBuild.chains) {
     const crashRecoveryCheckpoint_ = crashRecoveryCheckpoint?.find(
       ({ chainId }) => chainId === chain.id,
     )?.checkpoint;
-    const sources = indexingBuild.sources.filter(
-      ({ filter }) => filter.chainId === chain.id,
-    );
-
-    const sync = await createSync({
-      common,
-      syncStore,
-      chain,
-      rpc,
-      sources,
-      crashRecoveryCheckpoint: crashRecoveryCheckpoint_,
-      finalizedBlock,
-      onFatalError,
-      onRealtimeSyncEvent: async (event, chainId) => {
-        switch (event.type) {
-          case "block":
-            return realtimeState.onBlock(event, chainId);
-          case "finalize":
-            return realtimeState.onFinalize(event, chainId);
-          case "reorg":
-            return realtimeState.onReorg(event, chainId);
-        }
-      },
-    });
-
     seconds[chain.name] = {
       start: Number(
-        decodeCheckpoint(getOmnichainCheckpoint({ perChainSync, tag: "start" }))
+        decodeCheckpoint(sync.getOmnichainCheckpoint({ tag: "start" }))
           .blockTimestamp,
       ),
       end: Number(
         decodeCheckpoint(
           min(
-            getOmnichainCheckpoint({ perChainSync, tag: "end" }),
-            getOmnichainCheckpoint({ perChainSync, tag: "finalized" }),
+            sync.getOmnichainCheckpoint({ tag: "end" }),
+            sync.getOmnichainCheckpoint({ tag: "finalized" }),
           ),
         ).blockTimestamp,
       ),
       cached: Number(
         decodeCheckpoint(
           min(
-            getOmnichainCheckpoint({ perChainSync, tag: "end" }),
-            getOmnichainCheckpoint({ perChainSync, tag: "finalized" }),
+            sync.getOmnichainCheckpoint({ tag: "end" }),
+            sync.getOmnichainCheckpoint({ tag: "finalized" }),
             crashRecoveryCheckpoint_ ?? ZERO_CHECKPOINT_STRING,
           ),
         ).blockTimestamp,
       ),
     };
-
-    perChainSync.set(chain.id, sync);
   }
 
   const eventCount: { [eventName: string]: number } = {};
@@ -637,22 +603,18 @@ export async function run({
 
     // Note: `_ponder_checkpoint` must be updated after the setup events are processed.
     await database.setCheckpoints({
-      checkpoints: Array.from(perChainSync.values()).map(
-        ({ chain, syncProgress }) => ({
-          chainName: chain.name,
+      checkpoints: indexingBuild.chains.map((chain) => ({
+        chainName: chain.name,
+        chainId: chain.id,
+        latestCheckpoint: sync.getMultichainCheckpoint({
+          tag: "start",
           chainId: chain.id,
-          latestCheckpoint: getChainCheckpoint({
-            tag: "start",
-            syncProgress,
-            chainId: chain.id,
-          }),
-          safeCheckpoint: getChainCheckpoint({
-            tag: "start",
-            syncProgress,
-            chainId: chain.id,
-          }),
         }),
-      ),
+        safeCheckpoint: sync.getMultichainCheckpoint({
+          tag: "start",
+          chainId: chain.id,
+        }),
+      })),
       db: database.qb.drizzle,
     });
   }
@@ -1070,9 +1032,7 @@ export async function run({
     }
   });
 
-  for (const sync of perChainSync.values()) {
-    await sync.startRealtime();
-  }
+  sync.startRealtime();
 
   common.logger.info({
     service: "server",
