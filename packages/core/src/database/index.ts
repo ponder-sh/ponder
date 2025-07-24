@@ -84,6 +84,11 @@ export type Database = {
   }): Promise<CrashRecoveryCheckpoint>;
   createIndexes(): Promise<void>;
   createTriggers(): Promise<void>;
+  createIsolatedTriggers({
+    chainId,
+  }: {
+    chainId: number;
+  }): Promise<void>;
   removeTriggers(): Promise<void>;
   /**
    * - "safe" checkpoint: The closest-to-tip finalized and completed checkpoint.
@@ -1036,6 +1041,49 @@ $$ LANGUAGE plpgsql`),
 CREATE OR REPLACE TRIGGER "${getTableNames(table).trigger}"
 AFTER INSERT OR UPDATE OR DELETE ON "${namespace.schema}"."${getTableName(table)}"
 FOR EACH ROW EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).triggerFn};
+`),
+            );
+          }
+        },
+      );
+    },
+    async createIsolatedTriggers({ chainId }) {
+      await this.wrap(
+        { method: "createIsolatedTriggers", includeTraceLogs: true },
+        async () => {
+          for (const table of tables) {
+            const columns = getTableColumns(table);
+
+            const columnNames = Object.values(columns).map(
+              (column) => `"${getColumnCasing(column, "snake_case")}"`,
+            );
+
+            await qb.drizzle.execute(
+              sql.raw(`
+CREATE OR REPLACE FUNCTION "${namespace.schema}".${chainId}_${getTableNames(table).triggerFn}
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+    VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${MAX_CHECKPOINT_STRING}');
+  ELSIF TG_OP = 'UPDATE' THEN
+    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${MAX_CHECKPOINT_STRING}');
+  ELSIF TG_OP = 'DELETE' THEN
+    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${MAX_CHECKPOINT_STRING}');
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql`),
+            );
+
+            await qb.drizzle.execute(
+              sql.raw(`
+CREATE OR REPLACE TRIGGER "${chainId}_${getTableNames(table).trigger}"
+AFTER INSERT OR UPDATE OR DELETE ON "${namespace.schema}"."${getTableName(table)}"
+FOR EACH ROW WHEN ((TG_OP = 'INSERT' AND NEW.chain_id = ${chainId}) OR (TG_OP != 'INSERT' AND OLD.chain_id = ${chainId}))
+EXECUTE FUNCTION "${namespace.schema}".${chainId}_${getTableNames(table).triggerFn};
 `),
             );
           }
