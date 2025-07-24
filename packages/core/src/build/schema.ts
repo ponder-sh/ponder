@@ -13,7 +13,10 @@ import {
   getTableConfig,
 } from "drizzle-orm/pg-core";
 
-export const buildSchema = ({ schema }: { schema: Schema }) => {
+export const buildSchema = ({
+  schema,
+  ordering,
+}: { schema: Schema; ordering: "multichain" | "omnichain" | "isolated" }) => {
   const statements = getSql(schema);
 
   const tableNames = new Set<string>();
@@ -21,6 +24,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
   for (const [name, s] of Object.entries(schema)) {
     if (is(s, PgTable)) {
       let hasPrimaryKey = false;
+      let hasChainIdColumn = false;
 
       for (const [columnName, column] of Object.entries(getTableColumns(s))) {
         if (column.primary) {
@@ -81,6 +85,16 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
             );
           }
         }
+
+        if (columnName === "chain_id") {
+          hasChainIdColumn = true;
+        }
+      }
+
+      if (ordering === "isolated" && hasChainIdColumn === false) {
+        throw new Error(
+          `Schema validation failed: '${name}' does not have required 'chain_id' column.`,
+        );
       }
 
       if (tableNames.has(getTableName(s))) {
@@ -147,9 +161,12 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
   return { statements };
 };
 
-export const safeBuildSchema = ({ schema }: { schema: Schema }) => {
+export const safeBuildSchema = ({
+  schema,
+  ordering,
+}: { schema: Schema; ordering: "multichain" | "omnichain" | "isolated" }) => {
   try {
-    const result = buildSchema({ schema });
+    const result = buildSchema({ schema, ordering });
 
     return {
       status: "success",
