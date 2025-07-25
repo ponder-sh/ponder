@@ -3,6 +3,7 @@ import { type Database, createDatabase } from "@/database/index.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import type { Common } from "@/internal/common.js";
+import type { RetryableError } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -11,6 +12,7 @@ import { createTelemetry } from "@/internal/telemetry.js";
 import type {
   DatabaseConfig,
   IndexingBuild,
+  IndexingErrorHandler,
   NamespaceBuild,
   SchemaBuild,
 } from "@/internal/types.js";
@@ -213,11 +215,25 @@ export async function setupDatabaseServices(
 
   const syncStore = createSyncStore({ common: context.common, database });
 
+  const indexingErrorHandler: IndexingErrorHandler = {
+    getRetryableError: () => {
+      return indexingErrorHandler.error;
+    },
+    setRetryableError: (error: RetryableError) => {
+      indexingErrorHandler.error = error;
+    },
+    clearRetryableError: () => {
+      indexingErrorHandler.error = undefined;
+    },
+    error: undefined as RetryableError | undefined,
+  };
+
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     schemaBuild: { schema: overrides.schemaBuild?.schema ?? {} },
-    database,
+    indexingErrorHandler,
   });
+  indexingStore.qb = database.userQB;
 
   return {
     database,

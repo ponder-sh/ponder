@@ -12,7 +12,13 @@ import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/config.js";
 import { onchainTable } from "@/drizzle/onchain.js";
 import { createCachedViemClient } from "@/indexing/client.js";
-import type { Event, LogEvent, RawEvent } from "@/internal/types.js";
+import type { RetryableError } from "@/internal/errors.js";
+import type {
+  Event,
+  IndexingErrorHandler,
+  LogEvent,
+  RawEvent,
+} from "@/internal/types.js";
 import { decodeEvents } from "@/sync/events.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { checksumAddress, padHex, parseEther, toHex, zeroAddress } from "viem";
@@ -35,6 +41,19 @@ const schema = { account };
 const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
   address: zeroAddress,
 });
+
+const indexingErrorHandler: IndexingErrorHandler = {
+  getRetryableError: () => {
+    return indexingErrorHandler.error;
+  },
+  setRetryableError: (error: RetryableError) => {
+    indexingErrorHandler.error = error;
+  },
+  clearRetryableError: () => {
+    indexingErrorHandler.error = undefined;
+  },
+  error: undefined as RetryableError | undefined,
+};
 
 test("createIndexing()", async (context) => {
   const { common } = context;
@@ -66,6 +85,7 @@ test("createIndexing()", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   expect(indexing).toBeDefined();
@@ -101,6 +121,7 @@ test("processSetupEvents() empty", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const result = await indexing.processSetupEvents({ db: indexingStore });
@@ -142,6 +163,7 @@ test("processSetupEvents()", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const result = await indexing.processSetupEvents({ db: indexingStore });
@@ -206,6 +228,7 @@ test("processEvent()", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const topics = encodeEventTopics({
@@ -303,6 +326,7 @@ test("processEvents eventCount", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const topics = encodeEventTopics({
@@ -375,6 +399,7 @@ test("executeSetup() context.client", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const getBalanceSpy = vi.spyOn(rpcs[0]!, "request");
@@ -427,6 +452,7 @@ test("executeSetup() context.db", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const insertSpy = vi.spyOn(indexingStore, "insert");
@@ -476,6 +502,7 @@ test("executeSetup() metrics", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const result = await indexing.processSetupEvents({ db: indexingStore });
@@ -519,6 +546,7 @@ test("executeSetup() error", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
@@ -570,6 +598,7 @@ test("processEvents() context.client", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const getBalanceSpy = vi.spyOn(rpcs[0]!, "request");
@@ -649,6 +678,7 @@ test("processEvents() context.db", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const insertSpy = vi.spyOn(indexingStore, "insert");
@@ -719,6 +749,7 @@ test("processEvents() metrics", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const topics = encodeEventTopics({
@@ -788,6 +819,7 @@ test("processEvents() error", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   indexingFunctions[
@@ -869,6 +901,7 @@ test("processEvents() error with missing event object properties", async (contex
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const topics = encodeEventTopics({

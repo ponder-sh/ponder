@@ -6,7 +6,8 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
-import type { LogEvent } from "@/internal/types.js";
+import type { RetryableError } from "@/internal/errors.js";
+import type { IndexingErrorHandler, LogEvent } from "@/internal/types.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { parseEther, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
@@ -16,6 +17,19 @@ import { createHistoricalIndexingStore } from "./historical.js";
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
+
+const indexingErrorHandler: IndexingErrorHandler = {
+  getRetryableError: () => {
+    return indexingErrorHandler.error;
+  },
+  setRetryableError: (error: RetryableError) => {
+    indexingErrorHandler.error = error;
+  },
+  clearRetryableError: () => {
+    indexingErrorHandler.error = undefined;
+  },
+  error: undefined as RetryableError | undefined,
+};
 
 test("flush() insert", async (context) => {
   const schema = {
@@ -36,21 +50,23 @@ test("flush() insert", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
       balance: 10n,
     });
 
-    await indexingCache.flush({ client });
+    await indexingCache.flush();
 
     const result = await indexingStore.find(schema.account, {
       address: zeroAddress,
@@ -82,14 +98,16 @@ test("flush() update", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     // mutate the cache to skip hot loops
 
@@ -105,14 +123,14 @@ test("flush() update", async (context) => {
     });
 
     // first flush takes "insert" path
-    await indexingCache.flush({ client });
+    await indexingCache.flush();
 
     await indexingStore.update(schema.account, { address: zeroAddress }).set({
       balance: 12n,
     });
 
     // second flush takes "update" path
-    await indexingCache.flush({ client });
+    await indexingCache.flush();
 
     let result = await indexingStore.find(schema.account, {
       address: zeroAddress,
@@ -129,7 +147,7 @@ test("flush() update", async (context) => {
       balance: 12n,
     });
 
-    await indexingCache.flush({ client });
+    await indexingCache.flush();
 
     result = await indexingStore.find(schema.account, {
       address: zeroAddress,
@@ -167,14 +185,16 @@ test("flush() encoding", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await indexingStore.insert(schema.test).values({
       hex: zeroAddress,
@@ -185,7 +205,7 @@ test("flush() encoding", async (context) => {
       null: null,
     });
 
-    await indexingCache.flush({ client });
+    await indexingCache.flush();
 
     indexingCache.clear();
     const result = await indexingStore.sql.select().from(schema.test);
@@ -230,14 +250,16 @@ test("flush() encoding escape", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     const values = [
       { backslash: "\\\\" },
@@ -262,7 +284,7 @@ test("flush() encoding escape", async (context) => {
 
     await indexingStore.insert(schema.test).values(values);
 
-    await indexingCache.flush({ client });
+    await indexingCache.flush();
 
     indexingCache.clear();
     const result = await indexingStore.sql.select().from(schema.test);
@@ -308,16 +330,18 @@ test("prefetch() uses profile metadata", async (context) => {
     eventCount: { "Contract:Event": 0 },
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
   indexingCache.event = event;
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await indexingStore
       .insert(schema.account)
@@ -330,11 +354,8 @@ test("prefetch() uses profile metadata", async (context) => {
     // @ts-ignore
     event.event.args.to = BOB;
 
-    await indexingCache.flush({ client });
-    await indexingCache.prefetch({
-      events: [event],
-      db: tx,
-    });
+    await indexingCache.flush();
+    await indexingCache.prefetch({ events: [event] });
 
     const result = indexingCache.has({
       table: schema.account,
@@ -364,26 +385,28 @@ test("prefetch() evicts rows", async (context) => {
     eventCount: {},
   });
 
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
   // skip hot loop
   indexingCache.invalidate();
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
       balance: 10n,
     });
 
-    await indexingCache.flush({ client });
+    await indexingCache.flush();
     // prefetch() should evict rows from the cache to free memory
-    await indexingCache.prefetch({ events: [], db: tx });
+    await indexingCache.prefetch({ events: [] });
 
     const result = indexingCache.has({
       table: schema.account,

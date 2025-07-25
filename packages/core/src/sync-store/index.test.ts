@@ -566,18 +566,22 @@ test("getCrashRecoveryBlock()", async (context) => {
   const rpcBlock1 = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
+  rpcBlock1.timestamp = rpcBlock1.number;
 
   const rpcBlock2 = await _eth_getBlockByNumber(rpc, {
     blockNumber: 2,
   });
+  rpcBlock2.timestamp = rpcBlock2.number;
 
   const rpcBlock3 = await _eth_getBlockByNumber(rpc, {
     blockNumber: 3,
   });
+  rpcBlock3.timestamp = rpcBlock3.number;
 
   const rpcBlock4 = await _eth_getBlockByNumber(rpc, {
     blockNumber: 4,
   });
+  rpcBlock4.timestamp = rpcBlock4.number;
 
   await syncStore.insertBlocks({
     blocks: [rpcBlock1, rpcBlock2, rpcBlock3, rpcBlock4],
@@ -623,14 +627,12 @@ test("insertChildAddresses()", async (context) => {
     chainId: 1,
   });
 
-  const factories = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.factories)
-    .execute();
-  const factoryAddresses = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.factoryAddresses)
-    .execute();
+  const factories = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.factories).execute(),
+  );
+  const factoryAddresses = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.factoryAddresses).execute(),
+  );
 
   expect(factories).toHaveLength(1);
   expect(factoryAddresses).toHaveLength(2);
@@ -659,7 +661,9 @@ test("insertLogs()", async (context) => {
 
   await syncStore.insertLogs({ logs: [rpcLogs[0]!], chainId: 1 });
 
-  const logs = await database.qb.sync.select().from(ponderSyncSchema.logs);
+  const logs = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.logs).execute(),
+  );
   expect(logs).toHaveLength(1);
 });
 
@@ -688,7 +692,9 @@ test("insertLogs() with duplicates", async (context) => {
 
   await syncStore.insertLogs({ logs: [rpcLogs[0]!], chainId: 1 });
 
-  const logs = await database.qb.sync.select().from(ponderSyncSchema.logs);
+  const logs = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.logs).execute(),
+  );
   expect(logs).toHaveLength(1);
 });
 
@@ -708,10 +714,9 @@ test("insertBlocks()", async (context) => {
 
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
-  const blocks = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.blocks)
-    .execute();
+  const blocks = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.blocks).execute(),
+  );
   expect(blocks).toHaveLength(1);
 });
 
@@ -732,10 +737,9 @@ test("insertBlocks() with duplicates", async (context) => {
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
-  const blocks = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.blocks)
-    .execute();
+  const blocks = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.blocks).execute(),
+  );
   expect(blocks).toHaveLength(1);
 });
 
@@ -764,10 +768,9 @@ test("insertTransactions()", async (context) => {
     chainId: 1,
   });
 
-  const transactions = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.transactions)
-    .execute();
+  const transactions = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.transactions).execute(),
+  );
   expect(transactions).toHaveLength(1);
 });
 
@@ -800,10 +803,9 @@ test("insertTransactions() with duplicates", async (context) => {
     chainId: 1,
   });
 
-  const transactions = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.transactions)
-    .execute();
+  const transactions = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.transactions).execute(),
+  );
   expect(transactions).toHaveLength(1);
 });
 
@@ -833,10 +835,9 @@ test("insertTransactionReceipts()", async (context) => {
     chainId: 1,
   });
 
-  const transactionReceipts = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.transactionReceipts)
-    .execute();
+  const transactionReceipts = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.transactionReceipts).execute(),
+  );
   expect(transactionReceipts).toHaveLength(1);
 });
 
@@ -870,10 +871,9 @@ test("insertTransactionReceipts() with duplicates", async (context) => {
     chainId: 1,
   });
 
-  const transactionReceipts = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.transactionReceipts)
-    .execute();
+  const transactionReceipts = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.transactionReceipts).execute(),
+  );
   expect(transactionReceipts).toHaveLength(1);
 });
 
@@ -933,10 +933,9 @@ test("insertTraces()", async (context) => {
     chainId: 1,
   });
 
-  const traces = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.traces)
-    .execute();
+  const traces = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.traces).execute(),
+  );
   expect(traces).toHaveLength(1);
 });
 
@@ -1006,10 +1005,9 @@ test("insertTraces() with duplicates", async (context) => {
     chainId: 1,
   });
 
-  const traces = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.traces)
-    .execute();
+  const traces = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.traces).execute(),
+  );
   expect(traces).toHaveLength(1);
 });
 
@@ -1137,10 +1135,9 @@ test("insertRpcRequestResults() ", async (context) => {
     chainId: 1,
   });
 
-  const result = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.rpcRequestResults)
-    .execute();
+  const result = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.rpcRequestResults).execute(),
+  );
 
   expect(result).toHaveLength(1);
   expect(result[0]!.requestHash).toBe("39d5ace8093d42c1bd00ce7781a7891a");
@@ -1161,14 +1158,16 @@ test("inserttRpcRequestResults() hash matches postgres", async (context) => {
     chainId: 1,
   });
 
-  const jsHash = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.rpcRequestResults)
-    .execute()
+  const jsHash = await database.syncQB
+    .wrap((db) =>
+      db.select().from(ponderSyncSchema.rpcRequestResults).execute(),
+    )
     .then((result) => result[0]!.requestHash);
 
-  const psqlHash = await database.qb.sync.execute(
-    sql`SELECT MD5(${JSON.stringify(orderObject({ method: "eth_call", params: ["0x1"] }))}) as request_hash`,
+  const psqlHash = await database.syncQB.wrap((db) =>
+    db.execute(
+      sql`SELECT MD5(${JSON.stringify(orderObject({ method: "eth_call", params: ["0x1"] }))}) as request_hash`,
+    ),
   );
 
   expect(jsHash).toBe(psqlHash.rows[0]!.request_hash);
@@ -1306,10 +1305,9 @@ test("pruneRpcRequestResult", async (context) => {
     chainId: 1,
   });
 
-  const requestResults = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.rpcRequestResults)
-    .execute();
+  const requestResults = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.rpcRequestResults).execute(),
+  );
 
   expect(requestResults).toHaveLength(2);
 });
@@ -1447,26 +1445,21 @@ test("pruneByChain deletes blocks, logs, traces, transactions", async (context) 
 
   await syncStore.pruneByChain({ chainId: 1 });
 
-  const logs = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.logs)
-    .execute();
-  const blocks = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.blocks)
-    .execute();
-  const traces = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.traces)
-    .execute();
-  const transactions = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.transactions)
-    .execute();
-  const transactionReceipts = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.transactionReceipts)
-    .execute();
+  const logs = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.logs).execute(),
+  );
+  const blocks = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.blocks).execute(),
+  );
+  const traces = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.traces).execute(),
+  );
+  const transactions = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.transactions).execute(),
+  );
+  const transactionReceipts = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.transactionReceipts).execute(),
+  );
 
   expect(logs).toHaveLength(0);
   expect(blocks).toHaveLength(0);
