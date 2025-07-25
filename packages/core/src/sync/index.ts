@@ -403,7 +403,7 @@ export const createSync = async (params: {
               // finalized checkpoint and add them to pendingEvents. These events are synced during
               // the historical phase, but must be indexed in the realtime phase because events
               // synced in realtime on other chains might be ordered before them.
-              if (checkpoint > to) {
+              if (params.ordering === "omnichain" && checkpoint > to) {
                 const [left, right] = partition(
                   events,
                   (event) => event.checkpoint <= to,

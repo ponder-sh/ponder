@@ -590,11 +590,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             } as const;
           }
 
-          if (
-            previousApp.is_dev === 1 ||
-            (process.env.PONDER_EXPERIMENTAL_DB === "platform" &&
-              previousApp.build_id !== buildId)
-          ) {
+          if (previousApp.is_dev === 1) {
             for (const table of previousApp.table_names) {
               await tx.wrap((tx) =>
                 tx.execute(
@@ -648,8 +644,9 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
           }
 
           if (
-            common.options.command === "dev" ||
-            previousApp.build_id !== buildId
+            process.env.PONDER_EXPERIMENTAL_DB !== "platform" &&
+            (common.options.command === "dev" ||
+              previousApp.build_id !== buildId)
           ) {
             const error = new MigrationError(
               `Schema '${namespace.schema}' was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/database#database-schema`,

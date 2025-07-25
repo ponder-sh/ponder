@@ -189,7 +189,7 @@ export default createConfig({
   chains: {
     mainnet: {
       id: 1,
-      transport: loadBalance([ // [!code focus]
+      rpc: loadBalance([ // [!code focus]
         http("https://cloudflare-eth.com"), // [!code focus]
         http("https://eth-mainnet.public.blastapi.io"), // [!code focus]
         webSocket("wss://ethereum-rpc.publicnode.com"), // [!code focus]
@@ -241,7 +241,7 @@ export default createConfig({
   chains: {
     mainnet: {
       id: 1,
-      transport: rateLimit(http(process.env.PONDER_RPC_URL_1), {
+      rpc: rateLimit(http(process.env.PONDER_RPC_URL_1), {
         requestsPerSecond: 25,
       }),
     },

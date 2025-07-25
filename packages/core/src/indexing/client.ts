@@ -11,7 +11,6 @@ import { wait } from "@/utils/wait.js";
 import {
   type Abi,
   type Account,
-  type Address,
   BlockNotFoundError,
   type Client,
   type ContractFunctionArgs,
@@ -19,8 +18,12 @@ import {
   type ContractFunctionParameters,
   type EIP1193Parameters,
   type GetBlockReturnType,
-  type GetBlockTransactionCountReturnType,
-  type GetTransactionCountReturnType,
+  type GetTransactionConfirmationsParameters,
+  type GetTransactionConfirmationsReturnType,
+  type GetTransactionParameters,
+  type GetTransactionReceiptParameters,
+  type GetTransactionReceiptReturnType,
+  type GetTransactionReturnType,
   type Hash,
   type Hex,
   type MulticallParameters,
@@ -128,6 +131,16 @@ const blockDependentActions = [
   "getEnsName",
   "getEnsResolver",
   "getEnsText",
+  "readContract",
+  "multicall",
+  "simulateContract",
+] as const satisfies readonly (keyof ReturnType<typeof publicActions>)[];
+
+/** Viem actions where the `block` property is required. */
+const blockRequiredActions = [
+  "getBlock",
+  "getTransactionCount",
+  "getBlockTransactionCount",
 ] as const satisfies readonly (keyof ReturnType<typeof publicActions>)[];
 
 /** Viem actions where the `block` property is non-existent. */
@@ -174,6 +187,15 @@ type RequiredBlockOptions =
       blockNumber: bigint;
     };
 
+type RetryableOptions = {
+  /**
+   * Whether or not to retry the action if the response is empty.
+   *
+   * @default true
+   */
+  retryEmptyResponse?: boolean;
+};
+
 type BlockDependentAction<
   fn extends (client: any, args: any) => unknown,
   ///
@@ -187,59 +209,71 @@ export type PonderActions = {
   [action in (typeof blockDependentActions)[number]]: BlockDependentAction<
     ReturnType<typeof publicActions>[action]
   >;
-} & {
-  multicall: <
-    const contracts extends readonly unknown[],
-    allowFailure extends boolean = true,
-  >(
-    args: Omit<
-      MulticallParameters<contracts, allowFailure>,
-      "blockTag" | "blockNumber"
-    > &
-      BlockOptions,
-  ) => Promise<MulticallReturnType<contracts, allowFailure>>;
-  readContract: <
-    const abi extends Abi | readonly unknown[],
-    functionName extends ContractFunctionName<abi, "pure" | "view">,
-    const args extends ContractFunctionArgs<abi, "pure" | "view", functionName>,
-  >(
-    args: Omit<
-      ReadContractParameters<abi, functionName, args>,
-      "blockTag" | "blockNumber"
-    > &
-      BlockOptions,
-  ) => Promise<ReadContractReturnType<abi, functionName, args>>;
-  simulateContract: <
-    const abi extends Abi | readonly unknown[],
-    functionName extends ContractFunctionName<abi, "nonpayable" | "payable">,
-    const args extends ContractFunctionArgs<
-      abi,
-      "nonpayable" | "payable",
-      functionName
-    >,
-  >(
-    args: Omit<
-      SimulateContractParameters<abi, functionName, args>,
-      "blockTag" | "blockNumber"
-    > &
-      BlockOptions,
-  ) => Promise<SimulateContractReturnType<abi, functionName, args>>;
-  getBlock: <includeTransactions extends boolean = false>(
-    args: {
-      /** Whether or not to include transaction data in the response. */
-      includeTransactions?: includeTransactions | undefined;
-    } & RequiredBlockOptions,
-  ) => Promise<GetBlockReturnType<ViemChain | undefined, includeTransactions>>;
-  getTransactionCount: (
-    args: {
-      /** The account address. */
-      address: Address;
-    } & RequiredBlockOptions,
-  ) => Promise<GetTransactionCountReturnType>;
-  getBlockTransactionCount: (
-    args: RequiredBlockOptions,
-  ) => Promise<GetBlockTransactionCountReturnType>;
-} & Pick<PublicActions, (typeof nonBlockDependentActions)[number]>;
+} & Pick<PublicActions, (typeof nonBlockDependentActions)[number]> &
+  Pick<PublicActions, (typeof blockRequiredActions)[number]> & {
+    // Types for `retryableActions` are manually defined.
+    readContract: <
+      const abi extends Abi | readonly unknown[],
+      functionName extends ContractFunctionName<abi, "pure" | "view">,
+      const args extends ContractFunctionArgs<
+        abi,
+        "pure" | "view",
+        functionName
+      >,
+    >(
+      args: Omit<
+        ReadContractParameters<abi, functionName, args>,
+        "blockTag" | "blockNumber"
+      > &
+        BlockOptions &
+        RetryableOptions,
+    ) => Promise<ReadContractReturnType<abi, functionName, args>>;
+    simulateContract: <
+      const abi extends Abi | readonly unknown[],
+      functionName extends ContractFunctionName<abi, "nonpayable" | "payable">,
+      const args extends ContractFunctionArgs<
+        abi,
+        "nonpayable" | "payable",
+        functionName
+      >,
+    >(
+      args: Omit<
+        SimulateContractParameters<abi, functionName, args>,
+        "blockTag" | "blockNumber"
+      > &
+        BlockOptions &
+        RetryableOptions,
+    ) => Promise<SimulateContractReturnType<abi, functionName, args>>;
+    multicall: <
+      const contracts extends readonly unknown[],
+      allowFailure extends boolean = true,
+    >(
+      args: Omit<
+        MulticallParameters<contracts, allowFailure>,
+        "blockTag" | "blockNumber"
+      > &
+        BlockOptions &
+        RetryableOptions,
+    ) => Promise<MulticallReturnType<contracts, allowFailure>>;
+    getBlock: <includeTransactions extends boolean = false>(
+      args: {
+        /** Whether or not to include transaction data in the response. */
+        includeTransactions?: includeTransactions | undefined;
+      } & RequiredBlockOptions &
+        RetryableOptions,
+    ) => Promise<
+      GetBlockReturnType<ViemChain | undefined, includeTransactions>
+    >;
+    getTransaction: (
+      args: GetTransactionParameters & RetryableOptions,
+    ) => Promise<GetTransactionReturnType>;
+    getTransactionReceipt: (
+      args: GetTransactionReceiptParameters & RetryableOptions,
+    ) => Promise<GetTransactionReceiptReturnType>;
+    getTransactionConfirmations: (
+      args: GetTransactionConfirmationsParameters & RetryableOptions,
+    ) => Promise<GetTransactionConfirmationsReturnType>;
+  };
 
 export type ReadonlyClient<
   transport extends Transport = Transport,
@@ -454,11 +488,7 @@ export const createCachedViemClient = ({
     };
 
     const getPonderAction = <
-      action extends
-        | (typeof blockDependentActions)[number]
-        | "multicall"
-        | "readContract"
-        | "simulateContract",
+      action extends (typeof blockDependentActions)[number],
     >(
       action: action,
     ) => {
@@ -548,7 +578,8 @@ export const createCachedViemClient = ({
                 // `error instanceof ContractFunctionExecutionError && error.cause instanceOf ContractFunctionZeroDataError`
                 (error as Error)?.message?.includes("returned no data") ===
                   false) ||
-              i === RETRY_COUNT
+              i === RETRY_COUNT ||
+              (args[0] as RetryableOptions).retryEmptyResponse === false
             ) {
               common.logger.warn({
                 service: "rpc",
@@ -575,25 +606,12 @@ export const createCachedViemClient = ({
       actions[action] = getPonderAction(action);
     }
 
-    // @ts-ignore
-    actions.multicall = getPonderAction("multicall");
-    // @ts-ignore
-    actions.readContract = getPonderAction("readContract");
-    // @ts-ignore
-    actions.simulateContract = getPonderAction("simulateContract");
-
     for (const action of nonBlockDependentActions) {
       // @ts-ignore
       actions[action] = _publicActions[action];
     }
 
-    // required block actions
-
-    for (const action of [
-      "getBlock",
-      "getBlockTransactionCount",
-      "getTransactionCount",
-    ] as const) {
+    for (const action of blockRequiredActions) {
       // @ts-ignore
       actions[action] = _publicActions[action];
     }
