@@ -215,7 +215,7 @@ export const createDatabase = async ({
 }: {
   common: Common;
   namespace: NamespaceBuild;
-  preBuild: Pick<PreBuild, "databaseConfig" | "ordering">;
+  preBuild: PreBuild;
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
 }): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
@@ -902,13 +902,29 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
               return { status: "success", crashRecoveryCheckpoint } as const;
             }
 
+            const removeTriggers = async (chainId?: number) => {
+              for (const table of tables) {
+                await tx.execute(
+                  sql.raw(
+                    `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger(chainId)}" ON "${namespace.schema}"."${getTableName(table)}"`,
+                  ),
+                );
+
+                await tx.execute(
+                  sql.raw(
+                    `DROP TRIGGER IF EXISTS "_${getTableNames(table).trigger(chainId)}" ON "${namespace.schema}"."${getTableName(table)}"`,
+                  ),
+                );
+              }
+            };
+
             // Remove triggers
             if (database.ordering === "isolated") {
               for (const { chainId } of checkpoints) {
-                await database.removeTriggers({ chainId });
+                await removeTriggers(chainId);
               }
             } else {
-              await database.removeTriggers(undefined);
+              await removeTriggers(undefined);
             }
 
             // Remove indexes
@@ -1040,7 +1056,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
 
             await qb.drizzle.execute(
               sql.raw(`
-CREATE OR REPLACE FUNCTION "${namespace.schema}".${chainId === undefined ? "" : `_${chainId}_`}${getTableNames(table).triggerFn}
+CREATE OR REPLACE FUNCTION "${namespace.schema}".${getTableNames(table).triggerFn(chainId)}
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
@@ -1060,19 +1076,19 @@ $$ LANGUAGE plpgsql`),
 
             await qb.drizzle.execute(
               sql.raw(`
-CREATE OR REPLACE TRIGGER "${chainId === undefined ? "_" : `_${chainId}_`}${getTableNames(table).trigger}"
+CREATE OR REPLACE TRIGGER "${getTableNames(table).trigger(chainId)}"
 AFTER INSERT OR UPDATE ON "${namespace.schema}"."${getTableName(table)}"
 FOR EACH ROW ${chainId === undefined ? "" : `WHEN (NEW.chain_id = ${chainId})`}
-EXECUTE FUNCTION "${namespace.schema}".${chainId === undefined ? "" : `_${chainId}_`}${getTableNames(table).triggerFn};
+EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).triggerFn(chainId)};
 `),
             );
 
             await qb.drizzle.execute(
               sql.raw(`
-CREATE OR REPLACE TRIGGER "${chainId === undefined ? "__" : `__${chainId}_`}${getTableNames(table).trigger}"
+CREATE OR REPLACE TRIGGER "_${getTableNames(table).trigger(chainId)}"
 AFTER DELETE ON "${namespace.schema}"."${getTableName(table)}"
 FOR EACH ROW ${chainId === undefined ? "" : `WHEN (OLD.chain_id = ${chainId})`}
-EXECUTE FUNCTION "${namespace.schema}".${chainId === undefined ? "" : `_${chainId}_`}${getTableNames(table).triggerFn};
+EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).triggerFn(chainId)};
 `),
             );
           }
@@ -1087,13 +1103,13 @@ EXECUTE FUNCTION "${namespace.schema}".${chainId === undefined ? "" : `_${chainI
           for (const table of tables) {
             await qb.drizzle.execute(
               sql.raw(
-                `DROP TRIGGER IF EXISTS "${chainId === undefined ? "_" : `_${chainId}_`}${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
+                `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger(chainId)}" ON "${namespace.schema}"."${getTableName(table)}"`,
               ),
             );
 
             await qb.drizzle.execute(
               sql.raw(
-                `DROP TRIGGER IF EXISTS "${chainId === undefined ? "__" : `__${chainId}_`}${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
+                `DROP TRIGGER IF EXISTS "_${getTableNames(table).trigger(chainId)}" ON "${namespace.schema}"."${getTableName(table)}"`,
               ),
             );
           }

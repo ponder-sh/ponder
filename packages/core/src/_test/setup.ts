@@ -194,6 +194,7 @@ export async function setupDatabaseServices(
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: overrides.schemaBuild?.schema ?? {},
