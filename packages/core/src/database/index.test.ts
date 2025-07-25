@@ -398,6 +398,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
   await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
     db: database.qb.drizzle,
+    ordering: "multichain",
   });
 
   await indexingStore
@@ -407,6 +408,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
   await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     db: database.qb.drizzle,
+    ordering: "multichain",
   });
 
   await database.setCheckpoints({
@@ -618,6 +620,7 @@ test("finalize()", async (context) => {
   await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
     db: database.qb.drizzle,
+    ordering: "multichain",
   });
 
   await indexingStore
@@ -631,6 +634,7 @@ test("finalize()", async (context) => {
   await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     db: database.qb.drizzle,
+    ordering: "multichain",
   });
 
   await database.finalize({
@@ -697,6 +701,7 @@ test("finalize() isolated", async (context) => {
   await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 2n, blockNumber: 9n }),
     db: database.qb.drizzle,
+    ordering: "isolated",
   });
 
   await indexingStore
@@ -706,6 +711,7 @@ test("finalize() isolated", async (context) => {
   await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
     db: database.qb.drizzle,
+    ordering: "isolated",
   });
 
   await indexingStore
@@ -720,6 +726,7 @@ test("finalize() isolated", async (context) => {
   await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     db: database.qb.drizzle,
+    ordering: "isolated",
   });
 
   await database.finalize({
@@ -1015,6 +1022,7 @@ test("commitBlock()", async (context) => {
   await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     db: database.qb.drizzle,
+    ordering: "multichain",
   });
 
   const { rows } = await database.qb.drizzle.execute(
@@ -1069,6 +1077,7 @@ test("revert()", async (context) => {
   await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
     db: database.qb.drizzle,
+    ordering: "multichain",
   });
 
   await indexingStore
@@ -1082,6 +1091,7 @@ test("revert()", async (context) => {
   await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     db: database.qb.drizzle,
+    ordering: "multichain",
   });
 
   await indexingStore.delete(account, { address: zeroAddress });
@@ -1089,6 +1099,7 @@ test("revert()", async (context) => {
   await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     db: database.qb.drizzle,
+    ordering: "multichain",
   });
 
   await database.qb.drizzle.transaction(async (tx) => {
@@ -1155,6 +1166,7 @@ test("revert() isolated", async (context) => {
   await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
     db: database.qb.drizzle,
+    ordering: "isolated",
   });
 
   await indexingStore
@@ -1164,6 +1176,7 @@ test("revert() isolated", async (context) => {
   await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 2n, blockNumber: 9n }),
     db: database.qb.drizzle,
+    ordering: "isolated",
   });
 
   await indexingStore
@@ -1178,6 +1191,7 @@ test("revert() isolated", async (context) => {
   await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     db: database.qb.drizzle,
+    ordering: "isolated",
   });
 
   await indexingStore.insert(account).values({
@@ -1188,6 +1202,7 @@ test("revert() isolated", async (context) => {
   await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 2n, blockNumber: 10n }),
     db: database.qb.drizzle,
+    ordering: "isolated",
   });
 
   await indexingStore.delete(account, { chainId: 1, address: zeroAddress });
@@ -1195,6 +1210,7 @@ test("revert() isolated", async (context) => {
   await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     db: database.qb.drizzle,
+    ordering: "isolated",
   });
 
   await database.qb.drizzle.transaction(async (tx) => {
@@ -1257,6 +1273,7 @@ test("revert() with composite primary key", async (context) => {
   await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     db: database.qb.drizzle,
+    ordering: "multichain",
   });
 
   await indexingStore.update(test, { a: 1, b: 1 }).set({ c: 1 });
@@ -1264,6 +1281,7 @@ test("revert() with composite primary key", async (context) => {
   await database.commitBlock({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 12n }),
     db: database.qb.drizzle,
+    ordering: "multichain",
   });
 
   await database.qb.drizzle.transaction(async (tx) => {

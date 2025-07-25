@@ -525,7 +525,11 @@ export async function run({
 
             if (result.status === "error") onReloadableError(result.error);
 
-            await database.commitBlock({ checkpoint, db: database.qb.drizzle });
+            await database.commitBlock({
+              checkpoint,
+              db: database.qb.drizzle,
+              ordering: preBuild.ordering,
+            });
 
             if (preBuild.ordering === "multichain") {
               common.metrics.ponder_indexing_timestamp.set(

@@ -49,6 +49,7 @@ export const getReorgTable = <config extends TableConfig>(
     return pgSchema(schema).table(
       sqlToReorgTableName(getTableName(table)),
       {
+        // chain_id: integer(),
         operation_id: integer()
           .notNull()
           .primaryKey()
@@ -64,6 +65,7 @@ export const getReorgTable = <config extends TableConfig>(
   return pgTable(
     sqlToReorgTableName(getTableName(table)),
     {
+      // chain_id: integer(),
       operation_id: integer()
         .notNull()
         .primaryKey()

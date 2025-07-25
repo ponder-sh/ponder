@@ -123,7 +123,11 @@ export type Database = {
     db: Drizzle<Schema>;
     ordering: "multichain" | "omnichain" | "isolated";
   }): Promise<void>;
-  commitBlock(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
+  commitBlock(args: {
+    checkpoint: string;
+    db: Drizzle<Schema>;
+    ordering: "multichain" | "omnichain" | "isolated";
+  }): Promise<void>;
 };
 
 export const SCHEMATA = pgSchema("information_schema").table(
@@ -1292,15 +1296,26 @@ WITH deleted AS (
         msg: `Updated finalized checkpoint to (timestamp=${decoded.blockTimestamp} chainId=${decoded.chainId} block=${decoded.blockNumber})`,
       });
     },
-    async commitBlock({ checkpoint, db }) {
+    async commitBlock({ checkpoint, db, ordering }) {
+      const chainId = Number(decodeCheckpoint(checkpoint).chainId);
       await Promise.all(
         tables.map((table) =>
           this.wrap({ method: "complete" }, async () => {
             const reorgTable = getReorgTable(table);
-            await db
-              .update(reorgTable)
-              .set({ checkpoint })
-              .where(eq(reorgTable.checkpoint, MAX_CHECKPOINT_STRING));
+            if (ordering === "isolated") {
+              await db.execute(
+                sql.raw(`
+UPDATE "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+SET checkpoint = '${checkpoint}'
+WHERE chain_id = ${chainId} AND checkpoint = '${MAX_CHECKPOINT_STRING}'; 
+`),
+              );
+            } else {
+              await db
+                .update(reorgTable)
+                .set({ checkpoint })
+                .where(eq(reorgTable.checkpoint, MAX_CHECKPOINT_STRING));
+            }
           }),
         ),
       );
