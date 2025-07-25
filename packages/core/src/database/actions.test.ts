@@ -8,6 +8,8 @@ import { buildSchema } from "@/build/schema.js";
 import { getReorgTable } from "@/drizzle/kit/index.js";
 import { onchainTable, primaryKey } from "@/drizzle/onchain.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
+import type { RetryableError } from "@/internal/errors.js";
+import type { IndexingErrorHandler } from "@/internal/types.js";
 import {
   type Checkpoint,
   MAX_CHECKPOINT_STRING,
@@ -21,7 +23,7 @@ import { beforeEach, expect, test } from "vitest";
 import {
   commitBlock,
   createIndexes,
-  createTrigger,
+  createTriggers,
   finalize,
   revert,
 } from "./actions.js";
@@ -40,6 +42,19 @@ function createCheckpoint(checkpoint: Partial<Checkpoint>): string {
   return encodeCheckpoint({ ...ZERO_CHECKPOINT, ...checkpoint });
 }
 
+const indexingErrorHandler: IndexingErrorHandler = {
+  getRetryableError: () => {
+    return indexingErrorHandler.error;
+  },
+  setRetryableError: (error: RetryableError) => {
+    indexingErrorHandler.error = error;
+  },
+  clearRetryableError: () => {
+    indexingErrorHandler.error = undefined;
+  },
+  error: undefined as RetryableError | undefined,
+};
+
 test("finalize()", async (context) => {
   const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema: { account } },
@@ -47,11 +62,12 @@ test("finalize()", async (context) => {
 
   // setup tables, reorg tables, and metadata checkpoint
 
-  await createTrigger(database.userQB, { table: account });
+  await createTriggers(database.userQB, { tables: [account] });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     schemaBuild: { schema: { account } },
+    indexingErrorHandler,
   });
   indexingStore.qb = database.userQB;
 
@@ -120,11 +136,12 @@ test("createTriggers()", async (context) => {
     schemaBuild: { schema: { account } },
   });
 
-  await createTrigger(database.userQB, { table: account });
+  await createTriggers(database.userQB, { tables: [account] });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     schemaBuild: { schema: { account } },
+    indexingErrorHandler,
   });
   indexingStore.qb = database.userQB;
 
@@ -152,8 +169,8 @@ test("createTriggers() duplicate", async (context) => {
     schemaBuild: { schema: { account } },
   });
 
-  await createTrigger(database.userQB, { table: account });
-  await createTrigger(database.userQB, { table: account });
+  await createTriggers(database.userQB, { tables: [account] });
+  await createTriggers(database.userQB, { tables: [account] });
 });
 
 test("commitBlock()", async (context) => {
@@ -161,11 +178,12 @@ test("commitBlock()", async (context) => {
     schemaBuild: { schema: { account } },
   });
 
-  await createTrigger(database.userQB, { table: account });
+  await createTriggers(database.userQB, { tables: [account] });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     schemaBuild: { schema: { account } },
+    indexingErrorHandler,
   });
   indexingStore.qb = database.userQB;
 
@@ -200,11 +218,12 @@ test("revert()", async (context) => {
 
   // setup tables, reorg tables, and metadata checkpoint
 
-  await createTrigger(database.userQB, { table: account });
+  await createTriggers(database.userQB, { tables: [account] });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     schemaBuild: { schema: { account } },
+    indexingErrorHandler,
   });
   indexingStore.qb = database.userQB;
 
@@ -270,11 +289,12 @@ test("revert() with composite primary key", async (context) => {
 
   // setup tables, reorg tables, and metadata checkpoint
 
-  await createTrigger(database.userQB, { table: test });
+  await createTriggers(database.userQB, { tables: [test] });
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     schemaBuild: { schema: { test } },
+    indexingErrorHandler,
   });
   indexingStore.qb = database.userQB;
 

@@ -8,10 +8,11 @@ import {
 import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
 import {
   BigIntSerializationError,
-  NonRetryableError,
-  NotNullConstraintError,
-  UniqueConstraintError,
+  NonRetryableUserError,
+  RawSqlError,
+  type RetryableError,
 } from "@/internal/errors.js";
+import type { IndexingErrorHandler } from "@/internal/types.js";
 import { eq } from "drizzle-orm";
 import { pgTable } from "drizzle-orm/pg-core";
 import { toBytes, zeroAddress } from "viem";
@@ -22,6 +23,19 @@ import { createHistoricalIndexingStore } from "./historical.js";
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
+
+const indexingErrorHandler: IndexingErrorHandler = {
+  getRetryableError: () => {
+    return indexingErrorHandler.error;
+  },
+  setRetryableError: (error: RetryableError) => {
+    indexingErrorHandler.error = error;
+  },
+  clearRetryableError: () => {
+    indexingErrorHandler.error = undefined;
+  },
+  error: undefined as RetryableError | undefined,
+};
 
 test("find", async (context) => {
   const schema = {
@@ -46,6 +60,7 @@ test("find", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -106,6 +121,7 @@ test("insert", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -262,6 +278,7 @@ test("update", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -357,6 +374,7 @@ test("update throw error when primary key is updated", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -377,7 +395,7 @@ test("update throw error when primary key is updated", async (context) => {
       .set({ address: ALICE })
       .catch((error) => error);
 
-    expect(error).toBeInstanceOf(NonRetryableError);
+    expect(error).toBeInstanceOf(NonRetryableUserError);
 
     // function
 
@@ -386,7 +404,7 @@ test("update throw error when primary key is updated", async (context) => {
       .set(() => ({ address: ALICE }))
       .catch((error) => error);
 
-    expect(error).toBeInstanceOf(NonRetryableError);
+    expect(error).toBeInstanceOf(NonRetryableUserError);
 
     // update same primary key no function
     let row: any = await indexingStore
@@ -431,6 +449,7 @@ test("delete", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -491,6 +510,7 @@ test("sql", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -529,7 +549,7 @@ test("sql", async (context) => {
           address: "0x0000000000000000000000000000000000000001",
           balance: undefined,
         }),
-    ).rejects.toThrowError(NotNullConstraintError);
+    ).rejects.toThrowError(RawSqlError);
 
     // TODO(kyle) check constraint
 
@@ -542,7 +562,7 @@ test("sql", async (context) => {
         await indexingStore.sql
           .insert(schema.account)
           .values({ address: zeroAddress, balance: 10n }),
-    ).rejects.toThrowError(UniqueConstraintError);
+    ).rejects.toThrowError(RawSqlError);
   });
 });
 
@@ -569,6 +589,7 @@ test("sql followed by find", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -613,6 +634,7 @@ test("sql with error", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -625,7 +647,7 @@ test("sql with error", async (context) => {
       .execute("SELECT * FROM does_not_exist")
       .catch((error) => error);
 
-    expect(error).toBeInstanceOf(Error);
+    expect(error).toBeInstanceOf(RawSqlError);
 
     // next query doesn't error
 
@@ -657,6 +679,7 @@ test("onchain table", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -665,11 +688,11 @@ test("onchain table", async (context) => {
 
     // check error
 
-    expect(() =>
+    await expect(() =>
       indexingStore
         // @ts-ignore
         .find(schema.account, { address: zeroAddress }),
-    ).toThrow();
+    ).rejects.toThrow();
   });
 });
 
@@ -694,6 +717,7 @@ test("missing rows", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -733,6 +757,7 @@ test("notNull", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -784,6 +809,7 @@ test("notNull", async (context) => {
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
+      indexingErrorHandler,
     });
 
     indexingCache.qb = tx;
@@ -826,6 +852,7 @@ test("default", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -863,6 +890,7 @@ test("$default", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -903,6 +931,7 @@ test("$onUpdateFn", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -946,6 +975,7 @@ test("array", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -991,6 +1021,7 @@ test("text array", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -1042,6 +1073,7 @@ test("enum", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -1087,6 +1119,7 @@ test("json bigint", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -1123,6 +1156,7 @@ test("bytes", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -1166,6 +1200,7 @@ test("text with null bytes", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -1209,6 +1244,7 @@ test.skip("time", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -1252,6 +1288,7 @@ test("timestamp", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -1295,6 +1332,7 @@ test.skip("date", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -1338,6 +1376,7 @@ test.skip("interval", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -1381,6 +1420,7 @@ test("point", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -1424,6 +1464,7 @@ test("line", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {

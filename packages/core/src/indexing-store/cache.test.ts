@@ -6,7 +6,8 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
-import type { LogEvent } from "@/internal/types.js";
+import type { RetryableError } from "@/internal/errors.js";
+import type { IndexingErrorHandler, LogEvent } from "@/internal/types.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { parseEther, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
@@ -16,6 +17,19 @@ import { createHistoricalIndexingStore } from "./historical.js";
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
+
+const indexingErrorHandler: IndexingErrorHandler = {
+  getRetryableError: () => {
+    return indexingErrorHandler.error;
+  },
+  setRetryableError: (error: RetryableError) => {
+    indexingErrorHandler.error = error;
+  },
+  clearRetryableError: () => {
+    indexingErrorHandler.error = undefined;
+  },
+  error: undefined as RetryableError | undefined,
+};
 
 test("flush() insert", async (context) => {
   const schema = {
@@ -40,6 +54,7 @@ test("flush() insert", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -87,6 +102,7 @@ test("flush() update", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -173,6 +189,7 @@ test("flush() encoding", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -237,6 +254,7 @@ test("flush() encoding escape", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -316,6 +334,7 @@ test("prefetch() uses profile metadata", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   indexingCache.event = event;
@@ -370,6 +389,7 @@ test("prefetch() evicts rows", async (context) => {
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
+    indexingErrorHandler,
   });
 
   // skip hot loop

@@ -2,7 +2,9 @@ import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
 import { buildSchema } from "@/build/schema.js";
 import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
+import type { RetryableError } from "@/internal/errors.js";
 import { createShutdown } from "@/internal/shutdown.js";
+import type { IndexingErrorHandler } from "@/internal/types.js";
 import {
   type Checkpoint,
   ZERO_CHECKPOINT,
@@ -13,7 +15,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { index } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
-import { commitBlock, createIndexes, createTrigger } from "./actions.js";
+import { commitBlock, createIndexes, createTriggers } from "./actions.js";
 import {
   type Database,
   TABLES,
@@ -33,6 +35,19 @@ const account = onchainTable("account", (p) => ({
 function createCheckpoint(checkpoint: Partial<Checkpoint>): string {
   return encodeCheckpoint({ ...ZERO_CHECKPOINT, ...checkpoint });
 }
+
+const indexingErrorHandler: IndexingErrorHandler = {
+  getRetryableError: () => {
+    return indexingErrorHandler.error;
+  },
+  setRetryableError: (error: RetryableError) => {
+    indexingErrorHandler.error = error;
+  },
+  clearRetryableError: () => {
+    indexingErrorHandler.error = undefined;
+  },
+  error: undefined as RetryableError | undefined,
+};
 
 test("migrate() succeeds with empty schema", async (context) => {
   const database = await createDatabase({
@@ -378,7 +393,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
 
   // setup tables, reorg tables, and metadata checkpoint
 
-  await createTrigger(database.userQB, { table: account });
+  await createTriggers(database.userQB, { tables: [account] });
 
   await database.userQB.wrap((db) =>
     db.update(getPonderMetaTable("public")).set({
@@ -389,6 +404,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
     schemaBuild: { schema: { account } },
+    indexingErrorHandler,
   });
   indexingStore.qb = database.userQB;
 

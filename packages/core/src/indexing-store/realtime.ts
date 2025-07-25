@@ -194,14 +194,19 @@ export const createRealtimeIndexingStore = ({
                 // for connection issues. This is a workaround to avoid the transaction being aborted.
 
                 const parseResult = (result: { [x: string]: any }[]) => {
-                  if (result.length !== values.length) {
+                  if (Array.isArray(values)) {
+                    if (result.length !== values.length) {
+                      throw new UniqueConstraintError(
+                        `Primary key conflict in table '${getTableName(table)}'`,
+                      );
+                    }
+                    return result;
+                  }
+
+                  if (result.length !== 1) {
                     throw new UniqueConstraintError(
                       `Primary key conflict in table '${getTableName(table)}'`,
                     );
-                  }
-
-                  if (Array.isArray(values)) {
-                    return result;
                   }
 
                   return result[0];
