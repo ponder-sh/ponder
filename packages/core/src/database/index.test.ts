@@ -648,6 +648,95 @@ test("finalize()", async (context) => {
   await context.common.shutdown.kill();
 });
 
+test("finalize() isolated", async (context) => {
+  const account = onchainTable(
+    "account",
+    (p) => ({
+      chainId: p.integer(),
+      address: p.hex(),
+      balance: p.bigint(),
+    }),
+    (table) => ({
+      pk: primaryKey({ columns: [table.address, table.chainId] }),
+    }),
+  );
+
+  const database = await createDatabase({
+    common: context.common,
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({ schema: { account } }).statements,
+    },
+  });
+
+  await database.migrate({ buildId: "abc", ordering: "isolated" });
+
+  // setup tables, reorg tables, and metadata checkpoint
+
+  await database.createTriggers({ chainId: 1 });
+  await database.createTriggers({ chainId: 2 });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    schemaBuild: { schema: { account } },
+    database,
+  });
+
+  await indexingStore.insert(account).values({
+    chainId: 2,
+    address: "0x0000000000000000000000000000000000000001",
+  });
+
+  await database.commitBlock({
+    checkpoint: createCheckpoint({ chainId: 2n, blockNumber: 9n }),
+    db: database.qb.drizzle,
+  });
+
+  await indexingStore
+    .insert(account)
+    .values({ chainId: 1, address: zeroAddress, balance: 10n });
+
+  await database.commitBlock({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
+    db: database.qb.drizzle,
+  });
+
+  await indexingStore
+    .update(account, { chainId: 1, address: zeroAddress })
+    .set({ balance: 88n });
+
+  await indexingStore.insert(account).values({
+    chainId: 1,
+    address: "0x0000000000000000000000000000000000000001",
+  });
+
+  await database.commitBlock({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
+    db: database.qb.drizzle,
+  });
+
+  await database.finalize({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    db: database.qb.drizzle,
+    ordering: "isolated",
+  });
+
+  // reorg tables
+
+  const rows = await database.qb.drizzle.select().from(getReorgTable(account));
+
+  expect(rows).toHaveLength(3);
+
+  await context.common.shutdown.kill();
+});
+
 test("createIndexes()", async (context) => {
   const account = onchainTable(
     "account",
@@ -1014,6 +1103,111 @@ test("revert()", async (context) => {
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toStrictEqual({ address: zeroAddress, balance: 10n });
+
+  await context.common.shutdown.kill();
+});
+
+test("revert() isolated", async (context) => {
+  const account = onchainTable(
+    "account",
+    (p) => ({
+      chainId: p.integer(),
+      address: p.hex(),
+      balance: p.bigint(),
+    }),
+    (table) => ({
+      pk: primaryKey({ columns: [table.address, table.chainId] }),
+    }),
+  );
+
+  const database = await createDatabase({
+    common: context.common,
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({ schema: { account } }).statements,
+    },
+  });
+
+  await database.migrate({ buildId: "abc", ordering: "isolated" });
+
+  // setup tables, reorg tables, and metadata checkpoint
+
+  await database.createTriggers({ chainId: 1 });
+  await database.createTriggers({ chainId: 2 });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    schemaBuild: { schema: { account } },
+    database,
+  });
+
+  await indexingStore
+    .insert(account)
+    .values({ chainId: 1, address: zeroAddress, balance: 10n });
+
+  await database.commitBlock({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
+    db: database.qb.drizzle,
+  });
+
+  await indexingStore
+    .insert(account)
+    .values({ chainId: 2, address: zeroAddress, balance: 10n });
+
+  await database.commitBlock({
+    checkpoint: createCheckpoint({ chainId: 2n, blockNumber: 9n }),
+    db: database.qb.drizzle,
+  });
+
+  await indexingStore
+    .update(account, { chainId: 1, address: zeroAddress })
+    .set({ balance: 88n });
+
+  await indexingStore.insert(account).values({
+    chainId: 1,
+    address: "0x0000000000000000000000000000000000000001",
+  });
+
+  await database.commitBlock({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    db: database.qb.drizzle,
+  });
+
+  await indexingStore.insert(account).values({
+    chainId: 2,
+    address: "0x0000000000000000000000000000000000000001",
+  });
+
+  await database.commitBlock({
+    checkpoint: createCheckpoint({ chainId: 2n, blockNumber: 10n }),
+    db: database.qb.drizzle,
+  });
+
+  await indexingStore.delete(account, { chainId: 1, address: zeroAddress });
+
+  await database.commitBlock({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
+    db: database.qb.drizzle,
+  });
+
+  await database.qb.drizzle.transaction(async (tx) => {
+    await database.revert({
+      checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
+      ordering: "isolated",
+      tx,
+    });
+  });
+
+  const rows = await database.qb.drizzle.select().from(account);
+
+  expect(rows).toHaveLength(3);
 
   await context.common.shutdown.kill();
 });
