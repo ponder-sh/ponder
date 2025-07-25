@@ -402,7 +402,6 @@ export const createIndexingCache = ({
 
       const endClock = startClock();
 
-      // TODO(kyle) how to get stack to point to user code
       const result = await qb
         .wrap((db) =>
           db.select().from(table).where(getWhereCondition(table, key)),

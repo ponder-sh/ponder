@@ -32,8 +32,8 @@ import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
 import type { Pool, PoolClient } from "pg";
 import prometheus from "prom-client";
+import { revert } from "./actions.js";
 import { type QB, createQB, parseDbError } from "./queryBuilder.js";
-import { revert } from "./utils.js";
 
 export type Database = {
   driver: PostgresDriver | PGliteDriver;

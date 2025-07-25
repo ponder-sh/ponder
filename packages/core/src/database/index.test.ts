@@ -13,6 +13,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { index } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
+import { commitBlock, createIndexes, createTrigger } from "./actions.js";
 import {
   type Database,
   TABLES,
@@ -20,7 +21,6 @@ import {
   getPonderCheckpointTable,
   getPonderMetaTable,
 } from "./index.js";
-import { commitBlock, createIndexes, createTrigger } from "./utils.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);

@@ -20,57 +20,73 @@ export const createIndexes = async (
   }
 };
 
-export const createTrigger = async (qb: QB, { table }: { table: PgTable }) => {
-  const schema = getTableConfig(table).schema ?? "public";
-  const columns = getTableColumns(table);
+export const createTriggers = async (
+  qb: QB,
+  { tables }: { tables: PgTable[] },
+) => {
+  await qb.transaction(async (tx) => {
+    await Promise.all(
+      tables.map(async (table) => {
+        const schema = getTableConfig(table).schema ?? "public";
+        const columns = getTableColumns(table);
 
-  const columnNames = Object.values(columns).map(
-    (column) => `"${getColumnCasing(column, "snake_case")}"`,
-  );
+        const columnNames = Object.values(columns).map(
+          (column) => `"${getColumnCasing(column, "snake_case")}"`,
+        );
 
-  await qb.transaction({ label: "create_trigger" }, async (tx) => {
-    await tx.wrap((tx) =>
-      tx.execute(
-        `
-CREATE OR REPLACE FUNCTION "${schema}".${getTableNames(table).triggerFn}
-RETURNS TRIGGER AS $$
-BEGIN
-IF TG_OP = 'INSERT' THEN
-INSERT INTO "${schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
-VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${MAX_CHECKPOINT_STRING}');
-ELSIF TG_OP = 'UPDATE' THEN
-INSERT INTO "${schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
-VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${MAX_CHECKPOINT_STRING}');
-ELSIF TG_OP = 'DELETE' THEN
-INSERT INTO "${schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
-VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${MAX_CHECKPOINT_STRING}');
-END IF;
-RETURN NULL;
-END;
-$$ LANGUAGE plpgsql`,
-      ),
-    );
+        await tx.wrap({ label: "create_trigger" }, (tx) =>
+          tx.execute(
+            `
+  CREATE OR REPLACE FUNCTION "${schema}".${getTableNames(table).triggerFn}
+  RETURNS TRIGGER AS $$
+  BEGIN
+  IF TG_OP = 'INSERT' THEN
+  INSERT INTO "${schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+  VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${MAX_CHECKPOINT_STRING}');
+  ELSIF TG_OP = 'UPDATE' THEN
+  INSERT INTO "${schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+  VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${MAX_CHECKPOINT_STRING}');
+  ELSIF TG_OP = 'DELETE' THEN
+  INSERT INTO "${schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+  VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${MAX_CHECKPOINT_STRING}');
+  END IF;
+  RETURN NULL;
+  END;
+  $$ LANGUAGE plpgsql`,
+          ),
+        );
 
-    await tx.wrap((tx) =>
-      tx.execute(
-        `
-CREATE OR REPLACE TRIGGER "${getTableNames(table).trigger}"
-AFTER INSERT OR UPDATE OR DELETE ON "${schema}"."${getTableName(table)}"
-FOR EACH ROW EXECUTE FUNCTION "${schema}".${getTableNames(table).triggerFn};
-`,
-      ),
+        await tx.wrap({ label: "create_trigger" }, (tx) =>
+          tx.execute(
+            `
+  CREATE OR REPLACE TRIGGER "${getTableNames(table).trigger}"
+  AFTER INSERT OR UPDATE OR DELETE ON "${schema}"."${getTableName(table)}"
+  FOR EACH ROW EXECUTE FUNCTION "${schema}".${getTableNames(table).triggerFn};
+  `,
+          ),
+        );
+      }),
     );
   });
 };
 
-export const dropTrigger = async (qb: QB, { table }: { table: PgTable }) => {
-  const schema = getTableConfig(table).schema ?? "public";
+export const dropTriggers = async (
+  qb: QB,
+  { tables }: { tables: PgTable[] },
+) => {
+  await qb.transaction(async (tx) => {
+    await Promise.all(
+      tables.map(async (table) => {
+        const schema = getTableConfig(table).schema ?? "public";
 
-  await qb.wrap({ label: "drop_trigger" }, (db) =>
-    db.execute(
-      `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${schema}"."${getTableName(table)}"`,
-    ),
-  );
+        await tx.wrap({ label: "drop_trigger" }, (tx) =>
+          tx.execute(
+            `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${schema}"."${getTableName(table)}"`,
+          ),
+        );
+      }),
+    );
+  });
 };
 
 export const revert = async (

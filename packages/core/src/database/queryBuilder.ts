@@ -89,7 +89,6 @@ export const parseDbError = (e: any): Error => {
   } else if (error?.message?.includes("violates check constraint")) {
     error = new CheckConstraintError(error.message);
   } else if (
-    // TODO(kyle) do we need this
     error?.message?.includes("Do not know how to serialize a BigInt")
   ) {
     error = new BigIntSerializationError(error.message);
@@ -113,8 +112,6 @@ export const parseDbError = (e: any): Error => {
   ) {
     error = new DbConnectionError(error.message);
   }
-
-  // TODO(Kyle) default retryable error?
 
   error.stack = e.stack;
 
@@ -210,21 +207,11 @@ export const createQB = <
         }
 
         // Two types of transaction enviroments
-        // 1. Inside callback (running user statements or control flow statements)
-        // 2. Outside callback (running entire transaction, user statements + control flow statements)
+        // 1. Inside callback (running user statements or control flow statements): Throw error, retry
+        // later. We want the error bubbled up out of the callback, so the transaction is properly rolled back.
+        // 2. Outside callback (running entire transaction, user statements + control flow statements): Retry immediately.
 
-        // Three transaction error cases to consider:
-        // 1. `DbConnectionError` + inside callback: Throw error, retry later. We want the error bubbled
-        // up out of the callback, so the transaction is properly rolled back.
-        // 2. `DbConnectionError` + outside callback: Retry immediately.
-        // 3. Not `DbConnectionError`: Any other statements including transaction control statements
-        // ("begin", "commit", "rollback", "savepoint", "release"). These are treated the same as
-        // non-transaction errors. Retry immediately.
-
-        if (
-          error instanceof NonRetryableUserError ||
-          (isTransactionCallback && error instanceof DbConnectionError)
-        ) {
+        if (error instanceof NonRetryableUserError || isTransactionCallback) {
           common.logger.warn({
             service: "database",
             msg: `Failed ${label ? `'${label}' ` : ""}database query (id=${id})`,

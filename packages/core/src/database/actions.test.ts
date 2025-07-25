@@ -18,14 +18,14 @@ import { and, eq, sql } from "drizzle-orm";
 import { index } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
-import type { Database } from "./index.js";
 import {
   commitBlock,
   createIndexes,
   createTrigger,
   finalize,
   revert,
-} from "./utils.js";
+} from "./actions.js";
+import type { Database } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);

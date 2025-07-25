@@ -1,17 +1,17 @@
 import { runCodegen } from "@/bin/utils/codegen.js";
 import {
+  commitBlock,
+  createIndexes,
+  createTriggers,
+  dropTriggers,
+  finalize,
+  revert,
+} from "@/database/actions.js";
+import {
   type Database,
   getPonderCheckpointTable,
   getPonderMetaTable,
 } from "@/database/index.js";
-import {
-  commitBlock,
-  createIndexes,
-  createTrigger,
-  dropTrigger,
-  finalize,
-  revert,
-} from "@/database/utils.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
@@ -191,7 +191,7 @@ export async function run({
         throw error;
       }
 
-      await tx.wrap({ label: "test" }, (tx) =>
+      await tx.wrap({ label: "update_checkpoints" }, (tx) =>
         tx
           .insert(PONDER_CHECKPOINT)
           .values(
@@ -459,9 +459,7 @@ export async function run({
   const tables = Object.values(schemaBuild.schema).filter(isTable);
 
   await createIndexes(database.adminQB, { statements: schemaBuild.statements });
-  await Promise.all(
-    tables.map((table) => createTrigger(database.adminQB, { table })),
-  );
+  await createTriggers(database.adminQB, { tables });
 
   if (namespaceBuild.viewsSchema) {
     await database.adminQB.transaction(
@@ -662,9 +660,7 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
           // in the `block` case.
 
           await database.userQB.transaction(async (tx) => {
-            for (const table of tables) {
-              await dropTrigger(tx, { table });
-            }
+            await dropTriggers(tx, { tables });
 
             const counts = await revert(tx, {
               tables,
@@ -677,9 +673,9 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
                 service: "database",
                 msg: `Reverted ${counts[index]} unfinalized operations from '${getTableName(table)}'`,
               });
-
-              await createTrigger(tx, { table });
             }
+
+            await createTriggers(tx, { tables });
           });
 
           break;
