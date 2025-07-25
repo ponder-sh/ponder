@@ -528,7 +528,6 @@ export async function run({
             await database.commitBlock({
               checkpoint,
               db: database.qb.drizzle,
-              ordering: preBuild.ordering,
             });
 
             if (preBuild.ordering === "multichain") {
@@ -581,7 +580,6 @@ export async function run({
           await database.qb.drizzle.transaction(async (tx) => {
             await database.revert({
               checkpoint: event.checkpoint,
-              ordering: preBuild.ordering,
               tx,
             });
           });
@@ -598,7 +596,6 @@ export async function run({
         await database.finalize({
           checkpoint: event.checkpoint,
           db: database.qb.drizzle,
-          ordering: preBuild.ordering,
         });
         break;
 

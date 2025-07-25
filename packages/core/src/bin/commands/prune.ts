@@ -63,6 +63,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     namespace: { schema: "public", viewsSchema: undefined },
     preBuild: buildResult.result,
     schemaBuild: emptySchemaBuild,
+    ordering: configResult.result.config.ordering ?? "multichain",
   });
 
   const ponderSchemas = await database.qb.drizzle

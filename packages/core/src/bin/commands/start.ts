@@ -23,6 +23,7 @@ import { runServer } from "../utils/runServer.js";
 export type PonderApp = {
   common: Common;
   preBuild: PreBuild;
+  database: Database;
   namespaceBuild: NamespaceBuild;
   schemaBuild: SchemaBuild;
   indexingBuild: IndexingBuild;
@@ -141,10 +142,10 @@ export async function start({
     namespace: namespaceResult.result,
     preBuild,
     schemaBuild,
+    ordering: preBuild.ordering,
   });
   const crashRecoveryCheckpoint = await database.migrate({
     buildId: indexingBuildResult.result.buildId,
-    ordering: preBuild.ordering,
   });
 
   const apiResult = await build.executeApi({
@@ -189,6 +190,7 @@ export async function start({
   let app: PonderApp = {
     common,
     preBuild,
+    database,
     namespaceBuild: namespaceResult.result,
     schemaBuild,
     indexingBuild: indexingBuildResult.result,
@@ -202,7 +204,6 @@ export async function start({
 
   run({
     ...app,
-    database,
     onFatalError: () => {
       exit({ reason: "Received fatal error", code: 1 });
     },

@@ -57,6 +57,7 @@ export type Database = {
   qb: QueryBuilder;
   PONDER_META: ReturnType<typeof getPonderMetaTable>;
   PONDER_CHECKPOINT: ReturnType<typeof getPonderCheckpointTable>;
+  ordering: "multichain" | "omnichain" | "isolated";
   retry: <T>(fn: () => Promise<T>) => Promise<T>;
   record: <T>(
     options: { method: string; includeTraceLogs?: boolean },
@@ -78,10 +79,7 @@ export type Database = {
    */
   migrate({
     buildId,
-    ordering,
-  }: Pick<IndexingBuild, "buildId"> & {
-    ordering: "omnichain" | "multichain" | "isolated";
-  }): Promise<CrashRecoveryCheckpoint>;
+  }: Pick<IndexingBuild, "buildId">): Promise<CrashRecoveryCheckpoint>;
   createIndexes(): Promise<void>;
   createTriggers(args?: { chainId: number }): Promise<void>;
   removeTriggers(args?: { chainId: number }): Promise<void>;
@@ -115,18 +113,15 @@ export type Database = {
   getReady(): Promise<boolean>;
   revert(args: {
     checkpoint: string;
-    ordering: "multichain" | "omnichain" | "isolated";
     tx: PgTransaction<PgQueryResultHKT, Schema>;
   }): Promise<void>;
   finalize(args: {
     checkpoint: string;
     db: Drizzle<Schema>;
-    ordering: "multichain" | "omnichain" | "isolated";
   }): Promise<void>;
   commitBlock(args: {
     checkpoint: string;
     db: Drizzle<Schema>;
-    ordering: "multichain" | "omnichain" | "isolated";
   }): Promise<void>;
 };
 
@@ -216,11 +211,13 @@ export const createDatabase = async ({
   namespace,
   preBuild,
   schemaBuild,
+  ordering,
 }: {
   common: Common;
   namespace: NamespaceBuild;
   preBuild: Pick<PreBuild, "databaseConfig">;
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
+  ordering?: "multichain" | "omnichain" | "isolated";
 }): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
 
@@ -423,6 +420,7 @@ export const createDatabase = async ({
     qb,
     PONDER_META,
     PONDER_CHECKPOINT,
+    ordering: ordering ?? "multichain",
     async retry(fn) {
       const RETRY_COUNT = 9;
       const BASE_DURATION = 125;
@@ -689,7 +687,7 @@ export const createDatabase = async ({
         },
       );
     },
-    async migrate({ buildId, ordering }) {
+    async migrate({ buildId }) {
       await this.wrap(
         { method: "createPonderSystemTables", includeTraceLogs: true },
         async () => {
@@ -936,7 +934,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
               ...checkpoints.map((c) => c.safeCheckpoint),
             );
 
-            await this.revert({ checkpoint: revertCheckpoint, ordering, tx });
+            await this.revert({ checkpoint: revertCheckpoint, tx });
 
             // Note: We don't update the `_ponder_checkpoint` table here, instead we wait for it to be updated
             // in the runtime script.
@@ -1116,7 +1114,7 @@ EXECUTE FUNCTION "${namespace.schema}".${chainId === undefined ? "" : `_${chainI
           .then((result) => result[0]?.value.is_ready === 1);
       });
     },
-    async revert({ checkpoint, ordering, tx }) {
+    async revert({ checkpoint, tx }) {
       await this.record(
         { method: "revert", includeTraceLogs: true },
         async () => {
@@ -1219,7 +1217,7 @@ WITH reverted1 AS (
         },
       );
     },
-    async finalize({ checkpoint, db, ordering }) {
+    async finalize({ checkpoint, db }) {
       await this.record(
         { method: "finalize", includeTraceLogs: true },
         async () => {
@@ -1296,7 +1294,7 @@ WITH deleted AS (
         msg: `Updated finalized checkpoint to (timestamp=${decoded.blockTimestamp} chainId=${decoded.chainId} block=${decoded.blockNumber})`,
       });
     },
-    async commitBlock({ checkpoint, db, ordering }) {
+    async commitBlock({ checkpoint, db }) {
       const chainId = Number(decodeCheckpoint(checkpoint).chainId);
       await Promise.all(
         tables.map((table) =>
