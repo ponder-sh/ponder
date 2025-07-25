@@ -918,34 +918,71 @@ export const createSync = async (params: {
 
   const seconds: Seconds = {};
 
-  for (const chain of params.indexingBuild.chains) {
-    const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
-      ({ chainId }) => chainId === chain.id,
-    )?.checkpoint;
-
-    seconds[chain.name] = {
-      start: Number(
-        decodeCheckpoint(getOmnichainCheckpoint({ tag: "start" }))
+  if (params.ordering === "multichain") {
+    for (const chain of params.indexingBuild.chains) {
+      const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
+        ({ chainId }) => chainId === chain.id,
+      )?.checkpoint;
+      const start = Number(
+        decodeCheckpoint(getMultichainCheckpoint({ tag: "start", chain }))
           .blockTimestamp,
-      ),
-      end: Number(
+      );
+
+      const end = Number(
         decodeCheckpoint(
           min(
-            getOmnichainCheckpoint({ tag: "end" }),
-            getOmnichainCheckpoint({ tag: "finalized" }),
+            getMultichainCheckpoint({ tag: "end", chain }),
+            getMultichainCheckpoint({ tag: "finalized", chain }),
           ),
         ).blockTimestamp,
-      ),
-      cached: Number(
-        decodeCheckpoint(
-          min(
-            getOmnichainCheckpoint({ tag: "end" }),
-            getOmnichainCheckpoint({ tag: "finalized" }),
-            crashRecoveryCheckpoint ?? ZERO_CHECKPOINT_STRING,
-          ),
-        ).blockTimestamp,
-      ),
-    };
+      );
+
+      const cached = Math.min(
+        Number(
+          decodeCheckpoint(crashRecoveryCheckpoint ?? ZERO_CHECKPOINT_STRING)
+            .blockTimestamp,
+        ),
+        end,
+      );
+
+      seconds[chain.name] = {
+        start,
+        end,
+        cached,
+      };
+    }
+  } else {
+    const start = Number(
+      decodeCheckpoint(getOmnichainCheckpoint({ tag: "start" })).blockTimestamp,
+    );
+    const end = Number(
+      decodeCheckpoint(
+        min(
+          getOmnichainCheckpoint({ tag: "end" }),
+          getOmnichainCheckpoint({ tag: "finalized" }),
+        ),
+      ).blockTimestamp,
+    );
+
+    for (const chain of params.indexingBuild.chains) {
+      const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
+        ({ chainId }) => chainId === chain.id,
+      )?.checkpoint;
+
+      const cached = Math.min(
+        Number(
+          decodeCheckpoint(crashRecoveryCheckpoint ?? ZERO_CHECKPOINT_STRING)
+            .blockTimestamp,
+        ),
+        end,
+      );
+
+      seconds[chain.name] = {
+        start,
+        end,
+        cached,
+      };
+    }
   }
 
   return {
