@@ -671,6 +671,7 @@ test("finalize() isolated", async (context) => {
       schema: { account },
       statements: buildSchema({ schema: { account } }).statements,
     },
+    ordering: "isolated",
   });
 
   await database.migrate({ buildId: "abc" });

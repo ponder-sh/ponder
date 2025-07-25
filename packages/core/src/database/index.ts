@@ -1117,7 +1117,7 @@ EXECUTE FUNCTION "${namespace.schema}".${chainId === undefined ? "" : `_${chainI
         { method: "revert", includeTraceLogs: true },
         async () => {
           let minOperationId: number | undefined;
-          if (ordering === "multichain") {
+          if (database.ordering === "multichain") {
             minOperationId = await tx
               .execute(
                 sql.raw(`
@@ -1179,7 +1179,7 @@ reverted2 AS (
 ) SELECT COUNT(*) FROM reverted1 as count;`;
 
             let result: unknown;
-            switch (ordering) {
+            switch (database.ordering) {
               case "multichain": {
                 result = await tx.execute(`
 WITH reverted1 AS (
@@ -1219,7 +1219,7 @@ WITH reverted1 AS (
       await this.record(
         { method: "finalize", includeTraceLogs: true },
         async () => {
-          switch (ordering) {
+          switch (database.ordering) {
             case "multichain":
             case "omnichain": {
               const min_op_id = await db
@@ -1298,7 +1298,7 @@ WITH deleted AS (
         tables.map((table) =>
           this.wrap({ method: "complete" }, async () => {
             const reorgTable = getReorgTable(table);
-            if (ordering === "isolated") {
+            if (database.ordering === "isolated") {
               await db.execute(
                 sql.raw(`
 UPDATE "${namespace.schema}"."${getTableName(getReorgTable(table))}"
