@@ -249,6 +249,7 @@ const pwr = promiseWithResolvers<void>();
  */
 const onBuild = async (app: PonderApp) => {
   app.preBuild.ordering = SIM_PARAMS.ORDERING;
+  app.database.ordering = SIM_PARAMS.ORDERING;
 
   if (APP_ID === "super-assessment") {
     const random = seedrandom(`${SEED}_super_assessment_filter`);

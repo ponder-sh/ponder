@@ -58,7 +58,10 @@ export type Build = {
   }) => Promise<ApiResult>;
   namespaceCompile: () => Result<NamespaceBuild>;
   preCompile: (params: { config: Config }) => Result<PreBuild>;
-  compileSchema: (params: { schema: Schema }) => Result<SchemaBuild>;
+  compileSchema: (params: {
+    schema: Schema;
+    ordering: "multichain" | "omnichain" | "isolated";
+  }) => Result<SchemaBuild>;
   compileIndexing: (params: {
     configResult: Extract<ConfigResult, { status: "success" }>["result"];
     schemaResult: Extract<SchemaResult, { status: "success" }>["result"];
@@ -389,9 +392,10 @@ export const createBuild = async ({
         },
       } as const;
     },
-    compileSchema({ schema }) {
+    compileSchema({ schema, ordering }) {
       const buildSchemaResult = safeBuildSchema({
         schema,
+        ordering,
       });
 
       if (buildSchemaResult.status === "error") {

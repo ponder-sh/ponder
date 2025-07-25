@@ -43,6 +43,7 @@ test("migrate() succeeds with empty schema", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -50,7 +51,7 @@ test("migrate() succeeds with empty schema", async (context) => {
     },
   });
 
-  await database.migrate({ buildId: "abc", ordering: "multichain" });
+  await database.migrate({ buildId: "abc" });
 
   const tableNames = await getUserTableNames(database, "public");
   expect(tableNames).toContain("account");
@@ -92,6 +93,7 @@ test("migrate() with empty schema creates tables and enums", async (context) => 
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account, kyle, mood, user },
@@ -100,7 +102,7 @@ test("migrate() with empty schema creates tables and enums", async (context) => 
     },
   });
 
-  await database.migrate({ buildId: "abc", ordering: "multichain" });
+  await database.migrate({ buildId: "abc" });
 
   const tableNames = await getUserTableNames(database, "public");
   expect(tableNames).toContain("account");
@@ -123,13 +125,14 @@ test("migrate() throws with schema used", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
       statements: buildSchema({ schema: { account } }).statements,
     },
   });
-  await database.migrate({ buildId: "abc", ordering: "multichain" });
+  await database.migrate({ buildId: "abc" });
   await context.common.shutdown.kill();
 
   context.common.shutdown = createShutdown();
@@ -142,6 +145,7 @@ test("migrate() throws with schema used", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -150,7 +154,7 @@ test("migrate() throws with schema used", async (context) => {
   });
 
   const error = await databaseTwo
-    .migrate({ buildId: "def", ordering: "multichain" })
+    .migrate({ buildId: "def" })
     .catch((err) => err);
 
   expect(error).toBeDefined();
@@ -174,13 +178,14 @@ test("migrate() throws with schema used after waiting for lock", async (context)
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
       statements: buildSchema({ schema: { account } }).statements,
     },
   });
-  await database.migrate({ buildId: "abc", ordering: "multichain" });
+  await database.migrate({ buildId: "abc" });
 
   const databaseTwo = await createDatabase({
     common: context.common,
@@ -190,6 +195,7 @@ test("migrate() throws with schema used after waiting for lock", async (context)
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -198,7 +204,7 @@ test("migrate() throws with schema used after waiting for lock", async (context)
   });
 
   const error = await databaseTwo
-    .migrate({ buildId: "abc", ordering: "multichain" })
+    .migrate({ buildId: "abc" })
     .catch((err) => err);
 
   expect(error).toBeDefined();
@@ -215,6 +221,7 @@ test("migrate() succeeds with crash recovery", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -222,7 +229,7 @@ test("migrate() succeeds with crash recovery", async (context) => {
     },
   });
 
-  await database.migrate({ buildId: "abc", ordering: "multichain" });
+  await database.migrate({ buildId: "abc" });
   await context.common.shutdown.kill();
 
   context.common.shutdown = createShutdown();
@@ -235,6 +242,7 @@ test("migrate() succeeds with crash recovery", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -242,7 +250,7 @@ test("migrate() succeeds with crash recovery", async (context) => {
     },
   });
 
-  await databaseTwo.migrate({ buildId: "abc", ordering: "multichain" });
+  await databaseTwo.migrate({ buildId: "abc" });
 
   const metadata = await databaseTwo.qb.drizzle
     .select()
@@ -270,13 +278,14 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
       statements: buildSchema({ schema: { account } }).statements,
     },
   });
-  await database.migrate({ buildId: "abc", ordering: "multichain" });
+  await database.migrate({ buildId: "abc" });
   await database.finalize({
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     db: database.qb.drizzle,
@@ -290,6 +299,7 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -297,7 +307,7 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
     },
   });
 
-  await databaseTwo.migrate({ buildId: "abc", ordering: "multichain" });
+  await databaseTwo.migrate({ buildId: "abc" });
 
   await context.common.shutdown.kill();
 });
@@ -311,6 +321,7 @@ test("migrateSync()", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -339,6 +350,7 @@ test.skip("migrateSync() handles concurrent migrations", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -369,6 +381,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -376,7 +389,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     },
   });
 
-  await database.migrate({ buildId: "abc", ordering: "multichain" });
+  await database.migrate({ buildId: "abc" });
 
   // setup tables, reorg tables, and metadata checkpoint
 
@@ -432,6 +445,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -441,7 +455,6 @@ test("migrate() with crash recovery reverts rows", async (context) => {
 
   const checkpoint = await databaseTwo.migrate({
     buildId: "abc",
-    ordering: "multichain",
   });
 
   expect(checkpoint).toMatchInlineSnapshot(`
@@ -489,6 +502,7 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -496,7 +510,7 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
     },
   });
 
-  await database.migrate({ buildId: "abc", ordering: "multichain" });
+  await database.migrate({ buildId: "abc" });
 
   await database.createIndexes();
 
@@ -526,6 +540,7 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -533,7 +548,7 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
     },
   });
 
-  await databaseTwo.migrate({ buildId: "abc", ordering: "multichain" });
+  await databaseTwo.migrate({ buildId: "abc" });
 
   const indexNames = await getUserIndexNames(databaseTwo, "public", "account");
 
@@ -554,6 +569,7 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -561,7 +577,7 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
     },
   });
 
-  await database.migrate({ buildId: "abc", ordering: "multichain" });
+  await database.migrate({ buildId: "abc" });
 
   const row = await database.qb.drizzle
     .select()
@@ -591,6 +607,7 @@ test("finalize()", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -598,7 +615,7 @@ test("finalize()", async (context) => {
     },
   });
 
-  await database.migrate({ buildId: "abc", ordering: "multichain" });
+  await database.migrate({ buildId: "abc" });
 
   // setup tables, reorg tables, and metadata checkpoint
 
@@ -646,6 +663,95 @@ test("finalize()", async (context) => {
   await context.common.shutdown.kill();
 });
 
+test("finalize() isolated", async (context) => {
+  const account = onchainTable(
+    "account",
+    (p) => ({
+      chainId: p.integer(),
+      address: p.hex(),
+      balance: p.bigint(),
+    }),
+    (table) => ({
+      pk: primaryKey({ columns: [table.address, table.chainId] }),
+    }),
+  );
+
+  const database = await createDatabase({
+    common: context.common,
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      ordering: "isolated",
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({ schema: { account } }).statements,
+    },
+  });
+
+  await database.migrate({ buildId: "abc" });
+
+  // setup tables, reorg tables, and metadata checkpoint
+
+  await database.createTriggers({ chainId: 1 });
+  await database.createTriggers({ chainId: 2 });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    schemaBuild: { schema: { account } },
+    database,
+  });
+
+  await indexingStore.insert(account).values({
+    chainId: 2,
+    address: "0x0000000000000000000000000000000000000001",
+  });
+
+  await database.commitBlock({
+    checkpoint: createCheckpoint({ chainId: 2n, blockNumber: 9n }),
+    db: database.qb.drizzle,
+  });
+
+  await indexingStore
+    .insert(account)
+    .values({ chainId: 1, address: zeroAddress, balance: 10n });
+
+  await database.commitBlock({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
+    db: database.qb.drizzle,
+  });
+
+  await indexingStore
+    .update(account, { chainId: 1, address: zeroAddress })
+    .set({ balance: 88n });
+
+  await indexingStore.insert(account).values({
+    chainId: 1,
+    address: "0x0000000000000000000000000000000000000001",
+  });
+
+  await database.commitBlock({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
+    db: database.qb.drizzle,
+  });
+
+  await database.finalize({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    db: database.qb.drizzle,
+  });
+
+  // reorg tables
+
+  const rows = await database.qb.drizzle.select().from(getReorgTable(account));
+
+  expect(rows).toHaveLength(3);
+
+  await context.common.shutdown.kill();
+});
+
 test("createIndexes()", async (context) => {
   const account = onchainTable(
     "account",
@@ -666,6 +772,7 @@ test("createIndexes()", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -673,7 +780,7 @@ test("createIndexes()", async (context) => {
     },
   });
 
-  await database.migrate({ buildId: "abc", ordering: "multichain" });
+  await database.migrate({ buildId: "abc" });
   await database.createIndexes();
 
   const indexNames = await getUserIndexNames(database, "public", "account");
@@ -691,6 +798,7 @@ test("createTriggers()", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -698,7 +806,7 @@ test("createTriggers()", async (context) => {
     },
   });
 
-  await database.migrate({ buildId: "abc", ordering: "multichain" });
+  await database.migrate({ buildId: "abc" });
   await database.createTriggers();
 
   const indexingStore = createRealtimeIndexingStore({
@@ -737,6 +845,7 @@ test("createTriggers() duplicate", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -744,9 +853,151 @@ test("createTriggers() duplicate", async (context) => {
     },
   });
 
-  await database.migrate({ buildId: "abc", ordering: "multichain" });
+  await database.migrate({ buildId: "abc" });
   await database.createTriggers();
   await database.createTriggers();
+
+  await context.common.shutdown.kill();
+});
+
+test("createTriggers() with chainId", async (context) => {
+  const account = onchainTable(
+    "account",
+    (p) => ({
+      chainId: p.integer(),
+      address: p.hex(),
+      balance: p.bigint(),
+    }),
+    (table) => ({
+      pk: primaryKey({ columns: [table.address, table.chainId] }),
+    }),
+  );
+
+  const database = await createDatabase({
+    common: context.common,
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      ordering: "isolated",
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({ schema: { account } }).statements,
+    },
+  });
+
+  await database.migrate({ buildId: "abc" });
+  await database.createTriggers({ chainId: 1 });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    schemaBuild: { schema: { account } },
+    database,
+  });
+
+  await indexingStore
+    .insert(account)
+    .values({ chainId: 1, address: zeroAddress, balance: 10n });
+
+  let rows = await database.qb.drizzle
+    .execute(sql`SELECT * FROM _reorg__account`)
+    .then(({ rows }) => rows);
+
+  expect(rows).toStrictEqual([
+    {
+      chain_id: 1,
+      address: zeroAddress,
+      balance: "10",
+      operation: 0,
+      operation_id: 1,
+      checkpoint: MAX_CHECKPOINT_STRING,
+    },
+  ]);
+
+  await indexingStore
+    .insert(account)
+    .values({ chainId: 2, address: zeroAddress, balance: 10n });
+
+  rows = await database.qb.drizzle
+    .execute(sql`SELECT * FROM _reorg__account`)
+    .then(({ rows }) => rows);
+
+  expect(rows).toStrictEqual([
+    {
+      chain_id: 1,
+      address: zeroAddress,
+      balance: "10",
+      operation: 0,
+      operation_id: 1,
+      checkpoint: MAX_CHECKPOINT_STRING,
+    },
+  ]);
+
+  await database.createTriggers({ chainId: 2 });
+  await indexingStore
+    .update(account, { chainId: 2, address: zeroAddress })
+    .set({
+      balance: 20n,
+    });
+
+  rows = await database.qb.drizzle
+    .execute(sql`SELECT * FROM _reorg__account`)
+    .then(({ rows }) => rows);
+
+  expect(rows).toStrictEqual([
+    {
+      chain_id: 1,
+      address: zeroAddress,
+      balance: "10",
+      operation: 0,
+      operation_id: 1,
+      checkpoint: MAX_CHECKPOINT_STRING,
+    },
+    {
+      chain_id: 2,
+      address: zeroAddress,
+      balance: "10",
+      operation: 1,
+      operation_id: 2,
+      checkpoint: MAX_CHECKPOINT_STRING,
+    },
+  ]);
+
+  await indexingStore.delete(account, { chainId: 2, address: zeroAddress });
+
+  rows = await database.qb.drizzle
+    .execute(sql`SELECT * FROM _reorg__account`)
+    .then(({ rows }) => rows);
+
+  expect(rows).toStrictEqual([
+    {
+      chain_id: 1,
+      address: zeroAddress,
+      balance: "10",
+      operation: 0,
+      operation_id: 1,
+      checkpoint: MAX_CHECKPOINT_STRING,
+    },
+    {
+      chain_id: 2,
+      address: zeroAddress,
+      balance: "10",
+      operation: 1,
+      operation_id: 2,
+      checkpoint: MAX_CHECKPOINT_STRING,
+    },
+    {
+      chain_id: 2,
+      address: zeroAddress,
+      balance: "20",
+      operation: 2,
+      operation_id: 3,
+      checkpoint: MAX_CHECKPOINT_STRING,
+    },
+  ]);
 
   await context.common.shutdown.kill();
 });
@@ -760,6 +1011,7 @@ test("commitBlock()", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -767,7 +1019,7 @@ test("commitBlock()", async (context) => {
     },
   });
 
-  await database.migrate({ buildId: "abc", ordering: "multichain" });
+  await database.migrate({ buildId: "abc" });
   await database.createTriggers();
 
   const indexingStore = createRealtimeIndexingStore({
@@ -811,6 +1063,7 @@ test("revert()", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
@@ -818,7 +1071,7 @@ test("revert()", async (context) => {
     },
   });
 
-  await database.migrate({ buildId: "abc", ordering: "multichain" });
+  await database.migrate({ buildId: "abc" });
 
   // setup tables, reorg tables, and metadata checkpoint
 
@@ -862,7 +1115,6 @@ test("revert()", async (context) => {
   await database.qb.drizzle.transaction(async (tx) => {
     await database.revert({
       checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
-      ordering: "multichain",
       tx,
     });
   });
@@ -871,6 +1123,111 @@ test("revert()", async (context) => {
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toStrictEqual({ address: zeroAddress, balance: 10n });
+
+  await context.common.shutdown.kill();
+});
+
+test("revert() isolated", async (context) => {
+  const account = onchainTable(
+    "account",
+    (p) => ({
+      chainId: p.integer(),
+      address: p.hex(),
+      balance: p.bigint(),
+    }),
+    (table) => ({
+      pk: primaryKey({ columns: [table.address, table.chainId] }),
+    }),
+  );
+
+  const database = await createDatabase({
+    common: context.common,
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      ordering: "isolated",
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({ schema: { account } }).statements,
+    },
+  });
+
+  await database.migrate({ buildId: "abc" });
+
+  // setup tables, reorg tables, and metadata checkpoint
+
+  await database.createTriggers({ chainId: 1 });
+  await database.createTriggers({ chainId: 2 });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    schemaBuild: { schema: { account } },
+    database,
+  });
+
+  await indexingStore
+    .insert(account)
+    .values({ chainId: 1, address: zeroAddress, balance: 10n });
+
+  await database.commitBlock({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
+    db: database.qb.drizzle,
+  });
+
+  await indexingStore
+    .insert(account)
+    .values({ chainId: 2, address: zeroAddress, balance: 10n });
+
+  await database.commitBlock({
+    checkpoint: createCheckpoint({ chainId: 2n, blockNumber: 9n }),
+    db: database.qb.drizzle,
+  });
+
+  await indexingStore
+    .update(account, { chainId: 1, address: zeroAddress })
+    .set({ balance: 88n });
+
+  await indexingStore.insert(account).values({
+    chainId: 1,
+    address: "0x0000000000000000000000000000000000000001",
+  });
+
+  await database.commitBlock({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    db: database.qb.drizzle,
+  });
+
+  await indexingStore.insert(account).values({
+    chainId: 2,
+    address: "0x0000000000000000000000000000000000000001",
+  });
+
+  await database.commitBlock({
+    checkpoint: createCheckpoint({ chainId: 2n, blockNumber: 10n }),
+    db: database.qb.drizzle,
+  });
+
+  await indexingStore.delete(account, { chainId: 1, address: zeroAddress });
+
+  await database.commitBlock({
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
+    db: database.qb.drizzle,
+  });
+
+  await database.qb.drizzle.transaction(async (tx) => {
+    await database.revert({
+      checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
+      tx,
+    });
+  });
+
+  const rows = await database.qb.drizzle.select().from(account);
+
+  expect(rows).toHaveLength(3);
 
   await context.common.shutdown.kill();
 });
@@ -896,6 +1253,7 @@ test("revert() with composite primary key", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { test },
@@ -903,7 +1261,7 @@ test("revert() with composite primary key", async (context) => {
     },
   });
 
-  await database.migrate({ buildId: "abc", ordering: "multichain" });
+  await database.migrate({ buildId: "abc" });
 
   // setup tables, reorg tables, and metadata checkpoint
 
@@ -932,7 +1290,6 @@ test("revert() with composite primary key", async (context) => {
   await database.qb.drizzle.transaction(async (tx) => {
     await database.revert({
       checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
-      ordering: "multichain",
       tx,
     });
   });
