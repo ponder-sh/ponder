@@ -53,6 +53,36 @@ test("buildSchema() success with composite primary key", () => {
         balance: p.bigint().notNull(),
       }),
       (table) => ({
+        pk: primaryKey({ columns: [table.address, table.balance] }),
+      }),
+    ),
+  };
+
+  buildSchema({ schema });
+});
+
+test("buildSchema() success with chainId primary key and isolated ordering", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      chainId: p.integer().primaryKey(),
+      address: p.hex().notNull(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  buildSchema({ schema, ordering: "isolated" });
+});
+
+test("buildSchema() success with composite primary key including chainId and isolated ordering", () => {
+  const schema = {
+    account: onchainTable(
+      "account",
+      (p) => ({
+        chainId: p.integer().notNull(),
+        address: p.hex().notNull(),
+        balance: p.bigint().notNull(),
+      }),
+      (table) => ({
         pk: primaryKey({
           columns: [table.address, table.balance, table.chainId],
         }),
@@ -61,6 +91,41 @@ test("buildSchema() success with composite primary key", () => {
   };
 
   buildSchema({ schema, ordering: "isolated" });
+});
+
+test("buildSchema() error with missing chainId column and isolated ordering", () => {
+  const schema = {
+    account: onchainTable(
+      "account",
+      (p) => ({
+        address: p.hex().notNull(),
+        balance: p.bigint().notNull(),
+      }),
+      (table) => ({
+        pk: primaryKey({ columns: [table.address, table.balance] }),
+      }),
+    ),
+  };
+
+  expect(() => buildSchema({ schema, ordering: "isolated" })).toThrowError();
+});
+
+test("buildSchema() error with non primary chainId column and isolated ordering", () => {
+  const schema = {
+    account: onchainTable(
+      "account",
+      (p) => ({
+        chainId: p.integer().notNull(),
+        address: p.hex().notNull(),
+        balance: p.bigint().notNull(),
+      }),
+      (table) => ({
+        pk: primaryKey({ columns: [table.address, table.balance] }),
+      }),
+    ),
+  };
+
+  expect(() => buildSchema({ schema, ordering: "isolated" })).toThrowError();
 });
 
 test("buildScheama() error with view", () => {

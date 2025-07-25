@@ -83,8 +83,8 @@ export type Database = {
     ordering: "omnichain" | "multichain" | "isolated";
   }): Promise<CrashRecoveryCheckpoint>;
   createIndexes(): Promise<void>;
-  createTriggers(chainId?: number): Promise<void>;
-  removeTriggers(chainId?: number): Promise<void>;
+  createTriggers(args?: { chainId: number }): Promise<void>;
+  removeTriggers(args?: { chainId: number }): Promise<void>;
   /**
    * - "safe" checkpoint: The closest-to-tip finalized and completed checkpoint.
    * - "latest" checkpoint: The closest-to-tip completed checkpoint.
@@ -561,6 +561,8 @@ export const createDatabase = async ({
         } catch (_error) {
           const error = _error as Error;
 
+          console.log("error", error);
+
           if (common.shutdown.isKilled) {
             throw new ShutdownError();
           }
@@ -1000,7 +1002,8 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
         });
       }
     },
-    async createTriggers(chainId) {
+    async createTriggers(args) {
+      const chainId = args?.chainId;
       await this.wrap(
         { method: "createTriggers", includeTraceLogs: true },
         async () => {
@@ -1013,7 +1016,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
 
             await qb.drizzle.execute(
               sql.raw(`
-CREATE OR REPLACE FUNCTION "${namespace.schema}".${chainId === undefined ? "" : `${chainId}_`}${getTableNames(table).triggerFn}
+CREATE OR REPLACE FUNCTION "${namespace.schema}".${chainId === undefined ? "" : `_${chainId}_`}${getTableNames(table).triggerFn}
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
@@ -1033,24 +1036,40 @@ $$ LANGUAGE plpgsql`),
 
             await qb.drizzle.execute(
               sql.raw(`
-CREATE OR REPLACE TRIGGER "${getTableNames(table).trigger}"
-AFTER INSERT OR UPDATE OR DELETE ON "${namespace.schema}"."${getTableName(table)}"
-FOR EACH ROW ${chainId === undefined ? "" : `((TG_OP = 'INSERT' AND NEW.chain_id = ${chainId}) OR (TG_OP != 'INSERT' AND OLD.chain_id = ${chainId}))`}
-EXECUTE FUNCTION "${namespace.schema}".${chainId === undefined ? "" : `${chainId}_`}${getTableNames(table).triggerFn};
+CREATE OR REPLACE TRIGGER "${chainId === undefined ? "_" : `_${chainId}_`}${getTableNames(table).trigger}"
+AFTER INSERT OR UPDATE ON "${namespace.schema}"."${getTableName(table)}"
+FOR EACH ROW ${chainId === undefined ? "" : `WHEN (NEW.chain_id = ${chainId})`}
+EXECUTE FUNCTION "${namespace.schema}".${chainId === undefined ? "" : `_${chainId}_`}${getTableNames(table).triggerFn};
+`),
+            );
+
+            await qb.drizzle.execute(
+              sql.raw(`
+CREATE OR REPLACE TRIGGER "${chainId === undefined ? "__" : `__${chainId}_`}${getTableNames(table).trigger}"
+AFTER DELETE ON "${namespace.schema}"."${getTableName(table)}"
+FOR EACH ROW ${chainId === undefined ? "" : `WHEN (OLD.chain_id = ${chainId})`}
+EXECUTE FUNCTION "${namespace.schema}".${chainId === undefined ? "" : `_${chainId}_`}${getTableNames(table).triggerFn};
 `),
             );
           }
         },
       );
     },
-    async removeTriggers(chainId) {
+    async removeTriggers(args) {
+      const chainId = args?.chainId;
       await this.wrap(
         { method: "removeTriggers", includeTraceLogs: true },
         async () => {
           for (const table of tables) {
             await qb.drizzle.execute(
               sql.raw(
-                `DROP TRIGGER IF EXISTS "${chainId === undefined ? "" : `${chainId}_`}${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
+                `DROP TRIGGER IF EXISTS "${chainId === undefined ? "_" : `_${chainId}_`}${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
+              ),
+            );
+
+            await qb.drizzle.execute(
+              sql.raw(
+                `DROP TRIGGER IF EXISTS "${chainId === undefined ? "__" : `__${chainId}_`}${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
               ),
             );
           }

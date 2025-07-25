@@ -753,6 +753,147 @@ test("createTriggers() duplicate", async (context) => {
   await context.common.shutdown.kill();
 });
 
+test("createTriggers() with chainId", async (context) => {
+  const account = onchainTable(
+    "account",
+    (p) => ({
+      chainId: p.integer(),
+      address: p.hex(),
+      balance: p.bigint(),
+    }),
+    (table) => ({
+      pk: primaryKey({ columns: [table.address, table.chainId] }),
+    }),
+  );
+
+  const database = await createDatabase({
+    common: context.common,
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({ schema: { account } }).statements,
+    },
+  });
+
+  await database.migrate({ buildId: "abc", ordering: "isolated" });
+  await database.createTriggers({ chainId: 1 });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    schemaBuild: { schema: { account } },
+    database,
+  });
+
+  await indexingStore
+    .insert(account)
+    .values({ chainId: 1, address: zeroAddress, balance: 10n });
+
+  let rows = await database.qb.drizzle
+    .execute(sql`SELECT * FROM _reorg__account`)
+    .then(({ rows }) => rows);
+
+  expect(rows).toStrictEqual([
+    {
+      chain_id: 1,
+      address: zeroAddress,
+      balance: "10",
+      operation: 0,
+      operation_id: 1,
+      checkpoint: MAX_CHECKPOINT_STRING,
+    },
+  ]);
+
+  await indexingStore
+    .insert(account)
+    .values({ chainId: 2, address: zeroAddress, balance: 10n });
+
+  rows = await database.qb.drizzle
+    .execute(sql`SELECT * FROM _reorg__account`)
+    .then(({ rows }) => rows);
+
+  expect(rows).toStrictEqual([
+    {
+      chain_id: 1,
+      address: zeroAddress,
+      balance: "10",
+      operation: 0,
+      operation_id: 1,
+      checkpoint: MAX_CHECKPOINT_STRING,
+    },
+  ]);
+
+  await database.createTriggers({ chainId: 2 });
+  await indexingStore
+    .update(account, { chainId: 2, address: zeroAddress })
+    .set({
+      balance: 20n,
+    });
+
+  rows = await database.qb.drizzle
+    .execute(sql`SELECT * FROM _reorg__account`)
+    .then(({ rows }) => rows);
+
+  expect(rows).toStrictEqual([
+    {
+      chain_id: 1,
+      address: zeroAddress,
+      balance: "10",
+      operation: 0,
+      operation_id: 1,
+      checkpoint: MAX_CHECKPOINT_STRING,
+    },
+    {
+      chain_id: 2,
+      address: zeroAddress,
+      balance: "10",
+      operation: 1,
+      operation_id: 2,
+      checkpoint: MAX_CHECKPOINT_STRING,
+    },
+  ]);
+
+  await indexingStore.delete(account, { chainId: 2, address: zeroAddress });
+
+  rows = await database.qb.drizzle
+    .execute(sql`SELECT * FROM _reorg__account`)
+    .then(({ rows }) => rows);
+
+  expect(rows).toStrictEqual([
+    {
+      chain_id: 1,
+      address: zeroAddress,
+      balance: "10",
+      operation: 0,
+      operation_id: 1,
+      checkpoint: MAX_CHECKPOINT_STRING,
+    },
+    {
+      chain_id: 2,
+      address: zeroAddress,
+      balance: "10",
+      operation: 1,
+      operation_id: 2,
+      checkpoint: MAX_CHECKPOINT_STRING,
+    },
+    {
+      chain_id: 2,
+      address: zeroAddress,
+      balance: "20",
+      operation: 2,
+      operation_id: 3,
+      checkpoint: MAX_CHECKPOINT_STRING,
+    },
+  ]);
+
+  await context.common.shutdown.kill();
+});
+
 test("commitBlock()", async (context) => {
   const database = await createDatabase({
     common: context.common,
