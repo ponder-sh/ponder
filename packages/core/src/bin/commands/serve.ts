@@ -121,7 +121,6 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     namespace: namespaceResult.result,
     preBuild,
     schemaBuild,
-    ordering: preBuild.ordering,
   });
 
   const apiResult = await build.executeApi({

@@ -184,7 +184,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           namespace: { schema, viewsSchema: undefined },
           preBuild,
           schemaBuild,
-          ordering: preBuild.ordering,
         });
         crashRecoveryCheckpoint = await database.migrate({
           buildId: indexingBuildResult.result.buildId,

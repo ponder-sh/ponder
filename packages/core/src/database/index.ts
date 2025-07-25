@@ -22,6 +22,7 @@ import type { Drizzle } from "@/types/db.js";
 import {
   MAX_CHECKPOINT_STRING,
   decodeCheckpoint,
+  encodeCheckpoint,
   min,
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
@@ -211,13 +212,11 @@ export const createDatabase = async ({
   namespace,
   preBuild,
   schemaBuild,
-  ordering,
 }: {
   common: Common;
   namespace: NamespaceBuild;
-  preBuild: Pick<PreBuild, "databaseConfig">;
+  preBuild: Pick<PreBuild, "databaseConfig" | "ordering">;
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
-  ordering?: "multichain" | "omnichain" | "isolated";
 }): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
 
@@ -420,7 +419,7 @@ export const createDatabase = async ({
     qb,
     PONDER_META,
     PONDER_CHECKPOINT,
-    ordering: ordering ?? "multichain",
+    ordering: preBuild.ordering ?? "multichain",
     async retry(fn) {
       const RETRY_COUNT = 9;
       const BASE_DURATION = 125;
@@ -904,13 +903,12 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
             }
 
             // Remove triggers
-
-            for (const table of tables) {
-              await tx.execute(
-                sql.raw(
-                  `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
-                ),
-              );
+            if (database.ordering === "isolated") {
+              for (const { chainId } of checkpoints) {
+                await database.removeTriggers({ chainId });
+              }
+            } else {
+              await database.removeTriggers(undefined);
             }
 
             // Remove indexes
@@ -927,12 +925,38 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
               });
             }
 
-            // Note: it is an invariant that checkpoints.length > 0;
-            const revertCheckpoint = min(
-              ...checkpoints.map((c) => c.safeCheckpoint),
-            );
-
-            await this.revert({ checkpoint: revertCheckpoint, tx });
+            switch (database.ordering) {
+              case "multichain": {
+                // Note: it is an invariant that checkpoint is not chainId specific
+                const revertCheckpoint_ = decodeCheckpoint(
+                  min(...checkpoints.map((c) => c.safeCheckpoint)),
+                );
+                for (const { chainId } of checkpoints) {
+                  // Replace chainId such that revert correctly cleans up reorg table
+                  const revertCheckpoint = encodeCheckpoint({
+                    ...revertCheckpoint_,
+                    chainId: BigInt(chainId),
+                  });
+                  await this.revert({ checkpoint: revertCheckpoint, tx });
+                }
+                break;
+              }
+              case "omnichain": {
+                // Note: it is an invariant that checkpoints.length > 0;
+                const revertCheckpoint = min(
+                  ...checkpoints.map((c) => c.safeCheckpoint),
+                );
+                await this.revert({ checkpoint: revertCheckpoint, tx });
+                break;
+              }
+              case "isolated": {
+                // Note: it is invariant that checkpoint is chainId specific
+                for (const { safeCheckpoint } of checkpoints) {
+                  await this.revert({ checkpoint: safeCheckpoint, tx });
+                }
+                break;
+              }
+            }
 
             // Note: We don't update the `_ponder_checkpoint` table here, instead we wait for it to be updated
             // in the runtime script.
