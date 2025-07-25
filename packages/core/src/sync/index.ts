@@ -249,7 +249,7 @@ export const createSync = async (params: {
   onRealtimeEvent(event: RealtimeEvent): Promise<void>;
   onFatalError(error: Error): void;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
-  ordering: "omnichain" | "multichain";
+  ordering: "omnichain" | "multichain" | "isolated";
 }): Promise<Sync> => {
   const perChainSync = new Map<
     Chain,

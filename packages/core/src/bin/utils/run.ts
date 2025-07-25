@@ -24,7 +24,7 @@ import { recordAsyncGenerator } from "@/utils/generators.js";
 import { mutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
-import { type TableConfig, getTableName, is, sql } from "drizzle-orm";
+import { type TableConfig, eq, getTableName, is, sql } from "drizzle-orm";
 import { PgTable } from "drizzle-orm/pg-core";
 import type { PgTableWithColumns } from "drizzle-orm/pg-core";
 
@@ -401,7 +401,13 @@ export async function run({
   });
 
   await database.createIndexes();
-  await database.createTriggers();
+  if (preBuild.ordering === "isolated") {
+    for (const chain of indexingBuild.chains) {
+      await database.createTriggers({ chainId: chain.id });
+    }
+  } else {
+    await database.createTriggers();
+  }
 
   if (namespaceBuild.viewsSchema) {
     await database.wrap({ method: "create-views" }, async () => {
@@ -575,7 +581,11 @@ export async function run({
         // Note: `_ponder_checkpoint` is not called here, instead it is called
         // in the `block` case.
 
-        await database.removeTriggers();
+        preBuild.ordering === "isolated"
+          ? await database.removeTriggers({
+              chainId: Number(decodeCheckpoint(event.checkpoint).chainId),
+            })
+          : await database.removeTriggers();
         await database.retry(async () => {
           await database.qb.drizzle.transaction(async (tx) => {
             await database.revert({
@@ -584,14 +594,30 @@ export async function run({
             });
           });
         });
-        await database.createTriggers();
+        preBuild.ordering === "isolated"
+          ? await database.createTriggers({
+              chainId: Number(decodeCheckpoint(event.checkpoint).chainId),
+            })
+          : await database.createTriggers();
 
         break;
 
       case "finalize":
-        await database.qb.drizzle.update(database.PONDER_CHECKPOINT).set({
-          safeCheckpoint: event.checkpoint,
-        });
+        preBuild.ordering === "isolated"
+          ? await database.qb.drizzle
+              .update(database.PONDER_CHECKPOINT)
+              .set({
+                safeCheckpoint: event.checkpoint,
+              })
+              .where(
+                eq(
+                  database.PONDER_CHECKPOINT.chainId,
+                  Number(decodeCheckpoint(event.checkpoint).chainId),
+                ),
+              )
+          : await database.qb.drizzle.update(database.PONDER_CHECKPOINT).set({
+              safeCheckpoint: event.checkpoint,
+            });
 
         await database.finalize({
           checkpoint: event.checkpoint,
