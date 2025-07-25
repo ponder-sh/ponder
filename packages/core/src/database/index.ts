@@ -563,8 +563,6 @@ export const createDatabase = async ({
         } catch (_error) {
           const error = _error as Error;
 
-          console.log("error", error);
-
           if (common.shutdown.isKilled) {
             throw new ShutdownError();
           }
