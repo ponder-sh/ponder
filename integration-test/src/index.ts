@@ -1315,35 +1315,11 @@ const onBuild = async (app: PonderApp) => {
         let isAccepted: boolean;
 
         for await (block of getRealtimeBlockGenerator(chain.id)) {
-          isAccepted = await onBlock(block).then(async (result) => {
-            if (result.type === "accepted") {
-              await result.blockPromise;
-              return true;
-            }
-
-            if (result.type === "reorg") {
-              await result.reorgPromise;
-              return false;
-            }
-
-            return false;
-          });
+          isAccepted = await onBlock(block);
         }
         // Note: last block must be accepted before shutdown
         while (isAccepted! === false) {
-          isAccepted = await onBlock(block!).then(async (result) => {
-            if (result.type === "accepted") {
-              await result.blockPromise;
-              return true;
-            }
-
-            if (result.type === "reorg") {
-              await result.reorgPromise;
-              return false;
-            }
-
-            return false;
-          });
+          isAccepted = await onBlock(block!);
         }
 
         app.common.logger.warn({
