@@ -29,15 +29,14 @@ import type {
   SchemaBuild,
 } from "@/internal/types.js";
 import { createSyncStore } from "@/sync-store/index.js";
-import { type RealtimeEvent, createSync, splitEvents } from "@/sync/index.js";
+import { createSync, splitEvents } from "@/sync/index.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { recordAsyncGenerator } from "@/utils/generators.js";
-import { mutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
-import { getTableName, isTable, sql } from "drizzle-orm";
+import { eq, getTableName, isTable, sql } from "drizzle-orm";
 
 /** Starts the sync and indexing services for the specified build. */
 export async function run({
@@ -74,9 +73,6 @@ export async function run({
     common,
     indexingBuild,
     syncStore,
-    onRealtimeEvent: (realtimeEvent) => {
-      return onRealtimeEvent(realtimeEvent);
-    },
     onFatalError,
     crashRecoveryCheckpoint,
     ordering: preBuild.ordering,
@@ -215,7 +211,7 @@ export async function run({
 
   // Run historical indexing until complete.
   for await (const events of recordAsyncGenerator(
-    sync.getEvents(),
+    sync.getHistoricalEvents(),
     (params) => {
       common.metrics.ponder_historical_concurrency_group_duration.inc(
         { group: "extract" },
@@ -556,7 +552,12 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
     indexingErrorHandler,
   });
 
-  const onRealtimeEvent = mutex(async (event: RealtimeEvent) => {
+  common.logger.info({
+    service: "server",
+    msg: "Started returning 200 responses from /ready endpoint",
+  });
+
+  for await (const event of sync.getRealtimeEvents()) {
     try {
       switch (event.type) {
         case "block": {
@@ -596,7 +597,6 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
                       throw result.error;
                     } else {
                       onReloadableError(result.error);
-                      onRealtimeEvent.pause();
                       return;
                     }
                   }
@@ -632,26 +632,12 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
             }
           }
 
-          if (event.checkpoints.length > 0) {
-            await database.userQB.wrap({ label: "update_checkpoints" }, (db) =>
-              db
-                .insert(PONDER_CHECKPOINT)
-                .values(
-                  event.checkpoints.map(({ chainId, checkpoint }) => ({
-                    chainName: indexingBuild.chains.find(
-                      (chain) => chain.id === chainId,
-                    )!.name,
-                    chainId,
-                    safeCheckpoint: checkpoint,
-                    latestCheckpoint: checkpoint,
-                  })),
-                )
-                .onConflictDoUpdate({
-                  target: PONDER_CHECKPOINT.chainName,
-                  set: { latestCheckpoint: sql`excluded.latest_checkpoint` },
-                }),
-            );
-          }
+          await database.userQB.wrap({ label: "update_checkpoints" }, (db) =>
+            db
+              .update(PONDER_CHECKPOINT)
+              .set({ latestCheckpoint: event.checkpoint })
+              .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
+          );
 
           break;
         }
@@ -719,15 +705,8 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
         msg: `Fatal error: Unable to process ${event.type} event`,
         error: error as Error,
       });
-      onRealtimeEvent.pause();
       onFatalError(error as Error);
+      return;
     }
-  });
-
-  await sync.startRealtime();
-
-  common.logger.info({
-    service: "server",
-    msg: "Started returning 200 responses from /ready endpoint",
-  });
+  }
 }
