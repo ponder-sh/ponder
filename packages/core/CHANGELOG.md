@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.38
+
+### Patch Changes
+
+- [#1915](https://github.com/ponder-sh/ponder/pull/1915) [`f16cb9f`](https://github.com/ponder-sh/ponder/commit/f16cb9f51cae63405102fffff88eb0f3e1386b5f) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated `getStatus()` in `@ponder/client` to use the `/status` path with a "GET" request.
+
 ## 0.11.37
 
 ### Patch Changes
