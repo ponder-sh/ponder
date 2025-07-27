@@ -271,7 +271,7 @@ export const createQB = <
 
         return retryLogMetricErrorWrap(
           () =>
-            _transaction((tx) => {
+            _transaction(async (tx) => {
               addQBMethods(tx);
 
               // @ts-expect-error
@@ -304,7 +304,12 @@ export const createQB = <
                 }
               };
 
-              return callback(tx);
+              const result = await callback(tx);
+              // @ts-ignore
+              tx.wrap = undefined;
+              // @ts-ignore
+              tx.transaction = undefined;
+              return result;
             }, config),
           { isTransactionCallback: false },
         );
@@ -326,8 +331,11 @@ export const createQB = <
 
         return retryLogMetricErrorWrap(
           () =>
-            _transaction((tx) => {
+            _transaction(async (tx) => {
               addQBMethods(tx);
+
+              // @ts-expect-error
+              tx.raw = tx;
 
               Object.assign(tx, { $dialect: dialect });
               // @ts-expect-error
@@ -356,7 +364,12 @@ export const createQB = <
                 }
               };
 
-              return callback(tx);
+              const result = await callback(tx);
+              // @ts-ignore
+              tx.wrap = undefined;
+              // @ts-ignore
+              tx.transaction = undefined;
+              return result;
             }, config),
           { label, isTransactionCallback: false },
         );
