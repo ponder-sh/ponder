@@ -665,7 +665,6 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
           });
 
           break;
-
         case "finalize":
           await database.userQB.transaction(async (tx) => {
             await tx.wrap((tx) =>
@@ -695,7 +694,6 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
           });
 
           break;
-
         default:
           never(event);
       }

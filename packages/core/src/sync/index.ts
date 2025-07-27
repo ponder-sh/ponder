@@ -630,7 +630,6 @@ export const createSync = async (params: {
 
     for await (const { chain, event } of mergeAsyncGeneratorsWithRealtimeOrder(
       eventGenerators,
-      params.ordering,
     )) {
       const { syncProgress, childAddresses } = perChainSync.get(chain)!;
 
@@ -1774,51 +1773,42 @@ export async function* mergeAsyncGeneratorsWithEventOrder(
 
 export async function* mergeAsyncGeneratorsWithRealtimeOrder(
   generators: AsyncGenerator<{ chain: Chain; event: RealtimeSyncEvent }>[],
-  ordering: "omnichain" | "multichain",
 ): AsyncGenerator<{ chain: Chain; event: RealtimeSyncEvent }> {
-  if (ordering === "omnichain") {
-    return mergeAsyncGenerators(generators);
-  }
-
   const results = await Promise.all(generators.map((gen) => gen.next()));
 
-  // const finalizeResults = new Array(generators.length).fill(undefined) as (
-  //   | IteratorResult<{
-  //       chain: Chain;
-  //       event: Extract<RealtimeSyncEvent, { type: "finalize" }>;
-  //     }>
-  //   | undefined
-  // )[];
-
-  // Note: It is an invariant that every initial result is a block event.
-
   while (results.some((res) => res.done !== true)) {
-    for (const result of results) {
-      if (result.done && result.value.event.type === "finalize") {
-        // TODO(kyle) this is wrong
-        yield result.value;
-      } else if (result.done && result.value.event.type === "reorg") {
-        yield result.value;
-      }
-    }
-
-    const blockCheckpoints = results.map((result) =>
-      result.done
-        ? undefined
-        : encodeCheckpoint(
-            blockToCheckpoint(
-              result.value.event.block,
-              result.value.chain.id,
-              "up",
+    let index: number;
+    if (
+      results.some(
+        (result) =>
+          result.done === false &&
+          (result.value.event.type === "reorg" ||
+            result.value.event.type === "finalize"),
+      )
+    ) {
+      index = results.findIndex(
+        (result) =>
+          result.done === false && result.value.event.type === "reorg",
+      );
+    } else {
+      const blockCheckpoints = results.map((result) =>
+        result.done
+          ? undefined
+          : encodeCheckpoint(
+              blockToCheckpoint(
+                result.value.event.block,
+                result.value.chain.id,
+                "up",
+              ),
             ),
-          ),
-    );
+      );
 
-    const supremum = min(...blockCheckpoints);
+      const supremum = min(...blockCheckpoints);
 
-    const index = blockCheckpoints.findIndex(
-      (checkpoint) => checkpoint === supremum,
-    );
+      index = blockCheckpoints.findIndex(
+        (checkpoint) => checkpoint === supremum,
+      );
+    }
 
     const resultPromise = generators[index]!.next();
 

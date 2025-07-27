@@ -137,6 +137,9 @@ export async function* recordAsyncGenerator<T>(
   }
 }
 
+/**
+ * Creates an async generator that yields values from a callback.
+ */
 export function createCallbackGenerator<T, P>(): {
   callback: (value: T) => Promise<P>;
   generator: AsyncGenerator<
