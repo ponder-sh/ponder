@@ -632,12 +632,10 @@ export const realtimeBlockEngine = async (
     };
   } else {
     return async function* (chainId: number) {
-      let next = await simulate(chainId);
       while (true) {
-        const promise = simulate(chainId);
+        const next = await simulate(chainId);
         if (next === undefined) return;
         yield next;
-        next = await promise;
       }
     };
   }
