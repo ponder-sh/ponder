@@ -67,6 +67,7 @@ export class MetricsService {
   ponder_indexing_store_raw_sql_duration: prometheus.Histogram;
 
   ponder_sync_block: prometheus.Gauge<"chain">;
+  ponder_sync_block_timestamp: prometheus.Gauge<"chain">;
   ponder_sync_is_realtime: prometheus.Gauge<"chain">;
   ponder_sync_is_complete: prometheus.Gauge<"chain">;
 
@@ -245,6 +246,12 @@ export class MetricsService {
     this.ponder_sync_block = new prometheus.Gauge({
       name: "ponder_sync_block",
       help: "Closest-to-tip synced block number",
+      labelNames: ["chain"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_sync_block_timestamp = new prometheus.Gauge({
+      name: "ponder_sync_block_timestamp",
+      help: "Closest-to-tip synced block timestamp",
       labelNames: ["chain"] as const,
       registers: [this.registry],
     });
