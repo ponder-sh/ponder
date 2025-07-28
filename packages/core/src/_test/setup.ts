@@ -194,7 +194,6 @@ export async function setupDatabaseServices(
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
-      ordering: "multichain",
     },
     schemaBuild: {
       schema: overrides.schemaBuild?.schema ?? {},
@@ -204,6 +203,7 @@ export async function setupDatabaseServices(
 
   await database.migrate({
     buildId: overrides.indexingBuild?.buildId ?? "abc",
+    ordering: "multichain",
   });
 
   await database.migrateSync().catch((err) => {

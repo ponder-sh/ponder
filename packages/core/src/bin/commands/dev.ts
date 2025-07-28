@@ -187,6 +187,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         });
         crashRecoveryCheckpoint = await database.migrate({
           buildId: indexingBuildResult.result.buildId,
+          ordering: preBuild.ordering,
         });
 
         const apiResult = await build.executeApi({

@@ -58,7 +58,6 @@ export type Database = {
   qb: QueryBuilder;
   PONDER_META: ReturnType<typeof getPonderMetaTable>;
   PONDER_CHECKPOINT: ReturnType<typeof getPonderCheckpointTable>;
-  ordering: "multichain" | "omnichain" | "isolated";
   retry: <T>(fn: () => Promise<T>) => Promise<T>;
   record: <T>(
     options: { method: string; includeTraceLogs?: boolean },
@@ -80,7 +79,10 @@ export type Database = {
    */
   migrate({
     buildId,
-  }: Pick<IndexingBuild, "buildId">): Promise<CrashRecoveryCheckpoint>;
+    ordering,
+  }: Pick<IndexingBuild, "buildId"> & {
+    ordering: "multichain" | "omnichain" | "isolated";
+  }): Promise<CrashRecoveryCheckpoint>;
   createIndexes(): Promise<void>;
   createTriggers(args?: { chainId: number }): Promise<void>;
   removeTriggers(args?: { chainId: number }): Promise<void>;
@@ -115,14 +117,17 @@ export type Database = {
   revert(args: {
     checkpoint: string;
     tx: PgTransaction<PgQueryResultHKT, Schema>;
+    ordering: "multichain" | "omnichain" | "isolated";
   }): Promise<void>;
   finalize(args: {
     checkpoint: string;
     db: Drizzle<Schema>;
+    ordering: "multichain" | "omnichain" | "isolated";
   }): Promise<void>;
   commitBlock(args: {
     checkpoint: string;
     db: Drizzle<Schema>;
+    ordering: "multichain" | "omnichain" | "isolated";
   }): Promise<void>;
 };
 
@@ -215,7 +220,7 @@ export const createDatabase = async ({
 }: {
   common: Common;
   namespace: NamespaceBuild;
-  preBuild: PreBuild;
+  preBuild: Pick<PreBuild, "databaseConfig">;
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
 }): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
@@ -419,7 +424,6 @@ export const createDatabase = async ({
     qb,
     PONDER_META,
     PONDER_CHECKPOINT,
-    ordering: preBuild.ordering ?? "multichain",
     async retry(fn) {
       const RETRY_COUNT = 9;
       const BASE_DURATION = 125;
@@ -684,7 +688,7 @@ export const createDatabase = async ({
         },
       );
     },
-    async migrate({ buildId }) {
+    async migrate({ buildId, ordering }) {
       await this.wrap(
         { method: "createPonderSystemTables", includeTraceLogs: true },
         async () => {
@@ -919,7 +923,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
             };
 
             // Remove triggers
-            if (database.ordering === "isolated") {
+            if (ordering === "isolated") {
               for (const { chainId } of checkpoints) {
                 await removeTriggers(chainId);
               }
@@ -941,7 +945,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
               });
             }
 
-            switch (database.ordering) {
+            switch (ordering) {
               case "multichain": {
                 // Note: it is an invariant that checkpoint is not chainId specific
                 const revertCheckpoint_ = decodeCheckpoint(
@@ -953,7 +957,11 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
                     ...revertCheckpoint_,
                     chainId: BigInt(chainId),
                   });
-                  await this.revert({ checkpoint: revertCheckpoint, tx });
+                  await this.revert({
+                    checkpoint: revertCheckpoint,
+                    tx,
+                    ordering,
+                  });
                 }
                 break;
               }
@@ -962,13 +970,21 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
                 const revertCheckpoint = min(
                   ...checkpoints.map((c) => c.safeCheckpoint),
                 );
-                await this.revert({ checkpoint: revertCheckpoint, tx });
+                await this.revert({
+                  checkpoint: revertCheckpoint,
+                  tx,
+                  ordering,
+                });
                 break;
               }
               case "isolated": {
                 // Note: it is invariant that checkpoint is chainId specific
                 for (const { safeCheckpoint } of checkpoints) {
-                  await this.revert({ checkpoint: safeCheckpoint, tx });
+                  await this.revert({
+                    checkpoint: safeCheckpoint,
+                    tx,
+                    ordering,
+                  });
                 }
                 break;
               }
@@ -1152,12 +1168,12 @@ EXECUTE FUNCTION "${namespace.schema}".${getTableNames(table).triggerFn(chainId)
           .then((result) => result[0]?.value.is_ready === 1);
       });
     },
-    async revert({ checkpoint, tx }) {
+    async revert({ checkpoint, tx, ordering }) {
       await this.record(
         { method: "revert", includeTraceLogs: true },
         async () => {
           let minOperationId: number | undefined;
-          if (database.ordering === "multichain") {
+          if (ordering === "multichain") {
             minOperationId = await tx
               .execute(
                 sql.raw(`
@@ -1219,7 +1235,7 @@ reverted2 AS (
 ) SELECT COUNT(*) FROM reverted1 as count;`;
 
             let result: unknown;
-            switch (database.ordering) {
+            switch (ordering) {
               case "multichain": {
                 result = await tx.execute(`
 WITH reverted1 AS (
@@ -1255,11 +1271,11 @@ WITH reverted1 AS (
         },
       );
     },
-    async finalize({ checkpoint, db }) {
+    async finalize({ checkpoint, db, ordering }) {
       await this.record(
         { method: "finalize", includeTraceLogs: true },
         async () => {
-          switch (database.ordering) {
+          switch (ordering) {
             case "multichain":
             case "omnichain": {
               const min_op_id = await db
@@ -1332,13 +1348,13 @@ WITH deleted AS (
         msg: `Updated finalized checkpoint to (timestamp=${decoded.blockTimestamp} chainId=${decoded.chainId} block=${decoded.blockNumber})`,
       });
     },
-    async commitBlock({ checkpoint, db }) {
+    async commitBlock({ checkpoint, db, ordering }) {
       const chainId = Number(decodeCheckpoint(checkpoint).chainId);
       await Promise.all(
         tables.map((table) =>
           this.wrap({ method: "complete" }, async () => {
             const reorgTable = getReorgTable(table);
-            if (database.ordering === "isolated") {
+            if (ordering === "isolated") {
               await db.execute(
                 sql.raw(`
 UPDATE "${namespace.schema}"."${getTableName(getReorgTable(table))}"
