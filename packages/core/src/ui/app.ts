@@ -20,13 +20,6 @@ export const initialUiState: UiState = {
   sync: [],
   indexing: {
     hasError: false,
-    overall: {
-      completedSeconds: 0,
-      cachedSeconds: 0,
-      totalSeconds: 0,
-      progress: 0,
-      totalEvents: 0,
-    },
     events: [],
   },
   app: {
@@ -197,7 +190,7 @@ export const buildUiLines = (ui: UiState): string[] => {
   lines.push(progressLabel);
   lines.push("");
 
-  const progressValue = app.mode === "realtime" ? 1 : app.progress;
+  const progressValue = app.mode === "realtime" ? 1 : (app.progress ?? 0);
   const progressBar = buildProgressBar(progressValue, 1, 48);
   let progressText = `${progressBar} ${formatPercentage(progressValue)}`;
 
