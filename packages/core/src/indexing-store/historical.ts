@@ -301,7 +301,9 @@ export const createHistoricalIndexingStore = ({
         } catch {}
 
         if (isSelectOnly === false) {
-          await indexingCache.flush({ client });
+          for (const [tableName, { client }] of context) {
+            await indexingCache.flush({ client, tableName });
+          }
           indexingCache.invalidate();
           indexingCache.clear();
         } else {
@@ -312,13 +314,17 @@ export const createHistoricalIndexingStore = ({
             tableNames = await findTableNames(_sql);
           } catch {}
 
-          await indexingCache.flush({ client, tableNames });
+          for (const [tableName, { client }] of context) {
+            await indexingCache.flush({ client, tableName });
+          }
         }
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
         const endClock = startClock();
 
         try {
+          // TODO: HANDLE THIS
+          //@ts-ignore
           const result = await db._.session
             .prepareQuery(query, undefined, undefined, method === "all")
             .execute();

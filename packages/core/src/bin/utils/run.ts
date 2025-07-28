@@ -363,7 +363,7 @@ export async function run({
                   safeCheckpoint: checkpoint,
                 }),
               ),
-              db: tx,
+              db: context.get("checkpoint")!.tx,
             });
 
             common.metrics.ponder_historical_transform_duration.inc(

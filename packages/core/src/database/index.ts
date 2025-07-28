@@ -644,6 +644,20 @@ export const createDatabase = async ({
           }
         }
 
+        const client = await (database.driver as { user: Pool }).user.connect();
+        try {
+          await client.query("BEGIN");
+          const tx = drizzleNodePg(client, {
+            casing: "snake_case",
+            schema: schemaBuild.schema,
+          });
+          perTableTransactionContext.set("checkpoint", { client, tx });
+        } catch (error) {
+          await client.query("ROLLBACK");
+          client.release();
+          throw error;
+        }
+
         const result = await fn(perTableTransactionContext);
         return result;
       } else {
@@ -668,6 +682,20 @@ export const createDatabase = async ({
             await client.query("ROLLBACK");
             throw error;
           }
+        }
+
+        const client = (database.driver as { instance: PGlite }).instance;
+
+        try {
+          await client.query("BEGIN");
+          const tx = drizzlePglite(client, {
+            casing: "snake_case",
+            schema: schemaBuild.schema,
+          });
+          perTableTransactionContext.set("checkpoint", { client, tx });
+        } catch (error) {
+          await client.query("ROLLBACK");
+          throw error;
         }
 
         const result = await fn(perTableTransactionContext);
