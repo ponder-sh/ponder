@@ -377,7 +377,11 @@ const defaultTransactionInclude: `transaction.${keyof Transaction}`[] = [
   "transaction.transactionIndex",
   "transaction.v",
   "transaction.value",
-  // NOTE: type specific properties are not included
+  "transaction.type",
+  "transaction.gasPrice",
+  "transaction.accessList",
+  "transaction.maxFeePerGas",
+  "transaction.maxPriorityFeePerGas",
 ];
 
 export const defaultTransactionReceiptInclude: `transactionReceipt.${keyof TransactionReceipt}`[] =
