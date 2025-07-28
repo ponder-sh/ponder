@@ -644,11 +644,8 @@ export const createDatabase = async ({
           }
         }
 
-        try {
-          const result = await fn(perTableTransactionContext);
-
-          return result;
-        } catch (error) {}
+        const result = await fn(perTableTransactionContext);
+        return result;
       } else {
         const perTableTransactionContext: Map<
           string,
@@ -673,49 +670,9 @@ export const createDatabase = async ({
           }
         }
 
-        // try {
-        //   // const result = await fn(perTableTransactionContext);
-        //   for (const [tableName, { client, tx }] of perTableTransactionContext.entries()) {
-        //     await client.query("COMMIT");
-        //   }
-        // } catch (error) {
-        //   await
-        // }
+        const result = await fn(perTableTransactionContext);
+        return result;
       }
-
-      // if (dialect === "postgres") {
-      //   const client = await (database.driver as { user: Pool }).user.connect();
-      //   try {
-      //     await client.query("BEGIN");
-      //     const tx = drizzleNodePg(client, {
-      //       casing: "snake_case",
-      //       schema: schemaBuild.schema,
-      //     });
-      //     const result = await fn(client, tx);
-      //     await client.query("COMMIT");
-      //     return result;
-      //   } catch (error) {
-      //     await client.query("ROLLBACK");
-      //     throw error;
-      //   } finally {
-      //     client.release();
-      //   }
-      // } else {
-      //   const client = (database.driver as { instance: PGlite }).instance;
-      //   try {
-      //     await client.query("BEGIN");
-      //     const tx = drizzlePglite(client, {
-      //       casing: "snake_case",
-      //       schema: schemaBuild.schema,
-      //     });
-      //     const result = await fn(client, tx);
-      //     await client.query("COMMIT");
-      //     return result;
-      //   } catch (error) {
-      //     await client?.query("ROLLBACK");
-      //     throw error;
-      //   }
-      // }
     },
     async migrateSync() {
       await this.wrap(

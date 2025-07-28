@@ -36,13 +36,12 @@ test("flush() insert", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (context_) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      context: context_,
     });
 
     await indexingStore.insert(schema.account).values({
@@ -82,13 +81,12 @@ test("flush() update", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (context_) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      context: context_,
     });
 
     // mutate the cache to skip hot loops
@@ -167,13 +165,12 @@ test("flush() encoding", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (context_) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      context: context_,
     });
 
     await indexingStore.insert(schema.test).values({
@@ -230,13 +227,12 @@ test("flush() encoding escape", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (context_) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      context: context_,
     });
 
     const values = [
@@ -310,13 +306,12 @@ test("prefetch() uses profile metadata", async (context) => {
 
   indexingCache.event = event;
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (context_) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      context: context_,
     });
 
     await indexingStore
@@ -367,13 +362,12 @@ test("prefetch() evicts rows", async (context) => {
   // skip hot loop
   indexingCache.invalidate();
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (context_) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      context: context_,
     });
 
     await indexingStore.insert(schema.account).values({

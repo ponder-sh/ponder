@@ -21,14 +21,18 @@ export const createHistoricalIndexingStore = ({
   common,
   schemaBuild: { schema },
   indexingCache,
-  db,
-  client,
+  context,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   indexingCache: IndexingCache;
-  db: Drizzle<Schema>;
-  client: PoolClient | PGlite;
+  context: Map<
+    string,
+    {
+      tx: Drizzle<Schema>;
+      client: PoolClient | PGlite;
+    }
+  >;
 }): IndexingStore => {
   return {
     // @ts-ignore
@@ -38,11 +42,13 @@ export const createHistoricalIndexingStore = ({
         method: "find",
       });
       checkOnchainTable(table, "find");
+      const db = context.get(getTableName(table))!.tx;
       return indexingCache.get({ table, key, db });
     },
 
     // @ts-ignore
     insert(table: Table) {
+      const db = context.get(getTableName(table))!.tx;
       return {
         values: (values: any) => {
           // @ts-ignore
@@ -216,8 +222,9 @@ export const createHistoricalIndexingStore = ({
                 return Promise.resolve(result).then(onFulfilled, onRejected);
               }
             },
-            catch: (onRejected) => inner.then(undefined, onRejected),
-            finally: (onFinally) =>
+            catch: (onRejected): Promise<any> =>
+              inner.then(undefined, onRejected),
+            finally: (onFinally): Promise<any> =>
               inner.then(
                 (value: any) => {
                   onFinally?.();
@@ -237,6 +244,7 @@ export const createHistoricalIndexingStore = ({
     },
     // @ts-ignore
     update(table: Table, key) {
+      const db = context.get(getTableName(table))!.tx;
       return {
         set: async (values: any) => {
           common.metrics.ponder_indexing_store_queries_total.inc({
@@ -280,6 +288,7 @@ export const createHistoricalIndexingStore = ({
         method: "delete",
       });
       checkOnchainTable(table, "delete");
+      const db = context.get(getTableName(table))!.tx;
       return indexingCache.delete({ table, key, db });
     },
     // @ts-ignore

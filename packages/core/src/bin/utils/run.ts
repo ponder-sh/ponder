@@ -130,13 +130,12 @@ export async function run({
   // If the initial checkpoint is zero, we need to run setup events.
   if (crashRecoveryCheckpoint === undefined) {
     await database.retry(async () => {
-      await database.transaction(async (client, tx) => {
+      await database.transaction(async (context) => {
         const historicalIndexingStore = createHistoricalIndexingStore({
           common,
           schemaBuild,
           indexingCache,
-          db: tx,
-          client,
+          context,
         });
         const result = await indexing.processSetupEvents({
           db: historicalIndexingStore,
@@ -147,15 +146,26 @@ export async function run({
           return;
         }
 
-        try {
-          await indexingCache.flush({ client });
-        } catch (error) {
-          if (error instanceof FlushError) {
-            onReloadableError(error as Error);
-            return;
-          }
-          throw error;
-        }
+        const tables = Object.values(schemaBuild.schema).filter(
+          (table): table is PgTableWithColumns<TableConfig> =>
+            is(table, PgTable),
+        );
+
+        await Promise.all(
+          tables.map(async (table) => {
+            try {
+              const tableName = getTableName(table);
+              const { client } = context.get(tableName)!;
+              await indexingCache.flush({ client, tableName });
+            } catch (error) {
+              if (error instanceof FlushError) {
+                onReloadableError(error as Error);
+                return;
+              }
+              throw error;
+            }
+          }),
+        );
       });
     });
 
@@ -204,7 +214,7 @@ export async function run({
       endClock = startClock();
       await database.retry(async () => {
         await database
-          .transaction(async (client, tx) => {
+          .transaction(async (context) => {
             common.metrics.ponder_historical_transform_duration.inc(
               { step: "begin" },
               endClock(),
@@ -215,8 +225,7 @@ export async function run({
               common,
               schemaBuild,
               indexingCache,
-              db: tx,
-              client,
+              context,
             });
 
             const eventChunks = chunk(events.events, 93);
@@ -316,15 +325,26 @@ export async function run({
             // Note: at this point, the next events can be preloaded, as long as the are not indexed until
             // the "flush" + "finalize" is complete.
 
-            try {
-              await indexingCache.flush({ client });
-            } catch (error) {
-              if (error instanceof FlushError) {
-                onReloadableError(error as Error);
-                return;
-              }
-              throw error;
-            }
+            const tables = Object.values(schemaBuild.schema).filter(
+              (table): table is PgTableWithColumns<TableConfig> =>
+                is(table, PgTable),
+            );
+
+            await Promise.all(
+              tables.map(async (table) => {
+                try {
+                  const tableName = getTableName(table);
+                  const { client } = context.get(tableName)!;
+                  await indexingCache.flush({ client, tableName });
+                } catch (error) {
+                  if (error instanceof FlushError) {
+                    onReloadableError(error as Error);
+                    return;
+                  }
+                  throw error;
+                }
+              }),
+            );
 
             common.metrics.ponder_historical_transform_duration.inc(
               { step: "load" },
