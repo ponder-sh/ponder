@@ -24,7 +24,7 @@ import { recordAsyncGenerator } from "@/utils/generators.js";
 import { mutex } from "@/utils/mutex.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
-import { type TableConfig, getTableName, is, sql } from "drizzle-orm";
+import { type TableConfig, eq, getTableName, is, sql } from "drizzle-orm";
 import { PgTable } from "drizzle-orm/pg-core";
 import type { PgTableWithColumns } from "drizzle-orm/pg-core";
 
@@ -587,9 +587,18 @@ export async function run({
         break;
 
       case "finalize":
-        await database.qb.drizzle.update(database.PONDER_CHECKPOINT).set({
-          safeCheckpoint: event.checkpoint,
-        });
+        if (preBuild.ordering === "omnichain") {
+          await database.qb.drizzle.update(database.PONDER_CHECKPOINT).set({
+            safeCheckpoint: event.checkpoint,
+          });
+        } else {
+          await database.qb.drizzle
+            .update(database.PONDER_CHECKPOINT)
+            .set({
+              safeCheckpoint: event.checkpoint,
+            })
+            .where(eq(database.PONDER_CHECKPOINT.chainId, event.chain.id));
+        }
 
         await database.finalize({
           checkpoint: event.checkpoint,
