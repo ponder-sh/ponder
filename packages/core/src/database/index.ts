@@ -67,7 +67,12 @@ export type Database = {
     fn: () => Promise<T>,
   ) => Promise<T>;
   transaction: <T>(
-    fn: (client: PoolClient | PGlite, tx: Drizzle<Schema>) => Promise<T>,
+    fn: (
+      context: Map<
+        string,
+        { client: PoolClient | PGlite; tx: Drizzle<Schema> }
+      >,
+    ) => Promise<T>,
   ) => Promise<T>;
   /** Migrate the `ponder_sync` schema. */
   migrateSync(): Promise<void>;
@@ -613,38 +618,104 @@ export const createDatabase = async ({
     },
     async transaction(fn) {
       if (dialect === "postgres") {
-        const client = await (database.driver as { user: Pool }).user.connect();
-        try {
-          await client.query("BEGIN");
-          const tx = drizzleNodePg(client, {
-            casing: "snake_case",
-            schema: schemaBuild.schema,
-          });
-          const result = await fn(client, tx);
-          await client.query("COMMIT");
-          return result;
-        } catch (error) {
-          await client.query("ROLLBACK");
-          throw error;
-        } finally {
-          client.release();
+        const perTableTransactionContext: Map<
+          string,
+          {
+            client: PoolClient;
+            tx: Drizzle<Schema>;
+          }
+        > = new Map();
+
+        for (const table of tables) {
+          const client = await (
+            database.driver as { user: Pool }
+          ).user.connect();
+          try {
+            await client.query("BEGIN");
+            const tx = drizzleNodePg(client, {
+              casing: "snake_case",
+              schema: schemaBuild.schema,
+            });
+            perTableTransactionContext.set(getTableName(table), { client, tx });
+          } catch (error) {
+            await client.query("ROLLBACK");
+            client.release();
+            throw error;
+          }
         }
+
+        try {
+          const result = await fn(perTableTransactionContext);
+
+          return result;
+        } catch (error) {}
       } else {
-        const client = (database.driver as { instance: PGlite }).instance;
-        try {
-          await client.query("BEGIN");
-          const tx = drizzlePglite(client, {
-            casing: "snake_case",
-            schema: schemaBuild.schema,
-          });
-          const result = await fn(client, tx);
-          await client.query("COMMIT");
-          return result;
-        } catch (error) {
-          await client?.query("ROLLBACK");
-          throw error;
+        const perTableTransactionContext: Map<
+          string,
+          {
+            client: PGlite;
+            tx: Drizzle<Schema>;
+          }
+        > = new Map();
+        for (const table of tables) {
+          const client = (database.driver as { instance: PGlite }).instance;
+
+          try {
+            await client.query("BEGIN");
+            const tx = drizzlePglite(client, {
+              casing: "snake_case",
+              schema: schemaBuild.schema,
+            });
+            perTableTransactionContext.set(getTableName(table), { client, tx });
+          } catch (error) {
+            await client.query("ROLLBACK");
+            throw error;
+          }
         }
+
+        // try {
+        //   // const result = await fn(perTableTransactionContext);
+        //   for (const [tableName, { client, tx }] of perTableTransactionContext.entries()) {
+        //     await client.query("COMMIT");
+        //   }
+        // } catch (error) {
+        //   await
+        // }
       }
+
+      // if (dialect === "postgres") {
+      //   const client = await (database.driver as { user: Pool }).user.connect();
+      //   try {
+      //     await client.query("BEGIN");
+      //     const tx = drizzleNodePg(client, {
+      //       casing: "snake_case",
+      //       schema: schemaBuild.schema,
+      //     });
+      //     const result = await fn(client, tx);
+      //     await client.query("COMMIT");
+      //     return result;
+      //   } catch (error) {
+      //     await client.query("ROLLBACK");
+      //     throw error;
+      //   } finally {
+      //     client.release();
+      //   }
+      // } else {
+      //   const client = (database.driver as { instance: PGlite }).instance;
+      //   try {
+      //     await client.query("BEGIN");
+      //     const tx = drizzlePglite(client, {
+      //       casing: "snake_case",
+      //       schema: schemaBuild.schema,
+      //     });
+      //     const result = await fn(client, tx);
+      //     await client.query("COMMIT");
+      //     return result;
+      //   } catch (error) {
+      //     await client?.query("ROLLBACK");
+      //     throw error;
+      //   }
+      // }
     },
     async migrateSync() {
       await this.wrap(
