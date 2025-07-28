@@ -843,14 +843,9 @@ export const createRealtimeSync = (
         });
 
         for (const pendingBlock of pendingBlocks) {
-          for await (const event of reconcileBlock(pendingBlock)) {
-            yield event;
-          }
+          yield* reconcileBlock(pendingBlock);
         }
-
-        for await (const event of reconcileBlock(blockWithEventData)) {
-          yield event;
-        }
+        yield* reconcileBlock(blockWithEventData);
         return;
       }
 
@@ -1067,9 +1062,7 @@ export const createRealtimeSync = (
 
         await realtimeSyncLock.lock();
 
-        for await (const event of reconcileBlock(blockWithEventData)) {
-          yield event;
-        }
+        yield* reconcileBlock(blockWithEventData);
 
         realtimeSyncLock.unlock();
       } catch (_error) {
