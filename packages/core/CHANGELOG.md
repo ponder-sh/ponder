@@ -1,5 +1,13 @@
 # ponder
 
+## 0.11.40
+
+### Patch Changes
+
+- [#1924](https://github.com/ponder-sh/ponder/pull/1924) [`e5c2b2f`](https://github.com/ponder-sh/ponder/commit/e5c2b2f8c224e228afd829f1aa915f9225d690f7) Thanks [@typedarray](https://github.com/typedarray)! - Added a new metric `ponder_sync_block_timestamp`.
+
+- [#1923](https://github.com/ponder-sh/ponder/pull/1923) [`7194a47`](https://github.com/ponder-sh/ponder/commit/7194a47595631c9443740d858c8815f4cdc7a46b) Thanks [@kyscott18](https://github.com/kyscott18)! - Removed RPC and database config from `buildId` calculation.
+
 ## 0.11.39
 
 ### Patch Changes
