@@ -31,6 +31,7 @@ import {
   type PonderApp,
   start,
 } from "../../packages/core/src/bin/commands/start.js";
+import { createQB } from "../../packages/core/src/database/queryBuilder.js";
 import { getPrimaryKeyColumns } from "../../packages/core/src/drizzle/index.js";
 import type {
   Factory,
@@ -51,6 +52,7 @@ import { promiseWithResolvers } from "../../packages/core/src/utils/promiseWithR
 import { _eth_getBlockByNumber } from "../../packages/core/src/utils/rpc.js";
 import * as SUPER_ASSESSMENT from "../apps/super-assessment/schema.js";
 import { metadata } from "../schema.js";
+import { dbSim } from "./db-sim.js";
 import { type RpcBlockHeader, realtimeBlockEngine, sim } from "./rpc-sim.js";
 import { getJoinConditions } from "./sql.js";
 
@@ -250,6 +252,60 @@ const pwr = promiseWithResolvers<void>();
 const onBuild = async (app: PonderApp) => {
   app.preBuild.ordering = SIM_PARAMS.ORDERING;
   app.common.options.syncEventsQuerySize = 200;
+
+  // app.common.logger.warn({
+  //   service: "sim",
+  //   msg: "Mocking syncQB, adminQB, userQB, and readonlyQB",
+  // });
+
+  // app.database.syncQB = createQB(
+  //   dbSim(
+  //     drizzle(app.database.driver.sync!, {
+  //       casing: "snake_case",
+  //       schema: PONDER_SYNC,
+  //     }),
+  //   ),
+  //   {
+  //     common: app.common,
+  //     isAdmin: false,
+  //   },
+  // );
+
+  // app.database.adminQB = createQB(
+  //   dbSim(
+  //     drizzle(app.database.driver.admin!, {
+  //       casing: "snake_case",
+  //     }),
+  //   ),
+  //   {
+  //     common: app.common,
+  //     isAdmin: true,
+  //   },
+  // );
+
+  // app.database.userQB = createQB(
+  //   dbSim(
+  //     drizzle(app.database.driver.user!, {
+  //       casing: "snake_case",
+  //     }),
+  //   ),
+  //   {
+  //     common: app.common,
+  //     isAdmin: false,
+  //   },
+  // );
+
+  // app.database.readonlyQB = createQB(
+  //   dbSim(
+  //     drizzle(app.database.driver.readonly!, {
+  //       casing: "snake_case",
+  //     }),
+  //   ),
+  //   {
+  //     common: app.common,
+  //     isAdmin: false,
+  //   },
+  // );
 
   if (APP_ID === "super-assessment") {
     const random = seedrandom(`${SEED}_super_assessment_filter`);
