@@ -184,6 +184,7 @@ export async function setupDatabaseServices(
 }> {
   const { statements } = buildSchema({
     schema: overrides.schemaBuild?.schema ?? {},
+    ordering: "multichain",
   });
 
   const database = await createDatabase({

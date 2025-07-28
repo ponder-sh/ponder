@@ -18,7 +18,7 @@ test("buildSchema() success", () => {
     })),
   };
 
-  buildSchema({ schema });
+  buildSchema({ schema, ordering: "multichain" });
 });
 
 test("buildSchema() error with multiple primary key", () => {
@@ -29,7 +29,7 @@ test("buildSchema() error with multiple primary key", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema })).toThrowError();
+  expect(() => buildSchema({ schema, ordering: "multichain" })).toThrowError();
 });
 
 test("buildSchema() error with no primary key", () => {
@@ -40,10 +40,60 @@ test("buildSchema() error with no primary key", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema })).toThrowError();
+  expect(() => buildSchema({ schema, ordering: "multichain" })).toThrowError();
 });
 
 test("buildSchema() success with composite primary key", () => {
+  const schema = {
+    account: onchainTable(
+      "account",
+      (p) => ({
+        chainId: p.bigint(),
+        address: p.hex().notNull(),
+        balance: p.bigint().notNull(),
+      }),
+      (table) => ({
+        pk: primaryKey({ columns: [table.address, table.balance] }),
+      }),
+    ),
+  };
+
+  buildSchema({ schema, ordering: "multichain" });
+});
+
+test("buildSchema() success with chainId primary key and isolated ordering", () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      chainId: p.integer().primaryKey(),
+      address: p.hex().notNull(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  buildSchema({ schema, ordering: "isolated" });
+});
+
+test("buildSchema() success with composite primary key including chainId and isolated ordering", () => {
+  const schema = {
+    account: onchainTable(
+      "account",
+      (p) => ({
+        chainId: p.integer().notNull(),
+        address: p.hex().notNull(),
+        balance: p.bigint().notNull(),
+      }),
+      (table) => ({
+        pk: primaryKey({
+          columns: [table.address, table.balance, table.chainId],
+        }),
+      }),
+    ),
+  };
+
+  buildSchema({ schema, ordering: "isolated" });
+});
+
+test("buildSchema() error with missing chainId column and isolated ordering", () => {
   const schema = {
     account: onchainTable(
       "account",
@@ -57,7 +107,25 @@ test("buildSchema() success with composite primary key", () => {
     ),
   };
 
-  buildSchema({ schema });
+  expect(() => buildSchema({ schema, ordering: "isolated" })).toThrowError();
+});
+
+test("buildSchema() error with non primary chainId column and isolated ordering", () => {
+  const schema = {
+    account: onchainTable(
+      "account",
+      (p) => ({
+        chainId: p.integer().notNull(),
+        address: p.hex().notNull(),
+        balance: p.bigint().notNull(),
+      }),
+      (table) => ({
+        pk: primaryKey({ columns: [table.address, table.balance] }),
+      }),
+    ),
+  };
+
+  expect(() => buildSchema({ schema, ordering: "isolated" })).toThrowError();
 });
 
 test("buildScheama() error with view", () => {
@@ -70,7 +138,7 @@ test("buildScheama() error with view", () => {
     v: pgView("v").as((qb) => qb.select().from(account)),
   };
 
-  expect(() => buildSchema({ schema })).toThrowError();
+  expect(() => buildSchema({ schema, ordering: "multichain" })).toThrowError();
 });
 
 test("buildScheama() error with sequences", () => {
@@ -82,7 +150,7 @@ test("buildScheama() error with sequences", () => {
     seq: pgSequence("seq"),
   };
 
-  expect(() => buildSchema({ schema })).toThrowError();
+  expect(() => buildSchema({ schema, ordering: "multichain" })).toThrowError();
 });
 
 test("buildScheama() error with generated", () => {
@@ -93,7 +161,7 @@ test("buildScheama() error with generated", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema })).toThrowError();
+  expect(() => buildSchema({ schema, ordering: "multichain" })).toThrowError();
 });
 
 test("buildScheama() error with generated identity", () => {
@@ -107,7 +175,7 @@ test("buildScheama() error with generated identity", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema })).toThrowError();
+  expect(() => buildSchema({ schema, ordering: "multichain" })).toThrowError();
 });
 
 test("buildScheama() error with serial", () => {
@@ -118,7 +186,7 @@ test("buildScheama() error with serial", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema })).toThrowError();
+  expect(() => buildSchema({ schema, ordering: "multichain" })).toThrowError();
 });
 
 test("buildScheama() success with default", () => {
@@ -129,7 +197,7 @@ test("buildScheama() success with default", () => {
     })),
   };
 
-  buildSchema({ schema });
+  buildSchema({ schema, ordering: "multichain" });
 });
 
 test("buildScheama() error with default sql", () => {
@@ -140,7 +208,7 @@ test("buildScheama() error with default sql", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema })).toThrowError();
+  expect(() => buildSchema({ schema, ordering: "multichain" })).toThrowError();
 });
 
 test("buildScheama() error with $defaultFn sql", () => {
@@ -151,7 +219,7 @@ test("buildScheama() error with $defaultFn sql", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema })).toThrowError();
+  expect(() => buildSchema({ schema, ordering: "multichain" })).toThrowError();
 });
 
 test("buildScheama() error with $onUpdateFn sql", () => {
@@ -162,7 +230,7 @@ test("buildScheama() error with $onUpdateFn sql", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema })).toThrowError();
+  expect(() => buildSchema({ schema, ordering: "multichain" })).toThrowError();
 });
 
 test("buildScheama() error with foreign key", () => {
@@ -173,11 +241,11 @@ test("buildScheama() error with foreign key", () => {
       balance: p
         .bigint()
         .notNull()
-        .references(() => schema.account.address),
+        .references((): any => schema.account.address),
     })),
   };
 
-  expect(() => buildSchema({ schema })).toThrowError();
+  expect(() => buildSchema({ schema, ordering: "multichain" })).toThrowError();
 });
 
 test("buildScheama() error with unique", () => {
@@ -188,7 +256,7 @@ test("buildScheama() error with unique", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema })).toThrowError();
+  expect(() => buildSchema({ schema, ordering: "multichain" })).toThrowError();
 });
 
 test("buildScheama() error with check", () => {
@@ -205,7 +273,7 @@ test("buildScheama() error with check", () => {
     ),
   };
 
-  expect(() => buildSchema({ schema })).toThrowError();
+  expect(() => buildSchema({ schema, ordering: "multichain" })).toThrowError();
 });
 
 test("buildScheama() success with enum", () => {
@@ -218,7 +286,7 @@ test("buildScheama() success with enum", () => {
     })),
   };
 
-  buildSchema({ schema });
+  buildSchema({ schema, ordering: "multichain" });
 });
 
 test("buildScheama() duplicate table name", () => {
@@ -231,5 +299,5 @@ test("buildScheama() duplicate table name", () => {
     })),
   };
 
-  expect(() => buildSchema({ schema })).toThrowError();
+  expect(() => buildSchema({ schema, ordering: "multichain" })).toThrowError();
 });
