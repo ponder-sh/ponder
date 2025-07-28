@@ -12,7 +12,7 @@ import {
 import type { Schema } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { startClock } from "@/utils/timer.js";
-import { wait } from "@/utils/wait.js";
+// import { wait } from "@/utils/wait.js";
 import { PGlite } from "@electric-sql/pglite";
 import type { ExtractTablesWithRelations } from "drizzle-orm";
 import type {
@@ -23,8 +23,8 @@ import type {
 } from "drizzle-orm/pg-core";
 import type pg from "pg";
 
-const RETRY_COUNT = 9;
-const BASE_DURATION = 125;
+// const RETRY_COUNT = 9;
+// const BASE_DURATION = 125;
 
 type InnerQB<
   TSchema extends Schema = Schema,
@@ -144,7 +144,7 @@ export const createQB = <
   const retryLogMetricErrorWrap = async <T>(
     fn: () => Promise<T>,
     {
-      isTransactionCallback,
+      // isTransactionCallback,
       label,
     }: {
       isTransactionCallback: boolean;
@@ -152,101 +152,101 @@ export const createQB = <
     },
   ): Promise<T> => {
     // First error thrown is often the most useful
-    let firstError: any;
-    let hasError = false;
+    // let firstError: any;
+    // let hasError = false;
 
-    for (let i = 0; i <= RETRY_COUNT; i++) {
-      const endClock = startClock();
-      const id = crypto.randomUUID().slice(0, 8);
+    // for (let i = 0; i <= RETRY_COUNT; i++) {
+    const endClock = startClock();
+    const id = crypto.randomUUID().slice(0, 8);
 
+    if (label) {
+      common.logger.trace({
+        service: "database",
+        msg: `Started '${label}' database method (id=${id})`,
+      });
+    }
+
+    try {
+      if (common.shutdown.isKilled && isAdmin === false) {
+        throw new ShutdownError();
+      }
+
+      const result = await fn();
+      if (label) {
+        common.metrics.ponder_database_method_duration.observe(
+          { method: label },
+          endClock(),
+        );
+      }
+
+      if (common.shutdown.isKilled && isAdmin === false) {
+        throw new ShutdownError();
+      }
+
+      return result;
+    } catch (e) {
+      const error = parseDbError(e);
+
+      if (common.shutdown.isKilled) {
+        throw new ShutdownError();
+      }
+
+      if (label) {
+        common.metrics.ponder_database_method_duration.observe(
+          { method: label },
+          endClock(),
+        );
+        common.metrics.ponder_database_method_error_total.inc({
+          method: label,
+        });
+      }
+
+      // if (!hasError) {
+      //   hasError = true;
+      //   firstError = error;
+      // }
+
+      // Two types of transaction enviroments
+      // 1. Inside callback (running user statements or control flow statements): Throw error, retry
+      // later. We want the error bubbled up out of the callback, so the transaction is properly rolled back.
+      // 2. Outside callback (running entire transaction, user statements + control flow statements): Retry immediately.
+
+      // if (error instanceof NonRetryableUserError || isTransactionCallback) {
+      common.logger.warn({
+        service: "database",
+        msg: `Failed ${label ? `'${label}' ` : ""}database query (id=${id})`,
+        error,
+      });
+      throw error;
+      // }
+
+      // if (i === RETRY_COUNT) {
+      //   common.logger.warn({
+      //     service: "database",
+      //     msg: `Failed ${label ? `'${label}' ` : ""}database query after '${i + 1}' attempts (id=${id})`,
+      //     error,
+      //   });
+      //   throw firstError;
+      // }
+
+      // const duration = BASE_DURATION * 2 ** i;
+      // common.logger.debug({
+      //   service: "database",
+      //   msg: `Failed ${label ? `'${label}' ` : ""}database query, retrying after ${duration} milliseconds (id=${id})`,
+      //   error,
+      // });
+      // await wait(duration);
+    } finally {
       if (label) {
         common.logger.trace({
           service: "database",
-          msg: `Started '${label}' database method (id=${id})`,
+          msg: `Completed '${label}' database method in ${Math.round(endClock())}ms (id=${id})`,
         });
-      }
-
-      try {
-        if (common.shutdown.isKilled && isAdmin === false) {
-          throw new ShutdownError();
-        }
-
-        const result = await fn();
-        if (label) {
-          common.metrics.ponder_database_method_duration.observe(
-            { method: label },
-            endClock(),
-          );
-        }
-
-        if (common.shutdown.isKilled && isAdmin === false) {
-          throw new ShutdownError();
-        }
-
-        return result;
-      } catch (e) {
-        const error = parseDbError(e);
-
-        if (common.shutdown.isKilled) {
-          throw new ShutdownError();
-        }
-
-        if (label) {
-          common.metrics.ponder_database_method_duration.observe(
-            { method: label },
-            endClock(),
-          );
-          common.metrics.ponder_database_method_error_total.inc({
-            method: label,
-          });
-        }
-
-        if (!hasError) {
-          hasError = true;
-          firstError = error;
-        }
-
-        // Two types of transaction enviroments
-        // 1. Inside callback (running user statements or control flow statements): Throw error, retry
-        // later. We want the error bubbled up out of the callback, so the transaction is properly rolled back.
-        // 2. Outside callback (running entire transaction, user statements + control flow statements): Retry immediately.
-
-        if (error instanceof NonRetryableUserError || isTransactionCallback) {
-          common.logger.warn({
-            service: "database",
-            msg: `Failed ${label ? `'${label}' ` : ""}database query (id=${id})`,
-            error,
-          });
-          throw error;
-        }
-
-        if (i === RETRY_COUNT) {
-          common.logger.warn({
-            service: "database",
-            msg: `Failed ${label ? `'${label}' ` : ""}database query after '${i + 1}' attempts (id=${id})`,
-            error,
-          });
-          throw firstError;
-        }
-
-        const duration = BASE_DURATION * 2 ** i;
-        common.logger.debug({
-          service: "database",
-          msg: `Failed ${label ? `'${label}' ` : ""}database query, retrying after ${duration} milliseconds (id=${id})`,
-          error,
-        });
-        await wait(duration);
-      } finally {
-        if (label) {
-          common.logger.trace({
-            service: "database",
-            msg: `Completed '${label}' database method in ${Math.round(endClock())}ms (id=${id})`,
-          });
-        }
       }
     }
+    // }
 
-    throw "unreachable";
+    // throw "unreachable";
   };
 
   // Add QB methods to the transaction object
