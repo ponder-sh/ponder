@@ -599,6 +599,8 @@ export const createSync = async (params: {
             for await (const event of generator) {
               await perChainOnRealtimeSyncEvent(event);
 
+              yield { chain, event };
+
               if (isSyncFinalized(syncProgress) && isSyncEnd(syncProgress)) {
                 // The realtime service can be killed if `endBlock` is
                 // defined has become finalized.
@@ -616,9 +618,8 @@ export const createSync = async (params: {
                   msg: `Killing '${chain.name}' live indexing because the end block ${hexToNumber(syncProgress.end!.number)} has been finalized`,
                 });
                 rpc.unsubscribe();
+                return;
               }
-
-              yield { chain, event };
             }
           }
         }
