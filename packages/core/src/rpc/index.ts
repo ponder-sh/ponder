@@ -476,7 +476,7 @@ export const createRpc = ({
   const rpc: Rpc = {
     // @ts-ignore
     request: queue.add,
-    async subscribe({ onBlock, onError, polling = false }) {
+    async subscribe({ onBlock, onError, polling = true }) {
       let isFetching = false;
 
       if (polling || wsTransport === undefined) {
