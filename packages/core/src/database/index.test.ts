@@ -46,7 +46,8 @@ test("migrate() succeeds with empty schema", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -95,8 +96,10 @@ test("migrate() with empty schema creates tables and enums", async (context) => 
     },
     schemaBuild: {
       schema: { account, kyle, mood, user },
-      statements: buildSchema({ schema: { account, kyle, mood, user } })
-        .statements,
+      statements: buildSchema({
+        schema: { account, kyle, mood, user },
+        ordering: "multichain",
+      }).statements,
     },
   });
 
@@ -126,7 +129,8 @@ test("migrate() throws with schema used", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
   await database.migrate({ buildId: "abc", ordering: "multichain" });
@@ -145,7 +149,8 @@ test("migrate() throws with schema used", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -177,7 +182,8 @@ test("migrate() throws with schema used after waiting for lock", async (context)
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
   await database.migrate({ buildId: "abc", ordering: "multichain" });
@@ -193,7 +199,8 @@ test("migrate() throws with schema used after waiting for lock", async (context)
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -218,7 +225,8 @@ test("migrate() succeeds with crash recovery", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -238,7 +246,8 @@ test("migrate() succeeds with crash recovery", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -273,7 +282,8 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
   await database.migrate({ buildId: "abc", ordering: "multichain" });
@@ -294,7 +304,8 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -315,7 +326,8 @@ test("migrateSync()", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -343,7 +355,8 @@ test.skip("migrateSync() handles concurrent migrations", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -373,7 +386,8 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -438,7 +452,8 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -495,7 +510,8 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -532,7 +548,8 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -560,7 +577,8 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -597,7 +615,8 @@ test("finalize()", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -676,7 +695,8 @@ test("finalize() isolated", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "isolated" })
+        .statements,
     },
   });
 
@@ -767,7 +787,8 @@ test("createIndexes()", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -792,7 +813,8 @@ test("createTriggers()", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -838,7 +860,8 @@ test("createTriggers() duplicate", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -873,7 +896,8 @@ test("createTriggers() with chainId", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "isolated" })
+        .statements,
     },
   });
 
@@ -1002,7 +1026,8 @@ test("commitBlock()", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -1054,7 +1079,8 @@ test("revert()", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "multichain" })
+        .statements,
     },
   });
 
@@ -1142,7 +1168,8 @@ test("revert() isolated", async (context) => {
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({ schema: { account }, ordering: "isolated" })
+        .statements,
     },
   });
 
@@ -1252,7 +1279,8 @@ test("revert() with composite primary key", async (context) => {
     },
     schemaBuild: {
       schema: { test },
-      statements: buildSchema({ schema: { test } }).statements,
+      statements: buildSchema({ schema: { test }, ordering: "multichain" })
+        .statements,
     },
   });
 

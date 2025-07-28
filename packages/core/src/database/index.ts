@@ -12,6 +12,7 @@ import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
   NamespaceBuild,
+  Ordering,
   PreBuild,
   Schema,
   SchemaBuild,
@@ -81,7 +82,7 @@ export type Database = {
     buildId,
     ordering,
   }: Pick<IndexingBuild, "buildId"> & {
-    ordering: "multichain" | "omnichain" | "isolated";
+    ordering: Ordering;
   }): Promise<CrashRecoveryCheckpoint>;
   createIndexes(): Promise<void>;
   createTriggers(args?: { chainId: number }): Promise<void>;
@@ -117,17 +118,17 @@ export type Database = {
   revert(args: {
     checkpoint: string;
     tx: PgTransaction<PgQueryResultHKT, Schema>;
-    ordering: "multichain" | "omnichain" | "isolated";
+    ordering: Ordering;
   }): Promise<void>;
   finalize(args: {
     checkpoint: string;
     db: Drizzle<Schema>;
-    ordering: "multichain" | "omnichain" | "isolated";
+    ordering: Ordering;
   }): Promise<void>;
   commitBlock(args: {
     checkpoint: string;
     db: Drizzle<Schema>;
-    ordering: "multichain" | "omnichain" | "isolated";
+    ordering: Ordering;
   }): Promise<void>;
 };
 

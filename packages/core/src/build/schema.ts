@@ -1,7 +1,7 @@
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getSql } from "@/drizzle/kit/index.js";
 import { BuildError } from "@/internal/errors.js";
-import type { Schema } from "@/internal/types.js";
+import type { Ordering, Schema } from "@/internal/types.js";
 import { SQL, getTableColumns, getTableName, is } from "drizzle-orm";
 import {
   PgBigSerial53,
@@ -17,7 +17,7 @@ import {
 export const buildSchema = ({
   schema,
   ordering,
-}: { schema: Schema; ordering?: "multichain" | "omnichain" | "isolated" }) => {
+}: { schema: Schema; ordering: Ordering }) => {
   const statements = getSql(schema);
 
   const tableNames = new Set<string>();
@@ -176,7 +176,7 @@ export const buildSchema = ({
 export const safeBuildSchema = ({
   schema,
   ordering,
-}: { schema: Schema; ordering: "multichain" | "omnichain" | "isolated" }) => {
+}: { schema: Schema; ordering: Ordering }) => {
   try {
     const result = buildSchema({ schema, ordering });
 

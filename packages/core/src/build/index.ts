@@ -10,6 +10,7 @@ import type {
   ApiBuild,
   IndexingBuild,
   NamespaceBuild,
+  Ordering,
   PreBuild,
   RawIndexingFunctions,
   Schema,
@@ -60,7 +61,7 @@ export type Build = {
   preCompile: (params: { config: Config }) => Result<PreBuild>;
   compileSchema: (params: {
     schema: Schema;
-    ordering: "multichain" | "omnichain" | "isolated";
+    ordering: Ordering;
   }) => Result<SchemaBuild>;
   compileIndexing: (params: {
     configResult: Extract<ConfigResult, { status: "success" }>["result"];
