@@ -53,4 +53,4 @@ jobs:
           PONDER_RPC_URL_11155420: ${{ secrets.PONDER_RPC_URL_11155420 }}
           PGDATABASE: railway
           PGSSLMODE: disable
-          NODE_ENV: ci
+          # NODE_ENV: ci
