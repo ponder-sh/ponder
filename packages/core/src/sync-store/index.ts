@@ -1025,12 +1025,11 @@ export const createSyncStore = ({
       db
         .insert(PONDER_SYNC.rpcRequestResults)
         .values(values)
-        .onConflictDoUpdate({
+        .onConflictDoNothing({
           target: [
             PONDER_SYNC.rpcRequestResults.requestHash,
             PONDER_SYNC.rpcRequestResults.chainId,
           ],
-          set: { result: sql`EXCLUDED.result` },
         }),
     );
   },
