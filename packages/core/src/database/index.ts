@@ -679,7 +679,7 @@ export const createDatabase = async ({
         },
       );
     },
-    async migrate({ buildId, ordering }) {
+    async migrate({ buildId }) {
       await this.wrap(
         { method: "createPonderSystemTables", includeTraceLogs: true },
         async () => {
@@ -925,8 +925,12 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
             const revertCheckpoint = min(
               ...checkpoints.map((c) => c.safeCheckpoint),
             );
-
-            await this.revert({ checkpoint: revertCheckpoint, ordering, tx });
+            // Note: since the finalize checkpoint is the min across all chains, it is safe to revert in omnichain mode to cleanup reorg table.
+            await this.revert({
+              checkpoint: revertCheckpoint,
+              ordering: "omnichain",
+              tx,
+            });
 
             // Note: We don't update the `_ponder_checkpoint` table here, instead we wait for it to be updated
             // in the runtime script.
