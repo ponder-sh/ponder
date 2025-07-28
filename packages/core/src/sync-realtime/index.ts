@@ -57,7 +57,10 @@ export type RealtimeSync = {
    *
    * @param block - The block to reconcile.
    */
-  sync(block: SyncBlock | SyncBlockHeader): AsyncGenerator<RealtimeSyncEvent>;
+  sync(
+    block: SyncBlock | SyncBlockHeader,
+    callback: (isAccepted: boolean) => void,
+  ): AsyncGenerator<RealtimeSyncEvent>;
   onError(error: Error): void;
   /** Local chain of blocks that have not been finalized. */
   unfinalizedBlocks: LightBlock[];
@@ -76,6 +79,7 @@ export type RealtimeSyncEvent =
   | ({
       type: "block";
       hasMatchedFilter: boolean;
+      callback?: (isAccepted: boolean) => void;
     } & BlockWithEventData)
   | {
       type: "finalize";
@@ -789,6 +793,7 @@ export const createRealtimeSync = (
    */
   const reconcileBlock = async function* (
     blockWithEventData: BlockWithEventData,
+    callback?: (isAccepted: boolean) => void,
   ): AsyncGenerator<RealtimeSyncEvent> {
     const latestBlock = getLatestUnfinalizedBlock();
     const block = blockWithEventData.block;
@@ -800,6 +805,7 @@ export const createRealtimeSync = (
         msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
       });
 
+      callback?.(false);
       return;
     }
 
@@ -809,6 +815,7 @@ export const createRealtimeSync = (
       if (hexToNumber(latestBlock.number) >= hexToNumber(block.number)) {
         const reorgEvent = await reconcileReorg(block);
 
+        callback?.(false);
         yield reorgEvent;
         return;
       }
@@ -845,7 +852,7 @@ export const createRealtimeSync = (
         for (const pendingBlock of pendingBlocks) {
           yield* reconcileBlock(pendingBlock);
         }
-        yield* reconcileBlock(blockWithEventData);
+        yield* reconcileBlock(blockWithEventData, callback);
         return;
       }
 
@@ -853,6 +860,7 @@ export const createRealtimeSync = (
       if (block.parentHash !== latestBlock.hash) {
         const reorgEvent = await reconcileReorg(block);
 
+        callback?.(false);
         yield reorgEvent;
         return;
       }
@@ -917,6 +925,7 @@ export const createRealtimeSync = (
         transactionReceipts: blockWithFilteredEventData.transactionReceipts,
         traces: blockWithFilteredEventData.traces,
         childAddresses: blockWithFilteredEventData.childAddresses,
+        callback,
       };
 
       // Determine if a new range has become finalized by evaluating if the
@@ -989,6 +998,8 @@ export const createRealtimeSync = (
 
       await wait(duration * 1_000);
 
+      callback?.(false);
+
       reconcileBlockErrorCount += 1;
 
       // After a certain number of attempts, emit a fatal error.
@@ -1035,7 +1046,7 @@ export const createRealtimeSync = (
   const realtimeSyncLock = createLock();
 
   return {
-    async *sync(block) {
+    async *sync(block, callback) {
       try {
         args.common.logger.debug({
           service: "realtime",
@@ -1050,6 +1061,7 @@ export const createRealtimeSync = (
             service: "realtime",
             msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
           });
+          callback(false);
 
           return;
         }
@@ -1062,11 +1074,12 @@ export const createRealtimeSync = (
 
         await realtimeSyncLock.lock();
 
-        yield* reconcileBlock(blockWithEventData);
+        yield* reconcileBlock(blockWithEventData, callback);
 
         realtimeSyncLock.unlock();
       } catch (_error) {
         onError(_error as Error);
+        callback(false);
       }
     },
     onError,

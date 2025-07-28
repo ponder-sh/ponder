@@ -81,6 +81,7 @@ export type RealtimeEvent =
       events: Event[];
       chain: Chain;
       checkpoint: string;
+      callback?: (isAccepted: boolean) => void;
     }
   | {
       type: "reorg";
@@ -579,13 +580,23 @@ export const createSync = async (params: {
 
             const endClock = startClock();
 
-            const generator = realtimeSync.sync(block);
+            const generator = realtimeSync.sync(block, (isAccepted) => {
+              if (isAccepted) {
+                params.common.metrics.ponder_realtime_block_arrival_latency.observe(
+                  { chain: chain.name },
+                  arrivalMs - hexToNumber(block.timestamp) * 1_000,
+                );
 
-            let isAccepted = false;
-            for await (const event of generator) {
-              if (event.type === "block") {
-                isAccepted = true;
+                params.common.metrics.ponder_realtime_latency.observe(
+                  { chain: chain.name },
+                  endClock(),
+                );
               }
+
+              onComplete(isAccepted);
+            });
+
+            for await (const event of generator) {
               await perChainOnRealtimeSyncEvent(event);
 
               if (isSyncFinalized(syncProgress) && isSyncEnd(syncProgress)) {
@@ -609,20 +620,6 @@ export const createSync = async (params: {
 
               yield { chain, event };
             }
-
-            if (isAccepted) {
-              params.common.metrics.ponder_realtime_block_arrival_latency.observe(
-                { chain: chain.name },
-                arrivalMs - hexToNumber(block.timestamp) * 1_000,
-              );
-
-              params.common.metrics.ponder_realtime_latency.observe(
-                { chain: chain.name },
-                endClock(),
-              );
-            }
-
-            onComplete(isAccepted);
           }
         }
       }),
@@ -734,6 +731,7 @@ export const createSync = async (params: {
             events: readyEvents,
             chain,
             checkpoint,
+            callback: event.callback,
           };
         } else {
           const checkpoint = getOmnichainCheckpoint({ tag: "current" });
@@ -757,6 +755,7 @@ export const createSync = async (params: {
             events: readyEvents,
             chain,
             checkpoint,
+            callback: event.callback,
           };
         }
       }
