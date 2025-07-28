@@ -1152,6 +1152,10 @@ export const getPerChainOnRealtimeSyncEvent = ({
           { chain: chain.name },
           hexToNumber(syncProgress.current!.number),
         );
+        common.metrics.ponder_sync_block_timestamp.set(
+          { chain: chain.name },
+          hexToNumber(syncProgress.current!.timestamp),
+        );
 
         unfinalizedBlocks.push(event);
 
@@ -1293,6 +1297,10 @@ export const getPerChainOnRealtimeSyncEvent = ({
           { chain: chain.name },
           hexToNumber(syncProgress.current!.number),
         );
+        common.metrics.ponder_sync_block_timestamp.set(
+          { chain: chain.name },
+          hexToNumber(syncProgress.current!.timestamp),
+        );
 
         // Remove all reorged data
 
@@ -1422,6 +1430,10 @@ export async function* getLocalSyncGenerator({
       label,
       hexToNumber(syncProgress.current.number),
     );
+    common.metrics.ponder_sync_block_timestamp.set(
+      label,
+      hexToNumber(syncProgress.current.timestamp),
+    );
     common.metrics.ponder_historical_total_blocks.set(label, 0);
     common.metrics.ponder_historical_cached_blocks.set(label, 0);
 
@@ -1504,6 +1516,10 @@ export async function* getLocalSyncGenerator({
       label,
       hexToNumber(syncProgress.current.number),
     );
+    common.metrics.ponder_sync_block_timestamp.set(
+      label,
+      hexToNumber(syncProgress.current.timestamp),
+    );
 
     // `getEvents` can make progress without calling `sync`, so immediately "yield"
     yield hexToNumber(syncProgress.current.number);
@@ -1574,7 +1590,11 @@ export async function* getLocalSyncGenerator({
 
       common.metrics.ponder_sync_block.set(
         label,
-        hexToNumber(syncProgress.current!.number),
+        hexToNumber(syncProgress.current.number),
+      );
+      common.metrics.ponder_sync_block_timestamp.set(
+        label,
+        hexToNumber(syncProgress.current.timestamp),
       );
       common.metrics.ponder_historical_duration.observe(label, duration);
       common.metrics.ponder_historical_completed_blocks.inc(
