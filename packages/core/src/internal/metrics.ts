@@ -722,7 +722,10 @@ function calculateEta(
   cachedSeconds: number,
   completedSeconds: number,
 ) {
-  const remainingSeconds = totalSeconds - (completedSeconds + cachedSeconds);
+  const remainingSeconds = Math.max(
+    totalSeconds - (completedSeconds + cachedSeconds),
+    0,
+  );
 
   let eta: number | undefined = undefined;
 
@@ -730,9 +733,12 @@ function calculateEta(
     const currentTimestamp = Date.now();
 
     progressMetadata.batches.at(-1)!.elapsedSeconds =
-      (currentTimestamp - progressMetadata.previousTimestamp) / 1_000;
-    progressMetadata.batches.at(-1)!.completedSeconds =
-      completedSeconds - progressMetadata.previousCompletedSeconds;
+      Math.max(currentTimestamp - progressMetadata.previousTimestamp, 0) /
+      1_000;
+    progressMetadata.batches.at(-1)!.completedSeconds = Math.max(
+      completedSeconds - progressMetadata.previousCompletedSeconds,
+      0,
+    );
 
     if (
       currentTimestamp - progressMetadata.previousTimestamp > 5_000 &&
