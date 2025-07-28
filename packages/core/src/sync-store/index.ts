@@ -1095,14 +1095,11 @@ export const createSyncStore = ({
         await database.qb.sync
           .insert(ponderSyncSchema.rpcRequestResults)
           .values(values)
-          .onConflictDoUpdate({
+          .onConflictDoNothing({
             target: [
               ponderSyncSchema.rpcRequestResults.requestHash,
               ponderSyncSchema.rpcRequestResults.chainId,
             ],
-            set: {
-              result: sql`EXCLUDED.result`,
-            },
           });
       },
     );
