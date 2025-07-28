@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.39
+
+### Patch Changes
+
+- [#1920](https://github.com/ponder-sh/ponder/pull/1920) [`93cc69f`](https://github.com/ponder-sh/ponder/commit/93cc69f953e5604a52f7a373363f4105ba00b91d) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug causing `error: ON CONFLICT DO UPDATE command cannot affect row a second time`.
+
 ## 0.11.38
 
 ### Patch Changes
