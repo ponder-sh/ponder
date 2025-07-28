@@ -19,6 +19,7 @@ import { getNextAvailablePort } from "@/utils/port.js";
 import type { Result } from "@/utils/result.js";
 import { glob } from "glob";
 import { Hono } from "hono";
+import superjson from "superjson";
 import { createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";
@@ -38,7 +39,7 @@ declare global {
   var PONDER_DATABASE: Database;
 }
 
-const BUILD_ID_VERSION = "1";
+const BUILD_ID_VERSION = "2";
 
 type ConfigResult = Result<{ config: Config; contentHash: string }>;
 type SchemaResult = Result<{ schema: Schema; contentHash: string }>;
@@ -181,15 +182,14 @@ export const createBuild = async ({
 
       const config = executeResult.exports.default as Config;
 
-      // Note: use `superjson` for serialization in the next minor version
-
       const contentHash = createHash("sha256")
         .update(
-          JSON.stringify(config, (_, v) =>
-            typeof v === "bigint"
-              ? { __type: "bigint", value: v.toString() }
-              : v,
-          ),
+          superjson.stringify({
+            ordering: config.ordering,
+            contracts: config.contracts,
+            accounts: config.accounts,
+            blocks: config.blocks,
+          }),
         )
         .digest("hex");
 
