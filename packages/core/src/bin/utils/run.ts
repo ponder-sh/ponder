@@ -241,176 +241,162 @@ export async function run({
     if (events.events.length > 0) {
       endClock = startClock();
       await database.userQB.transaction(async (tx) => {
-        try {
-          historicalIndexingStore.qb = tx;
-          indexingCache.qb = tx;
+        historicalIndexingStore.qb = tx;
+        indexingCache.qb = tx;
 
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "begin" },
-            endClock(),
+        common.metrics.ponder_historical_transform_duration.inc(
+          { step: "begin" },
+          endClock(),
+        );
+
+        endClock = startClock();
+
+        const eventChunks = chunk(events.events, 93);
+        for (const eventChunk of eventChunks) {
+          const result = await indexing.processEvents({
+            events: eventChunk,
+            db: historicalIndexingStore,
+            cache: indexingCache,
+          });
+
+          if (result.status === "error") {
+            if (result.error instanceof RetryableError) {
+              throw result.error;
+            } else {
+              onReloadableError(result.error);
+              return;
+            }
+          }
+
+          const checkpoint = decodeCheckpoint(
+            eventChunk[eventChunk.length - 1]!.checkpoint,
           );
 
-          endClock = startClock();
-
-          const eventChunks = chunk(events.events, 93);
-          for (const eventChunk of eventChunks) {
-            const result = await indexing.processEvents({
-              events: eventChunk,
-              db: historicalIndexingStore,
-              cache: indexingCache,
-            });
-
-            if (result.status === "error") {
-              if (result.error instanceof RetryableError) {
-                throw result.error;
-              } else {
-                onReloadableError(result.error);
-                return;
-              }
-            }
-
-            const checkpoint = decodeCheckpoint(
-              eventChunk[eventChunk.length - 1]!.checkpoint,
+          if (preBuild.ordering === "multichain") {
+            const chain = indexingBuild.chains.find(
+              (chain) => chain.id === Number(checkpoint.chainId),
+            )!;
+            common.metrics.ponder_historical_completed_indexing_seconds.set(
+              { chain: chain.name },
+              Math.max(
+                Number(checkpoint.blockTimestamp) -
+                  Math.max(
+                    sync.seconds[chain.name]!.cached,
+                    sync.seconds[chain.name]!.start,
+                  ),
+                0,
+              ),
             );
-
-            if (preBuild.ordering === "multichain") {
-              const chain = indexingBuild.chains.find(
-                (chain) => chain.id === Number(checkpoint.chainId),
-              )!;
+            common.metrics.ponder_indexing_timestamp.set(
+              { chain: chain.name },
+              Number(checkpoint.blockTimestamp),
+            );
+          } else {
+            for (const chain of indexingBuild.chains) {
               common.metrics.ponder_historical_completed_indexing_seconds.set(
                 { chain: chain.name },
-                Math.max(
-                  Number(checkpoint.blockTimestamp) -
-                    Math.max(
-                      sync.seconds[chain.name]!.cached,
+                Math.min(
+                  Math.max(
+                    Number(checkpoint.blockTimestamp) -
+                      Math.max(
+                        sync.seconds[chain.name]!.cached,
+                        sync.seconds[chain.name]!.start,
+                      ),
+                    0,
+                  ),
+                  Math.max(
+                    sync.seconds[chain.name]!.end -
                       sync.seconds[chain.name]!.start,
-                    ),
-                  0,
+                    0,
+                  ),
                 ),
               );
               common.metrics.ponder_indexing_timestamp.set(
                 { chain: chain.name },
-                Number(checkpoint.blockTimestamp),
+                Math.max(
+                  Number(checkpoint.blockTimestamp),
+                  sync.seconds[chain.name]!.end,
+                ),
               );
-            } else {
-              for (const chain of indexingBuild.chains) {
-                common.metrics.ponder_historical_completed_indexing_seconds.set(
-                  { chain: chain.name },
-                  Math.min(
-                    Math.max(
-                      Number(checkpoint.blockTimestamp) -
-                        Math.max(
-                          sync.seconds[chain.name]!.cached,
-                          sync.seconds[chain.name]!.start,
-                        ),
-                      0,
-                    ),
-                    Math.max(
-                      sync.seconds[chain.name]!.end -
-                        sync.seconds[chain.name]!.start,
-                      0,
-                    ),
-                  ),
-                );
-                common.metrics.ponder_indexing_timestamp.set(
-                  { chain: chain.name },
-                  Math.max(
-                    Number(checkpoint.blockTimestamp),
-                    sync.seconds[chain.name]!.end,
-                  ),
-                );
-              }
-            }
-
-            // Note: allows for terminal and logs to be updated
-            if (preBuild.databaseConfig.kind === "pglite") {
-              await new Promise(setImmediate);
             }
           }
-          await new Promise(setImmediate);
 
-          // underlying metrics collection is actually synchronous
-          // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-          const { eta, progress } = await getAppProgress(common.metrics);
-          if (eta === undefined || progress === undefined) {
-            common.logger.info({
-              service: "app",
-              msg: `Indexed ${events.events.length} events`,
-            });
-          } else {
-            common.logger.info({
-              service: "app",
-              msg: `Indexed ${events.events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
-            });
+          // Note: allows for terminal and logs to be updated
+          if (preBuild.databaseConfig.kind === "pglite") {
+            await new Promise(setImmediate);
           }
+        }
+        await new Promise(setImmediate);
 
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "index" },
-            endClock(),
-          );
+        // underlying metrics collection is actually synchronous
+        // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
+        const { eta, progress } = await getAppProgress(common.metrics);
+        if (eta === undefined || progress === undefined) {
+          common.logger.info({
+            service: "app",
+            msg: `Indexed ${events.events.length} events`,
+          });
+        } else {
+          common.logger.info({
+            service: "app",
+            msg: `Indexed ${events.events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
+          });
+        }
 
-          endClock = startClock();
-          // Note: at this point, the next events can be preloaded, as long as the are not indexed until
-          // the "flush" + "finalize" is complete.
+        common.metrics.ponder_historical_transform_duration.inc(
+          { step: "index" },
+          endClock(),
+        );
 
-          try {
-            await indexingCache.flush();
-          } catch (error) {
-            if (error instanceof DelayedInsertError) {
-              onReloadableError(error as Error);
-              return;
-            }
-            throw error;
-          }
+        endClock = startClock();
+        // Note: at this point, the next events can be preloaded, as long as the are not indexed until
+        // the "flush" + "finalize" is complete.
 
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "load" },
-            endClock(),
-          );
-          endClock = startClock();
-
-          if (events.checkpoints.length > 0) {
-            await tx.wrap({ label: "update_checkpoints" }, (tx) =>
-              tx
-                .insert(PONDER_CHECKPOINT)
-                .values(
-                  events.checkpoints.map(({ chainId, checkpoint }) => ({
-                    chainName: indexingBuild.chains.find(
-                      (chain) => chain.id === chainId,
-                    )!.name,
-                    chainId,
-                    latestCheckpoint: checkpoint,
-                    safeCheckpoint: checkpoint,
-                  })),
-                )
-                .onConflictDoUpdate({
-                  target: PONDER_CHECKPOINT.chainName,
-                  set: {
-                    safeCheckpoint: sql`excluded.safe_checkpoint`,
-                    latestCheckpoint: sql`excluded.latest_checkpoint`,
-                  },
-                }),
-            );
-          }
-
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "finalize" },
-            endClock(),
-          );
-          endClock = startClock();
+        try {
+          await indexingCache.flush();
         } catch (error) {
-          indexingCache.invalidate();
-          indexingCache.clear();
-
-          if (error instanceof RetryableError) {
-            common.logger.warn({
-              service: "app",
-              msg: "Retrying event batch",
-            });
+          if (error instanceof DelayedInsertError) {
+            onReloadableError(error as Error);
+            return;
           }
-
           throw error;
         }
+
+        common.metrics.ponder_historical_transform_duration.inc(
+          { step: "load" },
+          endClock(),
+        );
+        endClock = startClock();
+
+        if (events.checkpoints.length > 0) {
+          await tx.wrap({ label: "update_checkpoints" }, (tx) =>
+            tx
+              .insert(PONDER_CHECKPOINT)
+              .values(
+                events.checkpoints.map(({ chainId, checkpoint }) => ({
+                  chainName: indexingBuild.chains.find(
+                    (chain) => chain.id === chainId,
+                  )!.name,
+                  chainId,
+                  latestCheckpoint: checkpoint,
+                  safeCheckpoint: checkpoint,
+                })),
+              )
+              .onConflictDoUpdate({
+                target: PONDER_CHECKPOINT.chainName,
+                set: {
+                  safeCheckpoint: sql`excluded.safe_checkpoint`,
+                  latestCheckpoint: sql`excluded.latest_checkpoint`,
+                },
+              }),
+          );
+        }
+
+        common.metrics.ponder_historical_transform_duration.inc(
+          { step: "finalize" },
+          endClock(),
+        );
+        endClock = startClock();
       });
 
       cachedViemClient.clear();
@@ -578,55 +564,44 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
                     chain.id === Number(decodeCheckpoint(checkpoint).chainId),
                 )!;
 
-                try {
-                  realtimeIndexingStore.qb = tx;
+                realtimeIndexingStore.qb = tx;
 
-                  const result = await indexing.processEvents({
-                    events,
-                    db: realtimeIndexingStore,
-                  });
+                const result = await indexing.processEvents({
+                  events,
+                  db: realtimeIndexingStore,
+                });
 
-                  common.logger.info({
-                    service: "app",
-                    msg: `Indexed ${events.length} '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
-                  });
+                common.logger.info({
+                  service: "app",
+                  msg: `Indexed ${events.length} '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
+                });
 
-                  if (result.status === "error") {
-                    if (result.error instanceof RetryableError) {
-                      throw result.error;
-                    } else {
-                      onReloadableError(result.error);
-                      onRealtimeEvent.pause();
-                      return;
-                    }
+                if (result.status === "error") {
+                  if (result.error instanceof RetryableError) {
+                    throw result.error;
+                  } else {
+                    onReloadableError(result.error);
+                    onRealtimeEvent.pause();
+                    return;
                   }
+                }
 
-                  await Promise.all(
-                    tables.map((table) =>
-                      commitBlock(tx, { table, checkpoint }),
-                    ),
+                await Promise.all(
+                  tables.map((table) => commitBlock(tx, { table, checkpoint })),
+                );
+
+                if (preBuild.ordering === "multichain") {
+                  common.metrics.ponder_indexing_timestamp.set(
+                    { chain: chain.name },
+                    Number(decodeCheckpoint(checkpoint).blockTimestamp),
                   );
-
-                  if (preBuild.ordering === "multichain") {
+                } else {
+                  for (const chain of indexingBuild.chains) {
                     common.metrics.ponder_indexing_timestamp.set(
                       { chain: chain.name },
                       Number(decodeCheckpoint(checkpoint).blockTimestamp),
                     );
-                  } else {
-                    for (const chain of indexingBuild.chains) {
-                      common.metrics.ponder_indexing_timestamp.set(
-                        { chain: chain.name },
-                        Number(decodeCheckpoint(checkpoint).blockTimestamp),
-                      );
-                    }
                   }
-                } catch (error) {
-                  common.logger.warn({
-                    service: "app",
-                    msg: `Retrying '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
-                  });
-
-                  throw error;
                 }
               });
             }
