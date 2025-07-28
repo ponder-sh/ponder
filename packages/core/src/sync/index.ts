@@ -628,9 +628,12 @@ export const createSync = async (params: {
       }),
     );
 
-    for await (const { chain, event } of mergeAsyncGeneratorsWithRealtimeOrder(
-      eventGenerators,
-    )) {
+    const merge =
+      params.ordering === "multichain"
+        ? mergeAsyncGenerators
+        : mergeAsyncGeneratorsWithRealtimeOrder;
+
+    for await (const { chain, event } of merge(eventGenerators)) {
       const { syncProgress, childAddresses } = perChainSync.get(chain)!;
 
       const sources = params.indexingBuild.sources.filter(
@@ -656,13 +659,15 @@ export const createSync = async (params: {
   let executedEvents: Event[] = [];
   /** Events that have not been executed. */
   let pendingEvents: Event[] = [];
+  /** Closest-to-tip finalized checkpoint across all chains. */
+  let finalizedCheckpoint = ZERO_CHECKPOINT_STRING;
 
   const onRealtimeSyncEvent = (
     event: RealtimeSyncEvent,
     {
       chain,
       sources,
-      // syncProgress,
+      syncProgress,
       childAddresses,
     }: {
       chain: Chain;
@@ -757,30 +762,34 @@ export const createSync = async (params: {
       }
 
       case "finalize": {
-        const checkpoint = getOmnichainCheckpoint({ tag: "finalized" });
+        const from = finalizedCheckpoint;
+        finalizedCheckpoint = getOmnichainCheckpoint({ tag: "finalized" });
+        const to = getOmnichainCheckpoint({ tag: "finalized" });
 
-        // if (
-        //   params.ordering === "omnichain" &&
-        //   getChainCheckpoint({ syncProgress, chain, tag: "finalized" }) >
-        //     getOmnichainCheckpoint({ tag: "current" })
-        // ) {
-        //   const chainId = Number(
-        //     decodeCheckpoint(getOmnichainCheckpoint({ tag: "current" }))
-        //       .chainId,
-        //   );
-        //   const chain = params.indexingBuild.chains.find(
-        //     (chain) => chain.id === chainId,
-        //   )!;
-        //   params.common.logger.warn({
-        //     service: "sync",
-        //     msg: `'${chain.name}' is lagging behind other chains`,
-        //   });
-        // }
+        if (
+          params.ordering === "omnichain" &&
+          getChainCheckpoint({ syncProgress, chain, tag: "finalized" }) >
+            getOmnichainCheckpoint({ tag: "current" })
+        ) {
+          const chainId = Number(
+            decodeCheckpoint(getOmnichainCheckpoint({ tag: "current" }))
+              .chainId,
+          );
+          const chain = params.indexingBuild.chains.find(
+            (chain) => chain.id === chainId,
+          )!;
+          params.common.logger.warn({
+            service: "sync",
+            msg: `'${chain.name}' is lagging behind other chains`,
+          });
+        }
+
+        if (to <= from) return;
 
         // index of the first unfinalized event
         let finalizeIndex: number | undefined = undefined;
         for (const [index, event] of executedEvents.entries()) {
-          if (event.checkpoint > checkpoint) {
+          if (event.checkpoint > to) {
             finalizeIndex = index;
             break;
           }
@@ -801,7 +810,7 @@ export const createSync = async (params: {
           msg: `Finalized ${finalizedEvents.length} executed events`,
         });
 
-        return { type: "finalize", chain, checkpoint };
+        return { type: "finalize", chain, checkpoint: to };
       }
 
       case "reorg": {
@@ -1778,6 +1787,7 @@ export async function* mergeAsyncGeneratorsWithRealtimeOrder(
 
   while (results.some((res) => res.done !== true)) {
     let index: number;
+
     if (
       results.some(
         (result) =>
@@ -1788,7 +1798,9 @@ export async function* mergeAsyncGeneratorsWithRealtimeOrder(
     ) {
       index = results.findIndex(
         (result) =>
-          result.done === false && result.value.event.type === "reorg",
+          result.done === false &&
+          (result.value.event.type === "reorg" ||
+            result.value.event.type === "finalize"),
       );
     } else {
       const blockCheckpoints = results.map((result) =>

@@ -33,6 +33,7 @@ import {
   shouldGetTransactionReceipt,
 } from "@/sync/filter.js";
 import { type SyncProgress, syncBlockToLightBlock } from "@/sync/index.js";
+import { createLock } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
 import {
   _debug_traceBlockByHash,
@@ -1036,6 +1037,8 @@ export const createRealtimeSync = (
     }
   };
 
+  const realtimeSyncLock = createLock();
+
   return {
     async *sync(block) {
       try {
@@ -1062,10 +1065,13 @@ export const createRealtimeSync = (
 
         // Note: `reconcileBlock` must be called serially.
 
+        await realtimeSyncLock.lock();
+
         for await (const event of reconcileBlock(blockWithEventData)) {
           yield event;
         }
-        return;
+
+        realtimeSyncLock.unlock();
       } catch (_error) {
         onError(_error as Error);
       }
