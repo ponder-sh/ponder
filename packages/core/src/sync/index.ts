@@ -347,11 +347,13 @@ export const createSync = async (params: {
           ) {
             for await (const { events, checkpoint } of eventGenerator) {
               const endClock = startClock();
+              global.SKIP_CHECKSUM = true;
               const decodedEvents = decodeEvents(
                 params.common,
                 sources,
                 events,
               );
+              global.SKIP_CHECKSUM = false;
               params.common.logger.debug({
                 service: "app",
                 msg: `Decoded ${decodedEvents.length} '${chain.name}' events`,

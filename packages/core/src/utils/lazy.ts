@@ -5,16 +5,7 @@ declare global {
   var SKIP_CHECKSUM: boolean;
 }
 
-const inspect = new Function(
-  "object",
-  "key",
-  `
-  return Object.fromEntries(
-    Object.keys(object).map((k) =>
-      k === key ? [k, checksumAddress(address)] : [k, object[k]],
-    ),
-  );`,
-);
+globalThis.SKIP_CHECKSUM = false;
 
 /**
  * Lazy checksum address.
@@ -41,7 +32,16 @@ export const lazyChecksumAddress = <const T extends object>(
     },
   });
 
-  Object.assign(object, { [util.inspect.custom]: () => inspect(object, key) });
+  Object.assign(object, {
+    [util.inspect.custom]: () => {
+      return Object.fromEntries(
+        Object.keys(object).map((k) =>
+          // @ts-expect-error
+          k === key ? [k, checksumAddress(address)] : [k, object[k]],
+        ),
+      );
+    },
+  });
 
   return object;
 };
