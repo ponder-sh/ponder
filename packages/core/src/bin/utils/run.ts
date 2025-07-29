@@ -18,7 +18,10 @@ import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import { createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
-import { RetryableError } from "@/internal/errors.js";
+import {
+  NonRetryableUserError,
+  type RetryableError,
+} from "@/internal/errors.js";
 import { getAppProgress } from "@/internal/metrics.js";
 import type {
   CrashRecoveryCheckpoint,
@@ -359,7 +362,7 @@ export async function run({
           indexingCache.invalidate();
           indexingCache.clear();
 
-          if (error instanceof RetryableError) {
+          if (error instanceof NonRetryableUserError === false) {
             common.logger.warn({
               service: "app",
               msg: "Retrying event batch",
@@ -570,10 +573,12 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
                   }
                 }
               } catch (error) {
-                common.logger.warn({
-                  service: "app",
-                  msg: `Retrying '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
-                });
+                if (error instanceof NonRetryableUserError === false) {
+                  common.logger.warn({
+                    service: "app",
+                    msg: `Retrying '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
+                  });
+                }
 
                 throw error;
               }
