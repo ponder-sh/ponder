@@ -71,7 +71,7 @@ export type Client<schema extends Schema = Schema> = {
 
 const getUrl = (
   baseUrl: string,
-  method: "live" | "db" | "status",
+  method: "live" | "db",
   query?: QueryWithTypings,
 ) => {
   const url = new URL(baseUrl);
@@ -167,9 +167,7 @@ export const createClient = <schema extends Schema>(
       };
     },
     getStatus: async () => {
-      const response = await fetch(getUrl(baseUrl, "status"), {
-        method: "POST",
-      });
+      const response = await fetch(`${new URL(baseUrl).origin}/status`);
 
       return response.json();
     },

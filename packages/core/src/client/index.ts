@@ -1,6 +1,5 @@
-import type { Schema, Status } from "@/internal/types.js";
+import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
-import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import type { QueryWithTypings } from "drizzle-orm";
 import type { PgSession } from "drizzle-orm/pg-core";
@@ -123,38 +122,6 @@ export const client = ({
           await statusResolver.promise;
         }
       });
-    }
-
-    if (c.req.path === "/sql/status") {
-      // Note: This is done to avoid non-browser compatible dependencies
-
-      const checkpoints = (await globalThis.PONDER_DATABASE.readonlyQB
-        .wrap({ label: "select_checkpoints" }, (db) =>
-          db.execute(
-            "SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint",
-          ),
-        )
-        .then((res) => res.rows)) as {
-        chain_name: string;
-        chain_id: string;
-        latest_checkpoint: string;
-        safe_checkpoint: string;
-      }[];
-
-      const status: Status = {};
-      for (const { chain_name, chain_id, latest_checkpoint } of checkpoints) {
-        status[chain_name] = {
-          id: Number(chain_id),
-          block: {
-            number: Number(decodeCheckpoint(latest_checkpoint).blockNumber),
-            timestamp: Number(
-              decodeCheckpoint(latest_checkpoint).blockTimestamp,
-            ),
-          },
-        };
-      }
-
-      return c.json(status);
     }
 
     return next();
