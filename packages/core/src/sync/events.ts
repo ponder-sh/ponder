@@ -24,6 +24,7 @@ import {
   encodeCheckpoint,
 } from "@/utils/checkpoint.js";
 import { decodeAbiParameters } from "@/utils/decodeAbiParameters.js";
+import { lazyChecksumAddress } from "@/utils/lazy.js";
 import { never } from "@/utils/never.js";
 import type { AbiEvent, AbiParameter } from "abitype";
 import {
@@ -533,6 +534,40 @@ export const decodeEvents = (
   }
 
   return events;
+};
+
+export const lazyChecksumEvents = (events: Event[]) => {
+  for (const event of events) {
+    lazyChecksumAddress(event.event.block, "miner");
+
+    if ("transaction" in event.event) {
+      lazyChecksumAddress(event.event.transaction, "from");
+      if (event.event.transaction.to !== null) {
+        lazyChecksumAddress(event.event.transaction, "to");
+      }
+    }
+
+    if ("transactionReceipt" in event.event && event.event.transactionReceipt) {
+      if (event.event.transactionReceipt.contractAddress !== null) {
+        lazyChecksumAddress(event.event.transactionReceipt, "contractAddress");
+      }
+      lazyChecksumAddress(event.event.transactionReceipt, "from");
+      if (event.event.transactionReceipt.to !== null) {
+        lazyChecksumAddress(event.event.transactionReceipt, "to");
+      }
+    }
+
+    if ("trace" in event.event) {
+      lazyChecksumAddress(event.event.trace, "from");
+      if (event.event.trace.to !== null) {
+        lazyChecksumAddress(event.event.trace, "to");
+      }
+    }
+
+    if ("log" in event.event) {
+      lazyChecksumAddress(event.event.log, "address");
+    }
+  }
 };
 
 /** @see https://github.com/wevm/viem/blob/main/src/utils/abi/decodeEventLog.ts#L99 */
