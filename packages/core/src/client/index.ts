@@ -38,7 +38,7 @@ export const client = ({
 
   const channel = `${globalThis.PONDER_NAMESPACE_BUILD.schema}_status_channel`;
 
-  if ("instance" in driver) {
+  if (driver.dialect === "pglite") {
     driver.instance.query(`LISTEN "${channel}"`).then(() => {
       driver.instance.onNotification(async () => {
         statusResolver.resolve();
@@ -46,7 +46,7 @@ export const client = ({
       });
     });
   } else {
-    const pool = driver.internal;
+    const pool = driver.admin;
 
     const connectAndListen = async () => {
       driver.listen = await pool.connect();
@@ -75,7 +75,7 @@ export const client = ({
       }
       const query = superjson.parse(queryString) as QueryWithTypings;
 
-      if ("instance" in driver) {
+      if (driver.dialect === "pglite") {
         try {
           await validateQuery(query.sql);
           const result = await session
@@ -87,7 +87,7 @@ export const client = ({
           return c.text((error as Error).message, 500);
         }
       } else {
-        const client = await driver.internal.connect();
+        const client = await driver.admin.connect();
 
         try {
           await validateQuery(query.sql);
@@ -100,8 +100,11 @@ export const client = ({
           (error as Error).stack = undefined;
           return c.text((error as Error).message, 500);
         } finally {
-          await client.query("ROLLBACK");
-          client.release();
+          try {
+            await client.query("ROLLBACK");
+          } finally {
+            client.release();
+          }
         }
       }
     }

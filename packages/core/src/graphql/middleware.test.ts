@@ -44,7 +44,7 @@ test("middleware serves request", async (context) => {
 
   const app = new Hono().use(
     "/graphql",
-    graphql({ schema, db: database.qb.drizzleReadonly }),
+    graphql({ schema, db: database.readonlyQB.raw }),
   );
 
   const response = await app.request("/graphql", {
@@ -103,7 +103,7 @@ test("middleware supports path other than /graphql using hono routing", async (c
 
   const app = new Hono().use(
     "/not-graphql/**",
-    graphql({ schema, db: database.qb.drizzleReadonly }),
+    graphql({ schema, db: database.readonlyQB.raw }),
   );
 
   const response = await app.request("/not-graphql/at-all", {
@@ -144,7 +144,7 @@ test("middleware throws error when extra filter is applied", async (context) => 
 
   const app = new Hono().use(
     "/graphql",
-    graphql({ schema, db: database.qb.drizzleReadonly }),
+    graphql({ schema, db: database.readonlyQB.raw }),
   );
 
   const response = await app.request("/graphql", {
@@ -189,10 +189,7 @@ test("graphQLMiddleware throws error for token limit", async (context) => {
 
   const app = new Hono().use(
     "/graphql",
-    graphql(
-      { schema, db: database.qb.drizzleReadonly },
-      { maxOperationTokens: 3 },
-    ),
+    graphql({ schema, db: database.readonlyQB.raw }, { maxOperationTokens: 3 }),
   );
 
   const response = await app.request("/graphql", {
@@ -241,10 +238,7 @@ test("graphQLMiddleware throws error for depth limit", async (context) => {
 
   const app = new Hono().use(
     "/graphql",
-    graphql(
-      { schema, db: database.qb.drizzleReadonly },
-      { maxOperationDepth: 5 },
-    ),
+    graphql({ schema, db: database.readonlyQB.raw }, { maxOperationDepth: 5 }),
   );
 
   const response = await app.request("/graphql", {
@@ -294,7 +288,7 @@ test("graphQLMiddleware throws error for max aliases", async (context) => {
   const app = new Hono().use(
     "/graphql",
     graphql(
-      { schema, db: database.qb.drizzleReadonly },
+      { schema, db: database.readonlyQB.raw },
       { maxOperationAliases: 2 },
     ),
   );
@@ -352,7 +346,7 @@ test("graphQLMiddleware interactive", async (context) => {
   const app = new Hono().use(
     "/graphql",
     graphql(
-      { schema, db: database.qb.drizzleReadonly },
+      { schema, db: database.readonlyQB.raw },
       { maxOperationAliases: 2 },
     ),
   );

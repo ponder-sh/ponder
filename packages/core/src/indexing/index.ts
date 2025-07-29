@@ -8,6 +8,7 @@ import type {
   ContractSource,
   Event,
   IndexingBuild,
+  IndexingErrorHandler,
   Schema,
   SetupEvent,
 } from "@/internal/types.js";
@@ -58,6 +59,7 @@ export const createIndexing = ({
   indexingBuild: { sources, chains, indexingFunctions },
   client,
   eventCount,
+  indexingErrorHandler,
 }: {
   common: Common;
   indexingBuild: Pick<
@@ -66,6 +68,7 @@ export const createIndexing = ({
   >;
   client: CachedViemClient;
   eventCount: { [eventName: string]: number };
+  indexingErrorHandler: IndexingErrorHandler;
 }): Indexing => {
   const context: Context = {
     chain: { name: undefined!, id: undefined! },
@@ -174,6 +177,15 @@ export const createIndexing = ({
       const error =
         _error instanceof Error ? _error : new Error(String(_error));
 
+      // Note: Use `getRetryableError` rather than `error` to avoid
+      // issues with the user-code augmenting errors from the indexing store.
+
+      if (indexingErrorHandler.getRetryableError()) {
+        const retryableError = indexingErrorHandler.getRetryableError()!;
+        indexingErrorHandler.clearRetryableError();
+        return { status: "error", error: retryableError };
+      }
+
       if (common.shutdown.isKilled) {
         throw new ShutdownError();
       }
@@ -191,6 +203,15 @@ export const createIndexing = ({
       common.metrics.ponder_indexing_has_error.set(1);
 
       return { status: "error", error: error };
+    }
+
+    // Note: Check `getRetryableError` to handle user-code catching errors
+    // from the indexing store.
+
+    if (indexingErrorHandler.getRetryableError()) {
+      const retryableError = indexingErrorHandler.getRetryableError()!;
+      indexingErrorHandler.clearRetryableError();
+      return { status: "error", error: retryableError };
     }
 
     return { status: "success" };
@@ -221,6 +242,15 @@ export const createIndexing = ({
       const error =
         _error instanceof Error ? _error : new Error(String(_error));
 
+      // Note: Use `getRetryableError` rather than `error` to avoid
+      // issues with the user-code augmenting errors from the indexing store.
+
+      if (indexingErrorHandler.getRetryableError()) {
+        const retryableError = indexingErrorHandler.getRetryableError()!;
+        indexingErrorHandler.clearRetryableError();
+        return { status: "error", error: retryableError };
+      }
+
       if (common.shutdown.isKilled) {
         throw new ShutdownError();
       }
@@ -239,6 +269,15 @@ export const createIndexing = ({
       common.metrics.ponder_indexing_has_error.set(1);
 
       return { status: "error", error };
+    }
+
+    // Note: Check `getRetryableError` to handle user-code catching errors
+    // from the indexing store.
+
+    if (indexingErrorHandler.getRetryableError()) {
+      const retryableError = indexingErrorHandler.getRetryableError()!;
+      indexingErrorHandler.clearRetryableError();
+      return { status: "error", error: retryableError };
     }
 
     return { status: "success" };

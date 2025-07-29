@@ -1,14 +1,10 @@
+import type { QB } from "@/database/queryBuilder.js";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { onchain } from "@/drizzle/onchain.js";
 import {
-  BigIntSerializationError,
-  CheckConstraintError,
   InvalidStoreMethodError,
-  NonRetryableError,
-  NotNullConstraintError,
+  NonRetryableUserError,
   UndefinedTableError,
-  UniqueConstraintError,
-  getBaseError,
 } from "@/internal/errors.js";
 import type { Schema } from "@/internal/types.js";
 import type { Db } from "@/types/db.js";
@@ -16,28 +12,7 @@ import type { Table } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import type { Row } from "./cache.js";
 
-export type IndexingStore = Db<Schema>;
-
-export const parseSqlError = (e: any): Error => {
-  let error = getBaseError(e);
-
-  if (error?.message?.includes("violates not-null constraint")) {
-    error = new NotNullConstraintError(error.message);
-  } else if (error?.message?.includes("violates unique constraint")) {
-    error = new UniqueConstraintError(error.message);
-  } else if (error?.message?.includes("violates check constraint")) {
-    error = new CheckConstraintError(error.message);
-  } else if (
-    error?.message?.includes("Do not know how to serialize a BigInt")
-  ) {
-    error = new BigIntSerializationError(error.message);
-    error.meta.push(
-      "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/api-reference/ponder-utils#replacebigints",
-    );
-  }
-
-  return error;
-};
+export type IndexingStore = Db<Schema> & { qb: QB };
 
 export const validateUpdateSet = (
   table: Table,
@@ -50,7 +25,7 @@ export const validateUpdateSet = (
     if (js in set) {
       // Note: Noop on the primary keys if they are identical, otherwise throw an error.
       if ((set as Row)[js] !== prev[js]) {
-        throw new NonRetryableError(
+        throw new NonRetryableUserError(
           `Primary key column '${js}' cannot be updated`,
         );
       }

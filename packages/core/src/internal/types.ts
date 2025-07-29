@@ -28,6 +28,7 @@ import type {
   Chain as ViemChain,
   Log as ViemLog,
 } from "viem";
+import type { RetryableError } from "./errors.js";
 
 // Database
 
@@ -381,6 +382,15 @@ export type Status = {
     id: number;
     block: { number: number; timestamp: number };
   };
+};
+
+// Indexing error handler
+
+export type IndexingErrorHandler = {
+  getRetryableError: () => RetryableError | undefined;
+  setRetryableError: (error: RetryableError) => void;
+  clearRetryableError: () => void;
+  error: RetryableError | undefined;
 };
 
 // Seconds
