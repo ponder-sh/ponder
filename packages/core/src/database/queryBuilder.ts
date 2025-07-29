@@ -144,11 +144,13 @@ export const createQB = <
   const retryLogMetricErrorWrap = async <T>(
     fn: () => Promise<T>,
     {
-      isTransactionCallback,
       label,
+      isTransaction,
+      isTransactionStatement,
     }: {
-      isTransactionCallback: boolean;
       label?: string;
+      isTransaction: boolean;
+      isTransactionStatement: boolean;
     },
   ): Promise<T> => {
     // First error thrown is often the most useful
@@ -207,7 +209,19 @@ export const createQB = <
         // later. We want the error bubbled up out of the callback, so the transaction is properly rolled back.
         // 2. Outside callback (running entire transaction, user statements + control flow statements): Retry immediately.
 
-        if (error instanceof NonRetryableUserError || isTransactionCallback) {
+        if (isTransaction) {
+          if (error instanceof NonRetryableUserError) {
+            throw error;
+          }
+        } else if (isTransactionStatement) {
+          // Transaction statements are not immediately retried, so the transaction will be properly rolled back.
+          common.logger.warn({
+            service: "database",
+            msg: `Failed ${label ? `'${label}' ` : ""}database query (id=${id})`,
+            error,
+          });
+          throw error;
+        } else if (error instanceof NonRetryableUserError) {
           common.logger.warn({
             service: "database",
             msg: `Failed ${label ? `'${label}' ` : ""}database query (id=${id})`,
@@ -285,7 +299,7 @@ export const createQB = <
                   return retryLogMetricErrorWrap(
                     async () =>
                       query(tx as unknown as InnerQB<TSchema, TClient>),
-                    { isTransactionCallback: true },
+                    { isTransaction: false, isTransactionStatement: true },
                   );
                 } else {
                   const [{ label }, query] = args as [
@@ -295,7 +309,11 @@ export const createQB = <
                   return retryLogMetricErrorWrap(
                     async () =>
                       query(tx as unknown as InnerQB<TSchema, TClient>),
-                    { label, isTransactionCallback: true },
+                    {
+                      label,
+                      isTransaction: false,
+                      isTransactionStatement: true,
+                    },
                   );
                 }
               };
@@ -307,7 +325,7 @@ export const createQB = <
               tx.transaction = undefined;
               return result;
             }, config),
-          { isTransactionCallback: false },
+          { isTransaction: true, isTransactionStatement: false },
         );
       } else {
         const [{ label }, callback, config] = args as unknown as [
@@ -345,7 +363,11 @@ export const createQB = <
                   return retryLogMetricErrorWrap(
                     async () =>
                       query(tx as unknown as InnerQB<TSchema, TClient>),
-                    { label, isTransactionCallback: true },
+                    {
+                      label,
+                      isTransaction: false,
+                      isTransactionStatement: true,
+                    },
                   );
                 } else {
                   const [{ label }, query] = args as [
@@ -355,7 +377,11 @@ export const createQB = <
                   return retryLogMetricErrorWrap(
                     async () =>
                       query(tx as unknown as InnerQB<TSchema, TClient>),
-                    { label, isTransactionCallback: true },
+                    {
+                      label,
+                      isTransaction: false,
+                      isTransactionStatement: true,
+                    },
                   );
                 }
               };
@@ -367,7 +393,7 @@ export const createQB = <
               tx.transaction = undefined;
               return result;
             }, config),
-          { label, isTransactionCallback: false },
+          { label, isTransaction: true, isTransactionStatement: false },
         );
       }
     };
@@ -387,13 +413,13 @@ export const createQB = <
       const [query] = args;
       // @ts-expect-error
       return retryLogMetricErrorWrap(async () => query(qb), {
-        isTransactionCallback: false,
+        isTransactionStatement: false,
       });
     } else {
       const [{ label }, query] = args;
       // @ts-expect-error
       return retryLogMetricErrorWrap(() => query(qb), {
-        isTransactionCallback: false,
+        isTransactionStatement: false,
         label,
       });
     }

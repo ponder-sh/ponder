@@ -114,6 +114,15 @@ export class DbConnectionError extends RetryableError {
   }
 }
 
+export class TransactionStatementError extends RetryableError {
+  override name = "TransactionStatementError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, TransactionStatementError.prototype);
+  }
+}
+
 export class CopyFlushError extends RetryableError {
   override name = "CopyFlushError";
 
