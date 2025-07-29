@@ -61,7 +61,6 @@ import { type Address, type Hash, hexToBigInt, hexToNumber, toHex } from "viem";
 import {
   buildEvents,
   decodeEvents,
-  lazyChecksumEvents,
   syncBlockToInternal,
   syncLogToInternal,
   syncTraceToInternal,
@@ -353,7 +352,6 @@ export const createSync = async (params: {
                 sources,
                 events,
               );
-              lazyChecksumEvents(decodedEvents);
               params.common.logger.debug({
                 service: "app",
                 msg: `Decoded ${decodedEvents.length} '${chain.name}' events`,
@@ -589,7 +587,6 @@ export const createSync = async (params: {
         });
 
         const decodedEvents = decodeEvents(params.common, sources, events);
-        lazyChecksumEvents(decodedEvents);
         params.common.logger.debug({
           service: "sync",
           msg: `Decoded ${decodedEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
@@ -1358,6 +1355,7 @@ export async function* getLocalEventGenerator(params: {
         });
 
       const endClock = startClock();
+      global.SKIP_CHECKSUM = true;
       const events = blockData.flatMap((bd) =>
         buildEvents({
           sources: params.sources,
@@ -1366,6 +1364,7 @@ export async function* getLocalEventGenerator(params: {
           chainId: params.chain.id,
         }),
       );
+      global.SKIP_CHECKSUM = false;
       params.common.metrics.ponder_historical_extract_duration.inc(
         { step: "build" },
         endClock(),

@@ -350,6 +350,7 @@ export const createIndexingCache = ({
           }
         }
 
+        global.SKIP_CHECKSUM = true;
         const pattern = recordProfilePattern(
           event,
           table,
@@ -359,6 +360,7 @@ export const createIndexingCache = ({
           ),
           primaryKeyCache,
         );
+        global.SKIP_CHECKSUM = false;
         if (pattern) {
           const key = getProfilePatternKey(pattern);
           if (profile.get(event.name)!.get(table)!.has(key)) {

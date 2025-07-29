@@ -1,6 +1,21 @@
 import util from "node:util";
 import { type Address, checksumAddress } from "viem";
 
+declare global {
+  var SKIP_CHECKSUM: boolean;
+}
+
+const inspect = new Function(
+  "object",
+  "key",
+  `
+  return Object.fromEntries(
+    Object.keys(object).map((k) =>
+      k === key ? [k, checksumAddress(address)] : [k, object[k]],
+    ),
+  );`,
+);
+
 /**
  * Lazy checksum address.
  *
@@ -19,20 +34,14 @@ export const lazyChecksumAddress = <const T extends object>(
 
   Object.defineProperty(object, key, {
     get() {
+      if (SKIP_CHECKSUM) {
+        return address;
+      }
       return checksumAddress(address);
     },
   });
 
-  Object.assign(object, {
-    [util.inspect.custom]: () => {
-      return Object.fromEntries(
-        Object.keys(object).map((k) =>
-          // @ts-expect-error
-          k === key ? [k, checksumAddress(address)] : [k, object[k]],
-        ),
-      );
-    },
-  });
+  Object.assign(object, { [util.inspect.custom]: () => inspect(object, key) });
 
   return object;
 };
