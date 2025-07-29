@@ -159,13 +159,9 @@ export async function run({
       historicalIndexingStore.qb = tx;
       indexingCache.qb = tx;
 
-      const result = await indexing.processSetupEvents({
+      await indexing.processSetupEvents({
         db: historicalIndexingStore,
       });
-
-      if (result.status === "error") {
-        throw result.error;
-      }
 
       await indexingCache.flush();
 
@@ -232,16 +228,11 @@ export async function run({
 
           const eventChunks = chunk(events.events, 93);
           for (const eventChunk of eventChunks) {
-            const result = await indexing.processEvents({
+            await indexing.processEvents({
               events: eventChunk,
               db: historicalIndexingStore,
               cache: indexingCache,
             });
-
-            if (result.status === "error") {
-              console.log("hihi");
-              throw result.error;
-            }
 
             const checkpoint = decodeCheckpoint(
               eventChunk[eventChunk.length - 1]!.checkpoint,
@@ -551,7 +542,7 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
               try {
                 realtimeIndexingStore.qb = tx;
 
-                const result = await indexing.processEvents({
+                await indexing.processEvents({
                   events,
                   db: realtimeIndexingStore,
                 });
@@ -560,10 +551,6 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
                   service: "app",
                   msg: `Indexed ${events.length} '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
                 });
-
-                if (result.status === "error") {
-                  throw result.error;
-                }
 
                 await Promise.all(
                   tables.map((table) => commitBlock(tx, { table, checkpoint })),

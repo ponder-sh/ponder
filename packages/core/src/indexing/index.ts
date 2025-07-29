@@ -50,12 +50,12 @@ export type Context = {
 export type Indexing = {
   processSetupEvents: (params: {
     db: IndexingStore;
-  }) => Promise<{ status: "error"; error: Error } | { status: "success" }>;
+  }) => Promise<void>;
   processEvents: (params: {
     events: Event[];
     db: IndexingStore;
     cache?: IndexingCache;
-  }) => Promise<{ status: "error"; error: Error } | { status: "success" }>;
+  }) => Promise<void>;
 };
 
 export const createIndexing = ({
@@ -158,9 +158,7 @@ export const createIndexing = ({
 
   const executeSetup = async ({
     event,
-  }: { event: SetupEvent }): Promise<
-    { status: "error"; error: Error } | { status: "success" }
-  > => {
+  }: { event: SetupEvent }): Promise<void> => {
     const indexingFunction = indexingFunctions[event.name];
     const metricLabel = { event: event.name };
 
@@ -186,7 +184,7 @@ export const createIndexing = ({
       if (indexingErrorHandler.getRetryableError()) {
         const retryableError = indexingErrorHandler.getRetryableError()!;
         indexingErrorHandler.clearRetryableError();
-        return { status: "error", error: retryableError };
+        throw retryableError;
       }
 
       if (common.shutdown.isKilled) {
@@ -209,7 +207,7 @@ export const createIndexing = ({
         error = new IndexingFunctionError(error.message);
       }
 
-      return { status: "error", error };
+      throw error;
     }
 
     // Note: Check `getRetryableError` to handle user-code catching errors
@@ -218,17 +216,11 @@ export const createIndexing = ({
     if (indexingErrorHandler.getRetryableError()) {
       const retryableError = indexingErrorHandler.getRetryableError()!;
       indexingErrorHandler.clearRetryableError();
-      return { status: "error", error: retryableError };
+      throw retryableError;
     }
-
-    return { status: "success" };
   };
 
-  const executeEvent = async ({
-    event,
-  }: { event: Event }): Promise<
-    { status: "error"; error: Error } | { status: "success" }
-  > => {
+  const executeEvent = async ({ event }: { event: Event }): Promise<void> => {
     const indexingFunction = indexingFunctions[event.name];
     const metricLabel = { event: event.name };
 
@@ -254,7 +246,7 @@ export const createIndexing = ({
       if (indexingErrorHandler.getRetryableError()) {
         const retryableError = indexingErrorHandler.getRetryableError()!;
         indexingErrorHandler.clearRetryableError();
-        return { status: "error", error: retryableError };
+        throw retryableError;
       }
 
       if (common.shutdown.isKilled) {
@@ -278,7 +270,7 @@ export const createIndexing = ({
         error = new IndexingFunctionError(error.message);
       }
 
-      return { status: "error", error };
+      throw error;
     }
 
     // Note: Check `getRetryableError` to handle user-code catching errors
@@ -287,10 +279,8 @@ export const createIndexing = ({
     if (indexingErrorHandler.getRetryableError()) {
       const retryableError = indexingErrorHandler.getRetryableError()!;
       indexingErrorHandler.clearRetryableError();
-      return { status: "error", error: retryableError };
+      throw retryableError;
     }
-
-    return { status: "success" };
   };
 
   return {
@@ -330,15 +320,9 @@ export const createIndexing = ({
 
           eventCount[eventName]!++;
 
-          const result = await executeSetup({ event });
-
-          if (result.status !== "success") {
-            return result;
-          }
+          await executeSetup({ event });
         }
       }
-
-      return { status: "success" };
     },
     async processEvents({ events, db, cache }) {
       context.db = db;
@@ -359,10 +343,7 @@ export const createIndexing = ({
           msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
         });
 
-        const result = await executeEvent({ event });
-        if (result.status !== "success") {
-          return result;
-        }
+        await executeEvent({ event });
 
         common.logger.trace({
           service: "indexing",
@@ -372,8 +353,6 @@ export const createIndexing = ({
 
       // set completed events
       updateCompletedEvents();
-
-      return { status: "success" };
     },
   };
 };

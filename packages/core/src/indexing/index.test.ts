@@ -124,9 +124,7 @@ test("processSetupEvents() empty", async (context) => {
     indexingErrorHandler,
   });
 
-  const result = await indexing.processSetupEvents({ db: indexingStore });
-
-  expect(result).toStrictEqual({ status: "success" });
+  await indexing.processSetupEvents({ db: indexingStore });
 });
 
 test("processSetupEvents()", async (context) => {
@@ -166,9 +164,7 @@ test("processSetupEvents()", async (context) => {
     indexingErrorHandler,
   });
 
-  const result = await indexing.processSetupEvents({ db: indexingStore });
-
-  expect(result).toStrictEqual({ status: "success" });
+  await indexing.processSetupEvents({ db: indexingStore });
 
   expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledOnce();
   expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledWith({
@@ -252,8 +248,7 @@ test("processEvent()", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  const result = await indexing.processEvents({ db: indexingStore, events });
-  expect(result).toStrictEqual({ status: "success" });
+  await indexing.processEvents({ db: indexingStore, events });
 
   expect(
     indexingFunctions[
@@ -404,9 +399,7 @@ test("executeSetup() context.client", async (context) => {
 
   const getBalanceSpy = vi.spyOn(rpcs[0]!, "request");
 
-  const result = await indexing.processSetupEvents({ db: indexingStore });
-
-  expect(result).toStrictEqual({ status: "success" });
+  await indexing.processSetupEvents({ db: indexingStore });
 
   expect(getBalanceSpy).toHaveBeenCalledOnce();
   expect(getBalanceSpy).toHaveBeenCalledWith({
@@ -457,9 +450,7 @@ test("executeSetup() context.db", async (context) => {
 
   const insertSpy = vi.spyOn(indexingStore, "insert");
 
-  const result = await indexing.processSetupEvents({ db: indexingStore });
-
-  expect(result).toStrictEqual({ status: "success" });
+  await indexing.processSetupEvents({ db: indexingStore });
 
   expect(insertSpy).toHaveBeenCalledOnce();
 
@@ -505,8 +496,7 @@ test("executeSetup() metrics", async (context) => {
     indexingErrorHandler,
   });
 
-  const result = await indexing.processSetupEvents({ db: indexingStore });
-  expect(result).toStrictEqual({ status: "success" });
+  await indexing.processSetupEvents({ db: indexingStore });
 
   const metrics = await common.metrics.ponder_indexing_function_duration.get();
   expect(metrics.values).toBeDefined();
@@ -551,8 +541,9 @@ test("executeSetup() error", async (context) => {
 
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
 
-  const result = await indexing.processSetupEvents({ db: indexingStore });
-  expect(result).toStrictEqual({ status: "error", error: expect.any(Error) });
+  await expect(() =>
+    indexing.processSetupEvents({ db: indexingStore }),
+  ).rejects.toThrowError();
 
   expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(1);
 });
@@ -624,8 +615,7 @@ test("processEvents() context.client", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  const result = await indexing.processEvents({ db: indexingStore, events });
-  expect(result).toStrictEqual({ status: "success" });
+  await indexing.processEvents({ db: indexingStore, events });
 
   expect(getBalanceSpy).toHaveBeenCalledTimes(1);
   expect(getBalanceSpy).toHaveBeenCalledWith({
@@ -704,8 +694,7 @@ test("processEvents() context.db", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  const result = await indexing.processEvents({ db: indexingStore, events });
-  expect(result).toStrictEqual({ status: "success" });
+  await indexing.processEvents({ db: indexingStore, events });
 
   expect(insertSpy).toHaveBeenCalledTimes(1);
 
@@ -847,12 +836,10 @@ test("processEvents() error", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  const result = await indexing.processEvents({ db: indexingStore, events });
+  await expect(() =>
+    indexing.processEvents({ db: indexingStore, events }),
+  ).rejects.toThrowError();
 
-  expect(result).toStrictEqual({
-    status: "error",
-    error: expect.any(Error),
-  });
   expect(
     indexingFunctions[
       "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
@@ -925,14 +912,9 @@ test("processEvents() error with missing event object properties", async (contex
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  const result = await indexing.processEvents({ events, db: indexingStore });
-
-  expect(result).toMatchInlineSnapshot(`
-    {
-      "error": [Error: empty transaction],
-      "status": "error",
-    }
-  `);
+  await expect(() =>
+    indexing.processEvents({ events, db: indexingStore }),
+  ).rejects.toThrowError();
 });
 
 test("ponderActions getBalance()", async (context) => {
