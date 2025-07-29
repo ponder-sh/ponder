@@ -278,7 +278,7 @@ test("handleBlock() block event with log", async (context) => {
   expect(syncResult).toHaveLength(1);
   expect(syncResult[0]).toStrictEqual({
     type: "block",
-    callback: undefined,
+    blockCallback: undefined,
     hasMatchedFilter: true,
     block: expect.any(Object),
     logs: expect.any(Object),
@@ -368,7 +368,7 @@ test("handleBlock() block event with log factory", async (context) => {
 
   expect(data[0]).toStrictEqual({
     type: "block",
-    callback: undefined,
+    blockCallback: undefined,
     hasMatchedFilter: false,
     block: expect.any(Object),
     logs: expect.any(Object),
@@ -380,7 +380,7 @@ test("handleBlock() block event with log factory", async (context) => {
 
   expect(data[1]).toStrictEqual({
     type: "block",
-    callback: undefined,
+    blockCallback: undefined,
     hasMatchedFilter: true,
     block: expect.any(Object),
     logs: expect.any(Object),
@@ -472,7 +472,7 @@ test("handleBlock() block event with block", async (context) => {
   expect(syncResult).toHaveLength(1);
   expect(syncResult[0]).toStrictEqual({
     type: "block",
-    callback: undefined,
+    blockCallback: undefined,
     hasMatchedFilter: true,
     block: expect.any(Object),
     logs: expect.any(Object),
@@ -533,7 +533,7 @@ test("handleBlock() block event with transaction", async (context) => {
   expect(syncResult).toHaveLength(1);
   expect(syncResult[0]).toStrictEqual({
     type: "block",
-    callback: undefined,
+    blockCallback: undefined,
     hasMatchedFilter: true,
     block: expect.any(Object),
     logs: expect.any(Object),
@@ -620,7 +620,7 @@ test("handleBlock() block event with transfer", async (context) => {
   expect(syncResult).toHaveLength(1);
   expect(syncResult[0]).toStrictEqual({
     type: "block",
-    callback: undefined,
+    blockCallback: undefined,
     hasMatchedFilter: true,
     block: expect.any(Object),
     logs: expect.any(Object),

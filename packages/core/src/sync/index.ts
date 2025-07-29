@@ -81,7 +81,7 @@ export type RealtimeEvent =
       events: Event[];
       chain: Chain;
       checkpoint: string;
-      callback?: (isAccepted: boolean) => void;
+      blockCallback?: (isAccepted: boolean) => void;
     }
   | {
       type: "reorg";
@@ -732,7 +732,7 @@ export const createSync = async (params: {
             events: readyEvents,
             chain,
             checkpoint,
-            callback: event.callback,
+            blockCallback: event.blockCallback,
           };
         } else {
           const checkpoint = getOmnichainCheckpoint({ tag: "current" });
@@ -756,7 +756,7 @@ export const createSync = async (params: {
             events: readyEvents,
             chain,
             checkpoint,
-            callback: event.callback,
+            blockCallback: event.blockCallback,
           };
         }
       }

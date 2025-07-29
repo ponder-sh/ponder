@@ -639,7 +639,7 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
               .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
           );
 
-          event.callback?.(true);
+          event.blockCallback?.(true);
 
           break;
         }
