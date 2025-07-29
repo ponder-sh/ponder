@@ -2,7 +2,11 @@ import type { IndexingCache } from "@/indexing-store/cache.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
 import type { CachedViemClient } from "@/indexing/client.js";
 import type { Common } from "@/internal/common.js";
-import { ShutdownError } from "@/internal/errors.js";
+import {
+  BaseError,
+  IndexingFunctionError,
+  ShutdownError,
+} from "@/internal/errors.js";
 import type {
   Chain,
   ContractSource,
@@ -174,8 +178,7 @@ export const createIndexing = ({
         endClock(),
       );
     } catch (_error) {
-      const error =
-        _error instanceof Error ? _error : new Error(String(_error));
+      let error = _error instanceof Error ? _error : new Error(String(_error));
 
       // Note: Use `getRetryableError` rather than `error` to avoid
       // issues with the user-code augmenting errors from the indexing store.
@@ -202,7 +205,11 @@ export const createIndexing = ({
 
       common.metrics.ponder_indexing_has_error.set(1);
 
-      return { status: "error", error: error };
+      if (error instanceof BaseError === false) {
+        error = new IndexingFunctionError(error.message);
+      }
+
+      return { status: "error", error };
     }
 
     // Note: Check `getRetryableError` to handle user-code catching errors
@@ -239,8 +246,7 @@ export const createIndexing = ({
         endClock(),
       );
     } catch (_error) {
-      const error =
-        _error instanceof Error ? _error : new Error(String(_error));
+      let error = _error instanceof Error ? _error : new Error(String(_error));
 
       // Note: Use `getRetryableError` rather than `error` to avoid
       // issues with the user-code augmenting errors from the indexing store.
@@ -267,6 +273,10 @@ export const createIndexing = ({
       });
 
       common.metrics.ponder_indexing_has_error.set(1);
+
+      if (error instanceof BaseError === false) {
+        error = new IndexingFunctionError(error.message);
+      }
 
       return { status: "error", error };
     }

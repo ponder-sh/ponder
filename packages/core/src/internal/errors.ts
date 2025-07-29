@@ -169,3 +169,12 @@ export class RawSqlError extends NonRetryableUserError {
     Object.setPrototypeOf(this, RawSqlError.prototype);
   }
 }
+
+export class IndexingFunctionError extends NonRetryableUserError {
+  override name = "IndexingFunctionError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, IndexingFunctionError.prototype);
+  }
+}

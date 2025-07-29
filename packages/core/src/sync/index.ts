@@ -616,7 +616,7 @@ export const createSync = async (params: {
                 service: "sync",
                 msg: `Killing '${chain.name}' live indexing because the end block ${hexToNumber(syncProgress.end!.number)} has been finalized`,
               });
-              rpc.unsubscribe();
+              await rpc.unsubscribe();
               return;
             }
           }

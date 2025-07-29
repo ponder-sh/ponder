@@ -179,10 +179,6 @@ export const createQB = <
           );
         }
 
-        if (common.shutdown.isKilled && isAdmin === false) {
-          throw new ShutdownError();
-        }
-
         return result;
       } catch (e) {
         const error = parseDbError(e);
