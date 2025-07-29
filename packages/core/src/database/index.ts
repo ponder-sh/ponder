@@ -67,12 +67,12 @@ export type Database = {
     fn: () => Promise<T>,
   ) => Promise<T>;
   transaction: <T>(
-    fn: (
-      context: Map<
-        string,
-        { client: PoolClient | PGlite; tx: Drizzle<Schema> }
-      >,
-    ) => Promise<T>,
+    fn: (transactionContext: {
+      [tableName: string]: {
+        client: PoolClient | PGlite;
+        tx: Drizzle<Schema>;
+      };
+    }) => Promise<T>,
   ) => Promise<T>;
   /** Migrate the `ponder_sync` schema. */
   migrateSync(): Promise<void>;
@@ -618,87 +618,63 @@ export const createDatabase = async ({
     },
     async transaction(fn) {
       if (dialect === "postgres") {
-        const perTableTransactionContext: Map<
-          string,
-          {
+        const transactionContext: {
+          [tableName: string]: {
             client: PoolClient;
             tx: Drizzle<Schema>;
-          }
-        > = new Map();
+          };
+        } = {};
 
-        for (const table of tables) {
-          const client = await (
-            database.driver as { user: Pool }
-          ).user.connect();
-          try {
-            await client.query("BEGIN");
-            const tx = drizzleNodePg(client, {
-              casing: "snake_case",
-              schema: schemaBuild.schema,
-            });
-            perTableTransactionContext.set(getTableName(table), { client, tx });
-          } catch (error) {
-            await client.query("ROLLBACK");
-            client.release();
-            throw error;
-          }
-        }
+        await Promise.all(
+          [...tables, PONDER_CHECKPOINT].map(async (table) => {
+            const client = await (
+              database.driver as { user: Pool }
+            ).user.connect();
 
-        const client = await (database.driver as { user: Pool }).user.connect();
-        try {
-          await client.query("BEGIN");
-          const tx = drizzleNodePg(client, {
-            casing: "snake_case",
-            schema: schemaBuild.schema,
-          });
-          perTableTransactionContext.set("checkpoint", { client, tx });
-        } catch (error) {
-          await client.query("ROLLBACK");
-          client.release();
-          throw error;
-        }
+            try {
+              await client.query("BEGIN");
+            } catch (error) {
+              client.release();
+              throw error;
+            }
 
-        const result = await fn(perTableTransactionContext);
+            transactionContext[getTableName(table)] = {
+              client,
+              tx: drizzleNodePg(client, {
+                casing: "snake_case",
+                schema: schemaBuild.schema,
+              }),
+            };
+          }),
+        );
+
+        const result = await fn(transactionContext);
         return result;
       } else {
-        const perTableTransactionContext: Map<
-          string,
-          {
+        const transactionContext: {
+          [tableName: string]: {
             client: PGlite;
             tx: Drizzle<Schema>;
-          }
-        > = new Map();
-        for (const table of tables) {
-          const client = (database.driver as { instance: PGlite }).instance;
+          };
+        } = {};
 
-          try {
+        await Promise.all(
+          [...tables, PONDER_CHECKPOINT].map(async (table) => {
+            const client = (database.driver as { instance: PGlite }).instance;
+
             await client.query("BEGIN");
-            const tx = drizzlePglite(client, {
-              casing: "snake_case",
-              schema: schemaBuild.schema,
-            });
-            perTableTransactionContext.set(getTableName(table), { client, tx });
-          } catch (error) {
-            await client.query("ROLLBACK");
-            throw error;
-          }
-        }
 
-        const client = (database.driver as { instance: PGlite }).instance;
+            transactionContext[getTableName(table)] = {
+              client,
+              tx: drizzlePglite(client, {
+                casing: "snake_case",
+                schema: schemaBuild.schema,
+              }),
+            };
+          }),
+        );
 
-        try {
-          await client.query("BEGIN");
-          const tx = drizzlePglite(client, {
-            casing: "snake_case",
-            schema: schemaBuild.schema,
-          });
-          perTableTransactionContext.set("checkpoint", { client, tx });
-        } catch (error) {
-          await client.query("ROLLBACK");
-          throw error;
-        }
-
-        const result = await fn(perTableTransactionContext);
+        const result = await fn(transactionContext);
         return result;
       }
     },

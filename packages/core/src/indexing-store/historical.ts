@@ -21,34 +21,33 @@ export const createHistoricalIndexingStore = ({
   common,
   schemaBuild: { schema },
   indexingCache,
-  context,
+  transactionContext,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   indexingCache: IndexingCache;
-  context: Map<
-    string,
-    {
-      tx: Drizzle<Schema>;
+  transactionContext: {
+    [tableName: string]: {
       client: PoolClient | PGlite;
-    }
-  >;
+      tx: Drizzle<Schema>;
+    };
+  };
 }): IndexingStore => {
   return {
     // @ts-ignore
     find: (table: Table, key) => {
+      const db = transactionContext[getTableName(table)]!.tx;
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "find",
       });
       checkOnchainTable(table, "find");
-      const db = context.get(getTableName(table))!.tx;
       return indexingCache.get({ table, key, db });
     },
 
     // @ts-ignore
     insert(table: Table) {
-      const db = context.get(getTableName(table))!.tx;
+      const db = transactionContext[getTableName(table)]!.tx;
       return {
         values: (values: any) => {
           // @ts-ignore
@@ -244,7 +243,7 @@ export const createHistoricalIndexingStore = ({
     },
     // @ts-ignore
     update(table: Table, key) {
-      const db = context.get(getTableName(table))!.tx;
+      const db = transactionContext[getTableName(table)]!.tx;
       return {
         set: async (values: any) => {
           common.metrics.ponder_indexing_store_queries_total.inc({
@@ -283,12 +282,12 @@ export const createHistoricalIndexingStore = ({
     },
     // @ts-ignore
     delete: async (table: Table, key) => {
+      const db = transactionContext[getTableName(table)]!.tx;
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "delete",
       });
       checkOnchainTable(table, "delete");
-      const db = context.get(getTableName(table))!.tx;
       return indexingCache.delete({ table, key, db });
     },
     // @ts-ignore
@@ -301,9 +300,13 @@ export const createHistoricalIndexingStore = ({
         } catch {}
 
         if (isSelectOnly === false) {
-          for (const [tableName, { client }] of context) {
-            await indexingCache.flush({ client, tableName });
-          }
+          await Promise.all(
+            Object.entries(transactionContext).map(
+              async ([tableName, { client }]) => {
+                await indexingCache.flush({ client, tableName });
+              },
+            ),
+          );
           indexingCache.invalidate();
           indexingCache.clear();
         } else {
@@ -314,9 +317,18 @@ export const createHistoricalIndexingStore = ({
             tableNames = await findTableNames(_sql);
           } catch {}
 
-          for (const [tableName, { client }] of context) {
-            await indexingCache.flush({ client, tableName });
-          }
+          const tablesToFlush =
+            tableNames === undefined
+              ? Object.keys(transactionContext)
+              : Array.from(tableNames);
+          await Promise.all(
+            tablesToFlush.map(async (tableName) => {
+              await indexingCache.flush({
+                client: transactionContext[tableName]!.client,
+                tableName,
+              });
+            }),
+          );
         }
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
