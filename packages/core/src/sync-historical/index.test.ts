@@ -96,7 +96,6 @@ test("createHistoricalSync()", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   expect(historicalSync).toBeDefined();
@@ -135,7 +134,6 @@ test("sync() with log filter", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
@@ -187,7 +185,6 @@ test("sync() with log filter and transaction receipts", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
@@ -232,7 +229,6 @@ test("sync() with block filter", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 3]);
@@ -286,7 +282,6 @@ test("sync() with log factory", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 3]);
@@ -385,7 +380,6 @@ test("sync() with trace filter", async (context) => {
       // @ts-ignore
       request,
     },
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 3]);
@@ -436,7 +430,6 @@ test("sync() with transaction filter", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 1]);
@@ -521,7 +514,6 @@ test("sync() with transfer filter", async (context) => {
       // @ts-ignore
       request,
     },
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 1]);
@@ -577,7 +569,6 @@ test("sync() with many filters", async (context) => {
     childAddresses: setupChildAddresses([...erc20Sources, ...blockSources]),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
@@ -632,7 +623,6 @@ test("sync() with cache", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
@@ -648,7 +638,6 @@ test("sync() with cache", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
@@ -688,7 +677,6 @@ test("sync() with partial cache", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
@@ -707,7 +695,6 @@ test("sync() with partial cache", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
@@ -740,7 +727,6 @@ test("sync() with partial cache", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await testClient.mine({ blocks: 1 });
@@ -802,7 +788,6 @@ test("syncBlock() with cache", async (context) => {
     childAddresses: setupChildAddresses([...erc20Sources, ...blockSources]),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   const spy = vi.spyOn(rpc, "request");
@@ -857,7 +842,6 @@ test("syncAddress() handles many addresses", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 13]);

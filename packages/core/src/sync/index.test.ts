@@ -343,7 +343,6 @@ test("getLocalEventGenerator()", async (context) => {
       chain,
       common: context.common,
     }),
-    onFatalError: () => {},
   });
 
   const syncProgress = await getLocalSyncProgress({
@@ -401,7 +400,6 @@ test("getLocalEventGenerator() pagination", async (context) => {
     childAddresses: new Map(),
     sources,
     rpc,
-    onFatalError: () => {},
   });
 
   const syncProgress = await getLocalSyncProgress({
@@ -459,7 +457,6 @@ test("getLocalEventGenerator() pagination with zero interval", async (context) =
     childAddresses: new Map(),
     sources,
     rpc,
-    onFatalError: () => {},
   });
 
   const syncProgress = await getLocalSyncProgress({
@@ -517,7 +514,6 @@ test("getLocalSyncGenerator()", async (context) => {
     childAddresses: new Map(),
     sources,
     rpc,
-    onFatalError: () => {},
   });
 
   const syncProgress = await getLocalSyncProgress({
@@ -570,7 +566,6 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     childAddresses: new Map(),
     sources,
     rpc,
-    onFatalError: () => {},
   });
 
   let syncProgress = await getLocalSyncProgress({
@@ -600,7 +595,6 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     childAddresses: new Map(),
     sources,
     rpc,
-    onFatalError: () => {},
   });
 
   syncProgress = await getLocalSyncProgress({
@@ -655,7 +649,6 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     childAddresses: new Map(),
     sources,
     rpc,
-    onFatalError: () => {},
   });
 
   let syncProgress = await getLocalSyncProgress({
@@ -683,7 +676,6 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     childAddresses: new Map(),
     sources,
     rpc,
-    onFatalError: () => {},
   });
 
   syncProgress = await getLocalSyncProgress({
@@ -1118,7 +1110,6 @@ test("createSync()", async (context) => {
       ],
     },
     syncStore,
-    onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
@@ -1153,7 +1144,6 @@ test("getHistoricalEvents() multichain", async (context) => {
         await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 1 }),
       ],
     },
-    onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
@@ -1190,7 +1180,6 @@ test("getHistoricalEvents() omnichain", async (context) => {
         await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 1 }),
       ],
     },
-    onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
     ordering: "omnichain",
   });
@@ -1227,7 +1216,6 @@ test("getHistoricalEvents() with crash recovery checkpoint", async (context) => 
         await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 2 }),
       ],
     },
-    onFatalError: () => {},
     crashRecoveryCheckpoint: [
       { chainId: 1, checkpoint: MAX_CHECKPOINT_STRING },
     ],
@@ -1268,7 +1256,6 @@ test.skip("startRealtime()", async (context) => {
         await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 0 }),
       ],
     },
-    onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
@@ -1305,7 +1292,6 @@ test("getRealtimeEvents() multichain handles block", async (context) => {
         await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 0 }),
       ],
     },
-    onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
@@ -1345,7 +1331,6 @@ test("getRealtimeEvents() omnichain handles block", async (context) => {
       ],
     },
     syncStore,
-    onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
     ordering: "omnichain",
   });
@@ -1391,7 +1376,6 @@ test("getRealtimeEvents() handles finalize", async (context) => {
         await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 0 }),
       ],
     },
-    onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
@@ -1445,7 +1429,6 @@ test("getRealtimeEvents() kills realtime when finalized", async (context) => {
         await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 0 }),
       ],
     },
-    onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
@@ -1495,7 +1478,6 @@ test("getRealtimeEvents() handles errors", async (context) => {
         await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 0 }),
       ],
     },
-    onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
