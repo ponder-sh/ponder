@@ -1,5 +1,4 @@
 import type { Common } from "@/internal/common.js";
-import { ShutdownError } from "@/internal/errors.js";
 import type {
   BlockFilter,
   Chain,
@@ -79,7 +78,6 @@ type CreateHistoricalSyncParameters = {
   childAddresses: Map<FactoryId, Map<Address, number>>;
   chain: Chain;
   rpc: Rpc;
-  onFatalError: (error: Error) => void;
 };
 
 export const createHistoricalSync = async (
@@ -926,19 +924,13 @@ export const createHistoricalSync = async (
           } catch (_error) {
             const error = _error as Error;
 
-            if (args.common.shutdown.isKilled) {
-              throw new ShutdownError();
-            }
-
             args.common.logger.error({
               service: "sync",
               msg: `Fatal error: Unable to sync '${args.chain.name}' from ${interval[0]} to ${interval[1]}.`,
               error,
             });
 
-            args.onFatalError(error);
-
-            return;
+            throw error;
           }
 
           await blockPromise;

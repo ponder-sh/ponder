@@ -44,7 +44,7 @@ export type Rpc = {
     onBlock: (block: SyncBlock | SyncBlockHeader) => Promise<boolean>;
     onError: (error: Error) => void;
     polling?: boolean;
-  }) => void;
+  }) => Promise<void>;
   unsubscribe: () => Promise<void>;
 };
 

@@ -114,6 +114,15 @@ export class DbConnectionError extends RetryableError {
   }
 }
 
+export class TransactionStatementError extends RetryableError {
+  override name = "TransactionStatementError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, TransactionStatementError.prototype);
+  }
+}
+
 export class CopyFlushError extends RetryableError {
   override name = "CopyFlushError";
 
@@ -167,5 +176,14 @@ export class RawSqlError extends NonRetryableUserError {
   constructor(message?: string | undefined) {
     super(message);
     Object.setPrototypeOf(this, RawSqlError.prototype);
+  }
+}
+
+export class IndexingFunctionError extends NonRetryableUserError {
+  override name = "IndexingFunctionError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, IndexingFunctionError.prototype);
   }
 }

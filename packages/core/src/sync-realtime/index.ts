@@ -98,7 +98,6 @@ type CreateRealtimeSyncParameters = {
   sources: Source[];
   syncProgress: Pick<SyncProgress, "finalized">;
   childAddresses: Map<FactoryId, Map<Address, number>>;
-  onFatalError: (error: Error) => void;
 };
 
 const MAX_LATEST_BLOCK_ATTEMPT_MS = 3 * 60 * 1000; // 3 minutes
@@ -1010,7 +1009,7 @@ export const createRealtimeSync = (
           error,
         });
 
-        args.onFatalError(error);
+        throw error;
       }
     }
   };
@@ -1039,7 +1038,7 @@ export const createRealtimeSync = (
         error,
       });
 
-      args.onFatalError(error);
+      throw error;
     }
   };
 
@@ -1078,8 +1077,8 @@ export const createRealtimeSync = (
 
         realtimeSyncLock.unlock();
       } catch (_error) {
-        onError(_error as Error);
         blockCallback?.(false);
+        onError(_error as Error);
       }
     },
     onError,

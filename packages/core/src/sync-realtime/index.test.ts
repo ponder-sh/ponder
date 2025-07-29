@@ -66,7 +66,6 @@ test("createRealtimeSync()", async (context) => {
     chain,
     rpc,
     sources,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -97,7 +96,6 @@ test("sync() handles block", async (context) => {
     chain,
     rpc,
     sources,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -135,7 +133,6 @@ test("sync() no-op when receiving same block twice", async (context) => {
     chain,
     rpc,
     sources,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -174,7 +171,6 @@ test("sync() gets missing block", async (context) => {
     chain,
     rpc,
     sources,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -215,7 +211,6 @@ test("sync() catches error", async (context) => {
     chain,
     rpc,
     sources,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -264,7 +259,6 @@ test("handleBlock() block event with log", async (context) => {
     chain,
     rpc,
     sources,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -343,7 +337,6 @@ test("handleBlock() block event with log factory", async (context) => {
     chain,
     rpc,
     sources,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map([[filter.address.id, new Map()]]),
   });
@@ -457,7 +450,6 @@ test("handleBlock() block event with block", async (context) => {
     chain,
     rpc,
     sources,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -519,7 +511,6 @@ test("handleBlock() block event with transaction", async (context) => {
     chain,
     rpc,
     sources: sources.filter(({ filter }) => filter.type === "transaction"),
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -606,7 +597,6 @@ test("handleBlock() block event with transfer", async (context) => {
       request,
     },
     sources,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -734,7 +724,6 @@ test("handleBlock() block event with trace", async (context) => {
       request,
     },
     sources,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -794,7 +783,6 @@ test("handleBlock() finalize event", async (context) => {
     chain,
     rpc,
     sources,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -857,7 +845,6 @@ test("handleReorg() finds common ancestor", async (context) => {
     chain,
     rpc,
     sources,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -917,7 +904,6 @@ test("handleReorg() throws error for deep reorg", async (context) => {
     chain,
     rpc,
     sources,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
