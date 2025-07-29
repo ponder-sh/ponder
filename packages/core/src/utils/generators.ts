@@ -40,15 +40,15 @@ export async function* mergeAsyncGenerators<T>(
 /**
  * Maps the results of an async generator.
  *
- * @param generators - The generator to map.
+ * @param generator - The generator to map.
  * @param fn - The function to map the generator.
  * @returns An async generator that yields mapped results from the input generator.
  */
 export async function* mapAsyncGenerator<T, R>(
-  generators: AsyncGenerator<T>,
+  generator: AsyncGenerator<T>,
   fn: (value: T) => R,
 ): AsyncGenerator<R> {
-  for await (const value of generators) {
+  for await (const value of generator) {
     yield fn(value);
   }
 }
@@ -135,4 +135,40 @@ export async function* recordAsyncGenerator<T>(
     });
     endClockTotal = startClock();
   }
+}
+
+/**
+ * Creates an async generator that yields values from a callback.
+ */
+export function createCallbackGenerator<T, P>(): {
+  callback: (value: T) => Promise<P>;
+  generator: AsyncGenerator<
+    { value: T; onComplete: (value: P) => void },
+    void,
+    unknown
+  >;
+} {
+  const buffer: { value: T; onComplete: (value: P) => void }[] = [];
+  let pwr = promiseWithResolvers<void>();
+
+  const callback = async (value: T) => {
+    const { resolve, promise } = promiseWithResolvers<P>();
+    buffer.push({ value, onComplete: resolve });
+    pwr.resolve();
+    return promise;
+  };
+
+  async function* generator() {
+    while (true) {
+      if (buffer.length > 0) {
+        const { value, onComplete } = buffer.shift()!;
+        yield { value, onComplete };
+      } else {
+        await pwr.promise;
+        pwr = promiseWithResolvers<void>();
+      }
+    }
+  }
+
+  return { callback, generator: generator() };
 }

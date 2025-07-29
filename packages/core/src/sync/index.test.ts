@@ -1118,7 +1118,6 @@ test("createSync()", async (context) => {
       ],
     },
     syncStore,
-    onRealtimeEvent: async () => {},
     onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
@@ -1127,7 +1126,7 @@ test("createSync()", async (context) => {
   expect(sync).toBeDefined();
 });
 
-test("getEvents() multichain", async (context) => {
+test("getHistoricalEvents() multichain", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
   const chain = getChain();
@@ -1154,18 +1153,17 @@ test("getEvents() multichain", async (context) => {
         await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 1 }),
       ],
     },
-    onRealtimeEvent: async () => {},
     onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
 
-  const events = await drainAsyncGenerator(sync.getEvents());
+  const events = await drainAsyncGenerator(sync.getHistoricalEvents());
   expect(events.flatMap(({ events }) => events)).toHaveLength(2);
   expect(events.flatMap(({ checkpoints }) => checkpoints)).toHaveLength(1);
 });
 
-test("getEvents() omnichain", async (context) => {
+test("getHistoricalEvents() omnichain", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
   const chain = getChain();
@@ -1192,18 +1190,17 @@ test("getEvents() omnichain", async (context) => {
         await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 1 }),
       ],
     },
-    onRealtimeEvent: async () => {},
     onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
     ordering: "omnichain",
   });
 
-  const events = await drainAsyncGenerator(sync.getEvents());
+  const events = await drainAsyncGenerator(sync.getHistoricalEvents());
   expect(events.flatMap(({ events }) => events)).toHaveLength(2);
   expect(events.flatMap(({ checkpoints }) => checkpoints)).toHaveLength(1);
 });
 
-test("getEvents() with crash recovery checkpoint", async (context) => {
+test("getHistoricalEvents() with crash recovery checkpoint", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
 
@@ -1230,7 +1227,6 @@ test("getEvents() with crash recovery checkpoint", async (context) => {
         await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 2 }),
       ],
     },
-    onRealtimeEvent: async () => {},
     onFatalError: () => {},
     crashRecoveryCheckpoint: [
       { chainId: 1, checkpoint: MAX_CHECKPOINT_STRING },
@@ -1238,7 +1234,7 @@ test("getEvents() with crash recovery checkpoint", async (context) => {
     ordering: "multichain",
   });
 
-  const events = await drainAsyncGenerator(sync.getEvents());
+  const events = await drainAsyncGenerator(sync.getHistoricalEvents());
   expect(events.flatMap(({ events }) => events)).toHaveLength(0);
 });
 
@@ -1272,18 +1268,17 @@ test.skip("startRealtime()", async (context) => {
         await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 0 }),
       ],
     },
-    onRealtimeEvent: async () => {},
     onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
 
-  await drainAsyncGenerator(sync.getEvents());
+  await drainAsyncGenerator(sync.getHistoricalEvents());
 
-  await sync.startRealtime();
+  sync.getRealtimeEvents();
 });
 
-test("onEvent() multichain handles block", async (context) => {
+test("getRealtimeEvents() multichain handles block", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
   const chain = getChain();
@@ -1296,9 +1291,6 @@ test("onEvent() multichain handles block", async (context) => {
     config,
     rawIndexingFunctions,
   });
-
-  const promise = promiseWithResolvers<void>();
-  const events: Event[] = [];
 
   await testClient.mine({ blocks: 1 });
 
@@ -1313,27 +1305,24 @@ test("onEvent() multichain handles block", async (context) => {
         await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 0 }),
       ],
     },
-    onRealtimeEvent: async (event) => {
-      if (event.type === "block") {
-        events.push(...event.events);
-        promise.resolve();
-      }
-    },
     onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
 
-  await drainAsyncGenerator(sync.getEvents());
+  await drainAsyncGenerator(sync.getHistoricalEvents());
 
-  await sync.startRealtime();
+  const syncResult = sync.getRealtimeEvents();
 
-  await promise.promise;
-
-  expect(events).toHaveLength(1);
+  for await (const event of syncResult) {
+    if (event.type === "block") {
+      expect(event.events).toHaveLength(1);
+      break;
+    }
+  }
 });
 
-test("onEvent() omnichain handles block", async (context) => {
+test("getRealtimeEvents() omnichain handles block", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
@@ -1344,8 +1333,6 @@ test("onEvent() omnichain handles block", async (context) => {
     config,
     rawIndexingFunctions,
   });
-
-  const promise = promiseWithResolvers<void>();
 
   const sync = await createSync({
     common: context.common,
@@ -1358,11 +1345,6 @@ test("onEvent() omnichain handles block", async (context) => {
       ],
     },
     syncStore,
-    onRealtimeEvent: async (event) => {
-      if (event.type === "block") {
-        promise.resolve();
-      }
-    },
     onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
     ordering: "omnichain",
@@ -1370,14 +1352,19 @@ test("onEvent() omnichain handles block", async (context) => {
 
   await testClient.mine({ blocks: 1 });
 
-  await drainAsyncGenerator(sync.getEvents());
+  await drainAsyncGenerator(sync.getHistoricalEvents());
 
-  await sync.startRealtime();
+  const syncResult = sync.getRealtimeEvents();
 
-  await promise.promise;
+  for await (const event of syncResult) {
+    if (event.type === "block") {
+      expect(event.events).toHaveLength(1);
+      break;
+    }
+  }
 });
 
-test("onEvent() handles finalize", async (context) => {
+test("getRealtimeEvents() handles finalize", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
   const chain = getChain();
@@ -1390,9 +1377,6 @@ test("onEvent() handles finalize", async (context) => {
     config,
     rawIndexingFunctions,
   });
-
-  const promise = promiseWithResolvers<void>();
-  let checkpoint: string;
 
   chain.finalityBlockCount = 2;
 
@@ -1407,12 +1391,6 @@ test("onEvent() handles finalize", async (context) => {
         await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 0 }),
       ],
     },
-    onRealtimeEvent: async (event) => {
-      if (event.type === "finalize") {
-        checkpoint = event.checkpoint;
-        promise.resolve();
-      }
-    },
     onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
@@ -1420,16 +1398,23 @@ test("onEvent() handles finalize", async (context) => {
 
   await testClient.mine({ blocks: 4 });
 
-  await drainAsyncGenerator(sync.getEvents());
+  await drainAsyncGenerator(sync.getHistoricalEvents());
 
-  await sync.startRealtime();
+  const syncResult = sync.getRealtimeEvents();
 
-  await promise.promise;
+  let checkpoint: string;
+
+  for await (const event of syncResult) {
+    if (event.type === "finalize") {
+      checkpoint = event.checkpoint;
+      break;
+    }
+  }
 
   expect(decodeCheckpoint(checkpoint!).blockNumber).toBe(2n);
 });
 
-test("onEvent() kills realtime when finalized", async (context) => {
+test("getRealtimeEvents() kills realtime when finalized", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
   const chain = getChain();
@@ -1447,9 +1432,6 @@ test("onEvent() kills realtime when finalized", async (context) => {
     rawIndexingFunctions,
   });
 
-  const promise = promiseWithResolvers<void>();
-  let checkpoint: string;
-
   chain.finalityBlockCount = 0;
 
   const sync = await createSync({
@@ -1463,12 +1445,6 @@ test("onEvent() kills realtime when finalized", async (context) => {
         await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 0 }),
       ],
     },
-    onRealtimeEvent: async (event) => {
-      if (event.type === "finalize") {
-        checkpoint = event.checkpoint;
-        promise.resolve();
-      }
-    },
     onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
@@ -1476,18 +1452,25 @@ test("onEvent() kills realtime when finalized", async (context) => {
 
   await testClient.mine({ blocks: 4 });
 
-  await drainAsyncGenerator(sync.getEvents());
+  await drainAsyncGenerator(sync.getHistoricalEvents());
 
-  await sync.startRealtime();
+  const syncResult = sync.getRealtimeEvents();
 
-  await promise.promise;
+  let checkpoint: string;
+  for await (const event of syncResult) {
+    if (event.type === "finalize") {
+      checkpoint = event.checkpoint;
+      break;
+    }
+  }
 
+  expect(checkpoint!).toBeDefined();
   expect(decodeCheckpoint(checkpoint!).blockNumber).toBe(1n);
 });
 
 test.todo("onEvent() handles reorg");
 
-test("onEvent() handles errors", async (context) => {
+test("getRealtimeEvents() handles errors", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
   const chain = getChain();
@@ -1501,8 +1484,6 @@ test("onEvent() handles errors", async (context) => {
     rawIndexingFunctions,
   });
 
-  const promise = promiseWithResolvers<void>();
-
   const sync = await createSync({
     syncStore,
     common: context.common,
@@ -1514,24 +1495,21 @@ test("onEvent() handles errors", async (context) => {
         await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 0 }),
       ],
     },
-    onRealtimeEvent: async () => {},
-    onFatalError: () => {
-      promise.resolve();
-    },
+    onFatalError: () => {},
     crashRecoveryCheckpoint: undefined,
     ordering: "multichain",
   });
 
   await testClient.mine({ blocks: 4 });
 
-  await drainAsyncGenerator(sync.getEvents());
+  await drainAsyncGenerator(sync.getHistoricalEvents());
 
   const spy = vi.spyOn(syncStore, "insertTransactions");
   spy.mockRejectedValue(new Error());
 
-  await sync.startRealtime();
+  const syncResult = sync.getRealtimeEvents();
 
-  await promise.promise;
+  await expect(() => drainAsyncGenerator(syncResult)).rejects.toThrow();
 });
 
 test("historical events match realtime events", async (context) => {
