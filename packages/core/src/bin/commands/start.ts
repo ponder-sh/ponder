@@ -2,6 +2,7 @@ import path from "node:path";
 import { createBuild } from "@/build/index.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
+import { NonRetryableUserError, ShutdownError } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -194,21 +195,29 @@ export async function start({
     database,
   };
 
+  process.on("uncaughtException", (error: Error) => {
+    if (error instanceof ShutdownError) return;
+    if (error instanceof NonRetryableUserError) {
+      exit({ reason: "Received fatal error", code: 1 });
+    } else {
+      exit({ reason: "Received fatal error", code: 75 });
+    }
+  });
+  process.on("unhandledRejection", (error: Error) => {
+    if (error instanceof ShutdownError) return;
+    if (error instanceof NonRetryableUserError) {
+      exit({ reason: "Received fatal error", code: 1 });
+    } else {
+      exit({ reason: "Received fatal error", code: 75 });
+    }
+  });
+
   if (onBuild) {
     app = await onBuild(app);
   }
 
-  run({
-    ...app,
-    onFatalError: () => {
-      exit({ reason: "Received fatal error", code: 1 });
-    },
-    onReloadableError: () => {
-      exit({ reason: "Encountered indexing error", code: 1 });
-    },
-  });
-
-  runServer({ ...app, database });
+  run(app);
+  runServer(app);
 
   return shutdown.kill;
 }

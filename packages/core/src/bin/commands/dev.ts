@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
 import { type Database, createDatabase } from "@/database/index.js";
+import { NonRetryableUserError, ShutdownError } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -247,13 +248,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           schemaBuild,
           indexingBuild: indexingBuildResult.result,
           crashRecoveryCheckpoint,
-          onFatalError: () => {
-            exit({ reason: "Received fatal error", code: 1 });
-          },
-          onReloadableError: (error) => {
-            buildQueue.clear();
-            buildQueue.add({ status: "error", kind: "indexing", error });
-          },
         });
       } else {
         metrics.resetApiMetrics();
@@ -301,6 +295,25 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const schema = cliOptions.schema ?? process.env.DATABASE_SCHEMA ?? "public";
 
   globalThis.PONDER_NAMESPACE_BUILD = { schema, viewsSchema: undefined };
+
+  process.on("uncaughtException", (error: Error) => {
+    if (error instanceof ShutdownError) return;
+    if (error instanceof NonRetryableUserError) {
+      buildQueue.clear();
+      buildQueue.add({ status: "error", kind: "indexing", error });
+    } else {
+      exit({ reason: "Received fatal error", code: 75 });
+    }
+  });
+  process.on("unhandledRejection", (error: Error) => {
+    if (error instanceof ShutdownError) return;
+    if (error instanceof NonRetryableUserError) {
+      buildQueue.clear();
+      buildQueue.add({ status: "error", kind: "indexing", error });
+    } else {
+      exit({ reason: "Received fatal error", code: 75 });
+    }
+  });
 
   build.startDev({
     onReload: (kind) => {

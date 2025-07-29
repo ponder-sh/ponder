@@ -241,7 +241,6 @@ export const createSync = async (params: {
     "sources" | "chains" | "rpcs" | "finalizedBlocks"
   >;
   syncStore: SyncStore;
-  onFatalError(error: Error): void;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   ordering: "omnichain" | "multichain";
 }): Promise<Sync> => {
@@ -553,7 +552,6 @@ export const createSync = async (params: {
             sources,
             syncProgress,
             childAddresses,
-            onFatalError: params.onFatalError,
           });
 
           perChainSync.get(chain)!.realtimeSync = realtimeSync;
@@ -944,7 +942,6 @@ export const createSync = async (params: {
         childAddresses,
         rpc,
         chain,
-        onFatalError: params.onFatalError,
       });
 
       const syncProgress = await initSyncProgress({
