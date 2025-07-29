@@ -146,21 +146,15 @@ export async function run({
           return;
         }
 
-        await Promise.all(
-          Object.entries(transactionContext).map(
-            async ([tableName, { client }]) => {
-              try {
-                await indexingCache.flush({ client, tableName });
-              } catch (error) {
-                if (error instanceof FlushError) {
-                  onReloadableError(error as Error);
-                  return;
-                }
-                throw error;
-              }
-            },
-          ),
-        );
+        try {
+          await indexingCache.flush({ transactionContext });
+        } catch (error) {
+          if (error instanceof FlushError) {
+            onReloadableError(error as Error);
+            return;
+          }
+          throw error;
+        }
       });
     });
 
@@ -320,22 +314,16 @@ export async function run({
             // Note: at this point, the next events can be preloaded, as long as the are not indexed until
             // the "flush" + "finalize" is complete.
 
-            await Promise.all(
-              Object.entries(transactionContext).map(
-                async ([tableName, { client }]) => {
-                  try {
-                    await indexingCache.flush({ client, tableName });
-                  } catch (error) {
-                    if (error instanceof FlushError) {
-                      onReloadableError(error as Error);
-                      return;
-                    }
+            try {
+              await indexingCache.flush({ transactionContext });
+            } catch (error) {
+              if (error instanceof FlushError) {
+                onReloadableError(error as Error);
+                return;
+              }
 
-                    throw error;
-                  }
-                },
-              ),
-            );
+              throw error;
+            }
 
             common.metrics.ponder_historical_transform_duration.inc(
               { step: "load" },

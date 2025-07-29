@@ -300,13 +300,7 @@ export const createHistoricalIndexingStore = ({
         } catch {}
 
         if (isSelectOnly === false) {
-          await Promise.all(
-            Object.entries(transactionContext).map(
-              async ([tableName, { client }]) => {
-                await indexingCache.flush({ client, tableName });
-              },
-            ),
-          );
+          await indexingCache.flush({ transactionContext });
           indexingCache.invalidate();
           indexingCache.clear();
         } else {
@@ -317,18 +311,7 @@ export const createHistoricalIndexingStore = ({
             tableNames = await findTableNames(_sql);
           } catch {}
 
-          const tablesToFlush =
-            tableNames === undefined
-              ? Object.keys(transactionContext)
-              : Array.from(tableNames);
-          await Promise.all(
-            tablesToFlush.map(async (tableName) => {
-              await indexingCache.flush({
-                client: transactionContext[tableName]!.client,
-                tableName,
-              });
-            }),
-          );
+          await indexingCache.flush({ transactionContext, tableNames });
         }
 
         const query: QueryWithTypings = { sql: _sql, params, typings };

@@ -49,7 +49,7 @@ test("flush() insert", async (context) => {
       balance: 10n,
     });
 
-    await indexingCache.flush({ client });
+    await indexingCache.flush({ transactionContext });
 
     const result = await indexingStore.find(schema.account, {
       address: zeroAddress,
@@ -103,14 +103,14 @@ test("flush() update", async (context) => {
     });
 
     // first flush takes "insert" path
-    await indexingCache.flush({ client });
+    await indexingCache.flush({ transactionContext });
 
     await indexingStore.update(schema.account, { address: zeroAddress }).set({
       balance: 12n,
     });
 
     // second flush takes "update" path
-    await indexingCache.flush({ client });
+    await indexingCache.flush({ transactionContext });
 
     let result = await indexingStore.find(schema.account, {
       address: zeroAddress,
@@ -127,7 +127,7 @@ test("flush() update", async (context) => {
       balance: 12n,
     });
 
-    await indexingCache.flush({ client });
+    await indexingCache.flush({ transactionContext });
 
     result = await indexingStore.find(schema.account, {
       address: zeroAddress,
@@ -182,7 +182,7 @@ test("flush() encoding", async (context) => {
       null: null,
     });
 
-    await indexingCache.flush({ client });
+    await indexingCache.flush({ transactionContext });
 
     indexingCache.clear();
     const result = await indexingStore.sql.select().from(schema.test);
@@ -258,7 +258,7 @@ test("flush() encoding escape", async (context) => {
 
     await indexingStore.insert(schema.test).values(values);
 
-    await indexingCache.flush({ client });
+    await indexingCache.flush({ transactionContext });
 
     indexingCache.clear();
     const result = await indexingStore.sql.select().from(schema.test);
@@ -325,10 +325,10 @@ test("prefetch() uses profile metadata", async (context) => {
     // @ts-ignore
     event.event.args.to = BOB;
 
-    await indexingCache.flush({ client });
+    await indexingCache.flush({ transactionContext });
     await indexingCache.prefetch({
       events: [event],
-      db: tx,
+      db: transactionContext.account!.tx,
     });
 
     const result = indexingCache.has({
@@ -375,9 +375,12 @@ test("prefetch() evicts rows", async (context) => {
       balance: 10n,
     });
 
-    await indexingCache.flush({ client });
+    await indexingCache.flush({ transactionContext });
     // prefetch() should evict rows from the cache to free memory
-    await indexingCache.prefetch({ events: [], db: tx });
+    await indexingCache.prefetch({
+      events: [],
+      db: transactionContext.account!.tx,
+    });
 
     const result = indexingCache.has({
       table: schema.account,
