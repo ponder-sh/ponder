@@ -6,6 +6,7 @@ import {
   getPonderMetaTable,
 } from "@/database/index.js";
 import { TABLES } from "@/database/index.js";
+import { NonRetryableUserError, ShutdownError } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -44,6 +45,23 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
   const build = await createBuild({ common, cliOptions });
 
   const exit = createExit({ common });
+
+  process.on("uncaughtException", (error: Error) => {
+    if (error instanceof ShutdownError) return;
+    if (error instanceof NonRetryableUserError) {
+      exit({ reason: "Received fatal error", code: 1 });
+    } else {
+      exit({ reason: "Received fatal error", code: 75 });
+    }
+  });
+  process.on("unhandledRejection", (error: Error) => {
+    if (error instanceof ShutdownError) return;
+    if (error instanceof NonRetryableUserError) {
+      exit({ reason: "Received fatal error", code: 1 });
+    } else {
+      exit({ reason: "Received fatal error", code: 75 });
+    }
+  });
 
   const configResult = await build.executeConfig();
   if (configResult.status === "error") {
