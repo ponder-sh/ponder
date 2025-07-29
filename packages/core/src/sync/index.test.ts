@@ -1464,6 +1464,7 @@ test("getRealtimeEvents() kills realtime when finalized", async (context) => {
     }
   }
 
+  expect(checkpoint!).toBeDefined();
   expect(decodeCheckpoint(checkpoint!).blockNumber).toBe(1n);
 });
 

@@ -59,7 +59,7 @@ export type RealtimeSync = {
    */
   sync(
     block: SyncBlock | SyncBlockHeader,
-    callback: (isAccepted: boolean) => void,
+    callback?: (isAccepted: boolean) => void,
   ): AsyncGenerator<RealtimeSyncEvent>;
   onError(error: Error): void;
   /** Local chain of blocks that have not been finalized. */
@@ -1061,7 +1061,7 @@ export const createRealtimeSync = (
             service: "realtime",
             msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
           });
-          callback(false);
+          callback?.(false);
 
           return;
         }
@@ -1079,7 +1079,7 @@ export const createRealtimeSync = (
         realtimeSyncLock.unlock();
       } catch (_error) {
         onError(_error as Error);
-        callback(false);
+        callback?.(false);
       }
     },
     onError,

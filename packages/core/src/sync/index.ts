@@ -580,7 +580,7 @@ export const createSync = async (params: {
 
             const endClock = startClock();
 
-            const generator = realtimeSync.sync(block, (isAccepted) => {
+            const syncGenerator = realtimeSync.sync(block, (isAccepted) => {
               if (isAccepted) {
                 params.common.metrics.ponder_realtime_block_arrival_latency.observe(
                   { chain: chain.name },
@@ -596,30 +596,30 @@ export const createSync = async (params: {
               onComplete(isAccepted);
             });
 
-            for await (const event of generator) {
+            for await (const event of syncGenerator) {
               await perChainOnRealtimeSyncEvent(event);
 
               yield { chain, event };
+            }
 
-              if (isSyncFinalized(syncProgress) && isSyncEnd(syncProgress)) {
-                // The realtime service can be killed if `endBlock` is
-                // defined has become finalized.
+            if (isSyncFinalized(syncProgress) && isSyncEnd(syncProgress)) {
+              // The realtime service can be killed if `endBlock` is
+              // defined has become finalized.
 
-                params.common.metrics.ponder_sync_is_realtime.set(
-                  { chain: chain.name },
-                  0,
-                );
-                params.common.metrics.ponder_sync_is_complete.set(
-                  { chain: chain.name },
-                  1,
-                );
-                params.common.logger.info({
-                  service: "sync",
-                  msg: `Killing '${chain.name}' live indexing because the end block ${hexToNumber(syncProgress.end!.number)} has been finalized`,
-                });
-                rpc.unsubscribe();
-                return;
-              }
+              params.common.metrics.ponder_sync_is_realtime.set(
+                { chain: chain.name },
+                0,
+              );
+              params.common.metrics.ponder_sync_is_complete.set(
+                { chain: chain.name },
+                1,
+              );
+              params.common.logger.info({
+                service: "sync",
+                msg: `Killing '${chain.name}' live indexing because the end block ${hexToNumber(syncProgress.end!.number)} has been finalized`,
+              });
+              rpc.unsubscribe();
+              return;
             }
           }
         }
