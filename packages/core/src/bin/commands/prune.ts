@@ -148,6 +148,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
       for (const table of value.table_names) {
         tablesToDrop.push(`"${schema}"."${table}"`);
         tablesToDrop.push(`"${schema}"."${sqlToReorgTableName(table)}"`);
+        // tablesToDrop.push(`"${schema}"."${sqlToStagedTablename(table)}"`)
         functionsToDrop.push(`"${schema}"."operation_reorg__${table}"`);
       }
       tablesToDrop.push(`"${schema}"."_ponder_meta"`);

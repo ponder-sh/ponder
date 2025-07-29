@@ -479,7 +479,7 @@ export const createIndexingCache = ({
       const shouldRecordBytes = isCacheComplete;
 
       await Promise.all(
-        cache.keys().map(async (table) => {
+        Array.from(cache.keys()).map(async (table) => {
           if (
             tableNames !== undefined &&
             tableNames.has(getTableName(table)) === false
@@ -499,7 +499,7 @@ export const createIndexingCache = ({
             const endClock = startClock();
 
             // @ts-ignore
-            await client.query(`SAVEPOINT flush_${tableName}`);
+            await client.query("SAVEPOINT flush");
 
             try {
               const text = getCopyText(
@@ -516,14 +516,14 @@ export const createIndexingCache = ({
                 insertValues,
                 async (values) => {
                   // @ts-ignore
-                  await client.query(`ROLLBACK to flush_${tableName}`);
+                  await client.query("ROLLBACK to flush");
                   const text = getCopyText(
                     table,
                     values.map(({ row }) => row),
                   );
                   await copy(table, text);
                   // @ts-ignore
-                  await client.query(`SAVEPOINT flush_${tableName}`);
+                  await client.query("SAVEPOINT flush");
                 },
               );
 
@@ -597,6 +597,7 @@ export const createIndexingCache = ({
             // 1. Create temp table
             // 2. Copy into temp table
             // 3. Update target table with data from temp
+            // 4. Truncate temp table
 
             const primaryKeys = getPrimaryKeyColumns(table);
             const set = Object.values(getTableColumns(table))
@@ -637,7 +638,7 @@ export const createIndexingCache = ({
             // @ts-ignore
             await client.query(createTempTableQuery);
             // @ts-ignore
-            await client.query(`SAVEPOINT flush_${tableName}`);
+            await client.query("SAVEPOINT flush");
 
             try {
               const text = getCopyText(
@@ -654,14 +655,14 @@ export const createIndexingCache = ({
                 updateValues,
                 async (values) => {
                   // @ts-ignore
-                  await client.query(`ROLLBACK to flush_${tableName}`);
+                  await client.query("ROLLBACK to flush");
                   const text = getCopyText(
                     table,
                     values.map(({ row }) => row),
                   );
                   await copy(table, text, false);
                   // @ts-ignore
-                  await client.query(`SAVEPOINT flush_${tableName}`);
+                  await client.query("SAVEPOINT flush");
                 },
               );
 
@@ -743,7 +744,7 @@ export const createIndexingCache = ({
 
           if (insertValues.length > 0 || updateValues.length > 0) {
             // @ts-ignore
-            await client.query(`RELEASE flush_${tableName}`);
+            await client.query("RELEASE flush");
           }
         }),
       );

@@ -117,6 +117,7 @@ export const getSql = (schema: { [name: string]: unknown }): SqlStatements => {
   const combinedTables = jsonCreateTables.flatMap((statement) => [
     statement,
     createReorgTableStatement(statement),
+    // createStagedTableStatement(statement),
   ]);
 
   return {
@@ -175,6 +176,32 @@ const createReorgTableStatement = (statement: JsonCreateTableStatement) => {
 
   return reorgStatement;
 };
+
+// export const sqlToStagedTablename = (tableName: string) =>
+//   `_staged__${tableName}`;
+
+// export const getStagedTable = <config extends TableConfig>(
+//   table: PgTableWithColumns<config>,
+// ) => {
+//   const schema = getTableConfig(table).schema;
+//   if (schema && schema !== "public") {
+//     return pgSchema(schema).table(
+//       sqlToReorgTableName(getTableName(table)),
+//       getTableColumns(table),
+//     );
+//   }
+
+//   return pgTable(
+//     sqlToStagedTablename(getTableName(table)),
+//     getTableColumns(table),
+//   );
+// };
+
+// const createStagedTableStatement = (statement: JsonCreateTableStatement) => {
+//   const stagedStatement: JsonCreateTableStatement = structuredClone(statement);
+//   stagedStatement.tableName = sqlToStagedTablename(stagedStatement.tableName);
+//   return stagedStatement;
+// };
 
 ////////
 // Serializer

@@ -125,6 +125,8 @@ export type Database = {
   }): Promise<void>;
   finalize(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
   commitBlock(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
+  // pruneStagedTables(args: { db: Drizzle<Schema> }): Promise<void>;
+  // commitStagedTables(args: { db: Drizzle<Schema> }): Promise<void>;
 };
 
 export const SCHEMATA = pgSchema("information_schema").table(
@@ -647,9 +649,31 @@ export const createDatabase = async ({
             };
           }),
         );
+        // NOTE: ADD CORRECTNESS CONSTRAINTS
+        try {
+          const result = await fn(transactionContext);
+          await Promise.all(
+            Object.values(transactionContext).map(async ({ client }) => {
+              await client.query("COMMIT");
+            }),
+          );
 
-        const result = await fn(transactionContext);
-        return result;
+          return result;
+        } catch (error) {
+          await Promise.all(
+            Object.values(transactionContext).map(async ({ client }) => {
+              await client.query("ROLLBACK");
+            }),
+          );
+
+          throw error;
+        } finally {
+          await Promise.all(
+            Object.values(transactionContext).map(async ({ client }) => {
+              client.release();
+            }),
+          );
+        }
       } else {
         const transactionContext: {
           [tableName: string]: {
@@ -674,8 +698,25 @@ export const createDatabase = async ({
           }),
         );
 
-        const result = await fn(transactionContext);
-        return result;
+        // NOTE: ADD CORRECTNESS CONSTRAINTS
+        try {
+          const result = await fn(transactionContext);
+          await Promise.all(
+            Object.values(transactionContext).map(async ({ client }) => {
+              await client.query("COMMIT");
+            }),
+          );
+
+          return result;
+        } catch (error) {
+          await Promise.all(
+            Object.values(transactionContext).map(async ({ client }) => {
+              await client.query("ROLLBACK");
+            }),
+          );
+
+          throw error;
+        }
       }
     },
     async migrateSync() {
@@ -848,6 +889,11 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
                     `DROP TABLE IF EXISTS "${namespace.schema}"."${sqlToReorgTableName(table)}" CASCADE`,
                   ),
                 );
+                // await tx.execute(
+                //   sql.raw(
+                //     `DROP TABLE IF EXISTS "${namespace.schema}"."${sqlToStagedTablename(table)}" CASCADE`,
+                //   ),
+                // );
               }
               for (const enumName of schemaBuild.statements.enums.json) {
                 await tx.execute(
@@ -1274,6 +1320,36 @@ WITH deleted AS (
         ),
       );
     },
+    //     async pruneStagedTables({ db }) {
+    //       await Promise.all(
+    //         tables.map(async (table) => {
+    //           const stagedTable = getStagedTable(table);
+    //           await db.delete(stagedTable);
+    //         }),
+    //       );
+    //     },
+    //     async commitStagedTables({ db }) {
+    //       await Promise.all(
+    //         tables.map(async (table) => {
+    //           const stagedTable = getStagedTable(table);
+
+    //           const columnNames = Object.keys(getTableColumns(table));
+
+    //           await db.execute(
+    //             sql.raw(`
+    // WITH source AS (
+    //   DELETE FROM "${namespace.schema}"."${getTableName(stagedTable)}"
+    //   RETURNING *
+    // )
+    // INSERT INTO "${namespace.schema}"."${getTableName(table)}" (${columnNames.join(", ")})
+    // SELECT ${columnNames.join(", ")} FROM source
+    // ON CONFLICT DO UPDATE
+    // SET ${columnNames.map((columnName) => `"${columnName}"=EXCLUDED."${columnName}"`).join(", ")};
+    // `),
+    //           );
+    //         }),
+    //       );
+    //     },
   } satisfies Database;
 
   // @ts-ignore

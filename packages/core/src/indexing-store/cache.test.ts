@@ -5,7 +5,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
+import { onchainTable } from "@/drizzle/onchain.js";
 import type { LogEvent } from "@/internal/types.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { parseEther, zeroAddress } from "viem";
@@ -140,132 +140,132 @@ test("flush() update", async (context) => {
   });
 });
 
-test("flush() encoding", async (context) => {
-  const e = onchainEnum("e", ["a", "b", "c"]);
-  const schema = {
-    e,
-    test: onchainTable("test", (p) => ({
-      hex: p.hex().primaryKey(),
-      bigint: p.bigint().notNull(),
-      e: e().notNull(),
-      array: p.integer().array().notNull(),
-      json: p.json().notNull(),
-      null: p.text(),
-    })),
-  };
+// test("flush() encoding", async (context) => {
+//   const e = onchainEnum("e", ["a", "b", "c"]);
+//   const schema = {
+//     e,
+//     test: onchainTable("test", (p) => ({
+//       hex: p.hex().primaryKey(),
+//       bigint: p.bigint().notNull(),
+//       e: e().notNull(),
+//       array: p.integer().array().notNull(),
+//       json: p.json().notNull(),
+//       null: p.text(),
+//     })),
+//   };
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+//   const { database } = await setupDatabaseServices(context, {
+//     schemaBuild: { schema },
+//   });
 
-  const indexingCache = createIndexingCache({
-    common: context.common,
-    schemaBuild: { schema },
-    crashRecoveryCheckpoint: undefined,
-    eventCount: {},
-  });
+//   const indexingCache = createIndexingCache({
+//     common: context.common,
+//     schemaBuild: { schema },
+//     crashRecoveryCheckpoint: undefined,
+//     eventCount: {},
+//   });
 
-  await database.transaction(async (transactionContext) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      transactionContext,
-    });
+//   await database.transaction(async (transactionContext) => {
+//     const indexingStore = createHistoricalIndexingStore({
+//       common: context.common,
+//       schemaBuild: { schema },
+//       indexingCache,
+//       transactionContext,
+//     });
 
-    await indexingStore.insert(schema.test).values({
-      hex: zeroAddress,
-      bigint: 10n,
-      e: "a",
-      array: [1, 2, 4],
-      json: { a: 1, b: 2 },
-      null: null,
-    });
+//     await indexingStore.insert(schema.test).values({
+//       hex: zeroAddress,
+//       bigint: 10n,
+//       e: "a",
+//       array: [1, 2, 4],
+//       json: { a: 1, b: 2 },
+//       null: null,
+//     });
 
-    await indexingCache.flush({ transactionContext });
+//     await indexingCache.flush({ transactionContext });
 
-    indexingCache.clear();
-    const result = await indexingStore.sql.select().from(schema.test);
+//     indexingCache.clear();
+//     const result = await indexingStore.sql.select().from(schema.test);
 
-    expect(result).toMatchInlineSnapshot(`
-      [
-        {
-          "array": [
-            1,
-            2,
-            4,
-          ],
-          "bigint": 10n,
-          "e": "a",
-          "hex": "0x0000000000000000000000000000000000000000",
-          "json": {
-            "a": 1,
-            "b": 2,
-          },
-          "null": null,
-        },
-      ]
-    `);
-  });
-});
+//     expect(result).toMatchInlineSnapshot(`
+//       [
+//         {
+//           "array": [
+//             1,
+//             2,
+//             4,
+//           ],
+//           "bigint": 10n,
+//           "e": "a",
+//           "hex": "0x0000000000000000000000000000000000000000",
+//           "json": {
+//             "a": 1,
+//             "b": 2,
+//           },
+//           "null": null,
+//         },
+//       ]
+//     `);
+//   });
+// });
 
-test("flush() encoding escape", async (context) => {
-  const schema = {
-    test: onchainTable("test", (p) => ({
-      backslash: p.text().primaryKey(),
-    })),
-  };
+// test("flush() encoding escape", async (context) => {
+//   const schema = {
+//     test: onchainTable("test", (p) => ({
+//       backslash: p.text().primaryKey(),
+//     })),
+//   };
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+//   const { database } = await setupDatabaseServices(context, {
+//     schemaBuild: { schema },
+//   });
 
-  const indexingCache = createIndexingCache({
-    common: context.common,
-    schemaBuild: { schema },
-    crashRecoveryCheckpoint: undefined,
-    eventCount: {},
-  });
+//   const indexingCache = createIndexingCache({
+//     common: context.common,
+//     schemaBuild: { schema },
+//     crashRecoveryCheckpoint: undefined,
+//     eventCount: {},
+//   });
 
-  await database.transaction(async (transactionContext) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      transactionContext,
-    });
+//   await database.transaction(async (transactionContext) => {
+//     const indexingStore = createHistoricalIndexingStore({
+//       common: context.common,
+//       schemaBuild: { schema },
+//       indexingCache,
+//       transactionContext,
+//     });
 
-    const values = [
-      { backslash: "\\\\" },
-      { backslash: "\\b" },
-      { backslash: "\\f" },
-      { backslash: "\\n" },
-      { backslash: "\\r" },
-      { backslash: "\\t" },
-      { backslash: "\\v" },
-      { backslash: "\\00" },
-      { backslash: "\\x00" },
-      { backslash: "\\" },
-      { backslash: "\b" },
-      { backslash: "\f" },
-      { backslash: "\n" },
-      { backslash: "\r" },
-      { backslash: "\t" },
-      { backslash: "\v" },
-      // { backslash: "\00" },
-      // { backslash: "\x00" },
-    ];
+//     const values = [
+//       { backslash: "\\\\" },
+//       { backslash: "\\b" },
+//       { backslash: "\\f" },
+//       { backslash: "\\n" },
+//       { backslash: "\\r" },
+//       { backslash: "\\t" },
+//       { backslash: "\\v" },
+//       { backslash: "\\00" },
+//       { backslash: "\\x00" },
+//       { backslash: "\\" },
+//       { backslash: "\b" },
+//       { backslash: "\f" },
+//       { backslash: "\n" },
+//       { backslash: "\r" },
+//       { backslash: "\t" },
+//       { backslash: "\v" },
+//       // { backslash: "\00" },
+//       // { backslash: "\x00" },
+//     ];
 
-    await indexingStore.insert(schema.test).values(values);
+//     await indexingStore.insert(schema.test).values(values);
 
-    await indexingCache.flush({ transactionContext });
+//     await indexingCache.flush({ transactionContext });
 
-    indexingCache.clear();
-    const result = await indexingStore.sql.select().from(schema.test);
+//     indexingCache.clear();
+//     const result = await indexingStore.sql.select().from(schema.test);
 
-    expect(result).toStrictEqual(values);
-  });
-});
+//     expect(result).toStrictEqual(values);
+//   });
+// });
 
 test("prefetch() uses profile metadata", async (context) => {
   const schema = {

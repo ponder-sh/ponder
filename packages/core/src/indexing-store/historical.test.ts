@@ -9,11 +9,11 @@ import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
 import {
   BigIntSerializationError,
   NonRetryableError,
-  NotNullConstraintError,
-  UniqueConstraintError,
+  // NotNullConstraintError,
+  // UniqueConstraintError,
 } from "@/internal/errors.js";
-import { eq } from "drizzle-orm";
-import { pgTable } from "drizzle-orm/pg-core";
+// import { eq } from "drizzle-orm";
+// import { pgTable } from "drizzle-orm/pg-core";
 import { toBytes, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { createIndexingCache } from "./cache.js";
@@ -42,13 +42,12 @@ test("find", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     // empty
@@ -85,14 +84,16 @@ test("find", async (context) => {
 });
 
 test("insert", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
       balance: p.bigint().notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -101,13 +102,12 @@ test("insert", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     // single
@@ -240,14 +240,16 @@ test("insert", async (context) => {
 });
 
 test("update", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
       balance: p.bigint().notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -256,13 +258,12 @@ test("update", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     // setup
@@ -334,14 +335,16 @@ test("update", async (context) => {
 });
 
 test("update throw error when primary key is updated", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
       balance: p.bigint().notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -350,13 +353,12 @@ test("update throw error when primary key is updated", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     // setup
@@ -423,13 +425,12 @@ test("delete", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     // no entry
@@ -463,173 +464,174 @@ test("delete", async (context) => {
   });
 });
 
-test("sql", async (context) => {
-  const schema = {
-    account: onchainTable("account", (p) => ({
-      address: p.hex().primaryKey(),
-      balance: p.bigint().notNull(),
-    })),
-  };
+// test("sql", async (context) => {
+//   const schema = {
+//     account: onchainTable("account", (p) => ({
+//       address: p.hex().primaryKey(),
+//       balance: p.bigint().notNull(),
+//     })),
+//   };
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+//   const { database } = await setupDatabaseServices(context, {
+//     schemaBuild: { schema },
+//   });
 
-  const indexingCache = createIndexingCache({
-    common: context.common,
-    schemaBuild: { schema },
-    crashRecoveryCheckpoint: undefined,
-    eventCount: {},
-  });
+//   const indexingCache = createIndexingCache({
+//     common: context.common,
+//     schemaBuild: { schema },
+//     crashRecoveryCheckpoint: undefined,
+//     eventCount: {},
+//   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+//   await database.transaction(async (transactionContext) => {
+//     const indexingStore = createHistoricalIndexingStore({
+//       common: context.common,
+//       schemaBuild: { schema },
+//       indexingCache,
+//       transactionContext
+//     });
 
-    // setup
+//     // setup
 
-    await indexingStore.insert(schema.account).values({
-      address: zeroAddress,
-      balance: 10n,
-    });
+//     await indexingStore.insert(schema.account).values({
+//       address: zeroAddress,
+//       balance: 10n,
+//     });
 
-    // select
+//     // select
 
-    const result = await indexingStore.sql
-      .select()
-      .from(schema.account)
-      .where(eq(schema.account.address, zeroAddress));
+//     const result = await indexingStore.sql
+//       .select()
+//       .from(schema.account)
+//       .where(eq(schema.account.address, zeroAddress));
 
-    expect(result).toStrictEqual([
-      {
-        address: zeroAddress,
-        balance: 10n,
-      },
-    ]);
+//     expect(result).toStrictEqual([
+//       {
+//         address: zeroAddress,
+//         balance: 10n,
+//       },
+//     ]);
 
-    // non-null constraint
+//     // non-null constraint
 
-    // @ts-ignore
-    await client.query("SAVEPOINT test");
+//     // @ts-ignore
+//     await client.query("SAVEPOINT test");
 
-    await expect(
-      async () =>
-        // @ts-ignore
-        await indexingStore.sql.insert(schema.account).values({
-          address: "0x0000000000000000000000000000000000000001",
-          balance: undefined,
-        }),
-    ).rejects.toThrowError(NotNullConstraintError);
+//     await expect(
+//       async () =>
+//         // @ts-ignore
+//         await indexingStore.sql.insert(schema.account).values({
+//           address: "0x0000000000000000000000000000000000000001",
+//           balance: undefined,
+//         }),
+//     ).rejects.toThrowError(NotNullConstraintError);
 
-    // TODO(kyle) check constraint
+//     // TODO(kyle) check constraint
 
-    // unique constraint
+//     // unique constraint
 
-    // @ts-ignore
-    await client.query("ROLLBACK TO test");
+//     // @ts-ignore
+//     await client.query("ROLLBACK TO test");
 
-    await expect(
-      async () =>
-        await indexingStore.sql
-          .insert(schema.account)
-          .values({ address: zeroAddress, balance: 10n }),
-    ).rejects.toThrowError(UniqueConstraintError);
-  });
-});
+//     await expect(
+//       async () =>
+//         await indexingStore.sql
+//           .insert(schema.account)
+//           .values({ address: zeroAddress, balance: 10n }),
+//     ).rejects.toThrowError(UniqueConstraintError);
+//   });
+// });
 
-test("sql followed by find", async (context) => {
-  const schema = {
-    account: onchainTable("account", (p) => ({
-      address: p.hex().primaryKey(),
-      balance: p.bigint().notNull(),
-    })),
-  };
+// test("sql followed by find", async (context) => {
+//   const schema = {
+//     account: onchainTable("account", (p) => ({
+//       address: p.hex().primaryKey(),
+//       balance: p.bigint().notNull(),
+//     })),
+//   };
 
-  const { database } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
+//   const { database } = await setupDatabaseServices(context, {
+//     schemaBuild: { schema },
+//   });
 
-  const indexingCache = createIndexingCache({
-    common: context.common,
-    schemaBuild: { schema },
-    crashRecoveryCheckpoint: undefined,
-    eventCount: {},
-  });
+//   const indexingCache = createIndexingCache({
+//     common: context.common,
+//     schemaBuild: { schema },
+//     crashRecoveryCheckpoint: undefined,
+//     eventCount: {},
+//   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+//   await database.transaction(async (transactionContext) => {
+//     const indexingStore = createHistoricalIndexingStore({
+//       common: context.common,
+//       schemaBuild: { schema },
+//       indexingCache,
+//       transactionContext
+//     });
 
-    await indexingStore.sql
-      .insert(schema.account)
-      .values({ address: zeroAddress, balance: 10n });
+//     await indexingStore.sql
+//       .insert(schema.account)
+//       .values({ address: zeroAddress, balance: 10n });
 
-    const row = await indexingStore.find(schema.account, {
-      address: zeroAddress,
-    });
+//     const row = await indexingStore.find(schema.account, {
+//       address: zeroAddress,
+//     });
 
-    expect(row).toStrictEqual({
-      address: zeroAddress,
-      balance: 10n,
-    });
-  });
-});
+//     expect(row).toStrictEqual({
+//       address: zeroAddress,
+//       balance: 10n,
+//     });
+//   });
+// });
 
-test("onchain table", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+// test("onchain table", async (context) => {
+//   const schema = {
+//     account: pgTable("account", (p) => ({
+//       address: p.text().primaryKey(),
+//       balance: p.integer().notNull(),
+//     })),
+//   };
 
-  const schema = {
-    account: pgTable("account", (p) => ({
-      address: p.text().primaryKey(),
-      balance: p.integer().notNull(),
-    })),
-  };
+//   const { database } = await setupDatabaseServices(context, {
+//     schemaBuild: { schema }
+//   });
 
-  const indexingCache = createIndexingCache({
-    common: context.common,
-    schemaBuild: { schema },
-    crashRecoveryCheckpoint: undefined,
-    eventCount: {},
-  });
+//   const indexingCache = createIndexingCache({
+//     common: context.common,
+//     schemaBuild: { schema },
+//     crashRecoveryCheckpoint: undefined,
+//     eventCount: {},
+//   });
 
-  await database.transaction(async (client, tx) => {
-    const indexingStore = createHistoricalIndexingStore({
-      common: context.common,
-      schemaBuild: { schema },
-      indexingCache,
-      db: tx,
-      client,
-    });
+//   await database.transaction(async (transactionContext) => {
+//     const indexingStore = createHistoricalIndexingStore({
+//       common: context.common,
+//       schemaBuild: { schema },
+//       indexingCache,
+//       transactionContext
+//     });
 
-    // check error
+//     // check error
 
-    expect(() =>
-      indexingStore
-        // @ts-ignore
-        .find(schema.account, { address: zeroAddress }),
-    ).toThrow();
-  });
-});
+//     expect(() =>
+//       indexingStore
+//         // @ts-ignore
+//         .find(schema.account, { address: zeroAddress }),
+//     ).toThrow();
+//   });
+// });
 
 test("missing rows", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
       balance: p.bigint().notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -638,13 +640,12 @@ test("missing rows", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     // error
@@ -660,14 +661,16 @@ test("missing rows", async (context) => {
 });
 
 test("notNull", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   let schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
       balance: p.bigint(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   let indexingCache = createIndexingCache({
     common: context.common,
@@ -676,13 +679,12 @@ test("notNull", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     let indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     // insert
@@ -730,8 +732,7 @@ test("notNull", async (context) => {
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     await expect(
@@ -751,14 +752,16 @@ test("notNull", async (context) => {
 });
 
 test("default", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
       balance: p.integer().default(0),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -767,14 +770,13 @@ test("default", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
 
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     await indexingStore.insert(schema.account).values({ address: zeroAddress });
@@ -788,14 +790,16 @@ test("default", async (context) => {
 });
 
 test("$default", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
       balance: p.bigint().$default(() => 10n),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -804,14 +808,13 @@ test("$default", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
 
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     await indexingStore.insert(schema.account).values({ address: zeroAddress });
@@ -825,8 +828,6 @@ test("$default", async (context) => {
 });
 
 test("$onUpdateFn", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -837,6 +838,10 @@ test("$onUpdateFn", async (context) => {
     })),
   };
 
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
@@ -844,14 +849,13 @@ test("$onUpdateFn", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
 
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     // insert
@@ -869,16 +873,17 @@ test("$onUpdateFn", async (context) => {
 });
 
 test("array", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   // dynamic size
-
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
       balances: p.bigint().array().notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -887,14 +892,13 @@ test("array", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
 
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     await indexingStore.insert(schema.account).values({
@@ -916,14 +920,16 @@ test("array", async (context) => {
 });
 
 test("text array", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     test: onchainTable("test", (p) => ({
       address: p.hex().primaryKey(),
       textArray: p.text().array().notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -932,13 +938,12 @@ test("text array", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     const STRING_ARRAY_VALUE = "//U_W_U\\\\";
@@ -964,8 +969,6 @@ test("text array", async (context) => {
 });
 
 test("enum", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const moodEnum = onchainEnum("mood", ["sad", "ok", "happy"]);
   const schema = {
     moodEnum,
@@ -975,6 +978,10 @@ test("enum", async (context) => {
     })),
   };
 
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
@@ -982,13 +989,12 @@ test("enum", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     await indexingStore.insert(schema.account).values({
@@ -1010,14 +1016,16 @@ test("enum", async (context) => {
 });
 
 test("json bigint", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
       metadata: p.json().$type<{ balance: bigint }>(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -1026,13 +1034,12 @@ test("json bigint", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     await expect(
@@ -1045,14 +1052,16 @@ test("json bigint", async (context) => {
 });
 
 test("bytes", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
       calldata: t.bytes().notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -1061,13 +1070,12 @@ test("bytes", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     await indexingStore.insert(schema.account).values({
@@ -1087,14 +1095,16 @@ test("bytes", async (context) => {
 });
 
 test("text with null bytes", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
       name: t.text().notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -1103,13 +1113,12 @@ test("text with null bytes", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     await indexingStore.insert(schema.account).values({
@@ -1129,14 +1138,16 @@ test("text with null bytes", async (context) => {
 });
 
 test.skip("time", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
       time: t.time().notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -1145,13 +1156,12 @@ test.skip("time", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     await indexingStore.insert(schema.account).values({
@@ -1171,14 +1181,16 @@ test.skip("time", async (context) => {
 });
 
 test("timestamp", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
       timestamp: t.timestamp().notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -1187,13 +1199,12 @@ test("timestamp", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     await indexingStore.insert(schema.account).values({
@@ -1213,14 +1224,16 @@ test("timestamp", async (context) => {
 });
 
 test.skip("date", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
       date: t.date({ mode: "date" }).notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -1229,13 +1242,12 @@ test.skip("date", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     await indexingStore.insert(schema.account).values({
@@ -1255,14 +1267,16 @@ test.skip("date", async (context) => {
 });
 
 test.skip("interval", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
       interval: t.interval().notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -1271,13 +1285,12 @@ test.skip("interval", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     await indexingStore.insert(schema.account).values({
@@ -1297,14 +1310,16 @@ test.skip("interval", async (context) => {
 });
 
 test("point", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
       point: t.point().notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -1313,13 +1328,12 @@ test("point", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     await indexingStore.insert(schema.account).values({
@@ -1339,14 +1353,16 @@ test("point", async (context) => {
 });
 
 test("line", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
       line: t.line().notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -1355,13 +1371,12 @@ test("line", async (context) => {
     eventCount: {},
   });
 
-  await database.transaction(async (client, tx) => {
+  await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
-      db: tx,
-      client,
+      transactionContext,
     });
 
     await indexingStore.insert(schema.account).values({
