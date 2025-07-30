@@ -1565,7 +1565,7 @@ test("historical events match realtime events", async (context) => {
   expect(historicalBlockData[0]!.logs).toMatchInlineSnapshot(`
     [
       {
-        "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
         "blockNumber": 2,
         "data": "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000",
         "logIndex": 0,
@@ -1581,7 +1581,6 @@ test("historical events match realtime events", async (context) => {
           null,
         ],
         "transactionIndex": 0,
-        Symbol(nodejs.util.inspect.custom): [Function],
       },
     ]
   `);
@@ -1589,7 +1588,7 @@ test("historical events match realtime events", async (context) => {
   expect(realtimeBlockData[0]!.logs).toMatchInlineSnapshot(`
     [
       {
-        "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
         "blockNumber": 2,
         "data": "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000",
         "logIndex": 0,
