@@ -100,7 +100,11 @@ test("migrate() with empty schema creates tables and enums", async (context) => 
     },
   });
 
+  console.log("ABOUT TO MIGRATE");
+
   await database.migrate({ buildId: "abc", ordering: "multichain" });
+
+  console.log("MIGRATED");
 
   const tableNames = await getUserTableNames(database, "public");
   expect(tableNames).toContain("account");

@@ -1,11 +1,4 @@
-import {
-  SQL,
-  type TableConfig,
-  getTableColumns,
-  getTableName,
-  is,
-  sql,
-} from "drizzle-orm";
+import { SQL, type TableConfig, getTableName, is, sql } from "drizzle-orm";
 import { CasingCache, toCamelCase, toSnakeCase } from "drizzle-orm/casing";
 import {
   type AnyPgTable,
@@ -187,26 +180,40 @@ const createReorgTableStatement = (statement: JsonCreateTableStatement) => {
 export const sqlToStagedTableName = (tableName: string) =>
   `_staged__${tableName}`;
 
-export const getStagedTable = <config extends TableConfig>(
-  table: PgTableWithColumns<config>,
-) => {
-  const schema = getTableConfig(table).schema;
-  if (schema && schema !== "public") {
-    return pgSchema(schema).table(
-      sqlToStagedTableName(getTableName(table)),
-      getTableColumns(table),
-    );
-  }
-
-  return pgTable(
-    sqlToStagedTableName(getTableName(table)),
-    getTableColumns(table),
-  );
-};
-
 const createStagedTableStatement = (statement: JsonCreateTableStatement) => {
   const stagedStatement: JsonCreateTableStatement = structuredClone(statement);
+  // if (stagedStatement.compositePkName !== undefined && stagedStatement.compositePkName.length > 0) {
+  //   stagedStatement.compositePkName = `_staged_${stagedStatement.compositePkName}`;
+  //   stagedStatement.compositePKs.push("operation");
+  // }
+
+  stagedStatement.compositePkName = undefined;
+  stagedStatement.compositePKs = [];
+
+  for (const column of stagedStatement.columns) {
+    column.primaryKey = false;
+  }
+
+  const stagedColumns = Object.values(
+    squashPgScheme(
+      generatePgSnapshot(
+        [
+          pgTable("", {
+            operation: integer().notNull(),
+          }),
+        ],
+        [],
+        [],
+        "snake_case",
+      ),
+    ).tables,
+    //@ts-ignore
+  )[0]!.columns;
+
   stagedStatement.tableName = sqlToStagedTableName(stagedStatement.tableName);
+
+  stagedStatement.columns.push(...Object.values(stagedColumns));
+
   return stagedStatement;
 };
 

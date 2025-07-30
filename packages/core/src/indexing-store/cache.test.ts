@@ -80,7 +80,7 @@ test("flush() update", async (context) => {
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
   });
-
+  console.log("BEFORE TX");
   await database.transaction(async (transactionContext) => {
     const indexingStore = createHistoricalIndexingStore({
       common: context.common,
@@ -90,12 +90,15 @@ test("flush() update", async (context) => {
     });
 
     // mutate the cache to skip hot loops
+    console.log("BEFORE INVALIDATE");
 
     indexingCache.invalidate();
 
     await indexingStore.find(schema.account, {
       address: zeroAddress,
     });
+
+    console.log("BEFORE INSERT 1");
 
     await indexingStore.insert(schema.account).values({
       address: zeroAddress,
@@ -105,12 +108,16 @@ test("flush() update", async (context) => {
     // first flush takes "insert" path
     await indexingCache.flush({ transactionContext });
 
+    console.log("AFTER FIRST FLUSH");
+
     await indexingStore.update(schema.account, { address: zeroAddress }).set({
       balance: 12n,
     });
 
     // second flush takes "update" path
     await indexingCache.flush({ transactionContext });
+
+    console.log("AFTER SECOND FLUSH");
 
     let result = await indexingStore.find(schema.account, {
       address: zeroAddress,
@@ -137,7 +144,11 @@ test("flush() update", async (context) => {
       address: zeroAddress,
       balance: 12n,
     });
+
+    console.log("AFTER FN BODY");
   });
+
+  console.log("after TX");
 });
 
 // test("flush() encoding", async (context) => {

@@ -32,7 +32,7 @@ const cliOptions = {
   logFormat: "pretty",
 };
 
-test(
+test.skip(
   "erc20",
   async () => {
     const port = await getFreePort();

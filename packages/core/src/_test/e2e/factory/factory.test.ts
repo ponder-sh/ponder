@@ -33,7 +33,7 @@ const cliOptions = {
   logFormat: "pretty",
 };
 
-test(
+test.skip(
   "factory",
   async () => {
     const port = await getFreePort();

@@ -4,8 +4,8 @@ import {
   SHARED_OPERATION_ID_SEQUENCE,
   getColumnCasing,
   getReorgTable,
-  getStagedTable,
   sqlToReorgTableName,
+  sqlToStagedTableName,
 } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
 import { NonRetryableError, ShutdownError } from "@/internal/errors.js";
@@ -565,6 +565,8 @@ export const createDatabase = async ({
         } catch (_error) {
           const error = _error as Error;
 
+          console.log(error);
+
           if (common.shutdown.isKilled) {
             throw new ShutdownError();
           }
@@ -627,51 +629,40 @@ export const createDatabase = async ({
             tx: Drizzle<Schema>;
           };
         } = {};
-
-        await Promise.all(
-          [...tables, PONDER_CHECKPOINT].map(async (table) => {
-            const client = await (
-              database.driver as { user: Pool }
-            ).user.connect();
-
-            try {
-              await client.query("BEGIN");
-            } catch (error) {
-              client.release();
-              throw error;
-            }
-
-            transactionContext[getTableName(table)] = {
-              client,
-              tx: drizzleNodePg(client, {
-                casing: "snake_case",
-                schema: schemaBuild.schema,
-              }),
-            };
-          }),
-        );
         // NOTE: ADD CORRECTNESS CONSTRAINTS
         try {
-          const result = await fn(transactionContext);
           await Promise.all(
-            Object.values(transactionContext).map(async ({ client }) => {
-              await client.query("COMMIT");
-            }),
-          );
+            [...tables.map(getTableName), "_ponder_admin"].map(
+              async (tableName) => {
+                const client = await (
+                  database.driver as { user: Pool }
+                ).user.connect();
 
-          const { client, tx } = transactionContext._ponder_checkpoint!;
+                transactionContext[tableName] = {
+                  client,
+                  tx: drizzleNodePg(client, {
+                    casing: "snake_case",
+                    schema: schemaBuild.schema,
+                  }),
+                };
+              },
+            ),
+          );
+          const result = await fn(transactionContext);
+
+          const { client, tx } = transactionContext._ponder_admin!;
+
           await client.query("BEGIN");
-          database.commitStagedTables({ db: tx });
-          await client.query("COMMIT");
+          try {
+            database.commitStagedTables({ db: tx });
+            await client.query("COMMIT");
+          } catch (error) {
+            await client.query("ROLLBACK");
+            throw error;
+          }
 
           return result;
         } catch (error) {
-          await Promise.all(
-            Object.values(transactionContext).map(async ({ client }) => {
-              await client.query("ROLLBACK");
-            }),
-          );
-
           database.pruneStagedTables({ db: qb.drizzle });
 
           throw error;
@@ -690,44 +681,39 @@ export const createDatabase = async ({
           };
         } = {};
 
-        await Promise.all(
-          [...tables, PONDER_CHECKPOINT].map(async (table) => {
-            const client = (database.driver as { instance: PGlite }).instance;
-
-            await client.query("BEGIN");
-
-            transactionContext[getTableName(table)] = {
-              client,
-              tx: drizzlePglite(client, {
-                casing: "snake_case",
-                schema: schemaBuild.schema,
-              }),
-            };
-          }),
-        );
-
         // NOTE: ADD CORRECTNESS CONSTRAINTS
         try {
-          const result = await fn(transactionContext);
           await Promise.all(
-            Object.values(transactionContext).map(async ({ client }) => {
-              await client.query("COMMIT");
-            }),
+            [...tables.map(getTableName), "_ponder_admin"].map(
+              async (tableName) => {
+                const client = (database.driver as { instance: PGlite })
+                  .instance;
+
+                transactionContext[tableName] = {
+                  client,
+                  tx: drizzlePglite(client, {
+                    casing: "snake_case",
+                    schema: schemaBuild.schema,
+                  }),
+                };
+              },
+            ),
           );
 
-          const { client, tx } = transactionContext._ponder_checkpoint!;
+          const result = await fn(transactionContext);
+
+          const { client, tx } = transactionContext._ponder_admin!;
           await client.query("BEGIN");
-          database.commitStagedTables({ db: tx });
-          await client.query("COMMIT");
+          try {
+            database.commitStagedTables({ db: tx });
+            await client.query("COMMIT");
+          } catch (error) {
+            await client.query("ROLLBACK");
+            throw error;
+          }
 
           return result;
         } catch (error) {
-          await Promise.all(
-            Object.values(transactionContext).map(async ({ client }) => {
-              await client.query("ROLLBACK");
-            }),
-          );
-
           database.pruneStagedTables({ db: qb.drizzle });
 
           throw error;
@@ -904,11 +890,11 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
                     `DROP TABLE IF EXISTS "${namespace.schema}"."${sqlToReorgTableName(table)}" CASCADE`,
                   ),
                 );
-                // await tx.execute(
-                //   sql.raw(
-                //     `DROP TABLE IF EXISTS "${namespace.schema}"."${sqlToStagedTablename(table)}" CASCADE`,
-                //   ),
-                // );
+                await tx.execute(
+                  sql.raw(
+                    `DROP TABLE IF EXISTS "${namespace.schema}"."${sqlToStagedTableName(table)}" CASCADE`,
+                  ),
+                );
               }
               for (const enumName of schemaBuild.statements.enums.json) {
                 await tx.execute(
@@ -1338,10 +1324,10 @@ WITH deleted AS (
     async pruneStagedTables({ db }) {
       await Promise.all(
         tables.map(async (table) => {
-          const stagedTable = getStagedTable(table);
+          const stagedTableName = sqlToStagedTableName(getTableName(table));
           await db.execute(
             sql.raw(`
-TRUNCATE TABLE "${namespace.schema}"."${getTableName(stagedTable)}";
+TRUNCATE TABLE "${namespace.schema}"."${stagedTableName}";
 `),
           );
         }),
@@ -1350,18 +1336,43 @@ TRUNCATE TABLE "${namespace.schema}"."${getTableName(stagedTable)}";
     async commitStagedTables({ db }) {
       await Promise.all(
         tables.map(async (table) => {
-          const stagedTable = getStagedTable(table);
-
+          const stagedTableName = sqlToStagedTableName(getTableName(table));
           const columnNames = Object.keys(getTableColumns(table));
+
+          const primaryKeys = getPrimaryKeyColumns(table);
+
+          const set = Object.values(getTableColumns(table))
+            .map(
+              (column) =>
+                `"${getColumnCasing(
+                  column,
+                  "snake_case",
+                )}" = source."${getColumnCasing(column, "snake_case")}"`,
+            )
+            .join(",\n");
 
           await db.execute(
             sql.raw(`
 INSERT INTO "${namespace.schema}"."${getTableName(table)}" (${columnNames.join(", ")})
-SELECT ${columnNames.join(", ")} FROM "${namespace.schema}"."${getTableName(stagedTable)}"
-ON CONFLICT DO UPDATE
-SET ${columnNames.map((columnName) => `"${columnName}"=EXCLUDED."${columnName}"`).join(", ")};
+SELECT ${columnNames.join(", ")} FROM "${namespace.schema}"."${stagedTableName}"
+WHERE operation = 0;
+`),
+          );
 
-TRUNCATE TABLE "${namespace.schema}"."${getTableName(stagedTable)}";
+          await db.execute(
+            sql.raw(`
+UPDATE "${namespace.schema}"."${getTableName(table)}" as target
+SET ${set}
+FROM "${namespace.schema}"."${stagedTableName}" as source
+WHERE operation = 1 ${primaryKeys.length > 0 ? "AND" : ""} ${primaryKeys
+              .map(({ sql }) => `target."${sql}" = source."${sql}"`)
+              .join(" AND ")};
+`),
+          );
+
+          await db.execute(
+            sql.raw(`
+TRUNCATE TABLE "${namespace.schema}"."${stagedTableName}";              
 `),
           );
         }),
