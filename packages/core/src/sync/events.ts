@@ -24,6 +24,7 @@ import {
   encodeCheckpoint,
 } from "@/utils/checkpoint.js";
 import { decodeAbiParameters } from "@/utils/decodeAbiParameters.js";
+import { toLowerCase } from "@/utils/lowercase.js";
 import { never } from "@/utils/never.js";
 import type { AbiEvent, AbiParameter } from "abitype";
 import {
@@ -31,7 +32,6 @@ import {
   DecodeLogDataMismatch,
   DecodeLogTopicsMismatch,
   type Hex,
-  checksumAddress,
   decodeFunctionData,
   decodeFunctionResult,
   hexToBigInt,
@@ -618,7 +618,7 @@ export const syncBlockToInternal = ({
   gasUsed: hexToBigInt(block.gasUsed),
   hash: block.hash,
   logsBloom: block.logsBloom,
-  miner: checksumAddress(block.miner),
+  miner: toLowerCase(block.miner),
   mixHash: block.mixHash,
   nonce: block.nonce,
   number: hexToBigInt(block.number),
@@ -638,7 +638,7 @@ export const syncLogToInternal = ({ log }: { log: SyncLog }): InternalLog => ({
   blockNumber: hexToNumber(log.blockNumber),
   logIndex: hexToNumber(log.logIndex),
   transactionIndex: hexToNumber(log.transactionIndex),
-  address: checksumAddress(log.address!),
+  address: toLowerCase(log.address!),
   data: log.data,
   removed: false,
   topics: log.topics,
@@ -651,14 +651,14 @@ export const syncTransactionToInternal = ({
 }): InternalTransaction => ({
   blockNumber: hexToNumber(transaction.blockNumber),
   transactionIndex: hexToNumber(transaction.transactionIndex),
-  from: checksumAddress(transaction.from),
+  from: toLowerCase(transaction.from),
   gas: hexToBigInt(transaction.gas),
   hash: transaction.hash,
   input: transaction.input,
   nonce: hexToNumber(transaction.nonce),
   r: transaction.r,
   s: transaction.s,
-  to: transaction.to ? checksumAddress(transaction.to) : transaction.to,
+  to: transaction.to ? toLowerCase(transaction.to) : transaction.to,
   value: hexToBigInt(transaction.value),
   v: transaction.v ? hexToBigInt(transaction.v) : null,
   ...(transaction.type === "0x0"
@@ -707,11 +707,11 @@ export const syncTransactionReceiptToInternal = ({
   blockNumber: hexToNumber(transactionReceipt.blockNumber),
   transactionIndex: hexToNumber(transactionReceipt.transactionIndex),
   contractAddress: transactionReceipt.contractAddress
-    ? checksumAddress(transactionReceipt.contractAddress)
+    ? toLowerCase(transactionReceipt.contractAddress)
     : null,
   cumulativeGasUsed: hexToBigInt(transactionReceipt.cumulativeGasUsed),
   effectiveGasPrice: hexToBigInt(transactionReceipt.effectiveGasPrice),
-  from: checksumAddress(transactionReceipt.from),
+  from: toLowerCase(transactionReceipt.from),
   gasUsed: hexToBigInt(transactionReceipt.gasUsed),
   logsBloom: transactionReceipt.logsBloom,
   status:
@@ -720,7 +720,7 @@ export const syncTransactionReceiptToInternal = ({
       : transactionReceipt.status === "0x0"
         ? "reverted"
         : (transactionReceipt.status as InternalTransactionReceipt["status"]),
-  to: transactionReceipt.to ? checksumAddress(transactionReceipt.to) : null,
+  to: transactionReceipt.to ? toLowerCase(transactionReceipt.to) : null,
   type:
     transactionReceipt.type === "0x0"
       ? "legacy"
@@ -746,8 +746,8 @@ export const syncTraceToInternal = ({
   traceIndex: trace.trace.index,
   transactionIndex: hexToNumber(transaction.transactionIndex),
   type: trace.trace.type,
-  from: checksumAddress(trace.trace.from),
-  to: trace.trace.to ? checksumAddress(trace.trace.to) : null,
+  from: toLowerCase(trace.trace.from),
+  to: trace.trace.to ? toLowerCase(trace.trace.to) : null,
   gas: hexToBigInt(trace.trace.gas),
   gasUsed: hexToBigInt(trace.trace.gasUsed),
   input: trace.trace.input,

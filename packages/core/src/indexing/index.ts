@@ -23,7 +23,6 @@ import {
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import type { Abi, Address } from "viem";
-import { checksumAddress } from "viem";
 import { addStackTrace } from "./addStackTrace.js";
 import type { ReadonlyClient } from "./client.js";
 
@@ -131,7 +130,7 @@ export const createIndexing = ({
 
     contractsByChainId[source.filter.chainId]![source.name] = {
       abi: source.abi,
-      address: address ? checksumAddress(address) : address,
+      address,
       startBlock: source.filter.fromBlock,
       endBlock: source.filter.toBlock,
     };
