@@ -511,6 +511,7 @@ export const createCachedViemClient = ({
 
           // profile "readContract" and "multicall" actions
           if (action === "readContract") {
+            global.SKIP_CHECKSUM = true;
             const recordPatternResult = recordProfilePattern({
               event: event,
               args: args as Omit<
@@ -519,6 +520,7 @@ export const createCachedViemClient = ({
               >,
               hints: Array.from(profile.get(event.name)!.values()),
             });
+            global.SKIP_CHECKSUM = false;
             if (recordPatternResult) {
               addProfilePattern(recordPatternResult);
             }
@@ -532,11 +534,13 @@ export const createCachedViemClient = ({
 
             if (contracts.length < 10) {
               for (const contract of contracts) {
+                global.SKIP_CHECKSUM = true;
                 const recordPatternResult = recordProfilePattern({
                   event: event,
                   args: contract,
                   hints: Array.from(profile.get(event.name)!.values()),
                 });
+                global.SKIP_CHECKSUM = false;
                 if (recordPatternResult) {
                   addProfilePattern(recordPatternResult);
                 }
