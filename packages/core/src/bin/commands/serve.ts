@@ -1,7 +1,6 @@
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
 import { createDatabase } from "@/database/index.js";
-import { NonRetryableUserError, ShutdownError } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -56,7 +55,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   const build = await createBuild({ common, cliOptions });
 
-  const exit = createExit({ common });
+  const exit = createExit({ common, options });
   const namespaceResult = build.namespaceCompile();
 
   if (namespaceResult.status === "error") {
@@ -156,23 +155,6 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     },
     1,
   );
-
-  process.on("uncaughtException", (error: Error) => {
-    if (error instanceof ShutdownError) return;
-    if (error instanceof NonRetryableUserError) {
-      exit({ reason: "Received fatal error", code: 1 });
-    } else {
-      exit({ reason: "Received fatal error", code: 75 });
-    }
-  });
-  process.on("unhandledRejection", (error: Error) => {
-    if (error instanceof ShutdownError) return;
-    if (error instanceof NonRetryableUserError) {
-      exit({ reason: "Received fatal error", code: 1 });
-    } else {
-      exit({ reason: "Received fatal error", code: 75 });
-    }
-  });
 
   createServer({
     common,

@@ -85,7 +85,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     createUi({ common: { ...common, shutdown } });
   }
 
-  const exit = createExit({ common: { ...common, shutdown } });
+  const exit = createExit({ common: { ...common, shutdown }, options });
 
   let isInitialBuild = true;
 
@@ -302,6 +302,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       buildQueue.clear();
       buildQueue.add({ status: "error", kind: "indexing", error });
     } else {
+      common.logger.error({
+        service: "process",
+        msg: "Caught uncaughtException event",
+        error,
+      });
       exit({ reason: "Received fatal error", code: 75 });
     }
   });
@@ -311,6 +316,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       buildQueue.clear();
       buildQueue.add({ status: "error", kind: "indexing", error });
     } else {
+      common.logger.error({
+        service: "process",
+        msg: "Caught unhandledRejection event",
+        error,
+      });
       exit({ reason: "Received fatal error", code: 75 });
     }
   });

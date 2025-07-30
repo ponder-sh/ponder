@@ -1,5 +1,4 @@
 import { runCodegen } from "@/bin/utils/codegen.js";
-import { NonRetryableUserError, ShutdownError } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -33,24 +32,7 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
   const telemetry = createTelemetry({ options, logger, shutdown });
   const common = { options, logger, metrics, telemetry, shutdown };
 
-  const exit = createExit({ common });
-
-  process.on("uncaughtException", (error: Error) => {
-    if (error instanceof ShutdownError) return;
-    if (error instanceof NonRetryableUserError) {
-      exit({ reason: "Received fatal error", code: 1 });
-    } else {
-      exit({ reason: "Received fatal error", code: 75 });
-    }
-  });
-  process.on("unhandledRejection", (error: Error) => {
-    if (error instanceof ShutdownError) return;
-    if (error instanceof NonRetryableUserError) {
-      exit({ reason: "Received fatal error", code: 1 });
-    } else {
-      exit({ reason: "Received fatal error", code: 75 });
-    }
-  });
+  const exit = createExit({ common, options });
 
   telemetry.record({
     name: "lifecycle:session_start",
