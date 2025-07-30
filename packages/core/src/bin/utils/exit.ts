@@ -68,13 +68,13 @@ export const createExit = ({
   if (options.command !== "dev") {
     process.on("uncaughtException", (error: Error) => {
       if (error instanceof ShutdownError) return;
+      common.logger.error({
+        service: "process",
+        msg: "Caught uncaughtException event",
+        error,
+      });
       if (error instanceof NonRetryableUserError) {
         exit({ reason: "Received fatal error", code: 1 });
-        common.logger.error({
-          service: "process",
-          msg: "Caught uncaughtException event",
-          error,
-        });
       } else {
         exit({ reason: "Received fatal error", code: 75 });
       }
