@@ -478,6 +478,7 @@ export const createRpc = ({
     request: queue.add,
     async subscribe({ onBlock, onError, polling = false }) {
       let isFetching = false;
+      let isSubscribed = false;
 
       if (polling || wsTransport === undefined) {
         interval = setInterval(async () => {
@@ -518,6 +519,7 @@ export const createRpc = ({
                 });
                 webSocketErrorCount = 0;
               } else {
+                if (!isSubscribed) return;
                 const error = data.error as Error;
 
                 if (webSocketErrorCount === RETRY_COUNT) {
@@ -542,6 +544,8 @@ export const createRpc = ({
               }
             },
             onError: async (_error) => {
+              // Note: Since the viem webSocket transaport impl throws the promise and calls onError callback on failed subscribe, it should be debounced.
+              if (!isSubscribed) return;
               const error = _error as Error;
 
               if (webSocketErrorCount === RETRY_COUNT) {
@@ -569,6 +573,8 @@ export const createRpc = ({
               }
             },
           });
+
+          isSubscribed = true;
 
           return;
         } catch (_error) {
