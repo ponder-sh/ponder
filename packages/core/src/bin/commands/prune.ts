@@ -6,7 +6,10 @@ import {
   getPonderMetaTable,
 } from "@/database/index.js";
 import { TABLES } from "@/database/index.js";
-import { sqlToReorgTableName } from "@/drizzle/kit/index.js";
+import {
+  sqlToReorgTableName,
+  sqlToStagedTableName,
+} from "@/drizzle/kit/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -148,7 +151,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
       for (const table of value.table_names) {
         tablesToDrop.push(`"${schema}"."${table}"`);
         tablesToDrop.push(`"${schema}"."${sqlToReorgTableName(table)}"`);
-        // tablesToDrop.push(`"${schema}"."${sqlToStagedTablename(table)}"`)
+        tablesToDrop.push(`"${schema}"."${sqlToStagedTableName(table)}"`);
         functionsToDrop.push(`"${schema}"."operation_reorg__${table}"`);
       }
       tablesToDrop.push(`"${schema}"."_ponder_meta"`);

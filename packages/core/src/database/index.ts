@@ -4,6 +4,7 @@ import {
   SHARED_OPERATION_ID_SEQUENCE,
   getColumnCasing,
   getReorgTable,
+  getStagedTable,
   sqlToReorgTableName,
 } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
@@ -125,8 +126,8 @@ export type Database = {
   }): Promise<void>;
   finalize(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
   commitBlock(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
-  // pruneStagedTables(args: { db: Drizzle<Schema> }): Promise<void>;
-  // commitStagedTables(args: { db: Drizzle<Schema> }): Promise<void>;
+  pruneStagedTables(args: { db: Drizzle<Schema> }): Promise<void>;
+  commitStagedTables(args: { db: Drizzle<Schema> }): Promise<void>;
 };
 
 export const SCHEMATA = pgSchema("information_schema").table(
@@ -658,6 +659,11 @@ export const createDatabase = async ({
             }),
           );
 
+          const { client, tx } = transactionContext._ponder_checkpoint!;
+          await client.query("BEGIN");
+          database.commitStagedTables({ db: tx });
+          await client.query("COMMIT");
+
           return result;
         } catch (error) {
           await Promise.all(
@@ -665,6 +671,8 @@ export const createDatabase = async ({
               await client.query("ROLLBACK");
             }),
           );
+
+          database.pruneStagedTables({ db: qb.drizzle });
 
           throw error;
         } finally {
@@ -707,6 +715,11 @@ export const createDatabase = async ({
             }),
           );
 
+          const { client, tx } = transactionContext._ponder_checkpoint!;
+          await client.query("BEGIN");
+          database.commitStagedTables({ db: tx });
+          await client.query("COMMIT");
+
           return result;
         } catch (error) {
           await Promise.all(
@@ -714,6 +727,8 @@ export const createDatabase = async ({
               await client.query("ROLLBACK");
             }),
           );
+
+          database.pruneStagedTables({ db: qb.drizzle });
 
           throw error;
         }
@@ -1320,36 +1335,38 @@ WITH deleted AS (
         ),
       );
     },
-    //     async pruneStagedTables({ db }) {
-    //       await Promise.all(
-    //         tables.map(async (table) => {
-    //           const stagedTable = getStagedTable(table);
-    //           await db.delete(stagedTable);
-    //         }),
-    //       );
-    //     },
-    //     async commitStagedTables({ db }) {
-    //       await Promise.all(
-    //         tables.map(async (table) => {
-    //           const stagedTable = getStagedTable(table);
+    async pruneStagedTables({ db }) {
+      await Promise.all(
+        tables.map(async (table) => {
+          const stagedTable = getStagedTable(table);
+          await db.execute(
+            sql.raw(`
+TRUNCATE TABLE "${namespace.schema}"."${getTableName(stagedTable)}";
+`),
+          );
+        }),
+      );
+    },
+    async commitStagedTables({ db }) {
+      await Promise.all(
+        tables.map(async (table) => {
+          const stagedTable = getStagedTable(table);
 
-    //           const columnNames = Object.keys(getTableColumns(table));
+          const columnNames = Object.keys(getTableColumns(table));
 
-    //           await db.execute(
-    //             sql.raw(`
-    // WITH source AS (
-    //   DELETE FROM "${namespace.schema}"."${getTableName(stagedTable)}"
-    //   RETURNING *
-    // )
-    // INSERT INTO "${namespace.schema}"."${getTableName(table)}" (${columnNames.join(", ")})
-    // SELECT ${columnNames.join(", ")} FROM source
-    // ON CONFLICT DO UPDATE
-    // SET ${columnNames.map((columnName) => `"${columnName}"=EXCLUDED."${columnName}"`).join(", ")};
-    // `),
-    //           );
-    //         }),
-    //       );
-    //     },
+          await db.execute(
+            sql.raw(`
+INSERT INTO "${namespace.schema}"."${getTableName(table)}" (${columnNames.join(", ")})
+SELECT ${columnNames.join(", ")} FROM "${namespace.schema}"."${getTableName(stagedTable)}"
+ON CONFLICT DO UPDATE
+SET ${columnNames.map((columnName) => `"${columnName}"=EXCLUDED."${columnName}"`).join(", ")};
+
+TRUNCATE TABLE "${namespace.schema}"."${getTableName(stagedTable)}";
+`),
+          );
+        }),
+      );
+    },
   } satisfies Database;
 
   // @ts-ignore

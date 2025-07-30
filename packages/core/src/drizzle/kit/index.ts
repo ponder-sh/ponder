@@ -1,4 +1,11 @@
-import { SQL, type TableConfig, getTableName, is, sql } from "drizzle-orm";
+import {
+  SQL,
+  type TableConfig,
+  getTableColumns,
+  getTableName,
+  is,
+  sql,
+} from "drizzle-orm";
 import { CasingCache, toCamelCase, toSnakeCase } from "drizzle-orm/casing";
 import {
   type AnyPgTable,
@@ -117,7 +124,7 @@ export const getSql = (schema: { [name: string]: unknown }): SqlStatements => {
   const combinedTables = jsonCreateTables.flatMap((statement) => [
     statement,
     createReorgTableStatement(statement),
-    // createStagedTableStatement(statement),
+    createStagedTableStatement(statement),
   ]);
 
   return {
@@ -177,31 +184,31 @@ const createReorgTableStatement = (statement: JsonCreateTableStatement) => {
   return reorgStatement;
 };
 
-// export const sqlToStagedTablename = (tableName: string) =>
-//   `_staged__${tableName}`;
+export const sqlToStagedTableName = (tableName: string) =>
+  `_staged__${tableName}`;
 
-// export const getStagedTable = <config extends TableConfig>(
-//   table: PgTableWithColumns<config>,
-// ) => {
-//   const schema = getTableConfig(table).schema;
-//   if (schema && schema !== "public") {
-//     return pgSchema(schema).table(
-//       sqlToReorgTableName(getTableName(table)),
-//       getTableColumns(table),
-//     );
-//   }
+export const getStagedTable = <config extends TableConfig>(
+  table: PgTableWithColumns<config>,
+) => {
+  const schema = getTableConfig(table).schema;
+  if (schema && schema !== "public") {
+    return pgSchema(schema).table(
+      sqlToStagedTableName(getTableName(table)),
+      getTableColumns(table),
+    );
+  }
 
-//   return pgTable(
-//     sqlToStagedTablename(getTableName(table)),
-//     getTableColumns(table),
-//   );
-// };
+  return pgTable(
+    sqlToStagedTableName(getTableName(table)),
+    getTableColumns(table),
+  );
+};
 
-// const createStagedTableStatement = (statement: JsonCreateTableStatement) => {
-//   const stagedStatement: JsonCreateTableStatement = structuredClone(statement);
-//   stagedStatement.tableName = sqlToStagedTablename(stagedStatement.tableName);
-//   return stagedStatement;
-// };
+const createStagedTableStatement = (statement: JsonCreateTableStatement) => {
+  const stagedStatement: JsonCreateTableStatement = structuredClone(statement);
+  stagedStatement.tableName = sqlToStagedTableName(stagedStatement.tableName);
+  return stagedStatement;
+};
 
 ////////
 // Serializer
