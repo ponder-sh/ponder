@@ -381,16 +381,12 @@ export const decodeEvents = (
                 },
               });
             } catch (err) {
+              const blockNumber = event?.block?.number ?? "unknown";
+              const msg = `Unable to decode log, skipping it. blockNumber: ${blockNumber}, logIndex: ${event.log?.logIndex}, data: ${event.log?.data}, topics: ${event.log?.topics}`;
               if (source.filter.address === undefined) {
-                common.logger.debug({
-                  service: "app",
-                  msg: `Unable to decode log, skipping it. blockNumber: ${event.log?.blockNumber}, logIndex: ${event.log?.logIndex}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
-                });
+                common.logger.debug({ service: "app", msg });
               } else {
-                common.logger.warn({
-                  service: "app",
-                  msg: `Unable to decode log, skipping it. blockNumber: ${event.log?.blockNumber}, logIndex: ${event.log?.logIndex}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
-                });
+                common.logger.warn({ service: "app", msg });
               }
             }
             break;
@@ -439,16 +435,12 @@ export const decodeEvents = (
                 },
               });
             } catch (err) {
+              const blockNumber = event?.block?.number ?? "unknown";
+              const msg = `Unable to decode trace, skipping it. blockNumber: ${blockNumber}, transactionIndex: ${event.trace?.transactionIndex}, traceIndex: ${event.trace?.traceIndex}, input: ${event.trace?.input}, output: ${event.trace?.output}`;
               if (source.filter.toAddress === undefined) {
-                common.logger.debug({
-                  service: "app",
-                  msg: `Unable to decode trace, skipping it. blockNumber: ${event.trace?.blockNumber}, transactionIndex: ${event.trace?.transactionIndex}, traceIndex: ${event.trace?.traceIndex}, input: ${event.trace?.input}, output: ${event.trace?.output}`,
-                });
+                common.logger.debug({ service: "app", msg });
               } else {
-                common.logger.warn({
-                  service: "app",
-                  msg: `Unable to decode trace, skipping it. blockNumber: ${event.trace?.blockNumber}, transactionIndex: ${event.trace?.transactionIndex}, traceIndex: ${event.trace?.traceIndex},  input: ${event.trace?.input}, output: ${event.trace?.output}`,
-                });
+                common.logger.warn({ service: "app", msg });
               }
             }
             break;
