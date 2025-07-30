@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.41
+
+### Patch Changes
+
+- [`2b26106`](https://github.com/ponder-sh/ponder/commit/2b261068233b9652408557b53183d65a9a134062) Thanks [@typedarray](https://github.com/typedarray)! - Improved reliability for WebSocket RPC requests.
+
 ## 0.11.40
 
 ### Patch Changes
