@@ -515,6 +515,23 @@ export const getLogsRetryHelper = ({
     }
   }
 
+  // ankr (tac)
+  match = sError.match(/maximum \[from, to\] blocks distance: (\d+)/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range: BigInt(match[1]!),
+    });
+
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
+    }
+  }
+
   // No match found
   return { shouldRetry: false } as const;
 };
