@@ -1,6 +1,9 @@
 import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
-import { RecordNotFoundError } from "@/internal/errors.js";
+import {
+  InvalidStoreMethodError,
+  RecordNotFoundError,
+} from "@/internal/errors.js";
 import type { SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
@@ -9,6 +12,7 @@ import { drizzle } from "drizzle-orm/pg-proxy";
 import {
   type IndexingStore,
   checkOnchainTable,
+  checkTableAccess,
   parseSqlError,
   validateUpdateSet,
 } from "./index.js";
@@ -18,10 +22,12 @@ export const createRealtimeIndexingStore = ({
   common,
   schemaBuild: { schema },
   database,
+  chainId,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   database: Database;
+  chainId?: number;
 }): IndexingStore => {
   const find = (table: Table, key: object) => {
     return database.qb.drizzle
@@ -40,6 +46,7 @@ export const createRealtimeIndexingStore = ({
           method: "find",
         });
         checkOnchainTable(table, "find");
+        checkTableAccess(table, "find", key, chainId);
         return find(table, key);
       }),
     // @ts-ignore
@@ -82,6 +89,13 @@ export const createRealtimeIndexingStore = ({
                   return rows;
                 };
 
+                if (chainId !== undefined)
+                  Array.isArray(values)
+                    ? values.map((v) =>
+                        checkTableAccess(table, "insert", v, chainId),
+                      )
+                    : checkTableAccess(table, "insert", values, chainId);
+
                 try {
                   return await database.qb.drizzle
                     .insert(table)
@@ -104,6 +118,7 @@ export const createRealtimeIndexingStore = ({
                 if (Array.isArray(values)) {
                   const rows = [];
                   for (const value of values) {
+                    checkTableAccess(table, "insert", value, chainId);
                     const row = await find(table, value);
 
                     if (row) {
@@ -139,6 +154,7 @@ export const createRealtimeIndexingStore = ({
                   }
                   return rows;
                 } else {
+                  checkTableAccess(table, "insert", values, chainId);
                   const row = await find(table, values);
 
                   if (row) {
@@ -178,6 +194,12 @@ export const createRealtimeIndexingStore = ({
                     method: "insert",
                   });
                   checkOnchainTable(table, "insert");
+                  if (chainId !== undefined)
+                    Array.isArray(values)
+                      ? values.map((v) =>
+                          checkTableAccess(table, "insert", v, chainId),
+                        )
+                      : checkTableAccess(table, "insert", values, chainId);
 
                   try {
                     return await database.qb.drizzle
@@ -219,6 +241,7 @@ export const createRealtimeIndexingStore = ({
               method: "update",
             });
             checkOnchainTable(table, "update");
+            checkTableAccess(table, "update", key, chainId);
 
             const row = await find(table, key);
             if (typeof values === "function") {
@@ -265,6 +288,7 @@ export const createRealtimeIndexingStore = ({
           method: "delete",
         });
         checkOnchainTable(table, "delete");
+        checkTableAccess(table, "delete", key, chainId);
 
         const deleted = await database.qb.drizzle
           .delete(table)
@@ -276,6 +300,10 @@ export const createRealtimeIndexingStore = ({
     // @ts-ignore
     sql: drizzle(
       async (_sql, params, method, typings) => {
+        if (chainId !== undefined)
+          throw new InvalidStoreMethodError(
+            `Raw SQL queries are not allowed in 'isolated' ordering.`,
+          );
         const query: QueryWithTypings = { sql: _sql, params, typings };
 
         try {

@@ -91,6 +91,15 @@ export class InvalidStoreMethodError extends NonRetryableError {
   }
 }
 
+export class InvalidStoreAccessError extends NonRetryableError {
+  override name = "InvalidStoreAccessError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, InvalidStoreAccessError.prototype);
+  }
+}
+
 export class UndefinedTableError extends NonRetryableError {
   override name = "UndefinedTableError";
 

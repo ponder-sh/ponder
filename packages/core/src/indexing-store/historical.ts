@@ -1,6 +1,9 @@
 import { findTableNames, validateQuery } from "@/client/parse.js";
 import type { Common } from "@/internal/common.js";
-import { RecordNotFoundError } from "@/internal/errors.js";
+import {
+  InvalidStoreMethodError,
+  RecordNotFoundError,
+} from "@/internal/errors.js";
 import type { Schema, SchemaBuild } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { prettyPrint } from "@/utils/print.js";
@@ -13,6 +16,7 @@ import type { IndexingCache } from "./cache.js";
 import {
   type IndexingStore,
   checkOnchainTable,
+  checkTableAccess,
   parseSqlError,
   validateUpdateSet,
 } from "./index.js";
@@ -23,12 +27,14 @@ export const createHistoricalIndexingStore = ({
   indexingCache,
   db,
   client,
+  chainId,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   indexingCache: IndexingCache;
   db: Drizzle<Schema>;
   client: PoolClient | PGlite;
+  chainId?: number;
 }): IndexingStore => {
   return {
     // @ts-ignore
@@ -38,6 +44,7 @@ export const createHistoricalIndexingStore = ({
         method: "find",
       });
       checkOnchainTable(table, "find");
+      checkTableAccess(table, "find", key, chainId);
       return indexingCache.get({ table, key, db });
     },
 
@@ -57,6 +64,7 @@ export const createHistoricalIndexingStore = ({
               if (Array.isArray(values)) {
                 const rows = [];
                 for (const value of values) {
+                  checkTableAccess(table, "insert", value, chainId);
                   const row = await indexingCache.get({
                     table,
                     key: value,
@@ -78,6 +86,7 @@ export const createHistoricalIndexingStore = ({
                 }
                 return rows;
               } else {
+                checkTableAccess(table, "insert", values, chainId);
                 const row = await indexingCache.get({
                   table,
                   key: values,
@@ -126,6 +135,7 @@ export const createHistoricalIndexingStore = ({
                         row[key] = value;
                       }
                     }
+                    checkTableAccess(table, "insert", row, chainId);
                     rows.push(
                       indexingCache.set({
                         table,
@@ -135,6 +145,7 @@ export const createHistoricalIndexingStore = ({
                       }),
                     );
                   } else {
+                    checkTableAccess(table, "insert", value, chainId);
                     rows.push(
                       indexingCache.set({
                         table,
@@ -147,6 +158,7 @@ export const createHistoricalIndexingStore = ({
                 }
                 return rows;
               } else {
+                checkTableAccess(table, "insert", values, chainId);
                 const row = await indexingCache.get({ table, key: values, db });
 
                 if (row) {
@@ -163,6 +175,7 @@ export const createHistoricalIndexingStore = ({
                       row[key] = value;
                     }
                   }
+                  checkTableAccess(table, "insert", row, chainId);
                   return indexingCache.set({
                     table,
                     key: values,
@@ -192,7 +205,7 @@ export const createHistoricalIndexingStore = ({
                 for (const value of values) {
                   // Note: optimistic assumption that no conflict exists
                   // because error is recovered at flush time
-
+                  checkTableAccess(table, "insert", value, chainId);
                   rows.push(
                     indexingCache.set({
                       table,
@@ -206,7 +219,7 @@ export const createHistoricalIndexingStore = ({
               } else {
                 // Note: optimistic assumption that no conflict exists
                 // because error is recovered at flush time
-
+                checkTableAccess(table, "insert", values, chainId);
                 const result = indexingCache.set({
                   table,
                   key: values,
@@ -244,6 +257,7 @@ export const createHistoricalIndexingStore = ({
             method: "update",
           });
           checkOnchainTable(table, "update");
+          checkTableAccess(table, "update", key, chainId);
 
           const row = await indexingCache.get({ table, key, db });
 
@@ -269,6 +283,7 @@ export const createHistoricalIndexingStore = ({
             }
           }
 
+          checkTableAccess(table, "update", row, chainId);
           return indexingCache.set({ table, key, row, isUpdate: true });
         },
       };
@@ -280,12 +295,17 @@ export const createHistoricalIndexingStore = ({
         method: "delete",
       });
       checkOnchainTable(table, "delete");
+      checkTableAccess(table, "delete", key, chainId);
       return indexingCache.delete({ table, key, db });
     },
     // @ts-ignore
     sql: drizzle(
       async (_sql, params, method, typings) => {
         let isSelectOnly = false;
+        if (chainId !== undefined)
+          throw new InvalidStoreMethodError(
+            `Raw SQL queries are not allowed in 'isolated' ordering.`,
+          );
         try {
           await validateQuery(_sql, false);
           isSelectOnly = true;
