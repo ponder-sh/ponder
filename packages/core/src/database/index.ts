@@ -20,6 +20,7 @@ import { buildMigrationProvider } from "@/sync-store/migrations.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
 import type { Drizzle } from "@/types/db.js";
 import {
+  MAX_CHECKPOINT,
   MAX_CHECKPOINT_STRING,
   decodeCheckpoint,
   encodeCheckpoint,
@@ -938,8 +939,8 @@ SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName
 WHERE checkpoint > '${min(...crashRecoveryCheckpoint.map((c) => c.checkpoint))}'
 `,
   )
-  .join(" UNION ALL ")})
-`),
+  .join(" UNION ALL ")}
+) as inner_query`),
               )
               .then((result) => {
                 // @ts-ignore
@@ -949,21 +950,25 @@ WHERE checkpoint > '${min(...crashRecoveryCheckpoint.map((c) => c.checkpoint))}'
             const revertCheckpoints = await tx.execute<{
               checkpoint: string;
               chain_id: number;
-            }>(`
-SELECT min(checkpoint) as checkpoint, chain_id FROM (
-${tables
-  .map(
-    (table) => `
-SELECT 
-  min(checkpoint) as checkpoint,
-  SUBSTRING(checkpoint, 11, 16)::numeric as chain_id
-FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-WHERE  ${minOperationId} IS NOT NULL AND operation_id >= ${minOperationId}
-GROUP BY chain_id`,
-  )
-  .join(" UNION ALL ")}
-) GROUP BY chain_id
-              `);
+            }>(
+              `${tables
+                .map(
+                  (table) => `
+with revert_checkpoints as (
+  SELECT 
+    MIN(checkpoint) as checkpoint,
+    SUBSTRING(checkpoint, 11, 16)::numeric as chain_id
+  FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE ${minOperationId} IS NOT NULL AND operation_id >= ${minOperationId}
+  GROUP BY SUBSTRING(checkpoint, 11, 16)::numeric`,
+                )
+                .join(" UNION ALL ")}
+) SELECT
+    MIN(checkpoint) as checkpoint,
+    chain_id
+  FROM revert_checkpoints
+  GROUP BY chain_id`,
+            );
 
             for (const table of tables) {
               const primaryKeyColumns = getPrimaryKeyColumns(table);
@@ -1010,7 +1015,9 @@ WITH reverted1 AS (
                   revertCheckpoint.checkpoint,
                 );
                 const encodedCheckpoint = encodeCheckpoint({
-                  ...decodedCheckpoint,
+                  ...MAX_CHECKPOINT,
+                  blockTimestamp: decodedCheckpoint.blockTimestamp,
+                  chainId: decodedCheckpoint.chainId,
                   blockNumber: decodedCheckpoint.blockNumber - 1n,
                 });
                 _crashRecoveryCheckpoint.checkpoint = encodedCheckpoint;
@@ -1191,7 +1198,7 @@ WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpo
 AND checkpoint > '${checkpoint}'`,
   )
   .join(" UNION ALL ")}
-)`),
+) as inner_query`),
               )
               .then((result) => {
                 // @ts-ignore
@@ -1271,7 +1278,7 @@ SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName
 WHERE checkpoint > '${checkpoint}'`,
   )
   .join(" UNION ALL ")}
-)`),
+) as inner_query`),
             )
             .then((result) => {
               // @ts-ignore
