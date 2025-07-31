@@ -91,6 +91,6 @@ export const checkTableAccess = (
   throw new InvalidStoreAccessError(
     "chainId" in key
       ? `db.${method}() on ${getTableConfig(table).name} is accessing a row with chainId different from event's chainId.`
-      : `db.find() must specify 'chainId' field in 'isolated' ordering.`,
+      : `db.${method}() on ${getTableConfig(table).name} must specify 'chainId' field in 'isolated' ordering.`,
   );
 };
