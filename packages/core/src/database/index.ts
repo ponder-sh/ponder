@@ -925,12 +925,17 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
               });
             }
 
-            // Note: it is an invariant that checkpoints.length > 0;
-            const revertCheckpoint = min(
-              ...checkpoints.map((c) => c.safeCheckpoint),
-            );
-
-            await this.revert({ checkpoint: revertCheckpoint, ordering, tx });
+            if (ordering === "multichain") {
+              for (const { safeCheckpoint } of checkpoints) {
+                await this.revert({ checkpoint: safeCheckpoint, ordering, tx });
+              }
+            } else {
+              // Note: it is an invariant that checkpoints.length > 0;
+              const revertCheckpoint = min(
+                ...checkpoints.map((c) => c.safeCheckpoint),
+              );
+              await this.revert({ checkpoint: revertCheckpoint, ordering, tx });
+            }
 
             // Note: We don't update the `_ponder_checkpoint` table here, instead we wait for it to be updated
             // in the runtime script.
