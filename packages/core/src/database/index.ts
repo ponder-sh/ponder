@@ -977,12 +977,10 @@ WITH reverted1 AS (
               return { status: "success", crashRecoveryCheckpoint } as const;
             } else {
               const decodedCheckpoint = decodeCheckpoint(revertCheckpoint);
+
               const encodedCheckpoint = encodeCheckpoint({
                 ...decodedCheckpoint,
-                eventIndex:
-                  decodedCheckpoint.eventIndex === 0n
-                    ? decodedCheckpoint.eventIndex
-                    : decodedCheckpoint.eventIndex - 1n,
+                blockNumber: decodedCheckpoint.blockNumber - 1n,
               });
               for (const _crashRecoveryCheckpoint of crashRecoveryCheckpoint) {
                 _crashRecoveryCheckpoint.checkpoint = encodedCheckpoint;
