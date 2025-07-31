@@ -205,75 +205,72 @@ type BlockDependentAction<
   args: Omit<params, "blockTag" | "blockNumber"> & BlockOptions,
 ) => returnType;
 
-export type PonderActions = {
-  [action in (typeof blockDependentActions)[number]]: BlockDependentAction<
-    ReturnType<typeof publicActions>[action]
-  >;
-} & Pick<PublicActions, (typeof nonBlockDependentActions)[number]> &
-  Pick<PublicActions, (typeof blockRequiredActions)[number]> & {
-    // Types for `retryableActions` are manually defined.
-    readContract: <
-      const abi extends Abi | readonly unknown[],
-      functionName extends ContractFunctionName<abi, "pure" | "view">,
-      const args extends ContractFunctionArgs<
-        abi,
-        "pure" | "view",
-        functionName
-      >,
-    >(
-      args: Omit<
-        ReadContractParameters<abi, functionName, args>,
-        "blockTag" | "blockNumber"
-      > &
-        BlockOptions &
-        RetryableOptions,
-    ) => Promise<ReadContractReturnType<abi, functionName, args>>;
-    simulateContract: <
-      const abi extends Abi | readonly unknown[],
-      functionName extends ContractFunctionName<abi, "nonpayable" | "payable">,
-      const args extends ContractFunctionArgs<
-        abi,
-        "nonpayable" | "payable",
-        functionName
-      >,
-    >(
-      args: Omit<
-        SimulateContractParameters<abi, functionName, args>,
-        "blockTag" | "blockNumber"
-      > &
-        BlockOptions &
-        RetryableOptions,
-    ) => Promise<SimulateContractReturnType<abi, functionName, args>>;
-    multicall: <
-      const contracts extends readonly unknown[],
-      allowFailure extends boolean = true,
-    >(
-      args: Omit<
-        MulticallParameters<contracts, allowFailure>,
-        "blockTag" | "blockNumber"
-      > &
-        BlockOptions &
-        RetryableOptions,
-    ) => Promise<MulticallReturnType<contracts, allowFailure>>;
-    getBlock: <includeTransactions extends boolean = false>(
-      args: {
-        /** Whether or not to include transaction data in the response. */
-        includeTransactions?: includeTransactions | undefined;
-      } & RequiredBlockOptions &
-        RetryableOptions,
-    ) => Promise<
-      GetBlockReturnType<ViemChain | undefined, includeTransactions>
+export type PonderActions = Omit<
+  {
+    [action in (typeof blockDependentActions)[number]]: BlockDependentAction<
+      ReturnType<typeof publicActions>[action]
     >;
-    getTransaction: (
-      args: GetTransactionParameters & RetryableOptions,
-    ) => Promise<GetTransactionReturnType>;
-    getTransactionReceipt: (
-      args: GetTransactionReceiptParameters & RetryableOptions,
-    ) => Promise<GetTransactionReceiptReturnType>;
-    getTransactionConfirmations: (
-      args: GetTransactionConfirmationsParameters & RetryableOptions,
-    ) => Promise<GetTransactionConfirmationsReturnType>;
-  };
+  } & Pick<PublicActions, (typeof nonBlockDependentActions)[number]> &
+    Pick<PublicActions, (typeof blockRequiredActions)[number]>,
+  (typeof retryableActions)[number]
+> & {
+  // Types for `retryableActions` are manually defined.
+  readContract: <
+    const abi extends Abi | readonly unknown[],
+    functionName extends ContractFunctionName<abi, "pure" | "view">,
+    const args extends ContractFunctionArgs<abi, "pure" | "view", functionName>,
+  >(
+    args: Omit<
+      ReadContractParameters<abi, functionName, args>,
+      "blockTag" | "blockNumber"
+    > &
+      BlockOptions &
+      RetryableOptions,
+  ) => Promise<ReadContractReturnType<abi, functionName, args>>;
+  simulateContract: <
+    const abi extends Abi | readonly unknown[],
+    functionName extends ContractFunctionName<abi, "nonpayable" | "payable">,
+    const args extends ContractFunctionArgs<
+      abi,
+      "nonpayable" | "payable",
+      functionName
+    >,
+  >(
+    args: Omit<
+      SimulateContractParameters<abi, functionName, args>,
+      "blockTag" | "blockNumber"
+    > &
+      BlockOptions &
+      RetryableOptions,
+  ) => Promise<SimulateContractReturnType<abi, functionName, args>>;
+  multicall: <
+    const contracts extends readonly unknown[],
+    allowFailure extends boolean = true,
+  >(
+    args: Omit<
+      MulticallParameters<contracts, allowFailure>,
+      "blockTag" | "blockNumber"
+    > &
+      BlockOptions &
+      RetryableOptions,
+  ) => Promise<MulticallReturnType<contracts, allowFailure>>;
+  getBlock: <includeTransactions extends boolean = false>(
+    args: {
+      /** Whether or not to include transaction data in the response. */
+      includeTransactions?: includeTransactions | undefined;
+    } & RequiredBlockOptions &
+      RetryableOptions,
+  ) => Promise<GetBlockReturnType<ViemChain | undefined, includeTransactions>>;
+  getTransaction: (
+    args: GetTransactionParameters & RetryableOptions,
+  ) => Promise<GetTransactionReturnType>;
+  getTransactionReceipt: (
+    args: GetTransactionReceiptParameters & RetryableOptions,
+  ) => Promise<GetTransactionReceiptReturnType>;
+  getTransactionConfirmations: (
+    args: GetTransactionConfirmationsParameters & RetryableOptions,
+  ) => Promise<GetTransactionConfirmationsReturnType>;
+};
 
 export type ReadonlyClient<
   transport extends Transport = Transport,
