@@ -384,12 +384,12 @@ export const decodeEvents = (
               if (source.filter.address === undefined) {
                 common.logger.debug({
                   service: "app",
-                  msg: `Unable to decode log, skipping it. blockNumber: ${event.log?.blockNumber}, logIndex: ${event.log?.logIndex}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
+                  msg: `Unable to decode log, skipping it. blockNumber: ${event.block?.number}, logIndex: ${event.log?.logIndex}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
                 });
               } else {
                 common.logger.warn({
                   service: "app",
-                  msg: `Unable to decode log, skipping it. blockNumber: ${event.log?.blockNumber}, logIndex: ${event.log?.logIndex}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
+                  msg: `Unable to decode log, skipping it. blockNumber: ${event.block?.number}, logIndex: ${event.log?.logIndex}, data: ${event.log?.data}, topics: ${event.log?.topics}`,
                 });
               }
             }
