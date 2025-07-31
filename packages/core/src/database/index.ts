@@ -23,6 +23,7 @@ import {
   MAX_CHECKPOINT_STRING,
   decodeCheckpoint,
   encodeCheckpoint,
+  min,
 } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
@@ -926,29 +927,52 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
 
             // Revert unfinalized operations
 
-            const revertCheckpoint = await tx
+            const minOperationId = await tx
               .execute(
                 sql.raw(`
-SELECT MIN(min_checkpoint) AS global_min_checkpoint FROM (
+SELECT MIN(min_op_id) AS global_min_op_id FROM (
 ${tables
   .map(
-    (table) =>
-      `SELECT MIN(checkpoint) AS min_checkpoint FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"`,
+    (table) => `
+SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+WHERE checkpoint > '${min(...crashRecoveryCheckpoint.map((c) => c.checkpoint))}'
+`,
   )
-  .join(" UNION ALL ")}) AS all_mins            
+  .join(" UNION ALL ")})
 `),
               )
               .then((result) => {
                 // @ts-ignore
-                return result.rows[0]?.global_min_checkpoint as string | null;
+                return result.rows[0]?.global_min_op_id as number | null;
               });
+
+            const revertCheckpoints = await tx.execute<{
+              checkpoint: string;
+              chain_id: number;
+            }>(`
+SELECT min(checkpoint) as checkpoint, chain_id FROM (
+${tables
+  .map(
+    (table) => `
+SELECT 
+  min(checkpoint) as checkpoint,
+  SUBSTRING(checkpoint, 11, 16)::numeric as chain_id
+FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+WHERE  ${minOperationId} IS NOT NULL AND operation_id >= ${minOperationId}
+GROUP BY chain_id`,
+  )
+  .join(" UNION ALL ")}
+) GROUP BY chain_id
+              `);
 
             for (const table of tables) {
               const primaryKeyColumns = getPrimaryKeyColumns(table);
 
               const result = await tx.execute(`
 WITH reverted1 AS (
-  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}" RETURNING *
+  DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+  WHERE ${minOperationId} IS NOT NULL AND operation_id >= ${minOperationId}
+  RETURNING *
 ), reverted2 AS (
   SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1
   GROUP BY ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}
@@ -969,25 +993,32 @@ WITH reverted1 AS (
               });
             }
 
-            if (
-              revertCheckpoint === null ||
-              revertCheckpoint === MAX_CHECKPOINT_STRING
-            ) {
-              await tx.update(PONDER_META).set({ value: metadata });
-              return { status: "success", crashRecoveryCheckpoint } as const;
-            } else {
-              const decodedCheckpoint = decodeCheckpoint(revertCheckpoint);
+            for (const revertCheckpoint of revertCheckpoints.rows) {
+              const _crashRecoveryCheckpoint = crashRecoveryCheckpoint.find(
+                (c) => c.chainId === revertCheckpoint.chain_id,
+              );
 
-              const encodedCheckpoint = encodeCheckpoint({
-                ...decodedCheckpoint,
-                blockNumber: decodedCheckpoint.blockNumber - 1n,
-              });
-              for (const _crashRecoveryCheckpoint of crashRecoveryCheckpoint) {
+              if (_crashRecoveryCheckpoint === undefined) {
+                continue;
+              }
+
+              if (
+                revertCheckpoint.checkpoint <
+                _crashRecoveryCheckpoint.checkpoint
+              ) {
+                const decodedCheckpoint = decodeCheckpoint(
+                  revertCheckpoint.checkpoint,
+                );
+                const encodedCheckpoint = encodeCheckpoint({
+                  ...decodedCheckpoint,
+                  blockNumber: decodedCheckpoint.blockNumber - 1n,
+                });
                 _crashRecoveryCheckpoint.checkpoint = encodedCheckpoint;
               }
-              await tx.update(PONDER_META).set({ value: metadata });
-              return { status: "success", crashRecoveryCheckpoint } as const;
             }
+
+            await tx.update(PONDER_META).set({ value: metadata });
+            return { status: "success", crashRecoveryCheckpoint } as const;
           }),
         );
 
@@ -1155,13 +1186,12 @@ SELECT MIN(min_op_id) AS global_min_op_id FROM (
 ${tables
   .map(
     (table) => `
-  SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-  WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
-  AND checkpoint > '${checkpoint}'
-`,
+SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
+AND checkpoint > '${checkpoint}'`,
   )
-  .join(" UNION ALL ")}) AS all_mins             
-`),
+  .join(" UNION ALL ")}
+)`),
               )
               .then((result) => {
                 // @ts-ignore
@@ -1238,11 +1268,10 @@ ${tables
   .map(
     (table) => `
 SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-WHERE checkpoint > '${checkpoint}'
-`,
+WHERE checkpoint > '${checkpoint}'`,
   )
-  .join(" UNION ALL ")}) AS all_mins            
-`),
+  .join(" UNION ALL ")}
+)`),
             )
             .then((result) => {
               // @ts-ignore

@@ -361,6 +361,13 @@ test.skip("migrateSync() handles concurrent migrations", async (context) => {
 });
 
 test("migrate() with crash recovery reverts rows", async (context) => {
+  const transferEvent = onchainTable("transfer_event", (p) => ({
+    id: p.text().primaryKey(),
+    from: p.hex(),
+    to: p.hex(),
+    amount: p.bigint(),
+  }));
+
   const database = await createDatabase({
     common: context.common,
     namespace: {
@@ -371,8 +378,9 @@ test("migrate() with crash recovery reverts rows", async (context) => {
       databaseConfig: context.databaseConfig,
     },
     schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      schema: { account, transferEvent },
+      statements: buildSchema({ schema: { account, transferEvent } })
+        .statements,
     },
   });
 
@@ -386,7 +394,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
 
   const indexingStore = createRealtimeIndexingStore({
     common: context.common,
-    schemaBuild: { schema: { account } },
+    schemaBuild: { schema: { account, transferEvent } },
     database,
   });
 
@@ -439,8 +447,9 @@ test("migrate() with crash recovery reverts rows", async (context) => {
       databaseConfig: context.databaseConfig,
     },
     schemaBuild: {
-      schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      schema: { account, transferEvent },
+      statements: buildSchema({ schema: { account, transferEvent } })
+        .statements,
     },
   });
 
