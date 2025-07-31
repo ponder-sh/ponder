@@ -118,7 +118,11 @@ export type Database = {
     ordering: "multichain" | "omnichain";
     tx: PgTransaction<PgQueryResultHKT, Schema>;
   }): Promise<void>;
-  finalize(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
+  finalize(args: {
+    checkpoint: string;
+    ordering: "multichain" | "omnichain";
+    db: Drizzle<Schema>;
+  }): Promise<void>;
   commitBlock(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
 };
 
@@ -921,12 +925,17 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`),
               });
             }
 
-            // Note: it is an invariant that checkpoints.length > 0;
-            const revertCheckpoint = min(
-              ...checkpoints.map((c) => c.safeCheckpoint),
-            );
-
-            await this.revert({ checkpoint: revertCheckpoint, ordering, tx });
+            if (ordering === "multichain") {
+              for (const { safeCheckpoint } of checkpoints) {
+                await this.revert({ checkpoint: safeCheckpoint, ordering, tx });
+              }
+            } else {
+              // Note: it is an invariant that checkpoints.length > 0;
+              const revertCheckpoint = min(
+                ...checkpoints.map((c) => c.safeCheckpoint),
+              );
+              await this.revert({ checkpoint: revertCheckpoint, ordering, tx });
+            }
 
             // Note: We don't update the `_ponder_checkpoint` table here, instead we wait for it to be updated
             // in the runtime script.
@@ -1013,14 +1022,14 @@ CREATE OR REPLACE FUNCTION "${namespace.schema}".${getTableNames(table).triggerF
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
-    VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${MAX_CHECKPOINT_STRING}');
+    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint, reorg_state)
+    VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${MAX_CHECKPOINT_STRING}', 0);
   ELSIF TG_OP = 'UPDATE' THEN
-    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
-    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${MAX_CHECKPOINT_STRING}');
+    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint, reorg_state)
+    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${MAX_CHECKPOINT_STRING}', 0);
   ELSIF TG_OP = 'DELETE' THEN
-    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
-    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${MAX_CHECKPOINT_STRING}');
+    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint, reorg_state)
+    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${MAX_CHECKPOINT_STRING}', 0);
   END IF;
   RETURN NULL;
 END;
@@ -1179,10 +1188,24 @@ WITH reverted1 AS (
         },
       );
     },
-    async finalize({ checkpoint, db }) {
+    async finalize({ checkpoint, ordering, db }) {
       await this.record(
         { method: "finalize", includeTraceLogs: true },
         async () => {
+          for (const table of tables) {
+            await db.execute(
+              sql.raw(`
+UPDATE "${namespace.schema}"."${getTableName(getReorgTable(table))}"
+SET reorg_state = 1 
+WHERE checkpoint <= '${checkpoint}' ${
+                ordering === "multichain"
+                  ? `AND SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}`
+                  : ""
+              };
+              `),
+            );
+          }
+
           const min_op_id = await db
             .execute(
               sql.raw(`
@@ -1191,7 +1214,7 @@ ${tables
   .map(
     (table) => `
 SELECT MIN(operation_id) AS min_op_id FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
-WHERE checkpoint > '${checkpoint}'
+WHERE reorg_state = 0
 `,
   )
   .join(" UNION ALL ")}) AS all_mins            
