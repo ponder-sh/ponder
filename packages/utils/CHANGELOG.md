@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.2.10
+
+### Patch Changes
+
+- [#1941](https://github.com/ponder-sh/ponder/pull/1941) [`f1df991`](https://github.com/ponder-sh/ponder/commit/f1df991ca83d934568289fc6c117c650d60066ad) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed eth_getLogs retry ranges for ankr TAC.
+
 ## 0.2.9
 
 ### Patch Changes
