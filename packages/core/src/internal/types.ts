@@ -87,10 +87,10 @@ export type LogFilter<
   toBlock: number | undefined;
   include:
     | (
-        | `block.${keyof Block}`
-        | `transaction.${keyof Transaction}`
-        | `transactionReceipt.${keyof TransactionReceipt}`
-        | `log.${keyof Log}`
+        | `block.${keyof InternalBlock}`
+        | `transaction.${keyof InternalTransaction}`
+        | `transactionReceipt.${keyof InternalTransactionReceipt}`
+        | `log.${keyof InternalLog}`
       )[]
     | undefined;
 };
@@ -102,7 +102,7 @@ export type BlockFilter = {
   offset: number;
   fromBlock: number | undefined;
   toBlock: number | undefined;
-  include: `block.${keyof Block}`[] | undefined;
+  include: `block.${keyof InternalBlock}`[] | undefined;
 };
 
 export type TransferFilter<
@@ -118,10 +118,10 @@ export type TransferFilter<
   toBlock: number | undefined;
   include:
     | (
-        | `block.${keyof Block}`
-        | `transaction.${keyof Transaction}`
-        | `transactionReceipt.${keyof TransactionReceipt}`
-        | `trace.${keyof Trace}`
+        | `block.${keyof InternalBlock}`
+        | `transaction.${keyof InternalTransaction}`
+        | `transactionReceipt.${keyof InternalTransactionReceipt}`
+        | `trace.${keyof InternalTrace}`
       )[]
     | undefined;
 };
@@ -139,9 +139,9 @@ export type TransactionFilter<
   toBlock: number | undefined;
   include:
     | (
-        | `block.${keyof Block}`
-        | `transaction.${keyof Transaction}`
-        | `transactionReceipt.${keyof TransactionReceipt}`
+        | `block.${keyof InternalBlock}`
+        | `transaction.${keyof InternalTransaction}`
+        | `transactionReceipt.${keyof InternalTransactionReceipt}`
       )[]
     | undefined;
 };
@@ -161,10 +161,10 @@ export type TraceFilter<
   toBlock: number | undefined;
   include:
     | (
-        | `block.${keyof Block}`
-        | `transaction.${keyof Transaction}`
-        | `transactionReceipt.${keyof TransactionReceipt}`
-        | `trace.${keyof Trace}`
+        | `block.${keyof InternalBlock}`
+        | `transaction.${keyof InternalTransaction}`
+        | `transactionReceipt.${keyof InternalTransactionReceipt}`
+        | `trace.${keyof InternalTrace}`
       )[]
     | undefined;
 };
