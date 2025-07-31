@@ -118,7 +118,7 @@ describe("static", () => {
         ),
       ).toMatchInlineSnapshot(`
         [
-          "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
+          "0x14dc79964da2c08b23698b3d3cc7ca32193d9955",
         ]
       `);
     });
@@ -178,8 +178,8 @@ describe("static", () => {
       expect(result).toMatchInlineSnapshot(`
         [
           [
-            "0xc961145a54C96E3aE9bAA048c4F4D6b04C13916b",
-            "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC",
+            "0xc961145a54c96e3ae9baa048c4f4d6b04c13916b",
+            "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
           ],
         ]
       `);
@@ -291,8 +291,7 @@ describe("static", () => {
           {
             "x": 420n,
             "y": true,
-            "z": "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC",
-            Symbol(nodejs.util.inspect.custom): [Function],
+            "z": "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
           },
         ]
       `);
@@ -311,7 +310,7 @@ describe("static", () => {
           [
             420n,
             true,
-            "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC",
+            "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
           ],
         ]
       `);
@@ -330,7 +329,7 @@ describe("static", () => {
           [
             420n,
             true,
-            "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC",
+            "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
           ],
         ]
       `);
@@ -379,14 +378,12 @@ describe("static", () => {
             "baz": {
               "x": 69n,
               "y": false,
-              "z": "0xc961145a54C96E3aE9bAA048c4F4D6b04C13916b",
-              Symbol(nodejs.util.inspect.custom): [Function],
+              "z": "0xc961145a54c96e3ae9baa048c4f4d6b04c13916b",
             },
             "foo": {
               "x": 420n,
               "y": true,
-              "z": "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC",
-              Symbol(nodejs.util.inspect.custom): [Function],
+              "z": "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
             },
             "x": [
               1,
@@ -443,7 +440,7 @@ describe("static", () => {
         [
           420n,
           true,
-          "0xc961145a54C96E3aE9bAA048c4F4D6b04C13916b",
+          "0xc961145a54c96e3ae9baa048c4f4d6b04c13916b",
         ]
       `);
     });
@@ -1408,19 +1405,17 @@ describe("seaport", () => {
                 "endAmount": 420n,
                 "identifierOrCriteria": 69n,
                 "itemType": 10,
-                "recipient": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                "recipient": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
                 "startAmount": 6n,
                 "token": "0x0000000000000000000000000000000000000000",
-                Symbol(nodejs.util.inspect.custom): [Function],
               },
               {
                 "endAmount": 141n,
                 "identifierOrCriteria": 55n,
                 "itemType": 16,
-                "recipient": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                "recipient": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
                 "startAmount": 15n,
                 "token": "0x0000000000000000000000000000000000000000",
-                Symbol(nodejs.util.inspect.custom): [Function],
               },
             ],
             "counter": 1234123123n,
@@ -1432,32 +1427,28 @@ describe("seaport", () => {
                 "itemType": 10,
                 "startAmount": 6n,
                 "token": "0x0000000000000000000000000000000000000000",
-                Symbol(nodejs.util.inspect.custom): [Function],
               },
               {
                 "endAmount": 11n,
                 "identifierOrCriteria": 515n,
                 "itemType": 10,
                 "startAmount": 6n,
-                "token": "0x5414d89a8bF7E99d732BC52f3e6A3Ef461c0C078",
-                Symbol(nodejs.util.inspect.custom): [Function],
+                "token": "0x5414d89a8bf7e99d732bc52f3e6a3ef461c0c078",
               },
               {
                 "endAmount": 123123n,
                 "identifierOrCriteria": 55555511n,
                 "itemType": 10,
                 "startAmount": 111n,
-                "token": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
-                Symbol(nodejs.util.inspect.custom): [Function],
+                "token": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
               },
             ],
-            "offerer": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            "offerer": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
             "orderType": 10,
             "salt": 1234123123n,
             "startTime": 123123123123n,
-            "zone": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            "zone": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
             "zoneHash": "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
-            Symbol(nodejs.util.inspect.custom): [Function],
           },
           {
             "conduitKey": "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
@@ -1466,19 +1457,17 @@ describe("seaport", () => {
                 "endAmount": 420n,
                 "identifierOrCriteria": 69n,
                 "itemType": 10,
-                "recipient": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                "recipient": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
                 "startAmount": 6n,
                 "token": "0x0000000000000000000000000000000000000000",
-                Symbol(nodejs.util.inspect.custom): [Function],
               },
               {
                 "endAmount": 141n,
                 "identifierOrCriteria": 55n,
                 "itemType": 16,
-                "recipient": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                "recipient": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
                 "startAmount": 15n,
                 "token": "0x0000000000000000000000000000000000000000",
-                Symbol(nodejs.util.inspect.custom): [Function],
               },
             ],
             "counter": 1234123123n,
@@ -1490,32 +1479,28 @@ describe("seaport", () => {
                 "itemType": 10,
                 "startAmount": 6n,
                 "token": "0x0000000000000000000000000000000000000000",
-                Symbol(nodejs.util.inspect.custom): [Function],
               },
               {
                 "endAmount": 11n,
                 "identifierOrCriteria": 515n,
                 "itemType": 10,
                 "startAmount": 6n,
-                "token": "0x5414d89a8bF7E99d732BC52f3e6A3Ef461c0C078",
-                Symbol(nodejs.util.inspect.custom): [Function],
+                "token": "0x5414d89a8bf7e99d732bc52f3e6a3ef461c0c078",
               },
               {
                 "endAmount": 123123n,
                 "identifierOrCriteria": 55555511n,
                 "itemType": 10,
                 "startAmount": 111n,
-                "token": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
-                Symbol(nodejs.util.inspect.custom): [Function],
+                "token": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
               },
             ],
-            "offerer": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            "offerer": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
             "orderType": 10,
             "salt": 1234123123n,
             "startTime": 123123123123n,
-            "zone": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            "zone": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
             "zoneHash": "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
-            Symbol(nodejs.util.inspect.custom): [Function],
           },
         ],
       ]
@@ -1544,19 +1529,17 @@ describe("seaport", () => {
                 "endAmount": 420n,
                 "identifierOrCriteria": 69n,
                 "itemType": 10,
-                "recipient": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                "recipient": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
                 "startAmount": 6n,
                 "token": "0x0000000000000000000000000000000000000000",
-                Symbol(nodejs.util.inspect.custom): [Function],
               },
               {
                 "endAmount": 141n,
                 "identifierOrCriteria": 55n,
                 "itemType": 16,
-                "recipient": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                "recipient": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
                 "startAmount": 15n,
                 "token": "0x0000000000000000000000000000000000000000",
-                Symbol(nodejs.util.inspect.custom): [Function],
               },
             ],
             "endTime": 123123123123n,
@@ -1567,33 +1550,29 @@ describe("seaport", () => {
                 "itemType": 10,
                 "startAmount": 6n,
                 "token": "0x0000000000000000000000000000000000000000",
-                Symbol(nodejs.util.inspect.custom): [Function],
               },
               {
                 "endAmount": 11n,
                 "identifierOrCriteria": 515n,
                 "itemType": 10,
                 "startAmount": 6n,
-                "token": "0x5414d89a8bF7E99d732BC52f3e6A3Ef461c0C078",
-                Symbol(nodejs.util.inspect.custom): [Function],
+                "token": "0x5414d89a8bf7e99d732bc52f3e6a3ef461c0c078",
               },
               {
                 "endAmount": 123123n,
                 "identifierOrCriteria": 55555511n,
                 "itemType": 10,
                 "startAmount": 111n,
-                "token": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
-                Symbol(nodejs.util.inspect.custom): [Function],
+                "token": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
               },
             ],
-            "offerer": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            "offerer": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
             "orderType": 10,
             "salt": 1234123123n,
             "startTime": 123123123123n,
             "totalOriginalConsiderationItems": 69420n,
-            "zone": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            "zone": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
             "zoneHash": "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
-            Symbol(nodejs.util.inspect.custom): [Function],
           },
           "signature": "0x123123",
         },
@@ -1609,7 +1588,7 @@ describe("seaport", () => {
           },
         ],
         "0x511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511aaa511a",
-        "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+        "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
       ]
     `);
   });

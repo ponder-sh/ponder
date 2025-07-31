@@ -66,7 +66,7 @@ test("decodeEvents() log", async (context) => {
   expect(events).toHaveLength(1);
   expect(events[0].event.args).toMatchObject({
     from: zeroAddress,
-    to: ALICE,
+    to: ALICE.toLowerCase(),
     amount: parseEther("1"),
   });
 });
