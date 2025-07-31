@@ -522,6 +522,7 @@ export const createSync = async (params: {
 
   /** Events that have been executed but not finalized. */
   let executedEvents: Event[] = [];
+  const chainFinalizeMetadata = new Map<number, string>();
   /** Events that have not been executed. */
   let pendingEvents: Event[] = [];
 
@@ -702,19 +703,26 @@ export const createSync = async (params: {
           });
 
           for (const [index, event] of executedEvents.entries()) {
-            if (event.chainId !== chain.id && event.checkpoint < checkpoint) {
-              finalizeIndex = index;
-              break;
-            }
-
-            if (event.chainId === chain.id) {
-              finalizeIndex = index;
-              if (event.checkpoint > checkpoint) {
+            if (event.chainId !== chain.id) {
+              const finalizedChainCheckpoint = chainFinalizeMetadata.get(
+                event.chainId,
+              );
+              if (
+                finalizedChainCheckpoint === undefined ||
+                event.checkpoint > finalizedChainCheckpoint
+              ) {
+                finalizeIndex = index;
                 break;
               }
             }
+
+            if (event.chainId === chain.id && event.checkpoint > checkpoint) {
+              finalizeIndex = index;
+              break;
+            }
           }
 
+          chainFinalizeMetadata.set(chain.id, checkpoint);
           to = checkpoint;
         } else {
           const from = checkpoints.finalized;
