@@ -603,6 +603,7 @@ export async function run({
         await database.finalize({
           checkpoint: event.checkpoint,
           db: database.qb.drizzle,
+          ordering: preBuild.ordering,
         });
         break;
 

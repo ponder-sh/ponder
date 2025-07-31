@@ -702,27 +702,22 @@ export const createSync = async (params: {
             chain,
           });
 
-          for (const [index, event] of executedEvents.entries()) {
-            if (event.chainId !== chain.id) {
-              const finalizedChainCheckpoint = chainFinalizeMetadata.get(
-                event.chainId,
-              );
-              if (
-                finalizedChainCheckpoint === undefined ||
-                event.checkpoint > finalizedChainCheckpoint
-              ) {
-                finalizeIndex = index;
-                break;
-              }
-            }
+          chainFinalizeMetadata.set(chain.id, checkpoint);
 
-            if (event.chainId === chain.id && event.checkpoint > checkpoint) {
+          for (const [index, event] of executedEvents.entries()) {
+            const finalizedChainCheckpoint = chainFinalizeMetadata.get(
+              event.chainId,
+            );
+
+            if (
+              finalizedChainCheckpoint === undefined ||
+              event.checkpoint > finalizedChainCheckpoint
+            ) {
               finalizeIndex = index;
               break;
             }
           }
 
-          chainFinalizeMetadata.set(chain.id, checkpoint);
           to = checkpoint;
         } else {
           const from = checkpoints.finalized;
