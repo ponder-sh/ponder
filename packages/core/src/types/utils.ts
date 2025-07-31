@@ -32,8 +32,3 @@ export type DeepPartial<T> = {
  */
 export type MakeOptional<T, K extends keyof T> = Omit<T, K> &
   Partial<Pick<T, K>>;
-
-/**
- * @description Creates a string type that excludes empty strings.
- */
-export type NonEmptyString<T extends string> = T extends "" ? never : T;
