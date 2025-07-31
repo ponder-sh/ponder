@@ -1,5 +1,11 @@
 # ponder
 
+## 0.11.42
+
+### Patch Changes
+
+- [#1933](https://github.com/ponder-sh/ponder/pull/1933) [`c7452b6`](https://github.com/ponder-sh/ponder/commit/c7452b6c9f8f7109d9056969b1f7017434ecfb17) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression in `context.client` types introduced in `v0.11.36`.
+
 ## 0.11.41
 
 ### Patch Changes
