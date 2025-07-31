@@ -1,3 +1,4 @@
+import type { PonderTypeError } from "@/types/utils.js";
 import {
   type BuildColumns,
   type ColumnBuilderBase,
@@ -191,7 +192,7 @@ export const onchainTable = <
   columns extends Record<string, PgColumnBuilderBase>,
   extra extends PgTableExtraConfig | undefined = undefined,
 >(
-  name: name,
+  name: name extends "" ? PonderTypeError<`Table name cannot be empty`> : name,
   columns: columns | ((columnTypes: PgColumnsBuilders) => columns),
   extraConfig?: (self: BuildExtraConfigColumns<columns>) => extra,
 ): OnchainTable<{
