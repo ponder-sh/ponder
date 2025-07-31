@@ -464,10 +464,7 @@ export const createSync = async (params: {
               localSyncGenerator,
               childAddresses,
               from,
-              to: min(
-                getMultichainCheckpoint({ tag: "finalized", chain }),
-                getMultichainCheckpoint({ tag: "end", chain }),
-              ),
+              to,
               limit:
                 Math.round(
                   params.common.options.syncEventsQuerySize /
@@ -1394,18 +1391,20 @@ export async function* getLocalEventGenerator(params: {
 export async function* getLocalSyncGenerator({
   common,
   chain,
+  rpc,
   syncProgress,
   historicalSync,
 }: {
   common: Common;
   chain: Chain;
+  rpc: Rpc;
   syncProgress: SyncProgress;
   historicalSync: HistoricalSync;
 }): AsyncGenerator<number> {
   const label = { chain: chain.name };
 
   let cursor = hexToNumber(syncProgress.start.number);
-  const last = getHistoricalLast(syncProgress);
+  let last = getHistoricalLast(syncProgress);
 
   // Estimate optimal range (blocks) to sync at a time, eventually to be used to
   // determine `interval` passed to `historicalSync.sync()`.
@@ -1440,75 +1439,66 @@ export async function* getLocalSyncGenerator({
     return;
   }
 
-  const totalInterval = [
-    hexToNumber(syncProgress.start.number),
-    hexToNumber(last.number),
-  ] satisfies Interval;
-
-  common.logger.debug({
-    service: "sync",
-    msg: `Initialized '${chain.name}' historical sync for block range [${totalInterval[0]}, ${totalInterval[1]}]`,
-  });
-
-  const requiredIntervals = Array.from(
-    historicalSync.intervalsCache.entries(),
-  ).flatMap(([filter, fragmentIntervals]) => {
-    const filterIntervals: Interval[] = [
-      [
-        filter.fromBlock ?? 0,
-        Math.min(filter.toBlock ?? Number.POSITIVE_INFINITY, totalInterval[1]),
-      ],
-    ];
-
-    switch (filter.type) {
-      case "log":
-        if (isAddressFactory(filter.address)) {
-          filterIntervals.push([
-            filter.address.fromBlock ?? 0,
+  const requiredIntervals = (totalInterval: Interval) =>
+    Array.from(historicalSync.intervalsCache.entries()).flatMap(
+      ([filter, fragmentIntervals]) => {
+        const filterIntervals: Interval[] = [
+          [
+            filter.fromBlock ?? 0,
             Math.min(
-              filter.address.toBlock ?? Number.POSITIVE_INFINITY,
+              filter.toBlock ?? Number.POSITIVE_INFINITY,
               totalInterval[1],
             ),
-          ]);
-        }
-        break;
-      case "trace":
-      case "transaction":
-      case "transfer":
-        if (isAddressFactory(filter.fromAddress)) {
-          filterIntervals.push([
-            filter.fromAddress.fromBlock ?? 0,
-            Math.min(
-              filter.fromAddress.toBlock ?? Number.POSITIVE_INFINITY,
-              totalInterval[1],
-            ),
-          ]);
+          ],
+        ];
+
+        switch (filter.type) {
+          case "log":
+            if (isAddressFactory(filter.address)) {
+              filterIntervals.push([
+                filter.address.fromBlock ?? 0,
+                Math.min(
+                  filter.address.toBlock ?? Number.POSITIVE_INFINITY,
+                  totalInterval[1],
+                ),
+              ]);
+            }
+            break;
+          case "trace":
+          case "transaction":
+          case "transfer":
+            if (isAddressFactory(filter.fromAddress)) {
+              filterIntervals.push([
+                filter.fromAddress.fromBlock ?? 0,
+                Math.min(
+                  filter.fromAddress.toBlock ?? Number.POSITIVE_INFINITY,
+                  totalInterval[1],
+                ),
+              ]);
+            }
+
+            if (isAddressFactory(filter.toAddress)) {
+              filterIntervals.push([
+                filter.toAddress.fromBlock ?? 0,
+                Math.min(
+                  filter.toAddress.toBlock ?? Number.POSITIVE_INFINITY,
+                  totalInterval[1],
+                ),
+              ]);
+            }
         }
 
-        if (isAddressFactory(filter.toAddress)) {
-          filterIntervals.push([
-            filter.toAddress.fromBlock ?? 0,
-            Math.min(
-              filter.toAddress.toBlock ?? Number.POSITIVE_INFINITY,
-              totalInterval[1],
-            ),
-          ]);
-        }
-    }
-
-    return intervalDifference(
-      intervalUnion(filterIntervals),
-      intervalIntersectionMany(
-        fragmentIntervals.map(({ intervals }) => intervals),
-      ),
+        return intervalDifference(
+          intervalUnion(filterIntervals),
+          intervalIntersectionMany(
+            fragmentIntervals.map(({ intervals }) => intervals),
+          ),
+        );
+      },
     );
-  });
 
-  const required = intervalSum(intervalUnion(requiredIntervals));
-  const total = totalInterval[1] - totalInterval[0] + 1;
-
-  common.metrics.ponder_historical_total_blocks.set(label, total);
-  common.metrics.ponder_historical_cached_blocks.set(label, total - required);
+  let total = 0;
+  let required = 0;
 
   // Handle cache hit
   if (syncProgress.current !== undefined) {
@@ -1548,87 +1538,126 @@ export async function* getLocalSyncGenerator({
   }
 
   while (true) {
-    // Select a range of blocks to sync bounded by `finalizedBlock`.
-    // It is important for devEx that the interval is not too large, because
-    // time spent syncing ≈ time before indexing function feedback.
-
-    const interval: Interval = [
-      Math.min(cursor, hexToNumber(last.number)),
-      Math.min(cursor + estimateRange, hexToNumber(last.number)),
-    ];
-
-    const endClock = startClock();
-
-    const synced = await historicalSync.sync(interval);
+    const totalInterval = [cursor, hexToNumber(last.number)] satisfies Interval;
 
     common.logger.debug({
       service: "sync",
-      msg: `Synced ${interval[1] - interval[0] + 1} '${chain.name}' blocks in range [${interval[0]}, ${interval[1]}]`,
+      msg: `Initialized '${chain.name}' historical sync for block range [${totalInterval[0]}, ${totalInterval[1]}]`,
     });
 
-    // Update cursor to record progress
-    cursor = interval[1] + 1;
+    required += intervalSum(intervalUnion(requiredIntervals(totalInterval)));
+    total += totalInterval[1] - totalInterval[0] + 1;
 
-    // `synced` will be undefined if a cache hit occur in `historicalSync.sync()`.
+    common.metrics.ponder_historical_total_blocks.set(label, total);
+    common.metrics.ponder_historical_cached_blocks.set(label, total - required);
 
-    if (synced === undefined) {
-      // If the all known blocks are synced, then update `syncProgress.current`, else
-      // progress to the next iteration.
-      if (interval[1] === hexToNumber(last.number)) {
-        syncProgress.current = last;
-      } else {
-        continue;
-      }
-    } else {
-      if (interval[1] === hexToNumber(last.number)) {
-        syncProgress.current = last;
-      } else {
-        syncProgress.current = synced;
-      }
+    while (true) {
+      // Select a range of blocks to sync bounded by `finalizedBlock`.
+      // It is important for devEx that the interval is not too large, because
+      // time spent syncing ≈ time before indexing function feedback.
 
-      const duration = endClock();
+      const interval: Interval = [
+        Math.min(cursor, hexToNumber(last.number)),
+        Math.min(cursor + estimateRange, hexToNumber(last.number)),
+      ];
 
-      common.metrics.ponder_sync_block.set(
-        label,
-        hexToNumber(syncProgress.current.number),
-      );
-      common.metrics.ponder_sync_block_timestamp.set(
-        label,
-        hexToNumber(syncProgress.current.timestamp),
-      );
-      common.metrics.ponder_historical_duration.observe(label, duration);
-      common.metrics.ponder_historical_completed_blocks.inc(
-        label,
-        interval[1] - interval[0] + 1,
-      );
+      const endClock = startClock();
 
-      // Use the duration and interval of the last call to `sync` to update estimate
-      // 25 <= estimate(new) <= estimate(prev) * 2 <= 100_000
-      estimateRange = Math.min(
-        Math.max(
-          25,
-          Math.round((1_000 * (interval[1] - interval[0])) / duration),
-        ),
-        estimateRange * 2,
-        100_000,
-      );
+      const synced = await historicalSync.sync(interval);
 
-      common.logger.trace({
+      common.logger.debug({
         service: "sync",
-        msg: `Updated '${chain.name}' historical sync estimate to ${estimateRange} blocks`,
+        msg: `Synced ${interval[1] - interval[0] + 1} '${chain.name}' blocks in range [${interval[0]}, ${interval[1]}]`,
       });
+
+      // Update cursor to record progress
+      cursor = interval[1] + 1;
+
+      // `synced` will be undefined if a cache hit occur in `historicalSync.sync()`.
+
+      if (synced === undefined) {
+        // If the all known blocks are synced, then update `syncProgress.current`, else
+        // progress to the next iteration.
+        if (interval[1] === hexToNumber(last.number)) {
+          syncProgress.current = last;
+        } else {
+          continue;
+        }
+      } else {
+        if (interval[1] === hexToNumber(last.number)) {
+          syncProgress.current = last;
+        } else {
+          syncProgress.current = synced;
+        }
+
+        const duration = endClock();
+
+        common.metrics.ponder_sync_block.set(
+          label,
+          hexToNumber(syncProgress.current.number),
+        );
+        common.metrics.ponder_sync_block_timestamp.set(
+          label,
+          hexToNumber(syncProgress.current.timestamp),
+        );
+        common.metrics.ponder_historical_duration.observe(label, duration);
+        common.metrics.ponder_historical_completed_blocks.inc(
+          label,
+          interval[1] - interval[0] + 1,
+        );
+
+        // Use the duration and interval of the last call to `sync` to update estimate
+        // 25 <= estimate(new) <= estimate(prev) * 2 <= 100_000
+        estimateRange = Math.min(
+          Math.max(
+            25,
+            Math.round((1_000 * (interval[1] - interval[0])) / duration),
+          ),
+          estimateRange * 2,
+          100_000,
+        );
+
+        common.logger.trace({
+          service: "sync",
+          msg: `Updated '${chain.name}' historical sync estimate to ${estimateRange} blocks`,
+        });
+      }
+
+      yield hexToNumber(syncProgress.current.number);
+
+      if (isSyncEnd(syncProgress) || isSyncFinalized(syncProgress)) {
+        break;
+      }
     }
 
-    yield hexToNumber(syncProgress.current.number);
+    if (isSyncEnd(syncProgress)) {
+      break;
+    }
 
-    if (isSyncEnd(syncProgress) || isSyncFinalized(syncProgress)) {
-      common.logger.info({
-        service: "sync",
-        msg: `Completed '${chain.name}' historical sync`,
-      });
-      return;
+    try {
+      const latestBlockNumber = await _eth_getBlockByNumber(rpc, {
+        blockTag: "latest",
+      }).then((block) => hexToNumber((block as SyncBlock).number));
+      const finalizedBlockNumber = Math.max(
+        latestBlockNumber - chain.finalityBlockCount,
+        0,
+      );
+
+      if (finalizedBlockNumber - cursor < chain.finalityBlockCount) break;
+
+      syncProgress.finalized = await _eth_getBlockByNumber(rpc, {
+        blockNumber: finalizedBlockNumber,
+      }).then(syncBlockToLightBlock);
+      last = getHistoricalLast(syncProgress);
+    } catch (error) {
+      break;
     }
   }
+
+  common.logger.info({
+    service: "sync",
+    msg: `Completed '${chain.name}' historical sync`,
+  });
 }
 
 export const getLocalSyncProgress = async ({
