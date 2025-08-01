@@ -6,6 +6,7 @@ import type {
   InternalLog,
   InternalTrace,
   InternalTransaction,
+  InternalTransactionReceipt,
   LogFactory,
   LogFilter,
   SyncBlock,
@@ -17,11 +18,6 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
-import type {
-  Transaction,
-  TransactionReceipt,
-  Trace as UserTrace,
-} from "@/types/eth.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { type Address, hexToNumber } from "viem";
 
@@ -365,26 +361,28 @@ export const defaultBlockFilterInclude: Exclude<
   "block.transactionsRoot",
 ];
 
-const defaultTransactionInclude: `transaction.${keyof Transaction}`[] = [
-  "transaction.from",
-  "transaction.gas",
-  "transaction.hash",
-  "transaction.input",
-  "transaction.nonce",
-  "transaction.r",
-  "transaction.s",
-  "transaction.to",
-  "transaction.transactionIndex",
-  "transaction.v",
-  "transaction.value",
-  "transaction.type",
-  "transaction.gasPrice",
-  "transaction.accessList",
-  "transaction.maxFeePerGas",
-  "transaction.maxPriorityFeePerGas",
-];
+const defaultTransactionInclude: `transaction.${keyof InternalTransaction}`[] =
+  [
+    "transaction.from",
+    "transaction.gas",
+    "transaction.hash",
+    "transaction.input",
+    "transaction.nonce",
+    "transaction.r",
+    "transaction.s",
+    "transaction.to",
+    "transaction.transactionIndex",
+    "transaction.v",
+    "transaction.value",
+    "transaction.type",
+    "transaction.gasPrice",
+    "transaction.accessList",
+    "transaction.maxFeePerGas",
+    "transaction.maxPriorityFeePerGas",
+    "transaction.blockNumber",
+  ];
 
-export const defaultTransactionReceiptInclude: `transactionReceipt.${keyof TransactionReceipt}`[] =
+export const defaultTransactionReceiptInclude: `transactionReceipt.${keyof InternalTransactionReceipt}`[] =
   [
     "transactionReceipt.contractAddress",
     "transactionReceipt.cumulativeGasUsed",
@@ -395,9 +393,11 @@ export const defaultTransactionReceiptInclude: `transactionReceipt.${keyof Trans
     "transactionReceipt.status",
     "transactionReceipt.to",
     "transactionReceipt.type",
+    "transactionReceipt.blockNumber",
+    "transactionReceipt.transactionIndex",
   ];
 
-const defaultTraceInclude: `trace.${keyof UserTrace}`[] = [
+const defaultTraceInclude: `trace.${keyof InternalTrace}`[] = [
   "trace.traceIndex",
   "trace.type",
   "trace.from",
@@ -409,6 +409,8 @@ const defaultTraceInclude: `trace.${keyof UserTrace}`[] = [
   "trace.error",
   "trace.revertReason",
   "trace.value",
+  "trace.blockNumber",
+  "trace.transactionIndex",
 ];
 
 export const defaultLogFilterInclude: Exclude<LogFilter["include"], undefined> =
@@ -418,6 +420,8 @@ export const defaultLogFilterInclude: Exclude<LogFilter["include"], undefined> =
     "log.logIndex",
     "log.removed",
     "log.topics",
+    "log.blockNumber",
+    "log.transactionIndex",
     ...defaultTransactionInclude,
     ...defaultBlockFilterInclude,
   ];
