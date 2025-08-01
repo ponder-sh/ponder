@@ -1,5 +1,15 @@
 # ponder
 
+## 1.0.0
+
+### Minor Changes
+
+- [#1928](https://github.com/ponder-sh/ponder/pull/1928) [`88b6e37`](https://github.com/ponder-sh/ponder/commit/88b6e3751c9b71aa3ff2cd5622f9e9381e18a093) Thanks [@kyscott18](https://github.com/kyscott18)! - Released `0.12`. Visit the [migration guide](https://ponder.sh/docs/migration-guide#012) for details.
+
+### Patch Changes
+
+- [#1928](https://github.com/ponder-sh/ponder/pull/1928) [`88b6e37`](https://github.com/ponder-sh/ponder/commit/88b6e3751c9b71aa3ff2cd5622f9e9381e18a093) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved database error handling.
+
 ## 0.11.43
 
 ### Patch Changes
