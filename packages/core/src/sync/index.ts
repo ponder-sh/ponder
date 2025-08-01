@@ -464,11 +464,7 @@ export const createSync = async (params: {
               localSyncGenerator,
               childAddresses,
               from,
-              to: () =>
-                min(
-                  getMultichainCheckpoint({ tag: "finalized", chain }),
-                  getMultichainCheckpoint({ tag: "end", chain }),
-                ),
+              syncProgress,
               limit:
                 Math.round(
                   params.common.options.syncEventsQuerySize /
@@ -1328,31 +1324,30 @@ export async function* getLocalEventGenerator(params: {
   sources: Source[];
   localSyncGenerator: AsyncGenerator<number>;
   childAddresses: Map<FactoryId, Map<Address, number>>;
+  syncProgress: SyncProgress;
   from: string;
-  to: () => string;
   limit: number;
 }): AsyncGenerator<{ events: RawEvent[]; checkpoint: string }> {
   const fromBlock = Number(decodeCheckpoint(params.from).blockNumber);
-  let toBlock = Number(decodeCheckpoint(params.to()).blockNumber);
+  let toBlock = getHistoricalLast(params.syncProgress);
   let cursor = fromBlock;
 
   params.common.logger.debug({
     service: "sync",
-    msg: `Initialized '${params.chain.name}' extract query for block range [${fromBlock}, ${toBlock}]`,
+    msg: `Initialized '${params.chain.name}' extract query for block range [${fromBlock}, ${hexToNumber(toBlock.number)}]`,
   });
 
   for await (const syncCursor of bufferAsyncGenerator(
     params.localSyncGenerator,
     Number.POSITIVE_INFINITY,
   )) {
-    const toCheckpoint = params.to();
-    toBlock = Number(decodeCheckpoint(toCheckpoint).blockNumber);
-    while (cursor <= Math.min(syncCursor, toBlock)) {
+    toBlock = getHistoricalLast(params.syncProgress);
+    while (cursor <= Math.min(syncCursor, hexToNumber(toBlock.number))) {
       const { blockData, cursor: queryCursor } =
         await params.syncStore.getEventBlockData({
           filters: params.sources.map(({ filter }) => filter),
           fromBlock: cursor,
-          toBlock: Math.min(syncCursor, toBlock),
+          toBlock: Math.min(syncCursor, hexToNumber(toBlock.number)),
           chainId: params.chain.id,
           limit: params.limit,
         });
@@ -1379,8 +1374,11 @@ export async function* getLocalEventGenerator(params: {
       await new Promise(setImmediate);
 
       cursor = queryCursor + 1;
-      if (cursor === toBlock) {
-        yield { events, checkpoint: toCheckpoint };
+      if (cursor === hexToNumber(toBlock.number)) {
+        const checkpoint = encodeCheckpoint(
+          blockToCheckpoint(toBlock, params.chain.id, "up"),
+        );
+        yield { events, checkpoint };
       } else if (blockData.length > 0) {
         const checkpoint = encodeCheckpoint({
           ...MAX_CHECKPOINT,
