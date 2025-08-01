@@ -588,23 +588,29 @@ export async function run({
 
       case "finalize":
         if (preBuild.ordering === "omnichain") {
+          await database.finalize({
+            checkpoint: event.checkpoint,
+            db: database.qb.drizzle,
+            ordering: preBuild.ordering,
+          });
           await database.qb.drizzle.update(database.PONDER_CHECKPOINT).set({
             safeCheckpoint: event.checkpoint,
           });
         } else {
-          await database.qb.drizzle
-            .update(database.PONDER_CHECKPOINT)
-            .set({
-              safeCheckpoint: event.checkpoint,
-            })
-            .where(eq(database.PONDER_CHECKPOINT.chainId, event.chain.id));
+          const safeCheckpoints = await database.finalize({
+            checkpoint: event.checkpoint,
+            db: database.qb.drizzle,
+            ordering: preBuild.ordering,
+          });
+          for (const [chainId, safeCheckpoint] of safeCheckpoints) {
+            await database.qb.drizzle
+              .update(database.PONDER_CHECKPOINT)
+              .set({
+                safeCheckpoint,
+              })
+              .where(eq(database.PONDER_CHECKPOINT.chainId, chainId));
+          }
         }
-
-        await database.finalize({
-          checkpoint: event.checkpoint,
-          db: database.qb.drizzle,
-          ordering: preBuild.ordering,
-        });
         break;
 
       default:

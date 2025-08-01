@@ -122,7 +122,7 @@ export type Database = {
     checkpoint: string;
     ordering: "multichain" | "omnichain";
     db: Drizzle<Schema>;
-  }): Promise<void>;
+  }): Promise<Map<number, string>>;
   commitBlock(args: { checkpoint: string; db: Drizzle<Schema> }): Promise<void>;
 };
 
@@ -1189,6 +1189,7 @@ WITH reverted1 AS (
       );
     },
     async finalize({ checkpoint, ordering, db }) {
+      const updatedSafeCheckpoints = new Map<number, string>();
       await this.record(
         { method: "finalize", includeTraceLogs: true },
         async () => {
@@ -1225,21 +1226,37 @@ WHERE reorg_state = 0
               return result.rows[0]?.global_min_op_id as number | undefined;
             });
 
-          for (const table of tables) {
+          if (tables.length > 0) {
             const result = await db.execute(
               sql.raw(`
-WITH deleted AS (
+SELECT MAX(checkpoint) as checkpoint, SUBSTRING(checkpoint, 11, 16)::numeric as chain_id, COUNT(*) AS deleted_count FROM (
+${tables
+  .map(
+    (table) => `
   DELETE FROM "${namespace.schema}"."${getTableName(getReorgTable(table))}"
   WHERE ${min_op_id} IS NULL OR operation_id < ${min_op_id}
   RETURNING *
-) SELECT COUNT(*) FROM deleted AS count; 
+`,
+  )
+  .join(" UNION ALL")}
+) AS deleted
+GROUP BY SUBSTRING(checkpoint, 11, 16)::numeric;
 `),
             );
+
+            let count = 0;
+            for (const { chain_id, checkpoint, deleted_count } of result.rows) {
+              count += deleted_count as number;
+              updatedSafeCheckpoints.set(
+                chain_id as number,
+                checkpoint as string,
+              );
+            }
 
             common.logger.info({
               service: "database",
               // @ts-ignore
-              msg: `Finalized ${result.rows[0]!.count} operations from '${getTableName(table)}'`,
+              msg: `Finalized ${count} operations.'`,
             });
           }
         },
@@ -1251,6 +1268,8 @@ WITH deleted AS (
         service: "database",
         msg: `Updated finalized checkpoint to (timestamp=${decoded.blockTimestamp} chainId=${decoded.chainId} block=${decoded.blockNumber})`,
       });
+
+      return updatedSafeCheckpoints;
     },
     async commitBlock({ checkpoint, db }) {
       await Promise.all(
