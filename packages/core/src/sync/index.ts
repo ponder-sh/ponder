@@ -323,11 +323,6 @@ export const createSync = async (params: {
   };
 
   async function* getEvents() {
-    const to = min(
-      getOmnichainCheckpoint({ tag: "finalized" }),
-      getOmnichainCheckpoint({ tag: "end" }),
-    );
-
     const eventGenerators = await Promise.all(
       Array.from(perChainSync.entries()).map(
         async ([chain, { syncProgress, historicalSync, childAddresses }]) => {
@@ -398,6 +393,10 @@ export const createSync = async (params: {
               checkpoint: string;
             }>,
           ) {
+            const to = min(
+              getOmnichainCheckpoint({ tag: "end" }),
+              getOmnichainCheckpoint({ tag: "finalized" }),
+            );
             for await (const { events, checkpoint } of eventGenerator) {
               // Sort out any events between the omnichain finalized checkpoint and the single-chain
               // finalized checkpoint and add them to pendingEvents. These events are synced during
@@ -422,6 +421,7 @@ export const createSync = async (params: {
               chain,
               syncProgress,
               historicalSync,
+              rpc: params.indexingBuild.rpcs[0]!,
             });
 
             // In order to speed up the "extract" phase when there is a crash recovery,
@@ -464,7 +464,11 @@ export const createSync = async (params: {
               localSyncGenerator,
               childAddresses,
               from,
-              to,
+              to: () =>
+                min(
+                  getMultichainCheckpoint({ tag: "finalized", chain }),
+                  getMultichainCheckpoint({ tag: "end", chain }),
+                ),
               limit:
                 Math.round(
                   params.common.options.syncEventsQuerySize /
@@ -1325,11 +1329,11 @@ export async function* getLocalEventGenerator(params: {
   localSyncGenerator: AsyncGenerator<number>;
   childAddresses: Map<FactoryId, Map<Address, number>>;
   from: string;
-  to: string;
+  to: () => string;
   limit: number;
 }): AsyncGenerator<{ events: RawEvent[]; checkpoint: string }> {
   const fromBlock = Number(decodeCheckpoint(params.from).blockNumber);
-  const toBlock = Number(decodeCheckpoint(params.to).blockNumber);
+  let toBlock = Number(decodeCheckpoint(params.to()).blockNumber);
   let cursor = fromBlock;
 
   params.common.logger.debug({
@@ -1341,6 +1345,8 @@ export async function* getLocalEventGenerator(params: {
     params.localSyncGenerator,
     Number.POSITIVE_INFINITY,
   )) {
+    const toCheckpoint = params.to();
+    toBlock = Number(decodeCheckpoint(toCheckpoint).blockNumber);
     while (cursor <= Math.min(syncCursor, toBlock)) {
       const { blockData, cursor: queryCursor } =
         await params.syncStore.getEventBlockData({
@@ -1374,7 +1380,7 @@ export async function* getLocalEventGenerator(params: {
 
       cursor = queryCursor + 1;
       if (cursor === toBlock) {
-        yield { events, checkpoint: params.to };
+        yield { events, checkpoint: toCheckpoint };
       } else if (blockData.length > 0) {
         const checkpoint = encodeCheckpoint({
           ...MAX_CHECKPOINT,
