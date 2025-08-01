@@ -14,7 +14,7 @@ import type {
 } from "@/internal/types.js";
 import { createUi } from "@/ui/index.js";
 import { createQueue } from "@/utils/queue.js";
-import { type Result, mergeResults } from "@/utils/result.js";
+import type { Result } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 import { run } from "../utils/run.js";
@@ -129,21 +129,23 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           return;
         }
 
-        const buildResult1 = mergeResults([
-          await build.preCompile(configResult.result),
-          build.compileSchema(schemaResult.result),
-        ]);
-
-        if (buildResult1.status === "error") {
-          buildQueue.add({
-            status: "error",
-            kind: "indexing",
-            error: buildResult1.error,
-          });
+        const preBuildResult = await build.preCompile(configResult.result);
+        if (preBuildResult.status === "error") {
+          await exit({ reason: "Failed intial build", code: 1 });
           return;
         }
 
-        const [preBuild, schemaBuild] = buildResult1.result;
+        const preBuild = preBuildResult.result;
+
+        const schemaBuildResult = build.compileSchema({
+          ...schemaResult.result,
+          ordering: preBuild.ordering,
+        });
+        if (schemaBuildResult.status === "error") {
+          await exit({ reason: "Failed intial build", code: 1 });
+          return;
+        }
+        const schemaBuild = schemaBuildResult.result;
 
         const indexingResult = await build.executeIndexingFunctions();
         if (indexingResult.status === "error") {

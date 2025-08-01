@@ -330,8 +330,10 @@ export type PreBuild = {
   /** Database type and configuration */
   databaseConfig: DatabaseConfig;
   /** Ordering of events */
-  ordering: "omnichain" | "multichain";
+  ordering: Ordering;
 };
+
+export type Ordering = "omnichain" | "multichain" | "isolated";
 
 export type SchemaBuild = {
   schema: Schema;

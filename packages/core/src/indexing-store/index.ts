@@ -2,6 +2,7 @@ import type { QB } from "@/database/queryBuilder.js";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { onchain } from "@/drizzle/onchain.js";
 import {
+  InvalidStoreAccessError,
   InvalidStoreMethodError,
   NonRetryableUserError,
   UndefinedTableError,
@@ -51,5 +52,20 @@ export const checkOnchainTable = (
     method === "find"
       ? `db.find() can only be used with onchain tables, and '${getTableConfig(table).name}' is an offchain table.`
       : `Indexing functions can only write to onchain tables, and '${getTableConfig(table).name}' is an offchain table.`,
+  );
+};
+
+export const checkTableAccess = (
+  table: Table,
+  method: "find" | "insert" | "update" | "delete",
+  key: object,
+  chainId?: number,
+) => {
+  if (chainId === undefined) return;
+  if ("chainId" in key && key.chainId === chainId) return;
+  throw new InvalidStoreAccessError(
+    "chainId" in key
+      ? `db.${method}() on ${getTableConfig(table).name} is accessing a row with chainId different from event's chainId.`
+      : `db.${method}() on ${getTableConfig(table).name} must specify 'chainId' field in 'isolated' ordering.`,
   );
 };

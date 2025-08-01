@@ -27,7 +27,7 @@ import {
   finalize,
   revert,
 } from "./actions.js";
-import type { Database } from "./index.js";
+import { type Database, createDatabase } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -78,6 +78,7 @@ test("finalize()", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
     table: account,
+    ordering: "multichain",
   });
 
   await indexingStore
@@ -91,11 +92,13 @@ test("finalize()", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     table: account,
+    ordering: "multichain",
   });
 
   await finalize(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     tables: [account],
+    ordering: "multichain",
   });
 
   // reorg tables
@@ -105,6 +108,110 @@ test("finalize()", async (context) => {
   );
 
   expect(rows).toHaveLength(2);
+});
+
+test("finalize() isolated", async (context) => {
+  const account = onchainTable(
+    "account",
+    (p) => ({
+      chainId: p.integer(),
+      address: p.hex(),
+      balance: p.bigint(),
+    }),
+    (table) => ({
+      pk: primaryKey({ columns: [table.address, table.chainId] }),
+    }),
+  );
+
+  const database = await createDatabase({
+    common: context.common,
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({ schema: { account }, ordering: "isolated" })
+        .statements,
+    },
+  });
+
+  await database.migrate({ buildId: "abc", ordering: "isolated" });
+
+  // setup tables, reorg tables, and metadata checkpoint
+  await createTriggers(database.userQB, { tables: [account], chainId: 1 });
+  await createTriggers(database.userQB, { tables: [account], chainId: 2 });
+
+  const indexingStore2 = createRealtimeIndexingStore({
+    common: context.common,
+    schemaBuild: { schema: { account } },
+    indexingErrorHandler,
+    chainId: 2,
+  });
+  indexingStore2.qb = database.userQB;
+
+  const indexingStore1 = createRealtimeIndexingStore({
+    common: context.common,
+    schemaBuild: { schema: { account } },
+    indexingErrorHandler,
+    chainId: 1,
+  });
+  indexingStore1.qb = database.userQB;
+
+  await indexingStore2.insert(account).values({
+    chainId: 2,
+    address: "0x0000000000000000000000000000000000000001",
+  });
+
+  await commitBlock(database.userQB, {
+    checkpoint: createCheckpoint({ chainId: 2n, blockNumber: 9n }),
+    table: account,
+    ordering: "isolated",
+  });
+
+  await indexingStore1
+    .insert(account)
+    .values({ chainId: 1, address: zeroAddress, balance: 10n });
+
+  await commitBlock(database.userQB, {
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
+    table: account,
+    ordering: "isolated",
+  });
+
+  await indexingStore1
+    .update(account, { chainId: 1, address: zeroAddress })
+    .set({ balance: 88n });
+
+  await indexingStore1.insert(account).values({
+    chainId: 1,
+    address: "0x0000000000000000000000000000000000000001",
+  });
+
+  await commitBlock(database.userQB, {
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
+    table: account,
+    ordering: "isolated",
+  });
+
+  await finalize(database.userQB, {
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    tables: [account],
+    ordering: "isolated",
+  });
+
+  // reorg tables
+
+  const rows = await database.userQB.wrap((tx) =>
+    tx.select().from(getReorgTable(account)),
+  );
+
+  expect(rows).toHaveLength(3);
+
+  await context.common.shutdown.kill();
 });
 
 test("createIndexes()", async (context) => {
@@ -124,7 +231,8 @@ test("createIndexes()", async (context) => {
   });
 
   await createIndexes(database.userQB, {
-    statements: buildSchema({ schema: { account } }).statements,
+    statements: buildSchema({ schema: { account }, ordering: "multichain" })
+      .statements,
   });
 
   const indexNames = await getUserIndexNames(database, "public", "account");
@@ -194,6 +302,7 @@ test("commitBlock()", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     table: account,
+    ordering: "multichain",
   });
 
   const { rows } = await database.userQB.wrap((tx) =>
@@ -234,6 +343,7 @@ test("revert()", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
     table: account,
+    ordering: "multichain",
   });
 
   await indexingStore
@@ -247,6 +357,7 @@ test("revert()", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     table: account,
+    ordering: "multichain",
   });
 
   await indexingStore.delete(account, { address: zeroAddress });
@@ -254,6 +365,7 @@ test("revert()", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     table: account,
+    ordering: "multichain",
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -303,12 +415,14 @@ test("revert() with composite primary key", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     table: test,
+    ordering: "multichain",
   });
   await indexingStore.update(test, { a: 1, b: 1 }).set({ c: 1 });
 
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 12n }),
     table: test,
+    ordering: "multichain",
   });
 
   await database.userQB.transaction(async (tx) => {

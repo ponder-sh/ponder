@@ -419,7 +419,13 @@ export async function run({
   const tables = Object.values(schemaBuild.schema).filter(isTable);
 
   await createIndexes(database.adminQB, { statements: schemaBuild.statements });
-  await createTriggers(database.adminQB, { tables });
+  if (preBuild.ordering === "isolated") {
+    for (const chain of indexingBuild.chains) {
+      await createTriggers(database.adminQB, { tables, chainId: chain.id });
+    }
+  } else {
+    await createTriggers(database.adminQB, { tables });
+  }
 
   if (namespaceBuild.viewsSchema) {
     await database.adminQB.transaction(
@@ -556,7 +562,13 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
                 });
 
                 await Promise.all(
-                  tables.map((table) => commitBlock(tx, { table, checkpoint })),
+                  tables.map((table) =>
+                    commitBlock(tx, {
+                      table,
+                      checkpoint,
+                      ordering: preBuild.ordering,
+                    }),
+                  ),
                 );
 
                 if (preBuild.ordering === "multichain") {
@@ -602,7 +614,12 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
         // in the `block` case.
 
         await database.userQB.transaction(async (tx) => {
-          await dropTriggers(tx, { tables });
+          preBuild.ordering === "isolated"
+            ? await dropTriggers(tx, {
+                tables,
+                chainId: Number(decodeCheckpoint(event.checkpoint).chainId),
+              })
+            : await dropTriggers(tx, { tables });
 
           const counts = await revert(tx, {
             tables,
@@ -616,22 +633,39 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
               msg: `Reverted ${counts[index]} unfinalized operations from '${getTableName(table)}'`,
             });
           }
-
-          await createTriggers(tx, { tables });
+          preBuild.ordering === "isolated"
+            ? await createTriggers(tx, {
+                tables,
+                chainId: Number(decodeCheckpoint(event.checkpoint).chainId),
+              })
+            : await createTriggers(tx, { tables });
         });
 
         break;
       case "finalize":
         await database.userQB.transaction(async (tx) => {
           await tx.wrap((tx) =>
-            tx.update(PONDER_CHECKPOINT).set({
-              safeCheckpoint: event.checkpoint,
-            }),
+            preBuild.ordering === "isolated"
+              ? tx
+                  .update(PONDER_CHECKPOINT)
+                  .set({
+                    safeCheckpoint: event.checkpoint,
+                  })
+                  .where(
+                    eq(
+                      PONDER_CHECKPOINT.chainId,
+                      Number(decodeCheckpoint(event.checkpoint).chainId),
+                    ),
+                  )
+              : tx.update(PONDER_CHECKPOINT).set({
+                  safeCheckpoint: event.checkpoint,
+                }),
           );
 
           const counts = await finalize(tx, {
             tables,
             checkpoint: event.checkpoint,
+            ordering: preBuild.ordering,
           });
 
           for (const [index, table] of tables.entries()) {

@@ -8,6 +8,7 @@ import type {
   Filter,
   IndexingBuild,
   LightBlock,
+  Ordering,
   RawEvent,
   Seconds,
   Source,
@@ -242,7 +243,7 @@ export const createSync = async (params: {
   >;
   syncStore: SyncStore;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
-  ordering: "omnichain" | "multichain";
+  ordering: Ordering;
 }): Promise<Sync> => {
   const perChainSync = new Map<
     Chain,

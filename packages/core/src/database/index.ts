@@ -13,6 +13,7 @@ import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
   NamespaceBuild,
+  Ordering,
   PreBuild,
   SchemaBuild,
 } from "@/internal/types.js";
@@ -52,7 +53,7 @@ export type Database = {
     buildId,
     ordering,
   }: Pick<IndexingBuild, "buildId"> & {
-    ordering: "multichain" | "omnichain";
+    ordering: Ordering;
   }): Promise<CrashRecoveryCheckpoint>;
 };
 
@@ -689,13 +690,28 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
           }
 
           // Remove triggers
+          const removeTriggers = async (chainId?: number) => {
+            for (const table of tables) {
+              await tx.wrap((tx) =>
+                tx.execute(
+                  `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger(chainId)}" ON "${namespace.schema}"."${getTableName(table)}"`,
+                ),
+              );
 
-          for (const table of tables) {
-            await tx.wrap((tx) =>
-              tx.execute(
-                `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
-              ),
-            );
+              await tx.wrap((tx) =>
+                tx.execute(
+                  `DROP TRIGGER IF EXISTS "_${getTableNames(table).trigger(chainId)}" ON "${namespace.schema}"."${getTableName(table)}"`,
+                ),
+              );
+            }
+          };
+
+          if (ordering === "isolated") {
+            for (const { chainId } of checkpoints) {
+              await removeTriggers(chainId);
+            }
+          } else {
+            await removeTriggers(undefined);
           }
 
           // Remove indexes
@@ -712,12 +728,32 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             });
           }
 
-          // Note: it is an invariant that checkpoints.length > 0;
-          const revertCheckpoint = min(
-            ...checkpoints.map((c) => c.safeCheckpoint),
-          );
-
-          await revert(tx, { checkpoint: revertCheckpoint, tables, ordering });
+          switch (ordering) {
+            case "multichain":
+            case "omnichain": {
+              // Note: it is an invariant that checkpoints.length > 0;
+              const revertCheckpoint = min(
+                ...checkpoints.map((c) => c.safeCheckpoint),
+              );
+              await revert(tx, {
+                checkpoint: revertCheckpoint,
+                tables,
+                ordering,
+              });
+              break;
+            }
+            case "isolated": {
+              // Note: it is invariant that checkpoint is chainId specific
+              for (const { safeCheckpoint } of checkpoints) {
+                await revert(tx, {
+                  checkpoint: safeCheckpoint,
+                  tables,
+                  ordering,
+                });
+              }
+              break;
+            }
+          }
 
           // Note: We don't update the `_ponder_checkpoint` table here, instead we wait for it to be updated
           // in the runtime script.
