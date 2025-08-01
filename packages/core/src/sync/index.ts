@@ -15,6 +15,7 @@ import type {
   SyncBlockHeader,
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
+import type { ChildAddresses } from "@/runtime/index.js";
 import {
   type HistoricalSync,
   createHistoricalSync,
@@ -296,6 +297,7 @@ export const createSync = async (params: {
     // shouldn't be included in the minimum checkpoint. However, when all
     // chains are completed, the maximum checkpoint should be computed across
     // all chains.
+
     if (tag === "current") {
       const isComplete = Array.from(perChainSync.values()).map(
         ({ syncProgress }) => isSyncEnd(syncProgress),
@@ -1325,12 +1327,14 @@ export async function* getLocalSyncGenerator({
   common,
   chain,
   syncProgress,
-  historicalSync,
+  childAddresses,
+  cachedIntervals,
 }: {
   common: Common;
   chain: Chain;
   syncProgress: SyncProgress;
-  historicalSync: HistoricalSync;
+  childAddresses: ChildAddresses;
+  cachedIntervals: CachedIntervals;
 }): AsyncGenerator<number> {
   const label = { chain: chain.name };
 
@@ -1380,59 +1384,62 @@ export async function* getLocalSyncGenerator({
     msg: `Initialized '${chain.name}' historical sync for block range [${totalInterval[0]}, ${totalInterval[1]}]`,
   });
 
-  const requiredIntervals = Array.from(
-    historicalSync.intervalsCache.entries(),
-  ).flatMap(([filter, fragmentIntervals]) => {
-    const filterIntervals: Interval[] = [
-      [
-        filter.fromBlock ?? 0,
-        Math.min(filter.toBlock ?? Number.POSITIVE_INFINITY, totalInterval[1]),
-      ],
-    ];
+  const requiredIntervals = Array.from(cachedIntervals.entries()).flatMap(
+    ([filter, fragmentIntervals]) => {
+      const filterIntervals: Interval[] = [
+        [
+          filter.fromBlock ?? 0,
+          Math.min(
+            filter.toBlock ?? Number.POSITIVE_INFINITY,
+            totalInterval[1],
+          ),
+        ],
+      ];
 
-    switch (filter.type) {
-      case "log":
-        if (isAddressFactory(filter.address)) {
-          filterIntervals.push([
-            filter.address.fromBlock ?? 0,
-            Math.min(
-              filter.address.toBlock ?? Number.POSITIVE_INFINITY,
-              totalInterval[1],
-            ),
-          ]);
-        }
-        break;
-      case "trace":
-      case "transaction":
-      case "transfer":
-        if (isAddressFactory(filter.fromAddress)) {
-          filterIntervals.push([
-            filter.fromAddress.fromBlock ?? 0,
-            Math.min(
-              filter.fromAddress.toBlock ?? Number.POSITIVE_INFINITY,
-              totalInterval[1],
-            ),
-          ]);
-        }
+      switch (filter.type) {
+        case "log":
+          if (isAddressFactory(filter.address)) {
+            filterIntervals.push([
+              filter.address.fromBlock ?? 0,
+              Math.min(
+                filter.address.toBlock ?? Number.POSITIVE_INFINITY,
+                totalInterval[1],
+              ),
+            ]);
+          }
+          break;
+        case "trace":
+        case "transaction":
+        case "transfer":
+          if (isAddressFactory(filter.fromAddress)) {
+            filterIntervals.push([
+              filter.fromAddress.fromBlock ?? 0,
+              Math.min(
+                filter.fromAddress.toBlock ?? Number.POSITIVE_INFINITY,
+                totalInterval[1],
+              ),
+            ]);
+          }
 
-        if (isAddressFactory(filter.toAddress)) {
-          filterIntervals.push([
-            filter.toAddress.fromBlock ?? 0,
-            Math.min(
-              filter.toAddress.toBlock ?? Number.POSITIVE_INFINITY,
-              totalInterval[1],
-            ),
-          ]);
-        }
-    }
+          if (isAddressFactory(filter.toAddress)) {
+            filterIntervals.push([
+              filter.toAddress.fromBlock ?? 0,
+              Math.min(
+                filter.toAddress.toBlock ?? Number.POSITIVE_INFINITY,
+                totalInterval[1],
+              ),
+            ]);
+          }
+      }
 
-    return intervalDifference(
-      intervalUnion(filterIntervals),
-      intervalIntersectionMany(
-        fragmentIntervals.map(({ intervals }) => intervals),
-      ),
-    );
-  });
+      return intervalDifference(
+        intervalUnion(filterIntervals),
+        intervalIntersectionMany(
+          fragmentIntervals.map(({ intervals }) => intervals),
+        ),
+      );
+    },
+  );
 
   const required = intervalSum(intervalUnion(requiredIntervals));
   const total = totalInterval[1] - totalInterval[0] + 1;
