@@ -12,7 +12,13 @@ import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/config.js";
 import { onchainTable } from "@/drizzle/onchain.js";
 import { createCachedViemClient } from "@/indexing/client.js";
-import type { Event, LogEvent, RawEvent } from "@/internal/types.js";
+import type { RetryableError } from "@/internal/errors.js";
+import type {
+  Event,
+  IndexingErrorHandler,
+  LogEvent,
+  RawEvent,
+} from "@/internal/types.js";
 import { decodeEvents } from "@/sync/events.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { checksumAddress, padHex, parseEther, toHex, zeroAddress } from "viem";
@@ -35,6 +41,19 @@ const schema = { account };
 const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
   address: zeroAddress,
 });
+
+const indexingErrorHandler: IndexingErrorHandler = {
+  getRetryableError: () => {
+    return indexingErrorHandler.error;
+  },
+  setRetryableError: (error: RetryableError) => {
+    indexingErrorHandler.error = error;
+  },
+  clearRetryableError: () => {
+    indexingErrorHandler.error = undefined;
+  },
+  error: undefined as RetryableError | undefined,
+};
 
 test("createIndexing()", async (context) => {
   const { common } = context;
@@ -66,6 +85,7 @@ test("createIndexing()", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   expect(indexing).toBeDefined();
@@ -101,11 +121,10 @@ test("processSetupEvents() empty", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
-  const result = await indexing.processSetupEvents({ db: indexingStore });
-
-  expect(result).toStrictEqual({ status: "success" });
+  await indexing.processSetupEvents({ db: indexingStore });
 });
 
 test("processSetupEvents()", async (context) => {
@@ -142,11 +161,10 @@ test("processSetupEvents()", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
-  const result = await indexing.processSetupEvents({ db: indexingStore });
-
-  expect(result).toStrictEqual({ status: "success" });
+  await indexing.processSetupEvents({ db: indexingStore });
 
   expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledOnce();
   expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledWith({
@@ -206,6 +224,7 @@ test("processEvent()", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const topics = encodeEventTopics({
@@ -229,8 +248,7 @@ test("processEvent()", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  const result = await indexing.processEvents({ db: indexingStore, events });
-  expect(result).toStrictEqual({ status: "success" });
+  await indexing.processEvents({ db: indexingStore, events });
 
   expect(
     indexingFunctions[
@@ -303,6 +321,7 @@ test("processEvents eventCount", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const topics = encodeEventTopics({
@@ -375,13 +394,12 @@ test("executeSetup() context.client", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const getBalanceSpy = vi.spyOn(rpcs[0]!, "request");
 
-  const result = await indexing.processSetupEvents({ db: indexingStore });
-
-  expect(result).toStrictEqual({ status: "success" });
+  await indexing.processSetupEvents({ db: indexingStore });
 
   expect(getBalanceSpy).toHaveBeenCalledOnce();
   expect(getBalanceSpy).toHaveBeenCalledWith({
@@ -427,13 +445,12 @@ test("executeSetup() context.db", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const insertSpy = vi.spyOn(indexingStore, "insert");
 
-  const result = await indexing.processSetupEvents({ db: indexingStore });
-
-  expect(result).toStrictEqual({ status: "success" });
+  await indexing.processSetupEvents({ db: indexingStore });
 
   expect(insertSpy).toHaveBeenCalledOnce();
 
@@ -476,10 +493,10 @@ test("executeSetup() metrics", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
-  const result = await indexing.processSetupEvents({ db: indexingStore });
-  expect(result).toStrictEqual({ status: "success" });
+  await indexing.processSetupEvents({ db: indexingStore });
 
   const metrics = await common.metrics.ponder_indexing_function_duration.get();
   expect(metrics.values).toBeDefined();
@@ -519,12 +536,14 @@ test("executeSetup() error", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
 
-  const result = await indexing.processSetupEvents({ db: indexingStore });
-  expect(result).toStrictEqual({ status: "error", error: expect.any(Error) });
+  await expect(() =>
+    indexing.processSetupEvents({ db: indexingStore }),
+  ).rejects.toThrowError();
 
   expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(1);
 });
@@ -570,6 +589,7 @@ test("processEvents() context.client", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const getBalanceSpy = vi.spyOn(rpcs[0]!, "request");
@@ -595,8 +615,7 @@ test("processEvents() context.client", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  const result = await indexing.processEvents({ db: indexingStore, events });
-  expect(result).toStrictEqual({ status: "success" });
+  await indexing.processEvents({ db: indexingStore, events });
 
   expect(getBalanceSpy).toHaveBeenCalledTimes(1);
   expect(getBalanceSpy).toHaveBeenCalledWith({
@@ -649,6 +668,7 @@ test("processEvents() context.db", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const insertSpy = vi.spyOn(indexingStore, "insert");
@@ -674,8 +694,7 @@ test("processEvents() context.db", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  const result = await indexing.processEvents({ db: indexingStore, events });
-  expect(result).toStrictEqual({ status: "success" });
+  await indexing.processEvents({ db: indexingStore, events });
 
   expect(insertSpy).toHaveBeenCalledTimes(1);
 
@@ -719,6 +738,7 @@ test("processEvents() metrics", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const topics = encodeEventTopics({
@@ -788,6 +808,7 @@ test("processEvents() error", async (context) => {
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   indexingFunctions[
@@ -815,12 +836,10 @@ test("processEvents() error", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  const result = await indexing.processEvents({ db: indexingStore, events });
+  await expect(() =>
+    indexing.processEvents({ db: indexingStore, events }),
+  ).rejects.toThrowError();
 
-  expect(result).toStrictEqual({
-    status: "error",
-    error: expect.any(Error),
-  });
   expect(
     indexingFunctions[
       "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
@@ -869,6 +888,7 @@ test("processEvents() error with missing event object properties", async (contex
     },
     client: cachedViemClient,
     eventCount,
+    indexingErrorHandler,
   });
 
   const topics = encodeEventTopics({
@@ -892,14 +912,9 @@ test("processEvents() error with missing event object properties", async (contex
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  const result = await indexing.processEvents({ events, db: indexingStore });
-
-  expect(result).toMatchInlineSnapshot(`
-    {
-      "error": [Error: empty transaction],
-      "status": "error",
-    }
-  `);
+  await expect(() =>
+    indexing.processEvents({ events, db: indexingStore }),
+  ).rejects.toThrowError();
 });
 
 test("ponderActions getBalance()", async (context) => {

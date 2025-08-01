@@ -42,7 +42,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
 
   const build = await createBuild({ common, cliOptions });
 
-  const exit = createExit({ common });
+  const exit = createExit({ common, options });
 
   const configResult = await build.executeConfig();
   if (configResult.status === "error") {
@@ -50,7 +50,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const buildResult = build.preCompile(configResult.result);
+  const buildResult = await build.preCompile(configResult.result);
 
   if (buildResult.status === "error") {
     await exit({ reason: "Failed intial build", code: 1 });
@@ -65,27 +65,31 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     schemaBuild: emptySchemaBuild,
   });
 
-  const ponderSchemas = await database.qb.drizzle
-    .select({ schema: TABLES.table_schema, tableCount: count() })
-    .from(TABLES)
-    .where(
-      inArray(
-        TABLES.table_schema,
-        database.qb.drizzle
-          .select({ schema: TABLES.table_schema })
-          .from(TABLES)
-          .where(eq(TABLES.table_name, "_ponder_meta")),
-      ),
-    )
-    .groupBy(TABLES.table_schema);
+  const ponderSchemas = await database.adminQB.wrap((db) =>
+    db
+      .select({ schema: TABLES.table_schema, tableCount: count() })
+      .from(TABLES)
+      .where(
+        inArray(
+          TABLES.table_schema,
+          database.adminQB.raw
+            .select({ schema: TABLES.table_schema })
+            .from(TABLES)
+            .where(eq(TABLES.table_name, "_ponder_meta")),
+        ),
+      )
+      .groupBy(TABLES.table_schema),
+  );
 
-  const ponderViewSchemas = await database.qb.drizzle
-    .select({ schema: VIEWS.table_schema })
-    .from(VIEWS)
-    .where(eq(VIEWS.table_name, "_ponder_meta"));
+  const ponderViewSchemas = await database.adminQB.wrap((db) =>
+    db
+      .select({ schema: VIEWS.table_schema })
+      .from(VIEWS)
+      .where(eq(VIEWS.table_name, "_ponder_meta")),
+  );
 
   const queries = ponderSchemas.map((row) =>
-    database.qb.drizzle
+    database.adminQB.raw
       .select({
         value: getPonderMetaTable(row.schema).value,
         schema: sql<string>`${row.schema}`.as("schema"),
@@ -180,8 +184,8 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   if (tablesToDrop.length > 0) {
-    await database.qb.drizzle.execute(
-      sql.raw(`DROP TABLE IF EXISTS ${tablesToDrop.join(", ")} CASCADE`),
+    await database.adminQB.wrap((db) =>
+      db.execute(`DROP TABLE IF EXISTS ${tablesToDrop.join(", ")} CASCADE`),
     );
 
     logger.warn({
@@ -191,8 +195,8 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   if (viewsToDrop.length > 0) {
-    await database.qb.drizzle.execute(
-      sql.raw(`DROP VIEW IF EXISTS ${viewsToDrop.join(", ")} CASCADE`),
+    await database.adminQB.wrap((db) =>
+      db.execute(`DROP VIEW IF EXISTS ${viewsToDrop.join(", ")} CASCADE`),
     );
 
     logger.warn({
@@ -202,8 +206,10 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   if (functionsToDrop.length > 0) {
-    await database.qb.drizzle.execute(
-      sql.raw(`DROP FUNCTION IF EXISTS ${functionsToDrop.join(", ")} CASCADE`),
+    await database.adminQB.wrap((db) =>
+      db.execute(
+        `DROP FUNCTION IF EXISTS ${functionsToDrop.join(", ")} CASCADE`,
+      ),
     );
 
     logger.warn({
@@ -213,8 +219,8 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   if (schemasToDrop.length > 0) {
-    await database.qb.drizzle.execute(
-      sql.raw(`DROP SCHEMA IF EXISTS ${schemasToDrop.join(", ")} CASCADE`),
+    await database.adminQB.wrap((db) =>
+      db.execute(`DROP SCHEMA IF EXISTS ${schemasToDrop.join(", ")} CASCADE`),
     );
 
     logger.warn({

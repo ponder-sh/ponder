@@ -1,5 +1,13 @@
 # Migration guide [Upgrade to a new version of Ponder]
 
+## 0.12
+
+### Breaking changes
+
+#### Retryable errors exit with code 75
+
+Ponder now exits with code `75` when a retryable error is encountered. This is to distinguish between a user error and a retryable error.
+
 ## 0.11
 
 ### Breaking changes

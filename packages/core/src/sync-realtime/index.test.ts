@@ -27,6 +27,7 @@ import {
 import { buildConfigAndIndexingFunctions } from "@/build/config.js";
 import type { LogFactory, LogFilter } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
+import { drainAsyncGenerator } from "@/utils/generators.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import {
   encodeFunctionData,
@@ -65,16 +66,14 @@ test("createRealtimeSync()", async (context) => {
     chain,
     rpc,
     sources,
-    onEvent: vi.fn(() => Promise.resolve({ promise: Promise.resolve() })),
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
-    initialChildAddresses: new Map(),
+    childAddresses: new Map(),
   });
 
   expect(realtimeSync).toBeDefined();
 });
 
-test("start() handles block", async (context) => {
+test("sync() handles block", async (context) => {
   const { common } = context;
   await setupDatabaseServices(context);
 
@@ -97,19 +96,17 @@ test("start() handles block", async (context) => {
     chain,
     rpc,
     sources,
-    onEvent: vi.fn(() => Promise.resolve({ promise: Promise.resolve() })),
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
-    initialChildAddresses: new Map(),
+    childAddresses: new Map(),
   });
 
   await testClient.mine({ blocks: 1 });
   const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
-  const syncResult = await realtimeSync.sync(block);
+  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
-  expect(syncResult.type).toBe("accepted");
-
+  expect(syncResult).toHaveLength(1);
+  expect(syncResult[0]!.type).toBe("block");
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 });
 
@@ -136,19 +133,18 @@ test("sync() no-op when receiving same block twice", async (context) => {
     chain,
     rpc,
     sources,
-    onEvent: vi.fn(() => Promise.resolve({ promise: Promise.resolve() })),
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
-    initialChildAddresses: new Map(),
+    childAddresses: new Map(),
   });
 
   await testClient.mine({ blocks: 1 });
   const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
-  await realtimeSync.sync(block);
-  const syncResult = await realtimeSync.sync(block);
+  await drainAsyncGenerator(realtimeSync.sync(block));
+  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
-  expect(syncResult.type).toBe("rejected");
+  expect(syncResult).toHaveLength(0);
+
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 });
 
@@ -175,18 +171,20 @@ test("sync() gets missing block", async (context) => {
     chain,
     rpc,
     sources,
-    onEvent: vi.fn(() => Promise.resolve({ promise: Promise.resolve() })),
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
-    initialChildAddresses: new Map(),
+    childAddresses: new Map(),
   });
 
   await testClient.mine({ blocks: 2 });
   const block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
 
-  const syncResult = await realtimeSync.sync(block);
+  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
-  expect(syncResult.type).toBe("accepted");
+  expect(syncResult).toHaveLength(2);
+
+  expect(syncResult[0]!.type).toBe("block");
+  expect(syncResult[1]!.type).toBe("block");
+
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
 });
 
@@ -213,10 +211,8 @@ test("sync() catches error", async (context) => {
     chain,
     rpc,
     sources,
-    onEvent: vi.fn(() => Promise.resolve({ promise: Promise.resolve() })),
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
-    initialChildAddresses: new Map(),
+    childAddresses: new Map(),
   });
 
   await testClient.mine({ blocks: 1 });
@@ -225,9 +221,9 @@ test("sync() catches error", async (context) => {
   const requestSpy = vi.spyOn(rpc, "request");
   requestSpy.mockRejectedValueOnce(new Error());
 
-  const syncResult = await realtimeSync.sync(block);
+  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
-  expect(syncResult.type).toBe("rejected");
+  expect(syncResult).toHaveLength(0);
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
 });
@@ -256,13 +252,6 @@ test("handleBlock() block event with log", async (context) => {
     rawIndexingFunctions,
   });
 
-  const data: Extract<RealtimeSyncEvent, { type: "block" }>[] = [];
-
-  const onEvent = vi.fn(async (_data) => {
-    data.push(_data);
-    return { promise: Promise.resolve() };
-  });
-
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
   const realtimeSync = createRealtimeSync({
@@ -270,21 +259,20 @@ test("handleBlock() block event with log", async (context) => {
     chain,
     rpc,
     sources,
-    onEvent,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
-    initialChildAddresses: new Map(),
+    childAddresses: new Map(),
   });
 
   const block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
 
-  await realtimeSync.sync(block);
+  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 
-  expect(onEvent).toHaveBeenCalledTimes(1);
-  expect(onEvent).toHaveBeenCalledWith({
+  expect(syncResult).toHaveLength(1);
+  expect(syncResult[0]).toStrictEqual({
     type: "block",
+    blockCallback: undefined,
     hasMatchedFilter: true,
     block: expect.any(Object),
     logs: expect.any(Object),
@@ -294,10 +282,20 @@ test("handleBlock() block event with log", async (context) => {
     childAddresses: expect.any(Object),
   });
 
-  expect(data[0]?.block.number).toBe("0x2");
-  expect(data[0]?.logs).toHaveLength(1);
-  expect(data[0]?.traces).toHaveLength(0);
-  expect(data[0]?.transactions).toHaveLength(1);
+  expect(
+    (syncResult[0] as Extract<RealtimeSyncEvent, { type: "block" }>)?.block
+      .number,
+  ).toBe("0x2");
+  expect(
+    (syncResult[0] as Extract<RealtimeSyncEvent, { type: "block" }>)?.logs,
+  ).toHaveLength(1);
+  expect(
+    (syncResult[0] as Extract<RealtimeSyncEvent, { type: "block" }>)?.traces,
+  ).toHaveLength(0);
+  expect(
+    (syncResult[0] as Extract<RealtimeSyncEvent, { type: "block" }>)
+      ?.transactions,
+  ).toHaveLength(1);
 });
 
 test("handleBlock() block event with log factory", async (context) => {
@@ -332,13 +330,6 @@ test("handleBlock() block event with log factory", async (context) => {
 
   const filter = sources[0]!.filter as LogFilter<LogFactory>;
 
-  const data: Extract<RealtimeSyncEvent, { type: "block" }>[] = [];
-
-  const onEvent = vi.fn(async (_data) => {
-    data.push(_data);
-    return { promise: Promise.resolve() };
-  });
-
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
   const realtimeSync = createRealtimeSync({
@@ -346,25 +337,43 @@ test("handleBlock() block event with log factory", async (context) => {
     chain,
     rpc,
     sources,
-    onEvent,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
-    initialChildAddresses: new Map([[filter.address.id, new Map()]]),
+    childAddresses: new Map([[filter.address.id, new Map()]]),
   });
 
   let block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
 
-  await realtimeSync.sync(block);
+  const syncResult1 = await drainAsyncGenerator(realtimeSync.sync(block));
 
   block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
 
-  await realtimeSync.sync(block);
+  const syncResult2 = await drainAsyncGenerator(realtimeSync.sync(block));
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
 
-  expect(onEvent).toHaveBeenCalledTimes(2);
-  expect(onEvent).toHaveBeenCalledWith({
+  expect(syncResult1).toHaveLength(1);
+  expect(syncResult2).toHaveLength(1);
+
+  const data = [...syncResult1, ...syncResult2] as Extract<
+    RealtimeSyncEvent,
+    { type: "block" }
+  >[];
+
+  expect(data[0]).toStrictEqual({
     type: "block",
+    blockCallback: undefined,
+    hasMatchedFilter: false,
+    block: expect.any(Object),
+    logs: expect.any(Object),
+    transactions: expect.any(Object),
+    traces: expect.any(Object),
+    transactionReceipts: expect.any(Object),
+    childAddresses: expect.any(Object),
+  });
+
+  expect(data[1]).toStrictEqual({
+    type: "block",
+    blockCallback: undefined,
     hasMatchedFilter: true,
     block: expect.any(Object),
     logs: expect.any(Object),
@@ -434,13 +443,6 @@ test("handleBlock() block event with block", async (context) => {
     rawIndexingFunctions,
   });
 
-  const data: Extract<RealtimeSyncEvent, { type: "block" }>[] = [];
-
-  const onEvent = vi.fn(async (_data) => {
-    data.push(_data);
-    return { promise: Promise.resolve() };
-  });
-
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
 
   const realtimeSync = createRealtimeSync({
@@ -448,22 +450,21 @@ test("handleBlock() block event with block", async (context) => {
     chain,
     rpc,
     sources,
-    onEvent,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
-    initialChildAddresses: new Map(),
+    childAddresses: new Map(),
   });
 
   await testClient.mine({ blocks: 1 });
   const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
-  await realtimeSync.sync(block);
+  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 
-  expect(onEvent).toHaveBeenCalledTimes(1);
-  expect(onEvent).toHaveBeenCalledWith({
+  expect(syncResult).toHaveLength(1);
+  expect(syncResult[0]).toStrictEqual({
     type: "block",
+    blockCallback: undefined,
     hasMatchedFilter: true,
     block: expect.any(Object),
     logs: expect.any(Object),
@@ -473,6 +474,7 @@ test("handleBlock() block event with block", async (context) => {
     childAddresses: expect.any(Object),
   });
 
+  const data = syncResult as Extract<RealtimeSyncEvent, { type: "block" }>[];
   expect(data[0]?.block.number).toBe("0x1");
   expect(data[0]?.logs).toHaveLength(0);
   expect(data[0]?.traces).toHaveLength(0);
@@ -502,13 +504,6 @@ test("handleBlock() block event with transaction", async (context) => {
     rawIndexingFunctions,
   });
 
-  const data: Extract<RealtimeSyncEvent, { type: "block" }>[] = [];
-
-  const onEvent = vi.fn(async (_data) => {
-    data.push(_data);
-    return { promise: Promise.resolve() };
-  });
-
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
 
   const realtimeSync = createRealtimeSync({
@@ -516,21 +511,20 @@ test("handleBlock() block event with transaction", async (context) => {
     chain,
     rpc,
     sources: sources.filter(({ filter }) => filter.type === "transaction"),
-    onEvent,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
-    initialChildAddresses: new Map(),
+    childAddresses: new Map(),
   });
 
   const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
-  await realtimeSync.sync(block);
+  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 
-  expect(onEvent).toHaveBeenCalledTimes(1);
-  expect(onEvent).toHaveBeenCalledWith({
+  expect(syncResult).toHaveLength(1);
+  expect(syncResult[0]).toStrictEqual({
     type: "block",
+    blockCallback: undefined,
     hasMatchedFilter: true,
     block: expect.any(Object),
     logs: expect.any(Object),
@@ -540,6 +534,7 @@ test("handleBlock() block event with transaction", async (context) => {
     childAddresses: expect.any(Object),
   });
 
+  const data = syncResult as Extract<RealtimeSyncEvent, { type: "block" }>[];
   expect(data[0]?.block.number).toBe("0x1");
   expect(data[0]?.logs).toHaveLength(0);
   expect(data[0]?.traces).toHaveLength(0);
@@ -592,13 +587,6 @@ test("handleBlock() block event with transfer", async (context) => {
     return rpc.request(request);
   };
 
-  const data: Extract<RealtimeSyncEvent, { type: "block" }>[] = [];
-
-  const onEvent = vi.fn(async (_data) => {
-    data.push(_data);
-    return { promise: Promise.resolve() };
-  });
-
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
 
   const realtimeSync = createRealtimeSync({
@@ -609,21 +597,20 @@ test("handleBlock() block event with transfer", async (context) => {
       request,
     },
     sources,
-    onEvent,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
-    initialChildAddresses: new Map(),
+    childAddresses: new Map(),
   });
 
   const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
-  await realtimeSync.sync(block);
+  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 
-  expect(onEvent).toHaveBeenCalledTimes(1);
-  expect(onEvent).toHaveBeenCalledWith({
+  expect(syncResult).toHaveLength(1);
+  expect(syncResult[0]).toStrictEqual({
     type: "block",
+    blockCallback: undefined,
     hasMatchedFilter: true,
     block: expect.any(Object),
     logs: expect.any(Object),
@@ -633,6 +620,7 @@ test("handleBlock() block event with transfer", async (context) => {
     childAddresses: expect.any(Object),
   });
 
+  const data = syncResult as Extract<RealtimeSyncEvent, { type: "block" }>[];
   expect(data[0]?.block.number).toBe("0x1");
   expect(data[0]?.logs).toHaveLength(0);
   expect(data[0]?.traces).toHaveLength(1);
@@ -725,13 +713,6 @@ test("handleBlock() block event with trace", async (context) => {
     return rpc.request(request);
   };
 
-  const data: Extract<RealtimeSyncEvent, { type: "block" }>[] = [];
-
-  const onEvent = vi.fn(async (_data) => {
-    data.push(_data);
-    return { promise: Promise.resolve() };
-  });
-
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
   const realtimeSync = createRealtimeSync({
@@ -743,28 +724,22 @@ test("handleBlock() block event with trace", async (context) => {
       request,
     },
     sources,
-    onEvent,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
-    initialChildAddresses: new Map(),
+    childAddresses: new Map(),
   });
 
-  await realtimeSync.sync(block2);
-  await realtimeSync.sync(block3);
+  const syncResult1 = await drainAsyncGenerator(realtimeSync.sync(block2));
+  const syncResult2 = await drainAsyncGenerator(realtimeSync.sync(block3));
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
 
-  expect(onEvent).toHaveBeenCalledTimes(2);
-  expect(onEvent).toHaveBeenCalledWith({
-    type: "block",
-    hasMatchedFilter: true,
-    block: expect.any(Object),
-    logs: expect.any(Object),
-    transactions: expect.any(Object),
-    traces: expect.any(Object),
-    transactionReceipts: expect.any(Object),
-    childAddresses: expect.any(Object),
-  });
+  expect(syncResult1).toHaveLength(1);
+  expect(syncResult2).toHaveLength(1);
+
+  const data = [...syncResult1, ...syncResult2] as Extract<
+    RealtimeSyncEvent,
+    { type: "block" }
+  >[];
 
   expect(data[0]?.block.number).toBe("0x2");
   expect(data[1]?.block.number).toBe("0x3");
@@ -803,50 +778,45 @@ test("handleBlock() finalize event", async (context) => {
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
 
-  const data: Extract<RealtimeSyncEvent, { type: "finalize" }>[] = [];
-
-  const onEvent = vi.fn(async (_data) => {
-    if (_data.type === "finalize") data.push(_data);
-    return { promise: Promise.resolve() };
-  });
-
   const realtimeSync = createRealtimeSync({
     common,
     chain,
     rpc,
     sources,
-    onEvent,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
-    initialChildAddresses: new Map(),
+    childAddresses: new Map(),
   });
 
   await testClient.mine({ blocks: 4 });
 
   let block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
-  await realtimeSync.sync(block);
+  await drainAsyncGenerator(realtimeSync.sync(block));
 
   block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
 
-  await realtimeSync.sync(block);
+  await drainAsyncGenerator(realtimeSync.sync(block));
 
   block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
 
-  await realtimeSync.sync(block);
+  await drainAsyncGenerator(realtimeSync.sync(block));
 
   block = await _eth_getBlockByNumber(rpc, { blockNumber: 4 });
 
-  await realtimeSync.sync(block);
+  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
-  expect(onEvent).toHaveBeenCalledWith({
+  expect(syncResult).toHaveLength(2);
+  expect(syncResult[1]).toStrictEqual({
     type: "finalize",
     block: expect.any(Object),
   });
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
 
-  expect(data[0]?.block.number).toBe("0x2");
+  expect(
+    (syncResult[1] as Extract<RealtimeSyncEvent, { type: "finalize" }>).block
+      .number,
+  ).toBe("0x2");
 });
 
 test("handleReorg() finds common ancestor", async (context) => {
@@ -870,39 +840,36 @@ test("handleReorg() finds common ancestor", async (context) => {
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
 
-  const onEvent = vi.fn(() => Promise.resolve({ promise: Promise.resolve() }));
-
   const realtimeSync = createRealtimeSync({
     common,
     chain,
     rpc,
     sources,
-    onEvent,
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
-    initialChildAddresses: new Map(),
+    childAddresses: new Map(),
   });
 
   await testClient.mine({ blocks: 1 });
   let block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
-  await realtimeSync.sync(block);
+  await drainAsyncGenerator(realtimeSync.sync(block));
 
   await testClient.mine({ blocks: 1 });
   block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
 
-  await realtimeSync.sync(block);
+  await drainAsyncGenerator(realtimeSync.sync(block));
 
   await testClient.mine({ blocks: 1 });
   block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
 
-  await realtimeSync.sync(block);
+  await drainAsyncGenerator(realtimeSync.sync(block));
 
   block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
 
-  await realtimeSync.sync(block);
+  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
-  expect(onEvent).toHaveBeenCalledWith({
+  expect(syncResult).toHaveLength(1);
+  expect(syncResult[0]).toStrictEqual({
     type: "reorg",
     block: expect.any(Object),
     reorgedBlocks: [expect.any(Object), expect.any(Object)],
@@ -937,35 +904,35 @@ test("handleReorg() throws error for deep reorg", async (context) => {
     chain,
     rpc,
     sources,
-    onEvent: vi.fn(() => Promise.resolve({ promise: Promise.resolve() })),
-    onFatalError: vi.fn(),
     syncProgress: { finalized: finalizedBlock },
-    initialChildAddresses: new Map(),
+    childAddresses: new Map(),
   });
 
   await testClient.mine({ blocks: 1 });
   let block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
-  await realtimeSync.sync(block);
+  await drainAsyncGenerator(realtimeSync.sync(block));
 
   await testClient.mine({ blocks: 1 });
   block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
 
-  await realtimeSync.sync(block);
+  await drainAsyncGenerator(realtimeSync.sync(block));
 
   await testClient.mine({ blocks: 1 });
   block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
 
-  await realtimeSync.sync(block);
+  await drainAsyncGenerator(realtimeSync.sync(block));
 
   block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
 
-  await realtimeSync.sync({
-    ...block,
-    number: "0x4",
-    hash: "0x0000000000000000000000000000000000000000000000000000000000000000",
-    parentHash: realtimeSync.unfinalizedBlocks[1]!.hash,
-  });
+  await drainAsyncGenerator(
+    realtimeSync.sync({
+      ...block,
+      number: "0x4",
+      hash: "0x0000000000000000000000000000000000000000000000000000000000000000",
+      parentHash: realtimeSync.unfinalizedBlocks[1]!.hash,
+    }),
+  );
 
   // block 4 is not added to `unfinalizedBlocks`
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(3);

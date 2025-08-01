@@ -1,14 +1,3 @@
-export class BaseError extends Error {
-  override name = "BaseError";
-
-  meta: string[] = [];
-
-  constructor(message?: string | undefined) {
-    super(message);
-    Object.setPrototypeOf(this, BaseError.prototype);
-  }
-}
-
 export function getBaseError(err: any) {
   if (err instanceof BaseError) return err;
   if (err instanceof Error) return new BaseError(err.message);
@@ -17,7 +6,48 @@ export function getBaseError(err: any) {
   return new BaseError("unknown error");
 }
 
-export class BuildError extends BaseError {
+/** Base class for all known errors. */
+export class BaseError extends Error {
+  override name = "BaseError";
+
+  meta: string[] = [];
+
+  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
+    super(message, { cause });
+    Object.setPrototypeOf(this, BaseError.prototype);
+  }
+}
+
+/** Error caused by user code. Should not be retried. */
+export class NonRetryableUserError extends BaseError {
+  override name = "NonRetryableUserError";
+
+  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
+    super(message, { cause });
+    Object.setPrototypeOf(this, NonRetryableUserError.prototype);
+  }
+}
+
+/** Error that may succeed if tried again. */
+export class RetryableError extends BaseError {
+  override name = "RetryableError";
+
+  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
+    super(message, { cause });
+    Object.setPrototypeOf(this, RetryableError.prototype);
+  }
+}
+
+export class ShutdownError extends NonRetryableUserError {
+  override name = "ShutdownError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, ShutdownError.prototype);
+  }
+}
+
+export class BuildError extends NonRetryableUserError {
   override name = "BuildError";
 
   constructor(message?: string | undefined) {
@@ -26,27 +56,18 @@ export class BuildError extends BaseError {
   }
 }
 
-export class NonRetryableError extends BaseError {
-  override name = "NonRetryableError";
+export class MigrationError extends NonRetryableUserError {
+  override name = "MigrationError";
 
   constructor(message?: string | undefined) {
     super(message);
-    Object.setPrototypeOf(this, NonRetryableError.prototype);
+    Object.setPrototypeOf(this, MigrationError.prototype);
   }
 }
 
-// Indexing store errors
+// Non-retryable database errors
 
-export class StoreError extends NonRetryableError {
-  override name = "StoreError";
-
-  constructor(message?: string | undefined) {
-    super(message);
-    Object.setPrototypeOf(this, StoreError.prototype);
-  }
-}
-
-export class UniqueConstraintError extends NonRetryableError {
+export class UniqueConstraintError extends NonRetryableUserError {
   override name = "UniqueConstraintError";
 
   constructor(message?: string | undefined) {
@@ -55,7 +76,7 @@ export class UniqueConstraintError extends NonRetryableError {
   }
 }
 
-export class NotNullConstraintError extends NonRetryableError {
+export class NotNullConstraintError extends NonRetryableUserError {
   override name = "NotNullConstraintError";
 
   constructor(message?: string | undefined) {
@@ -64,7 +85,7 @@ export class NotNullConstraintError extends NonRetryableError {
   }
 }
 
-export class RecordNotFoundError extends NonRetryableError {
+export class RecordNotFoundError extends NonRetryableUserError {
   override name = "RecordNotFoundError";
 
   constructor(message?: string | undefined) {
@@ -73,7 +94,7 @@ export class RecordNotFoundError extends NonRetryableError {
   }
 }
 
-export class CheckConstraintError extends NonRetryableError {
+export class CheckConstraintError extends NonRetryableUserError {
   override name = "CheckConstraintError";
 
   constructor(message?: string | undefined) {
@@ -82,7 +103,38 @@ export class CheckConstraintError extends NonRetryableError {
   }
 }
 
-export class InvalidStoreMethodError extends NonRetryableError {
+// Retryable database errors
+
+export class DbConnectionError extends RetryableError {
+  override name = "DbConnectionError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, DbConnectionError.prototype);
+  }
+}
+
+export class TransactionStatementError extends RetryableError {
+  override name = "TransactionStatementError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, TransactionStatementError.prototype);
+  }
+}
+
+export class CopyFlushError extends RetryableError {
+  override name = "CopyFlushError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, CopyFlushError.prototype);
+  }
+}
+
+// Non-retryable indexing store errors
+
+export class InvalidStoreMethodError extends NonRetryableUserError {
   override name = "InvalidStoreMethodError";
 
   constructor(message?: string | undefined) {
@@ -91,7 +143,7 @@ export class InvalidStoreMethodError extends NonRetryableError {
   }
 }
 
-export class UndefinedTableError extends NonRetryableError {
+export class UndefinedTableError extends NonRetryableUserError {
   override name = "UndefinedTableError";
 
   constructor(message?: string | undefined) {
@@ -100,7 +152,7 @@ export class UndefinedTableError extends NonRetryableError {
   }
 }
 
-export class BigIntSerializationError extends NonRetryableError {
+export class BigIntSerializationError extends NonRetryableUserError {
   override name = "BigIntSerializationError";
 
   constructor(message?: string | undefined) {
@@ -109,20 +161,29 @@ export class BigIntSerializationError extends NonRetryableError {
   }
 }
 
-export class FlushError extends NonRetryableError {
-  override name = "FlushError";
+export class DelayedInsertError extends NonRetryableUserError {
+  override name = "DelayedInsertError";
 
   constructor(message?: string | undefined) {
     super(message);
-    Object.setPrototypeOf(this, FlushError.prototype);
+    Object.setPrototypeOf(this, DelayedInsertError.prototype);
   }
 }
 
-export class ShutdownError extends NonRetryableError {
-  override name = "ShutdownError";
+export class RawSqlError extends NonRetryableUserError {
+  override name = "RawSqlError";
 
   constructor(message?: string | undefined) {
     super(message);
-    Object.setPrototypeOf(this, ShutdownError.prototype);
+    Object.setPrototypeOf(this, RawSqlError.prototype);
+  }
+}
+
+export class IndexingFunctionError extends NonRetryableUserError {
+  override name = "IndexingFunctionError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, IndexingFunctionError.prototype);
   }
 }

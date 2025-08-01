@@ -55,7 +55,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   const build = await createBuild({ common, cliOptions });
 
-  const exit = createExit({ common });
+  const exit = createExit({ common, options });
   const namespaceResult = build.namespaceCompile();
 
   if (namespaceResult.status === "error") {
@@ -76,7 +76,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   const buildResult1 = mergeResults([
-    build.preCompile(configResult.result),
+    await build.preCompile(configResult.result),
     build.compileSchema(schemaResult.result),
   ]);
 

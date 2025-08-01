@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/node-postgres";
 import seedrandom from "seedrandom";
 import {
   type Address,
@@ -16,7 +15,7 @@ import { zeroLogsBloom } from "../../packages/core/src/sync-realtime/bloom.js";
 import { promiseWithResolvers } from "../../packages/core/src/utils/promiseWithResolvers.js";
 import { createQueue } from "../../packages/core/src/utils/queue.js";
 import * as RPC_SCHEMA from "../schema.js";
-import { SEED, SIM_PARAMS } from "./index.js";
+import { DB, SEED, SIM_PARAMS } from "./index.js";
 
 const PONDER_RPC_METHODS = [
   "eth_getBlockByNumber",
@@ -43,7 +42,7 @@ const FIFO_QUEUE = createQueue<any, () => Promise<any>>({
  * @dev If `connectionString` is provided, rpc requests will be served from the "ponder_sync" schema.
  */
 export const sim =
-  (transport: Transport, connectionString?: string): Transport =>
+  (transport: Transport): Transport =>
   ({ chain }) => {
     const requestCount = new Map<string, number>();
 
@@ -52,12 +51,6 @@ export const sim =
     }
 
     const _request = transport({ chain }).request;
-    const db = connectionString
-      ? drizzle(connectionString, {
-          casing: "snake_case",
-          schema: RPC_SCHEMA,
-        })
-      : undefined;
 
     const request = async (body: any) => {
       if (PONDER_RPC_METHODS.includes(body.method) === false) {
@@ -121,139 +114,78 @@ export const sim =
 
       let result: unknown;
 
-      if (db) {
-        switch (body.method) {
-          case "eth_getBlockByNumber": {
-            const block = await db
-              .select({ body: RPC_SCHEMA.blocks.body })
-              .from(RPC_SCHEMA.blocks)
-              .where(
-                and(
-                  eq(RPC_SCHEMA.blocks.chainId, chain!.id),
-                  eq(RPC_SCHEMA.blocks.number, hexToNumber(body.params[0])),
-                ),
-              )
-              .then((blocks) => blocks[0]);
+      switch (body.method) {
+        case "eth_getBlockByNumber": {
+          const block = await DB.select({ body: RPC_SCHEMA.blocks.body })
+            .from(RPC_SCHEMA.blocks)
+            .where(
+              and(
+                eq(RPC_SCHEMA.blocks.chainId, chain!.id),
+                eq(RPC_SCHEMA.blocks.number, hexToNumber(body.params[0])),
+              ),
+            )
+            .then((blocks) => blocks[0]);
 
-            if (block) {
-              result = block.body;
-            } else {
-              result = await _request(body);
-              await db
-                .insert(RPC_SCHEMA.blocks)
-                .values({
-                  chainId: chain!.id,
-                  number: hexToNumber(body.params[0]),
-                  // @ts-expect-error
-                  hash: result.hash,
-                  body: result,
-                })
-                .onConflictDoNothing();
-            }
-
-            break;
+          if (block) {
+            result = block.body;
+          } else {
+            result = await _request(body);
+            await DB.insert(RPC_SCHEMA.blocks)
+              .values({
+                chainId: chain!.id,
+                number: hexToNumber(body.params[0]),
+                // @ts-expect-error
+                hash: result.hash,
+                body: result,
+              })
+              .onConflictDoNothing();
           }
-          case "eth_getBlockByHash": {
-            const block = await db
-              .select({ body: RPC_SCHEMA.blocks.body })
-              .from(RPC_SCHEMA.blocks)
-              .where(
-                and(
-                  eq(RPC_SCHEMA.blocks.chainId, chain!.id),
-                  eq(RPC_SCHEMA.blocks.hash, body.params[0]),
-                ),
-              )
-              .then((blocks) => blocks[0]);
 
-            if (block) {
-              result = block.body;
-            } else {
-              result = await _request(body);
-              await db
-                .insert(RPC_SCHEMA.blocks)
-                .values({
-                  chainId: chain!.id,
-                  // @ts-expect-error
-                  number: hexToNumber(result.number),
-                  hash: body.params[0],
-                  body: result,
-                })
-                .onConflictDoNothing();
-            }
+          break;
+        }
+        case "eth_getBlockByHash": {
+          const block = await DB.select({ body: RPC_SCHEMA.blocks.body })
+            .from(RPC_SCHEMA.blocks)
+            .where(
+              and(
+                eq(RPC_SCHEMA.blocks.chainId, chain!.id),
+                eq(RPC_SCHEMA.blocks.hash, body.params[0]),
+              ),
+            )
+            .then((blocks) => blocks[0]);
 
-            break;
+          if (block) {
+            result = block.body;
+          } else {
+            result = await _request(body);
+            await DB.insert(RPC_SCHEMA.blocks)
+              .values({
+                chainId: chain!.id,
+                // @ts-expect-error
+                number: hexToNumber(result.number),
+                hash: body.params[0],
+                body: result,
+              })
+              .onConflictDoNothing();
           }
-          case "eth_getLogs": {
-            let logs: RpcLog[] = [];
 
-            if ("fromBlock" in body.params[0] && "toBlock" in body.params[0]) {
-              for (
-                let block = +body.params[0].fromBlock;
-                block <= +body.params[0].toBlock;
-                block++
-              ) {
-                const _logs = await db
-                  .select({ body: RPC_SCHEMA.logs.body })
-                  .from(RPC_SCHEMA.logs)
-                  .where(
-                    and(
-                      eq(RPC_SCHEMA.logs.chainId, chain!.id),
-                      eq(RPC_SCHEMA.logs.blockNumber, block),
-                    ),
-                  )
-                  .then((logs) => logs[0]);
+          break;
+        }
+        case "eth_getLogs": {
+          let logs: RpcLog[] = [];
 
-                if (_logs) {
-                  logs.push(...(_logs.body as RpcLog[]));
-                } else {
-                  const rpcLogs = await _request({
-                    method: "eth_getLogs",
-                    params: [
-                      {
-                        fromBlock: toHex(block),
-                        toBlock: toHex(block),
-                      },
-                    ],
-                  });
-                  // @ts-expect-error
-                  logs.push(...rpcLogs);
-                  await db
-                    .insert(RPC_SCHEMA.logs)
-                    .values({
-                      chainId: chain!.id,
-                      blockNumber: block,
-                      body: rpcLogs,
-                    })
-                    .onConflictDoNothing();
-                }
-              }
-            } else if ("blockHash" in body.params[0]) {
-              const block = await db
-                .select({ number: RPC_SCHEMA.blocks.number })
-                .from(RPC_SCHEMA.blocks)
-                .where(
-                  and(
-                    eq(RPC_SCHEMA.blocks.chainId, chain!.id),
-                    eq(RPC_SCHEMA.blocks.hash, body.params[0].blockHash),
-                  ),
-                )
-                .then((blocks) => blocks[0]);
-
-              // block won't be in db if it's a reorg
-              if (block === undefined) {
-                result = [];
-                break;
-              }
-
-              const number = block.number;
-
-              const _logs = await db
-                .select({ body: RPC_SCHEMA.logs.body })
+          if ("fromBlock" in body.params[0] && "toBlock" in body.params[0]) {
+            for (
+              let block = +body.params[0].fromBlock;
+              block <= +body.params[0].toBlock;
+              block++
+            ) {
+              const _logs = await DB.select({ body: RPC_SCHEMA.logs.body })
                 .from(RPC_SCHEMA.logs)
                 .where(
                   and(
                     eq(RPC_SCHEMA.logs.chainId, chain!.id),
-                    eq(RPC_SCHEMA.logs.blockNumber, number),
+                    eq(RPC_SCHEMA.logs.blockNumber, block),
                   ),
                 )
                 .then((logs) => logs[0]);
@@ -261,168 +193,38 @@ export const sim =
               if (_logs) {
                 logs.push(...(_logs.body as RpcLog[]));
               } else {
-                const rpcLogs = await _request(body);
+                const rpcLogs = await _request({
+                  method: "eth_getLogs",
+                  params: [
+                    {
+                      fromBlock: toHex(block),
+                      toBlock: toHex(block),
+                    },
+                  ],
+                });
                 // @ts-expect-error
                 logs.push(...rpcLogs);
-                await db
-                  .insert(RPC_SCHEMA.logs)
+                await DB.insert(RPC_SCHEMA.logs)
                   .values({
                     chainId: chain!.id,
-                    blockNumber: number,
+                    blockNumber: block,
                     body: rpcLogs,
                   })
                   .onConflictDoNothing();
               }
-            } else {
-              throw new Error("Invariant broken. Invalid eth_getLogs request.");
             }
-
-            if ("address" in body.params[0] && body.params[0].address) {
-              if (Array.isArray(body.params[0].address)) {
-                logs = logs.filter((log) =>
-                  (body.params[0].address as Address[]).some(
-                    (address) =>
-                      address.toLowerCase() === log.address.toLowerCase(),
-                  ),
-                );
-              } else {
-                logs = logs.filter(
-                  (log) =>
-                    body.params[0].address.toLowerCase() ===
-                    log.address.toLowerCase(),
-                );
-              }
-            }
-
-            if ("topics" in body.params[0] && body.params[0].topics) {
-              for (let i = 0; i < body.params[0].topics.length; i++) {
-                if (Array.isArray(body.params[0].topics[i])) {
-                  logs = logs.filter((log) =>
-                    (body.params[0].topics[i] as Hash[]).includes(
-                      log.topics[i]!,
-                    ),
-                  );
-                } else if (body.params[0].topics[i] !== null) {
-                  logs = logs.filter(
-                    (log) => body.params[0].topics[i] === log.topics[i]!,
-                  );
-                }
-              }
-            }
-
-            result = logs;
-
-            break;
-          }
-          case "eth_getTransactionReceipt": {
-            const receipt = await db
-              .select()
-              .from(RPC_SCHEMA.transactionReceipts)
-              .where(
-                and(
-                  eq(RPC_SCHEMA.transactionReceipts.chainId, chain!.id),
-                  eq(
-                    RPC_SCHEMA.transactionReceipts.transactionHash,
-                    body.params[0],
-                  ),
-                ),
-              )
-              .then((receipts) => receipts[0]);
-
-            if (receipt) {
-              result = receipt.body;
-            } else {
-              result = await _request(body);
-              // @ts-ignore
-              result.logs = undefined;
-
-              await db
-                .insert(RPC_SCHEMA.transactionReceipts)
-                .values({
-                  chainId: chain!.id,
-                  transactionHash: body.params[0],
-                  body: result,
-                })
-                .onConflictDoNothing();
-            }
-
-            break;
-          }
-          case "eth_getBlockReceipts": {
-            // Note: this assumes all eth_getBlockReceipts requests use block hash.
-            const receipt = await db
-              .select()
-              .from(RPC_SCHEMA.blockReceipts)
-              .where(
-                and(
-                  eq(RPC_SCHEMA.blockReceipts.chainId, chain!.id),
-                  eq(RPC_SCHEMA.blockReceipts.blockHash, body.params[0]),
-                ),
-              )
-              .then((receipts) => receipts[0]);
-
-            if (receipt) {
-              result = receipt.body;
-            } else {
-              result = await _request(body);
-              // @ts-ignore
-              for (const receipt of result) {
-                receipt.logs = undefined;
-              }
-
-              await db
-                .insert(RPC_SCHEMA.blockReceipts)
-                .values({
-                  chainId: chain!.id,
-                  blockHash: body.params[0],
-                  body: result,
-                })
-                .onConflictDoNothing();
-            }
-
-            break;
-          }
-          case "debug_traceBlockByNumber": {
-            const traces = await db
-              .select({ body: RPC_SCHEMA.traces.body })
-              .from(RPC_SCHEMA.traces)
-              .where(
-                and(
-                  eq(RPC_SCHEMA.traces.chainId, chain!.id),
-                  eq(RPC_SCHEMA.traces.number, hexToNumber(body.params[0])),
-                ),
-              )
-              .then((traces) => traces[0]);
-
-            if (traces) {
-              result = traces.body;
-            } else {
-              result = await _request(body);
-              await db
-                .insert(RPC_SCHEMA.traces)
-                .values({
-                  chainId: chain!.id,
-                  number: hexToNumber(body.params[0]),
-                  body: JSON.stringify(result).replace(/\0/g, ""),
-                })
-                .onConflictDoNothing();
-            }
-
-            break;
-          }
-          case "debug_traceBlockByHash": {
-            const block = await db
-              .select({ number: RPC_SCHEMA.blocks.number })
+          } else if ("blockHash" in body.params[0]) {
+            const block = await DB.select({ number: RPC_SCHEMA.blocks.number })
               .from(RPC_SCHEMA.blocks)
               .where(
                 and(
                   eq(RPC_SCHEMA.blocks.chainId, chain!.id),
-                  eq(RPC_SCHEMA.blocks.hash, body.params[0]),
+                  eq(RPC_SCHEMA.blocks.hash, body.params[0].blockHash),
                 ),
               )
               .then((blocks) => blocks[0]);
 
-            // block won't be in db if it's a reorg
+            // block won't be in DB if it's a reorg
             if (block === undefined) {
               result = [];
               break;
@@ -430,62 +232,229 @@ export const sim =
 
             const number = block.number;
 
-            const traces = await db
-              .select({ body: RPC_SCHEMA.traces.body })
-              .from(RPC_SCHEMA.traces)
+            const _logs = await DB.select({ body: RPC_SCHEMA.logs.body })
+              .from(RPC_SCHEMA.logs)
               .where(
                 and(
-                  eq(RPC_SCHEMA.traces.chainId, chain!.id),
-                  eq(RPC_SCHEMA.traces.number, number),
+                  eq(RPC_SCHEMA.logs.chainId, chain!.id),
+                  eq(RPC_SCHEMA.logs.blockNumber, number),
                 ),
               )
-              .then((traces) => traces[0]);
+              .then((logs) => logs[0]);
 
-            if (traces) {
-              result = traces.body;
+            if (_logs) {
+              logs.push(...(_logs.body as RpcLog[]));
             } else {
-              result = await _request(body);
-              await db
-                .insert(RPC_SCHEMA.traces)
+              const rpcLogs = await _request(body);
+              // @ts-expect-error
+              logs.push(...rpcLogs);
+              await DB.insert(RPC_SCHEMA.logs)
                 .values({
                   chainId: chain!.id,
-                  number,
-                  body: JSON.stringify(result).replace(/\0/g, ""),
+                  blockNumber: number,
+                  body: rpcLogs,
                 })
                 .onConflictDoNothing();
             }
-
-            break;
+          } else {
+            throw new Error("Invariant broken. Invalid eth_getLogs request.");
           }
-          case "eth_call": {
-            const call = await db
-              .select({ body: RPC_SCHEMA.calls.body })
-              .from(RPC_SCHEMA.calls)
-              .where(
-                and(
-                  eq(RPC_SCHEMA.calls.chainId, chain!.id),
-                  eq(RPC_SCHEMA.calls.request, body.params),
-                ),
-              )
-              .limit(1)
-              .then((calls) => calls[0]);
 
-            if (call) {
-              result = call.body;
+          if ("address" in body.params[0] && body.params[0].address) {
+            if (Array.isArray(body.params[0].address)) {
+              logs = logs.filter((log) =>
+                (body.params[0].address as Address[]).some(
+                  (address) =>
+                    address.toLowerCase() === log.address.toLowerCase(),
+                ),
+              );
             } else {
-              result = await _request(body);
-              await db
-                .insert(RPC_SCHEMA.calls)
-                .values({
-                  chainId: chain!.id,
-                  request: body.params,
-                  body: result,
-                })
-                .onConflictDoNothing();
+              logs = logs.filter(
+                (log) =>
+                  body.params[0].address.toLowerCase() ===
+                  log.address.toLowerCase(),
+              );
+            }
+          }
+
+          if ("topics" in body.params[0] && body.params[0].topics) {
+            for (let i = 0; i < body.params[0].topics.length; i++) {
+              if (Array.isArray(body.params[0].topics[i])) {
+                logs = logs.filter((log) =>
+                  (body.params[0].topics[i] as Hash[]).includes(log.topics[i]!),
+                );
+              } else if (body.params[0].topics[i] !== null) {
+                logs = logs.filter(
+                  (log) => body.params[0].topics[i] === log.topics[i]!,
+                );
+              }
+            }
+          }
+
+          result = logs;
+
+          break;
+        }
+        case "eth_getTransactionReceipt": {
+          const receipt = await DB.select()
+            .from(RPC_SCHEMA.transactionReceipts)
+            .where(
+              and(
+                eq(RPC_SCHEMA.transactionReceipts.chainId, chain!.id),
+                eq(
+                  RPC_SCHEMA.transactionReceipts.transactionHash,
+                  body.params[0],
+                ),
+              ),
+            )
+            .then((receipts) => receipts[0]);
+
+          if (receipt) {
+            result = receipt.body;
+          } else {
+            result = await _request(body);
+            // @ts-ignore
+            result.logs = undefined;
+
+            await DB.insert(RPC_SCHEMA.transactionReceipts)
+              .values({
+                chainId: chain!.id,
+                transactionHash: body.params[0],
+                body: result,
+              })
+              .onConflictDoNothing();
+          }
+
+          break;
+        }
+        case "eth_getBlockReceipts": {
+          // Note: this assumes all eth_getBlockReceipts requests use block hash.
+          const receipt = await DB.select()
+            .from(RPC_SCHEMA.blockReceipts)
+            .where(
+              and(
+                eq(RPC_SCHEMA.blockReceipts.chainId, chain!.id),
+                eq(RPC_SCHEMA.blockReceipts.blockHash, body.params[0]),
+              ),
+            )
+            .then((receipts) => receipts[0]);
+
+          if (receipt) {
+            result = receipt.body;
+          } else {
+            result = await _request(body);
+            // @ts-ignore
+            for (const receipt of result) {
+              receipt.logs = undefined;
             }
 
+            await DB.insert(RPC_SCHEMA.blockReceipts)
+              .values({
+                chainId: chain!.id,
+                blockHash: body.params[0],
+                body: result,
+              })
+              .onConflictDoNothing();
+          }
+
+          break;
+        }
+        case "debug_traceBlockByNumber": {
+          const traces = await DB.select({ body: RPC_SCHEMA.traces.body })
+            .from(RPC_SCHEMA.traces)
+            .where(
+              and(
+                eq(RPC_SCHEMA.traces.chainId, chain!.id),
+                eq(RPC_SCHEMA.traces.number, hexToNumber(body.params[0])),
+              ),
+            )
+            .then((traces) => traces[0]);
+
+          if (traces) {
+            result = traces.body;
+          } else {
+            result = await _request(body);
+            await DB.insert(RPC_SCHEMA.traces)
+              .values({
+                chainId: chain!.id,
+                number: hexToNumber(body.params[0]),
+                body: JSON.stringify(result).replace(/\0/g, ""),
+              })
+              .onConflictDoNothing();
+          }
+
+          break;
+        }
+        case "debug_traceBlockByHash": {
+          const block = await DB.select({ number: RPC_SCHEMA.blocks.number })
+            .from(RPC_SCHEMA.blocks)
+            .where(
+              and(
+                eq(RPC_SCHEMA.blocks.chainId, chain!.id),
+                eq(RPC_SCHEMA.blocks.hash, body.params[0]),
+              ),
+            )
+            .then((blocks) => blocks[0]);
+
+          // block won't be in DB if it's a reorg
+          if (block === undefined) {
+            result = [];
             break;
           }
+
+          const number = block.number;
+
+          const traces = await DB.select({ body: RPC_SCHEMA.traces.body })
+            .from(RPC_SCHEMA.traces)
+            .where(
+              and(
+                eq(RPC_SCHEMA.traces.chainId, chain!.id),
+                eq(RPC_SCHEMA.traces.number, number),
+              ),
+            )
+            .then((traces) => traces[0]);
+
+          if (traces) {
+            result = traces.body;
+          } else {
+            result = await _request(body);
+            await DB.insert(RPC_SCHEMA.traces)
+              .values({
+                chainId: chain!.id,
+                number,
+                body: JSON.stringify(result).replace(/\0/g, ""),
+              })
+              .onConflictDoNothing();
+          }
+
+          break;
+        }
+        case "eth_call": {
+          const call = await DB.select({ body: RPC_SCHEMA.calls.body })
+            .from(RPC_SCHEMA.calls)
+            .where(
+              and(
+                eq(RPC_SCHEMA.calls.chainId, chain!.id),
+                eq(RPC_SCHEMA.calls.request, body.params),
+              ),
+            )
+            .limit(1)
+            .then((calls) => calls[0]);
+
+          if (call) {
+            result = call.body;
+          } else {
+            result = await _request(body);
+            await DB.insert(RPC_SCHEMA.calls)
+              .values({
+                chainId: chain!.id,
+                request: body.params,
+                body: result,
+              })
+              .onConflictDoNothing();
+          }
+
+          break;
         }
       }
 
@@ -523,15 +492,7 @@ export const realtimeBlockEngine = async (
     number,
     { request: ReturnType<Transport>["request"]; interval: [number, number] }
   >,
-  connectionString?: string,
 ) => {
-  const db = connectionString
-    ? drizzle(connectionString, {
-        casing: "snake_case",
-        schema: RPC_SCHEMA,
-      })
-    : undefined;
-
   const blocks = new Map<number, (RpcBlock | RpcBlockHeader)[]>();
   const incomplete = new Set<number>();
 
@@ -541,19 +502,17 @@ export const realtimeBlockEngine = async (
     chainId: number,
     blockNumber: number,
   ): Promise<RpcBlock | RpcBlockHeader> => {
-    let block: RpcBlockHeader | RpcBlock | undefined =
-      db === undefined
-        ? undefined
-        : await db
-            .select({ body: RPC_SCHEMA.blocks.body })
-            .from(RPC_SCHEMA.blocks)
-            .where(
-              and(
-                eq(RPC_SCHEMA.blocks.chainId, chainId),
-                eq(RPC_SCHEMA.blocks.number, blockNumber),
-              ),
-            )
-            .then((blocks) => blocks[0]?.body as RpcBlock);
+    let block: RpcBlockHeader | RpcBlock | undefined = await DB.select({
+      body: RPC_SCHEMA.blocks.body,
+    })
+      .from(RPC_SCHEMA.blocks)
+      .where(
+        and(
+          eq(RPC_SCHEMA.blocks.chainId, chainId),
+          eq(RPC_SCHEMA.blocks.number, blockNumber),
+        ),
+      )
+      .then((blocks) => blocks[0]?.body as RpcBlock);
 
     if (block === undefined) {
       const result = await chains.get(chainId)!.request({
@@ -561,18 +520,15 @@ export const realtimeBlockEngine = async (
         params: [toHex(blockNumber), true],
       });
 
-      if (db) {
-        await db
-          .insert(RPC_SCHEMA.blocks)
-          .values({
-            chainId,
-            number: blockNumber,
-            // @ts-expect-error
-            hash: result.hash,
-            body: result,
-          })
-          .onConflictDoNothing();
-      }
+      await DB.insert(RPC_SCHEMA.blocks)
+        .values({
+          chainId,
+          number: blockNumber,
+          // @ts-expect-error
+          hash: result.hash,
+          body: result,
+        })
+        .onConflictDoNothing();
 
       block = result as RpcBlock;
     }
@@ -676,12 +632,10 @@ export const realtimeBlockEngine = async (
     };
   } else {
     return async function* (chainId: number) {
-      let next = await simulate(chainId);
       while (true) {
-        const promise = simulate(chainId);
+        const next = await simulate(chainId);
         if (next === undefined) return;
         yield next;
-        next = await promise;
       }
     };
   }
