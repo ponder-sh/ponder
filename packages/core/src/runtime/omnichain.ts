@@ -27,7 +27,6 @@ import { getAppProgress } from "@/internal/metrics.js";
 import type {
   Chain,
   CrashRecoveryCheckpoint,
-  Event,
   IndexingBuild,
   IndexingErrorHandler,
   NamespaceBuild,
@@ -250,17 +249,15 @@ export async function runOmnichain({
     });
   }
 
-  const historicalEventGenerator = getHistoricalEventsOmnichain({
-    common,
-    indexingBuild,
-    crashRecoveryCheckpoint,
-    perChainSync,
-    syncStore,
-  });
-
   // Run historical indexing until complete.
   for await (const events of recordAsyncGenerator(
-    historicalEventGenerator,
+    getHistoricalEventsOmnichain({
+      common,
+      indexingBuild,
+      crashRecoveryCheckpoint,
+      perChainSync,
+      syncStore,
+    }),
     (params) => {
       common.metrics.ponder_historical_concurrency_group_duration.inc(
         { group: "extract" },
@@ -421,12 +418,6 @@ export async function runOmnichain({
     }
   }
 
-  const {
-    value: { pendingEvents },
-  } = (await historicalEventGenerator.next()) as {
-    value: { pendingEvents: Event[] };
-  };
-
   indexingCache.clear();
 
   // Manually update metrics to fix a UI bug that occurs when the end
@@ -492,7 +483,7 @@ export async function runOmnichain({
     indexingBuild,
     perChainSync,
     syncStore,
-    pendingEvents,
+    pendingEvents: [],
   })) {
     switch (event.type) {
       case "block": {
