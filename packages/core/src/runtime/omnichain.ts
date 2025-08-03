@@ -143,19 +143,6 @@ export async function runOmnichain({
   >();
   const seconds: Seconds = {};
 
-  const start = Number(
-    decodeCheckpoint(getOmnichainCheckpoint({ perChainSync, tag: "start" }))
-      .blockTimestamp,
-  );
-  const end = Number(
-    decodeCheckpoint(
-      min(
-        getOmnichainCheckpoint({ perChainSync, tag: "end" }),
-        getOmnichainCheckpoint({ perChainSync, tag: "finalized" }),
-      ),
-    ).blockTimestamp,
-  );
-
   await Promise.all(
     indexingBuild.chains.map(async (chain) => {
       const sources = indexingBuild.sources.filter(
@@ -186,22 +173,37 @@ export async function runOmnichain({
         childAddresses,
         cachedIntervals,
       });
-
-      const _crashRecoveryCheckpoint = crashRecoveryCheckpoint?.find(
-        ({ chainId }) => chainId === chain.id,
-      )?.checkpoint;
-
-      const cached = Math.min(
-        Number(
-          decodeCheckpoint(_crashRecoveryCheckpoint ?? ZERO_CHECKPOINT_STRING)
-            .blockTimestamp,
-        ),
-        end,
-      );
-
-      seconds[chain.name] = { start, end, cached };
     }),
   );
+
+  const start = Number(
+    decodeCheckpoint(getOmnichainCheckpoint({ perChainSync, tag: "start" }))
+      .blockTimestamp,
+  );
+  const end = Number(
+    decodeCheckpoint(
+      min(
+        getOmnichainCheckpoint({ perChainSync, tag: "end" }),
+        getOmnichainCheckpoint({ perChainSync, tag: "finalized" }),
+      ),
+    ).blockTimestamp,
+  );
+
+  for (const chain of indexingBuild.chains) {
+    const _crashRecoveryCheckpoint = crashRecoveryCheckpoint?.find(
+      ({ chainId }) => chainId === chain.id,
+    )?.checkpoint;
+
+    const cached = Math.min(
+      Number(
+        decodeCheckpoint(_crashRecoveryCheckpoint ?? ZERO_CHECKPOINT_STRING)
+          .blockTimestamp,
+      ),
+      end,
+    );
+
+    seconds[chain.name] = { start, end, cached };
+  }
 
   const startTimestamp = Math.round(Date.now() / 1000);
   common.metrics.ponder_historical_start_timestamp_seconds.set(startTimestamp);
