@@ -132,7 +132,16 @@ type ProfileKey = string;
 /**
  * Cache of database rows.
  */
-type Cache = Map<Table, Map<CacheKey, Row | null>>;
+type Cache = Map<
+  Table,
+  Map<
+    CacheKey,
+    {
+      row: Row | null;
+      metadata?: { insertBlockTimestamp?: bigint };
+    }
+  >
+>;
 /**
  * Buffer of database rows that will be flushed to the database.
  */
@@ -145,6 +154,20 @@ type Buffer = Map<
       metadata: { event: Event | undefined };
     }
   >
+>;
+/**
+ * Cache access statistics per table.
+ */
+type CacheStats = Map<
+  Table,
+  {
+    nbHits: number;
+    nbHitsNotExists: number;
+    maxHitAge: number;
+    cumulativeHitAge: bigint;
+    nbInserts: number;
+    cumulativeInsertTimestamp: bigint;
+  }
 >;
 /**
  * Metadata about database access patterns for each event.
@@ -178,6 +201,30 @@ const getBytes = (value: unknown) => {
   }
 
   return size;
+};
+
+const updateCacheHitStats = (
+  cacheStats: CacheStats,
+  table: Table,
+  event: Event,
+  insertBlockTimestamp: bigint | undefined,
+) => {
+  if (insertBlockTimestamp === undefined) {
+    console.log("insertBlockTimestamp is undefined", table, event);
+    insertBlockTimestamp = 0n;
+  }
+  const hitAge = event.event.block.timestamp - insertBlockTimestamp;
+  const tableCacheStats = cacheStats.get(table)!;
+  tableCacheStats.nbHits++;
+  tableCacheStats.maxHitAge = Math.max(
+    tableCacheStats.maxHitAge,
+    Number(hitAge),
+  );
+  tableCacheStats.cumulativeHitAge += hitAge;
+};
+
+const updateCacheHitNotExistsStats = (cacheStats: CacheStats, table: Table) => {
+  cacheStats.get(table)!.nbHitsNotExists++;
 };
 
 const ESCAPE_REGEX = /([\\\b\f\n\r\t\v])/g;
@@ -303,11 +350,30 @@ export const createIndexingCache = ({
   const spillover: Map<Table, Set<string>> = new Map();
   /** Profiling data about access patterns for each event. */
   const profile: Profile = new Map();
+  /** Cache statistics. */
+  const cacheStats: CacheStats = new Map();
+  /** Enabling virtual cache per table. */
+  const virtualCacheConfig: Map<
+    Table,
+    {
+      enabled: boolean;
+      clearAfter?: number;
+    }
+  > = new Map();
 
   const tables = Object.values(schema).filter(isTable);
 
   for (const table of tables) {
     cache.set(table, new Map());
+    cacheStats.set(table, {
+      nbHits: 0,
+      nbHitsNotExists: 0,
+      maxHitAge: 0,
+      cumulativeHitAge: 0n,
+      nbInserts: 0,
+      cumulativeInsertTimestamp: 0n,
+    });
+    virtualCacheConfig.set(table, { enabled: false });
     spillover.set(table, new Set());
     insertBuffer.set(table, new Map());
     updateBuffer.set(table, new Map());
@@ -361,6 +427,9 @@ export const createIndexingCache = ({
         }
       }
 
+      const isCacheVirtual = virtualCacheConfig.get(table)!.enabled;
+      const shouldCollectCacheStats = isCacheComplete || isCacheVirtual;
+
       const ck = getCacheKey(table, key, primaryKeyCache);
       // Note: order is important, it is an invariant that update entries
       // are prioritized over insert entries
@@ -370,8 +439,23 @@ export const createIndexingCache = ({
       if (bufferEntry) {
         common.metrics.ponder_indexing_cache_requests_total.inc({
           table: getTableName(table),
-          type: isCacheComplete ? "complete" : "hit",
+          type: isCacheComplete
+            ? "complete"
+            : isCacheVirtual
+              ? "virtual"
+              : "hit",
         });
+        if (shouldCollectCacheStats && event) {
+          // Original entity is always already in cache in case of update or insertOnConflict
+          const cacheEntry = cache.get(table)!.get(ck);
+          const insertTimestamp =
+            cacheEntry?.metadata?.insertBlockTimestamp ??
+            // Otherwise, for plain insert, we use the buffer insert block timestamp
+            bufferEntry.metadata.event?.event.block.timestamp;
+
+          updateCacheHitStats(cacheStats, table, event, insertTimestamp);
+        }
+
         return structuredClone(bufferEntry.row);
       }
 
@@ -380,9 +464,23 @@ export const createIndexingCache = ({
       if (entry !== undefined) {
         common.metrics.ponder_indexing_cache_requests_total.inc({
           table: getTableName(table),
-          type: isCacheComplete ? "complete" : "hit",
+          type: isCacheComplete
+            ? "complete"
+            : isCacheVirtual
+              ? "virtual"
+              : "hit",
         });
-        return structuredClone(entry);
+
+        if (shouldCollectCacheStats && event) {
+          updateCacheHitStats(
+            cacheStats,
+            table,
+            event,
+            entry?.metadata?.insertBlockTimestamp,
+          );
+        }
+
+        return structuredClone(entry.row);
       }
 
       if (isCacheComplete) {
@@ -390,7 +488,15 @@ export const createIndexingCache = ({
           table: getTableName(table),
           type: "complete",
         });
+        if (shouldCollectCacheStats && event) {
+          updateCacheHitNotExistsStats(cacheStats, table);
+        }
         return null;
+      }
+
+      if (isCacheVirtual) {
+        // Disable virtual cache for this table as soon as we miss a hit
+        virtualCacheConfig.set(table, { enabled: false });
       }
 
       spillover.get(table)!.add(ck);
@@ -408,7 +514,10 @@ export const createIndexingCache = ({
         )
         .then((res) => (res.length === 0 ? null : res[0]!))
         .then((row) => {
-          cache.get(table)!.set(ck, structuredClone(row));
+          cache.get(table)!.set(ck, {
+            row: structuredClone(row),
+            // Note: we don't need metadata because virtual cache is disabled if we miss the cache
+          });
 
           // Note: the size is not recorded because it is not possible
           // to miss the cache when in the "full in-memory" mode
@@ -556,10 +665,21 @@ export const createIndexingCache = ({
           }
 
           for (const [key, entry] of insertBuffer.get(table)!) {
-            if (shouldRecordBytes && tableCache.has(key) === false) {
+            const hasEntry = tableCache.has(key);
+            if (shouldRecordBytes && hasEntry === false) {
               cacheBytes += getBytes(entry.row);
             }
-            tableCache.set(key, entry.row);
+            if (hasEntry) {
+              tableCache.get(key)!.row = entry.row;
+            } else {
+              tableCache.set(key, {
+                row: entry.row,
+                metadata: {
+                  insertBlockTimestamp:
+                    entry.metadata.event?.event.block.timestamp,
+                },
+              });
+            }
           }
           insertBuffer.get(table)!.clear();
 
@@ -702,10 +822,22 @@ export const createIndexingCache = ({
           );
 
           for (const [key, entry] of updateBuffer.get(table)!) {
-            if (shouldRecordBytes && tableCache.has(key) === false) {
+            const hasEntry = tableCache.has(key);
+            if (shouldRecordBytes && hasEntry === false) {
               cacheBytes += getBytes(entry.row);
             }
-            tableCache.set(key, entry.row);
+
+            if (hasEntry) {
+              tableCache.get(key)!.row = entry.row;
+            } else {
+              tableCache.set(key, {
+                row: entry.row,
+                metadata: {
+                  insertBlockTimestamp:
+                    entry.metadata.event?.event.block.timestamp,
+                },
+              });
+            }
           }
           updateBuffer.get(table)!.clear();
 
@@ -734,6 +866,90 @@ export const createIndexingCache = ({
           // Note: spillover is not cleared because it is an invariant
           // it is empty
         }
+
+        // Lookup to enable virtualCache per table depending on access patterns
+        for (const [table, tableCacheStats] of cacheStats) {
+          if (virtualCacheConfig.get(table)!.enabled === false) {
+            // Virtual cache already disabled for this table
+            continue;
+          }
+
+          let enableVirtualCache: boolean;
+          let clearAfter: number | undefined;
+
+          // Analyze table stats to determine if we can enable virtual cache
+          // and if we need to clear the cache after a certain age
+
+          const nbInserts = tableCacheStats.nbInserts;
+          const avgHitAge =
+            tableCacheStats.cumulativeHitAge / BigInt(tableCacheStats.nbHits);
+          const maxHitAge = tableCacheStats.maxHitAge;
+
+          const avgInsertAge =
+            Number(tableCacheStats.cumulativeInsertTimestamp) /
+            Number(tableCacheStats.nbInserts);
+          const hitsPerEntries =
+            tableCacheStats.nbHits / tableCacheStats.nbInserts;
+
+          const hitsNotExists = tableCacheStats.nbHitsNotExists;
+          const hitAgeRatio = maxHitAge / avgInsertAge;
+
+          // high hitAgeRatio means that the cache is only used for a short time
+          // low hitAgeRatio means that cache items are accessed for a long time
+
+          console.log(
+            `VirtualCache: profile ${getTableName(table)} - inserts: ${tableCacheStats.nbInserts} avgInsertAge: ${avgInsertAge} hits: ${tableCacheStats.nbHits} avgHitAge: ${avgHitAge} maxHitAge: ${maxHitAge} hitAgeRatio: ${hitAgeRatio} hitsPerEntries: ${hitsPerEntries} hitsNotExists: ${hitsNotExists}`,
+          );
+
+          // TableProfile = Events: high number of items, low access rate, low hit age
+          // TableProfile = Relational: medium number of items, high access rate, high hit age
+          // TableProfile = Aggregation: medium number of items, high access rate, low hit age
+          // TableProfile = Dictionary: low number of items, high access rate, high hit age
+
+          if (nbInserts < 100) {
+            // Should be relative to table size
+            // TableProfile = Dictionary
+            enableVirtualCache = true;
+            clearAfter = undefined;
+            console.log(
+              `VirtualCache: ${getTableName(table)} - Profile=Dictionary - enable: ${enableVirtualCache} clearAfter: ${clearAfter}`,
+            );
+          } else if (
+            avgHitAge < 60 && // 1 minute
+            maxHitAge < 60
+          ) {
+            // TableProfile = Events: high number of items, low access rate, low hit age
+            enableVirtualCache = true;
+            clearAfter = maxHitAge * 1.5; // 1.5x maxHitAge
+            console.log(
+              `VirtualCache: ${getTableName(table)} - Profile=Events - enable: ${enableVirtualCache} clearAfter: ${clearAfter}`,
+            );
+          } else if (hitsPerEntries > 2 && hitAgeRatio <= 2) {
+            // TableProfile = Relational: medium number of items, high access rate, high hit age
+            enableVirtualCache = true;
+            clearAfter = undefined;
+            console.log(
+              `VirtualCache: ${getTableName(table)} - Profile=Relational - enable: ${enableVirtualCache} clearAfter: ${clearAfter}`,
+            );
+          } else if (hitsPerEntries > 2 && hitAgeRatio > 2) {
+            // TableProfile = Aggregation: medium number of items, high access rate, low hit age
+            enableVirtualCache = true;
+            clearAfter = maxHitAge * 1.5;
+            console.log(
+              `VirtualCache: ${getTableName(table)} - Profile=Aggregation - enable: ${enableVirtualCache} clearAfter: ${clearAfter}`,
+            );
+          } else {
+            enableVirtualCache = false;
+            console.log(
+              `VirtualCache: ${getTableName(table)} - Profile=Unknown - enable: ${enableVirtualCache}`,
+            );
+          }
+
+          virtualCacheConfig.set(table, {
+            enabled: enableVirtualCache,
+            clearAfter,
+          });
+        }
       }
 
       // Use historical accesses + next event batch to determine which
@@ -748,6 +964,11 @@ export const createIndexingCache = ({
       for (const event of events) {
         if (profile.has(event.name)) {
           for (const table of tables) {
+            if (virtualCacheConfig.get(table)!.enabled) {
+              // Skip predictions when virtual cache is enabled
+              continue;
+            }
+
             for (const [, { count, pattern }] of profile
               .get(event.name)!
               .get(table)!) {
@@ -764,7 +985,19 @@ export const createIndexingCache = ({
       }
 
       for (const [table, tableCache] of cache) {
-        for (const key of tableCache.keys()) {
+        const virtualCacheConf = virtualCacheConfig.get(table)!;
+
+        for (const [key, { metadata }] of tableCache.entries()) {
+          if (virtualCacheConf.enabled) {
+            if (metadata?.insertBlockTimestamp) {
+              const age =
+                event!.event.block.timestamp - metadata.insertBlockTimestamp;
+              if (age > virtualCacheConf.clearAfter!) {
+                tableCache.delete(key);
+              }
+            }
+          }
+
           if (
             spillover.get(table)!.has(key) ||
             prediction.get(table)!.has(key)
@@ -824,9 +1057,15 @@ export const createIndexingCache = ({
                 const tableCache = cache.get(table)!;
                 for (const key of tablePredictions.keys()) {
                   if (resultsPerKey.has(key)) {
-                    tableCache.set(key, resultsPerKey.get(key)!);
+                    tableCache.set(key, {
+                      row: resultsPerKey.get(key)!,
+                      // Note: we don't set metadata, because table is not using virtual cache
+                    });
                   } else {
-                    tableCache.set(key, null);
+                    tableCache.set(key, {
+                      row: null,
+                      // Note: we don't set metadata, because table is not using virtual cache
+                    });
                   }
                 }
               });
