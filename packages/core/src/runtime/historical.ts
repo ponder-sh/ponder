@@ -2,6 +2,7 @@ import type { Common } from "@/internal/common.js";
 import type {
   Chain,
   CrashRecoveryCheckpoint,
+  Event,
   FactoryId,
   IndexingBuild,
   Source,
@@ -11,7 +12,6 @@ import { createHistoricalSync } from "@/sync-historical/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import { buildEvents, decodeEvents } from "@/sync/events.js";
 import { isAddressFactory } from "@/sync/filter.js";
-import { mergeAsyncGeneratorsWithEventOrder } from "@/sync/index.js";
 import {
   MAX_CHECKPOINT,
   ZERO_CHECKPOINT,
@@ -20,7 +20,10 @@ import {
   min,
 } from "@/utils/checkpoint.js";
 import { formatPercentage } from "@/utils/format.js";
-import { bufferAsyncGenerator } from "@/utils/generators.js";
+import {
+  bufferAsyncGenerator,
+  mergeAsyncGenerators,
+} from "@/utils/generators.js";
 import {
   type Interval,
   intervalDifference,
@@ -30,10 +33,171 @@ import {
 } from "@/utils/interval.js";
 import { partition } from "@/utils/partition.js";
 import { startClock } from "@/utils/timer.js";
+import { zipperMany } from "@/utils/zipper.js";
 import { type Address, hexToNumber } from "viem";
 import type { CachedIntervals, ChildAddresses, SyncProgress } from "./index.js";
+import { getOmnichainCheckpoint } from "./omnichain.js";
 
 export async function* getHistoricalEventsOmnichain(params: {
+  common: Common;
+  indexingBuild: Pick<
+    IndexingBuild,
+    "sources" | "chains" | "rpcs" | "finalizedBlocks"
+  >;
+  crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
+  perChainSync: Map<
+    Chain,
+    {
+      syncProgress: SyncProgress;
+      childAddresses: ChildAddresses;
+      cachedIntervals: CachedIntervals;
+    }
+  >;
+  syncStore: SyncStore;
+}) {
+  let pendingEvents: Event[] = [];
+  const to = min(
+    getOmnichainCheckpoint({
+      perChainSync: params.perChainSync,
+      tag: "finalized",
+    }),
+    getOmnichainCheckpoint({
+      perChainSync: params.perChainSync,
+      tag: "end",
+    }),
+  );
+
+  const eventGenerators = await Promise.all(
+    Array.from(params.perChainSync.entries()).map(async function* ([
+      chain,
+      { syncProgress, childAddresses, cachedIntervals },
+    ]) {
+      const rpc =
+        params.indexingBuild.rpcs[
+          params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
+        ]!;
+
+      const sources = params.indexingBuild.sources.filter(
+        ({ filter }) => filter.chainId === chain.id,
+      );
+
+      const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
+        ({ chainId }) => chainId === chain.id,
+      )?.checkpoint;
+
+      // In order to speed up the "extract" phase when there is a crash recovery,
+      // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
+      // is defined.
+
+      let from: string;
+      if (crashRecoveryCheckpoint === undefined) {
+        from = syncProgress.getCheckpoint({ tag: "start" });
+      } else if (
+        Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) === chain.id
+      ) {
+        from = crashRecoveryCheckpoint;
+      } else {
+        const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
+          chainId: chain.id,
+          timestamp: Number(
+            decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
+          ),
+        });
+
+        if (fromBlock === undefined) {
+          from = syncProgress.getCheckpoint({ tag: "start" });
+        } else {
+          from = encodeCheckpoint({
+            ...ZERO_CHECKPOINT,
+            blockNumber: fromBlock.number,
+            blockTimestamp: fromBlock.timestamp,
+            chainId: BigInt(chain.id),
+          });
+        }
+      }
+
+      const eventGenerator = getLocalEventGenerator({
+        common: params.common,
+        chain,
+        rpc,
+        sources,
+        childAddresses,
+        syncProgress,
+        cachedIntervals,
+        from,
+        to: min(
+          syncProgress.getCheckpoint({ tag: "finalized" }),
+          syncProgress.getCheckpoint({ tag: "end" }),
+        ),
+        limit:
+          Math.round(
+            params.common.options.syncEventsQuerySize /
+              (params.indexingBuild.chains.length + 1),
+          ) + 6,
+        syncStore: params.syncStore,
+      });
+
+      for await (let { events: rawEvents, checkpoint } of eventGenerator) {
+        const endClock = startClock();
+        let events = decodeEvents(params.common, sources, rawEvents);
+        params.common.logger.debug({
+          service: "app",
+          msg: `Decoded ${events.length} '${chain.name}' events`,
+        });
+        params.common.metrics.ponder_historical_extract_duration.inc(
+          { step: "decode" },
+          endClock(),
+        );
+
+        // Removes events that have a checkpoint earlier than (or equal to)
+        // the crash recovery checkpoint.
+
+        if (
+          crashRecoveryCheckpoint &&
+          events.length > 0 &&
+          events[0]!.checkpoint <= crashRecoveryCheckpoint
+        ) {
+          const [, right] = partition(
+            events,
+            (event) => event.checkpoint <= crashRecoveryCheckpoint,
+          );
+          events = right;
+        }
+
+        // Sort out any events between the omnichain finalized checkpoint and the single-chain
+        // finalized checkpoint and add them to pendingEvents. These events are synced during
+        // the historical phase, but must be indexed in the realtime phase because events
+        // synced in realtime on other chains might be ordered before them.
+
+        if (checkpoint > to) {
+          const [left, right] = partition(
+            events,
+            (event) => event.checkpoint <= to,
+          );
+          pendingEvents = pendingEvents.concat(right);
+          events = left;
+          checkpoint = to;
+        }
+
+        yield { events, checkpoint };
+      }
+    }),
+  );
+
+  const eventGenerator = mergeAsyncGeneratorsWithEventOrder(eventGenerators);
+
+  for await (const { events, checkpoints } of eventGenerator) {
+    params.common.logger.debug({
+      service: "sync",
+      msg: `Sequenced ${events.length} events`,
+    });
+
+    yield { events, checkpoints };
+  }
+  return { pendingEvents };
+}
+
+export async function* getHistoricalEventsMultichain(params: {
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
@@ -152,21 +316,25 @@ export async function* getHistoricalEventsOmnichain(params: {
     }),
   );
 
-  const eventGenerator = mergeAsyncGeneratorsWithEventOrder(eventGenerators);
-
-  for await (const { events, checkpoints } of eventGenerator) {
+  for await (const { events, checkpoint } of mergeAsyncGenerators(
+    eventGenerators,
+  )) {
     params.common.logger.debug({
       service: "sync",
       msg: `Sequenced ${events.length} events`,
     });
 
-    yield { events, checkpoints };
+    yield {
+      events,
+      checkpoints: [
+        {
+          chainId: Number(decodeCheckpoint(checkpoint).chainId),
+          checkpoint,
+        },
+      ],
+    };
   }
 }
-
-export async function* getHistoricalEventsMultichain() {}
-
-export async function* getHistoricalEventsIsolated() {}
 
 export async function* getLocalEventGenerator(params: {
   common: Common;
@@ -493,5 +661,77 @@ export async function* getLocalSyncGenerator(params: {
       });
       return;
     }
+  }
+}
+
+/**
+ * Merges multiple event generators into a single generator while preserving
+ * the order of events.
+ *
+ * @param generators - Generators to merge.
+ * @returns A single generator that yields events from all generators.
+ */
+export async function* mergeAsyncGeneratorsWithEventOrder(
+  generators: AsyncGenerator<{ events: Event[]; checkpoint: string }>[],
+): AsyncGenerator<{
+  events: Event[];
+  /**
+   * Closest-to-tip checkpoint for each chain,
+   * excluding chains that were not updated with this batch of events.
+   */
+  checkpoints: { chainId: number; checkpoint: string }[];
+}> {
+  const results = await Promise.all(generators.map((gen) => gen.next()));
+
+  while (results.some((res) => res.done !== true)) {
+    const supremum = min(
+      ...results.map((res) => (res.done ? undefined : res.value.checkpoint)),
+    );
+
+    const eventArrays: {
+      events: Event[];
+      chainId: number;
+      checkpoint: string;
+    }[] = [];
+
+    for (const result of results) {
+      if (result.done === false) {
+        const [left, right] = partition(
+          result.value.events,
+          (event) => event.checkpoint <= supremum,
+        );
+
+        const event = left[left.length - 1];
+
+        if (event) {
+          eventArrays.push({
+            events: left,
+            chainId: event.chainId,
+            checkpoint: event.checkpoint,
+          });
+        }
+
+        result.value.events = right;
+      }
+    }
+
+    const events = zipperMany(eventArrays.map(({ events }) => events)).sort(
+      (a, b) => (a.checkpoint < b.checkpoint ? -1 : 1),
+    );
+
+    const index = results.findIndex(
+      (res) => res.done === false && res.value.checkpoint === supremum,
+    );
+
+    const resultPromise = generators[index]!.next();
+    if (events.length > 0) {
+      const checkpoints = eventArrays.map(({ chainId, checkpoint }) => ({
+        chainId,
+        checkpoint,
+      }));
+
+      yield { events, checkpoints };
+    }
+    results[index] = await resultPromise;
   }
 }

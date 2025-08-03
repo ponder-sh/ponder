@@ -3,6 +3,7 @@ import {
   commitBlock,
   createIndexes,
   createTriggers,
+  createViews,
   dropTriggers,
   finalize,
   revert,
@@ -26,6 +27,7 @@ import { getAppProgress } from "@/internal/metrics.js";
 import type {
   Chain,
   CrashRecoveryCheckpoint,
+  Event,
   IndexingBuild,
   IndexingErrorHandler,
   NamespaceBuild,
@@ -34,7 +36,7 @@ import type {
   Seconds,
 } from "@/internal/types.js";
 import { createSyncStore } from "@/sync-store/index.js";
-import { splitEvents } from "@/sync/index.js";
+import { splitEvents } from "@/sync/events.js";
 import {
   ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
@@ -139,21 +141,6 @@ export async function runOmnichain({
       cachedIntervals: CachedIntervals;
     }
   >();
-
-  await Promise.all(
-    indexingBuild.chains.map(async (chain) => {
-      const syncProgress = await getLocalSyncProgress();
-      const childAddresses = await getChildAddresses();
-      const cachedIntervals = await getCachedIntervals();
-
-      perChainSync.set(chain, {
-        syncProgress,
-        childAddresses,
-        cachedIntervals,
-      });
-    }),
-  );
-
   const seconds: Seconds = {};
 
   const start = Number(
@@ -169,21 +156,52 @@ export async function runOmnichain({
     ).blockTimestamp,
   );
 
-  for (const chain of indexingBuild.chains) {
-    const _crashRecoveryCheckpoint = crashRecoveryCheckpoint?.find(
-      ({ chainId }) => chainId === chain.id,
-    )?.checkpoint;
+  await Promise.all(
+    indexingBuild.chains.map(async (chain) => {
+      const sources = indexingBuild.sources.filter(
+        ({ filter }) => filter.chainId === chain.id,
+      );
 
-    const cached = Math.min(
-      Number(
-        decodeCheckpoint(_crashRecoveryCheckpoint ?? ZERO_CHECKPOINT_STRING)
-          .blockTimestamp,
-      ),
-      end,
-    );
+      const cachedIntervals = await getCachedIntervals({
+        chain,
+        sources,
+        syncStore,
+      });
+      const syncProgress = await getLocalSyncProgress({
+        common,
+        sources,
+        chain,
+        rpc: indexingBuild.rpcs[indexingBuild.chains.indexOf(chain)]!,
+        finalizedBlock:
+          indexingBuild.finalizedBlocks[indexingBuild.chains.indexOf(chain)]!,
+        cachedIntervals,
+      });
+      const childAddresses = await getChildAddresses({
+        sources,
+        syncStore,
+      });
 
-    seconds[chain.name] = { start, end, cached };
-  }
+      perChainSync.set(chain, {
+        syncProgress,
+        childAddresses,
+        cachedIntervals,
+      });
+
+      const _crashRecoveryCheckpoint = crashRecoveryCheckpoint?.find(
+        ({ chainId }) => chainId === chain.id,
+      )?.checkpoint;
+
+      const cached = Math.min(
+        Number(
+          decodeCheckpoint(_crashRecoveryCheckpoint ?? ZERO_CHECKPOINT_STRING)
+            .blockTimestamp,
+        ),
+        end,
+      );
+
+      seconds[chain.name] = { start, end, cached };
+    }),
+  );
 
   const startTimestamp = Math.round(Date.now() / 1000);
   common.metrics.ponder_historical_start_timestamp_seconds.set(startTimestamp);
@@ -230,15 +248,17 @@ export async function runOmnichain({
     });
   }
 
+  const historicalEventGenerator = getHistoricalEventsOmnichain({
+    common,
+    indexingBuild,
+    crashRecoveryCheckpoint,
+    perChainSync,
+    syncStore,
+  });
+
   // Run historical indexing until complete.
   for await (const events of recordAsyncGenerator(
-    getHistoricalEventsOmnichain({
-      common,
-      indexingBuild,
-      crashRecoveryCheckpoint,
-      perChainSync,
-      syncStore,
-    }),
+    historicalEventGenerator,
     (params) => {
       common.metrics.ponder_historical_concurrency_group_duration.inc(
         { group: "extract" },
@@ -250,27 +270,6 @@ export async function runOmnichain({
       );
     },
   )) {
-    // TODO(kyle)
-    // Sort out any events between the omnichain finalized checkpoint and the single-chain
-    // finalized checkpoint and add them to pendingEvents. These events are synced during
-    // the historical phase, but must be indexed in the realtime phase because events
-    // synced in realtime on other chains might be ordered before them.
-
-    // const to = min(
-    //   getOmnichainCheckpoint({ tag: "finalized" }),
-    //   getOmnichainCheckpoint({ tag: "end" }),
-    // );
-
-    // if (checkpoint > to) {
-    //   const [left, right] = partition(
-    //     events,
-    //     (event) => event.checkpoint <= to,
-    //   );
-    //   pendingEvents = pendingEvents.concat(right);
-    //   events = left;
-    //   checkpoint = to;
-    // }
-
     let endClock = startClock();
 
     indexingCache.qb = database.userQB;
@@ -308,32 +307,24 @@ export async function runOmnichain({
               eventChunk[eventChunk.length - 1]!.checkpoint,
             );
 
-            for (const chain of indexingBuild.chains) {
-              common.metrics.ponder_historical_completed_indexing_seconds.set(
-                { chain: chain.name },
-                Math.min(
+            const chain = indexingBuild.chains.find(
+              (chain) => chain.id === Number(checkpoint.chainId),
+            )!;
+            common.metrics.ponder_historical_completed_indexing_seconds.set(
+              { chain: chain.name },
+              Math.max(
+                Number(checkpoint.blockTimestamp) -
                   Math.max(
-                    Number(checkpoint.blockTimestamp) -
-                      Math.max(
-                        seconds[chain.name]!.cached,
-                        seconds[chain.name]!.start,
-                      ),
-                    0,
+                    seconds[chain.name]!.cached,
+                    seconds[chain.name]!.start,
                   ),
-                  Math.max(
-                    seconds[chain.name]!.end - seconds[chain.name]!.start,
-                    0,
-                  ),
-                ),
-              );
-              common.metrics.ponder_indexing_timestamp.set(
-                { chain: chain.name },
-                Math.max(
-                  Number(checkpoint.blockTimestamp),
-                  seconds[chain.name]!.end,
-                ),
-              );
-            }
+                0,
+              ),
+            );
+            common.metrics.ponder_indexing_timestamp.set(
+              { chain: chain.name },
+              Number(checkpoint.blockTimestamp),
+            );
 
             // Note: allows for terminal and logs to be updated
             if (preBuild.databaseConfig.kind === "pglite") {
@@ -428,6 +419,12 @@ export async function runOmnichain({
     }
   }
 
+  const {
+    value: { pendingEvents },
+  } = (await historicalEventGenerator.next()) as {
+    value: { pendingEvents: Event[] };
+  };
+
   indexingCache.clear();
 
   // Manually update metrics to fix a UI bug that occurs when the end
@@ -462,8 +459,14 @@ export async function runOmnichain({
 
   await createIndexes(database.adminQB, { statements: schemaBuild.statements });
   await createTriggers(database.adminQB, { tables });
+  if (namespaceBuild.viewsSchema !== undefined) {
+    await createViews(database.adminQB, { tables, namespaceBuild });
 
-  // TODO(kyle) create views
+    common.logger.info({
+      service: "app",
+      msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
+    });
+  }
 
   await database.adminQB.wrap({ label: "update_ready" }, (db) =>
     db
@@ -487,6 +490,7 @@ export async function runOmnichain({
     indexingBuild,
     perChainSync,
     syncStore,
+    pendingEvents,
   })) {
     switch (event.type) {
       case "block": {

@@ -24,12 +24,17 @@ import {
   syncTransactionReceiptToInternal,
   syncTransactionToInternal,
 } from "@/sync/events.js";
-import { mergeAsyncGeneratorsWithRealtimeOrder } from "@/sync/index.js";
 import {
   ZERO_CHECKPOINT_STRING,
+  blockToCheckpoint,
   decodeCheckpoint,
+  encodeCheckpoint,
+  min,
 } from "@/utils/checkpoint.js";
-import { createCallbackGenerator } from "@/utils/generators.js";
+import {
+  createCallbackGenerator,
+  mergeAsyncGenerators,
+} from "@/utils/generators.js";
 import { type Interval, intervalIntersection } from "@/utils/interval.js";
 import { startClock } from "@/utils/timer.js";
 import { type Address, hexToNumber } from "viem";
@@ -66,12 +71,10 @@ export async function* getRealtimeEventsOmnichain(params: {
     { syncProgress: SyncProgress; childAddresses: ChildAddresses }
   >;
   syncStore: SyncStore;
+  pendingEvents: Event[];
 }): AsyncGenerator<RealtimeEvent> {
-  const eventGenerators = await Promise.all(
-    Array.from(params.perChainSync.entries()).map(async function* ([
-      chain,
-      { syncProgress, childAddresses },
-    ]) {
+  const eventGenerators = Array.from(params.perChainSync.entries())
+    .map(([chain, { syncProgress, childAddresses }]) => {
       if (syncProgress.isEnd()) {
         params.common.metrics.ponder_sync_is_complete.set(
           { chain: chain.name },
@@ -100,13 +103,20 @@ export async function* getRealtimeEventsOmnichain(params: {
         childAddresses,
         syncStore: params.syncStore,
       });
-    }),
-  );
+    })
+    .filter(
+      (
+        generator,
+      ): generator is AsyncGenerator<{
+        chain: Chain;
+        event: RealtimeSyncEvent;
+      }> => generator !== undefined,
+    );
 
   /** Events that have been executed but not finalized. */
   let executedEvents: Event[] = [];
   /** Events that have not been executed. */
-  let pendingEvents: Event[] = [];
+  let pendingEvents: Event[] = params.pendingEvents;
   /** Closest-to-tip finalized checkpoint across all chains. */
   let finalizedCheckpoint = ZERO_CHECKPOINT_STRING;
 
@@ -275,6 +285,244 @@ export async function* getRealtimeEventsOmnichain(params: {
         executedEvents = executedEvents.filter(
           (e) => e.checkpoint < checkpoint,
         );
+        pendingEvents = pendingEvents.concat(reorgedEvents);
+
+        params.common.logger.debug({
+          service: "sync",
+          msg: `Rescheduled ${reorgedEvents.length} reorged events`,
+        });
+
+        pendingEvents = pendingEvents.filter(
+          (e) => isReorgedEvent(e) === false,
+        );
+
+        yield { type: "reorg", chain, checkpoint };
+        break;
+      }
+    }
+  }
+}
+
+export async function* getRealtimeEventsMultichain(params: {
+  common: Common;
+  indexingBuild: Pick<
+    IndexingBuild,
+    "sources" | "chains" | "rpcs" | "finalizedBlocks"
+  >;
+  perChainSync: Map<
+    Chain,
+    { syncProgress: SyncProgress; childAddresses: ChildAddresses }
+  >;
+  syncStore: SyncStore;
+}): AsyncGenerator<RealtimeEvent> {
+  const eventGenerators = Array.from(params.perChainSync.entries())
+    .map(([chain, { syncProgress, childAddresses }]) => {
+      if (syncProgress.isEnd()) {
+        params.common.metrics.ponder_sync_is_complete.set(
+          { chain: chain.name },
+          1,
+        );
+        return;
+      }
+
+      const rpc =
+        params.indexingBuild.rpcs[params.indexingBuild.chains.indexOf(chain)]!;
+      const sources = params.indexingBuild.sources.filter(
+        ({ filter }) => filter.chainId === chain.id,
+      );
+
+      params.common.metrics.ponder_sync_is_realtime.set(
+        { chain: chain.name },
+        1,
+      );
+
+      return getRealtimeEventGenerator({
+        common: params.common,
+        chain,
+        rpc,
+        sources,
+        syncProgress,
+        childAddresses,
+        syncStore: params.syncStore,
+      });
+    })
+    .filter(
+      (
+        generator,
+      ): generator is AsyncGenerator<{
+        chain: Chain;
+        event: RealtimeSyncEvent;
+      }> => generator !== undefined,
+    );
+
+  /** Events that have been executed but not finalized. */
+  let executedEvents: Event[] = [];
+  /** Events that have not been executed. */
+  let pendingEvents: Event[] = [];
+  /** Closest-to-tip finalized checkpoint across all chains. */
+  let finalizedCheckpoint = ZERO_CHECKPOINT_STRING;
+
+  for await (const { chain, event } of mergeAsyncGenerators(eventGenerators)) {
+    const { syncProgress, childAddresses } = params.perChainSync.get(chain)!;
+
+    const sources = params.indexingBuild.sources.filter(
+      ({ filter }) => filter.chainId === chain.id,
+    );
+
+    switch (event.type) {
+      case "block": {
+        const events = buildEvents({
+          sources,
+          chainId: chain.id,
+          blockData: {
+            block: syncBlockToInternal({ block: event.block }),
+            logs: event.logs.map((log) => syncLogToInternal({ log })),
+            transactions: event.transactions.map((transaction) =>
+              syncTransactionToInternal({ transaction }),
+            ),
+            transactionReceipts: event.transactionReceipts.map(
+              (transactionReceipt) =>
+                syncTransactionReceiptToInternal({ transactionReceipt }),
+            ),
+            traces: event.traces.map((trace) =>
+              syncTraceToInternal({
+                trace,
+                block: event.block,
+                transaction: event.transactions.find(
+                  (t) => t.hash === trace.transactionHash,
+                )!,
+              }),
+            ),
+          },
+          childAddresses,
+        });
+
+        params.common.logger.debug({
+          service: "sync",
+          msg: `Extracted ${events.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
+        });
+
+        const decodedEvents = decodeEvents(params.common, sources, events);
+        params.common.logger.debug({
+          service: "sync",
+          msg: `Decoded ${decodedEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
+        });
+
+        const checkpoint = syncProgress.getCheckpoint({ tag: "current" });
+
+        const readyEvents = decodedEvents
+          .concat(pendingEvents)
+          .sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
+        pendingEvents = [];
+        executedEvents = executedEvents.concat(readyEvents);
+
+        params.common.logger.debug({
+          service: "sync",
+          msg: `Sequenced ${readyEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
+        });
+
+        yield {
+          type: "block",
+          events: readyEvents,
+          chain,
+          checkpoint,
+          blockCallback: event.blockCallback,
+        };
+        break;
+      }
+      case "finalize": {
+        const from = finalizedCheckpoint;
+        finalizedCheckpoint = getOmnichainCheckpoint({
+          perChainSync: params.perChainSync,
+          tag: "finalized",
+        });
+        const to = getOmnichainCheckpoint({
+          perChainSync: params.perChainSync,
+          tag: "finalized",
+        });
+
+        if (
+          syncProgress.getCheckpoint({ tag: "finalized" }) >
+          getOmnichainCheckpoint({
+            perChainSync: params.perChainSync,
+            tag: "current",
+          })
+        ) {
+          const chainId = Number(
+            decodeCheckpoint(
+              getOmnichainCheckpoint({
+                perChainSync: params.perChainSync,
+                tag: "current",
+              }),
+            ).chainId,
+          );
+          const chain = params.indexingBuild.chains.find(
+            (chain) => chain.id === chainId,
+          )!;
+          params.common.logger.warn({
+            service: "sync",
+            msg: `'${chain.name}' is lagging behind other chains`,
+          });
+        }
+
+        if (to <= from) continue;
+
+        // index of the first unfinalized event
+        let finalizeIndex: number | undefined = undefined;
+        for (const [index, event] of executedEvents.entries()) {
+          if (event.checkpoint > to) {
+            finalizeIndex = index;
+            break;
+          }
+        }
+
+        let finalizedEvents: Event[];
+
+        if (finalizeIndex === undefined) {
+          finalizedEvents = executedEvents;
+          executedEvents = [];
+        } else {
+          finalizedEvents = executedEvents.slice(0, finalizeIndex);
+          executedEvents = executedEvents.slice(finalizeIndex);
+        }
+
+        params.common.logger.debug({
+          service: "sync",
+          msg: `Finalized ${finalizedEvents.length} executed events`,
+        });
+
+        yield { type: "finalize", chain, checkpoint: to };
+        break;
+      }
+
+      case "reorg": {
+        const isReorgedEvent = (_event: Event) => {
+          if (
+            _event.chainId === chain.id &&
+            Number(_event.event.block.number) > hexToNumber(event.block.number)
+          ) {
+            return true;
+          }
+          return false;
+        };
+
+        const checkpoint = syncProgress.getCheckpoint({ tag: "current" });
+
+        // index of the first reorged event
+        let reorgIndex: number | undefined = undefined;
+        for (const [index, event] of executedEvents.entries()) {
+          if (event.chainId === chain.id && event.checkpoint > checkpoint) {
+            reorgIndex = index;
+            break;
+          }
+        }
+
+        if (reorgIndex === undefined) continue;
+
+        // Move events from executed to pending
+
+        const reorgedEvents = executedEvents.slice(reorgIndex);
+        executedEvents = executedEvents.slice(0, reorgIndex);
         pendingEvents = pendingEvents.concat(reorgedEvents);
 
         params.common.logger.debug({
@@ -548,5 +796,57 @@ export async function* getRealtimeEventGenerator(params: {
       await params.rpc.unsubscribe();
       return;
     }
+  }
+}
+
+export async function* mergeAsyncGeneratorsWithRealtimeOrder(
+  generators: AsyncGenerator<{ chain: Chain; event: RealtimeSyncEvent }>[],
+): AsyncGenerator<{ chain: Chain; event: RealtimeSyncEvent }> {
+  const results = await Promise.all(generators.map((gen) => gen.next()));
+
+  while (results.some((res) => res.done !== true)) {
+    let index: number;
+
+    if (
+      results.some(
+        (result) =>
+          result.done === false &&
+          (result.value.event.type === "reorg" ||
+            result.value.event.type === "finalize"),
+      )
+    ) {
+      index = results.findIndex(
+        (result) =>
+          result.done === false &&
+          (result.value.event.type === "reorg" ||
+            result.value.event.type === "finalize"),
+      );
+    } else {
+      const blockCheckpoints = results.map((result) =>
+        result.done
+          ? undefined
+          : encodeCheckpoint(
+              blockToCheckpoint(
+                result.value.event.block,
+                result.value.chain.id,
+                "up",
+              ),
+            ),
+      );
+
+      const supremum = min(...blockCheckpoints);
+
+      index = blockCheckpoints.findIndex(
+        (checkpoint) => checkpoint === supremum,
+      );
+    }
+
+    const resultPromise = generators[index]!.next();
+
+    yield {
+      chain: results[index]!.value.chain,
+      event: results[index]!.value.event,
+    };
+    results[index] = await resultPromise;
   }
 }

@@ -12,7 +12,11 @@ import type { Rpc } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import { isAddressFactory } from "@/sync/filter.js";
 import { getFragments } from "@/sync/fragments.js";
-import { MAX_CHECKPOINT } from "@/utils/checkpoint.js";
+import {
+  MAX_CHECKPOINT,
+  blockToCheckpoint,
+  encodeCheckpoint,
+} from "@/utils/checkpoint.js";
 import {
   type Interval,
   intervalIntersection,
@@ -49,7 +53,49 @@ export async function getLocalSyncProgress(params: {
   finalizedBlock: LightBlock;
   cachedIntervals: CachedIntervals;
 }): Promise<SyncProgress> {
-  const syncProgress = {} as SyncProgress;
+  const syncProgress = {
+    isEnd: () => {
+      if (
+        syncProgress.end === undefined ||
+        syncProgress.current === undefined
+      ) {
+        return false;
+      }
+
+      return (
+        hexToNumber(syncProgress.current.number) >=
+        hexToNumber(syncProgress.end.number)
+      );
+    },
+    isFinalized: () => {
+      if (syncProgress.current === undefined) {
+        return false;
+      }
+
+      return (
+        hexToNumber(syncProgress.current.number) >=
+        hexToNumber(syncProgress.finalized.number)
+      );
+    },
+    getCheckpoint: ({ tag }) => {
+      if (tag === "end" && syncProgress.end === undefined) {
+        return undefined;
+      }
+
+      // Note: `current` is guaranteed to be defined because it is only used once the historical
+      // backfill is complete.
+      const block = syncProgress[tag]!;
+      return encodeCheckpoint(
+        blockToCheckpoint(
+          block,
+          params.chain.id,
+          // The checkpoint returned by this function is meant to be used in
+          // a closed interval (includes endpoints), so "start" should be inclusive.
+          tag === "start" ? "down" : "up",
+        ),
+      );
+    },
+  } as SyncProgress;
   const filters = params.sources.map(({ filter }) => filter);
 
   // Earliest `fromBlock` among all `filters`
