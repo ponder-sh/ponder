@@ -13,7 +13,6 @@ import type {
   SyncBlock,
 } from "@/internal/types.js";
 import { type Rpc, createRpc } from "@/rpc/index.js";
-import { buildAbiEvents, buildAbiFunctions, buildTopics } from "@/sync/abi.js";
 import {
   defaultBlockFilterInclude,
   defaultLogFilterInclude,
@@ -21,7 +20,8 @@ import {
   defaultTransactionFilterInclude,
   defaultTransactionReceiptInclude,
   defaultTransferFilterInclude,
-} from "@/sync/filter.js";
+} from "@/runtime/filter.js";
+import { buildAbiEvents, buildAbiFunctions, buildTopics } from "@/utils/abi.js";
 import { chains as viemChains } from "@/utils/chains.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { getFinalityBlockCount } from "@/utils/finality.js";

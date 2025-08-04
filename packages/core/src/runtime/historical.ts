@@ -8,10 +8,10 @@ import type {
   Source,
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
+import { buildEvents, decodeEvents } from "@/runtime/events.js";
+import { isAddressFactory } from "@/runtime/filter.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
-import { buildEvents, decodeEvents } from "@/sync/events.js";
-import { isAddressFactory } from "@/sync/filter.js";
 import {
   MAX_CHECKPOINT,
   ZERO_CHECKPOINT,
@@ -54,7 +54,17 @@ export async function* getHistoricalEventsOmnichain(params: {
     }
   >;
   syncStore: SyncStore;
-}) {
+}): AsyncGenerator<
+  | {
+      type: "events";
+      events: Event[];
+      checkpoints: { chainId: number; checkpoint: string }[];
+    }
+  | {
+      type: "pending";
+      pendingEvents: Event[];
+    }
+> {
   let pendingEvents: Event[] = [];
   const to = min(
     getOmnichainCheckpoint({
@@ -192,9 +202,9 @@ export async function* getHistoricalEventsOmnichain(params: {
       msg: `Sequenced ${events.length} events`,
     });
 
-    yield { events, checkpoints };
+    yield { type: "events", events, checkpoints };
   }
-  return { pendingEvents };
+  yield { type: "pending", pendingEvents };
 }
 
 export async function* getHistoricalEventsMultichain(params: {

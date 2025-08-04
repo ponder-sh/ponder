@@ -34,8 +34,8 @@ import type {
   SchemaBuild,
   Seconds,
 } from "@/internal/types.js";
+import { splitEvents } from "@/runtime/events.js";
 import { createSyncStore } from "@/sync-store/index.js";
-import { splitEvents } from "@/sync/events.js";
 import {
   ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
@@ -198,6 +198,21 @@ export async function runMultichain({
       );
 
       seconds[chain.name] = { start, end, cached };
+
+      const label = { chain: chain.name };
+      common.metrics.ponder_historical_total_indexing_seconds.set(
+        label,
+        Math.max(seconds[chain.name]!.end - seconds[chain.name]!.start, 0),
+      );
+      common.metrics.ponder_historical_cached_indexing_seconds.set(
+        label,
+        Math.max(seconds[chain.name]!.cached - seconds[chain.name]!.start, 0),
+      );
+      common.metrics.ponder_historical_completed_indexing_seconds.set(label, 0);
+      common.metrics.ponder_indexing_timestamp.set(
+        label,
+        Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
+      );
     }),
   );
 
@@ -303,32 +318,24 @@ export async function runMultichain({
               eventChunk[eventChunk.length - 1]!.checkpoint,
             );
 
-            for (const chain of indexingBuild.chains) {
-              common.metrics.ponder_historical_completed_indexing_seconds.set(
-                { chain: chain.name },
-                Math.min(
+            const chain = indexingBuild.chains.find(
+              (chain) => chain.id === Number(checkpoint.chainId),
+            )!;
+            common.metrics.ponder_historical_completed_indexing_seconds.set(
+              { chain: chain.name },
+              Math.max(
+                Number(checkpoint.blockTimestamp) -
                   Math.max(
-                    Number(checkpoint.blockTimestamp) -
-                      Math.max(
-                        seconds[chain.name]!.cached,
-                        seconds[chain.name]!.start,
-                      ),
-                    0,
+                    seconds[chain.name]!.cached,
+                    seconds[chain.name]!.start,
                   ),
-                  Math.max(
-                    seconds[chain.name]!.end - seconds[chain.name]!.start,
-                    0,
-                  ),
-                ),
-              );
-              common.metrics.ponder_indexing_timestamp.set(
-                { chain: chain.name },
-                Math.max(
-                  Number(checkpoint.blockTimestamp),
-                  seconds[chain.name]!.end,
-                ),
-              );
-            }
+                0,
+              ),
+            );
+            common.metrics.ponder_indexing_timestamp.set(
+              { chain: chain.name },
+              Number(checkpoint.blockTimestamp),
+            );
 
             // Note: allows for terminal and logs to be updated
             if (preBuild.databaseConfig.kind === "pglite") {
