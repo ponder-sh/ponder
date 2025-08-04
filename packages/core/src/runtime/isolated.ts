@@ -69,7 +69,7 @@ export async function runIsolated(
     schemaBuild: SchemaBuild;
     indexingBuild: IndexingBuild;
     crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
-    database: Database;
+    database: Omit<Database, "migrateSync" | "migrate">;
   },
   chainId: number,
 ) {

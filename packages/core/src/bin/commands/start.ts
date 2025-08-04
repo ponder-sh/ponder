@@ -1,6 +1,10 @@
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
-import { type Database, createDatabase } from "@/database/index.js";
+import {
+  type Database,
+  createDatabase,
+  createDatabaseInterface,
+} from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
@@ -85,8 +89,6 @@ export async function start({
 
   const build = await createBuild({ common, cliOptions });
 
-  let database: Database | undefined = undefined;
-
   const namespaceResult = build.namespaceCompile();
   if (namespaceResult.status === "error") {
     await exit({ reason: "Failed to initialize namespace", code: 1 });
@@ -140,7 +142,7 @@ export async function start({
     return;
   }
 
-  database = await createDatabase({
+  const database = await createDatabase({
     common,
     namespace: namespaceResult.result,
     preBuild,
@@ -217,7 +219,16 @@ export async function start({
       break;
     case "isolated": {
       Promise.all(
-        app.indexingBuild.chains.map((chain) => runIsolated(app, chain.id)),
+        app.indexingBuild.chains.map(async (chain) => {
+          const database = await createDatabaseInterface({
+            common,
+            namespace: namespaceResult.result,
+            preBuild,
+            schemaBuild,
+          });
+
+          await runIsolated({ ...app, database }, chain.id);
+        }),
       );
     }
   }
