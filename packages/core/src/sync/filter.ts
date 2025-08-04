@@ -6,6 +6,7 @@ import type {
   InternalLog,
   InternalTrace,
   InternalTransaction,
+  InternalTransactionReceipt,
   LogFactory,
   LogFilter,
   SyncBlock,
@@ -17,11 +18,6 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
-import type {
-  Transaction,
-  TransactionReceipt,
-  Trace as UserTrace,
-} from "@/types/eth.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { type Address, hexToNumber } from "viem";
 
@@ -365,26 +361,27 @@ export const defaultBlockFilterInclude: Exclude<
   "block.transactionsRoot",
 ];
 
-const defaultTransactionInclude: `transaction.${keyof Transaction}`[] = [
-  "transaction.from",
-  "transaction.gas",
-  "transaction.hash",
-  "transaction.input",
-  "transaction.nonce",
-  "transaction.r",
-  "transaction.s",
-  "transaction.to",
-  "transaction.transactionIndex",
-  "transaction.v",
-  "transaction.value",
-  "transaction.type",
-  "transaction.gasPrice",
-  "transaction.accessList",
-  "transaction.maxFeePerGas",
-  "transaction.maxPriorityFeePerGas",
-];
+const defaultTransactionInclude: `transaction.${keyof InternalTransaction}`[] =
+  [
+    "transaction.from",
+    "transaction.gas",
+    "transaction.hash",
+    "transaction.input",
+    "transaction.nonce",
+    "transaction.r",
+    "transaction.s",
+    "transaction.to",
+    "transaction.transactionIndex",
+    "transaction.v",
+    "transaction.value",
+    "transaction.type",
+    "transaction.gasPrice",
+    "transaction.accessList",
+    "transaction.maxFeePerGas",
+    "transaction.maxPriorityFeePerGas",
+  ];
 
-export const defaultTransactionReceiptInclude: `transactionReceipt.${keyof TransactionReceipt}`[] =
+export const defaultTransactionReceiptInclude: `transactionReceipt.${keyof InternalTransactionReceipt}`[] =
   [
     "transactionReceipt.contractAddress",
     "transactionReceipt.cumulativeGasUsed",
@@ -397,7 +394,7 @@ export const defaultTransactionReceiptInclude: `transactionReceipt.${keyof Trans
     "transactionReceipt.type",
   ];
 
-const defaultTraceInclude: `trace.${keyof UserTrace}`[] = [
+const defaultTraceInclude: `trace.${keyof InternalTrace}`[] = [
   "trace.traceIndex",
   "trace.type",
   "trace.from",

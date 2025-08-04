@@ -436,7 +436,7 @@ export const decodeEvents = (
               });
             } catch (err) {
               const blockNumber = event?.block?.number ?? "unknown";
-              const msg = `Unable to decode trace, skipping it. blockNumber: ${blockNumber}, transactionIndex: ${event.trace?.transactionIndex}, traceIndex: ${event.trace?.traceIndex}, input: ${event.trace?.input}, output: ${event.trace?.output}`;
+              const msg = `Unable to decode trace, skipping it. blockNumber: ${blockNumber}, transactionIndex: ${event.transaction?.transactionIndex}, traceIndex: ${event.trace?.traceIndex}, input: ${event.trace?.input}, output: ${event.trace?.output}`;
               if (source.filter.toAddress === undefined) {
                 common.logger.debug({ service: "app", msg });
               } else {
