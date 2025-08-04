@@ -76,7 +76,7 @@ export async function runIsolated(
   const syncStore = createSyncStore({ common, database });
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
-  const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
+  // const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
 
   const eventCount: { [eventName: string]: number } = {};
   for (const eventName of Object.keys(indexingBuild.indexingFunctions)) {
@@ -309,12 +309,12 @@ export async function runIsolated(
           if (eta === undefined || progress === undefined) {
             common.logger.info({
               service: "app",
-              msg: `Indexed ${events.events.length} events`,
+              msg: `Indexed ${events.events.length} '${chain.name}' events`,
             });
           } else {
             common.logger.info({
               service: "app",
-              msg: `Indexed ${events.events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
+              msg: `Indexed ${events.events.length} '${chain.name}' events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
             });
           }
 
@@ -400,37 +400,43 @@ export async function runIsolated(
   );
   common.metrics.ponder_indexing_timestamp.set(label, seconds[chain.name]!.end);
 
-  const endTimestamp = Math.round(Date.now() / 1000);
-  common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
+  /// SHOULD BE DONE ONCE FOR LAST CHAIN
+  // const endTimestamp = Math.round(Date.now() / 1000);
+  // common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
 
   common.logger.info({
     service: "indexing",
-    msg: "Completed historical indexing",
+    msg: `Completed '${chain.name}' historical indexing`,
   });
 
   const tables = Object.values(schemaBuild.schema).filter(isTable);
 
-  await createIndexes(database.adminQB, { statements: schemaBuild.statements });
+  // SHOULD BE DONE ONCE
+  // await createIndexes(database.adminQB, { statements: schemaBuild.statements });
+
   await createTriggers(database.adminQB, { tables, chainId });
-  if (namespaceBuild.viewsSchema !== undefined) {
-    await createViews(database.adminQB, { tables, namespaceBuild });
 
-    common.logger.info({
-      service: "app",
-      msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
-    });
-  }
+  /// CREATE_VIEWS SHOULD BE DONE ONCE
+  // if (namespaceBuild.viewsSchema !== undefined) {
+  //   await createViews(database.adminQB, { tables, namespaceBuild });
 
-  await database.adminQB.wrap({ label: "update_ready" }, (db) =>
-    db
-      .update(PONDER_META)
-      .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` }),
-  );
+  //   common.logger.info({
+  //     service: "app",
+  //     msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
+  //   });
+  // }
 
-  common.logger.info({
-    service: "server",
-    msg: "Started returning 200 responses from /ready endpoint",
-  });
+  /// IS_READY SHOULD BE 1 ONLY WHEN ALL CHAINS ARE READY
+  // await database.adminQB.wrap({ label: "update_ready" }, (db) =>
+  //   db
+  //     .update(PONDER_META)
+  //     .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` }),
+  // );
+
+  // common.logger.info({
+  //   service: "server",
+  //   msg: "Started returning 200 responses from /ready endpoint",
+  // });
 
   const realtimeIndexingStore = createRealtimeIndexingStore({
     common,
