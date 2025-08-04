@@ -96,7 +96,6 @@ test("createHistoricalSync()", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   expect(historicalSync).toBeDefined();
@@ -135,22 +134,19 @@ test("sync() with log filter", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
 
-  const logs = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.logs)
-    .execute();
+  const logs = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.logs).execute(),
+  );
 
   expect(logs).toHaveLength(1);
 
-  const intervals = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   expect(intervals).toHaveLength(1);
 });
@@ -189,22 +185,19 @@ test("sync() with log filter and transaction receipts", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
 
-  const transactionReceipts = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.transactionReceipts)
-    .execute();
+  const transactionReceipts = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.transactionReceipts).execute(),
+  );
 
   expect(transactionReceipts).toHaveLength(1);
 
-  const intervals = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   expect(intervals).toHaveLength(1);
 });
@@ -236,22 +229,19 @@ test("sync() with block filter", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 3]);
 
-  const blocks = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.blocks)
-    .execute();
+  const blocks = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.blocks).execute(),
+  );
 
   expect(blocks).toHaveLength(3);
 
-  const intervals = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   expect(intervals).toHaveLength(1);
 });
@@ -292,27 +282,23 @@ test("sync() with log factory", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 3]);
 
-  const logs = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.logs)
-    .execute();
-  const factories = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.factories)
-    .execute();
+  const logs = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.logs).execute(),
+  );
+  const factories = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.factories).execute(),
+  );
 
   expect(logs).toHaveLength(1);
   expect(factories).toHaveLength(1);
 
-  const intervals = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   expect(intervals).toHaveLength(1);
 });
@@ -394,22 +380,19 @@ test("sync() with trace filter", async (context) => {
       // @ts-ignore
       request,
     },
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 3]);
 
-  const traces = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.traces)
-    .execute();
+  const traces = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.traces).execute(),
+  );
 
   expect(traces).toHaveLength(1);
 
-  const intervals = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   expect(intervals).toHaveLength(1);
 });
@@ -447,29 +430,25 @@ test("sync() with transaction filter", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 1]);
 
-  const transactions = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.transactions)
-    .execute();
+  const transactions = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.transactions).execute(),
+  );
 
   expect(transactions).toHaveLength(1);
 
-  const transactionReceipts = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.transactionReceipts)
-    .execute();
+  const transactionReceipts = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.transactionReceipts).execute(),
+  );
 
   expect(transactionReceipts).toHaveLength(1);
 
-  const intervals = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   // transaction:from and transaction:to
   expect(intervals).toHaveLength(2);
@@ -535,22 +514,19 @@ test("sync() with transfer filter", async (context) => {
       // @ts-ignore
       request,
     },
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 1]);
 
-  const transactions = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.transactions)
-    .execute();
+  const transactions = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.transactions).execute(),
+  );
 
   expect(transactions).toHaveLength(1);
 
-  const intervals = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   // transfer:from and transfer:to
   expect(intervals).toHaveLength(2);
@@ -593,27 +569,23 @@ test("sync() with many filters", async (context) => {
     childAddresses: setupChildAddresses([...erc20Sources, ...blockSources]),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
 
-  const logs = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.logs)
-    .execute();
+  const logs = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.logs).execute(),
+  );
   expect(logs).toHaveLength(1);
 
-  const blocks = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.blocks)
-    .execute();
+  const blocks = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.blocks).execute(),
+  );
   expect(blocks).toHaveLength(2);
 
-  const intervals = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.intervals)
-    .execute();
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
 
   expect(intervals).toHaveLength(2);
 });
@@ -651,7 +623,6 @@ test("sync() with cache", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
@@ -667,7 +638,6 @@ test("sync() with cache", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
@@ -707,7 +677,6 @@ test("sync() with partial cache", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
@@ -726,7 +695,6 @@ test("sync() with partial cache", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 2]);
@@ -759,7 +727,6 @@ test("sync() with partial cache", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await testClient.mine({ blocks: 1 });
@@ -821,7 +788,6 @@ test("syncBlock() with cache", async (context) => {
     childAddresses: setupChildAddresses([...erc20Sources, ...blockSources]),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   const spy = vi.spyOn(rpc, "request");
@@ -876,19 +842,16 @@ test("syncAddress() handles many addresses", async (context) => {
     childAddresses: setupChildAddresses(sources),
     syncStore,
     rpc,
-    onFatalError: () => {},
   });
 
   await historicalSync.sync([1, 13]);
 
-  const logs = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.logs)
-    .execute();
-  const factories = await database.qb.sync
-    .select()
-    .from(ponderSyncSchema.factoryAddresses)
-    .execute();
+  const logs = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.logs).execute(),
+  );
+  const factories = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.factoryAddresses).execute(),
+  );
   expect(logs).toHaveLength(1);
   expect(factories).toHaveLength(11);
 });

@@ -1,5 +1,32 @@
 # Migration guide [Upgrade to a new version of Ponder]
 
+## 0.12
+
+### Breaking changes
+
+#### Lowercase addresses
+
+Address values on the `event` object are now always **lowercase**. Before, these values were always checksum encoded.
+
+This includes decoded event and trace arguments (e.g. `event.args.sender`) and these standard properties of the `event` object:
+- `event.block.miner`
+- `event.log.address`
+- `event.transaction.to`
+- `event.transaction.from`
+- `event.transactionReceipt.from`
+- `event.transactionReceipt.to`
+- `event.transactionReceipt.contractAddress`
+- `event.trace.from`
+- `event.trace.to`
+
+### New features
+
+#### Exit code 75
+
+Ponder now exits with code 75 when the instance encounters a retryable error. This includes most RPC errors and database connection issues.
+
+Exit code 1 now indicates a fatal error that is unlikely to resolve after a restart. This includes logical indexing errors (e.g. unique constraint violations).
+
 ## 0.11
 
 ### Breaking changes

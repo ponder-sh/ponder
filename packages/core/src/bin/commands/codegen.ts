@@ -32,7 +32,7 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
   const telemetry = createTelemetry({ options, logger, shutdown });
   const common = { options, logger, metrics, telemetry, shutdown };
 
-  const exit = createExit({ common });
+  const exit = createExit({ common, options });
 
   telemetry.record({
     name: "lifecycle:session_start",

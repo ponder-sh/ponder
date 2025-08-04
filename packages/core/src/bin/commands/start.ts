@@ -29,6 +29,7 @@ export type PonderApp = {
   indexingBuild: IndexingBuild;
   apiBuild: ApiBuild;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
+  database: Database;
 };
 
 export async function start({
@@ -66,7 +67,7 @@ export async function start({
   const shutdown = createShutdown();
   const telemetry = createTelemetry({ options, logger, shutdown });
   const common = { options, logger, metrics, telemetry, shutdown };
-  const exit = createExit({ common });
+  const exit = createExit({ common, options });
 
   if (options.version) {
     metrics.ponder_version_info.set(
@@ -104,7 +105,7 @@ export async function start({
   }
 
   const buildResult1 = mergeResults([
-    build.preCompile(configResult.result),
+    await build.preCompile(configResult.result),
     build.compileSchema(schemaResult.result),
   ]);
 
@@ -190,24 +191,15 @@ export async function start({
     indexingBuild: indexingBuildResult.result,
     apiBuild: apiBuildResult.result,
     crashRecoveryCheckpoint,
+    database,
   };
 
   if (onBuild) {
     app = await onBuild(app);
   }
 
-  run({
-    ...app,
-    database,
-    onFatalError: () => {
-      exit({ reason: "Received fatal error", code: 1 });
-    },
-    onReloadableError: () => {
-      exit({ reason: "Encountered indexing error", code: 1 });
-    },
-  });
-
-  runServer({ ...app, database });
+  run(app);
+  runServer(app);
 
   return shutdown.kill;
 }

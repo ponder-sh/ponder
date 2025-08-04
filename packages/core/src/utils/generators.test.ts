@@ -1,6 +1,10 @@
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { expect, test } from "vitest";
-import { bufferAsyncGenerator, mergeAsyncGenerators } from "./generators.js";
+import {
+  bufferAsyncGenerator,
+  createCallbackGenerator,
+  mergeAsyncGenerators,
+} from "./generators.js";
 
 test("mergeAsyncGenerators()", async () => {
   const p1 = promiseWithResolvers<number>();
@@ -157,4 +161,21 @@ test("bufferAsyncGenerator() yields all results", async () => {
 
   result = await generator.next();
   expect(result.done).toBe(true);
+});
+
+test("createCallbackGenerator()", async () => {
+  const { callback, generator } = createCallbackGenerator<number, number>();
+
+  (async () => {
+    for (let i = 0; i < 5; i++) {
+      await callback(i);
+      await new Promise((res) => setTimeout(res, 1000));
+    }
+  })();
+
+  for await (const { value, onComplete } of generator) {
+    onComplete(value + 1);
+
+    if (value === 4) break;
+  }
 });

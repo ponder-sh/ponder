@@ -1,19 +1,21 @@
 import { findTableNames, validateQuery } from "@/client/parse.js";
+import type { QB } from "@/database/queryBuilder.js";
 import type { Common } from "@/internal/common.js";
-import { RecordNotFoundError } from "@/internal/errors.js";
-import type { Schema, SchemaBuild } from "@/internal/types.js";
-import type { Drizzle } from "@/types/db.js";
+import {
+  DbConnectionError,
+  RawSqlError,
+  RecordNotFoundError,
+  RetryableError,
+} from "@/internal/errors.js";
+import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
-import type { PGlite } from "@electric-sql/pglite";
 import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
-import type { PoolClient } from "pg";
 import type { IndexingCache } from "./cache.js";
 import {
   type IndexingStore,
   checkOnchainTable,
-  parseSqlError,
   validateUpdateSet,
 } from "./index.js";
 
@@ -21,25 +23,39 @@ export const createHistoricalIndexingStore = ({
   common,
   schemaBuild: { schema },
   indexingCache,
-  db,
-  client,
+  indexingErrorHandler,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   indexingCache: IndexingCache;
-  db: Drizzle<Schema>;
-  client: PoolClient | PGlite;
+  indexingErrorHandler: IndexingErrorHandler;
 }): IndexingStore => {
+  let qb: QB = undefined!;
+
+  const errorHandler = (fn: (...args: any[]) => Promise<any>) => {
+    return async (...args: any[]) => {
+      try {
+        return await fn(...args);
+      } catch (error) {
+        if (error instanceof RetryableError) {
+          indexingErrorHandler.setRetryableError(error);
+        }
+
+        throw error;
+      }
+    };
+  };
+
   return {
     // @ts-ignore
-    find: (table: Table, key) => {
+    find: errorHandler((table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "find",
       });
       checkOnchainTable(table, "find");
-      return indexingCache.get({ table, key, db });
-    },
+      return indexingCache.get({ table, key });
+    }),
 
     // @ts-ignore
     insert(table: Table) {
@@ -47,7 +63,7 @@ export const createHistoricalIndexingStore = ({
         values: (values: any) => {
           // @ts-ignore
           const inner = {
-            onConflictDoNothing: async () => {
+            onConflictDoNothing: errorHandler(async () => {
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -57,11 +73,7 @@ export const createHistoricalIndexingStore = ({
               if (Array.isArray(values)) {
                 const rows = [];
                 for (const value of values) {
-                  const row = await indexingCache.get({
-                    table,
-                    key: value,
-                    db,
-                  });
+                  const row = await indexingCache.get({ table, key: value });
 
                   if (row) {
                     rows.push(null);
@@ -78,11 +90,7 @@ export const createHistoricalIndexingStore = ({
                 }
                 return rows;
               } else {
-                const row = await indexingCache.get({
-                  table,
-                  key: values,
-                  db,
-                });
+                const row = await indexingCache.get({ table, key: values });
 
                 if (row) {
                   return null;
@@ -95,8 +103,8 @@ export const createHistoricalIndexingStore = ({
                   isUpdate: false,
                 });
               }
-            },
-            onConflictDoUpdate: async (valuesU: any) => {
+            }),
+            onConflictDoUpdate: errorHandler(async (valuesU: any) => {
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -109,7 +117,6 @@ export const createHistoricalIndexingStore = ({
                   const row = await indexingCache.get({
                     table,
                     key: value,
-                    db,
                   });
 
                   if (row) {
@@ -147,7 +154,7 @@ export const createHistoricalIndexingStore = ({
                 }
                 return rows;
               } else {
-                const row = await indexingCache.get({ table, key: values, db });
+                const row = await indexingCache.get({ table, key: values });
 
                 if (row) {
                   if (typeof valuesU === "function") {
@@ -178,44 +185,45 @@ export const createHistoricalIndexingStore = ({
                   isUpdate: false,
                 });
               }
-            },
+            }),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
-            then: (onFulfilled, onRejected) => {
-              common.metrics.ponder_indexing_store_queries_total.inc({
-                table: getTableName(table),
-                method: "insert",
-              });
-              checkOnchainTable(table, "insert");
+            then: (onFulfilled, onRejected) =>
+              errorHandler(async () => {
+                common.metrics.ponder_indexing_store_queries_total.inc({
+                  table: getTableName(table),
+                  method: "insert",
+                });
+                checkOnchainTable(table, "insert");
 
-              if (Array.isArray(values)) {
-                const rows = [];
-                for (const value of values) {
+                if (Array.isArray(values)) {
+                  const rows = [];
+                  for (const value of values) {
+                    // Note: optimistic assumption that no conflict exists
+                    // because error is recovered at flush time
+
+                    rows.push(
+                      indexingCache.set({
+                        table,
+                        key: value,
+                        row: value,
+                        isUpdate: false,
+                      }),
+                    );
+                  }
+                  return Promise.resolve(rows).then(onFulfilled, onRejected);
+                } else {
                   // Note: optimistic assumption that no conflict exists
                   // because error is recovered at flush time
 
-                  rows.push(
-                    indexingCache.set({
-                      table,
-                      key: value,
-                      row: value,
-                      isUpdate: false,
-                    }),
-                  );
+                  const result = indexingCache.set({
+                    table,
+                    key: values,
+                    row: values,
+                    isUpdate: false,
+                  });
+                  return Promise.resolve(result).then(onFulfilled, onRejected);
                 }
-                return Promise.resolve(rows).then(onFulfilled, onRejected);
-              } else {
-                // Note: optimistic assumption that no conflict exists
-                // because error is recovered at flush time
-
-                const result = indexingCache.set({
-                  table,
-                  key: values,
-                  row: values,
-                  isUpdate: false,
-                });
-                return Promise.resolve(result).then(onFulfilled, onRejected);
-              }
-            },
+              })().then(onFulfilled, onRejected),
             catch: (onRejected) => inner.then(undefined, onRejected),
             finally: (onFinally) =>
               inner.then(
@@ -238,14 +246,14 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     update(table: Table, key) {
       return {
-        set: async (values: any) => {
+        set: errorHandler(async (values: any) => {
           common.metrics.ponder_indexing_store_queries_total.inc({
             table: getTableName(table),
             method: "update",
           });
           checkOnchainTable(table, "update");
 
-          const row = await indexingCache.get({ table, key, db });
+          const row = await indexingCache.get({ table, key });
 
           if (row === null) {
             const error = new RecordNotFoundError(
@@ -270,21 +278,21 @@ export const createHistoricalIndexingStore = ({
           }
 
           return indexingCache.set({ table, key, row, isUpdate: true });
-        },
+        }),
       };
     },
     // @ts-ignore
-    delete: async (table: Table, key) => {
+    delete: errorHandler(async (table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "delete",
       });
       checkOnchainTable(table, "delete");
-      return indexingCache.delete({ table, key, db });
-    },
+      return indexingCache.delete({ table, key });
+    }),
     // @ts-ignore
     sql: drizzle(
-      async (_sql, params, method, typings) => {
+      errorHandler(async (_sql, params, method, typings) => {
         let isSelectOnly = false;
         try {
           await validateQuery(_sql, false);
@@ -292,7 +300,7 @@ export const createHistoricalIndexingStore = ({
         } catch {}
 
         if (isSelectOnly === false) {
-          await indexingCache.flush({ client });
+          await indexingCache.flush();
           indexingCache.invalidate();
           indexingCache.clear();
         } else {
@@ -303,28 +311,41 @@ export const createHistoricalIndexingStore = ({
             tableNames = await findTableNames(_sql);
           } catch {}
 
-          await indexingCache.flush({ client, tableNames });
+          await indexingCache.flush({ tableNames });
         }
 
         const query: QueryWithTypings = { sql: _sql, params, typings };
         const endClock = startClock();
 
         try {
-          const result = await db._.session
-            .prepareQuery(query, undefined, undefined, method === "all")
-            .execute();
+          // Note: Use transaction so that user-land queries don't affect the
+          // in-progress transaction.
+          return await qb.transaction(async (tx) => {
+            const result = await tx.wrap((tx) =>
+              tx._.session
+                .prepareQuery(query, undefined, undefined, method === "all")
+                .execute(),
+            );
 
-          // @ts-ignore
-          return { rows: result.rows.map((row) => Object.values(row)) };
+            // @ts-ignore
+            return { rows: result.rows.map((row) => Object.values(row)) };
+          });
         } catch (error) {
-          throw parseSqlError(error);
+          if (error instanceof DbConnectionError) {
+            throw error;
+          }
+
+          throw new RawSqlError((error as Error).message);
         } finally {
           common.metrics.ponder_indexing_store_raw_sql_duration.observe(
             endClock(),
           );
         }
-      },
+      }),
       { schema, casing: "snake_case" },
     ),
+    set qb(_qb: QB) {
+      qb = _qb;
+    },
   };
 };

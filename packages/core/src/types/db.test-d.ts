@@ -103,3 +103,16 @@ test("delete", () => {
     //    ^?
   };
 });
+
+test("non-empty table name", () => {
+  onchainTable("table", (t) => ({
+    id: t.text().primaryKey(),
+    other: t.integer(),
+  }));
+
+  // @ts-expect-error
+  onchainTable("", (t) => ({
+    id: t.text().primaryKey(),
+    other: t.integer(),
+  }));
+});

@@ -2,12 +2,17 @@ import type { IndexingCache } from "@/indexing-store/cache.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
 import type { CachedViemClient } from "@/indexing/client.js";
 import type { Common } from "@/internal/common.js";
-import { ShutdownError } from "@/internal/errors.js";
+import {
+  BaseError,
+  IndexingFunctionError,
+  ShutdownError,
+} from "@/internal/errors.js";
 import type {
   Chain,
   ContractSource,
   Event,
   IndexingBuild,
+  IndexingErrorHandler,
   Schema,
   SetupEvent,
 } from "@/internal/types.js";
@@ -23,7 +28,6 @@ import {
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import type { Abi, Address } from "viem";
-import { checksumAddress } from "viem";
 import { addStackTrace } from "./addStackTrace.js";
 import type { ReadonlyClient } from "./client.js";
 
@@ -45,12 +49,12 @@ export type Context = {
 export type Indexing = {
   processSetupEvents: (params: {
     db: IndexingStore;
-  }) => Promise<{ status: "error"; error: Error } | { status: "success" }>;
+  }) => Promise<void>;
   processEvents: (params: {
     events: Event[];
     db: IndexingStore;
     cache?: IndexingCache;
-  }) => Promise<{ status: "error"; error: Error } | { status: "success" }>;
+  }) => Promise<void>;
 };
 
 export const createIndexing = ({
@@ -58,6 +62,7 @@ export const createIndexing = ({
   indexingBuild: { sources, chains, indexingFunctions },
   client,
   eventCount,
+  indexingErrorHandler,
 }: {
   common: Common;
   indexingBuild: Pick<
@@ -66,6 +71,7 @@ export const createIndexing = ({
   >;
   client: CachedViemClient;
   eventCount: { [eventName: string]: number };
+  indexingErrorHandler: IndexingErrorHandler;
 }): Indexing => {
   const context: Context = {
     chain: { name: undefined!, id: undefined! },
@@ -131,7 +137,7 @@ export const createIndexing = ({
 
     contractsByChainId[source.filter.chainId]![source.name] = {
       abi: source.abi,
-      address: address ? checksumAddress(address) : address,
+      address,
       startBlock: source.filter.fromBlock,
       endBlock: source.filter.toBlock,
     };
@@ -151,9 +157,7 @@ export const createIndexing = ({
 
   const executeSetup = async ({
     event,
-  }: { event: SetupEvent }): Promise<
-    { status: "error"; error: Error } | { status: "success" }
-  > => {
+  }: { event: SetupEvent }): Promise<void> => {
     const indexingFunction = indexingFunctions[event.name];
     const metricLabel = { event: event.name };
 
@@ -171,8 +175,16 @@ export const createIndexing = ({
         endClock(),
       );
     } catch (_error) {
-      const error =
-        _error instanceof Error ? _error : new Error(String(_error));
+      let error = _error instanceof Error ? _error : new Error(String(_error));
+
+      // Note: Use `getRetryableError` rather than `error` to avoid
+      // issues with the user-code augmenting errors from the indexing store.
+
+      if (indexingErrorHandler.getRetryableError()) {
+        const retryableError = indexingErrorHandler.getRetryableError()!;
+        indexingErrorHandler.clearRetryableError();
+        throw retryableError;
+      }
 
       if (common.shutdown.isKilled) {
         throw new ShutdownError();
@@ -190,17 +202,24 @@ export const createIndexing = ({
 
       common.metrics.ponder_indexing_has_error.set(1);
 
-      return { status: "error", error: error };
+      if (error instanceof BaseError === false) {
+        error = new IndexingFunctionError(error.message);
+      }
+
+      throw error;
     }
 
-    return { status: "success" };
+    // Note: Check `getRetryableError` to handle user-code catching errors
+    // from the indexing store.
+
+    if (indexingErrorHandler.getRetryableError()) {
+      const retryableError = indexingErrorHandler.getRetryableError()!;
+      indexingErrorHandler.clearRetryableError();
+      throw retryableError;
+    }
   };
 
-  const executeEvent = async ({
-    event,
-  }: { event: Event }): Promise<
-    { status: "error"; error: Error } | { status: "success" }
-  > => {
+  const executeEvent = async ({ event }: { event: Event }): Promise<void> => {
     const indexingFunction = indexingFunctions[event.name];
     const metricLabel = { event: event.name };
 
@@ -218,8 +237,16 @@ export const createIndexing = ({
         endClock(),
       );
     } catch (_error) {
-      const error =
-        _error instanceof Error ? _error : new Error(String(_error));
+      let error = _error instanceof Error ? _error : new Error(String(_error));
+
+      // Note: Use `getRetryableError` rather than `error` to avoid
+      // issues with the user-code augmenting errors from the indexing store.
+
+      if (indexingErrorHandler.getRetryableError()) {
+        const retryableError = indexingErrorHandler.getRetryableError()!;
+        indexingErrorHandler.clearRetryableError();
+        throw retryableError;
+      }
 
       if (common.shutdown.isKilled) {
         throw new ShutdownError();
@@ -238,10 +265,21 @@ export const createIndexing = ({
 
       common.metrics.ponder_indexing_has_error.set(1);
 
-      return { status: "error", error };
+      if (error instanceof BaseError === false) {
+        error = new IndexingFunctionError(error.message);
+      }
+
+      throw error;
     }
 
-    return { status: "success" };
+    // Note: Check `getRetryableError` to handle user-code catching errors
+    // from the indexing store.
+
+    if (indexingErrorHandler.getRetryableError()) {
+      const retryableError = indexingErrorHandler.getRetryableError()!;
+      indexingErrorHandler.clearRetryableError();
+      throw retryableError;
+    }
   };
 
   return {
@@ -281,15 +319,9 @@ export const createIndexing = ({
 
           eventCount[eventName]!++;
 
-          const result = await executeSetup({ event });
-
-          if (result.status !== "success") {
-            return result;
-          }
+          await executeSetup({ event });
         }
       }
-
-      return { status: "success" };
     },
     async processEvents({ events, db, cache }) {
       context.db = db;
@@ -310,10 +342,7 @@ export const createIndexing = ({
           msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
         });
 
-        const result = await executeEvent({ event });
-        if (result.status !== "success") {
-          return result;
-        }
+        await executeEvent({ event });
 
         common.logger.trace({
           service: "indexing",
@@ -323,8 +352,6 @@ export const createIndexing = ({
 
       // set completed events
       updateCompletedEvents();
-
-      return { status: "success" };
     },
   };
 };
