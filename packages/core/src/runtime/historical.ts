@@ -54,7 +54,17 @@ export async function* getHistoricalEventsOmnichain(params: {
     }
   >;
   syncStore: SyncStore;
-}) {
+}): AsyncGenerator<
+  | {
+      type: "events";
+      events: Event[];
+      checkpoints: { chainId: number; checkpoint: string }[];
+    }
+  | {
+      type: "pending";
+      pendingEvents: Event[];
+    }
+> {
   let pendingEvents: Event[] = [];
   const to = min(
     getOmnichainCheckpoint({
@@ -192,9 +202,9 @@ export async function* getHistoricalEventsOmnichain(params: {
       msg: `Sequenced ${events.length} events`,
     });
 
-    yield { events, checkpoints };
+    yield { type: "events", events, checkpoints };
   }
-  return { pendingEvents };
+  yield { type: "pending", pendingEvents };
 }
 
 export async function* getHistoricalEventsMultichain(params: {
