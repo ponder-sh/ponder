@@ -111,6 +111,7 @@ export async function run({
 
   const indexingCache = createIndexingCache({
     common,
+    preBuild,
     schemaBuild,
     crashRecoveryCheckpoint,
     eventCount,
