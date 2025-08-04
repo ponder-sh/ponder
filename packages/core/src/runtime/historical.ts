@@ -351,12 +351,6 @@ export async function* getHistoricalEventsIsolated(params: {
 }) {
   const { syncProgress, childAddresses, chain, cachedIntervals } = params;
 
-  let pendingEvents: Event[] = [];
-  const to = min(
-    syncProgress.getCheckpoint({ tag: "finalized" }),
-    syncProgress.getCheckpoint({ tag: "end" }),
-  );
-
   const rpc =
     params.indexingBuild.rpcs[
       params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
@@ -422,7 +416,7 @@ export async function* getHistoricalEventsIsolated(params: {
     syncStore: params.syncStore,
   });
 
-  for await (let { events: rawEvents, checkpoint } of rawEventGenerator) {
+  for await (const { events: rawEvents, checkpoint } of rawEventGenerator) {
     const endClock = startClock();
     let events = decodeEvents(params.common, sources, rawEvents);
     params.common.logger.debug({
@@ -449,21 +443,6 @@ export async function* getHistoricalEventsIsolated(params: {
       events = right;
     }
 
-    // Sort out any events between the omnichain finalized checkpoint and the single-chain
-    // finalized checkpoint and add them to pendingEvents. These events are synced during
-    // the historical phase, but must be indexed in the realtime phase because events
-    // synced in realtime on other chains might be ordered before them.
-
-    if (checkpoint > to) {
-      const [left, right] = partition(
-        events,
-        (event) => event.checkpoint <= to,
-      );
-      pendingEvents = pendingEvents.concat(right);
-      events = left;
-      checkpoint = to;
-    }
-
     params.common.logger.debug({
       service: "sync",
       msg: `Sequenced ${events.length} events`,
@@ -471,8 +450,6 @@ export async function* getHistoricalEventsIsolated(params: {
 
     yield { events, checkpoint };
   }
-
-  return { pendingEvents };
 }
 
 export async function* getLocalEventGenerator(params: {

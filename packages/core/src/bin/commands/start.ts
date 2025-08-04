@@ -15,6 +15,7 @@ import type {
   PreBuild,
   SchemaBuild,
 } from "@/internal/types.js";
+import { runIsolated } from "@/runtime/isolated.js";
 import { runMultichain } from "@/runtime/multichain.js";
 import { runOmnichain } from "@/runtime/omnichain.js";
 import { createServer } from "@/server/index.js";
@@ -203,11 +204,18 @@ export async function start({
   if (onBuild) {
     app = await onBuild(app);
   }
-
-  if (preBuild.ordering === "omnichain") {
-    runOmnichain(app);
-  } else {
-    runMultichain(app);
+  switch (preBuild.ordering) {
+    case "omnichain":
+      runOmnichain(app);
+      break;
+    case "multichain":
+      runMultichain(app);
+      break;
+    case "isolated": {
+      Promise.all(
+        app.indexingBuild.chains.map((chain) => runIsolated(app, chain.id)),
+      );
+    }
   }
   createServer(app);
 
