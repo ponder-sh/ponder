@@ -22,7 +22,6 @@ import {
   defaultTransactionReceiptInclude,
   defaultTransferFilterInclude,
 } from "@/sync/filter.js";
-import { syncBlockToLightBlock } from "@/sync/index.js";
 import { chains as viemChains } from "@/utils/chains.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { getFinalityBlockCount } from "@/utils/finality.js";
@@ -223,7 +222,12 @@ export async function buildConfigAndIndexingFunctions({
       return blockPromise.then((latest) =>
         _eth_getBlockByNumber(rpc, {
           blockNumber: Math.max(latest - chain.finalityBlockCount, 0),
-        }).then(syncBlockToLightBlock),
+        }).then((block) => ({
+          hash: block.hash,
+          parentHash: block.parentHash,
+          number: block.number,
+          timestamp: block.timestamp,
+        })),
       );
     }),
   );

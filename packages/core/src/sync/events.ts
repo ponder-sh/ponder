@@ -31,6 +31,7 @@ import {
   type Address,
   DecodeLogDataMismatch,
   DecodeLogTopicsMismatch,
+  type Hash,
   type Hex,
   decodeFunctionData,
   decodeFunctionResult,
@@ -331,6 +332,33 @@ export const buildEvents = ({
   }
 
   return events.sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
+};
+
+export const splitEvents = (
+  events: Event[],
+): { events: Event[]; chainId: number; checkpoint: string }[] => {
+  let hash: Hash | undefined;
+  const result: { events: Event[]; chainId: number; checkpoint: string }[] = [];
+
+  for (const event of events) {
+    if (hash === undefined || hash !== event.event.block.hash) {
+      result.push({
+        events: [],
+        chainId: event.chainId,
+        checkpoint: encodeCheckpoint({
+          ...MAX_CHECKPOINT,
+          blockTimestamp: event.event.block.timestamp,
+          chainId: BigInt(event.chainId),
+          blockNumber: event.event.block.number,
+        }),
+      });
+      hash = event.event.block.hash;
+    }
+
+    result[result.length - 1]!.events.push(event);
+  }
+
+  return result;
 };
 
 export const decodeEvents = (
