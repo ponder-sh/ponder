@@ -33,7 +33,6 @@ import type {
   Seconds,
 } from "@/internal/types.js";
 import { createSyncStore } from "@/sync-store/index.js";
-import { splitEvents } from "@/sync/events.js";
 import {
   ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
@@ -45,6 +44,7 @@ import { recordAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
 import { eq, getTableName, isTable, sql } from "drizzle-orm";
+import { splitEvents } from "./events.js";
 import { getHistoricalEventsIsolated } from "./historical.js";
 import {
   getCachedIntervals,

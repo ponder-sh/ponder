@@ -85,7 +85,7 @@ export async function start({
 
   const build = await createBuild({ common, cliOptions });
 
-  let database: Database | undefined;
+  let database: Database | undefined = undefined;
 
   const namespaceResult = build.namespaceCompile();
   if (namespaceResult.status === "error") {
@@ -205,6 +205,9 @@ export async function start({
     app = await onBuild(app);
   }
 
+  await database.migrateSync();
+  runCodegen({ common });
+
   switch (preBuild.ordering) {
     case "omnichain":
       runOmnichain(app);
@@ -213,9 +216,6 @@ export async function start({
       runMultichain(app);
       break;
     case "isolated": {
-      await database.migrateSync();
-      runCodegen({ common });
-
       Promise.all(
         app.indexingBuild.chains.map((chain) => runIsolated(app, chain.id)),
       );
