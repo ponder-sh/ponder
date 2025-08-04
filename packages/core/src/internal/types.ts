@@ -432,11 +432,11 @@ export type RawEvent = {
   chainId: number;
   sourceIndex: number;
   checkpoint: string;
-  log?: InternalLog;
-  block: InternalBlock;
-  transaction?: InternalTransaction;
-  transactionReceipt?: InternalTransactionReceipt;
-  trace?: InternalTrace;
+  log?: Log;
+  block: Block;
+  transaction?: Transaction;
+  transactionReceipt?: TransactionReceipt;
+  trace?: Trace;
 };
 
 export type Event =

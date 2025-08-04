@@ -379,7 +379,6 @@ const defaultTransactionInclude: `transaction.${keyof InternalTransaction}`[] =
     "transaction.accessList",
     "transaction.maxFeePerGas",
     "transaction.maxPriorityFeePerGas",
-    "transaction.blockNumber",
   ];
 
 export const defaultTransactionReceiptInclude: `transactionReceipt.${keyof InternalTransactionReceipt}`[] =
@@ -393,8 +392,6 @@ export const defaultTransactionReceiptInclude: `transactionReceipt.${keyof Inter
     "transactionReceipt.status",
     "transactionReceipt.to",
     "transactionReceipt.type",
-    "transactionReceipt.blockNumber",
-    "transactionReceipt.transactionIndex",
   ];
 
 const defaultTraceInclude: `trace.${keyof InternalTrace}`[] = [
@@ -409,8 +406,6 @@ const defaultTraceInclude: `trace.${keyof InternalTrace}`[] = [
   "trace.error",
   "trace.revertReason",
   "trace.value",
-  "trace.blockNumber",
-  "trace.transactionIndex",
 ];
 
 export const defaultLogFilterInclude: Exclude<LogFilter["include"], undefined> =
@@ -420,8 +415,6 @@ export const defaultLogFilterInclude: Exclude<LogFilter["include"], undefined> =
     "log.logIndex",
     "log.removed",
     "log.topics",
-    "log.blockNumber",
-    "log.transactionIndex",
     ...defaultTransactionInclude,
     ...defaultBlockFilterInclude,
   ];
