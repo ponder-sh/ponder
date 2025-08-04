@@ -27,6 +27,7 @@ import { getAppProgress } from "@/internal/metrics.js";
 import type {
   Chain,
   CrashRecoveryCheckpoint,
+  Event,
   IndexingBuild,
   IndexingErrorHandler,
   NamespaceBuild,
@@ -212,6 +213,21 @@ export async function runOmnichain({
     );
 
     seconds[chain.name] = { start, end, cached };
+
+    const label = { chain: chain.name };
+    common.metrics.ponder_historical_total_indexing_seconds.set(
+      label,
+      Math.max(seconds[chain.name]!.end - seconds[chain.name]!.start, 0),
+    );
+    common.metrics.ponder_historical_cached_indexing_seconds.set(
+      label,
+      Math.max(seconds[chain.name]!.cached - seconds[chain.name]!.start, 0),
+    );
+    common.metrics.ponder_historical_completed_indexing_seconds.set(label, 0);
+    common.metrics.ponder_indexing_timestamp.set(
+      label,
+      Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
+    );
   }
 
   const startTimestamp = Math.round(Date.now() / 1000);
@@ -263,8 +279,10 @@ export async function runOmnichain({
     });
   }
 
+  let pendingEvents: Event[] = [];
+
   // Run historical indexing until complete.
-  for await (const events of recordAsyncGenerator(
+  for await (const result of recordAsyncGenerator(
     getHistoricalEventsOmnichain({
       common,
       indexingBuild,
@@ -283,18 +301,23 @@ export async function runOmnichain({
       );
     },
   )) {
+    if (result.type === "pending") {
+      pendingEvents = result.pendingEvents!;
+      continue;
+    }
+
     let endClock = startClock();
 
     indexingCache.qb = database.userQB;
     await Promise.all([
-      indexingCache.prefetch({ events: events.events }),
-      cachedViemClient.prefetch({ events: events.events }),
+      indexingCache.prefetch({ events: result.events }),
+      cachedViemClient.prefetch({ events: result.events }),
     ]);
     common.metrics.ponder_historical_transform_duration.inc(
       { step: "prefetch" },
       endClock(),
     );
-    if (events.events.length > 0) {
+    if (result.events.length > 0) {
       endClock = startClock();
       await database.userQB.transaction(async (tx) => {
         try {
@@ -308,7 +331,7 @@ export async function runOmnichain({
 
           endClock = startClock();
 
-          const eventChunks = chunk(events.events, 93);
+          const eventChunks = chunk(result.events, 93);
           for (const eventChunk of eventChunks) {
             await indexing.processEvents({
               events: eventChunk,
@@ -320,24 +343,32 @@ export async function runOmnichain({
               eventChunk[eventChunk.length - 1]!.checkpoint,
             );
 
-            const chain = indexingBuild.chains.find(
-              (chain) => chain.id === Number(checkpoint.chainId),
-            )!;
-            common.metrics.ponder_historical_completed_indexing_seconds.set(
-              { chain: chain.name },
-              Math.max(
-                Number(checkpoint.blockTimestamp) -
+            for (const chain of indexingBuild.chains) {
+              common.metrics.ponder_historical_completed_indexing_seconds.set(
+                { chain: chain.name },
+                Math.min(
                   Math.max(
-                    seconds[chain.name]!.cached,
-                    seconds[chain.name]!.start,
+                    Number(checkpoint.blockTimestamp) -
+                      Math.max(
+                        seconds[chain.name]!.cached,
+                        seconds[chain.name]!.start,
+                      ),
+                    0,
                   ),
-                0,
-              ),
-            );
-            common.metrics.ponder_indexing_timestamp.set(
-              { chain: chain.name },
-              Number(checkpoint.blockTimestamp),
-            );
+                  Math.max(
+                    seconds[chain.name]!.end - seconds[chain.name]!.start,
+                    0,
+                  ),
+                ),
+              );
+              common.metrics.ponder_indexing_timestamp.set(
+                { chain: chain.name },
+                Math.max(
+                  Number(checkpoint.blockTimestamp),
+                  seconds[chain.name]!.end,
+                ),
+              );
+            }
 
             // Note: allows for terminal and logs to be updated
             if (preBuild.databaseConfig.kind === "pglite") {
@@ -352,12 +383,12 @@ export async function runOmnichain({
           if (eta === undefined || progress === undefined) {
             common.logger.info({
               service: "app",
-              msg: `Indexed ${events.events.length} events`,
+              msg: `Indexed ${result.events.length} events`,
             });
           } else {
             common.logger.info({
               service: "app",
-              msg: `Indexed ${events.events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
+              msg: `Indexed ${result.events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
             });
           }
 
@@ -378,12 +409,12 @@ export async function runOmnichain({
           );
           endClock = startClock();
 
-          if (events.checkpoints.length > 0) {
+          if (result.checkpoints.length > 0) {
             await tx.wrap({ label: "update_checkpoints" }, (tx) =>
               tx
                 .insert(PONDER_CHECKPOINT)
                 .values(
-                  events.checkpoints.map(({ chainId, checkpoint }) => ({
+                  result.checkpoints.map(({ chainId, checkpoint }) => ({
                     chainName: indexingBuild.chains.find(
                       (chain) => chain.id === chainId,
                     )!.name,
@@ -499,7 +530,7 @@ export async function runOmnichain({
     indexingBuild,
     perChainSync,
     syncStore,
-    pendingEvents: [],
+    pendingEvents,
   })) {
     switch (event.type) {
       case "block": {
