@@ -1,4 +1,3 @@
-import { runCodegen } from "@/bin/utils/codegen.js";
 import {
   commitBlock,
   createIndexes,
@@ -74,10 +73,6 @@ export async function runIsolated(
   },
   chainId: number,
 ) {
-  await database.migrateSync();
-
-  runCodegen({ common });
-
   const syncStore = createSyncStore({ common, database });
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
@@ -200,6 +195,7 @@ export async function runIsolated(
 
       await indexing.processSetupEvents({
         db: historicalIndexingStore,
+        chain,
       });
 
       await indexingCache.flush();
@@ -402,10 +398,7 @@ export async function runIsolated(
       0,
     ),
   );
-  common.metrics.ponder_indexing_timestamp.set(
-    { chain: chain.name },
-    seconds[chain.name]!.end,
-  );
+  common.metrics.ponder_indexing_timestamp.set(label, seconds[chain.name]!.end);
 
   const endTimestamp = Math.round(Date.now() / 1000);
   common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
@@ -418,7 +411,7 @@ export async function runIsolated(
   const tables = Object.values(schemaBuild.schema).filter(isTable);
 
   await createIndexes(database.adminQB, { statements: schemaBuild.statements });
-  await createTriggers(database.adminQB, { tables });
+  await createTriggers(database.adminQB, { tables, chainId });
   if (namespaceBuild.viewsSchema !== undefined) {
     await createViews(database.adminQB, { tables, namespaceBuild });
 
@@ -527,7 +520,7 @@ export async function runIsolated(
         // in the `block` case.
 
         await database.userQB.transaction(async (tx) => {
-          await dropTriggers(tx, { tables });
+          await dropTriggers(tx, { tables, chainId });
 
           const counts = await revert(tx, {
             tables,
@@ -542,7 +535,7 @@ export async function runIsolated(
             });
           }
 
-          await createTriggers(tx, { tables });
+          await createTriggers(tx, { tables, chainId });
         });
 
         break;

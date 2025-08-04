@@ -20,6 +20,7 @@ import { runMultichain } from "@/runtime/multichain.js";
 import { runOmnichain } from "@/runtime/omnichain.js";
 import { createServer } from "@/server/index.js";
 import type { CliOptions } from "../ponder.js";
+import { runCodegen } from "../utils/codegen.js";
 import { createExit } from "../utils/exit.js";
 
 export type PonderApp = {
@@ -84,7 +85,6 @@ export async function start({
 
   const build = await createBuild({ common, cliOptions });
 
-  // biome-ignore lint/style/useConst: <explanation>
   let database: Database | undefined;
 
   const namespaceResult = build.namespaceCompile();
@@ -204,6 +204,7 @@ export async function start({
   if (onBuild) {
     app = await onBuild(app);
   }
+
   switch (preBuild.ordering) {
     case "omnichain":
       runOmnichain(app);
@@ -212,6 +213,9 @@ export async function start({
       runMultichain(app);
       break;
     case "isolated": {
+      await database.migrateSync();
+      runCodegen({ common });
+
       Promise.all(
         app.indexingBuild.chains.map((chain) => runIsolated(app, chain.id)),
       );
