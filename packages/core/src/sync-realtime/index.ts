@@ -1,14 +1,11 @@
-import type { Common } from "@/internal/common.js";
 import { ShutdownError } from "@/internal/errors.js";
 import type {
   BlockFilter,
-  Chain,
   Factory,
-  FactoryId,
   Filter,
   LightBlock,
   LogFilter,
-  Source,
+  PerChainPonderApp,
   SyncBlock,
   SyncBlockHeader,
   SyncLog,
@@ -19,7 +16,6 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
-import type { Rpc } from "@/rpc/index.js";
 import {
   getChildAddress,
   isAddressFactory,
@@ -32,7 +28,7 @@ import {
   isTransferFilterMatched,
   shouldGetTransactionReceipt,
 } from "@/runtime/filter.js";
-import type { SyncProgress } from "@/runtime/index.js";
+import { type ChildAddresses, getFilters } from "@/runtime/index.js";
 import { createLock } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
 import {
@@ -91,15 +87,6 @@ export type RealtimeSyncEvent =
       reorgedBlocks: LightBlock[];
     };
 
-type CreateRealtimeSyncParameters = {
-  common: Common;
-  chain: Chain;
-  rpc: Rpc;
-  sources: Source[];
-  syncProgress: Pick<SyncProgress, "finalized">;
-  childAddresses: Map<FactoryId, Map<Address, number>>;
-};
-
 const MAX_LATEST_BLOCK_ATTEMPT_MS = 3 * 60 * 1000; // 3 minutes
 
 const ERROR_TIMEOUT = [
@@ -108,11 +95,11 @@ const ERROR_TIMEOUT = [
 const MAX_QUEUED_BLOCKS = 25;
 
 export const createRealtimeSync = (
-  args: CreateRealtimeSyncParameters,
+  app: PerChainPonderApp,
+  { childAddresses }: { childAddresses: ChildAddresses },
 ): RealtimeSync => {
   let isBlockReceipts = true;
-  let finalizedBlock: LightBlock = args.syncProgress.finalized;
-  const childAddresses = args.childAddresses;
+  let finalizedBlock: LightBlock = app.indexingBuild.finalizedBlock;
   /** Annotates `childAddresses` for efficient lookup by block number */
   const childAddressesPerBlock = new Map<
     number,
@@ -135,30 +122,35 @@ export const createRealtimeSync = (
   const transferFilters: TransferFilter[] = [];
   const blockFilters: BlockFilter[] = [];
 
-  for (const source of args.sources) {
-    // Collect filters from sources
-    if (source.type === "contract") {
-      if (source.filter.type === "log") {
-        logFilters.push(source.filter);
-      } else if (source.filter.type === "trace") {
-        traceFilters.push(source.filter);
+  for (const filter of getFilters(app)) {
+    switch (filter.type) {
+      case "block": {
+        blockFilters.push(filter);
+        break;
       }
-    } else if (source.type === "account") {
-      if (source.filter.type === "transaction") {
-        transactionFilters.push(source.filter);
-      } else if (source.filter.type === "transfer") {
-        transferFilters.push(source.filter);
+      case "transaction": {
+        transactionFilters.push(filter);
+        break;
       }
-    } else if (source.type === "block") {
-      blockFilters.push(source.filter);
+      case "trace": {
+        traceFilters.push(filter);
+        break;
+      }
+      case "transfer": {
+        transferFilters.push(filter);
+        break;
+      }
+      case "log": {
+        logFilters.push(filter);
+        break;
+      }
     }
 
-    // Collect factories from sources
-    switch (source.filter.type) {
+    switch (filter.type) {
       case "trace":
       case "transaction":
       case "transfer": {
-        const { fromAddress, toAddress } = source.filter;
+        const { fromAddress, toAddress } = filter;
 
         if (isAddressFactory(fromAddress)) {
           factories.push(fromAddress);
@@ -169,7 +161,7 @@ export const createRealtimeSync = (
         break;
       }
       case "log": {
-        const { address } = source.filter;
+        const { address } = filter;
         if (isAddressFactory(address)) {
           factories.push(address);
         }
@@ -189,7 +181,7 @@ export const createRealtimeSync = (
     if (isBlockReceipts === false) {
       const transactionReceipts = await Promise.all(
         Array.from(transactionHashes).map(async (hash) =>
-          _eth_getTransactionReceipt(args.rpc, { hash }),
+          _eth_getTransactionReceipt(app.indexingBuild.rpc, { hash }),
         ),
       );
 
@@ -204,15 +196,15 @@ export const createRealtimeSync = (
 
     let blockReceipts: SyncTransactionReceipt[];
     try {
-      blockReceipts = await _eth_getBlockReceipts(args.rpc, {
+      blockReceipts = await _eth_getBlockReceipts(app.indexingBuild.rpc, {
         blockHash: block.hash,
       });
     } catch (_error) {
       const error = _error as Error;
-      args.common.logger.warn({
+      app.common.logger.warn({
         service: "realtime",
         msg: `Caught eth_getBlockReceipts error on '${
-          args.chain.name
+          app.indexingBuild.chain.name
         }', switching to eth_getTransactionReceipt method.`,
         error,
       });
@@ -267,11 +259,17 @@ export const createRealtimeSync = (
     if (shouldRequestLogs) {
       if (block === undefined) {
         [block, logs] = await Promise.all([
-          _eth_getBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
-          _eth_getLogs(args.rpc, { blockHash: maybeBlockHeader.hash }),
+          _eth_getBlockByHash(app.indexingBuild.rpc, {
+            hash: maybeBlockHeader.hash,
+          }),
+          _eth_getLogs(app.indexingBuild.rpc, {
+            blockHash: maybeBlockHeader.hash,
+          }),
         ]);
       } else {
-        logs = await _eth_getLogs(args.rpc, { blockHash: block.hash });
+        logs = await _eth_getLogs(app.indexingBuild.rpc, {
+          blockHash: block.hash,
+        });
       }
 
       validateLogsAndBlock(logs, block);
@@ -312,7 +310,7 @@ export const createRealtimeSync = (
         }
 
         if (isInvalidLogsBloom) {
-          args.common.logger.warn({
+          app.common.logger.warn({
             service: "realtime",
             msg: `Detected inconsistent RPC responses. Log at index ${log.logIndex} is not in 'block.logsBloom' for block ${block.hash}.`,
           });
@@ -322,21 +320,18 @@ export const createRealtimeSync = (
 
       for (const log of logs) {
         if (log.transactionHash === zeroHash) {
-          args.common.logger.warn({
+          app.common.logger.warn({
             service: "realtime",
-            msg: `Detected '${args.chain.name}' log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some chains like ZKsync.`,
+            msg: `Detected '${app.indexingBuild.chain.name}' log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some chains like ZKsync.`,
           });
         }
       }
     }
 
-    if (
-      shouldRequestLogs === false &&
-      args.sources.some((s) => s.filter.type === "log")
-    ) {
-      args.common.logger.debug({
+    if (shouldRequestLogs === false && logFilters.length > 0) {
+      app.common.logger.debug({
         service: "realtime",
-        msg: `Skipped fetching '${args.chain.name}' logs for block ${hexToNumber(maybeBlockHeader.number)} due to bloom filter result`,
+        msg: `Skipped fetching '${app.indexingBuild.chain.name}' logs for block ${hexToNumber(maybeBlockHeader.number)} due to bloom filter result`,
       });
     }
 
@@ -351,11 +346,17 @@ export const createRealtimeSync = (
     if (shouldRequestTraces) {
       if (block === undefined) {
         [block, traces] = await Promise.all([
-          _eth_getBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
-          _debug_traceBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
+          _eth_getBlockByHash(app.indexingBuild.rpc, {
+            hash: maybeBlockHeader.hash,
+          }),
+          _debug_traceBlockByHash(app.indexingBuild.rpc, {
+            hash: maybeBlockHeader.hash,
+          }),
         ]);
       } else {
-        traces = await _debug_traceBlockByHash(args.rpc, { hash: block.hash });
+        traces = await _debug_traceBlockByHash(app.indexingBuild.rpc, {
+          hash: block.hash,
+        });
       }
 
       validateTracesAndBlock(traces, block);
@@ -461,7 +462,7 @@ export const createRealtimeSync = (
     }
 
     if (block === undefined) {
-      block = await _eth_getBlockByHash(args.rpc, {
+      block = await _eth_getBlockByHash(app.indexingBuild.rpc, {
         hash: maybeBlockHeader.hash,
       });
     }
@@ -693,9 +694,9 @@ export const createRealtimeSync = (
   const reconcileReorg = async (
     block: SyncBlock | SyncBlockHeader,
   ): Promise<Extract<RealtimeSyncEvent, { type: "reorg" }>> => {
-    args.common.logger.warn({
+    app.common.logger.warn({
       service: "realtime",
-      msg: `Detected forked '${args.chain.name}' block at height ${hexToNumber(block.number)}`,
+      msg: `Detected forked '${app.indexingBuild.chain.name}' block at height ${hexToNumber(block.number)}`,
     });
 
     // Record blocks that have been removed from the local chain.
@@ -724,13 +725,13 @@ export const createRealtimeSync = (
         // to what it was before we started.
         unfinalizedBlocks = reorgedBlocks;
 
-        const msg = `Encountered unrecoverable '${args.chain.name}' reorg beyond finalized block ${hexToNumber(finalizedBlock.number)}`;
+        const msg = `Encountered unrecoverable '${app.indexingBuild.chain.name}' reorg beyond finalized block ${hexToNumber(finalizedBlock.number)}`;
 
-        args.common.logger.warn({ service: "realtime", msg });
+        app.common.logger.warn({ service: "realtime", msg });
 
         throw new Error(msg);
       } else {
-        remoteBlock = await _eth_getBlockByHash(args.rpc, {
+        remoteBlock = await _eth_getBlockByHash(app.indexingBuild.rpc, {
           hash: remoteBlock.parentHash,
         });
         // Add tip to `reorgedBlocks`
@@ -740,10 +741,10 @@ export const createRealtimeSync = (
 
     const commonAncestor = getLatestUnfinalizedBlock();
 
-    args.common.logger.warn({
+    app.common.logger.warn({
       service: "realtime",
       msg: `Reconciled ${reorgedBlocks.length}-block '${
-        args.chain.name
+        app.indexingBuild.chain.name
       }' reorg with common ancestor block ${hexToNumber(commonAncestor.number)}`,
     });
 
@@ -799,9 +800,9 @@ export const createRealtimeSync = (
 
     // We already saw and handled this block. No-op.
     if (latestBlock.hash === block.hash) {
-      args.common.logger.trace({
+      app.common.logger.trace({
         service: "realtime",
-        msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
+        msg: `Skipped processing '${app.indexingBuild.chain.name}' block ${hexToNumber(block.number)}, already synced`,
       });
 
       blockCallback?.(false);
@@ -832,16 +833,16 @@ export const createRealtimeSync = (
 
         const pendingBlocks = await Promise.all(
           missingBlockRange.map((blockNumber) =>
-            _eth_getBlockByNumber(args.rpc, {
+            _eth_getBlockByNumber(app.indexingBuild.rpc, {
               blockNumber,
             }).then((block) => fetchBlockEventData(block)),
           ),
         );
 
-        args.common.logger.info({
+        app.common.logger.info({
           service: "realtime",
           msg: `Fetched ${missingBlockRange.length} missing '${
-            args.chain.name
+            app.indexingBuild.chain.name
           }' blocks [${hexToNumber(latestBlock.number) + 1}, ${Math.min(
             hexToNumber(block.number),
             hexToNumber(latestBlock.number) + MAX_QUEUED_BLOCKS,
@@ -898,14 +899,14 @@ export const createRealtimeSync = (
         }
 
         const text = _text.filter((t) => t !== undefined).join(" and ");
-        args.common.logger.info({
+        app.common.logger.info({
           service: "realtime",
-          msg: `Synced ${text} from '${args.chain.name}' block ${hexToNumber(block.number)}`,
+          msg: `Synced ${text} from '${app.indexingBuild.chain.name}' block ${hexToNumber(block.number)}`,
         });
       } else {
-        args.common.logger.info({
+        app.common.logger.info({
           service: "realtime",
-          msg: `Synced block ${hexToNumber(block.number)} from '${args.chain.name}' `,
+          msg: `Synced block ${hexToNumber(block.number)} from '${app.indexingBuild.chain.name}' `,
         });
       }
 
@@ -939,18 +940,20 @@ export const createRealtimeSync = (
 
       const blockMovesFinality =
         hexToNumber(block.number) >=
-        hexToNumber(finalizedBlock.number) + 2 * args.chain.finalityBlockCount;
+        hexToNumber(finalizedBlock.number) +
+          2 * app.indexingBuild.chain.finalityBlockCount;
       if (blockMovesFinality) {
         const pendingFinalizedBlock = unfinalizedBlocks.find(
           (lb) =>
             hexToNumber(lb.number) ===
-            hexToNumber(block.number) - args.chain.finalityBlockCount,
+            hexToNumber(block.number) -
+              app.indexingBuild.chain.finalityBlockCount,
         )!;
 
-        args.common.logger.debug({
+        app.common.logger.debug({
           service: "realtime",
           msg: `Finalized ${hexToNumber(pendingFinalizedBlock.number) - hexToNumber(finalizedBlock.number) + 1} '${
-            args.chain.name
+            app.indexingBuild.chain.name
           }' blocks [${hexToNumber(finalizedBlock.number) + 1}, ${hexToNumber(pendingFinalizedBlock.number)}]`,
         });
 
@@ -981,21 +984,21 @@ export const createRealtimeSync = (
     } catch (_error) {
       const error = _error as Error;
 
-      if (args.common.shutdown.isKilled) {
+      if (app.common.shutdown.isKilled) {
         throw new ShutdownError();
       }
 
-      args.common.logger.warn({
+      app.common.logger.warn({
         service: "realtime",
-        msg: `Failed to process '${args.chain.name}' block ${hexToNumber(block.number)}`,
+        msg: `Failed to process '${app.indexingBuild.chain.name}' block ${hexToNumber(block.number)}`,
         error,
       });
 
       const duration = ERROR_TIMEOUT[reconcileBlockErrorCount]!;
 
-      args.common.logger.warn({
+      app.common.logger.warn({
         service: "realtime",
-        msg: `Retrying '${args.chain.name}' sync after ${duration} ${
+        msg: `Retrying '${app.indexingBuild.chain.name}' sync after ${duration} ${
           duration === 1 ? "second" : "seconds"
         }.`,
       });
@@ -1008,9 +1011,9 @@ export const createRealtimeSync = (
 
       // After a certain number of attempts, emit a fatal error.
       if (reconcileBlockErrorCount === ERROR_TIMEOUT.length) {
-        args.common.logger.error({
+        app.common.logger.error({
           service: "realtime",
-          msg: `Fatal error: Unable to process '${args.chain.name}' block ${hexToNumber(block.number)} after ${ERROR_TIMEOUT.length} attempts.`,
+          msg: `Fatal error: Unable to process '${app.indexingBuild.chain.name}' block ${hexToNumber(block.number)} after ${ERROR_TIMEOUT.length} attempts.`,
           error,
         });
 
@@ -1020,13 +1023,13 @@ export const createRealtimeSync = (
   };
 
   const onError = (error: Error) => {
-    if (args.common.shutdown.isKilled) {
+    if (app.common.shutdown.isKilled) {
       throw new ShutdownError();
     }
 
-    args.common.logger.warn({
+    app.common.logger.warn({
       service: "realtime",
-      msg: `Failed to fetch latest '${args.chain.name}' block`,
+      msg: `Failed to fetch latest '${app.indexingBuild.chain.name}' block`,
       error,
     });
 
@@ -1034,12 +1037,13 @@ export const createRealtimeSync = (
 
     // After a certain number of attempts, emit a fatal error.
     if (
-      fetchAndReconcileLatestBlockErrorCount * args.chain.pollingInterval >
+      fetchAndReconcileLatestBlockErrorCount *
+        app.indexingBuild.chain.pollingInterval >
       MAX_LATEST_BLOCK_ATTEMPT_MS
     ) {
-      args.common.logger.error({
+      app.common.logger.error({
         service: "realtime",
-        msg: `Fatal error: Unable to fetch latest '${args.chain.name}' block after ${ERROR_TIMEOUT.length} attempts.`,
+        msg: `Fatal error: Unable to fetch latest '${app.indexingBuild.chain.name}' block after ${ERROR_TIMEOUT.length} attempts.`,
         error,
       });
 
@@ -1052,18 +1056,18 @@ export const createRealtimeSync = (
   return {
     async *sync(block, blockCallback) {
       try {
-        args.common.logger.debug({
+        app.common.logger.debug({
           service: "realtime",
-          msg: `Received latest '${args.chain.name}' block ${hexToNumber(block.number)}`,
+          msg: `Received latest '${app.indexingBuild.chain.name}' block ${hexToNumber(block.number)}`,
         });
 
         const latestBlock = getLatestUnfinalizedBlock();
 
         // We already saw and handled this block. No-op.
         if (latestBlock.hash === block.hash) {
-          args.common.logger.trace({
+          app.common.logger.trace({
             service: "realtime",
-            msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
+            msg: `Skipped processing '${app.indexingBuild.chain.name}' block ${hexToNumber(block.number)}, already synced`,
           });
           blockCallback?.(false);
 

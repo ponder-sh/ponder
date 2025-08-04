@@ -2,10 +2,11 @@ import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
+  setupChildAddresses,
   setupCleanup,
   setupCommon,
-  setupDatabaseServices,
-  setupIsolatedDatabase,
+  setupDatabase,
+  setupPonder,
 } from "@/_test/setup.js";
 import {
   createPair,
@@ -19,14 +20,10 @@ import {
 import {
   getAccountsConfigAndIndexingFunctions,
   getBlocksConfigAndIndexingFunctions,
-  getChain,
   getErc20ConfigAndIndexingFunctions,
   getPairWithFactoryConfigAndIndexingFunctions,
   testClient,
 } from "@/_test/utils.js";
-import { buildConfigAndIndexingFunctions } from "@/build/config.js";
-import type { LogFactory, LogFilter } from "@/internal/types.js";
-import { createRpc } from "@/rpc/index.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import {
@@ -40,68 +37,36 @@ import { type RealtimeSyncEvent, createRealtimeSync } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
-beforeEach(setupIsolatedDatabase);
+beforeEach(setupDatabase);
 beforeEach(setupCleanup);
 
 test("createRealtimeSync()", async (context) => {
-  const { common } = context;
-  await setupDatabaseServices(context);
-
-  const chain = getChain();
-  const rpc = createRpc({ common, chain });
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
-  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
-
-  const realtimeSync = createRealtimeSync({
-    common,
-    chain,
-    rpc,
-    sources,
-    syncProgress: { finalized: finalizedBlock },
-    childAddresses: new Map(),
+  const realtimeSync = createRealtimeSync(app, {
+    childAddresses: setupChildAddresses(app),
   });
 
   expect(realtimeSync).toBeDefined();
 });
 
 test("sync() handles block", async (context) => {
-  const { common } = context;
-  await setupDatabaseServices(context);
-
-  const chain = getChain();
-  const rpc = createRpc({ chain, common });
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
-  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
-
-  const realtimeSync = createRealtimeSync({
-    common,
-    chain,
-    rpc,
-    sources,
-    syncProgress: { finalized: finalizedBlock },
-    childAddresses: new Map(),
+  const realtimeSync = createRealtimeSync(app, {
+    childAddresses: setupChildAddresses(app),
   });
 
   await testClient.mine({ blocks: 1 });
-  const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
+  const block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 1,
+  });
 
   const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
@@ -111,34 +76,19 @@ test("sync() handles block", async (context) => {
 });
 
 test("sync() no-op when receiving same block twice", async (context) => {
-  const { common } = context;
-  await setupDatabaseServices(context);
-
-  const chain = getChain();
-  const rpc = createRpc({ chain, common });
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
-  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
-
-  const realtimeSync = createRealtimeSync({
-    common,
-    chain,
-    rpc,
-    sources,
-    syncProgress: { finalized: finalizedBlock },
-    childAddresses: new Map(),
+  const realtimeSync = createRealtimeSync(app, {
+    childAddresses: setupChildAddresses(app),
   });
 
   await testClient.mine({ blocks: 1 });
-  const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
+  const block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 1,
+  });
 
   await drainAsyncGenerator(realtimeSync.sync(block));
   const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
@@ -149,34 +99,21 @@ test("sync() no-op when receiving same block twice", async (context) => {
 });
 
 test("sync() gets missing block", async (context) => {
-  const { common } = context;
-  await setupDatabaseServices(context);
-
-  const chain = getChain({ finalityBlockCount: 2 });
-  const rpc = createRpc({ common, chain });
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
-  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
+  // finalityBlockCount: 2
 
-  const realtimeSync = createRealtimeSync({
-    common,
-    chain,
-    rpc,
-    sources,
-    syncProgress: { finalized: finalizedBlock },
-    childAddresses: new Map(),
+  const realtimeSync = createRealtimeSync(app, {
+    childAddresses: setupChildAddresses(app),
   });
 
   await testClient.mine({ blocks: 2 });
-  const block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
+  const block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 2,
+  });
 
   const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
@@ -189,36 +126,21 @@ test("sync() gets missing block", async (context) => {
 });
 
 test("sync() catches error", async (context) => {
-  const { common } = context;
-  await setupDatabaseServices(context);
-
-  const chain = getChain({ finalityBlockCount: 2 });
-  const rpc = createRpc({ common, chain });
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
-  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
-
-  const realtimeSync = createRealtimeSync({
-    common,
-    chain,
-    rpc,
-    sources,
-    syncProgress: { finalized: finalizedBlock },
-    childAddresses: new Map(),
+  const realtimeSync = createRealtimeSync(app, {
+    childAddresses: setupChildAddresses(app),
   });
 
   await testClient.mine({ blocks: 1 });
-  const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
+  const block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 1,
+  });
 
-  const requestSpy = vi.spyOn(rpc, "request");
+  const requestSpy = vi.spyOn(app.indexingBuild.rpc, "request");
   requestSpy.mockRejectedValueOnce(new Error());
 
   const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
@@ -229,12 +151,6 @@ test("sync() catches error", async (context) => {
 });
 
 test("handleBlock() block event with log", async (context) => {
-  const { common } = context;
-  await setupDatabaseServices(context);
-
-  const chain = getChain({ finalityBlockCount: 2 });
-  const rpc = createRpc({ common, chain });
-
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
     erc20: address,
@@ -243,27 +159,18 @@ test("handleBlock() block event with log", async (context) => {
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getErc20ConfigAndIndexingFunctions({
     address,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
+  const realtimeSync = createRealtimeSync(app, {
+    childAddresses: setupChildAddresses(app),
   });
 
-  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
-
-  const realtimeSync = createRealtimeSync({
-    common,
-    chain,
-    rpc,
-    sources,
-    syncProgress: { finalized: finalizedBlock },
-    childAddresses: new Map(),
+  const block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 2,
   });
-
-  const block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
 
   const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
@@ -299,12 +206,6 @@ test("handleBlock() block event with log", async (context) => {
 });
 
 test("handleBlock() block event with log factory", async (context) => {
-  const { common } = context;
-  await setupDatabaseServices(context);
-
-  const chain = getChain({ finalityBlockCount: 2 });
-  const rpc = createRpc({ common, chain });
-
   const { address } = await deployFactory({ sender: ALICE });
   const { result: pair } = await createPair({
     factory: address,
@@ -318,34 +219,25 @@ test("handleBlock() block event with log factory", async (context) => {
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } =
+  const { config, indexingFunctions } =
     getPairWithFactoryConfigAndIndexingFunctions({
       address,
     });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
+  const realtimeSync = createRealtimeSync(app, {
+    childAddresses: setupChildAddresses(app),
   });
 
-  const filter = sources[0]!.filter as LogFilter<LogFactory>;
-
-  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
-
-  const realtimeSync = createRealtimeSync({
-    common,
-    chain,
-    rpc,
-    sources,
-    syncProgress: { finalized: finalizedBlock },
-    childAddresses: new Map([[filter.address.id, new Map()]]),
+  let block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 2,
   });
-
-  let block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
 
   const syncResult1 = await drainAsyncGenerator(realtimeSync.sync(block));
 
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
+  block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 3,
+  });
 
   const syncResult2 = await drainAsyncGenerator(realtimeSync.sync(block));
 
@@ -428,34 +320,19 @@ test("handleBlock() block event with log factory", async (context) => {
 });
 
 test("handleBlock() block event with block", async (context) => {
-  const { common } = context;
-  await setupDatabaseServices(context);
-
-  const chain = getChain({ finalityBlockCount: 2 });
-  const rpc = createRpc({ common, chain });
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
-  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
-
-  const realtimeSync = createRealtimeSync({
-    common,
-    chain,
-    rpc,
-    sources,
-    syncProgress: { finalized: finalizedBlock },
-    childAddresses: new Map(),
+  const realtimeSync = createRealtimeSync(app, {
+    childAddresses: setupChildAddresses(app),
   });
 
   await testClient.mine({ blocks: 1 });
-  const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
+  const block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 1,
+  });
 
   const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
@@ -482,40 +359,24 @@ test("handleBlock() block event with block", async (context) => {
 });
 
 test("handleBlock() block event with transaction", async (context) => {
-  const { common } = context;
-  await setupDatabaseServices(context);
-
-  const chain = getChain({ finalityBlockCount: 2 });
-  const rpc = createRpc({ common, chain });
-
   await transferEth({
     to: BOB,
     amount: parseEther("1"),
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
+  const { config, indexingFunctions } = getAccountsConfigAndIndexingFunctions({
+    address: ALICE,
+  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
+  const realtimeSync = createRealtimeSync(app, {
+    childAddresses: setupChildAddresses(app),
   });
 
-  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
-
-  const realtimeSync = createRealtimeSync({
-    common,
-    chain,
-    rpc,
-    sources: sources.filter(({ filter }) => filter.type === "transaction"),
-    syncProgress: { finalized: finalizedBlock },
-    childAddresses: new Map(),
+  const block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 1,
   });
-
-  const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
   const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
@@ -543,28 +404,22 @@ test("handleBlock() block event with transaction", async (context) => {
 });
 
 test("handleBlock() block event with transfer", async (context) => {
-  const { common } = context;
-  await setupDatabaseServices(context);
-
-  const chain = getChain({ finalityBlockCount: 2 });
-  const rpc = createRpc({ common, chain });
-
   const { hash } = await transferEth({
     to: BOB,
     amount: parseEther("1"),
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
+  const { config, indexingFunctions } = getAccountsConfigAndIndexingFunctions({
+    address: ALICE,
+  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
+  const realtimeSync = createRealtimeSync(app, {
+    childAddresses: setupChildAddresses(app),
   });
 
+  const _request = app.indexingBuild.rpc.request;
   const request = async (request: any) => {
     if (request.method === "debug_traceBlockByHash") {
       return Promise.resolve([
@@ -584,24 +439,15 @@ test("handleBlock() block event with transfer", async (context) => {
       ]);
     }
 
-    return rpc.request(request);
+    return _request(request);
   };
 
-  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
+  // @ts-ignore
+  app.indexingBuild.rpc.request = request;
 
-  const realtimeSync = createRealtimeSync({
-    common,
-    chain,
-    rpc: {
-      // @ts-ignore
-      request,
-    },
-    sources,
-    syncProgress: { finalized: finalizedBlock },
-    childAddresses: new Map(),
+  const block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 1,
   });
-
-  const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
   const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
@@ -629,12 +475,6 @@ test("handleBlock() block event with transfer", async (context) => {
 });
 
 test("handleBlock() block event with trace", async (context) => {
-  const { common } = context;
-  await setupDatabaseServices(context);
-
-  const chain = getChain({ finalityBlockCount: 2 });
-  const rpc = createRpc({ chain, common });
-
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
     erc20: address,
@@ -649,20 +489,25 @@ test("handleBlock() block event with trace", async (context) => {
     sender: ALICE,
   });
 
-  const block2 = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
-
-  const block3 = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
-
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getErc20ConfigAndIndexingFunctions({
     address,
     includeCallTraces: true,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
+
+  const realtimeSync = createRealtimeSync(app, {
+    childAddresses: setupChildAddresses(app),
   });
 
+  const block2 = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 2,
+  });
+
+  const block3 = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 3,
+  });
+
+  const _request = app.indexingBuild.rpc.request;
   const request = async (request: any) => {
     if (request.method === "debug_traceBlockByHash") {
       if (request.params[0] === block2.hash) {
@@ -710,23 +555,11 @@ test("handleBlock() block event with trace", async (context) => {
       return Promise.resolve([]);
     }
 
-    return rpc.request(request);
+    return _request(request);
   };
 
-  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
-
-  const realtimeSync = createRealtimeSync({
-    common,
-    chain,
-    rpc: {
-      ...rpc,
-      // @ts-ignore
-      request,
-    },
-    sources,
-    syncProgress: { finalized: finalizedBlock },
-    childAddresses: new Map(),
-  });
+  // @ts-ignore
+  app.indexingBuild.rpc.request = request;
 
   const syncResult1 = await drainAsyncGenerator(realtimeSync.sync(block2));
   const syncResult2 = await drainAsyncGenerator(realtimeSync.sync(block3));
@@ -758,50 +591,38 @@ test("handleBlock() block event with trace", async (context) => {
 });
 
 test("handleBlock() finalize event", async (context) => {
-  const { common } = context;
-  await setupDatabaseServices(context);
-
-  const chain = getChain({ finalityBlockCount: 2 });
-  const rpc = createRpc({
-    chain,
-    common,
-  });
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
-  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
-
-  const realtimeSync = createRealtimeSync({
-    common,
-    chain,
-    rpc,
-    sources,
-    syncProgress: { finalized: finalizedBlock },
-    childAddresses: new Map(),
+  const realtimeSync = createRealtimeSync(app, {
+    childAddresses: setupChildAddresses(app),
   });
 
   await testClient.mine({ blocks: 4 });
 
-  let block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
+  let block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 1,
+  });
 
   await drainAsyncGenerator(realtimeSync.sync(block));
 
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
+  block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 2,
+  });
 
   await drainAsyncGenerator(realtimeSync.sync(block));
 
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
+  block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 3,
+  });
 
   await drainAsyncGenerator(realtimeSync.sync(block));
 
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 4 });
+  block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 4,
+  });
 
   const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
@@ -820,51 +641,39 @@ test("handleBlock() finalize event", async (context) => {
 });
 
 test("handleReorg() finds common ancestor", async (context) => {
-  const { common } = context;
-  await setupDatabaseServices(context);
-
-  const chain = getChain({ finalityBlockCount: 2 });
-  const rpc = createRpc({
-    chain,
-    common,
-  });
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
-  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
-
-  const realtimeSync = createRealtimeSync({
-    common,
-    chain,
-    rpc,
-    sources,
-    syncProgress: { finalized: finalizedBlock },
-    childAddresses: new Map(),
+  const realtimeSync = createRealtimeSync(app, {
+    childAddresses: setupChildAddresses(app),
   });
 
   await testClient.mine({ blocks: 1 });
-  let block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
+  let block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 1,
+  });
 
   await drainAsyncGenerator(realtimeSync.sync(block));
 
   await testClient.mine({ blocks: 1 });
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
+  block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 2,
+  });
 
   await drainAsyncGenerator(realtimeSync.sync(block));
 
   await testClient.mine({ blocks: 1 });
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
+  block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 3,
+  });
 
   await drainAsyncGenerator(realtimeSync.sync(block));
 
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
+  block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 2,
+  });
 
   const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
@@ -879,51 +688,39 @@ test("handleReorg() finds common ancestor", async (context) => {
 });
 
 test("handleReorg() throws error for deep reorg", async (context) => {
-  const { common } = context;
-  await setupDatabaseServices(context);
-
-  const chain = getChain({ finalityBlockCount: 2 });
-  const rpc = createRpc({
-    chain,
-    common,
-  });
-
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { config, indexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-  });
+  const app = await setupPonder(context, { config, indexingFunctions }, true);
 
-  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
-
-  const realtimeSync = createRealtimeSync({
-    common,
-    chain,
-    rpc,
-    sources,
-    syncProgress: { finalized: finalizedBlock },
-    childAddresses: new Map(),
+  const realtimeSync = createRealtimeSync(app, {
+    childAddresses: setupChildAddresses(app),
   });
 
   await testClient.mine({ blocks: 1 });
-  let block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
+  let block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 1,
+  });
 
   await drainAsyncGenerator(realtimeSync.sync(block));
 
   await testClient.mine({ blocks: 1 });
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
+  block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 2,
+  });
 
   await drainAsyncGenerator(realtimeSync.sync(block));
 
   await testClient.mine({ blocks: 1 });
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
+  block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 3,
+  });
 
   await drainAsyncGenerator(realtimeSync.sync(block));
 
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
+  block = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
+    blockNumber: 3,
+  });
 
   await drainAsyncGenerator(
     realtimeSync.sync({

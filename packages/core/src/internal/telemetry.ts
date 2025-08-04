@@ -12,8 +12,7 @@ import { type PM, detect, getNpmVersion } from "detect-package-manager";
 import { ShutdownError } from "./errors.js";
 import type { Logger } from "./logger.js";
 import type { Shutdown } from "./shutdown.js";
-import type { IndexingBuild } from "./types.js";
-import type { PreBuild, SchemaBuild } from "./types.js";
+import type { PonderApp } from "./types.js";
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
 
@@ -275,27 +274,19 @@ function getPackageJson(rootDir: string) {
   }
 }
 
-export function buildPayload({
-  preBuild,
-  schemaBuild,
-  indexingBuild,
-}: {
-  preBuild: PreBuild;
-  schemaBuild?: SchemaBuild;
-  indexingBuild?: IndexingBuild;
-}) {
-  const table_count = schemaBuild ? Object.keys(schemaBuild.schema).length : 0;
-  const indexing_function_count = indexingBuild
-    ? Object.values(indexingBuild.indexingFunctions).reduce(
-        (acc, f) => acc + Object.keys(f).length,
-        0,
-      )
+export function buildPayload(
+  app: Pick<PonderApp, "preBuild" | "schemaBuild" | "indexingBuild">,
+) {
+  const table_count = app.schemaBuild
+    ? Object.keys(app.schemaBuild.schema).length
     : 0;
+  const indexing_function_count = app.indexingBuild.eventCallbacks.length ?? 0;
+  const contract_count = 0;
 
   return {
-    database_kind: preBuild?.databaseConfig.kind,
-    contract_count: indexingBuild?.sources.length ?? 0,
-    network_count: indexingBuild?.chains.length ?? 0,
+    database_kind: app.preBuild.databaseConfig.kind,
+    network_count: app.indexingBuild.length ?? 0,
+    contract_count,
     table_count,
     indexing_function_count,
   };

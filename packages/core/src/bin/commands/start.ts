@@ -1,37 +1,18 @@
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
 import { type Database, createDatabase } from "@/database/index.js";
-import type { Common } from "@/internal/common.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
-import type {
-  ApiBuild,
-  CrashRecoveryCheckpoint,
-  IndexingBuild,
-  NamespaceBuild,
-  PreBuild,
-  SchemaBuild,
-} from "@/internal/types.js";
+import type { PonderApp } from "@/internal/types.js";
 import { runMultichain } from "@/runtime/multichain.js";
 import { runOmnichain } from "@/runtime/omnichain.js";
 import { createServer } from "@/server/index.js";
 import { mergeResults } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
-
-export type PonderApp = {
-  common: Common;
-  preBuild: PreBuild;
-  namespaceBuild: NamespaceBuild;
-  schemaBuild: SchemaBuild;
-  indexingBuild: IndexingBuild;
-  apiBuild: ApiBuild;
-  crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
-  database: Database;
-};
 
 export async function start({
   cliOptions,
@@ -82,7 +63,7 @@ export async function start({
     );
   }
 
-  const build = await createBuild({ common, cliOptions });
+  const build = await createBuild(common, { cliOptions });
 
   // biome-ignore lint/style/useConst: <explanation>
   let database: Database | undefined;
@@ -125,7 +106,6 @@ export async function start({
 
   const indexingBuildResult = await build.compileIndexing({
     configResult: configResult.result,
-    schemaResult: schemaResult.result,
     indexingResult: indexingResult.result,
   });
 
@@ -134,14 +114,19 @@ export async function start({
     return;
   }
 
-  database = await createDatabase({
-    common,
-    namespace: namespaceResult.result,
+  const buildId = build.compileBuildId({
+    configResult: configResult.result,
+    schemaResult: schemaResult.result,
+    indexingResult: indexingResult.result,
+  });
+
+  database = await createDatabase(common, {
+    namespaceBuild: namespaceResult.result,
     preBuild,
     schemaBuild,
   });
   const crashRecoveryCheckpoint = await database.migrate({
-    buildId: indexingBuildResult.result.buildId,
+    buildId,
     ordering: preBuild.ordering,
   });
 
@@ -186,23 +171,23 @@ export async function start({
 
   let app: PonderApp = {
     common,
+    buildId: "",
     preBuild,
     namespaceBuild: namespaceResult.result,
     schemaBuild,
     indexingBuild: indexingBuildResult.result,
     apiBuild: apiBuildResult.result,
-    crashRecoveryCheckpoint,
     database,
-  };
+  } satisfies PonderApp;
 
   if (onBuild) {
     app = await onBuild(app);
   }
 
   if (preBuild.ordering === "omnichain") {
-    runOmnichain(app);
+    runOmnichain(app, { crashRecoveryCheckpoint });
   } else {
-    runMultichain(app);
+    runMultichain(app, { crashRecoveryCheckpoint });
   }
   createServer(app);
 

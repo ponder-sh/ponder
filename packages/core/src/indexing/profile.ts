@@ -739,6 +739,6 @@ export const recoverProfilePattern = (
     functionName: pattern.functionName,
     args,
     blockNumber: event.event.block.number,
-    chainId: event.chainId,
+    chainId: event.chain.id,
   };
 };

@@ -53,7 +53,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     );
   }
 
-  const build = await createBuild({ common, cliOptions });
+  const build = await createBuild(common, { cliOptions });
 
   const exit = createExit({ common, options });
   const namespaceResult = build.namespaceCompile();
@@ -103,7 +103,6 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
 
   const indexingBuildResult = await build.compileIndexing({
     configResult: configResult.result,
-    schemaResult: schemaResult.result,
     indexingResult: indexingResult.result,
   });
 
@@ -112,9 +111,8 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const database = await createDatabase({
-    common,
-    namespace: namespaceResult.result,
+  const database = await createDatabase(common, {
+    namespaceBuild: namespaceResult.result,
     preBuild,
     schemaBuild,
   });
@@ -144,6 +142,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
       ...buildPayload({
         preBuild,
         schemaBuild,
+        indexingBuild: indexingBuildResult.result,
       }),
     },
   });

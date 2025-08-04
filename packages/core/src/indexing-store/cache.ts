@@ -4,12 +4,11 @@ import type { QB } from "@/database/queryBuilder.js";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import { addErrorMeta, toErrorMeta } from "@/indexing/index.js";
-import type { Common } from "@/internal/common.js";
 import { CopyFlushError, DelayedInsertError } from "@/internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
   Event,
-  SchemaBuild,
+  PonderApp,
 } from "@/internal/types.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { prettyPrint } from "@/utils/print.js";
@@ -274,17 +273,16 @@ export const recoverBatchError = async <T>(
   }
 };
 
-export const createIndexingCache = ({
-  common,
-  schemaBuild: { schema },
-  crashRecoveryCheckpoint,
-  eventCount,
-}: {
-  common: Common;
-  schemaBuild: Pick<SchemaBuild, "schema">;
-  crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
-  eventCount: { [eventName: string]: number };
-}): IndexingCache => {
+export const createIndexingCache = (
+  app: PonderApp,
+  {
+    crashRecoveryCheckpoint,
+    eventCount,
+  }: {
+    crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
+    eventCount: { [eventName: string]: number };
+  },
+): IndexingCache => {
   /**
    * Estimated size of the cache in bytes.
    *
@@ -304,7 +302,7 @@ export const createIndexingCache = ({
   /** Profiling data about access patterns for each event. */
   const profile: Profile = new Map();
 
-  const tables = Object.values(schema).filter(isTable);
+  const tables = Object.values(app.schemaBuild.schema).filter(isTable);
 
   for (const table of tables) {
     cache.set(table, new Map());
@@ -331,11 +329,14 @@ export const createIndexingCache = ({
       );
     },
     async get({ table, key }) {
-      if (event && eventCount[event.name]! % SAMPLING_RATE === 1) {
-        if (profile.has(event.name) === false) {
-          profile.set(event.name, new Map());
+      if (
+        event &&
+        eventCount[event.eventCallback.name]! % SAMPLING_RATE === 1
+      ) {
+        if (profile.has(event.eventCallback.name) === false) {
+          profile.set(event.eventCallback.name, new Map());
           for (const table of tables) {
-            profile.get(event.name)!.set(table, new Map());
+            profile.get(event.eventCallback.name)!.set(table, new Map());
           }
         }
 
@@ -343,18 +344,19 @@ export const createIndexingCache = ({
           event,
           table,
           key,
-          Array.from(profile.get(event.name)!.get(table)!.values()).map(
-            ({ pattern }) => pattern,
-          ),
+          Array.from(
+            profile.get(event.eventCallback.name)!.get(table)!.values(),
+          ).map(({ pattern }) => pattern),
           primaryKeyCache,
         );
         if (pattern) {
           const key = getProfilePatternKey(pattern);
-          if (profile.get(event.name)!.get(table)!.has(key)) {
-            profile.get(event.name)!.get(table)!.get(key)!.count++;
+          if (profile.get(event.eventCallback.name)!.get(table)!.has(key)) {
+            profile.get(event.eventCallback.name)!.get(table)!.get(key)!
+              .count++;
           } else {
             profile
-              .get(event.name)!
+              .get(event.eventCallback.name)!
               .get(table)!
               .set(key, { pattern, count: 1 });
           }
@@ -368,7 +370,7 @@ export const createIndexingCache = ({
         updateBuffer.get(table)!.get(ck) ?? insertBuffer.get(table)!.get(ck);
 
       if (bufferEntry) {
-        common.metrics.ponder_indexing_cache_requests_total.inc({
+        app.common.metrics.ponder_indexing_cache_requests_total.inc({
           table: getTableName(table),
           type: isCacheComplete ? "complete" : "hit",
         });
@@ -378,7 +380,7 @@ export const createIndexingCache = ({
       const entry = cache.get(table)!.get(ck);
 
       if (entry !== undefined) {
-        common.metrics.ponder_indexing_cache_requests_total.inc({
+        app.common.metrics.ponder_indexing_cache_requests_total.inc({
           table: getTableName(table),
           type: isCacheComplete ? "complete" : "hit",
         });
@@ -386,7 +388,7 @@ export const createIndexingCache = ({
       }
 
       if (isCacheComplete) {
-        common.metrics.ponder_indexing_cache_requests_total.inc({
+        app.common.metrics.ponder_indexing_cache_requests_total.inc({
           table: getTableName(table),
           type: "complete",
         });
@@ -395,7 +397,7 @@ export const createIndexingCache = ({
 
       spillover.get(table)!.add(ck);
 
-      common.metrics.ponder_indexing_cache_requests_total.inc({
+      app.common.metrics.ponder_indexing_cache_requests_total.inc({
         table: getTableName(table),
         type: "miss",
       });
@@ -416,7 +418,7 @@ export const createIndexingCache = ({
           return row;
         });
 
-      common.metrics.ponder_indexing_cache_query_duration.observe(
+      app.common.metrics.ponder_indexing_cache_query_duration.observe(
         {
           table: getTableName(table),
           method: "find",
@@ -519,13 +521,13 @@ export const createIndexingCache = ({
               if (result.value.metadata.event) {
                 addErrorMeta(error, toErrorMeta(result.value.metadata.event));
 
-                common.logger.warn({
+                app.common.logger.warn({
                   service: "indexing",
-                  msg: `Error inserting into '${getTableName(table)}' in '${result.value.metadata.event.name}'`,
+                  msg: `Error inserting into '${getTableName(table)}' in '${result.value.metadata.event.eventCallback.name}'`,
                   error,
                 });
               } else {
-                common.logger.warn({
+                app.common.logger.warn({
                   service: "indexing",
                   msg: `Error inserting into '${getTableName(table)}'`,
                   error,
@@ -537,7 +539,7 @@ export const createIndexingCache = ({
             } else {
               error.stack = undefined;
 
-              common.logger.warn({
+              app.common.logger.warn({
                 service: "indexing",
                 msg: `Error inserting into '${getTableName(table)}'`,
                 error,
@@ -546,7 +548,7 @@ export const createIndexingCache = ({
 
             throw error;
           } finally {
-            common.metrics.ponder_indexing_cache_query_duration.observe(
+            app.common.metrics.ponder_indexing_cache_query_duration.observe(
               {
                 table: getTableName(table),
                 method: "flush",
@@ -563,7 +565,7 @@ export const createIndexingCache = ({
           }
           insertBuffer.get(table)!.clear();
 
-          common.logger.debug({
+          app.common.logger.debug({
             service: "database",
             msg: `Inserted ${insertValues.length} '${getTableName(
               table,
@@ -655,13 +657,13 @@ export const createIndexingCache = ({
               if (result.value.metadata.event) {
                 addErrorMeta(error, toErrorMeta(result.value.metadata.event));
 
-                common.logger.warn({
+                app.common.logger.warn({
                   service: "indexing",
-                  msg: `Error updating '${getTableName(table)}' in '${result.value.metadata.event.name}'`,
+                  msg: `Error updating '${getTableName(table)}' in '${result.value.metadata.event.eventCallback.name}'`,
                   error,
                 });
               } else {
-                common.logger.warn({
+                app.common.logger.warn({
                   service: "indexing",
                   msg: `Error updating '${getTableName(table)}'`,
                   error,
@@ -673,7 +675,7 @@ export const createIndexingCache = ({
             } else {
               error.stack = undefined;
 
-              common.logger.warn({
+              app.common.logger.warn({
                 service: "indexing",
                 msg: `Error updating '${getTableName(table)}'`,
                 error,
@@ -682,7 +684,7 @@ export const createIndexingCache = ({
 
             throw error;
           } finally {
-            common.metrics.ponder_indexing_cache_query_duration.observe(
+            app.common.metrics.ponder_indexing_cache_query_duration.observe(
               {
                 table: getTableName(table),
                 method: "flush",
@@ -693,7 +695,7 @@ export const createIndexingCache = ({
 
           await qb.wrap((db) => db.execute(updateQuery));
 
-          common.metrics.ponder_indexing_cache_query_duration.observe(
+          app.common.metrics.ponder_indexing_cache_query_duration.observe(
             {
               table: getTableName(table),
               method: "flush",
@@ -709,7 +711,7 @@ export const createIndexingCache = ({
           }
           updateBuffer.get(table)!.clear();
 
-          common.logger.debug({
+          app.common.logger.debug({
             service: "database",
             msg: `Updated ${updateValues.length} '${getTableName(table)}' rows`,
           });
@@ -724,7 +726,7 @@ export const createIndexingCache = ({
     },
     async prefetch({ events }) {
       if (isCacheComplete) {
-        if (cacheBytes < common.options.indexingCacheMaxBytes) {
+        if (cacheBytes < app.common.options.indexingCacheMaxBytes) {
           return;
         }
 
@@ -746,13 +748,14 @@ export const createIndexingCache = ({
       }
 
       for (const event of events) {
-        if (profile.has(event.name)) {
+        if (profile.has(event.eventCallback.name)) {
           for (const table of tables) {
             for (const [, { count, pattern }] of profile
-              .get(event.name)!
+              .get(event.eventCallback.name)!
               .get(table)!) {
               // Expected value of times the prediction will be used.
-              const ev = (count * SAMPLING_RATE) / eventCount[event.name]!;
+              const ev =
+                (count * SAMPLING_RATE) / eventCount[event.eventCallback.name]!;
               if (ev > PREDICTION_THRESHOLD) {
                 const row = recoverProfilePattern(pattern, event);
                 const key = getCacheKey(table, row);
@@ -782,7 +785,7 @@ export const createIndexingCache = ({
       }
 
       for (const [table, tablePredictions] of prediction) {
-        common.metrics.ponder_indexing_cache_requests_total.inc(
+        app.common.metrics.ponder_indexing_cache_requests_total.inc(
           {
             table: getTableName(table),
             type: "prefetch",
@@ -811,7 +814,7 @@ export const createIndexingCache = ({
                   .where(or(...conditions)),
               )
               .then((results) => {
-                common.logger.debug({
+                app.common.logger.debug({
                   service: "indexing",
                   msg: `Pre-queried ${results.length} '${getTableName(table)}' rows`,
                 });
@@ -831,7 +834,7 @@ export const createIndexingCache = ({
                 }
               });
 
-            common.metrics.ponder_indexing_cache_query_duration.observe(
+            app.common.metrics.ponder_indexing_cache_query_duration.observe(
               {
                 table: getTableName(table),
                 method: "load",

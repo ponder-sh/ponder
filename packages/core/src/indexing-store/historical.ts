@@ -1,13 +1,12 @@
 import { findTableNames, validateQuery } from "@/client/parse.js";
 import type { QB } from "@/database/queryBuilder.js";
-import type { Common } from "@/internal/common.js";
 import {
   DbConnectionError,
   RawSqlError,
   RecordNotFoundError,
   RetryableError,
 } from "@/internal/errors.js";
-import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
+import type { IndexingErrorHandler, PonderApp } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
@@ -19,17 +18,16 @@ import {
   validateUpdateSet,
 } from "./index.js";
 
-export const createHistoricalIndexingStore = ({
-  common,
-  schemaBuild: { schema },
-  indexingCache,
-  indexingErrorHandler,
-}: {
-  common: Common;
-  schemaBuild: Pick<SchemaBuild, "schema">;
-  indexingCache: IndexingCache;
-  indexingErrorHandler: IndexingErrorHandler;
-}): IndexingStore => {
+export const createHistoricalIndexingStore = (
+  app: PonderApp,
+  {
+    indexingCache,
+    indexingErrorHandler,
+  }: {
+    indexingCache: IndexingCache;
+    indexingErrorHandler: IndexingErrorHandler;
+  },
+): IndexingStore => {
   let qb: QB = undefined!;
 
   const errorHandler = (fn: (...args: any[]) => Promise<any>) => {
@@ -49,7 +47,7 @@ export const createHistoricalIndexingStore = ({
   return {
     // @ts-ignore
     find: errorHandler((table: Table, key) => {
-      common.metrics.ponder_indexing_store_queries_total.inc({
+      app.common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "find",
       });
@@ -64,7 +62,7 @@ export const createHistoricalIndexingStore = ({
           // @ts-ignore
           const inner = {
             onConflictDoNothing: errorHandler(async () => {
-              common.metrics.ponder_indexing_store_queries_total.inc({
+              app.common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
               });
@@ -105,7 +103,7 @@ export const createHistoricalIndexingStore = ({
               }
             }),
             onConflictDoUpdate: errorHandler(async (valuesU: any) => {
-              common.metrics.ponder_indexing_store_queries_total.inc({
+              app.common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
               });
@@ -189,7 +187,7 @@ export const createHistoricalIndexingStore = ({
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
             then: (onFulfilled, onRejected) =>
               errorHandler(async () => {
-                common.metrics.ponder_indexing_store_queries_total.inc({
+                app.common.metrics.ponder_indexing_store_queries_total.inc({
                   table: getTableName(table),
                   method: "insert",
                 });
@@ -247,7 +245,7 @@ export const createHistoricalIndexingStore = ({
     update(table: Table, key) {
       return {
         set: errorHandler(async (values: any) => {
-          common.metrics.ponder_indexing_store_queries_total.inc({
+          app.common.metrics.ponder_indexing_store_queries_total.inc({
             table: getTableName(table),
             method: "update",
           });
@@ -283,7 +281,7 @@ export const createHistoricalIndexingStore = ({
     },
     // @ts-ignore
     delete: errorHandler(async (table: Table, key) => {
-      common.metrics.ponder_indexing_store_queries_total.inc({
+      app.common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "delete",
       });
@@ -337,12 +335,12 @@ export const createHistoricalIndexingStore = ({
 
           throw new RawSqlError((error as Error).message);
         } finally {
-          common.metrics.ponder_indexing_store_raw_sql_duration.observe(
+          app.common.metrics.ponder_indexing_store_raw_sql_duration.observe(
             endClock(),
           );
         }
       }),
-      { schema, casing: "snake_case" },
+      { schema: app.schemaBuild.schema, casing: "snake_case" },
     ),
     set qb(_qb: QB) {
       qb = _qb;

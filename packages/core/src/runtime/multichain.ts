@@ -9,7 +9,6 @@ import {
   revert,
 } from "@/database/actions.js";
 import {
-  type Database,
   getPonderCheckpointTable,
   getPonderMetaTable,
 } from "@/database/index.js";
@@ -18,7 +17,6 @@ import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import { createIndexing } from "@/indexing/index.js";
-import type { Common } from "@/internal/common.js";
 import {
   NonRetryableUserError,
   type RetryableError,
@@ -27,11 +25,8 @@ import { getAppProgress } from "@/internal/metrics.js";
 import type {
   Chain,
   CrashRecoveryCheckpoint,
-  IndexingBuild,
   IndexingErrorHandler,
-  NamespaceBuild,
-  PreBuild,
-  SchemaBuild,
+  PonderApp,
   Seconds,
 } from "@/internal/types.js";
 import { splitEvents } from "@/runtime/events.js";
@@ -52,49 +47,39 @@ import {
   type CachedIntervals,
   type ChildAddresses,
   type SyncProgress,
+  findChain,
   getCachedIntervals,
   getChildAddresses,
   getLocalSyncProgress,
+  getPerChainPonderApp,
 } from "./index.js";
 import { getRealtimeEventsMultichain } from "./realtime.js";
 
-export async function runMultichain({
-  common,
-  preBuild,
-  namespaceBuild,
-  schemaBuild,
-  indexingBuild,
-  crashRecoveryCheckpoint,
-  database,
-}: {
-  common: Common;
-  preBuild: PreBuild;
-  namespaceBuild: NamespaceBuild;
-  schemaBuild: SchemaBuild;
-  indexingBuild: IndexingBuild;
-  crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
-  database: Database;
-}) {
-  await database.migrateSync();
+export async function runMultichain(
+  app: PonderApp,
+  {
+    crashRecoveryCheckpoint,
+  }: {
+    crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
+  },
+) {
+  await app.database.migrateSync();
 
-  runCodegen({ common });
+  runCodegen(app.common);
 
-  const syncStore = createSyncStore({ common, database });
+  const syncStore = createSyncStore(app);
 
-  const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
-  const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
+  const PONDER_CHECKPOINT = getPonderCheckpointTable(app.namespaceBuild.schema);
+  const PONDER_META = getPonderMetaTable(app.namespaceBuild.schema);
 
   const eventCount: { [eventName: string]: number } = {};
-  for (const eventName of Object.keys(indexingBuild.indexingFunctions)) {
-    eventCount[eventName] = 0;
+  for (const indexingBuild of app.indexingBuild) {
+    for (const eventCallback of indexingBuild.eventCallbacks) {
+      eventCount[eventCallback.name] = 0;
+    }
   }
 
-  const cachedViemClient = createCachedViemClient({
-    common,
-    indexingBuild,
-    syncStore,
-    eventCount,
-  });
+  const cachedViemClient = createCachedViemClient(app, { eventCount });
 
   const indexingErrorHandler: IndexingErrorHandler = {
     getRetryableError: () => {
@@ -109,24 +94,18 @@ export async function runMultichain({
     error: undefined as RetryableError | undefined,
   };
 
-  const indexing = createIndexing({
-    common,
-    indexingBuild,
+  const indexing = createIndexing(app, {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
   });
 
-  const indexingCache = createIndexingCache({
-    common,
-    schemaBuild,
+  const indexingCache = createIndexingCache(app, {
     crashRecoveryCheckpoint,
     eventCount,
   });
 
-  const historicalIndexingStore = createHistoricalIndexingStore({
-    common,
-    schemaBuild,
+  const historicalIndexingStore = createHistoricalIndexingStore(app, {
     indexingCache,
     indexingErrorHandler,
   });
@@ -142,38 +121,19 @@ export async function runMultichain({
   const seconds: Seconds = {};
 
   await Promise.all(
-    indexingBuild.chains.map(async (chain) => {
-      const sources = indexingBuild.sources.filter(
-        ({ filter }) => filter.chainId === chain.id,
-      );
+    getPerChainPonderApp(app).map(async (app) => {
+      const cachedIntervals = await getCachedIntervals(app, { syncStore });
+      const syncProgress = await getLocalSyncProgress(app, { cachedIntervals });
+      const childAddresses = await getChildAddresses(app, { syncStore });
 
-      const cachedIntervals = await getCachedIntervals({
-        chain,
-        sources,
-        syncStore,
-      });
-      const syncProgress = await getLocalSyncProgress({
-        common,
-        sources,
-        chain,
-        rpc: indexingBuild.rpcs[indexingBuild.chains.indexOf(chain)]!,
-        finalizedBlock:
-          indexingBuild.finalizedBlocks[indexingBuild.chains.indexOf(chain)]!,
-        cachedIntervals,
-      });
-      const childAddresses = await getChildAddresses({
-        sources,
-        syncStore,
-      });
-
-      perChainSync.set(chain, {
+      perChainSync.set(app.indexingBuild.chain, {
         syncProgress,
         childAddresses,
         cachedIntervals,
       });
 
       const _crashRecoveryCheckpoint = crashRecoveryCheckpoint?.find(
-        ({ chainId }) => chainId === chain.id,
+        ({ chainId }) => chainId === app.indexingBuild.chain.id,
       )?.checkpoint;
       const start = Number(
         decodeCheckpoint(syncProgress.getCheckpoint({ tag: "start" }))
@@ -197,35 +157,51 @@ export async function runMultichain({
         end,
       );
 
-      seconds[chain.name] = { start, end, cached };
+      seconds[app.indexingBuild.chain.name] = { start, end, cached };
 
-      const label = { chain: chain.name };
-      common.metrics.ponder_historical_total_indexing_seconds.set(
+      const label = { chain: app.indexingBuild.chain.name };
+      app.common.metrics.ponder_historical_total_indexing_seconds.set(
         label,
-        Math.max(seconds[chain.name]!.end - seconds[chain.name]!.start, 0),
+        Math.max(
+          seconds[app.indexingBuild.chain.name]!.end -
+            seconds[app.indexingBuild.chain.name]!.start,
+          0,
+        ),
       );
-      common.metrics.ponder_historical_cached_indexing_seconds.set(
+      app.common.metrics.ponder_historical_cached_indexing_seconds.set(
         label,
-        Math.max(seconds[chain.name]!.cached - seconds[chain.name]!.start, 0),
+        Math.max(
+          seconds[app.indexingBuild.chain.name]!.cached -
+            seconds[app.indexingBuild.chain.name]!.start,
+          0,
+        ),
       );
-      common.metrics.ponder_historical_completed_indexing_seconds.set(label, 0);
-      common.metrics.ponder_indexing_timestamp.set(
+      app.common.metrics.ponder_historical_completed_indexing_seconds.set(
         label,
-        Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
+        0,
+      );
+      app.common.metrics.ponder_indexing_timestamp.set(
+        label,
+        Math.max(
+          seconds[app.indexingBuild.chain.name]!.cached,
+          seconds[app.indexingBuild.chain.name]!.start,
+        ),
       );
     }),
   );
 
   const startTimestamp = Math.round(Date.now() / 1000);
-  common.metrics.ponder_historical_start_timestamp_seconds.set(startTimestamp);
+  app.common.metrics.ponder_historical_start_timestamp_seconds.set(
+    startTimestamp,
+  );
 
   // Reset the start timestamp so the eta estimate doesn't include
   // the startup time.
-  common.metrics.start_timestamp = Date.now();
+  app.common.metrics.start_timestamp = Date.now();
 
   // If the initial checkpoint is zero, we need to run setup events.
   if (crashRecoveryCheckpoint === undefined) {
-    await database.userQB.transaction(async (tx) => {
+    await app.database.userQB.transaction(async (tx) => {
       historicalIndexingStore.qb = tx;
       indexingCache.qb = tx;
 
@@ -239,7 +215,7 @@ export async function runMultichain({
         tx
           .insert(PONDER_CHECKPOINT)
           .values(
-            indexingBuild.chains.map((chain) => ({
+            app.indexingBuild.map(({ chain }) => ({
               chainName: chain.name,
               chainId: chain.id,
               latestCheckpoint: perChainSync
@@ -263,19 +239,17 @@ export async function runMultichain({
 
   // Run historical indexing until complete.
   for await (const events of recordAsyncGenerator(
-    getHistoricalEventsMultichain({
-      common,
-      indexingBuild,
+    getHistoricalEventsMultichain(app, {
       crashRecoveryCheckpoint,
       perChainSync,
       syncStore,
     }),
     (params) => {
-      common.metrics.ponder_historical_concurrency_group_duration.inc(
+      app.common.metrics.ponder_historical_concurrency_group_duration.inc(
         { group: "extract" },
         params.await,
       );
-      common.metrics.ponder_historical_concurrency_group_duration.inc(
+      app.common.metrics.ponder_historical_concurrency_group_duration.inc(
         { group: "transform" },
         params.yield,
       );
@@ -283,23 +257,23 @@ export async function runMultichain({
   )) {
     let endClock = startClock();
 
-    indexingCache.qb = database.userQB;
+    indexingCache.qb = app.database.userQB;
     await Promise.all([
       indexingCache.prefetch({ events: events.events }),
       cachedViemClient.prefetch({ events: events.events }),
     ]);
-    common.metrics.ponder_historical_transform_duration.inc(
+    app.common.metrics.ponder_historical_transform_duration.inc(
       { step: "prefetch" },
       endClock(),
     );
     if (events.events.length > 0) {
       endClock = startClock();
-      await database.userQB.transaction(async (tx) => {
+      await app.database.userQB.transaction(async (tx) => {
         try {
           historicalIndexingStore.qb = tx;
           indexingCache.qb = tx;
 
-          common.metrics.ponder_historical_transform_duration.inc(
+          app.common.metrics.ponder_historical_transform_duration.inc(
             { step: "begin" },
             endClock(),
           );
@@ -318,27 +292,23 @@ export async function runMultichain({
               eventChunk[eventChunk.length - 1]!.checkpoint,
             );
 
-            const chain = indexingBuild.chains.find(
-              (chain) => chain.id === Number(checkpoint.chainId),
-            )!;
-            common.metrics.ponder_historical_completed_indexing_seconds.set(
+            const chain = findChain(app, checkpoint);
+            app.common.metrics.ponder_historical_completed_indexing_seconds.set(
               { chain: chain.name },
               Math.max(
                 Number(checkpoint.blockTimestamp) -
-                  Math.max(
-                    seconds[chain.name]!.cached,
-                    seconds[chain.name]!.start,
-                  ),
+                  seconds[chain.name]!.start -
+                  seconds[chain.name]!.cached,
                 0,
               ),
             );
-            common.metrics.ponder_indexing_timestamp.set(
+            app.common.metrics.ponder_indexing_timestamp.set(
               { chain: chain.name },
               Number(checkpoint.blockTimestamp),
             );
 
             // Note: allows for terminal and logs to be updated
-            if (preBuild.databaseConfig.kind === "pglite") {
+            if (app.preBuild.databaseConfig.kind === "pglite") {
               await new Promise(setImmediate);
             }
           }
@@ -346,20 +316,20 @@ export async function runMultichain({
 
           // underlying metrics collection is actually synchronous
           // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-          const { eta, progress } = await getAppProgress(common.metrics);
+          const { eta, progress } = await getAppProgress(app.common.metrics);
           if (eta === undefined || progress === undefined) {
-            common.logger.info({
+            app.common.logger.info({
               service: "app",
               msg: `Indexed ${events.events.length} events`,
             });
           } else {
-            common.logger.info({
+            app.common.logger.info({
               service: "app",
               msg: `Indexed ${events.events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
             });
           }
 
-          common.metrics.ponder_historical_transform_duration.inc(
+          app.common.metrics.ponder_historical_transform_duration.inc(
             { step: "index" },
             endClock(),
           );
@@ -370,7 +340,7 @@ export async function runMultichain({
 
           await indexingCache.flush();
 
-          common.metrics.ponder_historical_transform_duration.inc(
+          app.common.metrics.ponder_historical_transform_duration.inc(
             { step: "load" },
             endClock(),
           );
@@ -382,9 +352,9 @@ export async function runMultichain({
                 .insert(PONDER_CHECKPOINT)
                 .values(
                   events.checkpoints.map(({ chainId, checkpoint }) => ({
-                    chainName: indexingBuild.chains.find(
-                      (chain) => chain.id === chainId,
-                    )!.name,
+                    chainName: app.indexingBuild.find(
+                      ({ chain }) => chain.id === chainId,
+                    )!.chain.name,
                     chainId,
                     latestCheckpoint: checkpoint,
                     safeCheckpoint: checkpoint,
@@ -400,7 +370,7 @@ export async function runMultichain({
             );
           }
 
-          common.metrics.ponder_historical_transform_duration.inc(
+          app.common.metrics.ponder_historical_transform_duration.inc(
             { step: "finalize" },
             endClock(),
           );
@@ -410,7 +380,7 @@ export async function runMultichain({
           indexingCache.clear();
 
           if (error instanceof NonRetryableUserError === false) {
-            common.logger.warn({
+            app.common.logger.warn({
               service: "app",
               msg: "Retrying event batch",
             });
@@ -421,7 +391,7 @@ export async function runMultichain({
       });
 
       cachedViemClient.clear();
-      common.metrics.ponder_historical_transform_duration.inc(
+      app.common.metrics.ponder_historical_transform_duration.inc(
         { step: "commit" },
         endClock(),
       );
@@ -436,9 +406,9 @@ export async function runMultichain({
   // checkpoint is between the last processed event and the finalized
   // checkpoint.
 
-  for (const chain of indexingBuild.chains) {
+  for (const { chain } of app.indexingBuild) {
     const label = { chain: chain.name };
-    common.metrics.ponder_historical_completed_indexing_seconds.set(
+    app.common.metrics.ponder_historical_completed_indexing_seconds.set(
       label,
       Math.max(
         seconds[chain.name]!.end -
@@ -446,53 +416,54 @@ export async function runMultichain({
         0,
       ),
     );
-    common.metrics.ponder_indexing_timestamp.set(
+    app.common.metrics.ponder_indexing_timestamp.set(
       { chain: chain.name },
       seconds[chain.name]!.end,
     );
   }
 
   const endTimestamp = Math.round(Date.now() / 1000);
-  common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
+  app.common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
 
-  common.logger.info({
+  app.common.logger.info({
     service: "indexing",
     msg: "Completed historical indexing",
   });
 
-  const tables = Object.values(schemaBuild.schema).filter(isTable);
+  const tables = Object.values(app.schemaBuild.schema).filter(isTable);
 
-  await createIndexes(database.adminQB, { statements: schemaBuild.statements });
-  await createTriggers(database.adminQB, { tables });
-  if (namespaceBuild.viewsSchema !== undefined) {
-    await createViews(database.adminQB, { tables, namespaceBuild });
+  await createIndexes(app.database.adminQB, {
+    statements: app.schemaBuild.statements,
+  });
+  await createTriggers(app.database.adminQB, { tables });
+  if (app.namespaceBuild.viewsSchema !== undefined) {
+    await createViews(app.database.adminQB, {
+      tables,
+      namespaceBuild: app.namespaceBuild,
+    });
 
-    common.logger.info({
+    app.common.logger.info({
       service: "app",
-      msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
+      msg: `Created ${tables.length} views in schema "${app.namespaceBuild.viewsSchema}"`,
     });
   }
 
-  await database.adminQB.wrap({ label: "update_ready" }, (db) =>
+  await app.database.adminQB.wrap({ label: "update_ready" }, (db) =>
     db
       .update(PONDER_META)
       .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` }),
   );
 
-  common.logger.info({
+  app.common.logger.info({
     service: "server",
     msg: "Started returning 200 responses from /ready endpoint",
   });
 
-  const realtimeIndexingStore = createRealtimeIndexingStore({
-    common,
-    schemaBuild,
+  const realtimeIndexingStore = createRealtimeIndexingStore(app, {
     indexingErrorHandler,
   });
 
-  for await (const event of getRealtimeEventsMultichain({
-    common,
-    indexingBuild,
+  for await (const event of getRealtimeEventsMultichain(app, {
     perChainSync,
     syncStore,
   })) {
@@ -504,17 +475,17 @@ export async function runMultichain({
 
           const perBlockEvents = splitEvents(event.events);
 
-          common.logger.debug({
+          app.common.logger.debug({
             service: "app",
             msg: `Partitioned events into ${perBlockEvents.length} blocks`,
           });
 
           for (const { checkpoint, events } of perBlockEvents) {
-            await database.userQB.transaction(async (tx) => {
-              const chain = indexingBuild.chains.find(
-                (chain) =>
+            await app.database.userQB.transaction(async (tx) => {
+              const chain = app.indexingBuild.find(
+                ({ chain }) =>
                   chain.id === Number(decodeCheckpoint(checkpoint).chainId),
-              )!;
+              )!.chain;
 
               try {
                 realtimeIndexingStore.qb = tx;
@@ -524,7 +495,7 @@ export async function runMultichain({
                   db: realtimeIndexingStore,
                 });
 
-                common.logger.info({
+                app.common.logger.info({
                   service: "app",
                   msg: `Indexed ${events.length} '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
                 });
@@ -533,13 +504,13 @@ export async function runMultichain({
                   tables.map((table) => commitBlock(tx, { table, checkpoint })),
                 );
 
-                common.metrics.ponder_indexing_timestamp.set(
+                app.common.metrics.ponder_indexing_timestamp.set(
                   { chain: chain.name },
                   Number(decodeCheckpoint(checkpoint).blockTimestamp),
                 );
               } catch (error) {
                 if (error instanceof NonRetryableUserError === false) {
-                  common.logger.warn({
+                  app.common.logger.warn({
                     service: "app",
                     msg: `Retrying '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
                   });
@@ -551,7 +522,7 @@ export async function runMultichain({
           }
         }
 
-        await database.userQB.wrap({ label: "update_checkpoints" }, (db) =>
+        await app.database.userQB.wrap({ label: "update_checkpoints" }, (db) =>
           db
             .update(PONDER_CHECKPOINT)
             .set({ latestCheckpoint: event.checkpoint })
@@ -566,17 +537,17 @@ export async function runMultichain({
         // Note: `_ponder_checkpoint` is not called here, instead it is called
         // in the `block` case.
 
-        await database.userQB.transaction(async (tx) => {
+        await app.database.userQB.transaction(async (tx) => {
           await dropTriggers(tx, { tables });
 
           const counts = await revert(tx, {
             tables,
             checkpoint: event.checkpoint,
-            ordering: preBuild.ordering,
+            ordering: app.preBuild.ordering,
           });
 
           for (const [index, table] of tables.entries()) {
-            common.logger.info({
+            app.common.logger.info({
               service: "database",
               msg: `Reverted ${counts[index]} unfinalized operations from '${getTableName(table)}'`,
             });
@@ -587,7 +558,7 @@ export async function runMultichain({
 
         break;
       case "finalize":
-        await database.userQB.transaction(async (tx) => {
+        await app.database.userQB.transaction(async (tx) => {
           await tx.wrap((tx) =>
             tx.update(PONDER_CHECKPOINT).set({
               safeCheckpoint: event.checkpoint,
@@ -600,7 +571,7 @@ export async function runMultichain({
           });
 
           for (const [index, table] of tables.entries()) {
-            common.logger.info({
+            app.common.logger.info({
               service: "database",
               msg: `Finalized ${counts[index]} operations from '${getTableName(table)}'`,
             });
@@ -608,7 +579,7 @@ export async function runMultichain({
 
           const decoded = decodeCheckpoint(event.checkpoint);
 
-          common.logger.debug({
+          app.common.logger.debug({
             service: "database",
             msg: `Updated finalized checkpoint to (timestamp=${decoded.blockTimestamp} chainId=${decoded.chainId} block=${decoded.blockNumber})`,
           });

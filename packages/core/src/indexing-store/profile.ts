@@ -41,7 +41,7 @@ export const recordProfilePattern = (
     // @ts-ignore
     const value = key[js]!;
 
-    if (eq(event.chainId, value)) {
+    if (eq(event.chain.id, value)) {
       result[js] = ["chainId"];
       continue;
     }
@@ -411,7 +411,7 @@ export const recoverProfilePattern = (
 
   for (const [key, value] of Object.entries(pattern)) {
     if (value[0] === "chainId") {
-      result[key] = event.chainId;
+      result[key] = event.chain.id;
     } else {
       let _result: unknown = event.event;
       for (const prop of value) {

@@ -1,20 +1,19 @@
-import type { Common } from "@/internal/common.js";
 import type {
   Chain,
   FactoryId,
   Filter,
   Fragment,
   LightBlock,
-  Source,
+  PerChainPonderApp,
+  PonderApp,
 } from "@/internal/types.js";
 import type { SyncBlock } from "@/internal/types.js";
-import type { Rpc } from "@/rpc/index.js";
-import { isAddressFactory } from "@/runtime/filter.js";
-import { getFragments } from "@/runtime/fragments.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
+  type Checkpoint,
   MAX_CHECKPOINT,
   blockToCheckpoint,
+  decodeCheckpoint,
   encodeCheckpoint,
 } from "@/utils/checkpoint.js";
 import {
@@ -25,6 +24,8 @@ import {
 } from "@/utils/interval.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { type Address, hexToNumber, toHex } from "viem";
+import { isAddressFactory } from "./filter.js";
+import { getFragments } from "./fragments.js";
 
 export type SyncProgress = {
   start: SyncBlock | LightBlock;
@@ -45,14 +46,10 @@ export type CachedIntervals = Map<
   { fragment: Fragment; intervals: Interval[] }[]
 >;
 
-export async function getLocalSyncProgress(params: {
-  common: Common;
-  sources: Source[];
-  chain: Chain;
-  rpc: Rpc;
-  finalizedBlock: LightBlock;
-  cachedIntervals: CachedIntervals;
-}): Promise<SyncProgress> {
+export async function getLocalSyncProgress(
+  app: PerChainPonderApp,
+  { cachedIntervals }: { cachedIntervals: CachedIntervals },
+): Promise<SyncProgress> {
   const syncProgress = {
     isEnd: () => {
       if (
@@ -88,7 +85,7 @@ export async function getLocalSyncProgress(params: {
       return encodeCheckpoint(
         blockToCheckpoint(
           block,
-          params.chain.id,
+          app.indexingBuild.chain.id,
           // The checkpoint returned by this function is meant to be used in
           // a closed interval (includes endpoints), so "start" should be inclusive.
           tag === "start" ? "down" : "up",
@@ -96,7 +93,8 @@ export async function getLocalSyncProgress(params: {
       );
     },
   } as SyncProgress;
-  const filters = params.sources.map(({ filter }) => filter);
+
+  const filters = getFilters(app);
 
   // Earliest `fromBlock` among all `filters`
   const start = Math.min(
@@ -124,35 +122,32 @@ export async function getLocalSyncProgress(params: {
     }),
   );
 
-  const cached = getCachedBlock({
-    filters,
-    cachedIntervals: params.cachedIntervals,
-  });
+  const cached = getCachedBlock({ filters, cachedIntervals });
 
   const diagnostics = await Promise.all(
     cached === undefined
       ? [
-          params.rpc.request({ method: "eth_chainId" }),
-          _eth_getBlockByNumber(params.rpc, { blockNumber: start }),
+          app.indexingBuild.rpc.request({ method: "eth_chainId" }),
+          _eth_getBlockByNumber(app.indexingBuild.rpc, { blockNumber: start }),
         ]
       : [
-          params.rpc.request({ method: "eth_chainId" }),
-          _eth_getBlockByNumber(params.rpc, { blockNumber: start }),
-          _eth_getBlockByNumber(params.rpc, { blockNumber: cached }),
+          app.indexingBuild.rpc.request({ method: "eth_chainId" }),
+          _eth_getBlockByNumber(app.indexingBuild.rpc, { blockNumber: start }),
+          _eth_getBlockByNumber(app.indexingBuild.rpc, { blockNumber: cached }),
         ],
   );
 
-  syncProgress.finalized = params.finalizedBlock;
+  syncProgress.finalized = app.indexingBuild.finalizedBlock;
   syncProgress.start = diagnostics[1];
   if (diagnostics.length === 3) {
     syncProgress.current = diagnostics[2];
   }
 
   // Warn if the config has a different chainId than the remote.
-  if (hexToNumber(diagnostics[0]) !== params.chain.id) {
-    params.common.logger.warn({
+  if (hexToNumber(diagnostics[0]) !== app.indexingBuild.chain.id) {
+    app.common.logger.warn({
       service: "sync",
-      msg: `Remote chain ID (${diagnostics[0]}) does not match configured chain ID (${params.chain.id}) for chain "${params.chain.name}"`,
+      msg: `Remote chain ID (${diagnostics[0]}) does not match configured chain ID (${app.indexingBuild.chain.id}) for chain "${app.indexingBuild.chain.name}"`,
     });
   }
 
@@ -163,7 +158,7 @@ export async function getLocalSyncProgress(params: {
   // Latest `toBlock` among all `filters`
   const end = Math.max(...filters.map((filter) => filter.toBlock!));
 
-  if (end > hexToNumber(params.finalizedBlock.number)) {
+  if (end > hexToNumber(app.indexingBuild.finalizedBlock.number)) {
     syncProgress.end = {
       number: toHex(end),
       hash: "0x",
@@ -171,7 +166,7 @@ export async function getLocalSyncProgress(params: {
       timestamp: toHex(MAX_CHECKPOINT.blockTimestamp),
     } satisfies LightBlock;
   } else {
-    syncProgress.end = await _eth_getBlockByNumber(params.rpc, {
+    syncProgress.end = await _eth_getBlockByNumber(app.indexingBuild.rpc, {
       blockNumber: end,
     });
   }
@@ -179,36 +174,36 @@ export async function getLocalSyncProgress(params: {
   return syncProgress;
 }
 
-export async function getChildAddresses(params: {
-  sources: Source[];
-  syncStore: SyncStore;
-}): Promise<ChildAddresses> {
+export async function getChildAddresses(
+  app: PerChainPonderApp,
+  { syncStore }: { syncStore: SyncStore },
+): Promise<ChildAddresses> {
   const childAddresses: ChildAddresses = new Map();
-  for (const source of params.sources) {
-    switch (source.filter.type) {
+  for (const filter of getFilters(app)) {
+    switch (filter.type) {
       case "log":
-        if (isAddressFactory(source.filter.address)) {
-          const _childAddresses = await params.syncStore.getChildAddresses({
-            factory: source.filter.address,
+        if (isAddressFactory(filter.address)) {
+          const _childAddresses = await syncStore.getChildAddresses({
+            factory: filter.address,
           });
-          childAddresses.set(source.filter.address.id, _childAddresses);
+          childAddresses.set(filter.address.id, _childAddresses);
         }
         break;
       case "transaction":
       case "transfer":
       case "trace":
-        if (isAddressFactory(source.filter.fromAddress)) {
-          const _childAddresses = await params.syncStore.getChildAddresses({
-            factory: source.filter.fromAddress,
+        if (isAddressFactory(filter.fromAddress)) {
+          const _childAddresses = await syncStore.getChildAddresses({
+            factory: filter.fromAddress,
           });
-          childAddresses.set(source.filter.fromAddress.id, _childAddresses);
+          childAddresses.set(filter.fromAddress.id, _childAddresses);
         }
 
-        if (isAddressFactory(source.filter.toAddress)) {
-          const _childAddresses = await params.syncStore.getChildAddresses({
-            factory: source.filter.toAddress,
+        if (isAddressFactory(filter.toAddress)) {
+          const _childAddresses = await syncStore.getChildAddresses({
+            factory: filter.toAddress,
           });
-          childAddresses.set(source.filter.toAddress.id, _childAddresses);
+          childAddresses.set(filter.toAddress.id, _childAddresses);
         }
 
         break;
@@ -217,28 +212,27 @@ export async function getChildAddresses(params: {
   return childAddresses;
 }
 
-export async function getCachedIntervals(params: {
-  chain: Chain;
-  syncStore: SyncStore;
-  sources: Source[];
-}): Promise<CachedIntervals> {
+export async function getCachedIntervals(
+  app: PerChainPonderApp,
+  { syncStore }: { syncStore: SyncStore },
+): Promise<CachedIntervals> {
   /**
    * Intervals that have been completed for all filters in `args.sources`.
    *
    * Note: `intervalsCache` is not updated after a new interval is synced.
    */
   let cachedIntervals: CachedIntervals;
-  if (params.chain.disableCache) {
+  if (app.indexingBuild.chain.disableCache) {
     cachedIntervals = new Map();
-    for (const { filter } of params.sources) {
+    for (const filter of getFilters(app)) {
       cachedIntervals.set(filter, []);
       for (const { fragment } of getFragments(filter)) {
         cachedIntervals.get(filter)!.push({ fragment, intervals: [] });
       }
     }
   } else {
-    cachedIntervals = await params.syncStore.getIntervals({
-      filters: params.sources.map(({ filter }) => filter),
+    cachedIntervals = await syncStore.getIntervals({
+      filters: getFilters(app),
     });
   }
 
@@ -298,4 +292,36 @@ export const getCachedBlock = ({
   }
 
   return undefined;
+};
+
+export const getPerChainPonderApp = (app: PonderApp): PerChainPonderApp[] => {
+  const perChainApps: PerChainPonderApp[] = [];
+  for (const indexingBuild of app.indexingBuild) {
+    perChainApps.push({ ...app, indexingBuild });
+  }
+  return perChainApps;
+};
+
+export const getFilters = (app: PerChainPonderApp): Filter[] => {
+  const filters = new Set<Filter>();
+  for (const eventCallback of app.indexingBuild.eventCallbacks) {
+    filters.add(eventCallback.filter);
+  }
+  return Array.from(filters);
+};
+
+export const findChain = (
+  app: PonderApp,
+  idOrCheckpoint: number | string | Checkpoint,
+): Chain => {
+  let id: number;
+  if (typeof idOrCheckpoint === "number") {
+    id = idOrCheckpoint;
+  } else if (typeof idOrCheckpoint === "string") {
+    const checkpoint = decodeCheckpoint(idOrCheckpoint);
+    id = Number(checkpoint.chainId);
+  } else {
+    id = Number(idOrCheckpoint.chainId);
+  }
+  return app.indexingBuild.find((ib) => ib.chain.id === id)!.chain;
 };

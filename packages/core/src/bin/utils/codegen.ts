@@ -19,7 +19,7 @@ declare module "ponder:schema" {
 // See https://ponder.sh/docs/requirements#typescript for more information.
 `;
 
-export function runCodegen({ common }: { common: Common }) {
+export function runCodegen(common: Common) {
   writeFileSync(
     path.join(common.options.rootDir, "ponder-env.d.ts"),
     ponderEnv,

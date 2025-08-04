@@ -1,31 +1,38 @@
-import { buildSchema } from "@/build/schema.js";
-import { type Database, createDatabase } from "@/database/index.js";
-import type { IndexingStore } from "@/indexing-store/index.js";
-import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
+import { createBuild } from "@/build/index.js";
+import type { Config } from "@/config/index.js";
+import { createDatabase } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
-import type { RetryableError } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { createTelemetry } from "@/internal/telemetry.js";
 import type {
+  Chain,
   DatabaseConfig,
   IndexingBuild,
-  IndexingErrorHandler,
+  IndexingFunctions,
   NamespaceBuild,
-  SchemaBuild,
-  Source,
+  PerChainPonderApp,
+  PonderApp,
+  PreBuild,
+  Schema,
 } from "@/internal/types.js";
+import { createRpc } from "@/rpc/index.js";
 import { isAddressFactory } from "@/runtime/filter.js";
 import { getFragments } from "@/runtime/fragments.js";
-import type { CachedIntervals, ChildAddresses } from "@/runtime/index.js";
-import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
+import type {
+  CachedIntervals,
+  ChildAddresses,
+  SyncProgress,
+} from "@/runtime/index.js";
 import { createPglite } from "@/utils/pglite.js";
+import type { Result } from "@/utils/result.js";
 import type { PGlite } from "@electric-sql/pglite";
+import { Hono } from "hono";
 import pg from "pg";
 import { type TestContext, afterAll } from "vitest";
-import { poolId, testClient } from "./utils.js";
+import { anvil, poolId, testClient } from "./utils.js";
 
 declare module "vitest" {
   export interface TestContext {
@@ -69,10 +76,10 @@ afterAll(async () => {
  *
  * ```ts
  * // Add this to any test suite that uses the database.
- * beforeEach(setupIsolatedDatabase)
+ * beforeEach(setupDatabase)
  * ```
  */
-export async function setupIsolatedDatabase(context: TestContext) {
+export async function setupDatabase(context: TestContext) {
   const connectionString = process.env.DATABASE_URL;
 
   if (connectionString) {
@@ -176,74 +183,207 @@ export async function setupIsolatedDatabase(context: TestContext) {
   }
 }
 
-export async function setupDatabaseServices(
+export async function setupPonder<isPerChain extends boolean = false>(
   context: TestContext,
   overrides: Partial<{
-    namespaceBuild: NamespaceBuild;
-    schemaBuild: Partial<SchemaBuild>;
-    indexingBuild: Partial<IndexingBuild>;
+    buildId: string;
+    namespace: string;
+    schema: Schema;
+    config: Config;
+    indexingFunctions: IndexingFunctions;
+    app: Hono;
   }> = {},
-): Promise<{
-  database: Database;
-  syncStore: SyncStore;
-  indexingStore: IndexingStore;
-}> {
-  const { statements } = buildSchema({
-    schema: overrides.schemaBuild?.schema ?? {},
+  isPerChain: isPerChain = false as isPerChain,
+): Promise<isPerChain extends true ? PerChainPonderApp : PonderApp> {
+  const build = await createBuild(context.common, {
+    cliOptions: {
+      command: "start",
+      version: "0.0.0",
+      logFormat: "pretty",
+      config: "ponder.config.ts",
+    },
   });
 
-  const database = await createDatabase({
+  const config =
+    overrides.config ??
+    ({
+      ordering: "multichain",
+      chains: {
+        mainnet: {
+          id: 1,
+          rpc: `http://127.0.0.1:8545/${poolId}`,
+        },
+      },
+      contracts: {},
+      accounts: {},
+      blocks: {},
+    } satisfies Config);
+
+  const namespaceBuild = {
+    schema: overrides.namespace ?? "public",
+    viewsSchema: undefined,
+  } satisfies NamespaceBuild;
+  const preBuild = {
+    ordering: overrides.config?.ordering ?? "multichain",
+    databaseConfig: context.databaseConfig,
+  } satisfies PreBuild;
+
+  const schemaBuildResult = build.compileSchema({
+    schema: overrides.schema ?? {},
+  });
+
+  if (schemaBuildResult.status === "error") {
+    throw schemaBuildResult.error;
+  }
+
+  const database = await createDatabase(context.common, {
+    namespaceBuild,
+    preBuild,
+    schemaBuild: schemaBuildResult.result,
+  });
+
+  // base app
+  if (Object.keys(overrides).length === 0) {
+    const app = {
+      common: context.common,
+      buildId: build.compileBuildId({
+        configResult: { config, contentHash: "" },
+        schemaResult: { schema: {}, contentHash: "" },
+        indexingResult: {
+          indexingFunctions: [],
+          contentHash: "",
+        },
+      }),
+      preBuild,
+      namespaceBuild,
+      schemaBuild: schemaBuildResult.result,
+      indexingBuild: [
+        {
+          chain: setupChain(),
+          rpc: createRpc(context.common, { chain: setupChain() }),
+          finalizedBlock: 0,
+          eventCallbacks: [],
+        },
+      ],
+      apiBuild: {
+        app: new Hono(),
+        port: 0,
+      },
+      database,
+    } satisfies PonderApp;
+
+    globalThis.PONDER_COMMON = context.common;
+    globalThis.PONDER_NAMESPACE_BUILD = namespaceBuild;
+
+    globalThis.PONDER_DATABASE = database;
+
+    await database.migrate({ buildId: app.buildId, ordering: "multichain" });
+    await database.migrateSync().catch((err) => {
+      console.log(err);
+      throw err;
+    });
+
+    if (isPerChain) {
+      // @ts-ignore
+      return getPerChainPonderApp(app)[0]!;
+    }
+
+    // @ts-ignore
+    return app;
+  }
+
+  // TODO(kyle) handle no indexing functions registered
+  let indexingBuildResult: Result<IndexingBuild[]>;
+
+  if (overrides.indexingFunctions === undefined) {
+    indexingBuildResult = {
+      status: "success",
+      result: [
+        {
+          chain: setupChain(),
+          rpc: createRpc(context.common, { chain: setupChain() }),
+          finalizedBlock: 0,
+          eventCallbacks: [],
+        },
+      ],
+    };
+  } else {
+    indexingBuildResult = await build.compileIndexing({
+      configResult: { config, contentHash: "" },
+      indexingResult: {
+        indexingFunctions: overrides.indexingFunctions ?? [],
+        contentHash: "",
+      },
+    });
+  }
+
+  const apiBuildResult = await build.compileApi({
+    apiResult: { app: overrides.app ?? new Hono() },
+  });
+
+  if (indexingBuildResult.status === "error") {
+    throw indexingBuildResult.error;
+  }
+
+  if (apiBuildResult.status === "error") {
+    throw apiBuildResult.error;
+  }
+
+  const app = {
     common: context.common,
-    namespace: overrides.namespaceBuild ?? {
-      schema: "public",
-      viewsSchema: undefined,
-    },
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-    },
-    schemaBuild: {
-      schema: overrides.schemaBuild?.schema ?? {},
-      statements,
-    },
-  });
+    buildId:
+      overrides.buildId ??
+      build.compileBuildId({
+        configResult: { config, contentHash: "" },
+        schemaResult: { schema: overrides.schema ?? {}, contentHash: "" },
+        indexingResult: {
+          indexingFunctions: overrides.indexingFunctions ?? [],
+          contentHash: "",
+        },
+      }),
+    preBuild,
+    namespaceBuild,
+    schemaBuild: schemaBuildResult.result,
+    indexingBuild: indexingBuildResult.result,
+    apiBuild: apiBuildResult.result,
+    database,
+  } satisfies PonderApp;
 
-  await database.migrate({
-    buildId: overrides.indexingBuild?.buildId ?? "abc",
-    ordering: "multichain",
-  });
+  globalThis.PONDER_COMMON = context.common;
+  globalThis.PONDER_NAMESPACE_BUILD = namespaceBuild;
+  globalThis.PONDER_INDEXING_BUILD = indexingBuildResult.result;
+  globalThis.PONDER_DATABASE = database;
+
+  await database.migrate({ buildId: app.buildId, ordering: "multichain" });
 
   await database.migrateSync().catch((err) => {
     console.log(err);
     throw err;
   });
 
-  const syncStore = createSyncStore({ common: context.common, database });
+  if (isPerChain) {
+    if (indexingBuildResult.result.length !== 1) {
+      throw new Error("Expected exactly one chain");
+    }
 
-  const indexingErrorHandler: IndexingErrorHandler = {
-    getRetryableError: () => {
-      return indexingErrorHandler.error;
-    },
-    setRetryableError: (error: RetryableError) => {
-      indexingErrorHandler.error = error;
-    },
-    clearRetryableError: () => {
-      indexingErrorHandler.error = undefined;
-    },
-    error: undefined as RetryableError | undefined,
-  };
+    // @ts-ignore
+    return getPerChainPonderApp(app)[0]!;
+  }
 
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: overrides.schemaBuild?.schema ?? {} },
-    indexingErrorHandler,
-  });
-  indexingStore.qb = database.userQB;
+  // @ts-ignore
+  return app;
+}
 
+export function setupChain() {
   return {
-    database,
-    indexingStore,
-    syncStore,
-  };
+    viemChain: anvil,
+    name: "mainnet`",
+    id: 1,
+    rpc: `http://127.0.0.1:8545/${poolId}`,
+    pollingInterval: 1_000,
+    finalityBlockCount: 1,
+    disableCache: false,
+  } satisfies Chain;
 }
 
 /**
@@ -263,23 +403,23 @@ export async function setupAnvil() {
   };
 }
 
-export const setupChildAddresses = (sources: Source[]): ChildAddresses => {
+export const setupChildAddresses = (app: PerChainPonderApp): ChildAddresses => {
   const childAddresses = new Map();
-  for (const source of sources) {
-    switch (source.filter.type) {
+  for (const eventCallback of app.indexingBuild.eventCallbacks) {
+    switch (eventCallback.filter.type) {
       case "log":
-        if (isAddressFactory(source.filter.address)) {
-          childAddresses.set(source.filter.address.id, new Map());
+        if (isAddressFactory(eventCallback.filter.address)) {
+          childAddresses.set(eventCallback.filter.address.id, new Map());
         }
         break;
       case "transaction":
       case "transfer":
       case "trace":
-        if (isAddressFactory(source.filter.fromAddress)) {
-          childAddresses.set(source.filter.fromAddress.id, new Map());
+        if (isAddressFactory(eventCallback.filter.fromAddress)) {
+          childAddresses.set(eventCallback.filter.fromAddress.id, new Map());
         }
-        if (isAddressFactory(source.filter.toAddress)) {
-          childAddresses.set(source.filter.toAddress.id, new Map());
+        if (isAddressFactory(eventCallback.filter.toAddress)) {
+          childAddresses.set(eventCallback.filter.toAddress.id, new Map());
         }
     }
   }
@@ -287,12 +427,16 @@ export const setupChildAddresses = (sources: Source[]): ChildAddresses => {
   return childAddresses as ChildAddresses;
 };
 
-export const setupCachedIntervals = (sources: Source[]): CachedIntervals => {
+export const setupCachedIntervals = (
+  app: PerChainPonderApp,
+): CachedIntervals => {
   const cachedIntervals: CachedIntervals = new Map();
-  for (const { filter } of sources) {
-    cachedIntervals.set(filter, []);
-    for (const { fragment } of getFragments(filter)) {
-      cachedIntervals.get(filter)!.push({ fragment, intervals: [] });
+  for (const eventCallback of app.indexingBuild.eventCallbacks) {
+    cachedIntervals.set(eventCallback.filter, []);
+    for (const { fragment } of getFragments(eventCallback.filter)) {
+      cachedIntervals
+        .get(eventCallback.filter)!
+        .push({ fragment, intervals: [] });
     }
   }
   return cachedIntervals;

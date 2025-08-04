@@ -1,5 +1,4 @@
 import type { QB } from "@/database/queryBuilder.js";
-import type { Common } from "@/internal/common.js";
 import {
   DbConnectionError,
   RawSqlError,
@@ -7,7 +6,7 @@ import {
   RetryableError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
-import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
+import type { IndexingErrorHandler, PonderApp } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
@@ -19,15 +18,14 @@ import {
 } from "./index.js";
 import { getCacheKey, getWhereCondition } from "./utils.js";
 
-export const createRealtimeIndexingStore = ({
-  common,
-  schemaBuild: { schema },
-  indexingErrorHandler,
-}: {
-  common: Common;
-  schemaBuild: Pick<SchemaBuild, "schema">;
-  indexingErrorHandler: IndexingErrorHandler;
-}): IndexingStore => {
+export const createRealtimeIndexingStore = (
+  app: PonderApp,
+  {
+    indexingErrorHandler,
+  }: {
+    indexingErrorHandler: IndexingErrorHandler;
+  },
+): IndexingStore => {
   let qb: QB = undefined!;
 
   const errorHandler = (fn: (...args: any[]) => Promise<any>) => {
@@ -57,7 +55,7 @@ export const createRealtimeIndexingStore = ({
   return {
     // @ts-ignore
     find: errorHandler(async (table: Table, key) => {
-      common.metrics.ponder_indexing_store_queries_total.inc({
+      app.common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "find",
       });
@@ -71,7 +69,7 @@ export const createRealtimeIndexingStore = ({
           // @ts-ignore
           const inner = {
             onConflictDoNothing: errorHandler(async () => {
-              common.metrics.ponder_indexing_store_queries_total.inc({
+              app.common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
               });
@@ -113,7 +111,7 @@ export const createRealtimeIndexingStore = ({
               );
             }),
             onConflictDoUpdate: errorHandler(async (valuesU: any) => {
-              common.metrics.ponder_indexing_store_queries_total.inc({
+              app.common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
               });
@@ -184,7 +182,7 @@ export const createRealtimeIndexingStore = ({
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
             then: (onFulfilled, onRejected) =>
               errorHandler(async () => {
-                common.metrics.ponder_indexing_store_queries_total.inc({
+                app.common.metrics.ponder_indexing_store_queries_total.inc({
                   table: getTableName(table),
                   method: "insert",
                 });
@@ -244,7 +242,7 @@ export const createRealtimeIndexingStore = ({
     update(table: Table, key) {
       return {
         set: errorHandler(async (values: any) => {
-          common.metrics.ponder_indexing_store_queries_total.inc({
+          app.common.metrics.ponder_indexing_store_queries_total.inc({
             table: getTableName(table),
             method: "update",
           });
@@ -285,7 +283,7 @@ export const createRealtimeIndexingStore = ({
     },
     // @ts-ignore
     delete: errorHandler(async (table: Table, key) => {
-      common.metrics.ponder_indexing_store_queries_total.inc({
+      app.common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "delete",
       });
@@ -324,12 +322,12 @@ export const createRealtimeIndexingStore = ({
 
           throw new RawSqlError((error as Error).message);
         } finally {
-          common.metrics.ponder_indexing_store_raw_sql_duration.observe(
+          app.common.metrics.ponder_indexing_store_raw_sql_duration.observe(
             endClock(),
           );
         }
       }),
-      { schema, casing: "snake_case" },
+      { schema: app.schemaBuild.schema, casing: "snake_case" },
     ),
     set qb(_qb: QB) {
       qb = _qb;

@@ -1,6 +1,4 @@
 import crypto from "node:crypto";
-import type { Database } from "@/database/index.js";
-import type { Common } from "@/internal/common.js";
 import type {
   BlockFilter,
   Factory,
@@ -15,6 +13,7 @@ import type {
   InternalTransactionReceipt,
   LightBlock,
   LogFilter,
+  PonderApp,
   SyncBlock,
   SyncBlockHeader,
   SyncLog,
@@ -133,10 +132,9 @@ export type SyncStore = {
   pruneByChain(args: { chainId: number }): Promise<void>;
 };
 
-export const createSyncStore = ({
-  common,
-  database,
-}: { common: Common; database: Database }): SyncStore => ({
+export const createSyncStore = (
+  app: Pick<PonderApp, "common" | "database">,
+): SyncStore => ({
   insertIntervals: async ({ intervals, chainId }) => {
     if (intervals.length === 0) return;
 
@@ -176,7 +174,7 @@ export const createSyncStore = ({
       });
     }
 
-    await database.syncQB.wrap({ label: "insert_intervals" }, (db) =>
+    await app.database.syncQB.wrap({ label: "insert_intervals" }, (db) =>
       db
         .insert(PONDER_SYNC.intervals)
         .values(values)
@@ -190,7 +188,7 @@ export const createSyncStore = ({
     const queries = filters.flatMap((filter, i) => {
       const fragments = getFragments(filter);
       return fragments.map((fragment, j) =>
-        database.syncQB.raw
+        app.database.syncQB.raw
           .select({
             mergedBlocks: sql<string>`range_agg(unnested.blocks)`.as(
               "merged_blocks",
@@ -199,7 +197,7 @@ export const createSyncStore = ({
             fragment: sql.raw(`'${j}'`).as("fragment"),
           })
           .from(
-            database.syncQB.raw
+            app.database.syncQB.raw
               .select({ blocks: sql.raw("unnest(blocks)").as("blocks") })
               .from(PONDER_SYNC.intervals)
               .where(
@@ -213,12 +211,12 @@ export const createSyncStore = ({
     let rows: Awaited<(typeof queries)[number]>;
 
     if (queries.length > 1) {
-      rows = await database.syncQB.wrap({ label: "select_intervals" }, () =>
+      rows = await app.database.syncQB.wrap({ label: "select_intervals" }, () =>
         // @ts-expect-error
         unionAll(...queries),
       );
     } else {
-      rows = await database.syncQB.wrap({ label: "select_intervals" }, () =>
+      rows = await app.database.syncQB.wrap({ label: "select_intervals" }, () =>
         queries[0]!.execute(),
       );
     }
@@ -259,12 +257,14 @@ export const createSyncStore = ({
 
     const { id, ..._factory } = factory;
 
-    const batchSize = Math.floor(common.options.databaseMaxQueryParameters / 3);
+    const batchSize = Math.floor(
+      app.common.options.databaseMaxQueryParameters / 3,
+    );
 
     const values: (typeof PONDER_SYNC.factoryAddresses.$inferInsert)[] = [];
 
-    const factoryInsert = database.syncQB.raw.$with("factory_insert").as(
-      database.syncQB.raw
+    const factoryInsert = app.database.syncQB.raw.$with("factory_insert").as(
+      app.database.syncQB.raw
         .insert(PONDER_SYNC.factories)
         .values({ factory: _factory })
         // @ts-expect-error bug with drizzle-orm
@@ -286,19 +286,21 @@ export const createSyncStore = ({
     }
 
     for (let i = 0; i < values.length; i += batchSize) {
-      await database.syncQB.wrap({ label: "insert_child_addresses" }, (db) =>
-        db
-          .with(factoryInsert)
-          .insert(PONDER_SYNC.factoryAddresses)
-          .values(values.slice(i, i + batchSize)),
+      await app.database.syncQB.wrap(
+        { label: "insert_child_addresses" },
+        (db) =>
+          db
+            .with(factoryInsert)
+            .insert(PONDER_SYNC.factoryAddresses)
+            .values(values.slice(i, i + batchSize)),
       );
     }
   },
   getChildAddresses: ({ factory }) => {
     const { id, ..._factory } = factory;
 
-    const factoryInsert = database.syncQB.raw.$with("factory_insert").as(
-      database.syncQB.raw
+    const factoryInsert = app.database.syncQB.raw.$with("factory_insert").as(
+      app.database.syncQB.raw
         .insert(PONDER_SYNC.factories)
         .values({ factory: _factory })
         // @ts-expect-error bug with drizzle-orm
@@ -309,7 +311,7 @@ export const createSyncStore = ({
         }),
     );
 
-    return database.syncQB
+    return app.database.syncQB
       .wrap({ label: "select_child_addresses" }, (db) =>
         db
           .with(factoryInsert)
@@ -321,7 +323,7 @@ export const createSyncStore = ({
           .where(
             eq(
               PONDER_SYNC.factoryAddresses.factoryId,
-              database.syncQB.raw
+              app.database.syncQB.raw
                 .select({ id: factoryInsert.id })
                 .from(factoryInsert),
             ),
@@ -341,7 +343,7 @@ export const createSyncStore = ({
       });
   },
   getSafeCrashRecoveryBlock: async ({ chainId, timestamp }) => {
-    const rows = await database.syncQB.wrap(
+    const rows = await app.database.syncQB.wrap(
       { label: "select_crash_recovery_block" },
       (db) =>
         db
@@ -368,7 +370,7 @@ export const createSyncStore = ({
     // Calculate `batchSize` based on how many parameters the
     // input will have
     const batchSize = Math.floor(
-      common.options.databaseMaxQueryParameters /
+      app.common.options.databaseMaxQueryParameters /
         Object.keys(encodeLog({ log: logs[0]!, chainId })).length,
     );
 
@@ -379,7 +381,7 @@ export const createSyncStore = ({
     // in the db.
 
     for (let i = 0; i < logs.length; i += batchSize) {
-      await database.syncQB.wrap({ label: "insert_logs" }, (db) =>
+      await app.database.syncQB.wrap({ label: "insert_logs" }, (db) =>
         db
           .insert(PONDER_SYNC.logs)
           .values(
@@ -403,12 +405,12 @@ export const createSyncStore = ({
     // Calculate `batchSize` based on how many parameters the
     // input will have
     const batchSize = Math.floor(
-      common.options.databaseMaxQueryParameters /
+      app.common.options.databaseMaxQueryParameters /
         Object.keys(encodeBlock({ block: blocks[0]!, chainId })).length,
     );
 
     for (let i = 0; i < blocks.length; i += batchSize) {
-      await database.syncQB.wrap({ label: "insert_blocks" }, (db) =>
+      await app.database.syncQB.wrap({ label: "insert_blocks" }, (db) =>
         db
           .insert(PONDER_SYNC.blocks)
           .values(
@@ -428,7 +430,7 @@ export const createSyncStore = ({
     // Calculate `batchSize` based on how many parameters the
     // input will have
     const batchSize = Math.floor(
-      common.options.databaseMaxQueryParameters /
+      app.common.options.databaseMaxQueryParameters /
         Object.keys(
           encodeTransaction({
             transaction: transactions[0]!,
@@ -442,7 +444,7 @@ export const createSyncStore = ({
     // for new transactions (using onConflictDoUpdate).
 
     for (let i = 0; i < transactions.length; i += batchSize) {
-      await database.syncQB.wrap({ label: "insert_transactions" }, (db) =>
+      await app.database.syncQB.wrap({ label: "insert_transactions" }, (db) =>
         db
           .insert(PONDER_SYNC.transactions)
           .values(
@@ -468,7 +470,7 @@ export const createSyncStore = ({
     // Calculate `batchSize` based on how many parameters the
     // input will have
     const batchSize = Math.floor(
-      common.options.databaseMaxQueryParameters /
+      app.common.options.databaseMaxQueryParameters /
         Object.keys(
           encodeTransactionReceipt({
             transactionReceipt: transactionReceipts[0]!,
@@ -478,7 +480,7 @@ export const createSyncStore = ({
     );
 
     for (let i = 0; i < transactionReceipts.length; i += batchSize) {
-      await database.syncQB.wrap(
+      await app.database.syncQB.wrap(
         { label: "insert_transaction_receipts" },
         (db) =>
           db
@@ -509,7 +511,7 @@ export const createSyncStore = ({
     // Calculate `batchSize` based on how many parameters the
     // input will have
     const batchSize = Math.floor(
-      common.options.databaseMaxQueryParameters /
+      app.common.options.databaseMaxQueryParameters /
         Object.keys(
           encodeTrace({
             trace: traces[0]!.trace,
@@ -521,7 +523,7 @@ export const createSyncStore = ({
     );
 
     for (let i = 0; i < traces.length; i += batchSize) {
-      await database.syncQB.wrap({ label: "insert_traces" }, (db) =>
+      await app.database.syncQB.wrap({ label: "insert_traces" }, (db) =>
         db
           .insert(PONDER_SYNC.traces)
           .values(
@@ -576,7 +578,7 @@ export const createSyncStore = ({
         shouldGetTransactionReceipt,
       );
 
-      const blocksQuery = database.syncQB.raw
+      const blocksQuery = app.database.syncQB.raw
         .select({
           number: PONDER_SYNC.blocks.number,
           timestamp: PONDER_SYNC.blocks.timestamp,
@@ -609,7 +611,7 @@ export const createSyncStore = ({
         .orderBy(asc(PONDER_SYNC.blocks.number))
         .limit(limit);
 
-      const transactionsQuery = database.syncQB.raw
+      const transactionsQuery = app.database.syncQB.raw
         .select({
           blockNumber: PONDER_SYNC.transactions.blockNumber,
           transactionIndex: PONDER_SYNC.transactions.transactionIndex,
@@ -643,7 +645,7 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
-      const transactionReceiptsQuery = database.syncQB.raw
+      const transactionReceiptsQuery = app.database.syncQB.raw
         .select({
           blockNumber: PONDER_SYNC.transactionReceipts.blockNumber,
           transactionIndex: PONDER_SYNC.transactionReceipts.transactionIndex,
@@ -671,7 +673,7 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
-      const logsQuery = database.syncQB.raw
+      const logsQuery = app.database.syncQB.raw
         .select({
           blockNumber: PONDER_SYNC.logs.blockNumber,
           logIndex: PONDER_SYNC.logs.logIndex,
@@ -698,7 +700,7 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
-      const tracesQuery = database.syncQB.raw
+      const tracesQuery = app.database.syncQB.raw
         .select({
           blockNumber: PONDER_SYNC.traces.blockNumber,
           transactionIndex: PONDER_SYNC.traces.transactionIndex,
@@ -743,25 +745,31 @@ export const createSyncStore = ({
         tracesRows,
       ] = await Promise.all([
         shouldQueryBlocks
-          ? database.syncQB.wrap({ label: "select_blocks" }, () => blocksQuery)
+          ? app.database.syncQB.wrap(
+              { label: "select_blocks" },
+              () => blocksQuery,
+            )
           : [],
         shouldQueryTransactions
-          ? database.syncQB.wrap(
+          ? app.database.syncQB.wrap(
               { label: "select_transactions" },
               () => transactionsQuery,
             )
           : [],
         shouldQueryTransactionReceipts
-          ? database.syncQB.wrap(
+          ? app.database.syncQB.wrap(
               { label: "select_transaction_receipts" },
               () => transactionReceiptsQuery,
             )
           : [],
         shouldQueryLogs
-          ? database.syncQB.wrap({ label: "select_logs" }, () => logsQuery)
+          ? app.database.syncQB.wrap({ label: "select_logs" }, () => logsQuery)
           : [],
         shouldQueryTraces
-          ? database.syncQB.wrap({ label: "select_traces" }, () => tracesQuery)
+          ? app.database.syncQB.wrap(
+              { label: "select_traces" },
+              () => tracesQuery,
+            )
           : [],
       ]);
 
@@ -966,7 +974,7 @@ export const createSyncStore = ({
         });
       }
 
-      common.metrics.ponder_historical_extract_duration.inc(
+      app.common.metrics.ponder_historical_extract_duration.inc(
         { step: "format" },
         endClock(),
       );
@@ -1024,7 +1032,7 @@ export const createSyncStore = ({
       result,
     }));
 
-    await database.syncQB.wrap({ label: "insert_rpc_requests" }, (db) =>
+    await app.database.syncQB.wrap({ label: "insert_rpc_requests" }, (db) =>
       db
         .insert(PONDER_SYNC.rpcRequestResults)
         .values(values)
@@ -1046,7 +1054,7 @@ export const createSyncStore = ({
         .digest("hex"),
     );
 
-    const result = await database.syncQB.wrap(
+    const result = await app.database.syncQB.wrap(
       { label: "select_rpc_requests" },
       (db) =>
         db
@@ -1075,7 +1083,7 @@ export const createSyncStore = ({
 
     const numbers = blocks.map(({ number }) => BigInt(hexToNumber(number)));
 
-    await database.syncQB.wrap({ label: "delete_rpc_requests" }, (db) =>
+    await app.database.syncQB.wrap({ label: "delete_rpc_requests" }, (db) =>
       db
         .delete(PONDER_SYNC.rpcRequestResults)
         .where(
@@ -1087,7 +1095,7 @@ export const createSyncStore = ({
     );
   },
   pruneByChain: async ({ chainId }) =>
-    database.syncQB.transaction(async (tx) => {
+    app.database.syncQB.transaction(async (tx) => {
       await tx.wrap({ label: "delete_logs" }, (db) =>
         db
           .delete(PONDER_SYNC.logs)

@@ -54,19 +54,25 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple events", asyn
     },
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions: [
-      { name: "a:Event0", fn: () => {} },
-      { name: "a:Event1", fn: () => {} },
-    ],
-  });
+  const { indexingBuild } = await buildConfigAndIndexingFunctions(
+    context.common,
+    {
+      config,
+      indexingFunctions: [
+        { name: "a:Event0", fn: () => {} },
+        { name: "a:Event1", fn: () => {} },
+      ],
+    },
+  );
 
-  expect((sources[0]!.filter as LogFilter).topic0).toMatchObject([
-    toEventSelector(event0),
-    toEventSelector(event1),
-  ]);
+  expect(indexingBuild).toHaveLength(1);
+  expect(indexingBuild[0]!.eventCallbacks).toHaveLength(2);
+  expect(
+    (indexingBuild[0]!.eventCallbacks[0]!.filter as LogFilter).topic0,
+  ).toMatchObject([toEventSelector(event0), toEventSelector(event1)]);
+  expect(
+    (indexingBuild[0]!.eventCallbacks[1]!.filter as LogFilter).topic0,
+  ).toMatchObject([toEventSelector(event0), toEventSelector(event1)]);
 });
 
 test("buildConfigAndIndexingFunctions() handles overloaded event signatures and combines topics", async (context) => {
@@ -85,19 +91,20 @@ test("buildConfigAndIndexingFunctions() handles overloaded event signatures and 
     },
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions: [
-      { name: "a:Event1()", fn: () => {} },
-      { name: "a:Event1(bytes32 indexed)", fn: () => {} },
-    ],
-  });
+  const { indexingBuild } = await buildConfigAndIndexingFunctions(
+    context.common,
+    {
+      config,
+      indexingFunctions: [
+        { name: "a:Event1()", fn: () => {} },
+        { name: "a:Event1(bytes32 indexed)", fn: () => {} },
+      ],
+    },
+  );
 
-  expect((sources[0]!.filter as LogFilter).topic0).toMatchObject([
-    toEventSelector(event1),
-    toEventSelector(event1Overloaded),
-  ]);
+  expect(
+    (indexingBuild[0]!.eventCallbacks[0]!.filter as LogFilter).topic0,
+  ).toMatchObject([toEventSelector(event1), toEventSelector(event1Overloaded)]);
 });
 
 test("buildConfigAndIndexingFunctions() handles multiple addresses", async (context) => {
@@ -119,19 +126,20 @@ test("buildConfigAndIndexingFunctions() handles multiple addresses", async (cont
     },
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions: [
-      { name: "a:Event1()", fn: () => {} },
-      { name: "a:Event1(bytes32 indexed)", fn: () => {} },
-    ],
-  });
+  const { indexingBuild } = await buildConfigAndIndexingFunctions(
+    context.common,
+    {
+      config,
+      indexingFunctions: [
+        { name: "a:Event1()", fn: () => {} },
+        { name: "a:Event1(bytes32 indexed)", fn: () => {} },
+      ],
+    },
+  );
 
-  expect((sources[0]!.filter as LogFilter).topic0).toMatchObject([
-    toEventSelector(event1),
-    toEventSelector(event1Overloaded),
-  ]);
+  expect(
+    (indexingBuild[0]!.eventCallbacks[0]!.filter as LogFilter).topic0,
+  ).toMatchObject([toEventSelector(event1), toEventSelector(event1Overloaded)]);
 });
 
 test("buildConfigAndIndexingFunctions() creates a source for each chain for multi-chain contracts", async (context) => {
@@ -148,17 +156,21 @@ test("buildConfigAndIndexingFunctions() creates a source for each chain for mult
     },
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-  });
+  const { indexingBuild } = await buildConfigAndIndexingFunctions(
+    context.common,
+    {
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    },
+  );
 
-  expect(sources.length).toBe(2);
+  expect(indexingBuild).toHaveLength(2);
+  expect(indexingBuild[0]!.eventCallbacks).toHaveLength(1);
+  expect(indexingBuild[1]!.eventCallbacks).toHaveLength(1);
 });
 
 test("buildConfigAndIndexingFunctions() throw useful error for common 0.11 migration mistakes", async (context) => {
-  const rawIndexingFunctions = [{ name: "a:Event0", fn: () => {} }];
+  const indexingFunctions = [{ name: "a:Event0", fn: () => {} }];
 
   const config = createConfig({
     chains: {
@@ -174,11 +186,10 @@ test("buildConfigAndIndexingFunctions() throw useful error for common 0.11 migra
     },
   });
 
-  const result = await safeBuildConfigAndIndexingFunctions({
-    common: context.common,
+  const result = await safeBuildConfigAndIndexingFunctions(context.common, {
     // @ts-expect-error
     config,
-    rawIndexingFunctions,
+    indexingFunctions,
   });
 
   expect(result.status).toBe("error");
@@ -209,17 +220,22 @@ test("buildConfigAndIndexingFunctions() builds topics for event filter", async (
     },
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-  });
-
-  expect(sources).toHaveLength(1);
-  expect((sources[0]!.filter as LogFilter).topic0).toMatchObject(
-    toEventSelector(event0),
+  const { indexingBuild } = await buildConfigAndIndexingFunctions(
+    context.common,
+    {
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    },
   );
-  expect((sources[0]!.filter as LogFilter).topic1).toMatchObject(bytes1);
+
+  expect(indexingBuild).toHaveLength(1);
+  expect(indexingBuild[0]!.eventCallbacks).toHaveLength(1);
+  expect(
+    (indexingBuild[0]!.eventCallbacks[0]!.filter as LogFilter).topic0,
+  ).toMatchObject(toEventSelector(event0));
+  expect(
+    (indexingBuild[0]!.eventCallbacks[0]!.filter as LogFilter).topic1,
+  ).toMatchObject(bytes1);
 });
 
 test("buildConfigAndIndexingFunctions() builds topics for multiple event filters", async (context) => {
@@ -250,27 +266,31 @@ test("buildConfigAndIndexingFunctions() builds topics for multiple event filters
     },
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions: [
-      { name: "a:Event0", fn: () => {} },
-      { name: "a:Event1", fn: () => {} },
-    ],
-  });
+  const { indexingBuild } = await buildConfigAndIndexingFunctions(
+    context.common,
+    {
+      config,
+      indexingFunctions: [
+        { name: "a:Event0", fn: () => {} },
+        { name: "a:Event1", fn: () => {} },
+      ],
+    },
+  );
 
-  expect(sources).toHaveLength(2);
-  expect((sources[0]!.filter as LogFilter).topic0).toMatchObject(
-    toEventSelector(event1Overloaded),
-  );
-  expect((sources[0]!.filter as LogFilter).topic1).toMatchObject([
-    bytes1,
-    bytes2,
-  ]);
-  expect((sources[1]!.filter as LogFilter).topic0).toMatchObject(
-    toEventSelector(event0),
-  );
-  expect((sources[1]!.filter as LogFilter).topic1).toMatchObject(bytes1);
+  expect(indexingBuild).toHaveLength(1);
+  expect(indexingBuild[0]!.eventCallbacks).toHaveLength(2);
+  expect(
+    (indexingBuild[0]!.eventCallbacks[0]!.filter as LogFilter).topic0,
+  ).toMatchObject(toEventSelector(event1Overloaded));
+  expect(
+    (indexingBuild[0]!.eventCallbacks[0]!.filter as LogFilter).topic1,
+  ).toMatchObject([bytes1, bytes2]);
+  expect(
+    (indexingBuild[0]!.eventCallbacks[1]!.filter as LogFilter).topic0,
+  ).toMatchObject(toEventSelector(event0));
+  expect(
+    (indexingBuild[0]!.eventCallbacks[1]!.filter as LogFilter).topic1,
+  ).toMatchObject(bytes1);
 });
 
 test("buildConfigAndIndexingFunctions() overrides default values with chain-specific values", async (context) => {
@@ -293,13 +313,17 @@ test("buildConfigAndIndexingFunctions() overrides default values with chain-spec
     },
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-  });
+  const { indexingBuild } = await buildConfigAndIndexingFunctions(
+    context.common,
+    {
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    },
+  );
 
-  expect((sources[0]!.filter as LogFilter).address).toBe(address2);
+  expect(
+    (indexingBuild[0]!.eventCallbacks[0]!.filter as LogFilter).address,
+  ).toBe(address2);
 });
 
 test("buildConfigAndIndexingFunctions() handles chain name shortcut", async (context) => {
@@ -318,13 +342,16 @@ test("buildConfigAndIndexingFunctions() handles chain name shortcut", async (con
     },
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-  });
+  const { indexingBuild } = await buildConfigAndIndexingFunctions(
+    context.common,
+    {
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    },
+  );
 
-  expect(sources[0]!.chain.name).toBe("mainnet");
+  expect(indexingBuild).toHaveLength(1);
+  expect(indexingBuild[0]!.chain.name).toBe("mainnet");
 });
 
 test("buildConfigAndIndexingFunctions() validates chain name", async (context) => {
@@ -342,10 +369,9 @@ test("buildConfigAndIndexingFunctions() validates chain name", async (context) =
     },
   });
 
-  const result = await safeBuildConfigAndIndexingFunctions({
-    common: context.common,
+  const result = await safeBuildConfigAndIndexingFunctions(context.common, {
     config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
   expect(result.status).toBe("error");
@@ -369,10 +395,9 @@ test.skip("buildConfigAndIndexingFunctions() warns for public RPC URL", async (c
     },
   });
 
-  const result = await safeBuildConfigAndIndexingFunctions({
-    common: context.common,
+  const result = await safeBuildConfigAndIndexingFunctions(context.common, {
     config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
   expect(result.status).toBe("success");
@@ -398,10 +423,9 @@ test("buildConfigAndIndexingFunctions() handles chains not found in viem", async
     },
   });
 
-  const result = await safeBuildConfigAndIndexingFunctions({
-    common: context.common,
+  const result = await safeBuildConfigAndIndexingFunctions(context.common, {
     config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
   expect(result.status).toBe("success");
@@ -427,10 +451,9 @@ test("buildConfigAndIndexingFunctions() validates event filter event name must b
     },
   });
 
-  const result = await safeBuildConfigAndIndexingFunctions({
-    common: context.common,
+  const result = await safeBuildConfigAndIndexingFunctions(context.common, {
     config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
   expect(result.status).toBe("error");
@@ -453,10 +476,9 @@ test("buildConfigAndIndexingFunctions() validates address empty string", async (
     },
   });
 
-  const result = await safeBuildConfigAndIndexingFunctions({
-    common: context.common,
+  const result = await safeBuildConfigAndIndexingFunctions(context.common, {
     config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
   expect(result.status).toBe("error");
@@ -480,10 +502,9 @@ test("buildConfigAndIndexingFunctions() validates address prefix", async (contex
     },
   });
 
-  const result = await safeBuildConfigAndIndexingFunctions({
-    common: context.common,
+  const result = await safeBuildConfigAndIndexingFunctions(context.common, {
     config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
   expect(result.status).toBe("error");
@@ -506,10 +527,9 @@ test("buildConfigAndIndexingFunctions() validates address length", async (contex
     },
   });
 
-  const result = await safeBuildConfigAndIndexingFunctions({
-    common: context.common,
+  const result = await safeBuildConfigAndIndexingFunctions(context.common, {
     config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
   expect(result.status).toBe("error");
@@ -532,13 +552,19 @@ test("buildConfigAndIndexingFunctions() coerces NaN startBlock to undefined", as
     },
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-  });
+  const { indexingBuild } = await buildConfigAndIndexingFunctions(
+    context.common,
+    {
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    },
+  );
 
-  expect(sources[0]?.filter.fromBlock).toBe(undefined);
+  expect(indexingBuild).toHaveLength(1);
+  expect(indexingBuild[0]!.eventCallbacks).toHaveLength(1);
+  expect(
+    (indexingBuild[0]!.eventCallbacks[0]!.filter as LogFilter).fromBlock,
+  ).toBe(undefined);
 });
 
 test("buildConfigAndIndexingFunctions() coerces `latest` to number", async (context) => {
@@ -558,13 +584,19 @@ test("buildConfigAndIndexingFunctions() coerces `latest` to number", async (cont
     },
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-  });
+  const { indexingBuild } = await buildConfigAndIndexingFunctions(
+    context.common,
+    {
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    },
+  );
 
-  expect(sources[0]?.filter.fromBlock).toBeTypeOf("number");
+  expect(indexingBuild).toHaveLength(1);
+  expect(indexingBuild[0]!.eventCallbacks).toHaveLength(1);
+  expect(
+    (indexingBuild[0]!.eventCallbacks[0]!.filter as LogFilter).fromBlock,
+  ).toBeTypeOf("number");
 });
 
 test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async (context) => {
@@ -584,14 +616,27 @@ test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async (cont
       },
     },
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-  });
+  const { indexingBuild } = await buildConfigAndIndexingFunctions(
+    context.common,
+    {
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    },
+  );
 
-  expect(shouldGetTransactionReceipt(sources[0]!.filter)).toBe(true);
-  expect(shouldGetTransactionReceipt(sources[1]!.filter)).toBe(false);
+  expect(indexingBuild).toHaveLength(2);
+  expect(indexingBuild[0]!.eventCallbacks).toHaveLength(1);
+  expect(indexingBuild[1]!.eventCallbacks).toHaveLength(1);
+  expect(
+    shouldGetTransactionReceipt(
+      indexingBuild[0]!.eventCallbacks[0]!.filter as LogFilter,
+    ),
+  ).toBe(true);
+  expect(
+    shouldGetTransactionReceipt(
+      indexingBuild[1]!.eventCallbacks[0]!.filter as LogFilter,
+    ),
+  ).toBe(false);
 });
 
 test("buildConfigAndIndexingFunctions() includeCallTraces", async (context) => {
@@ -613,22 +658,32 @@ test("buildConfigAndIndexingFunctions() includeCallTraces", async (context) => {
     },
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions: [{ name: "a.func0()", fn: () => {} }],
-  });
+  const { indexingBuild } = await buildConfigAndIndexingFunctions(
+    context.common,
+    {
+      config,
+      indexingFunctions: [{ name: "a.func0()", fn: () => {} }],
+    },
+  );
 
-  expect(sources).toHaveLength(1);
+  expect(indexingBuild).toHaveLength(1);
+  expect(indexingBuild[0]!.eventCallbacks).toHaveLength(1);
 
-  expect((sources[0]!.filter as TraceFilter).fromAddress).toBeUndefined();
-  expect((sources[0]!.filter as TraceFilter).toAddress).toMatchObject([
-    zeroAddress,
-  ]);
-  expect((sources[0]!.filter as TraceFilter).functionSelector).toMatchObject([
-    toFunctionSelector(func0),
-  ]);
-  expect(shouldGetTransactionReceipt(sources[0]!.filter)).toBe(false);
+  expect(
+    (indexingBuild[0]!.eventCallbacks[0]!.filter as TraceFilter).fromAddress,
+  ).toBeUndefined();
+  expect(
+    (indexingBuild[0]!.eventCallbacks[0]!.filter as TraceFilter).toAddress,
+  ).toMatchObject([zeroAddress]);
+  expect(
+    (indexingBuild[0]!.eventCallbacks[0]!.filter as TraceFilter)
+      .functionSelector,
+  ).toMatchObject([toFunctionSelector(func0)]);
+  expect(
+    shouldGetTransactionReceipt(
+      indexingBuild[0]!.eventCallbacks[0]!.filter as TraceFilter,
+    ),
+  ).toBe(false);
 });
 
 test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (context) => {
@@ -654,22 +709,32 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
     },
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions: [{ name: "a.func0()", fn: () => {} }],
-  });
+  const { indexingBuild } = await buildConfigAndIndexingFunctions(
+    context.common,
+    {
+      config,
+      indexingFunctions: [{ name: "a.func0()", fn: () => {} }],
+    },
+  );
 
-  expect(sources).toHaveLength(1);
-
-  expect((sources[0]!.filter as TraceFilter).fromAddress).toBeUndefined();
   expect(
-    ((sources[0]!.filter as TraceFilter).toAddress as LogFactory).address,
+    (indexingBuild[0]!.eventCallbacks[0]!.filter as TraceFilter).fromAddress,
+  ).toBeUndefined();
+  expect(
+    (
+      (indexingBuild[0]!.eventCallbacks[0]!.filter as TraceFilter)
+        .toAddress as LogFactory
+    ).address,
   ).toMatchObject(address2);
-  expect((sources[0]!.filter as TraceFilter).functionSelector).toMatchObject([
-    toFunctionSelector(func0),
-  ]);
-  expect(shouldGetTransactionReceipt(sources[0]!.filter)).toBe(false);
+  expect(
+    (indexingBuild[0]!.eventCallbacks[0]!.filter as TraceFilter)
+      .functionSelector,
+  ).toMatchObject([toFunctionSelector(func0)]);
+  expect(
+    shouldGetTransactionReceipt(
+      indexingBuild[0]!.eventCallbacks[0]!.filter as TraceFilter,
+    ),
+  ).toBe(false);
 });
 
 test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", async (context) => {
@@ -686,13 +751,15 @@ test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", asyn
     },
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-  });
+  const { indexingBuild } = await buildConfigAndIndexingFunctions(
+    context.common,
+    {
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    },
+  );
 
-  expect(sources[0]!.filter.toBlock).toBe(undefined);
+  expect(indexingBuild[0]!.eventCallbacks[0]!.filter.toBlock).toBe(undefined);
 });
 
 test("buildConfigAndIndexingFunctions() account source", async (context) => {
@@ -710,31 +777,33 @@ test("buildConfigAndIndexingFunctions() account source", async (context) => {
     },
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions: [
-      { name: "a:transfer:from", fn: () => {} },
-      { name: "a:transaction:to", fn: () => {} },
-    ],
-  });
+  const { indexingBuild } = await buildConfigAndIndexingFunctions(
+    context.common,
+    {
+      config,
+      indexingFunctions: [
+        { name: "a:transfer:from", fn: () => {} },
+        { name: "a:transaction:to", fn: () => {} },
+      ],
+    },
+  );
 
-  expect(sources).toHaveLength(2);
+  expect(indexingBuild).toHaveLength(1);
+  expect(indexingBuild[0]!.eventCallbacks).toHaveLength(2);
 
-  expect(sources[0]?.chain.name).toBe("mainnet");
-  expect(sources[1]?.chain.name).toBe("mainnet");
+  expect(indexingBuild[0]!.chain.name).toBe("mainnet");
 
-  expect(sources[0]?.name).toBe("a");
-  expect(sources[1]?.name).toBe("a");
+  expect(indexingBuild[0]!.eventCallbacks[0]!.name).toBe("a:transaction:to");
+  expect(indexingBuild[0]!.eventCallbacks[1]!.name).toBe("a:transfer:from");
 
-  expect(sources[0]?.filter.type).toBe("transaction");
-  expect(sources[1]?.filter.type).toBe("transfer");
+  expect(indexingBuild[0]!.eventCallbacks[0]!.filter.type).toBe("transaction");
+  expect(indexingBuild[0]!.eventCallbacks[1]!.filter.type).toBe("transfer");
 
-  expect(sources[0]?.filter.fromBlock).toBe(16370000);
-  expect(sources[1]?.filter.fromBlock).toBe(16370000);
+  expect(indexingBuild[0]!.eventCallbacks[0]!.filter.fromBlock).toBe(16370000);
+  expect(indexingBuild[0]!.eventCallbacks[1]!.filter.fromBlock).toBe(16370000);
 
-  expect(sources[0]?.filter.toBlock).toBe(16370020);
-  expect(sources[1]?.filter.toBlock).toBe(16370020);
+  expect(indexingBuild[0]!.eventCallbacks[0]!.filter.toBlock).toBe(16370020);
+  expect(indexingBuild[0]!.eventCallbacks[1]!.filter.toBlock).toBe(16370020);
 });
 
 test("buildConfigAndIndexingFunctions() block source", async (context) => {
@@ -751,21 +820,24 @@ test("buildConfigAndIndexingFunctions() block source", async (context) => {
     },
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions: [{ name: "a:block", fn: () => {} }],
-  });
+  const { indexingBuild } = await buildConfigAndIndexingFunctions(
+    context.common,
+    {
+      config,
+      indexingFunctions: [{ name: "a:block", fn: () => {} }],
+    },
+  );
 
-  expect(sources).toHaveLength(1);
+  expect(indexingBuild).toHaveLength(1);
+  expect(indexingBuild[0]!.eventCallbacks).toHaveLength(1);
 
-  expect(sources[0]?.chain.name).toBe("mainnet");
-  expect(sources[0]?.name).toBe("a");
-  expect(sources[0]?.filter.type).toBe("block");
+  expect(indexingBuild[0]!.chain.name).toBe("mainnet");
+  expect(indexingBuild[0]!.eventCallbacks[0]!.name).toBe("a:block");
+  expect(indexingBuild[0]!.eventCallbacks[0]!.filter.type).toBe("block");
   // @ts-ignore
-  expect(sources[0]?.filter.interval).toBe(1);
-  expect(sources[0]?.filter.fromBlock).toBe(16370000);
-  expect(sources[0]?.filter.toBlock).toBe(16370020);
+  expect(indexingBuild[0]!.eventCallbacks[0]!.filter.interval).toBe(1);
+  expect(indexingBuild[0]!.eventCallbacks[0]!.filter.fromBlock).toBe(16370000);
+  expect(indexingBuild[0]!.eventCallbacks[0]!.filter.toBlock).toBe(16370020);
 });
 
 test("buildConfigAndIndexingFunctions() coerces undefined factory interval to source interval", async (context) => {
@@ -788,19 +860,25 @@ test("buildConfigAndIndexingFunctions() coerces undefined factory interval to so
     },
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-  });
+  const { indexingBuild } = await buildConfigAndIndexingFunctions(
+    context.common,
+    {
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    },
+  );
 
   expect(
-    ((sources[0]!.filter as LogFilter).address as LogFactory).fromBlock ===
-      16370000,
+    (
+      (indexingBuild[0]!.eventCallbacks[0]!.filter as LogFilter)
+        .address as LogFactory
+    ).fromBlock === 16370000,
   );
   expect(
-    ((sources[0]!.filter as LogFilter).address as LogFactory).toBlock ===
-      16370100,
+    (
+      (indexingBuild[0]!.eventCallbacks[0]!.filter as LogFilter)
+        .address as LogFactory
+    ).toBlock === 16370100,
   );
 });
 
@@ -825,10 +903,9 @@ test("buildConfigAndIndexingFunctions() validates factory interval", async (cont
     },
   });
 
-  const result = await safeBuildConfigAndIndexingFunctions({
-    common: context.common,
+  const result = await safeBuildConfigAndIndexingFunctions(context.common, {
     config,
-    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
   expect(result.status).toBe("error");
@@ -849,18 +926,21 @@ test("buildConfigAndIndexingFunctions() returns chain, rpc, and finalized block"
     },
   });
 
-  const { rpcs, chains, finalizedBlocks } =
-    await buildConfigAndIndexingFunctions({
-      common: context.common,
+  const { indexingBuild } = await buildConfigAndIndexingFunctions(
+    context.common,
+    {
       config,
-      rawIndexingFunctions: [{ name: "b:block", fn: () => {} }],
-    });
+      indexingFunctions: [{ name: "b:block", fn: () => {} }],
+    },
+  );
 
-  expect(rpcs).toHaveLength(1);
-  expect(chains).toHaveLength(1);
-  expect(finalizedBlocks).toHaveLength(1);
+  expect(indexingBuild).toHaveLength(1);
 
-  expect(chains[0]!.name).toBe("mainnet");
-  expect(chains[0]!.id).toBe(1);
-  expect(finalizedBlocks[0]!.number).toBe("0x0");
+  expect(indexingBuild[0]!.rpc).toBeDefined();
+  expect(indexingBuild[0]!.chain).toBeDefined();
+  expect(indexingBuild[0]!.finalizedBlock).toBeDefined();
+
+  expect(indexingBuild[0]!.chain!.name).toBe("mainnet");
+  expect(indexingBuild[0]!.chain!.id).toBe(1);
+  expect(indexingBuild[0]!.finalizedBlock.number).toBe("0x0");
 });

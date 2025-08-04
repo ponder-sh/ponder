@@ -72,10 +72,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     );
   }
 
-  const build = await createBuild({
-    common: { ...common, shutdown },
-    cliOptions,
-  });
+  const build = await createBuild({ ...common, shutdown }, { cliOptions });
 
   shutdown.add(async () => {
     await indexingShutdown.kill();
@@ -158,7 +155,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
         const indexingBuildResult = await build.compileIndexing({
           configResult: configResult.result,
-          schemaResult: schemaResult.result,
           indexingResult: indexingResult.result,
         });
 
@@ -242,15 +238,19 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         });
 
         if (preBuild.ordering === "omnichain") {
-          runOmnichain({
-            common: { ...common, shutdown: indexingShutdown },
-            database,
-            preBuild,
-            namespaceBuild: { schema, viewsSchema: undefined },
-            schemaBuild,
-            indexingBuild: indexingBuildResult.result,
-            crashRecoveryCheckpoint,
-          });
+          runOmnichain(
+            {
+              common: { ...common, shutdown: indexingShutdown },
+              database,
+              preBuild,
+              namespaceBuild: { schema, viewsSchema: undefined },
+              schemaBuild,
+              indexingBuild: indexingBuildResult.result,
+            },
+            {
+              crashRecoveryCheckpoint,
+            },
+          );
         } else {
           runMultichain({
             common: { ...common, shutdown: indexingShutdown },
@@ -301,7 +301,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  let indexingBuild: IndexingBuild | undefined;
+  let indexingBuild: IndexingBuild[] | undefined;
   let database: Database | undefined;
   let crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
 

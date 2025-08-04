@@ -65,7 +65,7 @@ export const getErc20ConfigAndIndexingFunctions = (params: {
     },
   });
 
-  const rawIndexingFunctions = params.includeCallTraces
+  const indexingFunctions = params.includeCallTraces
     ? [
         { name: "Erc20.transfer()", fn: () => {} },
         {
@@ -80,7 +80,7 @@ export const getErc20ConfigAndIndexingFunctions = (params: {
         },
       ];
 
-  return { config, rawIndexingFunctions };
+  return { config, indexingFunctions };
 };
 
 export const getPairWithFactoryConfigAndIndexingFunctions = (params: {
@@ -110,14 +110,14 @@ export const getPairWithFactoryConfigAndIndexingFunctions = (params: {
     },
   });
 
-  const rawIndexingFunctions = params.includeCallTraces
+  const indexingFunctions = params.includeCallTraces
     ? [
         { name: "Pair.swap()", fn: () => {} },
         { name: "Pair:Swap", fn: () => {} },
       ]
     : [{ name: "Pair:Swap", fn: () => {} }];
 
-  return { config, rawIndexingFunctions };
+  return { config, indexingFunctions };
 };
 
 export const getBlocksConfigAndIndexingFunctions = (params: {
@@ -138,9 +138,9 @@ export const getBlocksConfigAndIndexingFunctions = (params: {
     },
   });
 
-  const rawIndexingFunctions = [{ name: "Blocks:block", fn: () => {} }];
+  const indexingFunctions = [{ name: "Blocks:block", fn: () => {} }];
 
-  return { config, rawIndexingFunctions };
+  return { config, indexingFunctions };
 };
 
 export const getAccountsConfigAndIndexingFunctions = (params: {
@@ -161,14 +161,14 @@ export const getAccountsConfigAndIndexingFunctions = (params: {
     },
   });
 
-  const rawIndexingFunctions = [
+  const indexingFunctions = [
     { name: "Accounts:transaction:from", fn: () => {} },
     { name: "Accounts:transaction:to", fn: () => {} },
     { name: "Accounts:transfer:from", fn: () => {} },
     { name: "Accounts:transfer:to", fn: () => {} },
   ];
 
-  return { config, rawIndexingFunctions };
+  return { config, indexingFunctions };
 };
 
 export const getChain = (params?: {

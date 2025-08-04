@@ -11,7 +11,6 @@ import {
 } from "@/internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
-  IndexingBuild,
   NamespaceBuild,
   PreBuild,
   SchemaBuild,
@@ -51,7 +50,8 @@ export type Database = {
   migrate({
     buildId,
     ordering,
-  }: Pick<IndexingBuild, "buildId"> & {
+  }: {
+    buildId: string;
     ordering: "multichain" | "omnichain";
   }): Promise<CrashRecoveryCheckpoint>;
 };
@@ -132,21 +132,22 @@ export const getPonderCheckpointTable = (schema?: string) => {
   }));
 };
 
-export const createDatabase = async ({
-  common,
-  namespace,
-  preBuild,
-  schemaBuild,
-}: {
-  common: Common;
-  namespace: NamespaceBuild;
-  preBuild: Pick<PreBuild, "databaseConfig">;
-  schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
-}): Promise<Database> => {
+export const createDatabase = async (
+  common: Common,
+  {
+    namespaceBuild,
+    preBuild,
+    schemaBuild,
+  }: {
+    namespaceBuild: NamespaceBuild;
+    preBuild: Pick<PreBuild, "databaseConfig">;
+    schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
+  },
+): Promise<Database> => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
 
-  const PONDER_META = getPonderMetaTable(namespace.schema);
-  const PONDER_CHECKPOINT = getPonderCheckpointTable(namespace.schema);
+  const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
+  const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
 
   ////////
   // Create schema, drivers, roles, and query builders
@@ -160,15 +161,15 @@ export const createDatabase = async ({
 
   const dialect = preBuild.databaseConfig.kind;
 
-  if (namespace.viewsSchema) {
+  if (namespaceBuild.viewsSchema) {
     common.logger.info({
       service: "database",
-      msg: `Using database schema '${namespace.schema}' and views schema '${namespace.viewsSchema}'`,
+      msg: `Using database schema '${namespaceBuild.schema}' and views schema '${namespaceBuild.viewsSchema}'`,
     });
   } else {
     common.logger.info({
       service: "database",
-      msg: `Using database schema '${namespace.schema}'`,
+      msg: `Using database schema '${namespaceBuild.schema}'`,
     });
   }
 
@@ -198,9 +199,11 @@ export const createDatabase = async ({
     });
 
     await driver.instance.query(
-      `CREATE SCHEMA IF NOT EXISTS "${namespace.schema}"`,
+      `CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.schema}"`,
     );
-    await driver.instance.query(`SET search_path TO "${namespace.schema}"`);
+    await driver.instance.query(
+      `SET search_path TO "${namespaceBuild.schema}"`,
+    );
 
     syncQB = createQB(
       drizzlePglite((driver as PGliteDriver).instance, {
@@ -245,7 +248,7 @@ export const createDatabase = async ({
       admin: createPool(
         {
           ...preBuild.databaseConfig.poolConfig,
-          application_name: `${namespace.schema}_internal`,
+          application_name: `${namespaceBuild.schema}_internal`,
           max: internalMax,
           statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
         },
@@ -254,7 +257,7 @@ export const createDatabase = async ({
       user: createPool(
         {
           ...preBuild.databaseConfig.poolConfig,
-          application_name: `${namespace.schema}_user`,
+          application_name: `${namespaceBuild.schema}_user`,
           max: userMax,
         },
         common.logger,
@@ -262,11 +265,11 @@ export const createDatabase = async ({
       readonly: createReadonlyPool(
         {
           ...preBuild.databaseConfig.poolConfig,
-          application_name: `${namespace.schema}_readonly`,
+          application_name: `${namespaceBuild.schema}_readonly`,
           max: readonlyMax,
         },
         common.logger,
-        namespace.schema,
+        namespaceBuild.schema,
       ),
       sync: createPool(
         {
@@ -280,7 +283,7 @@ export const createDatabase = async ({
     };
 
     await driver.admin.query(
-      `CREATE SCHEMA IF NOT EXISTS "${namespace.schema}"`,
+      `CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.schema}"`,
     );
 
     syncQB = createQB(
@@ -468,7 +471,7 @@ export const createDatabase = async ({
               const error = _error as Error;
               if (!error.message.includes("already exists")) throw error;
               const e = new MigrationError(
-                `Unable to create table '${namespace.schema}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+                `Unable to create table '${namespaceBuild.schema}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
               );
               e.stack = undefined;
               throw e;
@@ -484,7 +487,7 @@ export const createDatabase = async ({
               const error = _error as Error;
               if (!error.message.includes("already exists")) throw error;
               const e = new MigrationError(
-                `Unable to create enum '${namespace.schema}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
+                `Unable to create enum '${namespaceBuild.schema}'.'${schemaBuild.statements.enums.json[i]!.name}' because an enum with that name already exists.`,
               );
               e.stack = undefined;
               throw e;
@@ -497,7 +500,7 @@ export const createDatabase = async ({
           await tx.wrap((tx) =>
             tx.execute(
               `
-CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_meta" (
+CREATE TABLE IF NOT EXISTS "${namespaceBuild.schema}"."_ponder_meta" (
   "key" TEXT PRIMARY KEY,
   "value" JSONB NOT NULL
 )`,
@@ -507,7 +510,7 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_meta" (
           await tx.wrap((tx) =>
             tx.execute(
               `
-CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
+CREATE TABLE IF NOT EXISTS "${namespaceBuild.schema}"."_ponder_checkpoint" (
   "chain_name" TEXT PRIMARY KEY,
   "chain_id" BIGINT NOT NULL,
   "safe_checkpoint" VARCHAR(75) NOT NULL,
@@ -518,18 +521,18 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
 
           await tx.wrap((tx) =>
             tx.execute(
-              `CREATE SEQUENCE IF NOT EXISTS "${namespace.schema}"."${SHARED_OPERATION_ID_SEQUENCE}" AS integer INCREMENT BY 1`,
+              `CREATE SEQUENCE IF NOT EXISTS "${namespaceBuild.schema}"."${SHARED_OPERATION_ID_SEQUENCE}" AS integer INCREMENT BY 1`,
             ),
           );
 
           const trigger = "status_trigger";
           const notification = "status_notify()";
-          const channel = `${namespace.schema}_status_channel`;
+          const channel = `${namespaceBuild.schema}_status_channel`;
 
           await tx.wrap((tx) =>
             tx.execute(
               `
-CREATE OR REPLACE FUNCTION "${namespace.schema}".${notification}
+CREATE OR REPLACE FUNCTION "${namespaceBuild.schema}".${notification}
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
@@ -546,9 +549,9 @@ $$;`,
               `
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
-ON "${namespace.schema}"._ponder_checkpoint
+ON "${namespaceBuild.schema}"._ponder_checkpoint
 FOR EACH STATEMENT
-EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
+EXECUTE PROCEDURE "${namespaceBuild.schema}".${notification};`,
             ),
           );
 
@@ -594,19 +597,19 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             for (const table of previousApp.table_names) {
               await tx.wrap((tx) =>
                 tx.execute(
-                  `DROP TABLE IF EXISTS "${namespace.schema}"."${table}" CASCADE`,
+                  `DROP TABLE IF EXISTS "${namespaceBuild.schema}"."${table}" CASCADE`,
                 ),
               );
               await tx.wrap((tx) =>
                 tx.execute(
-                  `DROP TABLE IF EXISTS "${namespace.schema}"."${sqlToReorgTableName(table)}" CASCADE`,
+                  `DROP TABLE IF EXISTS "${namespaceBuild.schema}"."${sqlToReorgTableName(table)}" CASCADE`,
                 ),
               );
             }
             for (const enumName of schemaBuild.statements.enums.json) {
               await tx.wrap((tx) =>
                 tx.execute(
-                  `DROP TYPE IF EXISTS "${namespace.schema}"."${enumName.name}"`,
+                  `DROP TYPE IF EXISTS "${namespaceBuild.schema}"."${enumName.name}"`,
                 ),
               );
             }
@@ -616,7 +619,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
 
             await tx.wrap((tx) =>
               tx.execute(
-                `TRUNCATE TABLE "${namespace.schema}"."${getTableName(PONDER_CHECKPOINT)}" CASCADE`,
+                `TRUNCATE TABLE "${namespaceBuild.schema}"."${getTableName(PONDER_CHECKPOINT)}" CASCADE`,
               ),
             );
 
@@ -637,7 +640,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
           // Note: ponder <=0.8 will evaluate this as true because the version is undefined
           if (previousApp.version !== VERSION) {
             const error = new MigrationError(
-              `Schema '${namespace.schema}' was previously used by a Ponder app with a different minor version. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/database#database-schema`,
+              `Schema '${namespaceBuild.schema}' was previously used by a Ponder app with a different minor version. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/database#database-schema`,
             );
             error.stack = undefined;
             throw error;
@@ -649,7 +652,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
               previousApp.build_id !== buildId)
           ) {
             const error = new MigrationError(
-              `Schema '${namespace.schema}' was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/database#database-schema`,
+              `Schema '${namespaceBuild.schema}' was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/database#database-schema`,
             );
             error.stack = undefined;
             throw error;
@@ -667,7 +670,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
 
           common.logger.info({
             service: "database",
-            msg: `Detected crash recovery for build '${buildId}' in schema '${namespace.schema}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
+            msg: `Detected crash recovery for build '${buildId}' in schema '${namespaceBuild.schema}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
           });
 
           const checkpoints = await tx.wrap((tx) =>
@@ -693,7 +696,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
           for (const table of tables) {
             await tx.wrap((tx) =>
               tx.execute(
-                `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
+                `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespaceBuild.schema}"."${getTableName(table)}"`,
               ),
             );
           }
@@ -703,12 +706,12 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
           for (const indexStatement of schemaBuild.statements.indexes.json) {
             await tx.wrap((tx) =>
               tx.execute(
-                `DROP INDEX IF EXISTS "${namespace.schema}"."${indexStatement.data.name}"`,
+                `DROP INDEX IF EXISTS "${namespaceBuild.schema}"."${indexStatement.data.name}"`,
               ),
             );
             common.logger.debug({
               service: "database",
-              msg: `Dropped index '${indexStatement.data.name}' in schema '${namespace.schema}'`,
+              msg: `Dropped index '${indexStatement.data.name}' in schema '${namespaceBuild.schema}'`,
             });
           }
 
@@ -733,11 +736,11 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
         const duration = result.expiry - Date.now();
         common.logger.warn({
           service: "database",
-          msg: `Schema '${namespace.schema}' is locked by a different Ponder app`,
+          msg: `Schema '${namespaceBuild.schema}' is locked by a different Ponder app`,
         });
         common.logger.warn({
           service: "database",
-          msg: `Waiting ${formatEta(duration)} for lock on schema '${namespace.schema}' to expire...`,
+          msg: `Waiting ${formatEta(duration)} for lock on schema '${namespaceBuild.schema}' to expire...`,
         });
 
         await wait(duration);
@@ -745,7 +748,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
         result = await tryAcquireLockAndMigrate();
         if (result.status === "locked") {
           const error = new MigrationError(
-            `Failed to acquire lock on schema '${namespace.schema}'. A different Ponder app is actively using this schema.`,
+            `Failed to acquire lock on schema '${namespaceBuild.schema}'. A different Ponder app is actively using this schema.`,
           );
           error.stack = undefined;
           throw error;

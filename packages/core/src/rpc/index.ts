@@ -177,11 +177,10 @@ const decreaseMaxRPS = (bucket: Bucket) => {
   bucket.consecutiveSuccessfulRequests = 0;
 };
 
-export const createRpc = ({
-  common,
-  chain,
-  concurrency = 25,
-}: { common: Common; chain: Chain; concurrency?: number }): Rpc => {
+export const createRpc = (
+  common: Common,
+  { chain, concurrency = 25 }: { chain: Chain; concurrency?: number },
+): Rpc => {
   let request: EIP1193RequestFn[];
 
   if (typeof chain.rpc === "string") {
