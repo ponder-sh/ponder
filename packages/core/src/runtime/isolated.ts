@@ -25,7 +25,6 @@ import {
 } from "@/internal/errors.js";
 import { getAppProgress } from "@/internal/metrics.js";
 import type {
-  Chain,
   CrashRecoveryCheckpoint,
   IndexingBuild,
   IndexingErrorHandler,
@@ -39,7 +38,6 @@ import { splitEvents } from "@/sync/events.js";
 import {
   ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
-  max,
   min,
 } from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";
@@ -48,34 +46,34 @@ import { recordAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
 import { eq, getTableName, isTable, sql } from "drizzle-orm";
-import { getHistoricalEventsOmnichain } from "./historical.js";
+import { getHistoricalEventsIsolated } from "./historical.js";
 import {
-  type CachedIntervals,
-  type ChildAddresses,
-  type SyncProgress,
   getCachedIntervals,
   getChildAddresses,
   getLocalSyncProgress,
 } from "./index.js";
-import { getRealtimeEventsOmnichain } from "./realtime.js";
+import { getRealtimeEventsIsolated } from "./realtime.js";
 
-export async function runOmnichain({
-  common,
-  preBuild,
-  namespaceBuild,
-  schemaBuild,
-  indexingBuild,
-  crashRecoveryCheckpoint,
-  database,
-}: {
-  common: Common;
-  preBuild: PreBuild;
-  namespaceBuild: NamespaceBuild;
-  schemaBuild: SchemaBuild;
-  indexingBuild: IndexingBuild;
-  crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
-  database: Database;
-}) {
+export async function runIsolated(
+  {
+    common,
+    preBuild,
+    namespaceBuild,
+    schemaBuild,
+    indexingBuild,
+    crashRecoveryCheckpoint,
+    database,
+  }: {
+    common: Common;
+    preBuild: PreBuild;
+    namespaceBuild: NamespaceBuild;
+    schemaBuild: SchemaBuild;
+    indexingBuild: IndexingBuild;
+    crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
+    database: Database;
+  },
+  chainId: number,
+) {
   await database.migrateSync();
 
   runCodegen({ common });
@@ -130,79 +128,62 @@ export async function runOmnichain({
     schemaBuild,
     indexingCache,
     indexingErrorHandler,
+    chainId,
   });
 
-  const perChainSync = new Map<
-    Chain,
-    {
-      syncProgress: SyncProgress;
-      childAddresses: ChildAddresses;
-      cachedIntervals: CachedIntervals;
-    }
-  >();
   const seconds: Seconds = {};
 
-  await Promise.all(
-    indexingBuild.chains.map(async (chain) => {
-      const sources = indexingBuild.sources.filter(
-        ({ filter }) => filter.chainId === chain.id,
-      );
+  const chain = indexingBuild.chains.find((chain) => chain.id === chainId)!;
 
-      const cachedIntervals = await getCachedIntervals({
-        chain,
-        sources,
-        syncStore,
-      });
-      const syncProgress = await getLocalSyncProgress({
-        common,
-        sources,
-        chain,
-        rpc: indexingBuild.rpcs[indexingBuild.chains.indexOf(chain)]!,
-        finalizedBlock:
-          indexingBuild.finalizedBlocks[indexingBuild.chains.indexOf(chain)]!,
-        cachedIntervals,
-      });
-      const childAddresses = await getChildAddresses({
-        sources,
-        syncStore,
-      });
-
-      perChainSync.set(chain, {
-        syncProgress,
-        childAddresses,
-        cachedIntervals,
-      });
-    }),
+  const sources = indexingBuild.sources.filter(
+    ({ filter }) => filter.chainId === chainId,
   );
 
+  const cachedIntervals = await getCachedIntervals({
+    chain,
+    sources,
+    syncStore,
+  });
+  const syncProgress = await getLocalSyncProgress({
+    common,
+    sources,
+    chain,
+    rpc: indexingBuild.rpcs[indexingBuild.chains.indexOf(chain)]!,
+    finalizedBlock:
+      indexingBuild.finalizedBlocks[indexingBuild.chains.indexOf(chain)]!,
+    cachedIntervals,
+  });
+  const childAddresses = await getChildAddresses({
+    sources,
+    syncStore,
+  });
+
   const start = Number(
-    decodeCheckpoint(getOmnichainCheckpoint({ perChainSync, tag: "start" }))
+    decodeCheckpoint(syncProgress.getCheckpoint({ tag: "start" }))
       .blockTimestamp,
   );
   const end = Number(
     decodeCheckpoint(
       min(
-        getOmnichainCheckpoint({ perChainSync, tag: "end" }),
-        getOmnichainCheckpoint({ perChainSync, tag: "finalized" }),
+        syncProgress.getCheckpoint({ tag: "end" }),
+        syncProgress.getCheckpoint({ tag: "finalized" }),
       ),
     ).blockTimestamp,
   );
 
-  for (const chain of indexingBuild.chains) {
-    const _crashRecoveryCheckpoint = crashRecoveryCheckpoint?.find(
-      ({ chainId }) => chainId === chain.id,
-    )?.checkpoint;
+  const _crashRecoveryCheckpoint = crashRecoveryCheckpoint?.find(
+    ({ chainId }) => chainId === chain.id,
+  )?.checkpoint;
 
-    const cached = Math.min(
-      Number(
-        decodeCheckpoint(_crashRecoveryCheckpoint ?? ZERO_CHECKPOINT_STRING)
-          .blockTimestamp,
-      ),
-      end,
-    );
+  const cached = Math.min(
+    Number(
+      decodeCheckpoint(_crashRecoveryCheckpoint ?? ZERO_CHECKPOINT_STRING)
+        .blockTimestamp,
+    ),
+    end,
+  );
 
-    seconds[chain.name] = { start, end, cached };
-  }
+  seconds[chain.name] = { start, end, cached };
 
   const startTimestamp = Math.round(Date.now() / 1000);
   common.metrics.ponder_historical_start_timestamp_seconds.set(startTimestamp);
@@ -226,18 +207,12 @@ export async function runOmnichain({
       await tx.wrap({ label: "update_checkpoints" }, (tx) =>
         tx
           .insert(PONDER_CHECKPOINT)
-          .values(
-            indexingBuild.chains.map((chain) => ({
-              chainName: chain.name,
-              chainId: chain.id,
-              latestCheckpoint: perChainSync
-                .get(chain)!
-                .syncProgress.getCheckpoint({ tag: "start" }),
-              safeCheckpoint: perChainSync
-                .get(chain)!
-                .syncProgress.getCheckpoint({ tag: "start" }),
-            })),
-          )
+          .values({
+            chainName: chain.name,
+            chainId: chain.id,
+            latestCheckpoint: syncProgress.getCheckpoint({ tag: "start" }),
+            safeCheckpoint: syncProgress.getCheckpoint({ tag: "start" }),
+          })
           .onConflictDoUpdate({
             target: PONDER_CHECKPOINT.chainName,
             set: {
@@ -251,11 +226,14 @@ export async function runOmnichain({
 
   // Run historical indexing until complete.
   for await (const events of recordAsyncGenerator(
-    getHistoricalEventsOmnichain({
+    getHistoricalEventsIsolated({
       common,
       indexingBuild,
       crashRecoveryCheckpoint,
-      perChainSync,
+      syncProgress,
+      chain,
+      childAddresses,
+      cachedIntervals,
       syncStore,
     }),
     (params) => {
@@ -306,9 +284,6 @@ export async function runOmnichain({
               eventChunk[eventChunk.length - 1]!.checkpoint,
             );
 
-            const chain = indexingBuild.chains.find(
-              (chain) => chain.id === Number(checkpoint.chainId),
-            )!;
             common.metrics.ponder_historical_completed_indexing_seconds.set(
               { chain: chain.name },
               Math.max(
@@ -364,29 +339,23 @@ export async function runOmnichain({
           );
           endClock = startClock();
 
-          if (events.checkpoints.length > 0) {
-            await tx.wrap({ label: "update_checkpoints" }, (tx) =>
-              tx
-                .insert(PONDER_CHECKPOINT)
-                .values(
-                  events.checkpoints.map(({ chainId, checkpoint }) => ({
-                    chainName: indexingBuild.chains.find(
-                      (chain) => chain.id === chainId,
-                    )!.name,
-                    chainId,
-                    latestCheckpoint: checkpoint,
-                    safeCheckpoint: checkpoint,
-                  })),
-                )
-                .onConflictDoUpdate({
-                  target: PONDER_CHECKPOINT.chainName,
-                  set: {
-                    safeCheckpoint: sql`excluded.safe_checkpoint`,
-                    latestCheckpoint: sql`excluded.latest_checkpoint`,
-                  },
-                }),
-            );
-          }
+          await tx.wrap({ label: "update_checkpoints" }, (tx) =>
+            tx
+              .insert(PONDER_CHECKPOINT)
+              .values({
+                chainName: chain.name,
+                chainId: chain.id,
+                latestCheckpoint: events.checkpoint,
+                safeCheckpoint: events.checkpoint,
+              })
+              .onConflictDoUpdate({
+                target: PONDER_CHECKPOINT.chainName,
+                set: {
+                  safeCheckpoint: sql`excluded.safe_checkpoint`,
+                  latestCheckpoint: sql`excluded.latest_checkpoint`,
+                },
+              }),
+          );
 
           common.metrics.ponder_historical_transform_duration.inc(
             { step: "finalize" },
@@ -424,21 +393,19 @@ export async function runOmnichain({
   // checkpoint is between the last processed event and the finalized
   // checkpoint.
 
-  for (const chain of indexingBuild.chains) {
-    const label = { chain: chain.name };
-    common.metrics.ponder_historical_completed_indexing_seconds.set(
-      label,
-      Math.max(
-        seconds[chain.name]!.end -
-          Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
-        0,
-      ),
-    );
-    common.metrics.ponder_indexing_timestamp.set(
-      { chain: chain.name },
-      seconds[chain.name]!.end,
-    );
-  }
+  const label = { chain: chain.name };
+  common.metrics.ponder_historical_completed_indexing_seconds.set(
+    label,
+    Math.max(
+      seconds[chain.name]!.end -
+        Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
+      0,
+    ),
+  );
+  common.metrics.ponder_indexing_timestamp.set(
+    { chain: chain.name },
+    seconds[chain.name]!.end,
+  );
 
   const endTimestamp = Math.round(Date.now() / 1000);
   common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
@@ -476,12 +443,15 @@ export async function runOmnichain({
     common,
     schemaBuild,
     indexingErrorHandler,
+    chainId,
   });
 
-  for await (const event of getRealtimeEventsOmnichain({
+  for await (const event of getRealtimeEventsIsolated({
     common,
     indexingBuild,
-    perChainSync,
+    syncProgress,
+    chain,
+    childAddresses,
     syncStore,
     pendingEvents: [],
   })) {
@@ -500,11 +470,6 @@ export async function runOmnichain({
 
           for (const { checkpoint, events } of perBlockEvents) {
             await database.userQB.transaction(async (tx) => {
-              const chain = indexingBuild.chains.find(
-                (chain) =>
-                  chain.id === Number(decodeCheckpoint(checkpoint).chainId),
-              )!;
-
               try {
                 realtimeIndexingStore.qb = tx;
 
@@ -528,12 +493,10 @@ export async function runOmnichain({
                   ),
                 );
 
-                for (const chain of indexingBuild.chains) {
-                  common.metrics.ponder_indexing_timestamp.set(
-                    { chain: chain.name },
-                    Number(decodeCheckpoint(checkpoint).blockTimestamp),
-                  );
-                }
+                common.metrics.ponder_indexing_timestamp.set(
+                  { chain: chain.name },
+                  Number(decodeCheckpoint(checkpoint).blockTimestamp),
+                );
               } catch (error) {
                 if (error instanceof NonRetryableUserError === false) {
                   common.logger.warn({
@@ -586,9 +549,12 @@ export async function runOmnichain({
       case "finalize":
         await database.userQB.transaction(async (tx) => {
           await tx.wrap((tx) =>
-            tx.update(PONDER_CHECKPOINT).set({
-              safeCheckpoint: event.checkpoint,
-            }),
+            tx
+              .update(PONDER_CHECKPOINT)
+              .set({
+                safeCheckpoint: event.checkpoint,
+              })
+              .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
           );
 
           const counts = await finalize(tx, {
@@ -618,51 +584,3 @@ export async function runOmnichain({
     }
   }
 }
-
-/**
- * Compute the checkpoint across all chains.
- */
-export const getOmnichainCheckpoint = <
-  tag extends "start" | "end" | "current" | "finalized",
->({
-  perChainSync,
-  tag,
-}: {
-  perChainSync: Map<Chain, { syncProgress: SyncProgress }>;
-  tag: tag;
-}): tag extends "end" ? string | undefined : string => {
-  const checkpoints = Array.from(perChainSync.values()).map(
-    ({ syncProgress }) => syncProgress.getCheckpoint({ tag }),
-  );
-
-  if (tag === "end") {
-    if (checkpoints.some((c) => c === undefined)) {
-      return undefined as tag extends "end" ? string | undefined : string;
-    }
-    // Note: `max` is used here because `end` is an upper bound.
-    return max(...checkpoints) as tag extends "end"
-      ? string | undefined
-      : string;
-  }
-
-  // Note: extra logic is needed for `current` because completed chains
-  // shouldn't be included in the minimum checkpoint. However, when all
-  // chains are completed, the maximum checkpoint should be computed across
-  // all chains.
-
-  if (tag === "current") {
-    const isComplete = Array.from(perChainSync.values()).map(
-      ({ syncProgress }) => syncProgress.isEnd(),
-    );
-    if (isComplete.every((c) => c)) {
-      return max(...checkpoints) as tag extends "end"
-        ? string | undefined
-        : string;
-    }
-    return min(
-      ...checkpoints.filter((_, i) => isComplete[i] === false),
-    ) as tag extends "end" ? string | undefined : string;
-  }
-
-  return min(...checkpoints) as tag extends "end" ? string | undefined : string;
-};
