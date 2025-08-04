@@ -15,11 +15,12 @@ import type {
   PreBuild,
   SchemaBuild,
 } from "@/internal/types.js";
+import { runMultichain } from "@/runtime/multichain.js";
+import { runOmnichain } from "@/runtime/omnichain.js";
+import { createServer } from "@/server/index.js";
 import { mergeResults } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
-import { run } from "../utils/run.js";
-import { runServer } from "../utils/runServer.js";
 
 export type PonderApp = {
   common: Common;
@@ -198,8 +199,12 @@ export async function start({
     app = await onBuild(app);
   }
 
-  run(app);
-  runServer(app);
+  if (preBuild.ordering === "omnichain") {
+    runOmnichain(app);
+  } else {
+    runMultichain(app);
+  }
+  createServer(app);
 
   return shutdown.kill;
 }
