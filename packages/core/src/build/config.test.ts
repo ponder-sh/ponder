@@ -3,7 +3,7 @@ import { poolId } from "@/_test/utils.js";
 import { factory } from "@/config/address.js";
 import { createConfig } from "@/config/index.js";
 import type { LogFactory, LogFilter, TraceFilter } from "@/internal/types.js";
-import { shouldGetTransactionReceipt } from "@/sync/filter.js";
+import { shouldGetTransactionReceipt } from "@/runtime/filter.js";
 import {
   type Address,
   parseAbiItem,

@@ -9,6 +9,7 @@ import {
 import { buildConfigAndIndexingFunctions } from "@/build/config.js";
 import type {
   BlockEvent,
+  Event,
   LogEvent,
   RawEvent,
   TraceEvent,
@@ -25,9 +26,77 @@ import {
 } from "viem";
 import { encodeFunctionData, encodeFunctionResult } from "viem/utils";
 import { beforeEach, expect, test } from "vitest";
-import { decodeEvents } from "./events.js";
+import { decodeEvents, splitEvents } from "./events.js";
 
 beforeEach(setupCommon);
+
+test("splitEvents()", async () => {
+  const events = [
+    {
+      chainId: 1,
+      checkpoint: "0",
+      event: {
+        block: {
+          hash: "0x1",
+          timestamp: 1,
+          number: 1n,
+        },
+      },
+    },
+    {
+      chainId: 1,
+      checkpoint: "0",
+      event: {
+        block: {
+          hash: "0x2",
+          timestamp: 2,
+          number: 2n,
+        },
+      },
+    },
+  ] as unknown as Event[];
+
+  const result = splitEvents(events);
+
+  expect(result).toMatchInlineSnapshot(`
+    [
+      {
+        "chainId": 1,
+        "checkpoint": "000000000100000000000000010000000000000001999999999999999999999999999999999",
+        "events": [
+          {
+            "chainId": 1,
+            "checkpoint": "0",
+            "event": {
+              "block": {
+                "hash": "0x1",
+                "number": 1n,
+                "timestamp": 1,
+              },
+            },
+          },
+        ],
+      },
+      {
+        "chainId": 1,
+        "checkpoint": "000000000200000000000000010000000000000002999999999999999999999999999999999",
+        "events": [
+          {
+            "chainId": 1,
+            "checkpoint": "0",
+            "event": {
+              "block": {
+                "hash": "0x2",
+                "number": 2n,
+                "timestamp": 2,
+              },
+            },
+          },
+        ],
+      },
+    ]
+  `);
+});
 
 test("decodeEvents() log", async (context) => {
   const { common } = context;

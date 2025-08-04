@@ -9,9 +9,9 @@ import type {
 } from "@/internal/types.js";
 import type { SyncBlock } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
+import { isAddressFactory } from "@/runtime/filter.js";
+import { getFragments } from "@/runtime/fragments.js";
 import type { SyncStore } from "@/sync-store/index.js";
-import { isAddressFactory } from "@/sync/filter.js";
-import { getFragments } from "@/sync/fragments.js";
 import {
   MAX_CHECKPOINT,
   blockToCheckpoint,

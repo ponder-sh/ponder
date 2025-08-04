@@ -19,7 +19,7 @@ import type {
   LogEvent,
   RawEvent,
 } from "@/internal/types.js";
-import { decodeEvents } from "@/sync/events.js";
+import { decodeEvents } from "@/runtime/events.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { checksumAddress, padHex, parseEther, toHex, zeroAddress } from "viem";
 import { encodeEventTopics } from "viem/utils";

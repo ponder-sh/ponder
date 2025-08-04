@@ -19,8 +19,6 @@ import type {
   TransferFilter,
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
-import type { CachedIntervals } from "@/runtime/index.js";
-import type { SyncStore } from "@/sync-store/index.js";
 import {
   getChildAddress,
   isAddressFactory,
@@ -29,9 +27,11 @@ import {
   isTraceFilterMatched,
   isTransactionFilterMatched,
   isTransferFilterMatched,
-} from "@/sync/filter.js";
-import { shouldGetTransactionReceipt } from "@/sync/filter.js";
-import { recoverFilter } from "@/sync/fragments.js";
+} from "@/runtime/filter.js";
+import { shouldGetTransactionReceipt } from "@/runtime/filter.js";
+import { recoverFilter } from "@/runtime/fragments.js";
+import type { CachedIntervals } from "@/runtime/index.js";
+import type { SyncStore } from "@/sync-store/index.js";
 import {
   type Interval,
   getChunks,

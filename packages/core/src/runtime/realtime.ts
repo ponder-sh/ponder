@@ -11,11 +11,6 @@ import type {
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
 import {
-  type RealtimeSyncEvent,
-  createRealtimeSync,
-} from "@/sync-realtime/index.js";
-import type { SyncStore } from "@/sync-store/index.js";
-import {
   buildEvents,
   decodeEvents,
   syncBlockToInternal,
@@ -23,7 +18,12 @@ import {
   syncTraceToInternal,
   syncTransactionReceiptToInternal,
   syncTransactionToInternal,
-} from "@/sync/events.js";
+} from "@/runtime/events.js";
+import {
+  type RealtimeSyncEvent,
+  createRealtimeSync,
+} from "@/sync-realtime/index.js";
+import type { SyncStore } from "@/sync-store/index.js";
 import {
   ZERO_CHECKPOINT_STRING,
   blockToCheckpoint,
