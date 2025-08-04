@@ -15,7 +15,11 @@ import type {
   IndexingErrorHandler,
   NamespaceBuild,
   SchemaBuild,
+  Source,
 } from "@/internal/types.js";
+import { isAddressFactory } from "@/runtime/filter.js";
+import { getFragments } from "@/runtime/fragments.js";
+import type { CachedIntervals, ChildAddresses } from "@/runtime/index.js";
 import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
 import { createPglite } from "@/utils/pglite.js";
 import type { PGlite } from "@electric-sql/pglite";
@@ -258,3 +262,38 @@ export async function setupAnvil() {
     await testClient.revert({ id: emptySnapshotId });
   };
 }
+
+export const setupChildAddresses = (sources: Source[]): ChildAddresses => {
+  const childAddresses = new Map();
+  for (const source of sources) {
+    switch (source.filter.type) {
+      case "log":
+        if (isAddressFactory(source.filter.address)) {
+          childAddresses.set(source.filter.address.id, new Map());
+        }
+        break;
+      case "transaction":
+      case "transfer":
+      case "trace":
+        if (isAddressFactory(source.filter.fromAddress)) {
+          childAddresses.set(source.filter.fromAddress.id, new Map());
+        }
+        if (isAddressFactory(source.filter.toAddress)) {
+          childAddresses.set(source.filter.toAddress.id, new Map());
+        }
+    }
+  }
+
+  return childAddresses as ChildAddresses;
+};
+
+export const setupCachedIntervals = (sources: Source[]): CachedIntervals => {
+  const cachedIntervals: CachedIntervals = new Map();
+  for (const { filter } of sources) {
+    cachedIntervals.set(filter, []);
+    for (const { fragment } of getFragments(filter)) {
+      cachedIntervals.get(filter)!.push({ fragment, intervals: [] });
+    }
+  }
+  return cachedIntervals;
+};

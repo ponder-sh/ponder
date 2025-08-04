@@ -20,7 +20,6 @@ import type {
   TransferFilter,
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
-import type { SyncProgress } from "@/runtime/index.js";
 import {
   getChildAddress,
   isAddressFactory,
@@ -32,7 +31,8 @@ import {
   isTransactionFilterMatched,
   isTransferFilterMatched,
   shouldGetTransactionReceipt,
-} from "@/sync/filter.js";
+} from "@/runtime/filter.js";
+import type { SyncProgress } from "@/runtime/index.js";
 import { createLock } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
 import {

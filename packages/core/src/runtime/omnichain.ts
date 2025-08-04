@@ -35,8 +35,8 @@ import type {
   SchemaBuild,
   Seconds,
 } from "@/internal/types.js";
+import { splitEvents } from "@/runtime/events.js";
 import { createSyncStore } from "@/sync-store/index.js";
-import { splitEvents } from "@/sync/events.js";
 import {
   ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
