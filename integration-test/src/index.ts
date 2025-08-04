@@ -106,21 +106,25 @@ export const SIM_PARAMS = {
   ),
   REALTIME_DELAY_RATE: pick([0, 0.4, 0.8], "realtime-delay-rate"),
   UNFINALIZED_BLOCKS: pick([0, 0, 100, 100, 1000, 1100], "unfinalized-blocks"),
-  // SHUTDOWN_TIMER: pick(
-  //   [
-  //     undefined,
-  //     () => new Promise((resolve) => setTimeout(resolve, 1000)),
-  //     () => new Promise((resolve) => setTimeout(resolve, 5000)),
-  //   ],
-  //   "shutdown",
-  // ),
-  // REALTIME_SHUTDOWN_RATE: pick([0, 0.001, 0.002], "realtime-shutdown-rate"),
+  SHUTDOWN_TIMER: pick(
+    [
+      undefined,
+      () => new Promise((resolve) => setTimeout(resolve, 500)),
+      () => new Promise((resolve) => setTimeout(resolve, 1000)),
+      () => new Promise((resolve) => setTimeout(resolve, 2000)),
+      () => new Promise((resolve) => setTimeout(resolve, 5000)),
+    ],
+    "shutdown",
+  ),
+  REALTIME_SHUTDOWN_RATE: pick([0, 0.001, 0.002], "realtime-shutdown-rate"),
   ORDERING: pick(["multichain", "omnichain"], "ordering"),
   REALTIME_BLOCK_HAS_TRANSACTIONS: pick(
     [true, false],
     "realtime-block-has-transactions",
   ),
 };
+
+export let RESTART_COUNT = 0;
 
 export const DB = drizzle(DATABASE_URL!, { casing: "snake_case" });
 export const APP_DB = drizzle(`${DATABASE_URL!}/${UUID}`, {
@@ -1354,6 +1358,9 @@ let kill = await start({
 });
 
 export const restart = async () => {
+  if (RESTART_COUNT === 2) return;
+  RESTART_COUNT += 1;
+  console.log("Restarting app");
   await kill!();
   kill = await start({
     cliOptions: {
@@ -1367,10 +1374,10 @@ export const restart = async () => {
   });
 };
 
-// if (SIM_PARAMS.SHUTDOWN_TIMER) {
-//   await SIM_PARAMS.SHUTDOWN_TIMER();
-//   await restart();
-// }
+if (SIM_PARAMS.SHUTDOWN_TIMER) {
+  await SIM_PARAMS.SHUTDOWN_TIMER();
+  await restart();
+}
 
 if (SIM_PARAMS.UNFINALIZED_BLOCKS === 0) {
   while (true) {
