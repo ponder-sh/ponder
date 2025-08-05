@@ -1,12 +1,6 @@
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
-import { createIndexes, createViews } from "@/database/actions.js";
-import {
-  type Database,
-  createDatabase,
-  createDatabaseInterface,
-  getPonderMetaTable,
-} from "@/database/index.js";
+import { type Database, createDatabase } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
@@ -21,14 +15,13 @@ import type {
   PreBuild,
   SchemaBuild,
 } from "@/internal/types.js";
-import { runIsolated } from "@/runtime/isolated.js";
 import { runMultichain } from "@/runtime/multichain.js";
 import { runOmnichain } from "@/runtime/omnichain.js";
 import { createServer } from "@/server/index.js";
-import { isTable, sql } from "drizzle-orm";
 import type { CliOptions } from "../ponder.js";
 import { runCodegen } from "../utils/codegen.js";
 import { createExit } from "../utils/exit.js";
+import { startIsolated } from "../utils/startIsolated.js";
 
 export type PonderApp = {
   common: Common;
@@ -221,93 +214,7 @@ export async function start({
       runMultichain(app);
       break;
     case "isolated": {
-      const state: {
-        [chainName: string]: "historical" | "realtime" | "complete" | "failed";
-      } = {};
-
-      const callback = async () => {
-        let isAllReady = true;
-        for (const chain of app.indexingBuild.chains) {
-          if (
-            state[chain.name] === undefined ||
-            state[chain.name] === "historical"
-          ) {
-            isAllReady = false;
-            break;
-          }
-        }
-
-        if (isAllReady) {
-          const endTimestamp = Math.round(Date.now() / 1000);
-          common.metrics.ponder_historical_end_timestamp_seconds.set(
-            endTimestamp,
-          );
-
-          await createIndexes(database.adminQB, {
-            statements: schemaBuild.statements,
-          });
-
-          if (app.namespaceBuild.viewsSchema !== undefined) {
-            const tables = Object.values(schemaBuild.schema).filter(isTable);
-            await createViews(database.adminQB, {
-              tables,
-              namespaceBuild: app.namespaceBuild,
-            });
-
-            common.logger.info({
-              service: "app",
-              msg: `Created ${tables.length} views in schema "${app.namespaceBuild.viewsSchema}"`,
-            });
-          }
-
-          await database.adminQB.wrap({ label: "update_ready" }, (db) =>
-            db
-              .update(getPonderMetaTable(app.namespaceBuild.schema))
-              .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` }),
-          );
-
-          common.logger.info({
-            service: "server",
-            msg: "Started returning 200 responses from /ready endpoint",
-          });
-        }
-      };
-
-      Promise.all(
-        app.indexingBuild.chains.map(async (chain) => {
-          const database = await createDatabaseInterface({
-            common,
-            namespace: namespaceResult.result,
-            preBuild,
-            schemaBuild,
-          });
-
-          state[chain.name] = "historical";
-
-          await runIsolated(
-            {
-              ...app,
-              database,
-              onReady: async () => {
-                state[chain.name] = "realtime";
-                await callback();
-              },
-            },
-            chain.id,
-          )
-            .then(() => {
-              state[chain.name] = "complete";
-            })
-            .catch(async () => {
-              state[chain.name] = "failed";
-              common.logger.info({
-                service: "server",
-                msg: `Chain '${chain.name}' failed. `,
-              });
-              await callback();
-            });
-        }),
-      );
+      startIsolated(app);
     }
   }
   createServer(app);
