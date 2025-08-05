@@ -57,6 +57,8 @@ export type Database = {
   }): Promise<CrashRecoveryCheckpoint>;
 };
 
+export type DatabaseInterface = Omit<Database, "migrateSync" | "migrate">;
+
 export const SCHEMATA = pgSchema("information_schema").table(
   "schemata",
   (t) => ({
@@ -131,6 +133,149 @@ export const getPonderCheckpointTable = (schema?: string) => {
     safeCheckpoint: t.varchar({ length: 75 }).notNull(),
     latestCheckpoint: t.varchar({ length: 75 }).notNull(),
   }));
+};
+
+export const createDatabaseInterface = async ({
+  common,
+  namespace,
+  preBuild,
+  schemaBuild,
+}: {
+  common: Common;
+  namespace: NamespaceBuild;
+  preBuild: Pick<PreBuild, "databaseConfig">;
+  schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
+}): Promise<DatabaseInterface> => {
+  let driver: PGliteDriver | PostgresDriver;
+  let syncQB: QB<typeof PONDER_SYNC>;
+  let adminQB: QB;
+  let userQB: QB;
+  let readonlyQB: QB;
+
+  const dialect = preBuild.databaseConfig.kind;
+  if (dialect === "pglite" || dialect === "pglite_test") {
+    driver = {
+      dialect: "pglite",
+      instance:
+        dialect === "pglite"
+          ? createPglite(preBuild.databaseConfig.options)
+          : preBuild.databaseConfig.instance,
+    };
+
+    syncQB = createQB(
+      drizzlePglite((driver as PGliteDriver).instance, {
+        casing: "snake_case",
+        schema: PONDER_SYNC,
+      }),
+      { common, isAdmin: false },
+    );
+    adminQB = createQB(
+      drizzlePglite((driver as PGliteDriver).instance, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
+      { common, isAdmin: true },
+    );
+    userQB = createQB(
+      drizzlePglite((driver as PGliteDriver).instance, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
+      { common, isAdmin: false },
+    );
+    readonlyQB = createQB(
+      drizzlePglite((driver as PGliteDriver).instance, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
+      { common, isAdmin: false },
+    );
+  } else {
+    const internalMax = 2;
+    const equalMax = Math.floor(
+      (preBuild.databaseConfig.poolConfig.max - internalMax) / 3,
+    );
+    const [readonlyMax, userMax, syncMax] =
+      common.options.command === "serve"
+        ? [preBuild.databaseConfig.poolConfig.max - internalMax, 0, 0]
+        : [equalMax, equalMax, equalMax];
+
+    driver = {
+      dialect: "postgres",
+      admin: createPool(
+        {
+          ...preBuild.databaseConfig.poolConfig,
+          application_name: `${namespace.schema}_internal`,
+          max: internalMax,
+          statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
+        },
+        common.logger,
+      ),
+      user: createPool(
+        {
+          ...preBuild.databaseConfig.poolConfig,
+          application_name: `${namespace.schema}_user`,
+          max: userMax,
+        },
+        common.logger,
+      ),
+      readonly: createReadonlyPool(
+        {
+          ...preBuild.databaseConfig.poolConfig,
+          application_name: `${namespace.schema}_readonly`,
+          max: readonlyMax,
+        },
+        common.logger,
+        namespace.schema,
+      ),
+      sync: createPool(
+        {
+          ...preBuild.databaseConfig.poolConfig,
+          application_name: "ponder_sync",
+          max: syncMax,
+        },
+        common.logger,
+      ),
+      listen: undefined,
+    };
+
+    syncQB = createQB(
+      drizzleNodePg(driver.sync, {
+        casing: "snake_case",
+        schema: PONDER_SYNC,
+      }),
+      { common, isAdmin: false },
+    );
+    adminQB = createQB(
+      drizzleNodePg(driver.admin, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
+      { common, isAdmin: true },
+    );
+    userQB = createQB(
+      drizzleNodePg(driver.user, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
+      { common, isAdmin: false },
+    );
+    readonlyQB = createQB(
+      drizzleNodePg(driver.readonly, {
+        casing: "snake_case",
+        schema: schemaBuild.schema,
+      }),
+      { common, isAdmin: false },
+    );
+  }
+
+  return {
+    driver,
+    syncQB,
+    adminQB,
+    userQB,
+    readonlyQB,
+  };
 };
 
 export const createDatabase = async ({

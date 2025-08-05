@@ -12,13 +12,14 @@ import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
 } from "@/internal/types.js";
+import { runMultichain } from "@/runtime/multichain.js";
+import { runOmnichain } from "@/runtime/omnichain.js";
+import { createServer } from "@/server/index.js";
 import { createUi } from "@/ui/index.js";
 import { createQueue } from "@/utils/queue.js";
 import type { Result } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
-import { run } from "../utils/run.js";
-import { runServer } from "../utils/runServer.js";
 
 export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
@@ -236,21 +237,33 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           1,
         );
 
-        runServer({
+        createServer({
           common: { ...common, shutdown: apiShutdown },
           database,
           apiBuild: apiBuildResult.result,
         });
 
-        run({
-          common: { ...common, shutdown: indexingShutdown },
-          database,
-          preBuild,
-          namespaceBuild: { schema, viewsSchema: undefined },
-          schemaBuild,
-          indexingBuild: indexingBuildResult.result,
-          crashRecoveryCheckpoint,
-        });
+        if (preBuild.ordering === "omnichain") {
+          runOmnichain({
+            common: { ...common, shutdown: indexingShutdown },
+            database,
+            preBuild,
+            namespaceBuild: { schema, viewsSchema: undefined },
+            schemaBuild,
+            indexingBuild: indexingBuildResult.result,
+            crashRecoveryCheckpoint,
+          });
+        } else {
+          runMultichain({
+            common: { ...common, shutdown: indexingShutdown },
+            database,
+            preBuild,
+            namespaceBuild: { schema, viewsSchema: undefined },
+            schemaBuild,
+            indexingBuild: indexingBuildResult.result,
+            crashRecoveryCheckpoint,
+          });
+        }
       } else {
         metrics.resetApiMetrics();
 
@@ -281,7 +294,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
         const apiBuild = buildResult.result;
 
-        runServer({
+        createServer({
           common: { ...common, shutdown: apiShutdown },
           database: database!,
           apiBuild,

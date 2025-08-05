@@ -16,7 +16,7 @@ import type {
   Schema,
   SetupEvent,
 } from "@/internal/types.js";
-import { isAddressFactory } from "@/sync/filter.js";
+import { isAddressFactory } from "@/runtime/filter.js";
 import type { Db } from "@/types/db.js";
 import type { Block, Log, Trace, Transaction } from "@/types/eth.js";
 import type { DeepPartial } from "@/types/utils.js";
@@ -49,6 +49,7 @@ export type Context = {
 export type Indexing = {
   processSetupEvents: (params: {
     db: IndexingStore;
+    chain?: Chain;
   }) => Promise<void>;
   processEvents: (params: {
     events: Event[];
@@ -283,14 +284,16 @@ export const createIndexing = ({
   };
 
   return {
-    async processSetupEvents({ db }) {
+    async processSetupEvents({ db, chain }) {
       context.db = db;
       for (const eventName of Object.keys(indexingFunctions)) {
         if (!eventName.endsWith(":setup")) continue;
 
         const [contractName] = eventName.split(":");
 
-        for (const chain of chains) {
+        const _chains = chain === undefined ? chains : [chain];
+
+        for (const chain of _chains) {
           const source = sources.find(
             (s) =>
               s.type === "contract" &&

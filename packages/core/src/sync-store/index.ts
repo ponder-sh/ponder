@@ -28,8 +28,8 @@ import type {
 import {
   isAddressFactory,
   shouldGetTransactionReceipt,
-} from "@/sync/filter.js";
-import { encodeFragment, getFragments } from "@/sync/fragments.js";
+} from "@/runtime/filter.js";
+import { encodeFragment, getFragments } from "@/runtime/fragments.js";
 import type { Interval } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
@@ -136,7 +136,10 @@ export type SyncStore = {
 export const createSyncStore = ({
   common,
   database,
-}: { common: Common; database: Database }): SyncStore => ({
+}: {
+  common: Common;
+  database: Omit<Database, "migrateSync" | "migrate">;
+}): SyncStore => ({
   insertIntervals: async ({ intervals, chainId }) => {
     if (intervals.length === 0) return;
 

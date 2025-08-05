@@ -1,5 +1,6 @@
 import { truncate } from "@/utils/truncate.js";
 import prometheus from "prom-client";
+import type { Ordering } from "./types.js";
 
 const databaseQueryDurationMs = [
   0.05, 0.1, 1, 5, 10, 25, 50, 75, 100, 250, 500, 750, 1_000, 2_500, 5_000,
@@ -601,10 +602,9 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
     await metrics.ponder_historical_completed_indexing_seconds.get();
   const timestampMetric = await metrics.ponder_indexing_timestamp.get();
 
-  const ordering: "multichain" | "omnichain" | undefined =
-    await metrics.ponder_settings_info
-      .get()
-      .then((metric) => metric.values[0]?.labels.ordering as any);
+  const ordering: Ordering | undefined = await metrics.ponder_settings_info
+    .get()
+    .then((metric) => metric.values[0]?.labels.ordering as any);
   if (ordering === undefined) {
     return {
       mode: "historical",

@@ -1,7 +1,11 @@
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getTableNames } from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
-import type { Ordering, SchemaBuild } from "@/internal/types.js";
+import type {
+  NamespaceBuild,
+  Ordering,
+  SchemaBuild,
+} from "@/internal/types.js";
 import { MAX_CHECKPOINT_STRING, decodeCheckpoint } from "@/utils/checkpoint.js";
 import { eq, getTableColumns, getTableName } from "drizzle-orm";
 import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
@@ -95,6 +99,85 @@ export const dropTriggers = async (
           );
         });
       }),
+    );
+  });
+};
+
+export const createViews = async (
+  qb: QB,
+  {
+    tables,
+    namespaceBuild,
+  }: { tables: PgTable[]; namespaceBuild: NamespaceBuild },
+) => {
+  await qb.transaction({ label: "create_views" }, async (tx) => {
+    await tx.wrap((tx) =>
+      tx.execute(`CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.viewsSchema}"`),
+    );
+
+    for (const table of tables) {
+      // Note: drop views before creating new ones to avoid enum errors.
+      await tx.wrap((tx) =>
+        tx.execute(
+          `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${getTableName(table)}"`,
+        ),
+      );
+
+      await tx.wrap((tx) =>
+        tx.execute(
+          `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
+        ),
+      );
+    }
+
+    await tx.wrap((tx) =>
+      tx.execute(
+        `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."_ponder_meta"`,
+      ),
+    );
+
+    await tx.wrap((tx) =>
+      tx.execute(
+        `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."_ponder_checkpoint"`,
+      ),
+    );
+
+    await tx.wrap((tx) =>
+      tx.execute(
+        `CREATE VIEW "${namespaceBuild.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_meta"`,
+      ),
+    );
+
+    await tx.wrap((tx) =>
+      tx.execute(
+        `CREATE VIEW "${namespaceBuild.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_checkpoint"`,
+      ),
+    );
+
+    const trigger = `status_${namespaceBuild.viewsSchema}_trigger`;
+    const notification = "status_notify()";
+    const channel = `${namespaceBuild.viewsSchema}_status_channel`;
+
+    await tx.wrap((tx) =>
+      tx.execute(`
+CREATE OR REPLACE FUNCTION "${namespaceBuild.viewsSchema}".${notification}
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+NOTIFY "${channel}";
+RETURN NULL;
+END;
+$$;`),
+    );
+
+    await tx.wrap((tx) =>
+      tx.execute(`
+CREATE OR REPLACE TRIGGER "${trigger}"
+AFTER INSERT OR UPDATE OR DELETE
+ON "${namespaceBuild.schema}"._ponder_checkpoint
+FOR EACH STATEMENT
+EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
     );
   });
 };

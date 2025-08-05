@@ -15,10 +15,13 @@ import type {
   PreBuild,
   SchemaBuild,
 } from "@/internal/types.js";
+import { runMultichain } from "@/runtime/multichain.js";
+import { runOmnichain } from "@/runtime/omnichain.js";
+import { createServer } from "@/server/index.js";
 import type { CliOptions } from "../ponder.js";
+import { runCodegen } from "../utils/codegen.js";
 import { createExit } from "../utils/exit.js";
-import { run } from "../utils/run.js";
-import { runServer } from "../utils/runServer.js";
+import { startIsolated } from "../utils/startIsolated.js";
 
 export type PonderApp = {
   common: Common;
@@ -82,9 +85,6 @@ export async function start({
 
   const build = await createBuild({ common, cliOptions });
 
-  // biome-ignore lint/style/useConst: <explanation>
-  let database: Database | undefined;
-
   const namespaceResult = build.namespaceCompile();
   if (namespaceResult.status === "error") {
     await exit({ reason: "Failed to initialize namespace", code: 1 });
@@ -138,7 +138,7 @@ export async function start({
     return;
   }
 
-  database = await createDatabase({
+  const database = await createDatabase({
     common,
     namespace: namespaceResult.result,
     preBuild,
@@ -203,8 +203,21 @@ export async function start({
     app = await onBuild(app);
   }
 
-  run(app);
-  runServer(app);
+  await database.migrateSync();
+  runCodegen({ common });
+
+  switch (preBuild.ordering) {
+    case "omnichain":
+      runOmnichain(app);
+      break;
+    case "multichain":
+      runMultichain(app);
+      break;
+    case "isolated": {
+      startIsolated(app);
+    }
+  }
+  createServer(app);
 
   return shutdown.kill;
 }

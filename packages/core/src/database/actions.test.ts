@@ -210,8 +210,6 @@ test("finalize() isolated", async (context) => {
   );
 
   expect(rows).toHaveLength(3);
-
-  await context.common.shutdown.kill();
 });
 
 test("createIndexes()", async (context) => {
