@@ -3,7 +3,6 @@ import type {
   Chain,
   CrashRecoveryCheckpoint,
   Event,
-  FactoryId,
   IndexingBuild,
   Source,
 } from "@/internal/types.js";
@@ -34,8 +33,9 @@ import {
 import { partition } from "@/utils/partition.js";
 import { startClock } from "@/utils/timer.js";
 import { zipperMany } from "@/utils/zipper.js";
-import { type Address, hexToNumber } from "viem";
+import { hexToNumber } from "viem";
 import type { CachedIntervals, ChildAddresses, SyncProgress } from "./index.js";
+import { initEventGenerator } from "./init.js";
 import { getOmnichainCheckpoint } from "./omnichain.js";
 
 export async function* getHistoricalEventsOmnichain(params: {
@@ -126,7 +126,7 @@ export async function* getHistoricalEventsOmnichain(params: {
         }
       }
 
-      const eventGenerator = getLocalEventGenerator({
+      const eventGenerator = initEventGenerator({
         common: params.common,
         chain,
         rpc,
@@ -273,7 +273,7 @@ export async function* getHistoricalEventsMultichain(params: {
         }
       }
 
-      const eventGenerator = getLocalEventGenerator({
+      const eventGenerator = initEventGenerator({
         common: params.common,
         chain,
         rpc,
@@ -351,7 +351,7 @@ export async function* getLocalEventGenerator(params: {
   chain: Chain;
   rpc: Rpc;
   sources: Source[];
-  childAddresses: Map<FactoryId, Map<Address, number>>;
+  childAddresses: ChildAddresses;
   syncProgress: SyncProgress;
   cachedIntervals: CachedIntervals;
   from: string;
@@ -427,7 +427,7 @@ export async function* getLocalSyncGenerator(params: {
   rpc: Rpc;
   sources: Source[];
   syncProgress: SyncProgress;
-  childAddresses: Map<FactoryId, Map<Address, number>>;
+  childAddresses: ChildAddresses;
   cachedIntervals: CachedIntervals;
   syncStore: SyncStore;
 }) {

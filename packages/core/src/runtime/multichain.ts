@@ -55,8 +55,8 @@ import {
   type SyncProgress,
   getCachedIntervals,
   getChildAddresses,
-  getLocalSyncProgress,
 } from "./index.js";
+import { initSyncProgress } from "./init.js";
 import { getRealtimeEventsMultichain } from "./realtime.js";
 
 export async function runMultichain({
@@ -157,7 +157,7 @@ export async function runMultichain({
         sources,
         syncStore,
       });
-      const syncProgress = await getLocalSyncProgress({
+      const syncProgress = await initSyncProgress({
         common,
         sources,
         chain,
