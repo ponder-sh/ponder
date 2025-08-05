@@ -1,17 +1,11 @@
 import {
   commitBlock,
-  createIndexes,
   createTriggers,
-  createViews,
   dropTriggers,
   finalize,
   revert,
 } from "@/database/actions.js";
-import {
-  type Database,
-  getPonderCheckpointTable,
-  getPonderMetaTable,
-} from "@/database/index.js";
+import { type Database, getPonderCheckpointTable } from "@/database/index.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
