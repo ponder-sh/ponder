@@ -582,10 +582,8 @@ export async function* getRealtimeEventsIsolated(params: {
   let executedEvents: Event[] = [];
   /** Events that have not been executed. */
   let pendingEvents: Event[] = params.pendingEvents;
-  /** Closest-to-tip finalized checkpoint across all chains. */
-  let finalizedCheckpoint = ZERO_CHECKPOINT_STRING;
 
-  for await (const { chain, event } of eventGenerator) {
+  for await (const { event } of eventGenerator) {
     switch (event.type) {
       case "block": {
         const events = buildEvents({
@@ -651,11 +649,7 @@ export async function* getRealtimeEventsIsolated(params: {
         break;
       }
       case "finalize": {
-        const from = finalizedCheckpoint;
-        finalizedCheckpoint = syncProgress.getCheckpoint({ tag: "finalized" });
-        const to = finalizedCheckpoint;
-
-        if (to <= from) continue;
+        const to = syncProgress.getCheckpoint({ tag: "finalized" });
 
         // index of the first unfinalized event
         let finalizeIndex: number | undefined = undefined;

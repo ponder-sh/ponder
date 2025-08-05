@@ -418,11 +418,7 @@ export async function* getHistoricalEventsIsolated(params: {
       syncProgress.getCheckpoint({ tag: "finalized" }),
       syncProgress.getCheckpoint({ tag: "end" }),
     ),
-    limit:
-      Math.round(
-        params.common.options.syncEventsQuerySize /
-          (params.indexingBuild.chains.length + 1),
-      ) + 6,
+    limit: Math.round(params.common.options.syncEventsQuerySize / 2) + 6,
     syncStore: params.syncStore,
   });
 

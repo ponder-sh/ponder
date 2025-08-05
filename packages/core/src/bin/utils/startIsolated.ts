@@ -96,13 +96,22 @@ export async function startIsolated({
         .then(() => {
           state[chain.name] = "complete";
         })
-        .catch(async () => {
+        .catch(async (error) => {
           state[chain.name] = "failed";
           common.logger.info({
             service: "server",
             msg: `Chain '${chain.name}' failed. `,
           });
+
           await callback();
+
+          for (const chain of indexingBuild.chains) {
+            if (state[chain.name] !== "failed") {
+              return;
+            }
+          }
+
+          throw error;
         });
     }),
   );
