@@ -214,7 +214,7 @@ export async function start({
       runMultichain(app);
       break;
     case "isolated": {
-      startIsolated(app);
+      startIsolated(app, cliOptions);
     }
   }
   createServer(app);

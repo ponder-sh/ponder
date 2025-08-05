@@ -1,3 +1,6 @@
+import type { CliOptions } from "@/bin/ponder.js";
+import { createBuild } from "@/build/index.js";
+import type { Config } from "@/config/index.js";
 import {
   commitBlock,
   createTriggers,
@@ -5,24 +8,32 @@ import {
   finalize,
   revert,
 } from "@/database/actions.js";
-import { type Database, getPonderCheckpointTable } from "@/database/index.js";
+import {
+  createDatabaseInterface,
+  getPonderCheckpointTable,
+} from "@/database/index.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import { createIndexing } from "@/indexing/index.js";
-import type { Common } from "@/internal/common.js";
 import {
   NonRetryableUserError,
   type RetryableError,
 } from "@/internal/errors.js";
-import { getAppProgress } from "@/internal/metrics.js";
+import { createLogger } from "@/internal/logger.js";
+import { MetricsService, getAppProgress } from "@/internal/metrics.js";
+import { buildOptions } from "@/internal/options.js";
+import { createShutdown } from "@/internal/shutdown.js";
+import { createTelemetry } from "@/internal/telemetry.js";
 import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
   IndexingErrorHandler,
   NamespaceBuild,
   PreBuild,
+  RawIndexingFunctions,
+  Schema,
   SchemaBuild,
   Seconds,
 } from "@/internal/types.js";
@@ -47,28 +58,81 @@ import {
 } from "./index.js";
 import { getRealtimeEventsIsolated } from "./realtime.js";
 
-export async function runIsolated(
-  {
+export async function runIsolated({
+  cliOptions,
+  crashRecoveryCheckpoint,
+  chainId,
+  onReady,
+}: {
+  cliOptions: CliOptions;
+  crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
+  chainId: number;
+  onReady: () => Promise<void>;
+}) {
+  const options = buildOptions({ cliOptions });
+
+  const logger = createLogger({
+    level: options.logLevel,
+    mode: options.logFormat,
+  });
+  const metrics = new MetricsService();
+  const shutdown = createShutdown();
+  const telemetry = createTelemetry({ options, logger, shutdown });
+  const common = { options, logger, metrics, telemetry, shutdown };
+
+  const { preBuild, namespaceBuild, schemaBuild, indexingBuild } =
+    await (async () => {
+      const build = await createBuild({ common, cliOptions });
+      const namespaceResult = build.namespaceCompile() as {
+        status: "success";
+        result: NamespaceBuild;
+      };
+      const configResult = (await build.executeConfig()) as {
+        status: "success";
+        result: { config: Config; contentHash: string };
+      };
+      const schemaResult = (await build.executeSchema()) as {
+        status: "success";
+        result: { schema: Schema; contentHash: string };
+      };
+      const preBuildResult = (await build.preCompile(configResult.result)) as {
+        status: "success";
+        result: PreBuild;
+      };
+      const preBuild = preBuildResult.result;
+      const schemaBuildResult = build.compileSchema({
+        ...schemaResult.result,
+        ordering: preBuild.ordering,
+      }) as { status: "success"; result: SchemaBuild };
+      const schemaBuild = schemaBuildResult.result;
+      const indexingResult = (await build.executeIndexingFunctions()) as {
+        status: "success";
+        result: {
+          indexingFunctions: RawIndexingFunctions;
+          contentHash: string;
+        };
+      };
+      const indexingBuildResult = (await build.compileIndexing({
+        configResult: configResult.result,
+        schemaResult: schemaResult.result,
+        indexingResult: indexingResult.result,
+      })) as { status: "success"; result: IndexingBuild };
+
+      return {
+        preBuild,
+        namespaceBuild: namespaceResult.result,
+        schemaBuild,
+        indexingBuild: indexingBuildResult.result,
+      };
+    })();
+
+  const database = await createDatabaseInterface({
     common,
+    namespace: namespaceBuild,
     preBuild,
-    namespaceBuild,
     schemaBuild,
-    indexingBuild,
-    crashRecoveryCheckpoint,
-    database,
-    onReady,
-  }: {
-    common: Common;
-    preBuild: PreBuild;
-    namespaceBuild: NamespaceBuild;
-    schemaBuild: SchemaBuild;
-    indexingBuild: IndexingBuild;
-    crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
-    database: Omit<Database, "migrateSync" | "migrate">;
-    onReady: () => Promise<void>;
-  },
-  chainId: number,
-) {
+  });
+
   const syncStore = createSyncStore({ common, database });
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);

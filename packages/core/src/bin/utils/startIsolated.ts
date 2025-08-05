@@ -1,21 +1,21 @@
 import { createIndexes, createViews } from "@/database/actions.js";
-import {
-  createDatabaseInterface,
-  getPonderMetaTable,
-} from "@/database/index.js";
+import { getPonderMetaTable } from "@/database/index.js";
 import { runIsolated } from "@/runtime/isolated.js";
 import { isTable, sql } from "drizzle-orm";
 import type { PonderApp } from "../commands/start.js";
+import type { CliOptions } from "../ponder.js";
 
-export async function startIsolated({
-  common,
-  preBuild,
-  namespaceBuild,
-  schemaBuild,
-  indexingBuild,
-  crashRecoveryCheckpoint,
-  database,
-}: PonderApp) {
+export async function startIsolated(
+  {
+    common,
+    namespaceBuild,
+    schemaBuild,
+    indexingBuild,
+    crashRecoveryCheckpoint,
+    database,
+  }: PonderApp,
+  cliOptions: CliOptions,
+) {
   const state: {
     [chainName: string]: "historical" | "realtime" | "complete" | "failed";
   } = {};
@@ -68,31 +68,17 @@ export async function startIsolated({
 
   Promise.all(
     indexingBuild.chains.map(async (chain) => {
-      const database = await createDatabaseInterface({
-        common,
-        namespace: namespaceBuild,
-        preBuild,
-        schemaBuild,
-      });
-
       state[chain.name] = "historical";
 
-      await runIsolated(
-        {
-          common,
-          preBuild,
-          namespaceBuild,
-          schemaBuild,
-          indexingBuild,
-          crashRecoveryCheckpoint,
-          database,
-          onReady: async () => {
-            state[chain.name] = "realtime";
-            await callback();
-          },
+      await runIsolated({
+        cliOptions,
+        crashRecoveryCheckpoint,
+        chainId: chain.id,
+        onReady: async () => {
+          state[chain.name] = "realtime";
+          await callback();
         },
-        chain.id,
-      )
+      })
         .then(() => {
           state[chain.name] = "complete";
         })
