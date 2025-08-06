@@ -103,7 +103,7 @@ export const revert = async (
   },
 ): Promise<number[]> => {
   return qb.transaction({ label: "revert" }, async (tx) => {
-    let minOperationId: number | undefined;
+    let minOperationId: number | null;
     if (ordering === "multichain") {
       minOperationId = await tx
         .wrap((tx) =>
@@ -122,7 +122,7 @@ AND checkpoint > '${checkpoint}'
         )
         .then((result) => {
           // @ts-ignore
-          return result.rows[0]?.global_min_op_id as number | undefined;
+          return result.rows[0]?.global_min_op_id as number | null;
         });
     }
 
@@ -202,13 +202,11 @@ export const finalize = async (
   const PONDER_CHECKPOINT = getPonderCheckpointTable();
   return qb.transaction({ label: "finalize" }, async (tx) => {
     const schema = getTableConfig(PONDER_CHECKPOINT).schema ?? "public";
-    // It is invariant that PONDER_CHECKPOINT is initialized before the finalzied call for each chainId
+    // NOTE: It is invariant that PONDER_CHECKPOINT has a value for each chain.
     await tx.wrap((tx) =>
       tx
         .update(PONDER_CHECKPOINT)
-        .set({
-          finalizedCheckpoint: checkpoint as string,
-        })
+        .set({ finalizedCheckpoint: checkpoint })
         .where(
           eq(
             PONDER_CHECKPOINT.chainId,
@@ -217,7 +215,7 @@ export const finalize = async (
         ),
     );
 
-    const min_op_id = await tx
+    const minOperationId = await tx
       .wrap((tx) =>
         tx.execute(`
 SELECT MIN(min_op_id) AS global_min_op_id FROM (
@@ -229,15 +227,14 @@ WHERE checkpoint > (
   SELECT finalized_checkpoint 
   FROM "${schema}"."${getTableName(PONDER_CHECKPOINT)}" 
   WHERE chain_id = SUBSTRING(checkpoint, 11, 16)::numeric
-)
-`,
+)`,
   )
   .join(" UNION ALL ")}) AS all_mins
 `),
       )
       .then((result) => {
         // @ts-ignore
-        return result.rows[0]?.global_min_op_id as number | undefined;
+        return result.rows[0]?.global_min_op_id as number | null;
       });
 
     let count = 0;
@@ -249,7 +246,7 @@ WITH ${tables
             (table, index) => `
 deleted_${index} AS (
   DELETE FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(getReorgTable(table))}"
-  ${min_op_id === undefined ? "" : `WHERE operation_id < ${min_op_id}`}
+  WHERE ${minOperationId} IS NULL OR operation_id < ${minOperationId}
   RETURNING *
 )`,
           )
@@ -271,9 +268,7 @@ GROUP BY SUBSTRING(checkpoint, 11, 16)::numeric;
         await tx.wrap((tx) =>
           tx
             .update(PONDER_CHECKPOINT)
-            .set({
-              safeCheckpoint: safe_checkpoint as string,
-            })
+            .set({ safeCheckpoint: safe_checkpoint as string })
             .where(eq(PONDER_CHECKPOINT.chainId, chain_id as number)),
         );
       }

@@ -635,27 +635,19 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
         });
 
         break;
-      case "finalize":
-        await database.userQB.transaction(async (tx) => {
-          const count = await finalize(tx, {
-            tables,
-            checkpoint: event.checkpoint,
-          });
+      case "finalize": {
+        const count = await finalize(database.userQB, {
+          tables,
+          checkpoint: event.checkpoint,
+        });
 
-          common.logger.info({
-            service: "database",
-            msg: `Finalized ${count} operations.`,
-          });
-
-          const decoded = decodeCheckpoint(event.checkpoint);
-
-          common.logger.debug({
-            service: "database",
-            msg: `Updated finalized checkpoint to (timestamp=${decoded.blockTimestamp} chainId=${decoded.chainId} block=${decoded.blockNumber})`,
-          });
+        common.logger.info({
+          service: "database",
+          msg: `Finalized ${count} operations.`,
         });
 
         break;
+      }
       default:
         never(event);
     }
