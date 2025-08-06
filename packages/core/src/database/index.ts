@@ -716,11 +716,30 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
           }
 
           // Note: it is an invariant that checkpoints.length > 0;
-          const revertCheckpoint = min(
-            ...checkpoints.map((c) => c.safeCheckpoint),
-          );
+          switch (ordering) {
+            case "omnichain": {
+              const revertCheckpoint = min(
+                ...checkpoints.map((c) => c.safeCheckpoint),
+              );
 
-          await revert(tx, { checkpoint: revertCheckpoint, tables, ordering });
+              await revert(tx, {
+                checkpoint: revertCheckpoint,
+                tables,
+                ordering,
+              });
+              break;
+            }
+            case "multichain": {
+              for (const { safeCheckpoint } of checkpoints) {
+                await revert(tx, {
+                  checkpoint: safeCheckpoint,
+                  tables,
+                  ordering,
+                });
+              }
+              break;
+            }
+          }
 
           // Note: We don't update the `_ponder_checkpoint` table here, instead we wait for it to be updated
           // in the runtime script.
