@@ -183,6 +183,8 @@ export const createQB = <
 
         return result;
       } catch (e) {
+        console.log(`ERROR: ${e}`);
+
         const error = parseDbError(e);
 
         if (common.shutdown.isKilled) {

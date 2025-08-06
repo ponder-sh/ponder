@@ -33,7 +33,11 @@ import type {
 } from "@/internal/types.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import { createSync, splitEvents } from "@/sync/index.js";
-import { decodeCheckpoint } from "@/utils/checkpoint.js";
+import {
+  ZERO_CHECKPOINT,
+  decodeCheckpoint,
+  encodeCheckpoint,
+} from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { recordAsyncGenerator } from "@/utils/generators.js";
@@ -168,6 +172,7 @@ export async function run({
 
       await indexingCache.flush();
 
+      // TODO: Should safecheckpoint be set to zerocheckpoint? ???
       await tx.wrap({ label: "update_checkpoints" }, (tx) =>
         tx
           .insert(PONDER_CHECKPOINT)
@@ -176,12 +181,20 @@ export async function run({
               chainName: chain.name,
               chainId: chain.id,
               latestCheckpoint: sync.getStartCheckpoint(chain),
-              safeCheckpoint: sync.getStartCheckpoint(chain),
+              finalizedCheckpoint: encodeCheckpoint({
+                ...ZERO_CHECKPOINT,
+                chainId: BigInt(chain.id),
+              }),
+              safeCheckpoint: encodeCheckpoint({
+                ...ZERO_CHECKPOINT,
+                chainId: BigInt(chain.id),
+              }),
             })),
           )
           .onConflictDoUpdate({
             target: PONDER_CHECKPOINT.chainName,
             set: {
+              finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
               safeCheckpoint: sql`excluded.safe_checkpoint`,
               latestCheckpoint: sql`excluded.latest_checkpoint`,
             },
@@ -340,6 +353,7 @@ export async function run({
                     )!.name,
                     chainId,
                     latestCheckpoint: checkpoint,
+                    finalizedCheckpoint: checkpoint,
                     safeCheckpoint: checkpoint,
                   })),
                 )
@@ -623,23 +637,15 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
         break;
       case "finalize":
         await database.userQB.transaction(async (tx) => {
-          await tx.wrap((tx) =>
-            tx.update(PONDER_CHECKPOINT).set({
-              safeCheckpoint: event.checkpoint,
-            }),
-          );
-
-          const counts = await finalize(tx, {
+          const count = await finalize(tx, {
             tables,
             checkpoint: event.checkpoint,
           });
 
-          for (const [index, table] of tables.entries()) {
-            common.logger.info({
-              service: "database",
-              msg: `Finalized ${counts[index]} operations from '${getTableName(table)}'`,
-            });
-          }
+          common.logger.info({
+            service: "database",
+            msg: `Finalized ${count} operations.`,
+          });
 
           const decoded = decodeCheckpoint(event.checkpoint);
 

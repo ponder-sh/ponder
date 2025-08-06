@@ -5,6 +5,7 @@ import type { SchemaBuild } from "@/internal/types.js";
 import { MAX_CHECKPOINT_STRING, decodeCheckpoint } from "@/utils/checkpoint.js";
 import { eq, getTableColumns, getTableName } from "drizzle-orm";
 import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
+import { getPonderCheckpointTable } from "./index.js";
 import type { QB } from "./queryBuilder.js";
 
 export const createIndexes = async (
@@ -197,8 +198,25 @@ WHERE checkpoint > '${checkpoint}' RETURNING *
 export const finalize = async (
   qb: QB,
   { checkpoint, tables }: { checkpoint: string; tables: PgTable[] },
-): Promise<number[]> => {
+): Promise<number> => {
+  const PONDER_CHECKPOINT = getPonderCheckpointTable();
   return qb.transaction({ label: "finalize" }, async (tx) => {
+    const schema = getTableConfig(PONDER_CHECKPOINT).schema ?? "public";
+    // It is invariant that PONDER_CHECKPOINT is initialized before the finalzied call for each chainId
+    await tx.wrap((tx) =>
+      tx
+        .update(PONDER_CHECKPOINT)
+        .set({
+          finalizedCheckpoint: checkpoint as string,
+        })
+        .where(
+          eq(
+            PONDER_CHECKPOINT.chainId,
+            Number(decodeCheckpoint(checkpoint).chainId),
+          ),
+        ),
+    );
+
     const min_op_id = await tx
       .wrap((tx) =>
         tx.execute(`
@@ -207,10 +225,14 @@ ${tables
   .map(
     (table) => `
 SELECT MIN(operation_id) AS min_op_id FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(getReorgTable(table))}"
-WHERE checkpoint > '${checkpoint}'
+WHERE checkpoint > (
+  SELECT finalized_checkpoint 
+  FROM "${schema}"."${getTableName(PONDER_CHECKPOINT)}" 
+  WHERE chain_id = SUBSTRING(checkpoint, 11, 16)::numeric
+)
 `,
   )
-  .join(" UNION ALL ")}) AS all_mins            
+  .join(" UNION ALL ")}) AS all_mins
 `),
       )
       .then((result) => {
@@ -218,24 +240,42 @@ WHERE checkpoint > '${checkpoint}'
         return result.rows[0]?.global_min_op_id as number | undefined;
       });
 
-    const counts: number[] = [];
-    for (const table of tables) {
-      const schema = getTableConfig(table).schema ?? "public";
+    let count = 0;
+    if (tables.length > 0) {
       const result = await tx.wrap((tx) =>
         tx.execute(`
-WITH deleted AS (
-  DELETE FROM "${schema}"."${getTableName(getReorgTable(table))}"
-  WHERE ${min_op_id} IS NULL OR operation_id < ${min_op_id}
+WITH deleted_operations AS (
+${tables
+  .map(
+    (table) => `
+  DELETE FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(getReorgTable(table))}"
+  ${min_op_id === undefined ? "" : `WHERE operation_id < ${min_op_id}`}
   RETURNING *
-) SELECT COUNT(*) FROM deleted AS count; 
+`,
+  )
+  .join(" UNION ALL")}
+)
+SELECT MAX(checkpoint) as safe_checkpoint, SUBSTRING(checkpoint, 11, 16)::numeric as chain_id, COUNT(*) AS deleted_count 
+FROM deleted_operations
+GROUP BY SUBSTRING(checkpoint, 11, 16)::numeric;
 `),
       );
 
-      // @ts-ignore
-      counts.push(result.rows[0]!.count);
+      for (const { chain_id, safe_checkpoint, deleted_count } of result.rows) {
+        count += deleted_count as number;
+
+        await tx.wrap((tx) =>
+          tx
+            .update(PONDER_CHECKPOINT)
+            .set({
+              safeCheckpoint: safe_checkpoint as string,
+            })
+            .where(eq(PONDER_CHECKPOINT.chainId, chain_id as number)),
+        );
+      }
     }
 
-    return counts;
+    return count;
   });
 };
 
