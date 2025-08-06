@@ -311,7 +311,7 @@ const onBuild = async (app: PonderApp) => {
     },
   );
 
-  if (APP_ID === "super-assessment") {
+  if (APP_ID === "super-assessment" && RESTART_COUNT === 0) {
     const random = seedrandom(`${SEED}_super_assessment_filter`);
     app.indexingBuild.sources = app.indexingBuild.sources.filter(() => {
       if (random() < SIM_PARAMS.SUPER_ASSESSMENT_FILTER_RATE) {
