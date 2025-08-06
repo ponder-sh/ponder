@@ -653,6 +653,7 @@ export const createSync = async (params: {
 
   /** Events that have been executed but not finalized. */
   let executedEvents: Event[] = [];
+  const chainFinalizeMetadata = new Map<number, string>();
   /** Events that have not been executed. */
   let pendingEvents: Event[] = [];
   /** Closest-to-tip finalized checkpoint across all chains. */
@@ -760,36 +761,63 @@ export const createSync = async (params: {
       }
 
       case "finalize": {
-        const from = finalizedCheckpoint;
-        finalizedCheckpoint = getOmnichainCheckpoint({ tag: "finalized" });
-        const to = getOmnichainCheckpoint({ tag: "finalized" });
-
-        if (
-          params.ordering === "omnichain" &&
-          getChainCheckpoint({ syncProgress, chain, tag: "finalized" }) >
-            getOmnichainCheckpoint({ tag: "current" })
-        ) {
-          const chainId = Number(
-            decodeCheckpoint(getOmnichainCheckpoint({ tag: "current" }))
-              .chainId,
-          );
-          const chain = params.indexingBuild.chains.find(
-            (chain) => chain.id === chainId,
-          )!;
-          params.common.logger.warn({
-            service: "sync",
-            msg: `'${chain.name}' is lagging behind other chains`,
-          });
-        }
-
-        if (to <= from) return;
-
         // index of the first unfinalized event
         let finalizeIndex: number | undefined = undefined;
-        for (const [index, event] of executedEvents.entries()) {
-          if (event.checkpoint > to) {
-            finalizeIndex = index;
-            break;
+        let to: string;
+
+        if (params.ordering === "multichain") {
+          const checkpoint = getMultichainCheckpoint({
+            tag: "finalized",
+            chain,
+          });
+
+          chainFinalizeMetadata.set(chain.id, checkpoint);
+
+          for (const [index, event] of executedEvents.entries()) {
+            const finalizedChainCheckpoint = chainFinalizeMetadata.get(
+              event.chainId,
+            );
+
+            if (
+              finalizedChainCheckpoint === undefined ||
+              event.checkpoint > finalizedChainCheckpoint
+            ) {
+              finalizeIndex = index;
+              break;
+            }
+          }
+
+          to = checkpoint;
+        } else {
+          const from = finalizedCheckpoint;
+          finalizedCheckpoint = getOmnichainCheckpoint({ tag: "finalized" });
+          to = getOmnichainCheckpoint({ tag: "finalized" });
+
+          if (
+            params.ordering === "omnichain" &&
+            getChainCheckpoint({ syncProgress, chain, tag: "finalized" }) >
+              getOmnichainCheckpoint({ tag: "current" })
+          ) {
+            const chainId = Number(
+              decodeCheckpoint(getOmnichainCheckpoint({ tag: "current" }))
+                .chainId,
+            );
+            const chain = params.indexingBuild.chains.find(
+              (chain) => chain.id === chainId,
+            )!;
+            params.common.logger.warn({
+              service: "sync",
+              msg: `'${chain.name}' is lagging behind other chains`,
+            });
+          }
+
+          if (to <= from) return;
+
+          for (const [index, event] of executedEvents.entries()) {
+            if (event.checkpoint > to) {
+              finalizeIndex = index;
+              break;
+            }
           }
         }
 
