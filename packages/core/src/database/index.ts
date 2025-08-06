@@ -121,6 +121,7 @@ export const getPonderCheckpointTable = (schema?: string) => {
       chainId: t.bigint({ mode: "number" }).notNull(),
       safeCheckpoint: t.varchar({ length: 75 }).notNull(),
       latestCheckpoint: t.varchar({ length: 75 }).notNull(),
+      finalizedCheckpoint: t.varchar({ length: 75 }).notNull(),
     }));
   }
 
@@ -129,6 +130,7 @@ export const getPonderCheckpointTable = (schema?: string) => {
     chainId: t.bigint({ mode: "number" }).notNull(),
     safeCheckpoint: t.varchar({ length: 75 }).notNull(),
     latestCheckpoint: t.varchar({ length: 75 }).notNull(),
+    finalizedCheckpoint: t.varchar({ length: 75 }).notNull(),
   }));
 };
 
@@ -511,7 +513,8 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
   "chain_name" TEXT PRIMARY KEY,
   "chain_id" BIGINT NOT NULL,
   "safe_checkpoint" VARCHAR(75) NOT NULL,
-  "latest_checkpoint" VARCHAR(75) NOT NULL
+  "latest_checkpoint" VARCHAR(75) NOT NULL,
+  "finalized_checkpoint" VARCHAR(75) NOT NULL,
 )`,
             ),
           );

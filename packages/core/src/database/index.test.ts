@@ -431,6 +431,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
       chainId: 1,
       chainName: "mainnet",
       latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+      finalizedCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
       safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     }),
   );
@@ -522,6 +523,7 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
       chainId: 1,
       chainName: "mainnet",
       latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+      finalizedCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
       safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     }),
   );
