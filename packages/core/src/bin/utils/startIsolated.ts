@@ -1,9 +1,14 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { Worker } from "node:worker_threads";
 import { createIndexes, createViews } from "@/database/actions.js";
 import { getPonderMetaTable } from "@/database/index.js";
-import { runIsolated } from "@/runtime/isolated.js";
 import { isTable, sql } from "drizzle-orm";
 import type { PonderApp } from "../commands/start.js";
 import type { CliOptions } from "../ponder.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export async function startIsolated(
   {
@@ -67,38 +72,41 @@ export async function startIsolated(
   };
 
   Promise.all(
-    indexingBuild.chains.map(async (chain) => {
-      state[chain.name] = "historical";
-
-      await runIsolated({
-        cliOptions,
-        crashRecoveryCheckpoint,
-        chainId: chain.id,
-        onReady: async () => {
-          state[chain.name] = "realtime";
-          await callback();
+    indexingBuild.chains.map((chain) => {
+      const workerPath = join(__dirname, "..", "..", "runtime", "isolated.js");
+      const worker = new Worker(workerPath, {
+        workerData: {
+          cliOptions,
+          crashRecoveryCheckpoint,
+          chainId: chain.id,
         },
-      })
-        .then(() => {
-          state[chain.name] = "complete";
-        })
-        .catch(async (error) => {
-          state[chain.name] = "failed";
-          common.logger.info({
-            service: "server",
-            msg: `Chain '${chain.name}' failed. `,
-          });
+      });
 
-          await callback();
-
-          for (const chain of indexingBuild.chains) {
-            if (state[chain.name] !== "failed") {
-              return;
-            }
+      return new Promise<void>((resolve, reject) => {
+        worker.on("message", (message) => {
+          if (message.type === "ready") {
+            state[chain.name] = "realtime";
+            callback();
+          } else if (message.type === "complete") {
+            state[chain.name] = "complete";
+            resolve();
+            common.logger.info({
+              service: "indexing",
+              msg: `Chain '${chain.name}' completed indexing.`,
+            });
+          } else if (message.type === "error") {
+            state[chain.name] = "failed";
+            callback();
+            reject();
+            common.logger.error({
+              service: "server",
+              msg: `Chain '${chain.name}' failed.`,
+            });
           }
-
-          throw error;
         });
+      }).then(() => {
+        worker.terminate();
+      });
     }),
   );
 }

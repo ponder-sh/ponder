@@ -1,3 +1,4 @@
+import { isMainThread, parentPort, workerData } from "node:worker_threads";
 import type { CliOptions } from "@/bin/ponder.js";
 import { createBuild } from "@/build/index.js";
 import type { Config } from "@/config/index.js";
@@ -57,6 +58,26 @@ import {
   getLocalSyncProgress,
 } from "./index.js";
 import { getRealtimeEventsIsolated } from "./realtime.js";
+
+const isWorker = isMainThread === false;
+
+if (isWorker) {
+  if (parentPort) {
+    try {
+      await runIsolated({
+        cliOptions: workerData.cliOptions,
+        crashRecoveryCheckpoint: workerData.crashRecoveryCheckpoint,
+        chainId: workerData.chainId,
+        onReady: async () => {
+          parentPort!.postMessage({ type: "ready" });
+        },
+      });
+      parentPort.postMessage({ type: "complete" });
+    } catch (error) {
+      parentPort.postMessage({ type: "error" });
+    }
+  }
+}
 
 export async function runIsolated({
   cliOptions,
