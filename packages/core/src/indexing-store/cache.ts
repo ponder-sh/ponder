@@ -81,7 +81,6 @@ export type IndexingCache = {
 
 const SAMPLING_RATE = 10;
 const PREDICTION_THRESHOLD = 0.25;
-const ONE_MB = 1024 * 1024;
 const ONE_YEAR = 31536000;
 const ONE_MONTH = 2592000;
 const ONE_WEEK = 604800;
@@ -455,7 +454,7 @@ export const createIndexingCache = ({
       inserts: new Map(),
     });
 
-    virtualCacheConfig.set(table, { enabled: true });
+    virtualCacheConfig.set(table, { enabled: true }); // Note: switch to false to disable virtual caching
     virtualCacheEvictedKeys.set(table, new Set());
 
     primaryKeyCache.set(table, []);
@@ -1060,16 +1059,15 @@ export const createIndexingCache = ({
         totalCacheBytes > common.options.indexingCacheMaxBytes;
       if (isCacheFull) {
         for (const [table, tableCacheAccess] of cacheAccess) {
-          if (virtualCacheConfig.get(table)!.enabled === false) {
-            // Virtual cache already disabled for this table, clear the cache
+          const virtualCacheConf = virtualCacheConfig.get(table)!;
+          if (!virtualCacheConf.enabled) {
+            // Virtual cache already disabled for this table
             continue;
           }
 
           // Analyze table stats to determine if we can enable virtual cache
           // and if we need to clear the cache after a certain age
-          let enableVirtualCache: boolean;
-          let ttl: number | undefined = undefined;
-          let keepEvictedKeys: boolean | undefined = undefined;
+          let { enabled, ttl, keepEvictedKeys } = virtualCacheConf;
 
           // Inserts age are measured chain by chain to ensure compatibility
           // with "multichain" ordering, as events are not chronologically
@@ -1108,40 +1106,34 @@ export const createIndexingCache = ({
             `VirtualCache: ${getTableName(table)} - AccessStats- inserts: ${totalInserts} avgItemAge: ${avgItemAge} hits: ${tableCacheAccess.nbHits} avgHitAge: ${avgHitAge} maxHitAge: ${maxHitAge} hitAgeRatio: ${hitAgeRatio} hitsPerEntries: ${hitsPerEntries} hitsNotExists: ${hitsNotExists}`,
           );
 
-          const cacheSize =
-            cacheBytes.get(table)!.items + cacheBytes.get(table)!.evictedKeys;
-
           // TableProfile = Events: high number of items, low access rate, low hit age
           // TableProfile = Relational: medium number of items, high access rate, high hit age
           // TableProfile = Aggregation: medium number of items, high access rate, low hit age
           // TableProfile = Dictionary: low number of items, high access rate, high hit age
 
-          if (cacheSize < ONE_MB) {
+          if (totalInserts < 1000) {
             // TableProfile = Dictionary
-            enableVirtualCache = true;
+            enabled = true;
             console.log(
-              `VirtualCache: ${getTableName(table)} - Profile=Dictionary - enable: ${enableVirtualCache} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
+              `VirtualCache: ${getTableName(table)} - Profile=Dictionary - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
             );
-          } else if (
-            avgHitAge < ONE_MINUTE && // 1 minute
-            maxHitAge < ONE_MINUTE // 1 minute
-          ) {
+          } else if (maxHitAge < ONE_MINUTE) {
             // TableProfile = Events: high number of items, low access rate, low hit age
-            enableVirtualCache = true;
+            enabled = true;
             ttl = Math.max(maxHitAge, ONE_MINUTE) * 1.5; // 1.5x maxHitAge, (min 1 minute)
             keepEvictedKeys = hitsNotExists > 0;
             console.log(
-              `VirtualCache: ${getTableName(table)} - Profile=Events - enable: ${enableVirtualCache} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
+              `VirtualCache: ${getTableName(table)} - Profile=Events - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
             );
           } else if (hitsPerEntries > 2 && hitAgeRatio >= 1) {
             // TableProfile = Relational: medium number of items, high access rate, high hit age
-            enableVirtualCache = true;
+            enabled = true;
             console.log(
-              `VirtualCache: ${getTableName(table)} - Profile=Relational - enable: ${enableVirtualCache} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
+              `VirtualCache: ${getTableName(table)} - Profile=Relational - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
             );
           } else if (hitsPerEntries > 2 && hitAgeRatio < 1) {
             // TableProfile = Aggregation: medium number of items, high access rate, low hit age
-            enableVirtualCache = true;
+            enabled = true;
             keepEvictedKeys = hitsNotExists > 0;
 
             // Round cache eviction to above interval bucket: hour, day, week, month, year
@@ -1162,17 +1154,16 @@ export const createIndexingCache = ({
             }
 
             console.log(
-              `VirtualCache: ${getTableName(table)} - Profile=Aggregation - enable: ${enableVirtualCache} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
+              `VirtualCache: ${getTableName(table)} - Profile=Aggregation - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
             );
           } else {
-            enableVirtualCache = false;
             console.log(
-              `VirtualCache: ${getTableName(table)} - Profile=Unknown - enable: ${enableVirtualCache}`,
+              `VirtualCache: ${getTableName(table)} - Profile=Unknown - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
             );
           }
 
           virtualCacheConfig.set(table, {
-            enabled: enableVirtualCache,
+            enabled,
             ttl,
             keepEvictedKeys,
           });
