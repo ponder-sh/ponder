@@ -639,6 +639,7 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
         const count = await finalize(database.userQB, {
           tables,
           checkpoint: event.checkpoint,
+          ordering: preBuild.ordering,
         });
 
         common.logger.info({

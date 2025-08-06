@@ -105,6 +105,7 @@ test("finalize()", async (context) => {
   await finalize(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     tables: [account],
+    ordering: "multichain",
   });
 
   // reorg tables

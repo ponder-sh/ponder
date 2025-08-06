@@ -197,23 +197,39 @@ WHERE checkpoint > '${checkpoint}' RETURNING *
 
 export const finalize = async (
   qb: QB,
-  { checkpoint, tables }: { checkpoint: string; tables: PgTable[] },
+  {
+    checkpoint,
+    tables,
+    ordering,
+  }: {
+    checkpoint: string;
+    tables: PgTable[];
+    ordering: "multichain" | "omnichain";
+  },
 ): Promise<number> => {
   const PONDER_CHECKPOINT = getPonderCheckpointTable();
   return qb.transaction({ label: "finalize" }, async (tx) => {
     const schema = getTableConfig(PONDER_CHECKPOINT).schema ?? "public";
     // NOTE: It is invariant that PONDER_CHECKPOINT has a value for each chain.
-    await tx.wrap((tx) =>
-      tx
-        .update(PONDER_CHECKPOINT)
-        .set({ finalizedCheckpoint: checkpoint })
-        .where(
-          eq(
-            PONDER_CHECKPOINT.chainId,
-            Number(decodeCheckpoint(checkpoint).chainId),
+    if (ordering === "multichain") {
+      await tx.wrap((tx) =>
+        tx
+          .update(PONDER_CHECKPOINT)
+          .set({ finalizedCheckpoint: checkpoint })
+          .where(
+            eq(
+              PONDER_CHECKPOINT.chainId,
+              Number(decodeCheckpoint(checkpoint).chainId),
+            ),
           ),
-        ),
-    );
+      );
+    } else {
+      await tx.wrap((tx) =>
+        tx
+          .update(PONDER_CHECKPOINT)
+          .set({ finalizedCheckpoint: checkpoint, safeCheckpoint: checkpoint }),
+      );
+    }
 
     const minOperationId = await tx
       .wrap((tx) =>
@@ -265,12 +281,14 @@ GROUP BY SUBSTRING(checkpoint, 11, 16)::numeric;
       for (const { chain_id, safe_checkpoint, deleted_count } of result.rows) {
         count += deleted_count as number;
 
-        await tx.wrap((tx) =>
-          tx
-            .update(PONDER_CHECKPOINT)
-            .set({ safeCheckpoint: safe_checkpoint as string })
-            .where(eq(PONDER_CHECKPOINT.chainId, chain_id as number)),
-        );
+        if (ordering === "multichain") {
+          await tx.wrap((tx) =>
+            tx
+              .update(PONDER_CHECKPOINT)
+              .set({ safeCheckpoint: safe_checkpoint as string })
+              .where(eq(PONDER_CHECKPOINT.chainId, chain_id as number)),
+          );
+        }
       }
     }
 
