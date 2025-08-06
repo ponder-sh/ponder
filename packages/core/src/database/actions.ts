@@ -244,19 +244,23 @@ WHERE checkpoint > (
     if (tables.length > 0) {
       const result = await tx.wrap((tx) =>
         tx.execute(`
-WITH deleted_operations AS (
-${tables
-  .map(
-    (table) => `
+WITH ${tables
+          .map(
+            (table, index) => `
+deleted_${index} AS (
   DELETE FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(getReorgTable(table))}"
   ${min_op_id === undefined ? "" : `WHERE operation_id < ${min_op_id}`}
   RETURNING *
-`,
-  )
-  .join(" UNION ALL")}
+)`,
+          )
+          .join(",\n")},
+all_deleted AS (
+  ${tables
+    .map((_, index) => `SELECT * FROM deleted_${index}`)
+    .join(" UNION ALL ")}
 )
 SELECT MAX(checkpoint) as safe_checkpoint, SUBSTRING(checkpoint, 11, 16)::numeric as chain_id, COUNT(*) AS deleted_count 
-FROM deleted_operations
+FROM all_deleted
 GROUP BY SUBSTRING(checkpoint, 11, 16)::numeric;
 `),
       );
