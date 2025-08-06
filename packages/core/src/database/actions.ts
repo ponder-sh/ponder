@@ -256,7 +256,7 @@ deleted_${index} AS (
           .join(",\n")},
 all_deleted AS (
   ${tables
-    .map((_, index) => `SELECT * FROM deleted_${index}`)
+    .map((_, index) => `SELECT checkpoint FROM deleted_${index}`)
     .join(" UNION ALL ")}
 )
 SELECT MAX(checkpoint) as safe_checkpoint, SUBSTRING(checkpoint, 11, 16)::numeric as chain_id, COUNT(*) AS deleted_count 
