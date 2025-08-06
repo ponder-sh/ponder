@@ -1056,14 +1056,14 @@ export const createIndexingCache = ({
 
       // Every time we reach the max cache size, we analyze the cache access patterns
       // to adjust the virtual cache configuration per table.
-      if (totalCacheBytes > common.options.indexingCacheMaxBytes) {
+      const isCacheFull =
+        totalCacheBytes > common.options.indexingCacheMaxBytes;
+      if (isCacheFull) {
         for (const [table, tableCacheAccess] of cacheAccess) {
           if (virtualCacheConfig.get(table)!.enabled === false) {
             // Virtual cache already disabled for this table, clear the cache
             continue;
           }
-
-          // ToDo: after few rounds, if we keep hitting the max cache size, we disable virtual cache for the table with the highest hit / size ratio
 
           // Analyze table stats to determine if we can enable virtual cache
           // and if we need to clear the cache after a certain age
@@ -1382,6 +1382,36 @@ export const createIndexingCache = ({
             );
           }),
       );
+
+      if (isCacheFull) {
+        // Check if cache is still full after prefetch & cleaning phase
+        let largestTable: Table | null = null;
+        let largestTableBytes = 0;
+        let totalCacheBytes = 0;
+
+        for (const [table] of cacheBytes) {
+          const cacheSize =
+            cacheBytes.get(table)!.items + cacheBytes.get(table)!.evictedKeys;
+          totalCacheBytes += cacheSize;
+          if (cacheSize > largestTableBytes) {
+            largestTable = table;
+            largestTableBytes = cacheSize;
+          }
+        }
+
+        if (
+          totalCacheBytes > common.options.indexingCacheMaxBytes &&
+          largestTable !== null
+        ) {
+          // Disable virtual cache for the largest table to reduce cache size
+          virtualCacheConfig.set(largestTable, { enabled: false });
+          virtualCacheEvictedKeys.get(largestTable)!.clear();
+          cacheBytes.get(largestTable)!.evictedKeys = 0;
+          console.log(
+            `VirtualCache: Disable ${getTableName(largestTable)} (${formatBytes(largestTableBytes)}) to reduce cache size`,
+          );
+        }
+      }
     },
     invalidate() {
       isCacheComplete = false;
