@@ -1022,14 +1022,14 @@ CREATE OR REPLACE FUNCTION "${namespace.schema}".${getTableNames(table).triggerF
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint, reorg_state)
-    VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${MAX_CHECKPOINT_STRING}', 0);
+    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+    VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${MAX_CHECKPOINT_STRING}');
   ELSIF TG_OP = 'UPDATE' THEN
-    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint, reorg_state)
-    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${MAX_CHECKPOINT_STRING}', 0);
+    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${MAX_CHECKPOINT_STRING}');
   ELSIF TG_OP = 'DELETE' THEN
-    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint, reorg_state)
-    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${MAX_CHECKPOINT_STRING}', 0);
+    INSERT INTO "${namespace.schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+    VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${MAX_CHECKPOINT_STRING}');
   END IF;
   RETURN NULL;
 END;

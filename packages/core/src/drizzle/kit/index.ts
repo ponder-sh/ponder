@@ -57,7 +57,6 @@ export const getReorgTable = <config extends TableConfig>(
           ),
         operation: integer().notNull().$type<0 | 1 | 2>(),
         checkpoint: varchar({ length: 75 }).notNull(),
-        reorg_state: integer().notNull().$type<0 | 1>(),
       },
       (table) => [index().on(table.checkpoint)],
     );
@@ -71,7 +70,6 @@ export const getReorgTable = <config extends TableConfig>(
         .default(sql.raw(`nextval('"${SHARED_OPERATION_ID_SEQUENCE}"')`)),
       operation: integer().notNull().$type<0 | 1 | 2>(),
       checkpoint: varchar({ length: 75 }).notNull(),
-      reorg_state: integer().notNull().$type<0 | 1>(),
     },
     (table) => [index().on(table.checkpoint)],
   );
@@ -161,7 +159,6 @@ const createReorgTableStatement = (statement: JsonCreateTableStatement) => {
             checkpoint: varchar({
               length: 75,
             }).notNull(),
-            reorg_state: integer().notNull(),
           }),
         ],
         [],
