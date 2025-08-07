@@ -3,7 +3,12 @@ import { createConfig } from "ponder";
 import { weth9Abi } from "./abis/weth9Abi";
 
 export default createConfig({
-  ordering: "multichain",
+  ordering: "isolated",
+  database: {
+    kind: "postgres",
+    connectionString:
+      "postgresql://postgres:BPlZmlmylSuyMlPxkTqyNmRJDiHlRCTl@turntable.proxy.rlwy.net:44317/railway",
+  },
   chains: {
     mainnet: {
       id: 1,
@@ -31,7 +36,10 @@ export default createConfig({
       abi: weth9Abi,
       startBlock: "latest",
       chain: {
-        mainnet: { address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" },
+        mainnet: {
+          address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          startBlock: 1,
+        },
         base: { address: "0x4200000000000000000000000000000000000006" },
         optimism: { address: "0x4200000000000000000000000000000000000006" },
         polygon: { address: "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619" },

@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import { createIndexes, createViews } from "@/database/actions.js";
 import { getPonderMetaTable } from "@/database/index.js";
+import { AggregatorMetricsService } from "@/internal/metrics.js";
+import type { Chain } from "@/internal/types.js";
 import { isTable, sql } from "drizzle-orm";
 import type { PonderApp } from "../commands/start.js";
 import type { CliOptions } from "../ponder.js";
@@ -38,8 +40,8 @@ export async function startIsolated(
     }
 
     if (isAllReady) {
-      const endTimestamp = Math.round(Date.now() / 1000);
-      common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
+      // const endTimestamp = Math.round(Date.now() / 1000);
+      // common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
 
       await createIndexes(database.adminQB, {
         statements: schemaBuild.statements,
@@ -71,17 +73,26 @@ export async function startIsolated(
     }
   };
 
-  Promise.all(
-    indexingBuild.chains.map((chain) => {
-      const workerPath = join(__dirname, "..", "..", "runtime", "isolated.js");
-      const worker = new Worker(workerPath, {
-        workerData: {
-          cliOptions,
-          crashRecoveryCheckpoint,
-          chainId: chain.id,
-        },
-      });
+  const workers = indexingBuild.chains.map((chain) => {
+    const workerPath = join(__dirname, "..", "..", "runtime", "isolated.js");
+    const worker = new Worker(workerPath, {
+      workerData: {
+        cliOptions,
+        crashRecoveryCheckpoint,
+        chainId: chain.id,
+      },
+    });
 
+    return [chain, worker] as [Chain, Worker];
+  });
+
+  common.metrics = new AggregatorMetricsService(
+    workers.map(([_, worker]) => worker),
+  );
+  common.metrics.addListeners();
+
+  Promise.all(
+    workers.map(async ([chain, worker]) => {
       return new Promise<void>((resolve, reject) => {
         worker.on("message", (message) => {
           if (message.type === "ready") {

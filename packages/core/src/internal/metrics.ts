@@ -1,3 +1,4 @@
+import { type Worker, isMainThread, parentPort } from "node:worker_threads";
 import { truncate } from "@/utils/truncate.js";
 import prometheus from "prom-client";
 import type { Ordering } from "./types.js";
@@ -451,6 +452,142 @@ export class MetricsService {
     // TODO: Create a separate metric for API build errors,
     // or stop using metrics for the TUI error message.
     this.ponder_indexing_has_error.reset();
+  }
+
+  addListeners() {
+    if (listenersAdded) return;
+    listenersAdded = true;
+    if (isMainThread === false && parentPort !== null) {
+      parentPort!.on("message", (message) => {
+        if (message.type === GET_METRICS_REQ) {
+          this.registry
+            .getMetricsAsJSON()
+            .then((metrics) => {
+              parentPort!.postMessage({
+                type: GET_METRICS_RES,
+                requestId: message.requestId,
+                metrics,
+              });
+            })
+            .catch((error) => {
+              parentPort!.postMessage({
+                type: GET_METRICS_RES,
+                requestId: message.requestId,
+                error: error.message,
+              });
+            });
+        }
+      });
+    }
+  }
+}
+
+const GET_METRICS_REQ = "prom-client:getMetricsReq";
+const GET_METRICS_RES = "prom-client:getMetricsRes";
+
+let requestCtr = 0;
+let listenersAdded = false;
+
+export class AggregatorMetricsService extends MetricsService {
+  requests: Map<number, any>;
+  workers: { worker: Worker; terminated: boolean }[];
+
+  constructor(workers: Worker[]) {
+    super();
+    this.requests = new Map();
+    this.workers = workers.map((worker) => ({ worker, terminated: false }));
+  }
+
+  /**
+   * Get string representation for all metrics.
+   * @returns Metrics encoded using Prometheus v0.0.4 format.
+   */
+  override async getMetrics(): Promise<string> {
+    const requestId = requestCtr++;
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+
+      const done = (
+        err: Error | undefined,
+        result: string | undefined = undefined,
+      ) => {
+        if (settled) return;
+        settled = true;
+
+        this.requests.delete(requestId);
+
+        if (err !== undefined) {
+          reject(err);
+        } else {
+          resolve(result as string);
+        }
+      };
+
+      const request = {
+        responses: [],
+        pending: 0,
+        done,
+        errorTimeout: setTimeout(() => {
+          const err = new Error("Operation timed out.");
+          request.done(err);
+        }, 5000),
+      };
+
+      this.requests.set(requestId, request);
+      const message = {
+        type: GET_METRICS_REQ,
+        requestId,
+      };
+
+      for (const { worker, terminated } of this.workers) {
+        if (terminated) continue;
+        worker.postMessage(message);
+        request.pending++;
+      }
+
+      if (request.pending === 0) {
+        clearTimeout(request.errorTimeout);
+        done(undefined, "");
+      }
+    });
+  }
+
+  override addListeners() {
+    if (listenersAdded) return;
+    listenersAdded = true;
+    if (isMainThread) {
+      for (const w of this.workers) {
+        w.worker.on("message", (message) => {
+          if (message.type === GET_METRICS_RES) {
+            const request = this.requests.get(message.requestId);
+
+            if (request === undefined) return;
+
+            if (message.error) {
+              request.done(new Error(message.error));
+              return;
+            }
+
+            request.responses.push(message.metrics);
+            request.pending--;
+            if (request.pending === 0) {
+              clearTimeout(request.errorTimeout);
+
+              const registry = prometheus.AggregatorRegistry.aggregate(
+                request.responses,
+              );
+              const promString = registry.metrics();
+              request.done(undefined, promString);
+            }
+          }
+        });
+
+        w.worker.on("exit", (_) => {
+          w.terminated = true;
+        });
+      }
+    }
   }
 }
 
