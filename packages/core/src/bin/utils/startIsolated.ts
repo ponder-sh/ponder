@@ -4,7 +4,6 @@ import { Worker } from "node:worker_threads";
 import { createIndexes, createViews } from "@/database/actions.js";
 import { getPonderMetaTable } from "@/database/index.js";
 import { AggregatorMetricsService } from "@/internal/metrics.js";
-import type { Chain } from "@/internal/types.js";
 import { isTable, sql } from "drizzle-orm";
 import type { PonderApp } from "../commands/start.js";
 import type { CliOptions } from "../ponder.js";
@@ -83,16 +82,14 @@ export async function startIsolated(
       },
     });
 
-    return [chain, worker] as [Chain, Worker];
+    return { chain, worker };
   });
 
-  common.metrics = new AggregatorMetricsService(
-    workers.map(([_, worker]) => worker),
-  );
+  common.metrics = new AggregatorMetricsService(workers);
   common.metrics.addListeners();
 
   Promise.all(
-    workers.map(async ([chain, worker]) => {
+    workers.map(async ({ chain, worker }) => {
       return new Promise<void>((resolve, reject) => {
         worker.on("message", (message) => {
           if (message.type === "ready") {
