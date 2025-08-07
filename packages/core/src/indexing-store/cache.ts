@@ -1125,20 +1125,23 @@ export const createIndexingCache = ({
             console.log(
               `VirtualCache: ${getTableName(table)} - Profile=Events - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
             );
-          } else if (hitsPerEntries > 2 && hitAgeRatio >= 1) {
+          } else if (hitAgeRatio >= 1) {
             // TableProfile = Relational: medium number of items, high access rate, high hit age
             enabled = true;
             console.log(
               `VirtualCache: ${getTableName(table)} - Profile=Relational - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
             );
-          } else if (hitsPerEntries > 2 && hitAgeRatio < 1) {
+          } else if (hitAgeRatio < 1) {
             // TableProfile = Aggregation: medium number of items, high access rate, low hit age
             enabled = true;
             keepEvictedKeys = hitsNotExists > 0;
 
             // Round cache eviction to above interval bucket: hour, day, week, month, year
-            if (maxHitAge > ONE_YEAR) {
-              ttl = undefined; // above yearly access, disable cache eviction
+            if (maxHitAge > ONE_YEAR || hitAgeRatio > 0.5) {
+              // Don't enable cache eviction if:
+              // - maxHitAge > ONE_YEAR: items are accessed over a too long time span
+              // - hitAgeRatio > 0.5: items are not old enough for reliable eviction ttl (it will be determined on next limit hit)
+              ttl = undefined;
             } else if (maxHitAge > ONE_MONTH) {
               ttl = ONE_YEAR;
             } else if (maxHitAge > ONE_WEEK) {
