@@ -9,6 +9,7 @@ import type {
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
 import type { HistoricalSync } from "@/sync-historical/index.js";
+import type { SyncStore } from "@/sync-store/index.js";
 import { type SyncProgress, getLocalSyncProgress } from "./index.js";
 
 type RawEventGenerator = AsyncGenerator<{
@@ -29,6 +30,8 @@ export async function initGenerator(params: {
   >;
   chain: Chain;
   syncProgress: SyncProgress;
+  syncStore: SyncStore;
+  crashRecoveryCheckpoint: string | undefined;
   getLocalGenerator: () => Promise<RawEventGenerator>;
   decodeEventGenerator: (generator: RawEventGenerator) => EventGenerator;
   sortCrashRecoveryEvents: (generator: EventGenerator) => EventGenerator;
