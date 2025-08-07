@@ -87,7 +87,7 @@ export type PonderApp = {
   heartbeat_at: number;
 };
 
-const VERSION = "3";
+const VERSION = "4";
 
 type PGliteDriver = {
   dialect: "pglite";
