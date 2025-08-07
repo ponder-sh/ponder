@@ -210,26 +210,44 @@ export const finalize = async (
   const PONDER_CHECKPOINT = getPonderCheckpointTable();
   return qb.transaction({ label: "finalize" }, async (tx) => {
     const schema = getTableConfig(PONDER_CHECKPOINT).schema ?? "public";
+    let count = 0;
+
     // NOTE: It is invariant that PONDER_CHECKPOINT has a value for each chain.
-    if (ordering === "multichain") {
-      await tx.wrap((tx) =>
-        tx
-          .update(PONDER_CHECKPOINT)
-          .set({ finalizedCheckpoint: checkpoint })
-          .where(
-            eq(
-              PONDER_CHECKPOINT.chainId,
-              Number(decodeCheckpoint(checkpoint).chainId),
-            ),
-          ),
-      );
-    } else {
+    if (ordering === "omnichain") {
       await tx.wrap((tx) =>
         tx
           .update(PONDER_CHECKPOINT)
           .set({ finalizedCheckpoint: checkpoint, safeCheckpoint: checkpoint }),
       );
+
+      for (const table of tables) {
+        count += await tx
+          .wrap((tx) =>
+            tx.execute(`
+WITH deleted AS (
+  DELETE FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(getReorgTable(table))}"
+  WHERE checkpoint <= '${checkpoint}'
+  RETURNING *
+) SELECT COUNT(*) AS deleted_count FROM deleted; 
+`),
+          )
+          .then((result) => result.rows[0]!.deleted_count as number);
+      }
+
+      return count;
     }
+
+    await tx.wrap((tx) =>
+      tx
+        .update(PONDER_CHECKPOINT)
+        .set({ finalizedCheckpoint: checkpoint })
+        .where(
+          eq(
+            PONDER_CHECKPOINT.chainId,
+            Number(decodeCheckpoint(checkpoint).chainId),
+          ),
+        ),
+    );
 
     const minOperationId = await tx
       .wrap((tx) =>
@@ -253,7 +271,6 @@ WHERE checkpoint > (
         return result.rows[0]?.global_min_op_id as number | null;
       });
 
-    let count = 0;
     if (tables.length > 0) {
       const result = await tx.wrap((tx) =>
         tx.execute(`
@@ -281,18 +298,12 @@ GROUP BY SUBSTRING(checkpoint, 11, 16)::numeric;
       for (const { chain_id, safe_checkpoint, deleted_count } of result.rows) {
         count += deleted_count as number;
 
-        if (ordering === "multichain") {
-          await tx.wrap((tx) =>
-            tx
-              .update(PONDER_CHECKPOINT)
-              .set({ safeCheckpoint: safe_checkpoint as string })
-              .where(eq(PONDER_CHECKPOINT.chainId, chain_id as number)),
-          );
-
-          console.log(
-            `Updated '${chain_id}' chain's safe block to ${Number(decodeCheckpoint(safe_checkpoint as string).blockNumber)}`,
-          );
-        }
+        await tx.wrap((tx) =>
+          tx
+            .update(PONDER_CHECKPOINT)
+            .set({ safeCheckpoint: safe_checkpoint as string })
+            .where(eq(PONDER_CHECKPOINT.chainId, chain_id as number)),
+        );
       }
     }
 
