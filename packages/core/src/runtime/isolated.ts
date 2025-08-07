@@ -257,6 +257,8 @@ export async function runIsolated({
     end,
   );
 
+  seconds[chain.name] = { start, end, cached };
+
   const label = { chain: chain.name };
   common.metrics.ponder_historical_total_indexing_seconds.set(
     label,
@@ -271,8 +273,6 @@ export async function runIsolated({
     label,
     Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
   );
-
-  seconds[chain.name] = { start, end, cached };
 
   const startTimestamp = Math.round(Date.now() / 1000);
   common.metrics.ponder_historical_start_timestamp_seconds.set(startTimestamp);
