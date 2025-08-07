@@ -70,7 +70,6 @@ test("migrate() succeeds with empty schema", async (context) => {
     buildId: "abc",
     chains: [],
     finalizedBlocks: [],
-    ordering: "multichain",
   });
 
   const tableNames = await getUserTableNames(database, "public");
@@ -127,7 +126,6 @@ test("migrate() with empty schema creates tables and enums", async (context) => 
     buildId: "abc",
     chains: [],
     finalizedBlocks: [],
-    ordering: "multichain",
   });
 
   const tableNames = await getUserTableNames(database, "public");
@@ -161,7 +159,6 @@ test("migrate() throws with schema used", async (context) => {
     buildId: "abc",
     chains: [],
     finalizedBlocks: [],
-    ordering: "multichain",
   });
   await context.common.shutdown.kill();
 
@@ -187,7 +184,6 @@ test("migrate() throws with schema used", async (context) => {
       buildId: "def",
       chains: [],
       finalizedBlocks: [],
-      ordering: "multichain",
     })
     .catch((err) => err);
 
@@ -222,7 +218,6 @@ test("migrate() throws with schema used after waiting for lock", async (context)
     buildId: "abc",
     chains: [],
     finalizedBlocks: [],
-    ordering: "multichain",
   });
 
   const databaseTwo = await createDatabase({
@@ -245,7 +240,6 @@ test("migrate() throws with schema used after waiting for lock", async (context)
       buildId: "abc",
       chains: [],
       finalizedBlocks: [],
-      ordering: "multichain",
     })
     .catch((err) => err);
 
@@ -274,7 +268,6 @@ test("migrate() succeeds with crash recovery", async (context) => {
     buildId: "abc",
     chains: [],
     finalizedBlocks: [],
-    ordering: "multichain",
   });
   await context.common.shutdown.kill();
 
@@ -299,7 +292,6 @@ test("migrate() succeeds with crash recovery", async (context) => {
     buildId: "abc",
     chains: [],
     finalizedBlocks: [],
-    ordering: "multichain",
   });
 
   const metadata = await databaseTwo.userQB.wrap((db) =>
@@ -338,7 +330,6 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
     buildId: "abc",
     chains: [],
     finalizedBlocks: [],
-    ordering: "multichain",
   });
 
   const databaseTwo = await createDatabase({
@@ -360,7 +351,6 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
     buildId: "abc",
     chains: [],
     finalizedBlocks: [],
-    ordering: "multichain",
   });
 
   await context.common.shutdown.kill();
@@ -444,12 +434,9 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     buildId: "abc",
     chains: [],
     finalizedBlocks: [],
-    ordering: "multichain",
   });
 
   // setup tables, reorg tables, and metadata checkpoint
-
-  await createTriggers(database.userQB, { tables: [account] });
 
   await database.userQB.wrap((db) =>
     db.update(getPonderMetaTable("public")).set({
@@ -472,6 +459,8 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
     table: account,
   });
+
+  await createTriggers(database.userQB, { tables: [account] });
 
   await indexingStore
     .insert(account)
@@ -516,13 +505,12 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     chains: [getChain()],
     finalizedBlocks: [
       {
-        timestamp: "0x",
+        timestamp: "0x1",
         number: "0xa",
         hash: "0x",
         parentHash: "0x",
       },
     ],
-    ordering: "multichain",
   });
 
   expect(checkpoint).toMatchInlineSnapshot(`
@@ -581,7 +569,6 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
     buildId: "abc",
     chains: [],
     finalizedBlocks: [],
-    ordering: "multichain",
   });
 
   await createIndexes(database.userQB, {
@@ -628,13 +615,12 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
     chains: [getChain()],
     finalizedBlocks: [
       {
-        timestamp: "0x",
+        timestamp: "0x1",
         number: "0xa",
         hash: "0x",
         parentHash: "0x",
       },
     ],
-    ordering: "multichain",
   });
 
   const indexNames = await getUserIndexNames(databaseTwo, "public", "account");
@@ -667,7 +653,6 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
     buildId: "abc",
     chains: [],
     finalizedBlocks: [],
-    ordering: "multichain",
   });
 
   const row = await database.userQB.wrap((db) =>

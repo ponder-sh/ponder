@@ -181,7 +181,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           buildId: indexingBuildResult.result.buildId,
           chains: indexingBuildResult.result.chains,
           finalizedBlocks: indexingBuildResult.result.finalizedBlocks,
-          ordering: preBuild.ordering,
         });
 
         const apiResult = await build.executeApi({

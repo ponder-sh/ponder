@@ -610,9 +610,9 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
           await dropTriggers(tx, { tables });
 
           const counts = await revert(tx, {
-            tables,
             checkpoint: event.checkpoint,
-            ordering: preBuild.ordering,
+            tables,
+            preBuild,
           });
 
           for (const [index, table] of tables.entries()) {
@@ -628,9 +628,10 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
         break;
       case "finalize": {
         const count = await finalize(database.userQB, {
-          tables,
           checkpoint: event.checkpoint,
-          ordering: preBuild.ordering,
+          tables,
+          preBuild,
+          namespaceBuild,
         });
 
         common.logger.info({

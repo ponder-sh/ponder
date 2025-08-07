@@ -18,7 +18,7 @@ import type {
 } from "@/internal/types.js";
 import { buildMigrationProvider } from "@/sync-store/migrations.js";
 import * as PONDER_SYNC from "@/sync-store/schema.js";
-import { decodeCheckpoint, min } from "@/utils/checkpoint.js";
+import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
 import { createPglite, createPgliteKyselyDialect } from "@/utils/pglite.js";
@@ -33,7 +33,7 @@ import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
 import type { Pool, PoolClient } from "pg";
 import prometheus from "prom-client";
 import { hexToBigInt } from "viem";
-import { revert } from "./actions.js";
+import { crashRecovery } from "./actions.js";
 import { type QB, createQB, parseDbError } from "./queryBuilder.js";
 
 export type Database = {
@@ -53,10 +53,10 @@ export type Database = {
     buildId,
     chains,
     finalizedBlocks,
-    ordering,
-  }: Pick<IndexingBuild, "buildId" | "chains" | "finalizedBlocks"> & {
-    ordering: "multichain" | "omnichain";
-  }): Promise<CrashRecoveryCheckpoint>;
+  }: Pick<
+    IndexingBuild,
+    "buildId" | "chains" | "finalizedBlocks"
+  >): Promise<CrashRecoveryCheckpoint>;
 };
 
 export const SCHEMATA = pgSchema("information_schema").table(
@@ -464,7 +464,7 @@ export const createDatabase = async ({
         }
       }
     },
-    async migrate({ buildId, chains, finalizedBlocks, ordering }) {
+    async migrate({ buildId, chains, finalizedBlocks }) {
       const createTables = async (tx: QB) => {
         for (let i = 0; i < schemaBuild.statements.tables.sql.length; i++) {
           await tx
@@ -679,28 +679,36 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
           const checkpoints = await tx.wrap((tx) =>
             tx.select().from(PONDER_CHECKPOINT),
           );
-          const crashRecoveryCheckpoint =
-            checkpoints.length === 0
-              ? undefined
-              : checkpoints.map((c) => ({
-                  chainId: c.chainId,
-                  checkpoint: c.safeCheckpoint,
-                }));
+
+          // Note: The previous app can be in three possible states:
+          // 1. Has no checkpoints, hasn't made it past the setup events
+          // 2. Has checkpoints but hasn't made it past the historical backfill
+          // 3. Has checkpoints and has made it past the historical backfill
+
+          if (checkpoints.length === 0) {
+            return {
+              status: "success",
+              crashRecoveryCheckpoint: undefined,
+            } as const;
+          }
 
           for (const { chainId, finalizedCheckpoint } of checkpoints) {
             const finalizedBlock =
               finalizedBlocks[chains.findIndex((c) => c.id === chainId)]!;
             if (
-              decodeCheckpoint(finalizedCheckpoint).chainId ===
-                BigInt(chainId) &&
-              hexToBigInt(finalizedBlock.number) <
-                decodeCheckpoint(finalizedCheckpoint).blockNumber
+              hexToBigInt(finalizedBlock.timestamp) <
+              decodeCheckpoint(finalizedCheckpoint).blockTimestamp
             ) {
               throw new MigrationError(
                 `Finalized block for chain '${chainId}' cannot move backwards`,
               );
             }
           }
+
+          const crashRecoveryCheckpoint = checkpoints.map((c) => ({
+            chainId: c.chainId,
+            checkpoint: c.safeCheckpoint,
+          }));
 
           if (previousApp.is_ready === 0) {
             await tx.wrap((tx) =>
@@ -733,30 +741,8 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             });
           }
 
-          // Note: it is an invariant that checkpoints.length > 0;
-          switch (ordering) {
-            case "omnichain": {
-              const revertCheckpoint = min(
-                ...checkpoints.map((c) => c.safeCheckpoint),
-              );
-
-              await revert(tx, {
-                checkpoint: revertCheckpoint,
-                tables,
-                ordering,
-              });
-              break;
-            }
-            case "multichain": {
-              for (const { safeCheckpoint } of checkpoints) {
-                await revert(tx, {
-                  checkpoint: safeCheckpoint,
-                  tables,
-                  ordering,
-                });
-              }
-              break;
-            }
+          for (const table of tables) {
+            await crashRecovery(tx, { table });
           }
 
           // Note: We don't update the `_ponder_checkpoint` table here, instead we wait for it to be updated
