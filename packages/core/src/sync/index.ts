@@ -83,16 +83,8 @@ export type RealtimeEvent =
       checkpoint: string;
       blockCallback?: (isAccepted: boolean) => void;
     }
-  | {
-      type: "reorg";
-      chain: Chain;
-      checkpoint: string;
-    }
-  | {
-      type: "finalize";
-      chain: Chain;
-      checkpoint: string;
-    };
+  | { type: "reorg"; chain: Chain; checkpoint: string }
+  | { type: "finalize"; chain: Chain; checkpoint: string };
 
 type EventGenerator = AsyncGenerator<{
   events: Event[];
@@ -251,6 +243,10 @@ export const createSync = async (params: {
       historicalSync: HistoricalSync;
       realtimeSync: RealtimeSync | undefined;
       childAddresses: Map<FactoryId, Map<Address, number>>;
+      unfinalizedBlocks: Omit<
+        Extract<RealtimeSyncEvent, { type: "block" }>,
+        "type"
+      >[];
     }
   >();
 
@@ -537,14 +533,6 @@ export const createSync = async (params: {
             1,
           );
 
-          const perChainOnRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
-            common: params.common,
-            chain,
-            sources,
-            syncStore: params.syncStore,
-            syncProgress,
-          });
-
           const realtimeSync = createRealtimeSync({
             common: params.common,
             chain,
@@ -595,8 +583,6 @@ export const createSync = async (params: {
             });
 
             for await (const event of syncGenerator) {
-              await perChainOnRealtimeSyncEvent(event);
-
               yield { chain, event };
             }
 
@@ -630,11 +616,21 @@ export const createSync = async (params: {
         : mergeAsyncGeneratorsWithRealtimeOrder;
 
     for await (const { chain, event } of merge(eventGenerators)) {
-      const { syncProgress, childAddresses } = perChainSync.get(chain)!;
+      const { syncProgress, childAddresses, unfinalizedBlocks } =
+        perChainSync.get(chain)!;
 
       const sources = params.indexingBuild.sources.filter(
         ({ filter }) => filter.chainId === chain.id,
       );
+
+      await perChainOnRealtimeSyncEvent(event, {
+        common: params.common,
+        chain,
+        sources,
+        syncProgress,
+        unfinalizedBlocks,
+        syncStore: params.syncStore,
+      });
 
       const result = onRealtimeSyncEvent(event, {
         chain,
@@ -653,7 +649,6 @@ export const createSync = async (params: {
 
   /** Events that have been executed but not finalized. */
   let executedEvents: Event[] = [];
-  const chainFinalizeMetadata = new Map<number, string>();
   /** Events that have not been executed. */
   let pendingEvents: Event[] = [];
   /** Closest-to-tip finalized checkpoint across all chains. */
@@ -771,17 +766,17 @@ export const createSync = async (params: {
             chain,
           });
 
-          chainFinalizeMetadata.set(chain.id, checkpoint);
-
           for (const [index, event] of executedEvents.entries()) {
-            const finalizedChainCheckpoint = chainFinalizeMetadata.get(
-              event.chainId,
-            );
+            const _chain = params.indexingBuild.chains.find(
+              (c) => c.id === event.chainId,
+            )!;
+            const _checkpoint = getChainCheckpoint({
+              syncProgress: perChainSync.get(_chain)!.syncProgress,
+              chain: _chain,
+              tag: "finalized",
+            });
 
-            if (
-              finalizedChainCheckpoint === undefined ||
-              event.checkpoint > finalizedChainCheckpoint
-            ) {
+            if (event.checkpoint > _checkpoint) {
               finalizeIndex = index;
               break;
             }
@@ -995,6 +990,7 @@ export const createSync = async (params: {
         historicalSync,
         realtimeSync: undefined,
         childAddresses,
+        unfinalizedBlocks: [],
       });
     }),
   );
@@ -1078,204 +1074,205 @@ export const createSync = async (params: {
   };
 };
 
-export const getPerChainOnRealtimeSyncEvent = ({
-  common,
-  chain,
-  sources,
-  syncProgress,
-  syncStore,
-}: {
-  common: Common;
-  chain: Chain;
-  sources: Source[];
-  syncProgress: SyncProgress;
-  syncStore: SyncStore;
-}) => {
-  let unfinalizedBlocks: Omit<
-    Extract<RealtimeSyncEvent, { type: "block" }>,
-    "type"
-  >[] = [];
+export const perChainOnRealtimeSyncEvent = async (
+  event: RealtimeSyncEvent,
+  {
+    common,
+    chain,
+    sources,
+    syncProgress,
+    unfinalizedBlocks,
+    syncStore,
+  }: {
+    common: Common;
+    chain: Chain;
+    sources: Source[];
+    syncProgress: SyncProgress;
+    unfinalizedBlocks: Omit<
+      Extract<RealtimeSyncEvent, { type: "block" }>,
+      "type"
+    >[];
+    syncStore: SyncStore;
+  },
+) => {
+  switch (event.type) {
+    case "block": {
+      syncProgress.current = event.block;
 
-  return async (event: RealtimeSyncEvent): Promise<void> => {
-    switch (event.type) {
-      case "block": {
-        syncProgress.current = event.block;
+      common.logger.debug({
+        service: "sync",
+        msg: `Updated '${chain.name}' current block to ${hexToNumber(event.block.number)}`,
+      });
 
-        common.logger.debug({
-          service: "sync",
-          msg: `Updated '${chain.name}' current block to ${hexToNumber(event.block.number)}`,
-        });
+      common.metrics.ponder_sync_block.set(
+        { chain: chain.name },
+        hexToNumber(syncProgress.current!.number),
+      );
+      common.metrics.ponder_sync_block_timestamp.set(
+        { chain: chain.name },
+        hexToNumber(syncProgress.current!.timestamp),
+      );
 
-        common.metrics.ponder_sync_block.set(
-          { chain: chain.name },
-          hexToNumber(syncProgress.current!.number),
-        );
-        common.metrics.ponder_sync_block_timestamp.set(
-          { chain: chain.name },
-          hexToNumber(syncProgress.current!.timestamp),
-        );
+      unfinalizedBlocks.push(event);
 
-        unfinalizedBlocks.push(event);
-
-        return;
-      }
-
-      case "finalize": {
-        const finalizedInterval = [
-          hexToNumber(syncProgress.finalized.number),
-          hexToNumber(event.block.number),
-        ] satisfies Interval;
-
-        syncProgress.finalized = event.block;
-
-        common.logger.debug({
-          service: "sync",
-          msg: `Updated '${chain.name}' finalized block to ${hexToNumber(event.block.number)}`,
-        });
-
-        // Remove all finalized data
-
-        const finalizedBlocks = unfinalizedBlocks.filter(
-          ({ block }) =>
-            hexToNumber(block.number) <= hexToNumber(event.block.number),
-        );
-
-        unfinalizedBlocks = unfinalizedBlocks.filter(
-          ({ block }) =>
-            hexToNumber(block.number) > hexToNumber(event.block.number),
-        );
-
-        // Add finalized blocks, logs, transactions, receipts, and traces to the sync-store.
-
-        const childAddresses = new Map<Factory, Map<Address, number>>();
-
-        for (const block of finalizedBlocks) {
-          for (const [factory, addresses] of block.childAddresses) {
-            if (childAddresses.has(factory) === false) {
-              childAddresses.set(factory, new Map());
-            }
-            for (const address of addresses) {
-              if (childAddresses.get(factory)!.has(address) === false) {
-                childAddresses
-                  .get(factory)!
-                  .set(address, hexToNumber(block.block.number));
-              }
-            }
-          }
-        }
-
-        await Promise.all([
-          syncStore.insertBlocks({
-            blocks: finalizedBlocks
-              .filter(({ hasMatchedFilter }) => hasMatchedFilter)
-              .map(({ block }) => block),
-            chainId: chain.id,
-          }),
-          syncStore.insertTransactions({
-            transactions: finalizedBlocks.flatMap(
-              ({ transactions }) => transactions,
-            ),
-            chainId: chain.id,
-          }),
-          syncStore.insertTransactionReceipts({
-            transactionReceipts: finalizedBlocks.flatMap(
-              ({ transactionReceipts }) => transactionReceipts,
-            ),
-            chainId: chain.id,
-          }),
-          syncStore.insertLogs({
-            logs: finalizedBlocks.flatMap(({ logs }) => logs),
-            chainId: chain.id,
-          }),
-          syncStore.insertTraces({
-            traces: finalizedBlocks.flatMap(({ traces, block, transactions }) =>
-              traces.map((trace) => ({
-                trace,
-                block: block as SyncBlock, // SyncBlock is expected for traces.length !== 0
-                transaction: transactions.find(
-                  (t) => t.hash === trace.transactionHash,
-                )!,
-              })),
-            ),
-            chainId: chain.id,
-          }),
-          ...Array.from(childAddresses.entries()).map(
-            ([factory, childAddresses]) =>
-              syncStore.insertChildAddresses({
-                factory,
-                childAddresses,
-                chainId: chain.id,
-              }),
-          ),
-        ]);
-
-        // Add corresponding intervals to the sync-store
-        // Note: this should happen after insertion so the database doesn't become corrupted
-
-        if (chain.disableCache === false) {
-          const syncedIntervals: {
-            interval: Interval;
-            filter: Filter;
-          }[] = [];
-
-          for (const { filter } of sources) {
-            const intervals = intervalIntersection(
-              [finalizedInterval],
-              [
-                [
-                  filter.fromBlock ?? 0,
-                  filter.toBlock ?? Number.POSITIVE_INFINITY,
-                ],
-              ],
-            );
-
-            for (const interval of intervals) {
-              syncedIntervals.push({ interval, filter });
-            }
-          }
-
-          await syncStore.insertIntervals({
-            intervals: syncedIntervals,
-            chainId: chain.id,
-          });
-        }
-
-        return;
-      }
-
-      case "reorg": {
-        syncProgress.current = event.block;
-
-        common.logger.debug({
-          service: "sync",
-          msg: `Updated '${chain.name}' current block to ${hexToNumber(event.block.number)}`,
-        });
-
-        common.metrics.ponder_sync_block.set(
-          { chain: chain.name },
-          hexToNumber(syncProgress.current!.number),
-        );
-        common.metrics.ponder_sync_block_timestamp.set(
-          { chain: chain.name },
-          hexToNumber(syncProgress.current!.timestamp),
-        );
-
-        // Remove all reorged data
-
-        unfinalizedBlocks = unfinalizedBlocks.filter(
-          ({ block }) =>
-            hexToNumber(block.number) <= hexToNumber(event.block.number),
-        );
-
-        await syncStore.pruneRpcRequestResults({
-          chainId: chain.id,
-          blocks: event.reorgedBlocks,
-        });
-
-        return;
-      }
+      return;
     }
-  };
+
+    case "finalize": {
+      const finalizedInterval = [
+        hexToNumber(syncProgress.finalized.number),
+        hexToNumber(event.block.number),
+      ] satisfies Interval;
+
+      syncProgress.finalized = event.block;
+
+      common.logger.debug({
+        service: "sync",
+        msg: `Updated '${chain.name}' finalized block to ${hexToNumber(event.block.number)}`,
+      });
+
+      // Remove all finalized data
+
+      const finalizedBlocks = unfinalizedBlocks.filter(
+        ({ block }) =>
+          hexToNumber(block.number) <= hexToNumber(event.block.number),
+      );
+
+      unfinalizedBlocks = unfinalizedBlocks.filter(
+        ({ block }) =>
+          hexToNumber(block.number) > hexToNumber(event.block.number),
+      );
+
+      // Add finalized blocks, logs, transactions, receipts, and traces to the sync-store.
+
+      const childAddresses = new Map<Factory, Map<Address, number>>();
+
+      for (const block of finalizedBlocks) {
+        for (const [factory, addresses] of block.childAddresses) {
+          if (childAddresses.has(factory) === false) {
+            childAddresses.set(factory, new Map());
+          }
+          for (const address of addresses) {
+            if (childAddresses.get(factory)!.has(address) === false) {
+              childAddresses
+                .get(factory)!
+                .set(address, hexToNumber(block.block.number));
+            }
+          }
+        }
+      }
+
+      await Promise.all([
+        syncStore.insertBlocks({
+          blocks: finalizedBlocks
+            .filter(({ hasMatchedFilter }) => hasMatchedFilter)
+            .map(({ block }) => block),
+          chainId: chain.id,
+        }),
+        syncStore.insertTransactions({
+          transactions: finalizedBlocks.flatMap(
+            ({ transactions }) => transactions,
+          ),
+          chainId: chain.id,
+        }),
+        syncStore.insertTransactionReceipts({
+          transactionReceipts: finalizedBlocks.flatMap(
+            ({ transactionReceipts }) => transactionReceipts,
+          ),
+          chainId: chain.id,
+        }),
+        syncStore.insertLogs({
+          logs: finalizedBlocks.flatMap(({ logs }) => logs),
+          chainId: chain.id,
+        }),
+        syncStore.insertTraces({
+          traces: finalizedBlocks.flatMap(({ traces, block, transactions }) =>
+            traces.map((trace) => ({
+              trace,
+              block: block as SyncBlock, // SyncBlock is expected for traces.length !== 0
+              transaction: transactions.find(
+                (t) => t.hash === trace.transactionHash,
+              )!,
+            })),
+          ),
+          chainId: chain.id,
+        }),
+        ...Array.from(childAddresses.entries()).map(
+          ([factory, childAddresses]) =>
+            syncStore.insertChildAddresses({
+              factory,
+              childAddresses,
+              chainId: chain.id,
+            }),
+        ),
+      ]);
+
+      // Add corresponding intervals to the sync-store
+      // Note: this should happen after insertion so the database doesn't become corrupted
+
+      if (chain.disableCache === false) {
+        const syncedIntervals: {
+          interval: Interval;
+          filter: Filter;
+        }[] = [];
+
+        for (const { filter } of sources) {
+          const intervals = intervalIntersection(
+            [finalizedInterval],
+            [
+              [
+                filter.fromBlock ?? 0,
+                filter.toBlock ?? Number.POSITIVE_INFINITY,
+              ],
+            ],
+          );
+
+          for (const interval of intervals) {
+            syncedIntervals.push({ interval, filter });
+          }
+        }
+
+        await syncStore.insertIntervals({
+          intervals: syncedIntervals,
+          chainId: chain.id,
+        });
+      }
+
+      return;
+    }
+
+    case "reorg": {
+      syncProgress.current = event.block;
+
+      common.logger.debug({
+        service: "sync",
+        msg: `Updated '${chain.name}' current block to ${hexToNumber(event.block.number)}`,
+      });
+
+      common.metrics.ponder_sync_block.set(
+        { chain: chain.name },
+        hexToNumber(syncProgress.current!.number),
+      );
+      common.metrics.ponder_sync_block_timestamp.set(
+        { chain: chain.name },
+        hexToNumber(syncProgress.current!.timestamp),
+      );
+
+      // Remove all reorged data
+
+      unfinalizedBlocks = unfinalizedBlocks.filter(
+        ({ block }) =>
+          hexToNumber(block.number) <= hexToNumber(event.block.number),
+      );
+
+      await syncStore.pruneRpcRequestResults({
+        chainId: chain.id,
+        blocks: event.reorgedBlocks,
+      });
+
+      return;
+    }
+  }
 };
 
 export async function* getLocalEventGenerator(params: {

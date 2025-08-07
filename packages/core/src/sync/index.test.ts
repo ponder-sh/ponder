@@ -17,6 +17,7 @@ import { buildConfigAndIndexingFunctions } from "@/build/config.js";
 import type { BlockFilter, Event, Filter, Fragment } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
+import type { RealtimeSyncEvent } from "@/sync-realtime/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
 import { MAX_CHECKPOINT_STRING, decodeCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
@@ -38,8 +39,8 @@ import {
   getLocalEventGenerator,
   getLocalSyncGenerator,
   getLocalSyncProgress,
-  getPerChainOnRealtimeSyncEvent,
   mergeAsyncGeneratorsWithEventOrder,
+  perChainOnRealtimeSyncEvent,
   splitEvents,
 } from "./index.js";
 
@@ -116,7 +117,7 @@ test("splitEvents()", async () => {
   `);
 });
 
-test("getPerChainOnRealtimeSyncEvent() handles block", async (context) => {
+test("perChainOnRealtimeSyncEvent() handles block", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
@@ -151,31 +152,33 @@ test("getPerChainOnRealtimeSyncEvent() handles block", async (context) => {
     intervalsCache,
   });
 
-  const onRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
-    common: context.common,
-    chain,
-    sources,
-    syncStore,
-    syncProgress,
-  });
-
   const block = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
 
-  await onRealtimeSyncEvent({
-    type: "block",
-    hasMatchedFilter: false,
-    block,
-    logs: [],
-    traces: [],
-    transactions: [],
-    transactionReceipts: [],
-    childAddresses: new Map(),
-  });
+  await perChainOnRealtimeSyncEvent(
+    {
+      type: "block",
+      hasMatchedFilter: false,
+      block,
+      logs: [],
+      traces: [],
+      transactions: [],
+      transactionReceipts: [],
+      childAddresses: new Map(),
+    },
+    {
+      common: context.common,
+      chain,
+      sources,
+      syncStore,
+      syncProgress,
+      unfinalizedBlocks: [],
+    },
+  );
 });
 
-test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
+test("perChainOnRealtimeSyncEvent() handles finalize", async (context) => {
   const { database, syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
@@ -210,33 +213,50 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
     intervalsCache,
   });
 
-  const onRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
-    common: context.common,
-    chain,
-    sources,
-    syncStore,
-    syncProgress,
-  });
-
   const block = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
 
-  await onRealtimeSyncEvent({
-    type: "block",
-    hasMatchedFilter: true,
-    block,
-    logs: [],
-    traces: [],
-    transactions: [],
-    transactionReceipts: [],
-    childAddresses: new Map(),
-  });
+  const unfinalizedBlocks: Omit<
+    Extract<RealtimeSyncEvent, { type: "block" }>,
+    "type"
+  >[] = [];
 
-  await onRealtimeSyncEvent({
-    type: "finalize",
-    block,
-  });
+  await perChainOnRealtimeSyncEvent(
+    {
+      type: "block",
+      hasMatchedFilter: true,
+      block,
+      logs: [],
+      traces: [],
+      transactions: [],
+      transactionReceipts: [],
+      childAddresses: new Map(),
+    },
+    {
+      common: context.common,
+      chain,
+      sources,
+      syncStore,
+      syncProgress,
+      unfinalizedBlocks,
+    },
+  );
+
+  await perChainOnRealtimeSyncEvent(
+    {
+      type: "finalize",
+      block,
+    },
+    {
+      common: context.common,
+      chain,
+      sources,
+      syncStore,
+      syncProgress,
+      unfinalizedBlocks,
+    },
+  );
 
   const blocks = await database.syncQB.wrap((db) =>
     db.select().from(ponderSyncSchema.blocks).execute(),
@@ -252,7 +272,7 @@ test("getPerChainOnRealtimeSyncEvent() handles finalize", async (context) => {
   expect(intervals[0]!.blocks).toBe("{[0,2]}");
 });
 
-test("getPerChainOnRealtimeSyncEvent() handles reorg", async (context) => {
+test("perChainOnRealtimeSyncEvent() handles reorg", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
@@ -287,34 +307,51 @@ test("getPerChainOnRealtimeSyncEvent() handles reorg", async (context) => {
     intervalsCache,
   });
 
-  const onRealtimeSyncEvent = getPerChainOnRealtimeSyncEvent({
-    common: context.common,
-    chain,
-    sources,
-    syncStore,
-    syncProgress,
-  });
-
   const block = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
   });
 
-  await onRealtimeSyncEvent({
-    type: "block",
-    hasMatchedFilter: true,
-    block,
-    logs: [],
-    traces: [],
-    transactions: [],
-    transactionReceipts: [],
-    childAddresses: new Map(),
-  });
+  const unfinalizedBlocks: Omit<
+    Extract<RealtimeSyncEvent, { type: "block" }>,
+    "type"
+  >[] = [];
 
-  await onRealtimeSyncEvent({
-    type: "reorg",
-    block,
-    reorgedBlocks: [block],
-  });
+  await perChainOnRealtimeSyncEvent(
+    {
+      type: "block",
+      hasMatchedFilter: true,
+      block,
+      logs: [],
+      traces: [],
+      transactions: [],
+      transactionReceipts: [],
+      childAddresses: new Map(),
+    },
+    {
+      common: context.common,
+      chain,
+      sources,
+      syncStore,
+      syncProgress,
+      unfinalizedBlocks,
+    },
+  );
+
+  await perChainOnRealtimeSyncEvent(
+    {
+      type: "reorg",
+      block,
+      reorgedBlocks: [block],
+    },
+    {
+      common: context.common,
+      chain,
+      sources,
+      syncStore,
+      syncProgress,
+      unfinalizedBlocks,
+    },
+  );
 });
 
 test("getLocalEventGenerator()", async (context) => {
