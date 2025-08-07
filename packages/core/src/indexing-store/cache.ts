@@ -536,7 +536,7 @@ export const createIndexingCache = ({
           const insertTimestamp =
             cacheEntry?.metadata?.insertBlockTimestamp ??
             // Otherwise, for plain insert, we use the buffer insert block timestamp
-            Number(bufferEntry.metadata.event?.event.block.timestamp);
+            Number(bufferEntry.metadata.event?.event?.block?.timestamp ?? 0);
 
           updateCacheAccessHit(cacheAccess, table, event, insertTimestamp);
         }
@@ -805,7 +805,7 @@ export const createIndexingCache = ({
               tableCache.get(key)!.row = entry.row;
             } else {
               const insertBlockTimestamp = Number(
-                entry.metadata.event?.event.block.timestamp,
+                entry.metadata.event?.event?.block?.timestamp ?? 0,
               );
               const insertChainId = entry.metadata.event?.chainId!;
               tableCache.set(key, {
@@ -976,7 +976,7 @@ export const createIndexingCache = ({
               tableCache.get(key)!.row = entry.row;
             } else {
               const insertBlockTimestamp = Number(
-                entry.metadata.event?.event.block.timestamp,
+                entry.metadata.event?.event?.block?.timestamp ?? 0,
               );
               const insertChainId = entry.metadata.event?.chainId!;
               tableCache.set(key, {
