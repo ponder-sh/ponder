@@ -1266,17 +1266,22 @@ const onBuild = async (app: PonderApp) => {
     const end = intervals[intervals.length - 1]![1];
 
     if (SIM_PARAMS.UNFINALIZED_BLOCKS !== 0) {
-      const { rows } = await APP_DB.execute(
-        `SELECT SUBSTRING(finalized_checkpoint, 27, 16)::numeric as block_number FROM _ponder_checkpoint WHERE chain_name = '${chain.name}'`,
-      );
-      if (
-        rows.length > 0 &&
-        Number(rows[0]!.block_number) > end - SIM_PARAMS.UNFINALIZED_BLOCKS
-      ) {
+      const { rows } = await APP_DB.execute(`
+SELECT number FROM ponder_sync.blocks WHERE timestamp > (
+  SELECT SUBSTRING(finalized_checkpoint, 1, 10)::numeric as t FROM _ponder_checkpoint WHERE chain_name = '${chain.name}'
+) AND chain_id = ${chain.id} ORDER BY timestamp ASC LIMIT 1`);
+
+      if (rows.length > 0) {
         app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(
           rpc,
           {
-            blockNumber: Number(rows[0]!.block_number) + 10,
+            blockNumber: Math.min(
+              Math.max(
+                Number(rows[0]!.number),
+                end - SIM_PARAMS.UNFINALIZED_BLOCKS,
+              ),
+              end - 10,
+            ),
           },
         );
       } else {
@@ -1314,6 +1319,12 @@ const onBuild = async (app: PonderApp) => {
         app.common.options.rpcMaxConcurrency / app.indexingBuild.chains.length,
       ),
     });
+
+    console.log(
+      chain.name,
+      hexToNumber(app.indexingBuild.finalizedBlocks[i]!.number) + 1,
+      end,
+    );
 
     chains.set(chain.id, {
       // @ts-ignore
