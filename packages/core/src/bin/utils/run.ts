@@ -351,6 +351,7 @@ export async function run({
                   target: PONDER_CHECKPOINT.chainName,
                   set: {
                     safeCheckpoint: sql`excluded.safe_checkpoint`,
+                    finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
                     latestCheckpoint: sql`excluded.latest_checkpoint`,
                   },
                 }),

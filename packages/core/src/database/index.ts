@@ -18,7 +18,7 @@ import type {
 } from "@/internal/types.js";
 import { buildMigrationProvider } from "@/sync-store/migrations.js";
 import * as PONDER_SYNC from "@/sync-store/schema.js";
-import { min } from "@/utils/checkpoint.js";
+import { decodeCheckpoint, min } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
 import { createPglite, createPgliteKyselyDialect } from "@/utils/pglite.js";
@@ -32,6 +32,7 @@ import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
 import type { Pool, PoolClient } from "pg";
 import prometheus from "prom-client";
+import { hexToBigInt } from "viem";
 import { revert } from "./actions.js";
 import { type QB, createQB, parseDbError } from "./queryBuilder.js";
 
@@ -50,8 +51,10 @@ export type Database = {
    */
   migrate({
     buildId,
+    chains,
+    finalizedBlocks,
     ordering,
-  }: Pick<IndexingBuild, "buildId"> & {
+  }: Pick<IndexingBuild, "buildId" | "chains" | "finalizedBlocks"> & {
     ordering: "multichain" | "omnichain";
   }): Promise<CrashRecoveryCheckpoint>;
 };
@@ -461,7 +464,7 @@ export const createDatabase = async ({
         }
       }
     },
-    async migrate({ buildId, ordering }) {
+    async migrate({ buildId, chains, finalizedBlocks, ordering }) {
       const createTables = async (tx: QB) => {
         for (let i = 0; i < schemaBuild.statements.tables.sql.length; i++) {
           await tx
@@ -683,6 +686,19 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
                   chainId: c.chainId,
                   checkpoint: c.safeCheckpoint,
                 }));
+
+          for (const { chainId, finalizedCheckpoint } of checkpoints) {
+            const finalizedBlock =
+              finalizedBlocks[chains.findIndex((c) => c.id === chainId)]!;
+            if (
+              hexToBigInt(finalizedBlock.number) <
+              decodeCheckpoint(finalizedCheckpoint).blockNumber
+            ) {
+              throw new MigrationError(
+                `Finalized block for chain '${chainId}' cannot move backwards`,
+              );
+            }
+          }
 
           if (previousApp.is_ready === 0) {
             await tx.wrap((tx) =>

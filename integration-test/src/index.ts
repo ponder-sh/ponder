@@ -1260,9 +1260,29 @@ const onBuild = async (app: PonderApp) => {
     const end = intervals[intervals.length - 1]![1];
 
     if (SIM_PARAMS.UNFINALIZED_BLOCKS !== 0) {
-      app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(rpc, {
-        blockNumber: end - SIM_PARAMS.UNFINALIZED_BLOCKS,
-      });
+      // TODO(kyle) finalized block must be >= finalized checkpoint on shutdown
+
+      const { rows } = await APP_DB.execute(
+        `SELECT SUBSTRING(finalized_checkpoint, 27, 16)::numeric as block_number FROM _ponder_checkpoint WHERE chain_name = '${chain.name}'`,
+      );
+      if (
+        rows.length > 0 &&
+        Number(rows[0]!.block_number) > end - SIM_PARAMS.UNFINALIZED_BLOCKS
+      ) {
+        app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(
+          rpc,
+          {
+            blockNumber: Number(rows[0]!.block_number) + 10,
+          },
+        );
+      } else {
+        app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(
+          rpc,
+          {
+            blockNumber: end - SIM_PARAMS.UNFINALIZED_BLOCKS,
+          },
+        );
+      }
     }
 
     // TODO(kyle) delete unfinalized data
