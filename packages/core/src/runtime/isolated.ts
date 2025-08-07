@@ -259,6 +259,21 @@ export async function runIsolated({
     end,
   );
 
+  const label = { chain: chain.name };
+  common.metrics.ponder_historical_total_indexing_seconds.set(
+    label,
+    Math.max(seconds[chain.name]!.end - seconds[chain.name]!.start, 0),
+  );
+  common.metrics.ponder_historical_cached_indexing_seconds.set(
+    label,
+    Math.max(seconds[chain.name]!.cached - seconds[chain.name]!.start, 0),
+  );
+  common.metrics.ponder_historical_completed_indexing_seconds.set(label, 0);
+  common.metrics.ponder_indexing_timestamp.set(
+    label,
+    Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
+  );
+
   seconds[chain.name] = { start, end, cached };
 
   const startTimestamp = Math.round(Date.now() / 1000);
@@ -470,7 +485,6 @@ export async function runIsolated({
   // checkpoint is between the last processed event and the finalized
   // checkpoint.
 
-  const label = { chain: chain.name };
   common.metrics.ponder_historical_completed_indexing_seconds.set(
     label,
     Math.max(
@@ -488,6 +502,9 @@ export async function runIsolated({
 
   const tables = Object.values(schemaBuild.schema).filter(isTable);
   await createTriggers(database.adminQB, { tables, chainId });
+
+  const endTimestamp = Math.round(Date.now() / 1000);
+  common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
 
   await onReady();
 
