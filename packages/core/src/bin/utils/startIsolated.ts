@@ -39,9 +39,6 @@ export async function startIsolated(
     }
 
     if (isAllReady) {
-      // const endTimestamp = Math.round(Date.now() / 1000);
-      // common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
-
       await createIndexes(database.adminQB, {
         statements: schemaBuild.statements,
       });
@@ -102,15 +99,18 @@ export async function startIsolated(
               service: "indexing",
               msg: `Chain '${chain.name}' completed indexing.`,
             });
-          } else if (message.type === "error") {
-            state[chain.name] = "failed";
-            callback();
-            reject();
-            common.logger.error({
-              service: "server",
-              msg: `Chain '${chain.name}' failed.`,
-            });
           }
+        });
+
+        worker.on("exit", (code) => {
+          // TODO: Add logic to retry
+          state[chain.name] = "failed";
+          callback();
+          reject();
+          common.logger.error({
+            service: "server",
+            msg: `Chain '${chain.name}' exited with code ${code}.`,
+          });
         });
       }).then(() => {
         worker.terminate();

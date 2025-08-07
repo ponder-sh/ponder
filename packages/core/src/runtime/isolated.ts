@@ -1,5 +1,6 @@
 import { isMainThread, parentPort, workerData } from "node:worker_threads";
 import type { CliOptions } from "@/bin/ponder.js";
+import { createExit } from "@/bin/utils/exit.js";
 import { createBuild } from "@/build/index.js";
 import type { Config } from "@/config/index.js";
 import {
@@ -63,19 +64,15 @@ const isWorker = isMainThread === false;
 
 if (isWorker) {
   if (parentPort) {
-    try {
-      await runIsolated({
-        cliOptions: workerData.cliOptions,
-        crashRecoveryCheckpoint: workerData.crashRecoveryCheckpoint,
-        chainId: workerData.chainId,
-        onReady: async () => {
-          parentPort!.postMessage({ type: "ready" });
-        },
-      });
-      parentPort.postMessage({ type: "complete" });
-    } catch (error) {
-      parentPort.postMessage({ type: "error" });
-    }
+    await runIsolated({
+      cliOptions: workerData.cliOptions,
+      crashRecoveryCheckpoint: workerData.crashRecoveryCheckpoint,
+      chainId: workerData.chainId,
+      onReady: async () => {
+        parentPort!.postMessage({ type: "ready" });
+      },
+    });
+    parentPort.postMessage({ type: "complete" });
   }
 }
 
@@ -101,6 +98,7 @@ export async function runIsolated({
   const shutdown = createShutdown();
   const telemetry = createTelemetry({ options, logger, shutdown });
   const common = { options, logger, metrics, telemetry, shutdown };
+  createExit({ common, options });
 
   const { preBuild, namespaceBuild, schemaBuild, indexingBuild } =
     await (async () => {
