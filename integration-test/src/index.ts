@@ -1260,8 +1260,6 @@ const onBuild = async (app: PonderApp) => {
     const end = intervals[intervals.length - 1]![1];
 
     if (SIM_PARAMS.UNFINALIZED_BLOCKS !== 0) {
-      // TODO(kyle) finalized block must be >= finalized checkpoint on shutdown
-
       const { rows } = await APP_DB.execute(
         `SELECT SUBSTRING(finalized_checkpoint, 27, 16)::numeric as block_number FROM _ponder_checkpoint WHERE chain_name = '${chain.name}'`,
       );

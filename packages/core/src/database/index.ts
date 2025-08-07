@@ -691,8 +691,10 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             const finalizedBlock =
               finalizedBlocks[chains.findIndex((c) => c.id === chainId)]!;
             if (
+              decodeCheckpoint(finalizedCheckpoint).chainId ===
+                BigInt(chainId) &&
               hexToBigInt(finalizedBlock.number) <
-              decodeCheckpoint(finalizedCheckpoint).blockNumber
+                decodeCheckpoint(finalizedCheckpoint).blockNumber
             ) {
               throw new MigrationError(
                 `Finalized block for chain '${chainId}' cannot move backwards`,
