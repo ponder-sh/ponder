@@ -33,11 +33,7 @@ import type {
 } from "@/internal/types.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import { createSync, splitEvents } from "@/sync/index.js";
-import {
-  ZERO_CHECKPOINT,
-  decodeCheckpoint,
-  encodeCheckpoint,
-} from "@/utils/checkpoint.js";
+import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { recordAsyncGenerator } from "@/utils/generators.js";
@@ -181,14 +177,8 @@ export async function run({
               chainName: chain.name,
               chainId: chain.id,
               latestCheckpoint: sync.getStartCheckpoint(chain),
-              finalizedCheckpoint: encodeCheckpoint({
-                ...ZERO_CHECKPOINT,
-                chainId: BigInt(chain.id),
-              }),
-              safeCheckpoint: encodeCheckpoint({
-                ...ZERO_CHECKPOINT,
-                chainId: BigInt(chain.id),
-              }),
+              finalizedCheckpoint: sync.getStartCheckpoint(chain),
+              safeCheckpoint: sync.getStartCheckpoint(chain),
             })),
           )
           .onConflictDoUpdate({

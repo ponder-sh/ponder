@@ -288,6 +288,10 @@ GROUP BY SUBSTRING(checkpoint, 11, 16)::numeric;
               .set({ safeCheckpoint: safe_checkpoint as string })
               .where(eq(PONDER_CHECKPOINT.chainId, chain_id as number)),
           );
+
+          console.log(
+            `Updated '${chain_id}' chain's safe block to ${Number(decodeCheckpoint(safe_checkpoint as string).blockNumber)}`,
+          );
         }
       }
     }
