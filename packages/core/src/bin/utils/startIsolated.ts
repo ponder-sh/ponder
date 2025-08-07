@@ -87,7 +87,7 @@ export async function startIsolated(
 
   Promise.all(
     workers.map(async ({ chain, worker }) => {
-      return new Promise<void>((resolve, reject) => {
+      return new Promise<void>((resolve) => {
         worker.on("message", (message) => {
           if (message.type === "ready") {
             state[chain.name] = "realtime";
