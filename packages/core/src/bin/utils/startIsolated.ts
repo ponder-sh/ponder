@@ -106,7 +106,6 @@ export async function startIsolated(
           // TODO: Add logic to retry
           state[chain.name] = "failed";
           callback();
-          reject();
           common.logger.error({
             service: "server",
             msg: `Chain '${chain.name}' exited with code ${code}.`,
