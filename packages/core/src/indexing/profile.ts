@@ -341,6 +341,33 @@ export const recordProfilePattern = ({
           continue;
         }
 
+        if (eq(event.event.block.timestamp / 60n, arg)) {
+          resultArgs.push({
+            type: "derived",
+            value: ["block", "timestamp"],
+            fn: (value) => (value as bigint) / 60n,
+          });
+          continue;
+        }
+
+        if (eq(event.event.block.timestamp / 3600n, arg)) {
+          resultArgs.push({
+            type: "derived",
+            value: ["block", "timestamp"],
+            fn: (value) => (value as bigint) / 3600n,
+          });
+          continue;
+        }
+
+        if (eq(event.event.block.timestamp / 86400n, arg)) {
+          resultArgs.push({
+            type: "derived",
+            value: ["block", "timestamp"],
+            fn: (value) => (value as bigint) / 86400n,
+          });
+          continue;
+        }
+
         if (eq(event.event.block.miner, arg)) {
           resultArgs.push({ type: "derived", value: ["block", "miner"] });
           continue;
@@ -713,6 +740,7 @@ export const recoverProfilePattern = (
       // @ts-ignore
       _result = _result[prop];
     }
+
     address = _result as `0x${string}`;
   }
 
@@ -728,6 +756,11 @@ export const recoverProfilePattern = (
           // @ts-ignore
           _result = _result[prop];
         }
+
+        if (arg.fn) {
+          _result = arg.fn(_result);
+        }
+
         args.push(_result);
       }
     }
