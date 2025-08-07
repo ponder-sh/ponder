@@ -474,6 +474,8 @@ export const createSync = async (params: {
             indexingBuild: params.indexingBuild,
             chain,
             syncProgress,
+            syncStore: params.syncStore,
+            crashRecoveryCheckpoint,
             getLocalGenerator,
             decodeEventGenerator,
             sortCrashRecoveryEvents,
