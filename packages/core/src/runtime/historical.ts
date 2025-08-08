@@ -128,6 +128,7 @@ export async function* getHistoricalEventsOmnichain(params: {
 
       const eventGenerator = initEventGenerator({
         common: params.common,
+        indexingBuild: params.indexingBuild,
         chain,
         rpc,
         sources,
@@ -271,6 +272,7 @@ export async function* getHistoricalEventsMultichain(params: {
 
       const eventGenerator = initEventGenerator({
         common: params.common,
+        indexingBuild: params.indexingBuild,
         chain,
         rpc,
         sources,
