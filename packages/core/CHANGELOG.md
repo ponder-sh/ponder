@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.1
+
+### Patch Changes
+
+- [#1949](https://github.com/ponder-sh/ponder/pull/1949) [`922bac3`](https://github.com/ponder-sh/ponder/commit/922bac364912aa3a268fd07c6e57e3efcffeea43) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Fixed a bug with crash recovery causing missing or duplicate events.
+
 ## 0.12.0
 
 ### Minor Changes
