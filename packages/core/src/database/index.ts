@@ -497,21 +497,20 @@ export const createDatabase = async ({
         }
       };
 
-      const tryAcquireLockAndMigrate = () =>
-        adminQB.transaction({ label: "migrate" }, async (tx) => {
-          await tx.wrap((tx) =>
-            tx.execute(
-              `
+      const createAdminObjects = async (tx: QB) => {
+        await tx.wrap((tx) =>
+          tx.execute(
+            `
 CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_meta" (
   "key" TEXT PRIMARY KEY,
   "value" JSONB NOT NULL
 )`,
-            ),
-          );
+          ),
+        );
 
-          await tx.wrap((tx) =>
-            tx.execute(
-              `
+        await tx.wrap((tx) =>
+          tx.execute(
+            `
 CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
   "chain_name" TEXT PRIMARY KEY,
   "chain_id" BIGINT NOT NULL,
@@ -519,22 +518,22 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
   "latest_checkpoint" VARCHAR(75) NOT NULL,
   "finalized_checkpoint" VARCHAR(75) NOT NULL
 )`,
-            ),
-          );
+          ),
+        );
 
-          await tx.wrap((tx) =>
-            tx.execute(
-              `CREATE SEQUENCE IF NOT EXISTS "${namespace.schema}"."${SHARED_OPERATION_ID_SEQUENCE}" AS integer INCREMENT BY 1`,
-            ),
-          );
+        await tx.wrap((tx) =>
+          tx.execute(
+            `CREATE SEQUENCE IF NOT EXISTS "${namespace.schema}"."${SHARED_OPERATION_ID_SEQUENCE}" AS integer INCREMENT BY 1`,
+          ),
+        );
 
-          const trigger = "status_trigger";
-          const notification = "status_notify()";
-          const channel = `${namespace.schema}_status_channel`;
+        const trigger = "status_trigger";
+        const notification = "status_notify()";
+        const channel = `${namespace.schema}_status_channel`;
 
-          await tx.wrap((tx) =>
-            tx.execute(
-              `
+        await tx.wrap((tx) =>
+          tx.execute(
+            `
 CREATE OR REPLACE FUNCTION "${namespace.schema}".${notification}
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -544,19 +543,24 @@ NOTIFY "${channel}";
 RETURN NULL;
 END;
 $$;`,
-            ),
-          );
+          ),
+        );
 
-          await tx.wrap((tx) =>
-            tx.execute(
-              `
+        await tx.wrap((tx) =>
+          tx.execute(
+            `
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
 ON "${namespace.schema}"._ponder_checkpoint
 FOR EACH STATEMENT
 EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
-            ),
-          );
+          ),
+        );
+      };
+
+      const tryAcquireLockAndMigrate = () =>
+        adminQB.transaction({ label: "migrate" }, async (tx) => {
+          await createAdminObjects(tx);
 
           // Note: All ponder versions are compatible with the next query (every version of the "_ponder_meta" table have the same columns)
 
@@ -622,9 +626,17 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
 
             await tx.wrap((tx) =>
               tx.execute(
-                `TRUNCATE TABLE "${namespace.schema}"."${getTableName(PONDER_CHECKPOINT)}" CASCADE`,
+                `DROP TABLE IF EXISTS "${namespace.schema}"."${getTableName(PONDER_CHECKPOINT)}" CASCADE`,
               ),
             );
+
+            await tx.wrap((tx) =>
+              tx.execute(
+                `DROP TABLE IF EXISTS "${namespace.schema}"."${getTableName(PONDER_META)}" CASCADE`,
+              ),
+            );
+
+            await createAdminObjects(tx);
 
             common.logger.info({
               service: "database",
@@ -632,7 +644,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             });
 
             await tx.wrap((tx) =>
-              tx.update(PONDER_META).set({ value: metadata }),
+              tx.insert(PONDER_META).values({ key: "app", value: metadata }),
             );
             return {
               status: "success",
