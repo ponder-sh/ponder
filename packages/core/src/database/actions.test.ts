@@ -27,7 +27,7 @@ import {
   finalize,
   revert,
 } from "./actions.js";
-import type { Database } from "./index.js";
+import { type Database, getPonderCheckpointTable } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -61,6 +61,15 @@ test("finalize()", async (context) => {
   });
 
   // setup tables, reorg tables, and metadata checkpoint
+  await database.userQB.wrap((tx) =>
+    tx.insert(getPonderCheckpointTable()).values({
+      chainName: "mainnet",
+      chainId: 1,
+      safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 0n }),
+      finalizedCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 0n }),
+      latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 0n }),
+    }),
+  );
 
   await createTriggers(database.userQB, { tables: [account] });
 
@@ -96,6 +105,8 @@ test("finalize()", async (context) => {
   await finalize(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     tables: [account],
+    preBuild: { ordering: "multichain" },
+    namespaceBuild: { schema: "public", viewsSchema: undefined },
   });
 
   // reorg tables
@@ -260,7 +271,7 @@ test("revert()", async (context) => {
     await revert(tx, {
       checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
       tables: [account],
-      ordering: "multichain",
+      preBuild: { ordering: "multichain" },
     });
   });
 
@@ -315,7 +326,7 @@ test("revert() with composite primary key", async (context) => {
     await revert(tx, {
       checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
       tables: [test],
-      ordering: "multichain",
+      preBuild: { ordering: "multichain" },
     });
   });
 

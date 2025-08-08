@@ -15,7 +15,7 @@ import { zeroLogsBloom } from "../../packages/core/src/sync-realtime/bloom.js";
 import { promiseWithResolvers } from "../../packages/core/src/utils/promiseWithResolvers.js";
 import { createQueue } from "../../packages/core/src/utils/queue.js";
 import * as RPC_SCHEMA from "../schema.js";
-import { DB, SEED, SIM_PARAMS } from "./index.js";
+import { DB, SEED, SIM_PARAMS, restart } from "./index.js";
 
 const PONDER_RPC_METHODS = [
   "eth_getBlockByNumber",
@@ -573,9 +573,9 @@ export const realtimeBlockEngine = async (
 
     const random = seedrandom(SEED + chainId + nextBlock.number);
 
-    // if (random() < SIM_PARAMS.REALTIME_SHUTDOWN_RATE) {
-    //   await restart();
-    // }
+    if (random() < SIM_PARAMS.REALTIME_SHUTDOWN_RATE) {
+      await restart();
+    }
 
     if (random() < SIM_PARAMS.REALTIME_FAST_FORWARD_RATE) {
       return simulate(chainId);

@@ -205,7 +205,8 @@ export async function setupDatabaseServices(
 
   await database.migrate({
     buildId: overrides.indexingBuild?.buildId ?? "abc",
-    ordering: "multichain",
+    chains: overrides.indexingBuild?.chains ?? [],
+    finalizedBlocks: overrides.indexingBuild?.finalizedBlocks ?? [],
   });
 
   await database.migrateSync().catch((err) => {

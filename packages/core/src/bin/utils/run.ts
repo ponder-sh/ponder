@@ -176,12 +176,14 @@ export async function run({
               chainName: chain.name,
               chainId: chain.id,
               latestCheckpoint: sync.getStartCheckpoint(chain),
+              finalizedCheckpoint: sync.getStartCheckpoint(chain),
               safeCheckpoint: sync.getStartCheckpoint(chain),
             })),
           )
           .onConflictDoUpdate({
             target: PONDER_CHECKPOINT.chainName,
             set: {
+              finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
               safeCheckpoint: sql`excluded.safe_checkpoint`,
               latestCheckpoint: sql`excluded.latest_checkpoint`,
             },
@@ -340,6 +342,7 @@ export async function run({
                     )!.name,
                     chainId,
                     latestCheckpoint: checkpoint,
+                    finalizedCheckpoint: checkpoint,
                     safeCheckpoint: checkpoint,
                   })),
                 )
@@ -347,6 +350,7 @@ export async function run({
                   target: PONDER_CHECKPOINT.chainName,
                   set: {
                     safeCheckpoint: sql`excluded.safe_checkpoint`,
+                    finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
                     latestCheckpoint: sql`excluded.latest_checkpoint`,
                   },
                 }),
@@ -605,9 +609,9 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
           await dropTriggers(tx, { tables });
 
           const counts = await revert(tx, {
-            tables,
             checkpoint: event.checkpoint,
-            ordering: preBuild.ordering,
+            tables,
+            preBuild,
           });
 
           for (const [index, table] of tables.entries()) {
@@ -621,35 +625,21 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
         });
 
         break;
-      case "finalize":
-        await database.userQB.transaction(async (tx) => {
-          await tx.wrap((tx) =>
-            tx.update(PONDER_CHECKPOINT).set({
-              safeCheckpoint: event.checkpoint,
-            }),
-          );
+      case "finalize": {
+        const count = await finalize(database.userQB, {
+          checkpoint: event.checkpoint,
+          tables,
+          preBuild,
+          namespaceBuild,
+        });
 
-          const counts = await finalize(tx, {
-            tables,
-            checkpoint: event.checkpoint,
-          });
-
-          for (const [index, table] of tables.entries()) {
-            common.logger.info({
-              service: "database",
-              msg: `Finalized ${counts[index]} operations from '${getTableName(table)}'`,
-            });
-          }
-
-          const decoded = decodeCheckpoint(event.checkpoint);
-
-          common.logger.debug({
-            service: "database",
-            msg: `Updated finalized checkpoint to (timestamp=${decoded.blockTimestamp} chainId=${decoded.chainId} block=${decoded.blockNumber})`,
-          });
+        common.logger.info({
+          service: "database",
+          msg: `Finalized ${count} operations.`,
         });
 
         break;
+      }
       default:
         never(event);
     }

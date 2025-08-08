@@ -81,15 +81,8 @@ export type RealtimeSyncEvent =
       hasMatchedFilter: boolean;
       blockCallback?: (isAccepted: boolean) => void;
     } & BlockWithEventData)
-  | {
-      type: "finalize";
-      block: LightBlock;
-    }
-  | {
-      type: "reorg";
-      block: LightBlock;
-      reorgedBlocks: LightBlock[];
-    };
+  | { type: "finalize"; block: LightBlock }
+  | { type: "reorg"; block: LightBlock; reorgedBlocks: LightBlock[] };
 
 type CreateRealtimeSyncParameters = {
   common: Common;

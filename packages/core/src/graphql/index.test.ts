@@ -48,6 +48,14 @@ test("metadata", async (context) => {
         eventType: EVENT_TYPES.blocks,
         eventIndex: 0n,
       }),
+      finalizedCheckpoint: encodeCheckpoint({
+        blockNumber: 10n,
+        chainId: 1n,
+        blockTimestamp: 20n,
+        transactionIndex: 0n,
+        eventType: EVENT_TYPES.blocks,
+        eventIndex: 0n,
+      }),
       safeCheckpoint: encodeCheckpoint({
         blockNumber: 10n,
         chainId: 1n,

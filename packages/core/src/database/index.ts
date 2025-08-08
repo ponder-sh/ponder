@@ -18,7 +18,7 @@ import type {
 } from "@/internal/types.js";
 import { buildMigrationProvider } from "@/sync-store/migrations.js";
 import * as PONDER_SYNC from "@/sync-store/schema.js";
-import { min } from "@/utils/checkpoint.js";
+import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
 import { createPglite, createPgliteKyselyDialect } from "@/utils/pglite.js";
@@ -32,7 +32,8 @@ import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
 import type { Pool, PoolClient } from "pg";
 import prometheus from "prom-client";
-import { revert } from "./actions.js";
+import { hexToBigInt } from "viem";
+import { crashRecovery } from "./actions.js";
 import { type QB, createQB, parseDbError } from "./queryBuilder.js";
 
 export type Database = {
@@ -50,10 +51,12 @@ export type Database = {
    */
   migrate({
     buildId,
-    ordering,
-  }: Pick<IndexingBuild, "buildId"> & {
-    ordering: "multichain" | "omnichain";
-  }): Promise<CrashRecoveryCheckpoint>;
+    chains,
+    finalizedBlocks,
+  }: Pick<
+    IndexingBuild,
+    "buildId" | "chains" | "finalizedBlocks"
+  >): Promise<CrashRecoveryCheckpoint>;
 };
 
 export const SCHEMATA = pgSchema("information_schema").table(
@@ -84,7 +87,7 @@ export type PonderApp = {
   heartbeat_at: number;
 };
 
-const VERSION = "3";
+const VERSION = "4";
 
 type PGliteDriver = {
   dialect: "pglite";
@@ -121,6 +124,7 @@ export const getPonderCheckpointTable = (schema?: string) => {
       chainId: t.bigint({ mode: "number" }).notNull(),
       safeCheckpoint: t.varchar({ length: 75 }).notNull(),
       latestCheckpoint: t.varchar({ length: 75 }).notNull(),
+      finalizedCheckpoint: t.varchar({ length: 75 }).notNull(),
     }));
   }
 
@@ -129,6 +133,7 @@ export const getPonderCheckpointTable = (schema?: string) => {
     chainId: t.bigint({ mode: "number" }).notNull(),
     safeCheckpoint: t.varchar({ length: 75 }).notNull(),
     latestCheckpoint: t.varchar({ length: 75 }).notNull(),
+    finalizedCheckpoint: t.varchar({ length: 75 }).notNull(),
   }));
 };
 
@@ -459,7 +464,7 @@ export const createDatabase = async ({
         }
       }
     },
-    async migrate({ buildId, ordering }) {
+    async migrate({ buildId, chains, finalizedBlocks }) {
       const createTables = async (tx: QB) => {
         for (let i = 0; i < schemaBuild.statements.tables.sql.length; i++) {
           await tx
@@ -511,7 +516,8 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
   "chain_name" TEXT PRIMARY KEY,
   "chain_id" BIGINT NOT NULL,
   "safe_checkpoint" VARCHAR(75) NOT NULL,
-  "latest_checkpoint" VARCHAR(75) NOT NULL
+  "latest_checkpoint" VARCHAR(75) NOT NULL,
+  "finalized_checkpoint" VARCHAR(75) NOT NULL
 )`,
             ),
           );
@@ -673,13 +679,36 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
           const checkpoints = await tx.wrap((tx) =>
             tx.select().from(PONDER_CHECKPOINT),
           );
-          const crashRecoveryCheckpoint =
-            checkpoints.length === 0
-              ? undefined
-              : checkpoints.map((c) => ({
-                  chainId: c.chainId,
-                  checkpoint: c.safeCheckpoint,
-                }));
+
+          // Note: The previous app can be in three possible states:
+          // 1. Has no checkpoints, hasn't made it past the setup events
+          // 2. Has checkpoints but hasn't made it past the historical backfill
+          // 3. Has checkpoints and has made it past the historical backfill
+
+          if (checkpoints.length === 0) {
+            return {
+              status: "success",
+              crashRecoveryCheckpoint: undefined,
+            } as const;
+          }
+
+          for (const { chainId, finalizedCheckpoint } of checkpoints) {
+            const finalizedBlock =
+              finalizedBlocks[chains.findIndex((c) => c.id === chainId)]!;
+            if (
+              hexToBigInt(finalizedBlock.timestamp) <
+              decodeCheckpoint(finalizedCheckpoint).blockTimestamp
+            ) {
+              throw new MigrationError(
+                `Finalized block for chain '${chainId}' cannot move backwards`,
+              );
+            }
+          }
+
+          const crashRecoveryCheckpoint = checkpoints.map((c) => ({
+            chainId: c.chainId,
+            checkpoint: c.safeCheckpoint,
+          }));
 
           if (previousApp.is_ready === 0) {
             await tx.wrap((tx) =>
@@ -712,12 +741,9 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             });
           }
 
-          // Note: it is an invariant that checkpoints.length > 0;
-          const revertCheckpoint = min(
-            ...checkpoints.map((c) => c.safeCheckpoint),
-          );
-
-          await revert(tx, { checkpoint: revertCheckpoint, tables, ordering });
+          for (const table of tables) {
+            await crashRecovery(tx, { table });
+          }
 
           // Note: We don't update the `_ponder_checkpoint` table here, instead we wait for it to be updated
           // in the runtime script.
