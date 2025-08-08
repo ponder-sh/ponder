@@ -385,7 +385,7 @@ export const createIndexingCache = ({
   /**
    * Estimated size of the cache in bytes per table.
    *
-   * Note: storeage size is evaluated only for complete & virtual cache phases.
+   * Note: storage need to be evaluated only for complete & virtual cache phases.
    */
   const cacheBytes: CacheBytes = new Map();
   let event: Event | undefined;
@@ -393,7 +393,7 @@ export const createIndexingCache = ({
   let isCacheComplete = crashRecoveryCheckpoint === undefined;
   const primaryKeyCache = new Map<Table, [string, Column][]>();
 
-  let eventIndex = 0;
+  let processedEventIndex = 0;
   const cache: Cache = new Map();
   const insertBuffer: Buffer = new Map();
   const updateBuffer: Buffer = new Map();
@@ -413,19 +413,18 @@ export const createIndexingCache = ({
     }
   > = new Map();
   const virtualCacheEvictedKeys: Map<Table, Set<CacheKey>> = new Map();
-  /** With multichain ordering, we need to ensure cache access tracking & eviction is processed by chain
+  /** Note: with 'multichain' ordering, we need to ensure cache access tracking & eviction is processed by chain
    * as events are not chronologically ordered globally. */
   const virtualCacheByChain = ordering === "multichain";
   const lastBlockTimestampByChainId: Map<number, number> = new Map();
 
   const tables = Object.values(schema).filter(isTable);
 
+  // Note: following attributes are only used for internal logs
   const alwaysRecordBytes = SHOW_VIRTUAL_CACHE_LOGS;
-
   const cacheCompleteStart = Date.now();
   let cacheCompleteEnd: number | undefined = undefined;
   let cacheCompleteEvents = 0;
-
   let cachePartialStart = 0;
   let cachePartialEvents = 0;
 
@@ -544,14 +543,14 @@ export const createIndexingCache = ({
               ? "virtual"
               : "hit",
         });
-        spillover.get(table)!.set(ck, eventIndex);
+        spillover.get(table)!.set(ck, processedEventIndex);
 
         if (shouldCollectCacheAccess && event) {
-          // Original entity is always already in cache in case of update or insertOnConflict
+          // Get entity metadata from the cache (entity is always already in cache in case of update or insertOnConflict)
           const cacheEntry = cache.get(table)!.get(ck);
           const insertTimestamp =
             cacheEntry?.metadata?.insertBlockTimestamp ??
-            // Otherwise, for plain insert, we use the buffer insert block timestamp
+            // Otherwise, for direct insert, we use the buffer metadata
             Number(bufferEntry.metadata.event?.event?.block?.timestamp ?? 0);
 
           updateCacheAccessHit(cacheAccess, table, event, insertTimestamp);
@@ -571,7 +570,7 @@ export const createIndexingCache = ({
               ? "virtual"
               : "hit",
         });
-        spillover.get(table)!.set(ck, eventIndex);
+        spillover.get(table)!.set(ck, processedEventIndex);
 
         if (shouldCollectCacheAccess && event) {
           updateCacheAccessHit(
@@ -618,11 +617,10 @@ export const createIndexingCache = ({
 
         // Disable virtual cache for this table as soon as we miss a hit
         disableVirtualCacheForTable(table);
-
         virtualCacheLog(`Disable ${getTableName(table)} after miss hit`);
       }
 
-      spillover.get(table)!.set(ck, eventIndex);
+      spillover.get(table)!.set(ck, processedEventIndex);
 
       common.metrics.ponder_indexing_cache_requests_total.inc({
         table: getTableName(table),
@@ -639,7 +637,7 @@ export const createIndexingCache = ({
         .then((row) => {
           cache.get(table)!.set(ck, {
             row: structuredClone(row),
-            // Note: we don't need metadata because virtual cache is disabled if we miss the cache
+            // Note: we don't need metadata because virtual cache is disabled if we missed the cache
           });
 
           if (shouldRecordBytes) {
@@ -717,7 +715,6 @@ export const createIndexingCache = ({
 
         const tableCache = cache.get(table)!;
 
-        // Continue recording bytes for complete cache or tables with virtual cache enabled
         const shouldRecordBytes =
           alwaysRecordBytes ||
           isCacheComplete ||
@@ -1018,8 +1015,6 @@ export const createIndexingCache = ({
       }
     },
     async prefetch({ events }) {
-      eventIndex += events.length;
-
       const cacheSize = Array.from(cache.values()).reduce(
         (acc, tableCache) => acc + tableCache.size,
         0,
@@ -1028,32 +1023,38 @@ export const createIndexingCache = ({
         (acc, bytes) => acc + bytes.items + bytes.evictedKeys,
         0,
       );
+      const isCacheFull =
+        totalCacheBytes > common.options.indexingCacheMaxBytes;
+
       virtualCacheLog(
         `isCacheComplete=${isCacheComplete} cacheBytes=${formatBytes(
           totalCacheBytes,
         )} / ${formatBytes(common.options.indexingCacheMaxBytes)} - cacheSize=${cacheSize}`,
       );
 
-      const cacheCompleteDuration =
-        cacheCompleteEnd !== undefined
-          ? (cacheCompleteEnd - cacheCompleteStart) / 1000
-          : (Date.now() - cacheCompleteStart) / 1000;
-      const cacheCompleteEps = Math.floor(
-        cacheCompleteEvents / cacheCompleteDuration,
-      );
-      const cachePartialDuration =
-        cachePartialStart !== 0 ? (Date.now() - cachePartialStart) / 1000 : 0;
-      const cachePartialEps =
-        cachePartialDuration !== 0
-          ? Math.floor(cachePartialEvents / cachePartialDuration)
-          : 0;
-      virtualCacheLog(
-        `cacheComplete: ${cacheCompleteEvents} in ${cacheCompleteDuration}s (${cacheCompleteEps} EPS) cacheIncomplete: ${cachePartialEvents} in ${cachePartialDuration}s (${cachePartialEps} EPS)`,
-      );
+      if (SHOW_VIRTUAL_CACHE_LOGS) {
+        // Calculate EPS (events per second) of different cache phases
+        const cacheCompleteDuration =
+          cacheCompleteEnd !== undefined
+            ? (cacheCompleteEnd - cacheCompleteStart) / 1000
+            : (Date.now() - cacheCompleteStart) / 1000;
+        const cacheCompleteEps = Math.floor(
+          cacheCompleteEvents / cacheCompleteDuration,
+        );
+        const cachePartialDuration =
+          cachePartialStart !== 0 ? (Date.now() - cachePartialStart) / 1000 : 0;
+        const cachePartialEps =
+          cachePartialDuration !== 0
+            ? Math.floor(cachePartialEvents / cachePartialDuration)
+            : 0;
+        virtualCacheLog(
+          `cacheComplete: ${cacheCompleteEvents} in ${cacheCompleteDuration}s (${cacheCompleteEps} EPS) cacheIncomplete: ${cachePartialEvents} in ${cachePartialDuration}s (${cachePartialEps} EPS)`,
+        );
+      }
 
       if (isCacheComplete) {
         cacheCompleteEvents += events.length;
-        if (totalCacheBytes < common.options.indexingCacheMaxBytes) {
+        if (!isCacheFull) {
           return;
         }
         // End complete cache phase
@@ -1066,8 +1067,6 @@ export const createIndexingCache = ({
 
       // Every time we reach the max cache size, we analyze the cache access patterns
       // to adjust the virtual cache configuration per table.
-      const isCacheFull =
-        totalCacheBytes > common.options.indexingCacheMaxBytes;
       if (isCacheFull) {
         for (const [table, tableCacheAccess] of cacheAccess) {
           const virtualCacheConf = virtualCacheConfig.get(table)!;
@@ -1077,7 +1076,7 @@ export const createIndexingCache = ({
           }
 
           // Analyze table stats to determine if we can enable virtual cache
-          // and if we need to clear the cache after a certain age
+          // and if we can set an eviction ttl
           let { enabled, ttl, keepEvictedKeys } = virtualCacheConf;
 
           // Inserts age are measured chain by chain to ensure compatibility
@@ -1119,29 +1118,29 @@ export const createIndexingCache = ({
           );
 
           if (totalInserts < 1000) {
-            // TableProfile = Dictionary: low number of items, high access rate, high hit age
+            // TableProfile = Dictionary: *low number of items*, high access rate, long access time span
             enabled = true;
             virtualCacheLog(
               `${getTableName(table)} - Profile=Dictionary - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
             );
           } else if (maxHitAge < ONE_MINUTE) {
-            // TableProfile = Events: high number of items, low access rate, very low hit age
+            // TableProfile = Events: high number of items, low access rate, *very short access time span*
             enabled = true;
             ttl = Math.max(maxHitAge, ONE_MINUTE) * 1.5; // 1.5x maxHitAge, (min 1 minute)
-            keepEvictedKeys = hitsNotExists > 0;
+            keepEvictedKeys = hitsNotExists > 0; // Keep evicted keys to resolve onConflict/find=>null patterns
             virtualCacheLog(
               `${getTableName(table)} - Profile=Events - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
             );
           } else if (hitAgeRatio >= 1) {
-            // TableProfile = Relational: medium number of items, high access rate, high hit age
+            // TableProfile = Relational: medium number of items, high access rate, *long access time span*
             enabled = true;
             virtualCacheLog(
               `${getTableName(table)} - Profile=Relational - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
             );
           } else if (hitAgeRatio < 1) {
-            // TableProfile = Aggregation: medium number of items, high access rate, low/medium hit age
+            // TableProfile = Aggregation: medium number of items, high access rate, *delimited access time span*
             enabled = true;
-            keepEvictedKeys = hitsNotExists > 0;
+            keepEvictedKeys = hitsNotExists > 0; // Keep evicted keys to resolve onConflict/find=>null patterns
 
             // Round cache eviction to the above logical time interval: hour, day, week, month, year
             if (maxHitAge > ONE_YEAR || hitAgeRatio > 0.5) {
@@ -1211,15 +1210,10 @@ export const createIndexingCache = ({
         }
       }
 
-      /* const cacheSizeBefore = Array.from(cache.values()).reduce(
-        (acc, tableCache) => acc + tableCache.size,
-        0,
-      );*/
-
       for (const [table, tableCache] of cache) {
         const virtualCacheConf = virtualCacheConfig.get(table)!;
 
-        for (const [key, { metadata }] of tableCache.entries()) {
+        for (const [key, { row, metadata }] of tableCache.entries()) {
           if (virtualCacheConf.enabled) {
             // Virtual cache eviction
             if (
@@ -1231,10 +1225,9 @@ export const createIndexingCache = ({
                 : Number(event!.event.block.timestamp);
               const age = now - metadata.insertBlockTimestamp;
               if (age > virtualCacheConf.ttl!) {
-                const cacheEntry = tableCache.get(key);
-                if (cacheEntry?.row && virtualCacheConf.enabled) {
+                if (row) {
                   // Subtract bytes when evicting from virtual cache
-                  cacheBytes.get(table)!.items -= getBytes(cacheEntry.row);
+                  cacheBytes.get(table)!.items -= getBytes(row);
                 }
                 tableCache.delete(key);
                 // Keep evicted keys, to allow non-existing hits detection
@@ -1275,12 +1268,11 @@ export const createIndexingCache = ({
       }
 
       for (const [table] of spillover) {
-        // Keep spillover entries for the last 10k events
+        // Keep spillover entries from the last 20k processed events
         for (const [key, spilloverEventIndex] of spillover
           .get(table)!
           .entries()) {
-          // Keep spillover entries for the last 20k events
-          if (spilloverEventIndex < eventIndex - 20_000) {
+          if (spilloverEventIndex < processedEventIndex - 20_000) {
             spillover.get(table)!.delete(key);
           }
         }
@@ -1373,7 +1365,7 @@ export const createIndexingCache = ({
           nbHits: number;
         } = {
           table: null,
-          efficiency: 1,
+          efficiency: Number.MAX_SAFE_INTEGER,
           bytes: 0,
           nbHits: 0,
         };
@@ -1417,6 +1409,8 @@ export const createIndexingCache = ({
           );
         }
       }
+
+      processedEventIndex += events.length;
     },
     invalidate() {
       isCacheComplete = false;
