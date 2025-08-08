@@ -365,11 +365,7 @@ export const createSync = async (params: {
             }>,
           ) {
             for await (const { events, checkpoint } of eventGenerator) {
-              if (
-                crashRecoveryCheckpoint &&
-                events.length > 0 &&
-                events[0]!.checkpoint <= crashRecoveryCheckpoint
-              ) {
+              if (crashRecoveryCheckpoint) {
                 const [, right] = partition(
                   events,
                   (event) => event.checkpoint <= crashRecoveryCheckpoint,
@@ -392,7 +388,7 @@ export const createSync = async (params: {
               // finalized checkpoint and add them to pendingEvents. These events are synced during
               // the historical phase, but must be indexed in the realtime phase because events
               // synced in realtime on other chains might be ordered before them.
-              if (params.ordering === "omnichain" && checkpoint > to) {
+              if (params.ordering === "omnichain") {
                 const [left, right] = partition(
                   events,
                   (event) => event.checkpoint <= to,
