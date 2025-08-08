@@ -1320,12 +1320,6 @@ SELECT number FROM ponder_sync.blocks WHERE timestamp > (
       ),
     });
 
-    console.log(
-      chain.name,
-      hexToNumber(app.indexingBuild.finalizedBlocks[i]!.number) + 1,
-      end,
-    );
-
     chains.set(chain.id, {
       // @ts-ignore
       request: rpc.request,
@@ -1360,6 +1354,8 @@ SELECT number FROM ponder_sync.blocks WHERE timestamp > (
         while (isAccepted! === false) {
           isAccepted = await onBlock(block!);
         }
+
+        await onBlock(block!);
 
         app.common.logger.warn({
           service: "sim",
