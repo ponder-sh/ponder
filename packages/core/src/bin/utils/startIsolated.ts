@@ -1,21 +1,27 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { Worker } from "node:worker_threads";
 import { createIndexes, createViews } from "@/database/actions.js";
-import {
-  createDatabaseInterface,
-  getPonderMetaTable,
-} from "@/database/index.js";
-import { runIsolated } from "@/runtime/isolated.js";
+import { getPonderMetaTable } from "@/database/index.js";
+import { AggregatorMetricsService } from "@/internal/metrics.js";
 import { isTable, sql } from "drizzle-orm";
 import type { PonderApp } from "../commands/start.js";
+import type { CliOptions } from "../ponder.js";
 
-export async function startIsolated({
-  common,
-  preBuild,
-  namespaceBuild,
-  schemaBuild,
-  indexingBuild,
-  crashRecoveryCheckpoint,
-  database,
-}: PonderApp) {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+export async function startIsolated(
+  {
+    common,
+    namespaceBuild,
+    schemaBuild,
+    indexingBuild,
+    crashRecoveryCheckpoint,
+    database,
+  }: PonderApp,
+  cliOptions: CliOptions,
+) {
   const state: {
     [chainName: string]: "historical" | "realtime" | "complete" | "failed";
   } = {};
@@ -33,9 +39,6 @@ export async function startIsolated({
     }
 
     if (isAllReady) {
-      const endTimestamp = Math.round(Date.now() / 1000);
-      common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
-
       await createIndexes(database.adminQB, {
         statements: schemaBuild.statements,
       });
@@ -66,53 +69,51 @@ export async function startIsolated({
     }
   };
 
+  const workers = indexingBuild.chains.map((chain) => {
+    const workerPath = join(__dirname, "..", "..", "runtime", "isolated.js");
+    const worker = new Worker(workerPath, {
+      workerData: {
+        cliOptions,
+        crashRecoveryCheckpoint,
+        chainId: chain.id,
+      },
+    });
+
+    return { chain, worker };
+  });
+
+  common.metrics = new AggregatorMetricsService(workers);
+  common.metrics.addListeners();
+
   Promise.all(
-    indexingBuild.chains.map(async (chain) => {
-      const database = await createDatabaseInterface({
-        common,
-        namespace: namespaceBuild,
-        preBuild,
-        schemaBuild,
-      });
-
-      state[chain.name] = "historical";
-
-      await runIsolated(
-        {
-          common,
-          preBuild,
-          namespaceBuild,
-          schemaBuild,
-          indexingBuild,
-          crashRecoveryCheckpoint,
-          database,
-          onReady: async () => {
+    workers.map(async ({ chain, worker }) => {
+      return new Promise<void>((resolve) => {
+        worker.on("message", (message) => {
+          if (message.type === "ready") {
             state[chain.name] = "realtime";
-            await callback();
-          },
-        },
-        chain.id,
-      )
-        .then(() => {
-          state[chain.name] = "complete";
-        })
-        .catch(async (error) => {
-          state[chain.name] = "failed";
-          common.logger.info({
-            service: "server",
-            msg: `Chain '${chain.name}' failed. `,
-          });
-
-          await callback();
-
-          for (const chain of indexingBuild.chains) {
-            if (state[chain.name] !== "failed") {
-              return;
-            }
+            callback();
+          } else if (message.type === "complete") {
+            state[chain.name] = "complete";
+            resolve();
+            common.logger.info({
+              service: "indexing",
+              msg: `Chain '${chain.name}' completed indexing.`,
+            });
           }
-
-          throw error;
         });
+
+        worker.on("exit", (code) => {
+          // TODO: Add logic to retry
+          state[chain.name] = "failed";
+          callback();
+          common.logger.error({
+            service: "server",
+            msg: `Chain '${chain.name}' exited with code ${code}.`,
+          });
+        });
+      }).then(() => {
+        worker.terminate();
+      });
     }),
   );
 }
