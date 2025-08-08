@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.2
+
+### Patch Changes
+
+- [#1958](https://github.com/ponder-sh/ponder/pull/1958) [`dca52ed`](https://github.com/ponder-sh/ponder/commit/dca52edec6601296590d5798560203ee321f1652) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an bug where empty rpc urls would cause `BuildError: Invalid URL`.
+
 ## 0.12.1
 
 ### Patch Changes
