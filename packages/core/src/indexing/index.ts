@@ -16,7 +16,7 @@ import type {
   Schema,
   SetupEvent,
 } from "@/internal/types.js";
-import { isAddressFactory } from "@/sync/filter.js";
+import { isAddressFactory } from "@/runtime/filter.js";
 import type { Db } from "@/types/db.js";
 import type { Block, Log, Trace, Transaction } from "@/types/eth.js";
 import type { DeepPartial } from "@/types/utils.js";

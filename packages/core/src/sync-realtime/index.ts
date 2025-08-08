@@ -31,8 +31,8 @@ import {
   isTransactionFilterMatched,
   isTransferFilterMatched,
   shouldGetTransactionReceipt,
-} from "@/sync/filter.js";
-import { type SyncProgress, syncBlockToLightBlock } from "@/sync/index.js";
+} from "@/runtime/filter.js";
+import type { SyncProgress } from "@/runtime/index.js";
 import { createLock } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
 import {
@@ -902,7 +902,12 @@ export const createRealtimeSync = (
         });
       }
 
-      unfinalizedBlocks.push(syncBlockToLightBlock(block));
+      unfinalizedBlocks.push({
+        hash: block.hash,
+        parentHash: block.parentHash,
+        number: block.number,
+        timestamp: block.timestamp,
+      });
 
       // Make sure `transactions` can be garbage collected
       blockWithEventData.block.transactions =
