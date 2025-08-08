@@ -45,6 +45,7 @@ test("flush() insert", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -93,6 +94,7 @@ test("flush() update", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -180,6 +182,7 @@ test("flush() encoding", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -245,6 +248,7 @@ test("flush() encoding escape", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -325,6 +329,7 @@ test("prefetch() uses profile metadata", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: { "Contract:Event": 0 },
@@ -380,6 +385,7 @@ test("prefetch() evicts rows", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
