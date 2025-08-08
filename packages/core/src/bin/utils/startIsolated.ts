@@ -5,7 +5,10 @@ import { createIndexes, createViews } from "@/database/actions.js";
 import { getPonderMetaTable } from "@/database/index.js";
 import { AggregatorMetricsService } from "@/internal/metrics.js";
 import type { Chain } from "@/internal/types.js";
-import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
+import {
+  type PromiseWithResolvers,
+  promiseWithResolvers,
+} from "@/utils/promiseWithResolvers.js";
 import { wait } from "@/utils/wait.js";
 import { isTable, sql } from "drizzle-orm";
 import type { PonderApp } from "../commands/start.js";
@@ -13,6 +16,23 @@ import type { CliOptions } from "../ponder.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+type WorkerState =
+  | "historical"
+  | "realtime"
+  | "complete"
+  | "degraded"
+  | "failed";
+
+interface WorkerInfo {
+  state: WorkerState;
+  chain: Chain;
+  worker: Worker;
+  retryCount: number;
+  timeout?: NodeJS.Timeout;
+  messageHandler?: (message: any) => void;
+  exitHandler?: (code: number) => void;
+}
 
 export async function startIsolated(
   {
@@ -25,14 +45,7 @@ export async function startIsolated(
   }: PonderApp,
   cliOptions: CliOptions,
 ) {
-  const appState: {
-    [chainName: string]: {
-      state: "historical" | "realtime" | "complete" | "degraded" | "failed";
-      chain: Chain;
-      worker: Worker;
-    };
-  } = {};
-
+  const appState: { [chainName: string]: WorkerInfo } = {};
   const workerPath = join(__dirname, "..", "..", "runtime", "isolated.js");
 
   let isAllReady = false;
@@ -76,7 +89,7 @@ export async function startIsolated(
     }
   };
 
-  indexingBuild.chains.map((chain) => {
+  indexingBuild.chains.forEach((chain) => {
     appState[chain.name] = {
       state: "historical",
       chain,
@@ -87,6 +100,7 @@ export async function startIsolated(
           chainId: chain.id,
         },
       }),
+      retryCount: 0,
     };
   });
 
@@ -95,87 +109,144 @@ export async function startIsolated(
 
   const RETRY_COUNT = 9;
   const BASE_DURATION = 10_000;
+  const TIMEOUT_DURATION = 30_000;
+
+  const cleanupWorker = (chainName: string) => {
+    const workerInfo = appState[chainName];
+    if (!workerInfo) return;
+
+    if (workerInfo.timeout) {
+      clearTimeout(workerInfo.timeout);
+      workerInfo.timeout = undefined;
+    }
+
+    if (workerInfo.messageHandler) {
+      workerInfo.worker.off("message", workerInfo.messageHandler);
+      workerInfo.messageHandler = undefined;
+    }
+
+    if (workerInfo.exitHandler) {
+      workerInfo.worker.off("exit", workerInfo.exitHandler);
+      workerInfo.exitHandler = undefined;
+    }
+  };
+
+  const createWorker = (chainName: string): Worker => {
+    const workerInfo = appState[chainName]!;
+
+    return new Worker(workerPath, {
+      workerData: {
+        cliOptions,
+        crashRecoveryCheckpoint,
+        chainId: workerInfo.chain.id,
+      },
+    });
+  };
+
+  const setupWorkerHandlers = (
+    chainName: string,
+    worker: Worker,
+    pwr: PromiseWithResolvers<void>,
+  ) => {
+    const workerInfo = appState[chainName];
+    if (!workerInfo) return;
+
+    cleanupWorker(chainName);
+
+    const messageHandler = (message: any) => {
+      switch (message.type) {
+        case "ready": {
+          workerInfo.state = "realtime";
+          if (workerInfo.timeout) {
+            clearTimeout(workerInfo.timeout);
+            workerInfo.timeout = undefined;
+          }
+          break;
+        }
+        case "complete": {
+          workerInfo.state = "complete";
+          if (workerInfo.timeout) {
+            clearTimeout(workerInfo.timeout);
+            workerInfo.timeout = undefined;
+          }
+          pwr.resolve();
+          break;
+        }
+      }
+      callback();
+    };
+
+    const exitHandler = async (code: number) => {
+      if (code === 75) {
+        workerInfo.state = "degraded";
+
+        if (workerInfo.retryCount >= RETRY_COUNT) {
+          const error = new Error(
+            `Chain '${chainName}' exited with code ${code} after ${workerInfo.retryCount + 1} consecutive retries.`,
+          );
+
+          common.logger.error({
+            service: "rpc",
+            msg: error.message,
+          });
+
+          workerInfo.state = "failed";
+          pwr.reject(error);
+        } else {
+          const duration = BASE_DURATION * 2 ** workerInfo.retryCount;
+          common.logger.warn({
+            service: "rpc",
+            msg: `Chain '${chainName}' exited with code ${code}, retrying after ${duration / 1_000} seconds.`,
+          });
+
+          await wait(duration);
+
+          const newWorker = createWorker(chainName);
+          workerInfo.worker = newWorker;
+          workerInfo.retryCount++;
+
+          workerInfo.timeout = setTimeout(() => {
+            if (workerInfo.state === "degraded") {
+              workerInfo.state = "historical";
+            }
+          }, TIMEOUT_DURATION);
+
+          setupWorkerHandlers(chainName, newWorker, pwr);
+        }
+      } else if (code !== 0) {
+        const error = new Error(
+          `Chain '${chainName}' exited with code ${code}.`,
+        );
+
+        common.logger.error({
+          service: "rpc",
+          msg: error.message,
+        });
+
+        workerInfo.state = "failed";
+        pwr.reject(error);
+      }
+      callback();
+    };
+
+    workerInfo.messageHandler = messageHandler;
+    workerInfo.exitHandler = exitHandler;
+
+    worker.on("message", messageHandler);
+    worker.on("exit", exitHandler);
+  };
 
   Promise.allSettled(
     Object.keys(appState).map(async (chainName) => {
       const pwr = promiseWithResolvers<void>();
-      let timeout: NodeJS.Timeout | undefined = undefined;
+      const workerInfo = appState[chainName]!;
 
-      for (let i = 0; i <= RETRY_COUNT; ++i) {
-        const pwr2 = promiseWithResolvers<void>();
-        appState[chainName]!.worker.on("message", (message) => {
-          switch (message.type) {
-            case "ready": {
-              appState[chainName]!.state = "realtime";
-              i = 0;
-              clearTimeout(timeout);
-              break;
-            }
-            case "complete": {
-              appState[chainName]!.state = "complete";
-              i = 0;
-              clearTimeout(timeout);
-              pwr2.resolve();
-              pwr.resolve();
-            }
-          }
+      setupWorkerHandlers(chainName, workerInfo.worker, pwr);
 
-          callback();
-        });
-
-        appState[chainName]!.worker.on("exit", async (code) => {
-          if (code === 75) {
-            appState[chainName]!.state = "degraded";
-
-            if (i === RETRY_COUNT) {
-              common.logger.error({
-                service: "rpc",
-                msg: `Chain '${chainName}' exited with code ${code} after ${i + 1} conseccutive retries.`,
-              });
-              appState[chainName]!.state = "failed";
-              pwr.reject(
-                new Error(
-                  `Chain '${chainName}' exited with code ${code} after ${i + 1} conseccutive retries.`,
-                ),
-              );
-            } else {
-              const duration = BASE_DURATION * 2 ** i;
-              common.logger.warn({
-                service: "rpc",
-                msg: `Chain '${chainName}' exited with code ${code}, retrying after ${duration / 1_000} seconds.`,
-              });
-              await wait(duration);
-
-              appState[chainName]!.worker = new Worker(workerPath, {
-                workerData: {
-                  cliOptions,
-                  crashRecoveryCheckpoint,
-                  chainId: appState[chainName]!.chain.id,
-                },
-              });
-
-              timeout = setTimeout(() => {
-                appState[chainName]!.state = "historical";
-              }, 30_000);
-
-              pwr2.resolve();
-            }
-          } else {
-            appState[chainName]!.state = "failed";
-            pwr.reject(
-              new Error(`Chain '${chainName}' exited with code ${code}`),
-            );
-          }
-          callback();
-        });
-
-        await pwr2.promise;
-        if (appState[chainName]!.state === "complete") {
-          break;
-        }
-      }
-
-      return pwr.promise.then(() => appState[chainName]!.worker.terminate());
+      return pwr.promise.finally(() => {
+        cleanupWorker(chainName);
+        appState[chainName]!.worker.terminate();
+      });
     }),
   );
 }
