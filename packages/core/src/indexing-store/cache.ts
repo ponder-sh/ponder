@@ -87,6 +87,7 @@ const ONE_WEEK = 604800;
 const ONE_DAY = 86400;
 const ONE_HOUR = 3600;
 const ONE_MINUTE = 60;
+const SHOW_VIRTUAL_CACHE_LOGS = false;
 
 /**
  * Database row.
@@ -419,7 +420,7 @@ export const createIndexingCache = ({
 
   const tables = Object.values(schema).filter(isTable);
 
-  const alwaysRecordBytes = true; // ToDo: determine if we need to keep this or not
+  const alwaysRecordBytes = SHOW_VIRTUAL_CACHE_LOGS;
 
   const cacheCompleteStart = Date.now();
   let cacheCompleteEnd: number | undefined = undefined;
@@ -437,6 +438,15 @@ export const createIndexingCache = ({
       cacheBytes.get(table)!.keySize = size;
     }
     return size;
+  };
+
+  const virtualCacheLog = (msg: string) => {
+    if (SHOW_VIRTUAL_CACHE_LOGS) {
+      common.logger.debug({
+        service: "indexing",
+        msg: `VirtualCache: ${msg}`,
+      });
+    }
   };
 
   for (const table of tables) {
@@ -527,8 +537,7 @@ export const createIndexingCache = ({
               ? "virtual"
               : "hit",
         });
-        // ToDo: add spillover on hits
-        // spillover.get(table)!.set(ck, eventIndex);
+        spillover.get(table)!.set(ck, eventIndex);
 
         if (shouldCollectCacheAccess && event) {
           // Original entity is always already in cache in case of update or insertOnConflict
@@ -555,8 +564,7 @@ export const createIndexingCache = ({
               ? "virtual"
               : "hit",
         });
-        // ToDo: add spillover on hits
-        // spillover.get(table)!.set(ck, eventIndex);
+        spillover.get(table)!.set(ck, eventIndex);
 
         if (shouldCollectCacheAccess && event) {
           updateCacheAccessHit(
@@ -606,9 +614,7 @@ export const createIndexingCache = ({
         virtualCacheEvictedKeys.get(table)!.clear();
         cacheBytes.get(table)!.evictedKeys = 0;
 
-        console.log(
-          `VirtualCache: Disable ${getTableName(table)} after miss hit`,
-        );
+        virtualCacheLog(`Disable ${getTableName(table)} after miss hit`);
       }
 
       spillover.get(table)!.set(ck, eventIndex);
@@ -1017,8 +1023,8 @@ export const createIndexingCache = ({
         (acc, bytes) => acc + bytes.items + bytes.evictedKeys,
         0,
       );
-      console.log(
-        `indexingCache.prefetch() isCacheComplete=${isCacheComplete} cacheBytes=${formatBytes(
+      virtualCacheLog(
+        `isCacheComplete=${isCacheComplete} cacheBytes=${formatBytes(
           totalCacheBytes,
         )} / ${formatBytes(common.options.indexingCacheMaxBytes)} - cacheSize=${cacheSize}`,
       );
@@ -1036,8 +1042,8 @@ export const createIndexingCache = ({
         cachePartialDuration !== 0
           ? Math.floor(cachePartialEvents / cachePartialDuration)
           : 0;
-      console.log(
-        `indexingCache.prefetch() cacheComplete: ${cacheCompleteEvents} in ${cacheCompleteDuration}s (${cacheCompleteEps} EPS) cacheIncomplete: ${cachePartialEvents} in ${cachePartialDuration}s (${cachePartialEps} EPS)`,
+      virtualCacheLog(
+        `cacheComplete: ${cacheCompleteEvents} in ${cacheCompleteDuration}s (${cacheCompleteEps} EPS) cacheIncomplete: ${cachePartialEvents} in ${cachePartialDuration}s (${cachePartialEps} EPS)`,
       );
 
       if (isCacheComplete) {
@@ -1098,45 +1104,41 @@ export const createIndexingCache = ({
           const hitsPerEntries = tableCacheAccess.nbHits / totalInserts;
           const hitsNotExists = tableCacheAccess.nbHitsNotExists;
 
-          // high hitAgeRatio (>1) means that cached items are accessed uniformly over a long time span
-          // low hitAgeRatio (<1) means that cached items are not accessed after a short time span
+          // Note: hitAgeRatio is the main metric to determine the table profile
+          // hitAgeRatio > 1 = items are accessed uniformly over a long time span (profile: dictionary, relational)
+          // hitAgeRatio < 1 = items are accessed only over a short time span (profile: event, aggregation)
           const hitAgeRatio = maxHitAge / avgItemAge;
 
-          console.log(
-            `VirtualCache: ${getTableName(table)} - AccessStats- inserts: ${totalInserts} avgItemAge: ${avgItemAge} hits: ${tableCacheAccess.nbHits} avgHitAge: ${avgHitAge} maxHitAge: ${maxHitAge} hitAgeRatio: ${hitAgeRatio} hitsPerEntries: ${hitsPerEntries} hitsNotExists: ${hitsNotExists}`,
+          virtualCacheLog(
+            `${getTableName(table)} - AccessStats - inserts: ${totalInserts} avgItemAge: ${avgItemAge} hits: ${tableCacheAccess.nbHits} avgHitAge: ${avgHitAge} maxHitAge: ${maxHitAge} hitAgeRatio: ${hitAgeRatio} hitsPerEntries: ${hitsPerEntries} hitsNotExists: ${hitsNotExists}`,
           );
 
-          // TableProfile = Events: high number of items, low access rate, low hit age
-          // TableProfile = Relational: medium number of items, high access rate, high hit age
-          // TableProfile = Aggregation: medium number of items, high access rate, low hit age
-          // TableProfile = Dictionary: low number of items, high access rate, high hit age
-
           if (totalInserts < 1000) {
-            // TableProfile = Dictionary
+            // TableProfile = Dictionary: low number of items, high access rate, high hit age
             enabled = true;
-            console.log(
-              `VirtualCache: ${getTableName(table)} - Profile=Dictionary - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
+            virtualCacheLog(
+              `${getTableName(table)} - Profile=Dictionary - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
             );
           } else if (maxHitAge < ONE_MINUTE) {
-            // TableProfile = Events: high number of items, low access rate, low hit age
+            // TableProfile = Events: high number of items, low access rate, very low hit age
             enabled = true;
             ttl = Math.max(maxHitAge, ONE_MINUTE) * 1.5; // 1.5x maxHitAge, (min 1 minute)
             keepEvictedKeys = hitsNotExists > 0;
-            console.log(
-              `VirtualCache: ${getTableName(table)} - Profile=Events - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
+            virtualCacheLog(
+              `${getTableName(table)} - Profile=Events - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
             );
           } else if (hitAgeRatio >= 1) {
             // TableProfile = Relational: medium number of items, high access rate, high hit age
             enabled = true;
-            console.log(
-              `VirtualCache: ${getTableName(table)} - Profile=Relational - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
+            virtualCacheLog(
+              `${getTableName(table)} - Profile=Relational - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
             );
           } else if (hitAgeRatio < 1) {
-            // TableProfile = Aggregation: medium number of items, high access rate, low hit age
+            // TableProfile = Aggregation: medium number of items, high access rate, low/medium hit age
             enabled = true;
             keepEvictedKeys = hitsNotExists > 0;
 
-            // Round cache eviction to above interval bucket: hour, day, week, month, year
+            // Round cache eviction to the above logical time interval: hour, day, week, month, year
             if (maxHitAge > ONE_YEAR || hitAgeRatio > 0.5) {
               // Don't enable cache eviction if:
               // - maxHitAge > ONE_YEAR: items are accessed over a too long time span
@@ -1156,12 +1158,12 @@ export const createIndexingCache = ({
               ttl = Math.max(maxHitAge, ONE_MINUTE) * 1.5; // 1.5x maxHitAge, (min 1 minute)
             }
 
-            console.log(
-              `VirtualCache: ${getTableName(table)} - Profile=Aggregation - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
+            virtualCacheLog(
+              `${getTableName(table)} - Profile=Aggregation - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
             );
           } else {
-            console.log(
-              `VirtualCache: ${getTableName(table)} - Profile=Unknown - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
+            virtualCacheLog(
+              `${getTableName(table)} - Profile=Unknown - enable: ${enabled} ttl: ${ttl} keepEvictedKeys: ${keepEvictedKeys}`,
             );
           }
 
@@ -1262,44 +1264,22 @@ export const createIndexingCache = ({
           }
         }
 
-        console.log(
-          `indexingCache.prefetch() table=${getTableName(table)} size=${tableCache.size} cacheBytes=${formatBytes(cacheBytes.get(table)!.items)} virtual=${virtualCacheConf.enabled} ttl=${virtualCacheConf.ttl} keepEvictedKeys=${virtualCacheConf.keepEvictedKeys} evictedKeys=${virtualCacheEvictedKeys.get(table)!.size} evictedKeysBytes=${formatBytes(cacheBytes.get(table)!.evictedKeys)}`,
+        virtualCacheLog(
+          `table=${getTableName(table)} size=${tableCache.size} cacheBytes=${formatBytes(cacheBytes.get(table)!.items)} virtual=${virtualCacheConf.enabled} ttl=${virtualCacheConf.ttl} keepEvictedKeys=${virtualCacheConf.keepEvictedKeys} evictedKeys=${virtualCacheEvictedKeys.get(table)!.size} evictedKeysBytes=${formatBytes(cacheBytes.get(table)!.evictedKeys)}`,
         );
       }
 
-      /* const cacheSizeAfter = Array.from(cache.values()).reduce(
-        (acc, tableCache) => acc + tableCache.size,
-        0,
-      );
-
-      console.log(
-        `indexingCache.prefetch() cacheSizeBefore=${cacheSizeBefore} cacheSizeAfter=${cacheSizeAfter} deleted=${cacheSizeAfter - cacheSizeBefore}`,
-      );
-
-      const spilloverSizeBefore = Array.from(spillover.values()).reduce(
-        (acc, tableSpillover) => acc + tableSpillover.size,
-        0,
-      );*/
-
       for (const [table] of spillover) {
         // Keep spillover entries for the last 10k events
-        for (const [key, _spilloverEventIndex] of spillover
+        for (const [key, spilloverEventIndex] of spillover
           .get(table)!
           .entries()) {
-          // Keep spillover entries for the last 10k events
-          //if (spilloverEventIndex < eventIndex - 10_000) {
-          spillover.get(table)!.delete(key);
-          //}
+          // Keep spillover entries for the last 20k events
+          if (spilloverEventIndex < eventIndex - 20_000) {
+            spillover.get(table)!.delete(key);
+          }
         }
       }
-      /*
-      const spilloverSizeAfter = Array.from(spillover.values()).reduce(
-        (acc, tableSpillover) => acc + tableSpillover.size,
-        0,
-      );
-      console.log(
-        `indexingCache.prefetch() spilloverSizeBefore=${spilloverSizeBefore} spilloverSizeAfter=${spilloverSizeAfter} deleted=${spilloverSizeAfter - spilloverSizeBefore}`,
-      );*/
 
       for (const [table, tablePredictions] of prediction) {
         common.metrics.ponder_indexing_cache_requests_total.inc(
@@ -1379,30 +1359,58 @@ export const createIndexingCache = ({
 
       if (isCacheFull) {
         // Check if cache is still full after prefetch & cleaning phase
-        let largestTable: Table | null = null;
-        let largestTableBytes = 0;
         let totalCacheBytes = 0;
+        // And find the less efficient table to disable virtual cache for
+        let lessEfficient: {
+          table: Table | null;
+          efficiency: number;
+          bytes: number;
+          nbHits: number;
+        } = {
+          table: null,
+          efficiency: 1,
+          bytes: 0,
+          nbHits: 0,
+        };
 
         for (const [table] of cacheBytes) {
           const cacheSize =
             cacheBytes.get(table)!.items + cacheBytes.get(table)!.evictedKeys;
           totalCacheBytes += cacheSize;
-          if (cacheSize > largestTableBytes) {
-            largestTable = table;
-            largestTableBytes = cacheSize;
+
+          if (!virtualCacheConfig.get(table)!.enabled) {
+            continue;
+          }
+
+          const nbHits =
+            cacheAccess.get(table)!.nbHits +
+            cacheAccess.get(table)!.nbHitsNotExists;
+          // Efficiency = nb of hits per bytes (higher is better)
+          const efficiency = (nbHits + 1) / (cacheSize + 1);
+          virtualCacheLog(
+            `${getTableName(table)} - efficiency: ${efficiency} cacheSize: ${formatBytes(cacheSize)} nbHits: ${nbHits}`,
+          );
+
+          if (efficiency < lessEfficient.efficiency) {
+            lessEfficient = {
+              table,
+              efficiency,
+              bytes: cacheSize,
+              nbHits,
+            };
           }
         }
 
         if (
           totalCacheBytes > common.options.indexingCacheMaxBytes &&
-          largestTable !== null
+          lessEfficient.table !== null
         ) {
-          // Disable virtual cache for the largest table to reduce cache size
-          virtualCacheConfig.set(largestTable, { enabled: false });
-          virtualCacheEvictedKeys.get(largestTable)!.clear();
-          cacheBytes.get(largestTable)!.evictedKeys = 0;
-          console.log(
-            `VirtualCache: Disable ${getTableName(largestTable)} (${formatBytes(largestTableBytes)}) to reduce cache size`,
+          // Disable virtual cache for the least efficient table to reduce cache size
+          virtualCacheConfig.set(lessEfficient.table, { enabled: false });
+          virtualCacheEvictedKeys.get(lessEfficient.table)!.clear();
+          cacheBytes.get(lessEfficient.table)!.evictedKeys = 0;
+          virtualCacheLog(
+            `Disable ${getTableName(lessEfficient.table)} (${formatBytes(lessEfficient.bytes)}) to reduce cache size (hits: ${lessEfficient.nbHits}, efficiency: ${lessEfficient.efficiency})`,
           );
         }
       }
