@@ -15,7 +15,7 @@ import {
   getLocalSyncProgress,
 } from "./index.js";
 
-export function initEventGenerator(params: {
+export async function initEventGenerator(params: {
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
