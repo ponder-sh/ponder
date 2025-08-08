@@ -617,7 +617,10 @@ export const createIndexingCache = ({
 
         // Disable virtual cache for this table as soon as we miss a hit
         disableVirtualCacheForTable(table);
-        virtualCacheLog(`Disable ${getTableName(table)} after miss hit`);
+        common.logger.debug({
+          service: "indexing",
+          msg: `Disable virtual cache for '${getTableName(table)}' table after miss hit`,
+        });
       }
 
       spillover.get(table)!.set(ck, processedEventIndex);
@@ -1404,9 +1407,10 @@ export const createIndexingCache = ({
         ) {
           // Disable virtual cache for the least efficient table to reduce cache size
           disableVirtualCacheForTable(lessEfficient.table);
-          virtualCacheLog(
-            `Disable ${getTableName(lessEfficient.table)} (${formatBytes(lessEfficient.bytes)}) to reduce cache size (hits: ${lessEfficient.nbHits}, efficiency: ${lessEfficient.efficiency})`,
-          );
+          common.logger.debug({
+            service: "indexing",
+            msg: `Disable virtual cache for '${getTableName(lessEfficient.table)}' table to reduce cache size (bytes: ${formatBytes(lessEfficient.bytes)}, hits: ${lessEfficient.nbHits}, efficiency: ${lessEfficient.efficiency})`,
+          });
         }
       }
 
@@ -1417,6 +1421,10 @@ export const createIndexingCache = ({
       // Disable virtual cache for all tables
       for (const table of virtualCacheConfig.keys()) {
         disableVirtualCacheForTable(table);
+        common.logger.debug({
+          service: "indexing",
+          msg: `Disable virtual cache for '${getTableName(table)}' table on invalidation`,
+        });
       }
     },
 
