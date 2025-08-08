@@ -63,31 +63,31 @@ export const recordProfilePattern = (
           continue;
         }
 
-        if (eq(event.event.block.timestamp, value)) {
+        if (eq(BigInt(event.event.block.timestamp), value)) {
           result[js] = { value: ["block", "timestamp"] };
           continue;
         }
 
-        if (eq(event.event.block.timestamp / 60n, value)) {
+        if (eq(BigInt(event.event.block.timestamp) / 60n, value)) {
           result[js] = {
             value: ["block", "timestamp"],
-            fn: (value) => (value as bigint) / 60n,
+            fn: (value) => BigInt(value as bigint) / 60n,
           };
           continue;
         }
 
-        if (eq(event.event.block.timestamp / 3600n, value)) {
+        if (eq(BigInt(event.event.block.timestamp) / 3600n, value)) {
           result[js] = {
             value: ["block", "timestamp"],
-            fn: (value) => (value as bigint) / 3600n,
+            fn: (value) => BigInt(value as bigint) / 3600n,
           };
           continue;
         }
 
-        if (eq(event.event.block.timestamp / 86400n, value)) {
+        if (eq(BigInt(event.event.block.timestamp) / 86400n, value)) {
           result[js] = {
             value: ["block", "timestamp"],
-            fn: (value) => (value as bigint) / 86400n,
+            fn: (value) => BigInt(value as bigint) / 86400n,
           };
           continue;
         }
@@ -111,8 +111,32 @@ export const recordProfilePattern = (
           continue;
         }
 
-        if (eq(event.event.block.timestamp, value)) {
+        if (eq(BigInt(event.event.block.timestamp), value)) {
           result[js] = { value: ["block", "timestamp"] };
+          continue;
+        }
+
+        if (eq(BigInt(event.event.block.timestamp) / 60n, value)) {
+          result[js] = {
+            value: ["block", "timestamp"],
+            fn: (value) => BigInt(value as bigint) / 60n,
+          };
+          continue;
+        }
+
+        if (eq(BigInt(event.event.block.timestamp) / 3600n, value)) {
+          result[js] = {
+            value: ["block", "timestamp"],
+            fn: (value) => BigInt(value as bigint) / 3600n,
+          };
+          continue;
+        }
+
+        if (eq(BigInt(event.event.block.timestamp) / 86400n, value)) {
+          result[js] = {
+            value: ["block", "timestamp"],
+            fn: (value) => BigInt(value as bigint) / 86400n,
+          };
           continue;
         }
 
@@ -197,8 +221,32 @@ export const recordProfilePattern = (
           continue;
         }
 
-        if (eq(event.event.block.timestamp, value)) {
+        if (eq(BigInt(event.event.block.timestamp), value)) {
           result[js] = { value: ["block", "timestamp"] };
+          continue;
+        }
+
+        if (eq(BigInt(BigInt(event.event.block.timestamp)) / 60n, value)) {
+          result[js] = {
+            value: ["block", "timestamp"],
+            fn: (value) => BigInt(value as bigint) / 60n,
+          };
+          continue;
+        }
+
+        if (eq(BigInt(event.event.block.timestamp) / 3600n, value)) {
+          result[js] = {
+            value: ["block", "timestamp"],
+            fn: (value) => BigInt(value as bigint) / 3600n,
+          };
+          continue;
+        }
+
+        if (eq(BigInt(event.event.block.timestamp) / 86400n, value)) {
+          result[js] = {
+            value: ["block", "timestamp"],
+            fn: (value) => BigInt(value as bigint) / 86400n,
+          };
           continue;
         }
 
@@ -302,8 +350,32 @@ export const recordProfilePattern = (
           continue;
         }
 
-        if (eq(event.event.block.timestamp, value)) {
+        if (eq(BigInt(event.event.block.timestamp), value)) {
           result[js] = { value: ["block", "timestamp"] };
+          continue;
+        }
+
+        if (eq(BigInt(event.event.block.timestamp) / 60n, value)) {
+          result[js] = {
+            value: ["block", "timestamp"],
+            fn: (value) => BigInt(value as bigint) / 60n,
+          };
+          continue;
+        }
+
+        if (eq(BigInt(event.event.block.timestamp) / 3600n, value)) {
+          result[js] = {
+            value: ["block", "timestamp"],
+            fn: (value) => BigInt(value as bigint) / 3600n,
+          };
+          continue;
+        }
+
+        if (eq(BigInt(event.event.block.timestamp) / 86400n, value)) {
+          result[js] = {
+            value: ["block", "timestamp"],
+            fn: (value) => BigInt(value as bigint) / 86400n,
+          };
           continue;
         }
 
@@ -377,8 +449,32 @@ export const recordProfilePattern = (
           continue;
         }
 
-        if (eq(event.event.block.timestamp, value)) {
+        if (eq(BigInt(event.event.block.timestamp), value)) {
           result[js] = { value: ["block", "timestamp"] };
+          continue;
+        }
+
+        if (eq(BigInt(event.event.block.timestamp) / 60n, value)) {
+          result[js] = {
+            value: ["block", "timestamp"],
+            fn: (value) => BigInt(value as bigint) / 60n,
+          };
+          continue;
+        }
+
+        if (eq(BigInt(event.event.block.timestamp) / 3600n, value)) {
+          result[js] = {
+            value: ["block", "timestamp"],
+            fn: (value) => BigInt(value as bigint) / 3600n,
+          };
+          continue;
+        }
+
+        if (eq(BigInt(event.event.block.timestamp) / 86400n, value)) {
+          result[js] = {
+            value: ["block", "timestamp"],
+            fn: (value) => BigInt(value as bigint) / 86400n,
+          };
           continue;
         }
 
