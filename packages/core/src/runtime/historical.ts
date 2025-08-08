@@ -126,7 +126,7 @@ export async function* getHistoricalEventsOmnichain(params: {
         }
       }
 
-      const eventGenerator = initEventGenerator({
+      const eventGenerator = await initEventGenerator({
         common: params.common,
         indexingBuild: params.indexingBuild,
         chain,
@@ -270,7 +270,7 @@ export async function* getHistoricalEventsMultichain(params: {
         }
       }
 
-      const eventGenerator = initEventGenerator({
+      const eventGenerator = await initEventGenerator({
         common: params.common,
         indexingBuild: params.indexingBuild,
         chain,
