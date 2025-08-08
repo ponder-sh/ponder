@@ -632,6 +632,7 @@ test("sql with error", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
