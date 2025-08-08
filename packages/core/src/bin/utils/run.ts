@@ -168,7 +168,6 @@ export async function run({
 
       await indexingCache.flush();
 
-      // TODO: Should safecheckpoint be set to zerocheckpoint? ???
       await tx.wrap({ label: "update_checkpoints" }, (tx) =>
         tx
           .insert(PONDER_CHECKPOINT)
