@@ -533,16 +533,24 @@ let listenersAdded = false;
 
 export class AggregatorMetricsService extends MetricsService {
   requests: Map<number, any>;
-  workers: { chain: Chain; worker: Worker; terminated: boolean }[];
+  app: {
+    [chainName: string]: {
+      state: "historical" | "realtime" | "complete" | "degraded" | "failed";
+      chain: Chain;
+      worker: Worker;
+    };
+  };
 
-  constructor(workers: { chain: Chain; worker: Worker }[]) {
+  constructor(app: {
+    [chainName: string]: {
+      state: "historical" | "realtime" | "complete" | "degraded" | "failed";
+      chain: Chain;
+      worker: Worker;
+    };
+  }) {
     super();
     this.requests = new Map();
-    this.workers = workers.map(({ chain, worker }) => ({
-      chain,
-      worker,
-      terminated: false,
-    }));
+    this.app = app;
   }
 
   /**
@@ -587,8 +595,8 @@ export class AggregatorMetricsService extends MetricsService {
         requestId,
       };
 
-      for (const { worker, terminated } of this.workers) {
-        if (terminated) continue;
+      for (const { worker, state } of Object.values(this.app)) {
+        if (state === "degraded" || state === "failed") continue;
         worker.postMessage(message);
         request.pending++;
       }
@@ -638,8 +646,9 @@ export class AggregatorMetricsService extends MetricsService {
         requestId,
       };
 
-      for (const { worker, terminated, chain } of this.workers) {
-        if (terminated || chain.id !== chainId) continue;
+      for (const { worker, state, chain } of Object.values(this.app)) {
+        if (chain.id !== chainId || state === "degraded" || state === "failed")
+          continue;
         worker.postMessage(message);
         request.pending++;
       }
@@ -655,8 +664,8 @@ export class AggregatorMetricsService extends MetricsService {
     if (listenersAdded) return;
     listenersAdded = true;
     if (isMainThread) {
-      for (const w of this.workers) {
-        w.worker.on("message", (message) => {
+      for (const appPerChain of Object.values(this.app)) {
+        appPerChain.worker.on("message", (message) => {
           if (message.type === GET_METRICS_RES) {
             const request = this.requests.get(message.requestId);
 
@@ -679,10 +688,6 @@ export class AggregatorMetricsService extends MetricsService {
               request.done(undefined, promString);
             }
           }
-        });
-
-        w.worker.on("exit", (_) => {
-          w.terminated = true;
         });
       }
     }
