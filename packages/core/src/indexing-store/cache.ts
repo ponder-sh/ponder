@@ -440,6 +440,13 @@ export const createIndexingCache = ({
     return size;
   };
 
+  const disableVirtualCacheForTable = (table: Table) => {
+    virtualCacheConfig.set(table, { enabled: false });
+    // Clear evicted keys to avoid keeping them in memory
+    virtualCacheEvictedKeys.get(table)!.clear();
+    cacheBytes.get(table)!.evictedKeys = 0;
+  };
+
   const virtualCacheLog = (msg: string) => {
     if (SHOW_VIRTUAL_CACHE_LOGS) {
       common.logger.debug({
@@ -464,7 +471,7 @@ export const createIndexingCache = ({
       inserts: new Map(),
     });
 
-    virtualCacheConfig.set(table, { enabled: true }); // Note: switch to false to disable virtual caching
+    virtualCacheConfig.set(table, { enabled: true });
     virtualCacheEvictedKeys.set(table, new Set());
 
     primaryKeyCache.set(table, []);
@@ -610,9 +617,7 @@ export const createIndexingCache = ({
         }
 
         // Disable virtual cache for this table as soon as we miss a hit
-        virtualCacheConfig.set(table, { enabled: false });
-        virtualCacheEvictedKeys.get(table)!.clear();
-        cacheBytes.get(table)!.evictedKeys = 0;
+        disableVirtualCacheForTable(table);
 
         virtualCacheLog(`Disable ${getTableName(table)} after miss hit`);
       }
@@ -1406,9 +1411,7 @@ export const createIndexingCache = ({
           lessEfficient.table !== null
         ) {
           // Disable virtual cache for the least efficient table to reduce cache size
-          virtualCacheConfig.set(lessEfficient.table, { enabled: false });
-          virtualCacheEvictedKeys.get(lessEfficient.table)!.clear();
-          cacheBytes.get(lessEfficient.table)!.evictedKeys = 0;
+          disableVirtualCacheForTable(lessEfficient.table);
           virtualCacheLog(
             `Disable ${getTableName(lessEfficient.table)} (${formatBytes(lessEfficient.bytes)}) to reduce cache size (hits: ${lessEfficient.nbHits}, efficiency: ${lessEfficient.efficiency})`,
           );
@@ -1417,6 +1420,10 @@ export const createIndexingCache = ({
     },
     invalidate() {
       isCacheComplete = false;
+      // Disable virtual cache for all tables
+      for (const table of virtualCacheConfig.keys()) {
+        disableVirtualCacheForTable(table);
+      }
     },
 
     clear() {
