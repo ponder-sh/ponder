@@ -162,11 +162,7 @@ export async function* getHistoricalEventsOmnichain(params: {
         // Removes events that have a checkpoint earlier than (or equal to)
         // the crash recovery checkpoint.
 
-        if (
-          crashRecoveryCheckpoint &&
-          events.length > 0 &&
-          events[0]!.checkpoint <= crashRecoveryCheckpoint
-        ) {
+        if (crashRecoveryCheckpoint) {
           const [, right] = partition(
             events,
             (event) => event.checkpoint <= crashRecoveryCheckpoint,
@@ -309,11 +305,7 @@ export async function* getHistoricalEventsMultichain(params: {
         // Removes events that have a checkpoint earlier than (or equal to)
         // the crash recovery checkpoint.
 
-        if (
-          crashRecoveryCheckpoint &&
-          events.length > 0 &&
-          events[0]!.checkpoint <= crashRecoveryCheckpoint
-        ) {
+        if (crashRecoveryCheckpoint) {
           const [, right] = partition(
             events,
             (event) => event.checkpoint <= crashRecoveryCheckpoint,
