@@ -342,7 +342,7 @@ export type ProfilePattern = Pick<
     | { type: "derived"; value: string[] };
   args?: (
     | { type: "constant"; value: unknown }
-    | { type: "derived"; value: string[]; fn?: (value: unknown) => unknown }
+    | { type: "derived"; value: string[] }
   )[];
 };
 /**

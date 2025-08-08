@@ -118,7 +118,10 @@ type EventName = string;
  *   "spender": ["log", "address"],
  * }
  */
-export type ProfilePattern = { [key: string]: string[] };
+export type ProfilePattern = {
+  [key: string]: { value: string[]; fn?: (value: unknown) => unknown };
+};
+
 /**
  * Serialized for uniquely identifying a {@link ProfilePattern}.
  *

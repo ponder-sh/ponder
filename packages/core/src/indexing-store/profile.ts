@@ -42,34 +42,58 @@ export const recordProfilePattern = (
     const value = key[js]!;
 
     if (eq(event.chainId, value)) {
-      result[js] = ["chainId"];
+      result[js] = { value: ["chainId"] };
       continue;
     }
 
     if (eq(event.event.id, value)) {
-      result[js] = ["id"];
+      result[js] = { value: ["id"] };
       continue;
     }
 
     switch (event.type) {
       case "block": {
         if (eq(event.event.block.hash, value)) {
-          result[js] = ["block", "hash"];
+          result[js] = { value: ["block", "hash"] };
           continue;
         }
 
         if (eq(event.event.block.number, value)) {
-          result[js] = ["block", "number"];
+          result[js] = { value: ["block", "number"] };
           continue;
         }
 
         if (eq(event.event.block.timestamp, value)) {
-          result[js] = ["block", "timestamp"];
+          result[js] = { value: ["block", "timestamp"] };
+          continue;
+        }
+
+        if (eq(event.event.block.timestamp / 60n, value)) {
+          result[js] = {
+            value: ["block", "timestamp"],
+            fn: (value) => (value as bigint) / 60n,
+          };
+          continue;
+        }
+
+        if (eq(event.event.block.timestamp / 3600n, value)) {
+          result[js] = {
+            value: ["block", "timestamp"],
+            fn: (value) => (value as bigint) / 3600n,
+          };
+          continue;
+        }
+
+        if (eq(event.event.block.timestamp / 86400n, value)) {
+          result[js] = {
+            value: ["block", "timestamp"],
+            fn: (value) => (value as bigint) / 86400n,
+          };
           continue;
         }
 
         if (eq(event.event.block.miner, value)) {
-          result[js] = ["block", "miner"];
+          result[js] = { value: ["block", "miner"] };
           continue;
         }
 
@@ -78,32 +102,32 @@ export const recordProfilePattern = (
 
       case "transaction": {
         if (eq(event.event.block.hash, value)) {
-          result[js] = ["block", "hash"];
+          result[js] = { value: ["block", "hash"] };
           continue;
         }
 
         if (eq(event.event.block.number, value)) {
-          result[js] = ["block", "number"];
+          result[js] = { value: ["block", "number"] };
           continue;
         }
 
         if (eq(event.event.block.timestamp, value)) {
-          result[js] = ["block", "timestamp"];
+          result[js] = { value: ["block", "timestamp"] };
           continue;
         }
 
         if (eq(event.event.block.miner, value)) {
-          result[js] = ["block", "miner"];
+          result[js] = { value: ["block", "miner"] };
           continue;
         }
 
         if (eq(event.event.transaction.hash, value)) {
-          result[js] = ["transaction", "hash"];
+          result[js] = { value: ["transaction", "hash"] };
           continue;
         }
 
         if (eq(event.event.transaction.from, value)) {
-          result[js] = ["transaction", "from"];
+          result[js] = { value: ["transaction", "from"] };
           continue;
         }
 
@@ -111,12 +135,12 @@ export const recordProfilePattern = (
           event.event.transaction.to &&
           eq(event.event.transaction.to, value)
         ) {
-          result[js] = ["transaction", "to"];
+          result[js] = { value: ["transaction", "to"] };
           continue;
         }
 
         if (eq(event.event.transaction.transactionIndex, value)) {
-          result[js] = ["transaction", "transactionIndex"];
+          result[js] = { value: ["transaction", "transactionIndex"] };
           continue;
         }
 
@@ -124,7 +148,7 @@ export const recordProfilePattern = (
           event.event.transactionReceipt?.contractAddress &&
           eq(event.event.transactionReceipt.contractAddress, value)
         ) {
-          result[js] = ["transactionReceipt", "contractAddress"];
+          result[js] = { value: ["transactionReceipt", "contractAddress"] };
           continue;
         }
 
@@ -144,7 +168,7 @@ export const recordProfilePattern = (
             ] as string | bigint | number | boolean;
 
             if (typeof argValue !== "object" && eq(argValue, value)) {
-              result[js] = ["args", argKey];
+              result[js] = { value: ["args", argKey] };
               hasMatch = true;
               break;
             }
@@ -154,42 +178,42 @@ export const recordProfilePattern = (
         }
 
         if (eq(event.event.log.address, value)) {
-          result[js] = ["log", "address"];
+          result[js] = { value: ["log", "address"] };
           continue;
         }
 
         if (eq(event.event.log.logIndex, value)) {
-          result[js] = ["log", "logIndex"];
+          result[js] = { value: ["log", "logIndex"] };
           continue;
         }
 
         if (eq(event.event.block.hash, value)) {
-          result[js] = ["block", "hash"];
+          result[js] = { value: ["block", "hash"] };
           continue;
         }
 
         if (eq(event.event.block.number, value)) {
-          result[js] = ["block", "number"];
+          result[js] = { value: ["block", "number"] };
           continue;
         }
 
         if (eq(event.event.block.timestamp, value)) {
-          result[js] = ["block", "timestamp"];
+          result[js] = { value: ["block", "timestamp"] };
           continue;
         }
 
         if (eq(event.event.block.miner, value)) {
-          result[js] = ["block", "miner"];
+          result[js] = { value: ["block", "miner"] };
           continue;
         }
 
         if (eq(event.event.transaction.hash, value)) {
-          result[js] = ["transaction", "hash"];
+          result[js] = { value: ["transaction", "hash"] };
           continue;
         }
 
         if (eq(event.event.transaction.from, value)) {
-          result[js] = ["transaction", "from"];
+          result[js] = { value: ["transaction", "from"] };
           continue;
         }
 
@@ -197,12 +221,12 @@ export const recordProfilePattern = (
           event.event.transaction.to &&
           eq(event.event.transaction.to, value)
         ) {
-          result[js] = ["transaction", "to"];
+          result[js] = { value: ["transaction", "to"] };
           continue;
         }
 
         if (eq(event.event.transaction.transactionIndex, value)) {
-          result[js] = ["transaction", "transactionIndex"];
+          result[js] = { value: ["transaction", "transactionIndex"] };
           continue;
         }
 
@@ -210,7 +234,7 @@ export const recordProfilePattern = (
           event.event.transactionReceipt?.contractAddress &&
           eq(event.event.transactionReceipt.contractAddress, value)
         ) {
-          result[js] = ["transactionReceipt", "contractAddress"];
+          result[js] = { value: ["transactionReceipt", "contractAddress"] };
           continue;
         }
 
@@ -231,7 +255,7 @@ export const recordProfilePattern = (
             ] as string | bigint | number | boolean;
 
             if (typeof argValue !== "object" && eq(argValue, value)) {
-              result[js] = ["args", argKey];
+              result[js] = { value: ["args", argKey] };
               hasMatch = true;
               break;
             }
@@ -249,7 +273,7 @@ export const recordProfilePattern = (
             ] as string | bigint | number | boolean;
 
             if (typeof argValue !== "object" && eq(argValue, value)) {
-              result[js] = ["result", argKey];
+              result[js] = { value: ["result", argKey] };
               hasMatch = true;
               break;
             }
@@ -259,42 +283,42 @@ export const recordProfilePattern = (
         if (hasMatch) continue;
 
         if (eq(event.event.trace.from, value)) {
-          result[js] = ["trace", "from"];
+          result[js] = { value: ["trace", "from"] };
           continue;
         }
 
         if (event.event.trace.to && eq(event.event.trace.to, value)) {
-          result[js] = ["trace", "to"];
+          result[js] = { value: ["trace", "to"] };
           continue;
         }
 
         if (eq(event.event.block.hash, value)) {
-          result[js] = ["block", "hash"];
+          result[js] = { value: ["block", "hash"] };
           continue;
         }
 
         if (eq(event.event.block.number, value)) {
-          result[js] = ["block", "number"];
+          result[js] = { value: ["block", "number"] };
           continue;
         }
 
         if (eq(event.event.block.timestamp, value)) {
-          result[js] = ["block", "timestamp"];
+          result[js] = { value: ["block", "timestamp"] };
           continue;
         }
 
         if (eq(event.event.block.miner, value)) {
-          result[js] = ["block", "miner"];
+          result[js] = { value: ["block", "miner"] };
           continue;
         }
 
         if (eq(event.event.transaction.hash, value)) {
-          result[js] = ["transaction", "hash"];
+          result[js] = { value: ["transaction", "hash"] };
           continue;
         }
 
         if (eq(event.event.transaction.from, value)) {
-          result[js] = ["transaction", "from"];
+          result[js] = { value: ["transaction", "from"] };
           continue;
         }
 
@@ -302,12 +326,12 @@ export const recordProfilePattern = (
           event.event.transaction.to &&
           eq(event.event.transaction.to, value)
         ) {
-          result[js] = ["transaction", "to"];
+          result[js] = { value: ["transaction", "to"] };
           continue;
         }
 
         if (eq(event.event.transaction.transactionIndex, value)) {
-          result[js] = ["transaction", "transactionIndex"];
+          result[js] = { value: ["transaction", "transactionIndex"] };
           continue;
         }
 
@@ -315,7 +339,7 @@ export const recordProfilePattern = (
           event.event.transactionReceipt?.contractAddress &&
           eq(event.event.transactionReceipt.contractAddress, value)
         ) {
-          result[js] = ["transactionReceipt", "contractAddress"];
+          result[js] = { value: ["transactionReceipt", "contractAddress"] };
           continue;
         }
 
@@ -324,52 +348,52 @@ export const recordProfilePattern = (
 
       case "transfer": {
         if (eq(event.event.transfer.from, value)) {
-          result[js] = ["transfer", "from"];
+          result[js] = { value: ["transfer", "from"] };
           continue;
         }
 
         if (eq(event.event.transfer.to, value)) {
-          result[js] = ["transfer", "to"];
+          result[js] = { value: ["transfer", "to"] };
           continue;
         }
 
         if (eq(event.event.trace.from, value)) {
-          result[js] = ["trace", "from"];
+          result[js] = { value: ["trace", "from"] };
           continue;
         }
 
         if (event.event.trace.to && eq(event.event.trace.to, value)) {
-          result[js] = ["trace", "to"];
+          result[js] = { value: ["trace", "to"] };
           continue;
         }
 
         if (eq(event.event.block.hash, value)) {
-          result[js] = ["block", "hash"];
+          result[js] = { value: ["block", "hash"] };
           continue;
         }
 
         if (eq(event.event.block.number, value)) {
-          result[js] = ["block", "number"];
+          result[js] = { value: ["block", "number"] };
           continue;
         }
 
         if (eq(event.event.block.timestamp, value)) {
-          result[js] = ["block", "timestamp"];
+          result[js] = { value: ["block", "timestamp"] };
           continue;
         }
 
         if (eq(event.event.block.miner, value)) {
-          result[js] = ["block", "miner"];
+          result[js] = { value: ["block", "miner"] };
           continue;
         }
 
         if (eq(event.event.transaction.hash, value)) {
-          result[js] = ["transaction", "hash"];
+          result[js] = { value: ["transaction", "hash"] };
           continue;
         }
 
         if (eq(event.event.transaction.from, value)) {
-          result[js] = ["transaction", "from"];
+          result[js] = { value: ["transaction", "from"] };
           continue;
         }
 
@@ -377,12 +401,12 @@ export const recordProfilePattern = (
           event.event.transaction.to &&
           eq(event.event.transaction.to, value)
         ) {
-          result[js] = ["transaction", "to"];
+          result[js] = { value: ["transaction", "to"] };
           continue;
         }
 
         if (eq(event.event.transaction.transactionIndex, value)) {
-          result[js] = ["transaction", "transactionIndex"];
+          result[js] = { value: ["transaction", "transactionIndex"] };
           continue;
         }
 
@@ -390,7 +414,7 @@ export const recordProfilePattern = (
           event.event.transactionReceipt?.contractAddress &&
           eq(event.event.transactionReceipt.contractAddress, value)
         ) {
-          result[js] = ["transactionReceipt", "contractAddress"];
+          result[js] = { value: ["transactionReceipt", "contractAddress"] };
           continue;
         }
 
@@ -409,7 +433,7 @@ export const recoverProfilePattern = (
 ): Row => {
   const result: Row = {};
 
-  for (const [key, value] of Object.entries(pattern)) {
+  for (const [key, { value, fn }] of Object.entries(pattern)) {
     if (value[0] === "chainId") {
       result[key] = event.chainId;
     } else {
@@ -418,6 +442,11 @@ export const recoverProfilePattern = (
         // @ts-ignore
         _result = _result[prop];
       }
+
+      if (fn) {
+        _result = fn(_result);
+      }
+
       result[key] = _result;
     }
   }
