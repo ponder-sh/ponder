@@ -1131,15 +1131,18 @@ export const perChainOnRealtimeSyncEvent = async (
 
       // Remove all finalized data
 
-      const finalizedBlocks = unfinalizedBlocks.filter(
-        ({ block }) =>
-          hexToNumber(block.number) <= hexToNumber(event.block.number),
-      );
+      const finalizedBlocks: typeof unfinalizedBlocks = [];
 
-      unfinalizedBlocks = unfinalizedBlocks.filter(
-        ({ block }) =>
-          hexToNumber(block.number) > hexToNumber(event.block.number),
-      );
+      while (unfinalizedBlocks.length > 0) {
+        const block = unfinalizedBlocks[0]!;
+
+        if (
+          hexToNumber(block.block.number) <= hexToNumber(event.block.number)
+        ) {
+          finalizedBlocks.push(block);
+          unfinalizedBlocks.shift();
+        } else break;
+      }
 
       // Add finalized blocks, logs, transactions, receipts, and traces to the sync-store.
 
@@ -1258,10 +1261,13 @@ export const perChainOnRealtimeSyncEvent = async (
 
       // Remove all reorged data
 
-      unfinalizedBlocks = unfinalizedBlocks.filter(
-        ({ block }) =>
-          hexToNumber(block.number) <= hexToNumber(event.block.number),
-      );
+      while (unfinalizedBlocks.length > 0) {
+        const block = unfinalizedBlocks[unfinalizedBlocks.length - 1]!;
+
+        if (hexToNumber(block.block.number) > hexToNumber(event.block.number)) {
+          unfinalizedBlocks.pop();
+        } else break;
+      }
 
       await syncStore.pruneRpcRequestResults({
         chainId: chain.id,
