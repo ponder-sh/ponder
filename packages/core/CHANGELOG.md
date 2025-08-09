@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.3
+
+### Patch Changes
+
+- [#1960](https://github.com/ponder-sh/ponder/pull/1960) [`12bffed`](https://github.com/ponder-sh/ponder/commit/12bffed50200bb6ceb8c280c8cfe3dc9be6d74fd) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a memory leak introduce in `v0.12.1`.
+
 ## 0.12.2
 
 ### Patch Changes
