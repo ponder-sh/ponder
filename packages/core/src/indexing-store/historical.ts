@@ -338,11 +338,23 @@ export const createHistoricalIndexingStore = ({
           // Note: Use transaction so that user-land queries don't affect the
           // in-progress transaction.
           return await qb.transaction(async (tx) => {
+            if (chainId !== undefined) {
+              await tx.wrap((tx) =>
+                tx.execute(
+                  `SET app.transaction_chain_id = ${chainId ?? "NULL"};`,
+                ),
+              );
+            }
             const result = await tx.wrap((tx) =>
               tx._.session
                 .prepareQuery(query, undefined, undefined, method === "all")
                 .execute(),
             );
+            if (chainId !== undefined) {
+              await tx.wrap((tx) =>
+                tx.execute("SET app.transaction_chain_id = NULL;"),
+              );
+            }
 
             // @ts-ignore
             return { rows: result.rows.map((row) => Object.values(row)) };

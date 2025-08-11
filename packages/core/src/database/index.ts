@@ -638,6 +638,29 @@ export const createDatabase = async ({
         }
       };
 
+      const enableRLS = async (tx: QB) => {
+        for (const table of tables) {
+          await tx.wrap((tx) =>
+            tx.execute(
+              `ALTER TABLE "${namespace.schema}"."${getTableName(table)}" ENABLE ROW LEVEL SECURITY;`,
+            ),
+          );
+          await tx.wrap((tx) =>
+            tx.execute(`
+CREATE POLICY isolated_policy ON "${namespace.schema}"."${getTableName(table)}" 
+FOR ALL 
+USING (
+  current_setting('app.transaction_chain_id') is NULL OR
+  chain_id = current_setting('app.transaction_chain_id')::INTEGER
+)
+WITH CHECK (
+  current_setting('app.transaction_chain_id') is NULL OR
+  chain_id = current_setting('app.transaction_chain_id')::INTEGER
+);`),
+          );
+        }
+      };
+
       const tryAcquireLockAndMigrate = () =>
         adminQB.transaction({ label: "migrate" }, async (tx) => {
           await tx.wrap((tx) =>
@@ -930,6 +953,22 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
           );
           error.stack = undefined;
           throw error;
+        }
+      }
+
+      if (ordering === "isolated") {
+        try {
+          await adminQB.transaction({ label: "enableRLS" }, async (tx) =>
+            enableRLS(tx),
+          );
+        } catch (err) {
+          const error = err as Error;
+          common.logger.error({
+            service: "database",
+            msg: `Failed to enable row level security on '${namespace.schema}' schema.`,
+            error,
+          });
+          throw err;
         }
       }
 
