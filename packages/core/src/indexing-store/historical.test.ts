@@ -5,7 +5,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
+import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
 import {
   BigIntSerializationError,
   NonRetryableUserError,
@@ -655,6 +655,197 @@ test("sql with error", async (context) => {
       .select()
       .from(schema.account)
       .where(eq(schema.account.address, zeroAddress));
+  });
+});
+
+test("sql isolated correct chainId", async (context) => {
+  const schema = {
+    account: onchainTable(
+      "account",
+      (p) => ({
+        chainId: p.integer().notNull(),
+        address: p.hex().notNull(),
+        balance: p.bigint().notNull(),
+      }),
+      (table) => ({
+        pk: primaryKey({ columns: [table.chainId, table.address] }),
+      }),
+    ),
+  };
+
+  const { database } = await setupDatabaseServices(
+    context,
+    {
+      schemaBuild: { schema },
+    },
+    "isolated",
+  );
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount: {},
+  });
+
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+    chainId: 1,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
+
+    // setup
+
+    await indexingStore.insert(schema.account).values({
+      chainId: 1,
+      address: zeroAddress,
+      balance: 10n,
+    });
+
+    // select
+
+    const result = await indexingStore.sql
+      .select()
+      .from(schema.account)
+      .where(eq(schema.account.address, zeroAddress));
+
+    expect(result).toStrictEqual([
+      {
+        chainId: 1,
+        address: zeroAddress,
+        balance: 10n,
+      },
+    ]);
+
+    // non-null constraint
+
+    await tx.wrap((db) => db.execute("SAVEPOINT test"));
+
+    await expect(
+      async () =>
+        // @ts-ignore
+        await indexingStore.sql.insert(schema.account).values({
+          chainId: 1,
+          address: "0x0000000000000000000000000000000000000001",
+          balance: undefined,
+        }),
+    ).rejects.toThrowError(RawSqlError);
+
+    // TODO(kyle) check constraint
+
+    // unique constraint
+
+    await tx.wrap((db) => db.execute("ROLLBACK TO test"));
+
+    await expect(
+      async () =>
+        await indexingStore.sql
+          .insert(schema.account)
+          .values({ chainId: 1, address: zeroAddress, balance: 10n }),
+    ).rejects.toThrowError(RawSqlError);
+  });
+});
+
+test("sql isolated incorrect chainId", async (context) => {
+  const schema = {
+    account: onchainTable(
+      "account",
+      (p) => ({
+        chainId: p.integer().notNull(),
+        address: p.hex().notNull(),
+        balance: p.bigint().notNull(),
+      }),
+      (table) => ({
+        pk: primaryKey({ columns: [table.chainId, table.address] }),
+      }),
+    ),
+  };
+
+  const { database } = await setupDatabaseServices(
+    context,
+    {
+      schemaBuild: { schema },
+    },
+    "isolated",
+  );
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount: {},
+  });
+
+  const indexingStore1 = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+    chainId: 1,
+  });
+
+  const indexingStore2 = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+    chainId: 2,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore1.qb = tx;
+    indexingStore2.qb = tx;
+
+    // setup
+
+    await indexingStore1.sql.insert(schema.account).values({
+      chainId: 2,
+      address: zeroAddress,
+      balance: 10n,
+    });
+
+    // select
+    // TODO: superuser ignores the rls checks, need to solve this
+    const result = await indexingStore2.sql
+      .select()
+      .from(schema.account)
+      .where(eq(schema.account.address, zeroAddress));
+
+    expect(result).toStrictEqual([]);
+
+    // // non-null constraint
+
+    // await tx.wrap((db) => db.execute("SAVEPOINT test"));
+
+    // await expect(
+    //   async () =>
+    //     // @ts-ignore
+    //     await indexingStore.sql.insert(schema.account).values({
+    //       chainId: 1,
+    //       address: "0x0000000000000000000000000000000000000001",
+    //       balance: undefined,
+    //     }),
+    // ).rejects.toThrowError(RawSqlError);
+
+    // // TODO(kyle) check constraint
+
+    // // unique constraint
+
+    // await tx.wrap((db) => db.execute("ROLLBACK TO test"));
+
+    // await expect(
+    //   async () =>
+    //     await indexingStore.sql
+    //       .insert(schema.account)
+    //       .values({ chainId: 1, address: zeroAddress, balance: 10n }),
+    // ).rejects.toThrowError(RawSqlError);
   });
 });
 

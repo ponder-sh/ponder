@@ -335,9 +335,7 @@ export const createHistoricalIndexingStore = ({
           return await qb.transaction(async (tx) => {
             if (chainId !== undefined) {
               await tx.wrap((tx) =>
-                tx.execute(
-                  `SET app.transaction_chain_id = ${chainId ?? "NULL"};`,
-                ),
+                tx.execute(`SET LOCAL app.transaction_chain_id = ${chainId};`),
               );
             }
             const result = await tx.wrap((tx) =>
@@ -345,11 +343,6 @@ export const createHistoricalIndexingStore = ({
                 .prepareQuery(query, undefined, undefined, method === "all")
                 .execute(),
             );
-            if (chainId !== undefined) {
-              await tx.wrap((tx) =>
-                tx.execute("SET app.transaction_chain_id = NULL;"),
-              );
-            }
 
             // @ts-ignore
             return { rows: result.rows.map((row) => Object.values(row)) };

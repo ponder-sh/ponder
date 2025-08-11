@@ -14,6 +14,7 @@ import type {
   IndexingBuild,
   IndexingErrorHandler,
   NamespaceBuild,
+  Ordering,
   SchemaBuild,
   Source,
 } from "@/internal/types.js";
@@ -183,6 +184,7 @@ export async function setupDatabaseServices(
     schemaBuild: Partial<SchemaBuild>;
     indexingBuild: Partial<IndexingBuild>;
   }> = {},
+  ordering: Ordering = "multichain",
 ): Promise<{
   database: Database;
   syncStore: SyncStore;
@@ -190,7 +192,7 @@ export async function setupDatabaseServices(
 }> {
   const { statements } = buildSchema({
     schema: overrides.schemaBuild?.schema ?? {},
-    ordering: "multichain",
+    ordering,
   });
 
   const database = await createDatabase({
@@ -210,7 +212,7 @@ export async function setupDatabaseServices(
 
   await database.migrate({
     buildId: overrides.indexingBuild?.buildId ?? "abc",
-    ordering: "multichain",
+    ordering,
   });
 
   await database.migrateSync().catch((err) => {
