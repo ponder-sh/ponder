@@ -139,14 +139,18 @@ type Cache = Map<
   Table,
   {
     cache: Map<CacheKey, Row | null>;
+    /** Cached keys that were prefetched. */
+    prefetched: Set<CacheKey>;
+    /** Cached keys that were not prefetched but were accessed anyway. */
+    spillover: Set<CacheKey>;
+    /** `true` if the cache completely mirrors the database. */
+    isCacheComplete: boolean;
     /**
      * Estimated size of the cache in bytes.
      *
      * Note: this stops getting updated once `isCacheComplete = false`.
      */
     bytes: number;
-    /** `true` if the cache completely mirrors the database. */
-    isCacheComplete: boolean;
     /** Number of times `get` missed the cached and read from the database. */
     diskReads: number;
   }
@@ -310,8 +314,6 @@ export const createIndexingCache = ({
   const cache: Cache = new Map();
   const insertBuffer: Buffer = new Map();
   const updateBuffer: Buffer = new Map();
-  /** Metadata about which entries in cache were not prefetched but were accessed anyway. */
-  const spillover: Map<Table, Set<string>> = new Map();
   /** Profiling data about access patterns for each event. */
   const profile: Profile = new Map();
 
@@ -320,11 +322,12 @@ export const createIndexingCache = ({
   for (const table of tables) {
     cache.set(table, {
       cache: new Map(),
-      bytes: 0,
+      prefetched: new Set(),
+      spillover: new Set(),
       isCacheComplete: crashRecoveryCheckpoint === undefined,
+      bytes: 0,
       diskReads: 0,
     });
-    spillover.set(table, new Set());
     insertBuffer.set(table, new Map());
     updateBuffer.set(table, new Map());
 
@@ -394,6 +397,13 @@ export const createIndexingCache = ({
       const entry = cache.get(table)!.cache.get(ck);
 
       if (entry !== undefined) {
+        if (
+          cache.get(table)!.prefetched.has(ck) === false &&
+          cache.get(table)!.isCacheComplete === false
+        ) {
+          cache.get(table)!.spillover.add(ck);
+        }
+
         common.metrics.ponder_indexing_cache_requests_total.inc({
           table: getTableName(table),
           type: cache.get(table)!.isCacheComplete ? "complete" : "hit",
@@ -411,7 +421,7 @@ export const createIndexingCache = ({
         return null;
       }
 
-      spillover.get(table)!.add(ck);
+      cache.get(table)!.spillover.add(ck);
 
       common.metrics.ponder_indexing_cache_requests_total.inc({
         table: getTableName(table),
@@ -775,6 +785,10 @@ export const createIndexingCache = ({
         }
       }
 
+      if (tables.every((table) => cache.get(table)!.isCacheComplete)) {
+        return;
+      }
+
       // Use historical accesses + next event batch to determine which
       // rows are going to be accessed, and preload them into the cache.
 
@@ -807,7 +821,7 @@ export const createIndexingCache = ({
         if (cache.get(table)!.isCacheComplete) continue;
         for (const key of tableCache.cache.keys()) {
           if (
-            spillover.get(table)!.has(key) ||
+            tableCache.spillover.has(key) ||
             prediction.get(table)!.has(key)
           ) {
             prediction.get(table)!.delete(key);
@@ -817,8 +831,9 @@ export const createIndexingCache = ({
         }
       }
 
-      for (const [table] of spillover) {
-        spillover.get(table)!.clear();
+      for (const table of tables) {
+        cache.get(table)!.spillover.clear();
+        cache.get(table)!.prefetched.clear();
       }
 
       for (const [table, tablePredictions] of prediction) {
@@ -835,6 +850,10 @@ export const createIndexingCache = ({
         Array.from(prediction.entries())
           .filter(([, tablePredictions]) => tablePredictions.size > 0)
           .map(async ([table, tablePredictions]) => {
+            for (const [key] of tablePredictions) {
+              cache.get(table)!.prefetched.add(key);
+            }
+
             const conditions = dedupe(
               Array.from(tablePredictions),
               ([key]) => key,
@@ -889,10 +908,7 @@ export const createIndexingCache = ({
     clear() {
       for (const tableCache of cache.values()) {
         tableCache.cache.clear();
-      }
-
-      for (const tableSpillover of spillover.values()) {
-        tableSpillover.clear();
+        tableCache.spillover.clear();
       }
 
       for (const tableBuffer of insertBuffer.values()) {
