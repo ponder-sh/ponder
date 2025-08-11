@@ -1,6 +1,7 @@
 import { getTableNames } from "@/drizzle/index.js";
 import {
   SHARED_OPERATION_ID_SEQUENCE,
+  getReorgTable,
   sqlToReorgTableName,
 } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
@@ -478,6 +479,14 @@ export const createDatabase = async ({
               e.stack = undefined;
               throw e;
             });
+        }
+
+        for (const table of tables) {
+          await tx.wrap((tx) =>
+            tx.execute(
+              `CREATE INDEX IF NOT EXISTS "${getTableName(table)}_checkpoint_index" ON "${namespace.schema}"."${getTableName(getReorgTable(table))}" ("checkpoint")`,
+            ),
+          );
         }
       };
 

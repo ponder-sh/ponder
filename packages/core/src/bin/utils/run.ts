@@ -175,6 +175,7 @@ export async function run({
             indexingBuild.chains.map((chain) => ({
               chainName: chain.name,
               chainId: chain.id,
+              checkpoint: sync.getStartCheckpoint(chain),
               latestCheckpoint: sync.getStartCheckpoint(chain),
               finalizedCheckpoint: sync.getStartCheckpoint(chain),
               safeCheckpoint: sync.getStartCheckpoint(chain),
