@@ -596,7 +596,7 @@ export class AggregatorMetricsService extends MetricsService {
       };
 
       for (const { worker, state } of Object.values(this.app)) {
-        if (state === "degraded" || state === "failed") continue;
+        if (state === "failed") continue;
         worker.postMessage(message);
         request.pending++;
       }
@@ -647,8 +647,7 @@ export class AggregatorMetricsService extends MetricsService {
       };
 
       for (const { worker, state, chain } of Object.values(this.app)) {
-        if (chain.id !== chainId || state === "degraded" || state === "failed")
-          continue;
+        if (chain.id !== chainId || state === "failed") continue;
         worker.postMessage(message);
         request.pending++;
       }
