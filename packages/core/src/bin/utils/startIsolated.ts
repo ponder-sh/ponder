@@ -186,7 +186,7 @@ export async function startIsolated(
           );
 
           common.logger.error({
-            service: "rpc",
+            service: "app",
             msg: error.message,
           });
 
@@ -195,7 +195,7 @@ export async function startIsolated(
         } else {
           const duration = BASE_DURATION * 2 ** workerInfo.retryCount;
           common.logger.warn({
-            service: "rpc",
+            service: "app",
             msg: `Chain '${chainName}' exited with code ${code}, retrying after ${duration / 1_000} seconds.`,
           });
 
@@ -219,7 +219,7 @@ export async function startIsolated(
         );
 
         common.logger.error({
-          service: "rpc",
+          service: "app",
           msg: error.message,
         });
 
