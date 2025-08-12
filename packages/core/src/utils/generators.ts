@@ -10,24 +10,27 @@ import { startClock } from "./timer.js";
 export async function* mergeAsyncGenerators<T>(
   generators: AsyncGenerator<T>[],
 ): AsyncGenerator<T> {
-  if (generators.length === 0) return;
+  const promises = generators.map((gen) => gen.next());
 
-  let index = 0;
-  let promise = generators[index]!.next();
+  while (promises.length > 0) {
+    const wrappedPromises = promises.map((promise, index) =>
+      promise.then((result) => ({ index, result })),
+    );
 
-  while (generators.length > 0) {
-    const result = await promise;
+    const { result, index } = await Promise.race(wrappedPromises);
 
     if (result.done) {
       generators.splice(index, 1);
+      promises.splice(index, 1);
     } else {
-      index += 1;
-      if (index === generators.length) {
-        index = 0;
-      }
-
       const generator = generators[index]!;
-      promise = generator.next();
+      const promise = generator.next();
+
+      promises.splice(index, 1);
+      generators.splice(index, 1);
+
+      generators.push(generator);
+      promises.push(promise);
 
       yield result.value;
     }
