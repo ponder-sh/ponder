@@ -10,27 +10,41 @@ import { startClock } from "./timer.js";
 export async function* mergeAsyncGenerators<T>(
   generators: AsyncGenerator<T>[],
 ): AsyncGenerator<T> {
-  const promises = generators.map((gen) => gen.next());
+  const CONCURRENCY_LIMIT = 2;
 
-  while (promises.length > 0) {
-    const wrappedPromises = promises.map((promise, index) =>
-      promise.then((result) => ({ index, result })),
+  if (generators.length === 0) return;
+
+  const activeGenerators: {
+    generator: AsyncGenerator<T>;
+    promise: Promise<IteratorResult<T>>;
+  }[] = [];
+  const remainingGenerators = generators;
+
+  for (let i = 0; i < Math.min(CONCURRENCY_LIMIT, generators.length); i++) {
+    const generator = remainingGenerators.shift()!;
+    const promise = generator.next();
+    activeGenerators.push({ generator, promise });
+  }
+
+  while (activeGenerators.length > 0) {
+    const wrappedPromises = activeGenerators.map((generator, index) =>
+      generator.promise.then((result) => ({ index, result })),
     );
 
-    const { result, index } = await Promise.race(wrappedPromises);
+    const { index, result } = await Promise.race(wrappedPromises);
 
     if (result.done) {
-      generators.splice(index, 1);
-      promises.splice(index, 1);
+      activeGenerators.splice(index, 1);
+      if (remainingGenerators.length > 0) {
+        const generator = remainingGenerators.shift()!;
+        activeGenerators.push({ generator, promise: generator.next() });
+      }
     } else {
-      const generator = generators[index]!;
-      const promise = generator.next();
+      remainingGenerators.push(activeGenerators[index]!.generator);
+      activeGenerators.splice(index, 1);
 
-      promises.splice(index, 1);
-      generators.splice(index, 1);
-
-      generators.push(generator);
-      promises.push(promise);
+      const generator = remainingGenerators.shift()!;
+      activeGenerators.push({ generator, promise: generator.next() });
 
       yield result.value;
     }
