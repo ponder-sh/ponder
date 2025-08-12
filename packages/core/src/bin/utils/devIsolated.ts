@@ -21,7 +21,7 @@ export async function devIsolated(
   }: Omit<PonderApp, "apiBuild">,
   cliOptions: CliOptions,
 ) {
-  const appState: { [chainName: string]: WorkerInfo } = {};
+  let appState: { [chainName: string]: WorkerInfo } = {};
   const workerPath = join(__dirname, "..", "..", "runtime", "isolated.js");
 
   let isAllReady = false;
@@ -166,6 +166,14 @@ export async function devIsolated(
 
   common.metrics = new AggregatorMetricsService(appState);
   common.metrics.addListeners();
+
+  common.shutdown.add(() => {
+    for (const { chain } of Object.values(appState)) {
+      cleanupWorker(chain.name);
+    }
+
+    appState = {};
+  });
 
   Promise.all(
     Object.values(appState).map(async ({ promise }) => promise),

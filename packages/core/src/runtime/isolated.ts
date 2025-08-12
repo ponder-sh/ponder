@@ -97,6 +97,18 @@ export async function runIsolated({
   const common = { options, logger, metrics, telemetry, shutdown };
   createExit({ common, options });
 
+  if (options.version) {
+    metrics.ponder_version_info.set(
+      {
+        version: options.version.version,
+        major: options.version.major,
+        minor: options.version.minor,
+        patch: options.version.patch,
+      },
+      1,
+    );
+  }
+
   const { preBuild, namespaceBuild, schemaBuild, indexingBuild } =
     await (async () => {
       const build = await createBuild({ common, cliOptions });
@@ -149,6 +161,15 @@ export async function runIsolated({
     preBuild,
     schemaBuild,
   });
+
+  metrics.ponder_settings_info.set(
+    {
+      ordering: preBuild.ordering,
+      database: preBuild.databaseConfig.kind,
+      command: cliOptions.command,
+    },
+    1,
+  );
 
   const syncStore = createSyncStore({ common, database });
 

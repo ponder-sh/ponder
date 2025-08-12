@@ -499,8 +499,6 @@ export class MetricsService {
   }
 
   addListeners() {
-    if (listenersAdded) return;
-    listenersAdded = true;
     if (isMainThread === false && parentPort !== null) {
       parentPort!.on("message", (message) => {
         if (message.type === GET_METRICS_REQ) {
@@ -530,7 +528,6 @@ const GET_METRICS_REQ = "prom-client:getMetricsReq";
 const GET_METRICS_RES = "prom-client:getMetricsRes";
 
 let requestCtr = 0;
-let listenersAdded = false;
 
 export class AggregatorMetricsService extends MetricsService {
   requests: Map<number, any>;
@@ -653,8 +650,6 @@ export class AggregatorMetricsService extends MetricsService {
   }
 
   override addListeners() {
-    if (listenersAdded) return;
-    listenersAdded = true;
     if (isMainThread) {
       for (const appPerChain of Object.values(this.app)) {
         appPerChain.worker.on("message", (message) => {
