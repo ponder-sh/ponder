@@ -19,6 +19,7 @@ import { createUi } from "@/ui/index.js";
 import { createQueue } from "@/utils/queue.js";
 import type { Result } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
+import { devIsolated } from "../utils/devIsolated.js";
 import { createExit } from "../utils/exit.js";
 
 export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
@@ -94,20 +95,71 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     initialStart: true,
     concurrency: 1,
     worker: async (result: Result<never> & { kind: "indexing" | "api" }) => {
-      if (result.kind === "indexing") {
+      if (result.status === "error" && result.kind === "indexing") {
         await indexingShutdown.kill();
         indexingShutdown = createShutdown();
-      }
-      await apiShutdown.kill();
-      apiShutdown = createShutdown();
 
-      if (result.status === "error") {
-        // This handles indexing function build failures on hot reload.
+        await apiShutdown.kill();
+        apiShutdown = createShutdown();
+
         metrics.ponder_indexing_has_error.set(1);
         return;
       }
 
-      if (result.kind === "indexing") {
+      if (result.status === "error" && result.kind === "api") {
+        await apiShutdown.kill();
+        apiShutdown = createShutdown();
+
+        metrics.ponder_indexing_has_error.set(1);
+        return;
+      }
+
+      if (result.status === "success" && result.kind === "api") {
+        metrics.resetApiMetrics();
+
+        const apiResult = await build.executeApi({
+          indexingBuild: indexingBuild!,
+          database: database!,
+        });
+        if (apiResult.status === "error") {
+          buildQueue.add({
+            status: "error",
+            kind: "api",
+            error: apiResult.error,
+          });
+          return;
+        }
+
+        const buildResult = await build.compileApi({
+          apiResult: apiResult.result,
+        });
+        if (buildResult.status === "error") {
+          buildQueue.add({
+            status: "error",
+            kind: "api",
+            error: buildResult.error,
+          });
+          return;
+        }
+
+        const apiBuild = buildResult.result;
+
+        createServer({
+          common: { ...common, shutdown: apiShutdown },
+          database: database!,
+          apiBuild,
+        });
+
+        return;
+      }
+
+      if (result.status === "success" && result.kind === "indexing") {
+        await indexingShutdown.kill();
+        indexingShutdown = createShutdown();
+
+        await apiShutdown.kill();
+        apiShutdown = createShutdown();
+
         metrics.resetIndexingMetrics();
 
         const configResult = await build.executeConfig();
@@ -142,6 +194,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           ...schemaResult.result,
           ordering: preBuild.ordering,
         });
+
         if (schemaBuildResult.status === "error") {
           await exit({ reason: "Failed intial build", code: 1 });
           return;
@@ -243,62 +296,48 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           apiBuild: apiBuildResult.result,
         });
 
-        if (preBuild.ordering === "omnichain") {
-          runOmnichain({
-            common: { ...common, shutdown: indexingShutdown },
-            database,
-            preBuild,
-            namespaceBuild: { schema, viewsSchema: undefined },
-            schemaBuild,
-            indexingBuild: indexingBuildResult.result,
-            crashRecoveryCheckpoint,
-          });
-        } else {
-          runMultichain({
-            common: { ...common, shutdown: indexingShutdown },
-            database,
-            preBuild,
-            namespaceBuild: { schema, viewsSchema: undefined },
-            schemaBuild,
-            indexingBuild: indexingBuildResult.result,
-            crashRecoveryCheckpoint,
-          });
+        switch (preBuild.ordering) {
+          case "omnichain": {
+            runOmnichain({
+              common: { ...common, shutdown: indexingShutdown },
+              database,
+              preBuild,
+              namespaceBuild: { schema, viewsSchema: undefined },
+              schemaBuild,
+              indexingBuild: indexingBuildResult.result,
+              crashRecoveryCheckpoint,
+            });
+
+            break;
+          }
+          case "multichain": {
+            runMultichain({
+              common: { ...common, shutdown: indexingShutdown },
+              database,
+              preBuild,
+              namespaceBuild: { schema, viewsSchema: undefined },
+              schemaBuild,
+              indexingBuild: indexingBuildResult.result,
+              crashRecoveryCheckpoint,
+            });
+
+            break;
+          }
+          case "isolated": {
+            devIsolated(
+              {
+                common: { ...common, shutdown: indexingShutdown },
+                database,
+                preBuild,
+                namespaceBuild: { schema, viewsSchema: undefined },
+                schemaBuild,
+                indexingBuild: indexingBuildResult.result,
+                crashRecoveryCheckpoint,
+              },
+              cliOptions,
+            );
+          }
         }
-      } else {
-        metrics.resetApiMetrics();
-
-        const apiResult = await build.executeApi({
-          indexingBuild: indexingBuild!,
-          database: database!,
-        });
-        if (apiResult.status === "error") {
-          buildQueue.add({
-            status: "error",
-            kind: "api",
-            error: apiResult.error,
-          });
-          return;
-        }
-
-        const buildResult = await build.compileApi({
-          apiResult: apiResult.result,
-        });
-        if (buildResult.status === "error") {
-          buildQueue.add({
-            status: "error",
-            kind: "api",
-            error: buildResult.error,
-          });
-          return;
-        }
-
-        const apiBuild = buildResult.result;
-
-        createServer({
-          common: { ...common, shutdown: apiShutdown },
-          database: database!,
-          apiBuild,
-        });
       }
     },
   });

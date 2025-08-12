@@ -23,6 +23,7 @@ export interface WorkerInfo {
   timeout?: NodeJS.Timeout;
   messageHandler?: (message: any) => void;
   exitHandler?: (code: number) => void;
+  errorHandler?: (error: Error) => void;
   promise: Promise<void>;
 }
 
