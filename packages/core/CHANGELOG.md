@@ -1,5 +1,13 @@
 # ponder
 
+## 0.12.4
+
+### Patch Changes
+
+- [#1964](https://github.com/ponder-sh/ponder/pull/1964) [`2e9ed4c`](https://github.com/ponder-sh/ponder/commit/2e9ed4c151f5d4db1861b69fdbba5b028dbc5da3) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved reorg handling performance.
+
+- [#1965](https://github.com/ponder-sh/ponder/pull/1965) [`4d23811`](https://github.com/ponder-sh/ponder/commit/4d238116c9749ee75a3b4d9f108064b7f5898460) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug causing extra `context.client` rpc requests to be made when `cache: "immutable"`.
+
 ## 0.12.3
 
 ### Patch Changes
