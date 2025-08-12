@@ -132,21 +132,21 @@ export async function startIsolated(
           }
           break;
         }
-        case "complete": {
-          workerInfo.state = "complete";
-          if (workerInfo.timeout) {
-            clearTimeout(workerInfo.timeout);
-            workerInfo.timeout = undefined;
-          }
-          pwr.resolve();
-          break;
-        }
       }
       callback();
     };
 
     const exitHandler = async (code: number) => {
-      if (code !== 0) {
+      if (code === 0) {
+        workerInfo.state = "complete";
+        if (workerInfo.timeout) {
+          clearTimeout(workerInfo.timeout);
+          workerInfo.timeout = undefined;
+        }
+        pwr.resolve();
+      } else {
+        workerInfo.state = "failed";
+
         const error = new Error(
           `Chain '${chain.name}' exited with code ${code}.`,
         );
@@ -155,11 +155,10 @@ export async function startIsolated(
           service: "app",
           msg: error.message,
         });
-
-        workerInfo.state = "failed";
         pwr.reject(error);
-        callback();
       }
+
+      callback();
     };
 
     workerInfo.messageHandler = messageHandler;
@@ -170,7 +169,7 @@ export async function startIsolated(
   };
 
   Promise.allSettled(
-    indexingBuild.chains.map((chain) => {
+    indexingBuild.chains.map(async (chain) => {
       const pwr = promiseWithResolvers<void>();
       setupWorker(chain, pwr);
 

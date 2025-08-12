@@ -62,18 +62,15 @@ import { getRealtimeEventsIsolated } from "./realtime.js";
 
 const isWorker = isMainThread === false;
 
-if (isWorker) {
-  if (parentPort) {
-    await runIsolated({
-      cliOptions: workerData.cliOptions,
-      crashRecoveryCheckpoint: workerData.crashRecoveryCheckpoint,
-      chainId: workerData.chainId,
-      onReady: async () => {
-        parentPort!.postMessage({ type: "ready" });
-      },
-    });
-    parentPort.postMessage({ type: "complete" });
-  }
+if (isWorker && parentPort) {
+  await runIsolated({
+    cliOptions: workerData.cliOptions,
+    crashRecoveryCheckpoint: workerData.crashRecoveryCheckpoint,
+    chainId: workerData.chainId,
+    onReady: async () => {
+      parentPort!.postMessage({ type: "ready" });
+    },
+  });
 }
 
 export async function runIsolated({
