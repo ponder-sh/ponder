@@ -1793,7 +1793,6 @@ export async function* mergeAsyncGeneratorsWithEventOrder(
       (res) => res.done === false && res.value.checkpoint === supremum,
     );
 
-    const resultPromise = generators[index]!.next();
     if (events.length > 0) {
       const checkpoints = eventArrays.map(({ chainId, checkpoint }) => ({
         chainId,
@@ -1802,7 +1801,7 @@ export async function* mergeAsyncGeneratorsWithEventOrder(
 
       yield { events, checkpoints };
     }
-    results[index] = await resultPromise;
+    results[index] = await generators[index]!.next();
   }
 }
 

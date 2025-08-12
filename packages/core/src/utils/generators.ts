@@ -23,6 +23,8 @@ export async function* mergeAsyncGenerators<T>(
       generators.splice(index, 1);
       promises.splice(index, 1);
     } else {
+      yield result.value;
+
       const generator = generators[index]!;
       const promise = generator.next();
 
@@ -31,8 +33,6 @@ export async function* mergeAsyncGenerators<T>(
 
       generators.push(generator);
       promises.push(promise);
-
-      yield result.value;
     }
   }
 }
