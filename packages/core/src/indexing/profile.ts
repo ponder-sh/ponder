@@ -31,10 +31,7 @@ export const recordProfilePattern = ({
   hints,
 }: {
   event: Event;
-  args: Omit<
-    Parameters<PonderActions["readContract"]>[0],
-    "blockNumber" | "cache"
-  >;
+  args: Parameters<PonderActions["readContract"]>[0];
   hints: { pattern: ProfilePattern; hasConstant: boolean }[];
 }): { pattern: ProfilePattern; hasConstant: boolean } | undefined => {
   for (const hint of hints) {
@@ -47,6 +44,9 @@ export const recordProfilePattern = ({
       if (request.args === undefined || args.args === undefined) continue;
       for (let i = 0; i < request.args.length; i++) {
         if (eq(request.args[i] as any, args.args[i]) === false) continue;
+      }
+      if ((request.blockNumber === "latest") !== (args.cache === "immutable")) {
+        continue;
       }
 
       return hint;
@@ -310,6 +310,7 @@ export const recordProfilePattern = ({
         abi: args.abi as Abi,
         functionName: args.functionName,
         args: undefined,
+        cache: args.cache,
       },
       hasConstant,
     };
@@ -694,6 +695,7 @@ export const recordProfilePattern = ({
       abi: args.abi as Abi,
       functionName: args.functionName,
       args: resultArgs,
+      cache: args.cache,
     },
     hasConstant,
   };
@@ -738,7 +740,8 @@ export const recoverProfilePattern = (
     abi: pattern.abi,
     functionName: pattern.functionName,
     args,
-    blockNumber: event.event.block.number,
+    blockNumber:
+      pattern.cache === "immutable" ? "latest" : event.event.block.number,
     chainId: event.chainId,
   };
 };
