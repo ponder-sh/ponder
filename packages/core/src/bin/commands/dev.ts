@@ -59,10 +59,19 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   let apiShutdown = createShutdown();
   const shutdown = createShutdown();
   const telemetry = createTelemetry({ options, logger, shutdown });
-  const common = { options, logger, metrics, telemetry };
+
+  const common = {
+    options,
+    logger,
+    metrics,
+    telemetry,
+    shutdown,
+    indexingShutdown,
+    apiShutdown,
+  };
 
   if (options.version) {
-    metrics.ponder_version_info.set(
+    common.metrics.ponder_version_info.set(
       {
         version: options.version.version,
         major: options.version.major,
@@ -74,7 +83,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   const build = await createBuild({
-    common: { ...common, shutdown },
+    common,
     cliOptions,
   });
 
@@ -84,10 +93,10 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   if (cliOptions.disableUi !== true) {
-    createUi({ common: { ...common, shutdown } });
+    createUi({ common });
   }
 
-  const exit = createExit({ common: { ...common, shutdown }, options });
+  const exit = createExit({ common, options });
 
   let isInitialBuild = true;
 
@@ -102,7 +111,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         await apiShutdown.kill();
         apiShutdown = createShutdown();
 
-        metrics.ponder_indexing_has_error.set(1);
+        common.metrics.ponder_indexing_has_error.set(1);
         return;
       }
 
@@ -110,12 +119,12 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         await apiShutdown.kill();
         apiShutdown = createShutdown();
 
-        metrics.ponder_indexing_has_error.set(1);
+        common.metrics.ponder_indexing_has_error.set(1);
         return;
       }
 
       if (result.status === "success" && result.kind === "api") {
-        metrics.resetApiMetrics();
+        common.metrics.resetApiMetrics();
 
         const apiResult = await build.executeApi({
           indexingBuild: indexingBuild!,
@@ -145,7 +154,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         const apiBuild = buildResult.result;
 
         createServer({
-          common: { ...common, shutdown: apiShutdown },
+          common: common,
           database: database!,
           apiBuild,
         });
@@ -160,7 +169,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         await apiShutdown.kill();
         apiShutdown = createShutdown();
 
-        metrics.resetIndexingMetrics();
+        common.metrics.resetIndexingMetrics();
 
         const configResult = await build.executeConfig();
         if (configResult.status === "error") {
@@ -280,8 +289,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           });
         }
 
-        metrics.resetApiMetrics();
-        metrics.ponder_settings_info.set(
+        common.metrics.resetApiMetrics();
+        common.metrics.ponder_settings_info.set(
           {
             ordering: preBuild.ordering,
             database: preBuild.databaseConfig.kind,
@@ -324,6 +333,16 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
             break;
           }
           case "isolated": {
+            if (preBuild.databaseConfig.kind !== "postgres") {
+              buildQueue.add({
+                status: "error",
+                kind: "indexing",
+                error: Error(
+                  "PGLite database is not supported in 'isolated' mode.",
+                ),
+              });
+              return;
+            }
             devIsolated(
               {
                 common: { ...common, shutdown: indexingShutdown },

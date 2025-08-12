@@ -24,7 +24,11 @@ import {
   type RetryableError,
 } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
-import { MetricsService, getAppProgress } from "@/internal/metrics.js";
+import {
+  type AppProgress,
+  MetricsService,
+  getAppProgress,
+} from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { createTelemetry } from "@/internal/telemetry.js";
@@ -417,7 +421,9 @@ export async function runIsolated({
 
           // underlying metrics collection is actually synchronous
           // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-          const { eta, progress } = await getAppProgress(common.metrics);
+          const { eta, progress } = (await getAppProgress(
+            common.metrics,
+          )) as AppProgress;
           if (eta === undefined || progress === undefined) {
             common.logger.info({
               service: "app",

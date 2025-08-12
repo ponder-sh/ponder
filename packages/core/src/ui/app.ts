@@ -183,23 +183,25 @@ export const buildUiLines = (ui: UiState): string[] => {
 
   lines.push("");
 
-  let progressLabel = pc.bold("Progress");
-  if (app.mode !== undefined && app.progress !== 0) {
-    progressLabel += ` (${app.mode === "historical" ? pc.yellowBright("historical") : pc.greenBright("live")})`;
+  for (const { mode, progress, eta } of Array.isArray(app) ? app : [app]) {
+    let progressLabel = pc.bold("Progress");
+    if (mode !== undefined && progress !== 0) {
+      progressLabel += ` (${mode === "historical" ? pc.yellowBright("historical") : pc.greenBright("live")})`;
+    }
+    lines.push(progressLabel);
+    lines.push("");
+
+    const progressValue = mode === "realtime" ? 1 : (progress ?? 0);
+    const progressBar = buildProgressBar(progressValue, 1, 48);
+    let progressText = `${progressBar} ${formatPercentage(progressValue)}`;
+
+    if (eta !== undefined && eta !== 0) {
+      progressText += ` (${formatEta(eta * 1_000)} eta)`;
+    }
+
+    lines.push(progressText);
+    lines.push("");
   }
-  lines.push(progressLabel);
-  lines.push("");
-
-  const progressValue = app.mode === "realtime" ? 1 : (app.progress ?? 0);
-  const progressBar = buildProgressBar(progressValue, 1, 48);
-  let progressText = `${progressBar} ${formatPercentage(progressValue)}`;
-
-  if (app.eta !== undefined && app.eta !== 0) {
-    progressText += ` (${formatEta(app.eta * 1_000)} eta)`;
-  }
-
-  lines.push(progressText);
-  lines.push("");
 
   lines.push(pc.bold("API functions"));
   lines.push(`Server live at http://${hostname}:${port}`);

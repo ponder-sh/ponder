@@ -1,4 +1,5 @@
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import { createIndexes, createViews } from "@/database/actions.js";
 import { getPonderMetaTable } from "@/database/index.js";
@@ -9,6 +10,9 @@ import { isTable, sql } from "drizzle-orm";
 import type { PonderApp } from "../commands/start.js";
 import type { CliOptions } from "../ponder.js";
 import type { WorkerInfo } from "../utils/startIsolated.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export async function devIsolated(
   {

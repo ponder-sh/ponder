@@ -667,11 +667,12 @@ export class AggregatorMetricsService extends MetricsService {
             request.pending--;
             if (request.pending === 0) {
               clearTimeout(request.errorTimeout);
+              request.responses.push(this.registry);
 
-              const registry = prometheus.AggregatorRegistry.aggregate(
+              this.registry = prometheus.AggregatorRegistry.aggregate(
                 request.responses,
               );
-              const promString = registry.metrics();
+              const promString = this.registry.metrics();
               request.done(undefined, promString);
             }
           }
@@ -815,11 +816,15 @@ export async function getIndexingProgress(metrics: MetricsService) {
   };
 }
 
-export async function getAppProgress(metrics: MetricsService): Promise<{
+export type AppProgress = {
   mode: "historical" | "realtime" | undefined;
   progress: number | undefined;
   eta: number | undefined;
-}> {
+};
+
+export async function getAppProgress(
+  metrics: MetricsService,
+): Promise<AppProgress | AppProgress[]> {
   const totalSecondsMetric =
     await metrics.ponder_historical_total_indexing_seconds.get();
   const cachedSecondsMetric =
@@ -833,14 +838,16 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
     .then((metric) => metric.values[0]?.labels.ordering as any);
   switch (ordering) {
     case undefined: {
-      return {
-        mode: "historical",
-        progress: undefined,
-        eta: undefined,
-      };
+      return [
+        {
+          mode: "historical",
+          progress: undefined,
+          eta: undefined,
+        },
+      ];
     }
     case "multichain": {
-      const perChainAppProgress: Awaited<ReturnType<typeof getAppProgress>>[] =
+      const perChainAppProgress: Awaited<ReturnType<typeof getAppProgress>> =
         [];
 
       for (const chainName of totalSecondsMetric.values.map(
@@ -913,7 +920,65 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
         },
       ) as any;
     }
-    case "isolated":
+    // @ts-ignore
+    // biome-ignore lint/suspicious/noFallthroughSwitchClause: Isolated for worker threads should behave as omnichain.
+    case "isolated": {
+      if (metrics instanceof AggregatorMetricsService) {
+        const perChainAppProgress: Awaited<ReturnType<typeof getAppProgress>> =
+          [];
+
+        for (const chainName of totalSecondsMetric.values.map(
+          ({ labels }) => labels.chain as string,
+        )) {
+          const totalSeconds = extractMetric(totalSecondsMetric, chainName);
+          const cachedSeconds = extractMetric(cachedSecondsMetric, chainName);
+          const completedSeconds = extractMetric(
+            completedSecondsMetric,
+            chainName,
+          );
+          const timestamp = extractMetric(timestampMetric, chainName);
+
+          if (
+            totalSeconds === undefined ||
+            cachedSeconds === undefined ||
+            completedSeconds === undefined ||
+            timestamp === undefined
+          ) {
+            continue;
+          }
+
+          const progress =
+            timestamp === 0
+              ? 0
+              : totalSeconds === 0
+                ? 1
+                : (completedSeconds + cachedSeconds) / totalSeconds;
+
+          if (!metrics.progressMetadata[chainName]) {
+            metrics.progressMetadata[chainName] = {
+              batches: [{ elapsedSeconds: 0, completedSeconds: 0 }],
+              previousTimestamp: Date.now(),
+              previousCompletedSeconds: 0,
+              rate: 0,
+            };
+          }
+
+          const eta: number | undefined = calculateEta(
+            metrics.progressMetadata[chainName]!,
+            totalSeconds,
+            cachedSeconds,
+            completedSeconds,
+          );
+          perChainAppProgress.push({
+            mode: progress === 1 ? "realtime" : "historical",
+            progress,
+            eta,
+          });
+        }
+
+        return perChainAppProgress;
+      }
+    }
     case "omnichain": {
       const totalSeconds = totalSecondsMetric.values
         .map(({ value }) => value)
