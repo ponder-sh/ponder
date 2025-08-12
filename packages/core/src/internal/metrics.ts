@@ -1,7 +1,8 @@
-import { type Worker, isMainThread, parentPort } from "node:worker_threads";
+import { isMainThread, parentPort } from "node:worker_threads";
+import type { WorkerInfo } from "@/bin/utils/startIsolated.js";
 import { truncate } from "@/utils/truncate.js";
 import prometheus from "prom-client";
-import type { Chain, Ordering } from "./types.js";
+import type { Ordering } from "./types.js";
 
 const databaseQueryDurationMs = [
   0.05, 0.1, 1, 5, 10, 25, 50, 75, 100, 250, 500, 750, 1_000, 2_500, 5_000,
@@ -534,19 +535,11 @@ let listenersAdded = false;
 export class AggregatorMetricsService extends MetricsService {
   requests: Map<number, any>;
   app: {
-    [chainName: string]: {
-      state: "historical" | "realtime" | "complete" | "degraded" | "failed";
-      chain: Chain;
-      worker: Worker;
-    };
+    [chainName: string]: WorkerInfo;
   };
 
   constructor(app: {
-    [chainName: string]: {
-      state: "historical" | "realtime" | "complete" | "degraded" | "failed";
-      chain: Chain;
-      worker: Worker;
-    };
+    [chainName: string]: WorkerInfo;
   }) {
     super();
     this.requests = new Map();

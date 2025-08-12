@@ -5,10 +5,7 @@ import { createIndexes, createViews } from "@/database/actions.js";
 import { getPonderMetaTable } from "@/database/index.js";
 import { AggregatorMetricsService } from "@/internal/metrics.js";
 import type { Chain } from "@/internal/types.js";
-import {
-  type PromiseWithResolvers,
-  promiseWithResolvers,
-} from "@/utils/promiseWithResolvers.js";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { isTable, sql } from "drizzle-orm";
 import type { PonderApp } from "../commands/start.js";
 import type { CliOptions } from "../ponder.js";
@@ -18,7 +15,7 @@ const __dirname = dirname(__filename);
 
 type WorkerState = "historical" | "realtime" | "complete" | "failed";
 
-interface WorkerInfo {
+export interface WorkerInfo {
   state: WorkerState;
   chain: Chain;
   worker: Worker;
@@ -26,6 +23,7 @@ interface WorkerInfo {
   timeout?: NodeJS.Timeout;
   messageHandler?: (message: any) => void;
   exitHandler?: (code: number) => void;
+  promise: Promise<void>;
 }
 
 export async function startIsolated(
@@ -81,9 +79,6 @@ export async function startIsolated(
     }
   };
 
-  common.metrics = new AggregatorMetricsService(appState);
-  common.metrics.addListeners();
-
   const cleanupWorker = (chainName: string) => {
     const workerInfo = appState[chainName];
     if (!workerInfo) return;
@@ -106,7 +101,9 @@ export async function startIsolated(
     workerInfo.worker.terminate();
   };
 
-  const setupWorker = (chain: Chain, pwr: PromiseWithResolvers<void>) => {
+  const setupWorker = (chain: Chain) => {
+    const pwr = promiseWithResolvers<void>();
+
     const workerInfo: WorkerInfo = {
       state: "historical",
       chain,
@@ -118,9 +115,8 @@ export async function startIsolated(
         },
       }),
       retryCount: 0,
+      promise: pwr.promise,
     };
-
-    appState[chain.name] = workerInfo;
 
     const messageHandler = (message: any) => {
       switch (message.type) {
@@ -166,14 +162,20 @@ export async function startIsolated(
 
     workerInfo.worker.on("message", messageHandler);
     workerInfo.worker.on("exit", exitHandler);
+
+    return workerInfo;
   };
 
-  Promise.allSettled(
-    indexingBuild.chains.map(async (chain) => {
-      const pwr = promiseWithResolvers<void>();
-      setupWorker(chain, pwr);
+  for (const chain of indexingBuild.chains) {
+    appState[chain.name] = setupWorker(chain);
+  }
 
-      return pwr.promise.finally(() => {
+  common.metrics = new AggregatorMetricsService(appState);
+  common.metrics.addListeners();
+
+  Promise.allSettled(
+    Object.values(appState).map(async ({ promise, chain }) => {
+      return promise.finally(() => {
         cleanupWorker(chain.name);
       });
     }),
