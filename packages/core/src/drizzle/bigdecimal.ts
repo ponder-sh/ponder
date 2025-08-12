@@ -12,42 +12,42 @@ import {
   PgColumnBuilder,
 } from "drizzle-orm/pg-core";
 
-export type PgBigDecimalBuilderInitial<TName extends string> =
-  PgBigDecimalBuilder<{
+export type PgBigNumberBuilderInitial<TName extends string> =
+  PgBigNumberBuilder<{
     name: TName;
     dataType: "custom";
-    columnType: "PgEvmBigDecimal";
+    columnType: "PgEvmBigNumber";
     data: BigNumber;
     driverParam: string;
     enumValues: undefined;
     generated: undefined;
   }>;
 
-export class PgBigDecimalBuilder<
-  T extends ColumnBuilderBaseConfig<"custom", "PgEvmBigDecimal">,
+export class PgBigNumberBuilder<
+  T extends ColumnBuilderBaseConfig<"custom", "PgEvmBigNumber">,
 > extends PgColumnBuilder<T> {
-  static readonly [entityKind]: string = "PgEvmBigDecimalBuilder";
+  static readonly [entityKind]: string = "PgEvmBigNumberBuilder";
 
   constructor(name: T["name"]) {
-    super(name, "custom", "PgEvmBigDecimal");
+    super(name, "custom", "PgEvmBigNumber");
   }
 
   /** @internal */
   // @ts-ignore
   override build<TTableName extends string>(
     table: AnyPgTable<{ name: TTableName }>,
-  ): PgBigDecimal<MakeColumnConfig<T, TTableName>> {
-    return new PgBigDecimal<MakeColumnConfig<T, TTableName>>(
+  ): PgBigNumber<MakeColumnConfig<T, TTableName>> {
+    return new PgBigNumber<MakeColumnConfig<T, TTableName>>(
       table,
       this.config as ColumnBuilderRuntimeConfig<any, any>,
     );
   }
 }
 
-export class PgBigDecimal<
-  T extends ColumnBaseConfig<"custom", "PgEvmBigDecimal">,
+export class PgBigNumber<
+  T extends ColumnBaseConfig<"custom", "PgEvmBigNumber">,
 > extends PgColumn<T> {
-  static readonly [entityKind]: string = "PgEvmBigDecimal";
+  static readonly [entityKind]: string = "PgEvmBigNumber";
 
   getSQLType(): string {
     return "decimal";

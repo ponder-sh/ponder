@@ -34,6 +34,7 @@ export {
   primaryKey,
   hex,
   bigint,
+  bignumber,
 } from "@/drizzle/onchain.js";
 
 export type {
@@ -136,3 +137,5 @@ export {
   except,
   exceptAll,
 } from "drizzle-orm/pg-core";
+
+export { BigNumber } from "bignumber.js";
