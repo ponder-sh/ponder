@@ -63,6 +63,15 @@ export function bigint(columnName?: string) {
   return new PgBigintBuilder(columnName ?? "");
 }
 
+// @ts-ignore
+export function bigdecimal(): PgBigintBuilderInitial<"">;
+export function bigdecimal<name extends string>(
+  columnName: name,
+): PgBigintBuilderInitial<name>;
+export function bigdecimal(columnName?: string) {
+  return new PgBigintBuilder(columnName ?? "");
+}
+
 export function json(): PgJsonBuilderInitial<"">;
 export function json<name extends string>(
   name: name,

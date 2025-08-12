@@ -546,7 +546,7 @@ importers:
     dependencies:
       forge-std:
         specifier: github:foundry-rs/forge-std
-        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/60acb7aaadcce2d68e52986a0a66fe79f07d138f
+        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/c7be2a3481f9e51230880bb0949072c7e3a4da82
 
   examples/with-foundry/ponder:
     dependencies:
@@ -836,6 +836,9 @@ importers:
       ansi-escapes:
         specifier: ^7.0.0
         version: 7.0.0
+      bignumber.js:
+        specifier: ^9.3.1
+        version: 9.3.1
       commander:
         specifier: ^12.0.0
         version: 12.0.0
@@ -4299,6 +4302,9 @@ packages:
     resolution: {integrity: sha512-pbnl5XzGBdrFU/wT4jqmJVPn2B6UHPBOhzMQkY/SPUPB6QtUXtmBHBIwCbXJol93mOpGMnQyP/+BB19q04xj7g==}
     engines: {node: '>=4'}
 
+  bignumber.js@9.3.1:
+    resolution: {integrity: sha512-Ko0uX15oIUS7wJ3Rb30Fs6SkVbLmPBAKdlm7q9+ak9bbIeFf0MwuBsQV6z7+X768/cHsfg+WlysDWJcmthjsjQ==}
+
   binary-extensions@2.2.0:
     resolution: {integrity: sha512-jDctJ/IVQbZoJykoeHbhXpOlNBqGNcwXJKJog42E5HDPUwQTSdjCHdihjj0DlnheQ7blbT6dHOafNAiS8ooQKA==}
     engines: {node: '>=8'}
@@ -5889,9 +5895,9 @@ packages:
   forever-agent@0.6.1:
     resolution: {integrity: sha512-j0KLYPhm6zeac4lz3oJ3o65qvgQCcPubiyotZrXqEaG4hNagNYO8qdlUrX5vwqv9ohqeT/Z3j6+yW067yWWdUw==}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/60acb7aaadcce2d68e52986a0a66fe79f07d138f:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/60acb7aaadcce2d68e52986a0a66fe79f07d138f}
-    version: 1.9.7
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/c7be2a3481f9e51230880bb0949072c7e3a4da82:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/c7be2a3481f9e51230880bb0949072c7e3a4da82}
+    version: 1.10.0
 
   form-data@2.3.3:
     resolution: {integrity: sha512-1lLKB2Mu3aGP1Q/2eCOx0fNbRMe7XdwktwOruhfqqd0rIJWwN4Dh+E3hrPSlDCXnSR7UtZ1N38rVXm+6+MEhJQ==}
@@ -12989,6 +12995,8 @@ snapshots:
     dependencies:
       is-windows: 1.0.2
 
+  bignumber.js@9.3.1: {}
+
   binary-extensions@2.2.0: {}
 
   binary-install-raw@0.0.13(debug@4.3.4):
@@ -14385,7 +14393,7 @@ snapshots:
       debug: 4.4.0(supports-color@8.1.1)
       enhanced-resolve: 5.18.1
       eslint: 8.56.0
-      eslint-module-utils: 2.8.0(@typescript-eslint/parser@6.17.0(eslint@8.56.0)(typescript@5.3.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@6.17.0(eslint@8.56.0)(typescript@5.3.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.29.1)(eslint@8.56.0))(eslint@8.56.0)
+      eslint-module-utils: 2.8.0(@typescript-eslint/parser@6.17.0(eslint@8.56.0)(typescript@5.3.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1)(eslint@8.56.0)
       eslint-plugin-import: 2.29.1(@typescript-eslint/parser@6.17.0(eslint@8.56.0)(typescript@5.3.3))(eslint-import-resolver-typescript@3.6.1)(eslint@8.56.0)
       fast-glob: 3.3.3
       get-tsconfig: 4.8.1
@@ -14397,7 +14405,7 @@ snapshots:
       - eslint-import-resolver-webpack
       - supports-color
 
-  eslint-module-utils@2.8.0(@typescript-eslint/parser@6.17.0(eslint@8.56.0)(typescript@5.3.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@6.17.0(eslint@8.56.0)(typescript@5.3.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.29.1)(eslint@8.56.0))(eslint@8.56.0):
+  eslint-module-utils@2.8.0(@typescript-eslint/parser@6.17.0(eslint@8.56.0)(typescript@5.3.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1)(eslint@8.56.0):
     dependencies:
       debug: 3.2.7
     optionalDependencies:
@@ -14418,7 +14426,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 8.56.0
       eslint-import-resolver-node: 0.3.9
-      eslint-module-utils: 2.8.0(@typescript-eslint/parser@6.17.0(eslint@8.56.0)(typescript@5.3.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@6.17.0(eslint@8.56.0)(typescript@5.3.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.29.1)(eslint@8.56.0))(eslint@8.56.0)
+      eslint-module-utils: 2.8.0(@typescript-eslint/parser@6.17.0(eslint@8.56.0)(typescript@5.3.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1)(eslint@8.56.0)
       hasown: 2.0.0
       is-core-module: 2.13.1
       is-glob: 4.0.3
@@ -14823,7 +14831,7 @@ snapshots:
 
   forever-agent@0.6.1: {}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/60acb7aaadcce2d68e52986a0a66fe79f07d138f: {}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/c7be2a3481f9e51230880bb0949072c7e3a4da82: {}
 
   form-data@2.3.3:
     dependencies:
