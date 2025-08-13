@@ -68,7 +68,7 @@ export async function* getHistoricalEventsOmnichain(params: {
 > {
   let pendingEvents: Event[] = [];
 
-  let eventGenerators = await Promise.all(
+  const eventGenerators = await Promise.all(
     Array.from(params.perChainSync.entries()).map(async function* ([
       chain,
       { syncProgress, childAddresses, cachedIntervals },
@@ -194,148 +194,7 @@ export async function* getHistoricalEventsOmnichain(params: {
     }),
   );
 
-  let eventGenerator = mergeAsyncGeneratorsWithEventOrder(eventGenerators);
-
-  for await (const { events, checkpoints } of eventGenerator) {
-    params.common.logger.debug({
-      service: "sync",
-      msg: `Sequenced ${events.length} events`,
-    });
-
-    yield { type: "events", events, checkpoints };
-  }
-
-  eventGenerators = await Promise.all(
-    Array.from(params.perChainSync.entries()).map(async function* ([
-      chain,
-      { syncProgress, childAddresses, cachedIntervals },
-    ]) {
-      const rpc =
-        params.indexingBuild.rpcs[
-          params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
-        ]!;
-
-      const sources = params.indexingBuild.sources.filter(
-        ({ filter }) => filter.chainId === chain.id,
-      );
-
-      const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
-        ({ chainId }) => chainId === chain.id,
-      )?.checkpoint;
-
-      const previousTo = decodeCheckpoint(
-        min(
-          syncProgress.getCheckpoint({ tag: "finalized" }),
-          syncProgress.getCheckpoint({ tag: "end" }),
-        ),
-      );
-
-      const from = encodeCheckpoint({
-        ...ZERO_CHECKPOINT,
-        blockTimestamp: previousTo.blockTimestamp,
-        chainId: previousTo.chainId,
-        blockNumber: previousTo.blockNumber + 1n,
-      });
-
-      syncProgress.finalized = await _eth_getBlockByNumber(rpc, {
-        blockTag: "latest",
-      }).then((latest) =>
-        _eth_getBlockByNumber(rpc, {
-          blockNumber: Math.max(
-            hexToNumber(latest.number) - chain.finalityBlockCount,
-            0,
-          ),
-        }),
-      );
-
-      if (
-        from >
-        min(
-          syncProgress.getCheckpoint({ tag: "finalized" }),
-          syncProgress.getCheckpoint({ tag: "end" }),
-        )
-      ) {
-        return;
-      }
-
-      const eventGenerator = await initEventGenerator({
-        common: params.common,
-        indexingBuild: params.indexingBuild,
-        chain,
-        rpc,
-        sources,
-        childAddresses,
-        syncProgress,
-        cachedIntervals,
-        from,
-        to: min(
-          syncProgress.getCheckpoint({ tag: "finalized" }),
-          syncProgress.getCheckpoint({ tag: "end" }),
-        ),
-        limit:
-          Math.round(
-            params.common.options.syncEventsQuerySize /
-              (params.indexingBuild.chains.length + 1),
-          ) + 6,
-        syncStore: params.syncStore,
-        isCatchup: true,
-      });
-
-      const to = min(
-        getOmnichainCheckpoint({
-          perChainSync: params.perChainSync,
-          tag: "finalized",
-        }),
-        getOmnichainCheckpoint({
-          perChainSync: params.perChainSync,
-          tag: "end",
-        }),
-      );
-
-      for await (let { events: rawEvents, checkpoint } of eventGenerator) {
-        const endClock = startClock();
-        let events = decodeEvents(params.common, sources, rawEvents);
-        params.common.logger.debug({
-          service: "app",
-          msg: `Decoded ${events.length} '${chain.name}' events`,
-        });
-        params.common.metrics.ponder_historical_extract_duration.inc(
-          { step: "decode" },
-          endClock(),
-        );
-
-        // Removes events that have a checkpoint earlier than (or equal to)
-        // the crash recovery checkpoint.
-
-        if (crashRecoveryCheckpoint) {
-          const [, right] = partition(
-            events,
-            (event) => event.checkpoint <= crashRecoveryCheckpoint,
-          );
-          events = right;
-        }
-
-        // Sort out any events between the omnichain finalized checkpoint and the single-chain
-        // finalized checkpoint and add them to pendingEvents. These events are synced during
-        // the historical phase, but must be indexed in the realtime phase because events
-        // synced in realtime on other chains might be ordered before them.
-
-        if (checkpoint > to) {
-          const [left, right] = partition(
-            events,
-            (event) => event.checkpoint <= to,
-          );
-          pendingEvents = pendingEvents.concat(right);
-          events = left;
-          checkpoint = to;
-        }
-
-        yield { events, checkpoint };
-      }
-    }),
-  );
-
-  eventGenerator = mergeAsyncGeneratorsWithEventOrder(eventGenerators);
+  const eventGenerator = mergeAsyncGeneratorsWithEventOrder(eventGenerators);
 
   for await (const { events, checkpoints } of eventGenerator) {
     params.common.logger.debug({
@@ -528,13 +387,12 @@ export async function* getHistoricalEventsMultichain(params: {
         }),
       );
 
-      if (
-        from >
-        min(
-          syncProgress.getCheckpoint({ tag: "finalized" }),
-          syncProgress.getCheckpoint({ tag: "end" }),
-        )
-      ) {
+      const to = min(
+        syncProgress.getCheckpoint({ tag: "finalized" }),
+        syncProgress.getCheckpoint({ tag: "end" }),
+      );
+
+      if (from > to) {
         return;
       }
 
@@ -548,10 +406,7 @@ export async function* getHistoricalEventsMultichain(params: {
         syncProgress,
         cachedIntervals,
         from,
-        to: min(
-          syncProgress.getCheckpoint({ tag: "finalized" }),
-          syncProgress.getCheckpoint({ tag: "end" }),
-        ),
+        to,
         limit:
           Math.round(
             params.common.options.syncEventsQuerySize /
