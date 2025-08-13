@@ -3,7 +3,6 @@ import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import { createIndexes, createViews } from "@/database/actions.js";
 import { getPonderMetaTable } from "@/database/index.js";
-import { AggregatorMetricsService } from "@/internal/metrics.js";
 import type { Chain } from "@/internal/types.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { isTable, sql } from "drizzle-orm";
@@ -168,7 +167,7 @@ export async function devIsolated(
     appState[chain.name] = setupWorker(chain);
   }
 
-  common.metrics = new AggregatorMetricsService(appState);
+  common.metrics.toAggregate(appState);
   common.metrics.addListeners();
 
   common.shutdown.add(() => {

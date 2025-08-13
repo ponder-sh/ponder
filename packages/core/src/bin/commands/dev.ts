@@ -246,6 +246,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           buildId: indexingBuildResult.result.buildId,
           ordering: preBuild.ordering,
         });
+        await database.migrateSync();
 
         const apiResult = await build.executeApi({
           indexingBuild,

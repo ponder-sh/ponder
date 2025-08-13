@@ -183,8 +183,12 @@ export const buildUiLines = (ui: UiState): string[] => {
 
   lines.push("");
 
-  for (const { mode, progress, eta } of Array.isArray(app) ? app : [app]) {
-    let progressLabel = pc.bold("Progress");
+  for (const { mode, progress, eta, chainName } of Array.isArray(app)
+    ? app
+    : [app]) {
+    let progressLabel = pc.bold(
+      `Progress${chainName === undefined ? "" : ` [chain = ${chainName}]`}`,
+    );
     if (mode !== undefined && progress !== 0) {
       progressLabel += ` (${mode === "historical" ? pc.yellowBright("historical") : pc.greenBright("live")})`;
     }

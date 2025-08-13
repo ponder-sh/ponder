@@ -5,7 +5,6 @@ import {
   getPonderMetaTable,
 } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
-import { AggregatorMetricsService } from "@/internal/metrics.js";
 import type { ApiBuild, Status } from "@/internal/types.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { startClock } from "@/utils/timer.js";
@@ -80,21 +79,6 @@ export async function createServer({
       try {
         const metrics = await common.metrics.getMetrics();
         return c.text(metrics);
-      } catch (error) {
-        return c.json(error as Error, 500);
-      }
-    })
-    .get("/metrics/:chainId", async (c) => {
-      try {
-        const chainId = c.req.param("chainId");
-        if (common.metrics instanceof AggregatorMetricsService) {
-          const metrics = await common.metrics.getMetricsPerChain(
-            Number(chainId),
-          );
-          return c.text(metrics);
-        } else {
-          return c.text("");
-        }
       } catch (error) {
         return c.json(error as Error, 500);
       }
