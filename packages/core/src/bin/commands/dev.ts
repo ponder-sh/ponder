@@ -65,8 +65,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     metrics,
     telemetry,
     shutdown,
-    indexingShutdown,
-    apiShutdown,
   };
 
   if (options.version) {
