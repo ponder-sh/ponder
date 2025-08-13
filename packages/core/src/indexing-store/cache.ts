@@ -118,7 +118,10 @@ type EventName = string;
  *   "spender": ["log", "address"],
  * }
  */
-export type ProfilePattern = { [key: string]: string[] };
+export type ProfilePattern = {
+  [key: string]: { value: string[]; fn?: (value: unknown) => unknown };
+};
+
 /**
  * Serialized for uniquely identifying a {@link ProfilePattern}.
  *
@@ -132,7 +135,26 @@ type ProfileKey = string;
 /**
  * Cache of database rows.
  */
-type Cache = Map<Table, Map<CacheKey, Row | null>>;
+type Cache = Map<
+  Table,
+  {
+    cache: Map<CacheKey, Row | null>;
+    /** Cached keys that were prefetched. */
+    prefetched: Set<CacheKey>;
+    /** Cached keys that were not prefetched but were accessed anyway. */
+    spillover: Set<CacheKey>;
+    /** `true` if the cache completely mirrors the database. */
+    isCacheComplete: boolean;
+    /**
+     * Estimated size of the cache in bytes.
+     *
+     * Note: this stops getting updated once `isCacheComplete = false`.
+     */
+    bytes: number;
+    /** Number of times `get` missed the cached and read from the database. */
+    diskReads: number;
+  }
+>;
 /**
  * Buffer of database rows that will be flushed to the database.
  */
@@ -285,30 +307,27 @@ export const createIndexingCache = ({
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   eventCount: { [eventName: string]: number };
 }): IndexingCache => {
-  /**
-   * Estimated size of the cache in bytes.
-   *
-   * Note: this stops getting updated once `isCacheComplete = false`.
-   */
-  let cacheBytes = 0;
   let event: Event | undefined;
   let qb: QB = undefined!;
-  let isCacheComplete = crashRecoveryCheckpoint === undefined;
   const primaryKeyCache = new Map<Table, [string, Column][]>();
 
   const cache: Cache = new Map();
   const insertBuffer: Buffer = new Map();
   const updateBuffer: Buffer = new Map();
-  /** Metadata about which entries in cache were not prefetched but were accessed anyway. */
-  const spillover: Map<Table, Set<string>> = new Map();
   /** Profiling data about access patterns for each event. */
   const profile: Profile = new Map();
 
   const tables = Object.values(schema).filter(isTable);
 
   for (const table of tables) {
-    cache.set(table, new Map());
-    spillover.set(table, new Set());
+    cache.set(table, {
+      cache: new Map(),
+      prefetched: new Set(),
+      spillover: new Set(),
+      isCacheComplete: crashRecoveryCheckpoint === undefined,
+      bytes: 0,
+      diskReads: 0,
+    });
     insertBuffer.set(table, new Map());
     updateBuffer.set(table, new Map());
 
@@ -321,11 +340,11 @@ export const createIndexingCache = ({
 
   return {
     has({ table, key }) {
-      if (isCacheComplete) return true;
+      if (cache.get(table)!.isCacheComplete) return true;
       const ck = getCacheKey(table, key, primaryKeyCache);
 
       return (
-        cache.get(table)!.has(ck) ??
+        cache.get(table)!.cache.has(ck) ??
         insertBuffer.get(table)!.has(ck) ??
         updateBuffer.get(table)!.has(ck)
       );
@@ -370,22 +389,31 @@ export const createIndexingCache = ({
       if (bufferEntry) {
         common.metrics.ponder_indexing_cache_requests_total.inc({
           table: getTableName(table),
-          type: isCacheComplete ? "complete" : "hit",
+          type: cache.get(table)!.isCacheComplete ? "complete" : "hit",
         });
         return structuredClone(bufferEntry.row);
       }
 
-      const entry = cache.get(table)!.get(ck);
+      const entry = cache.get(table)!.cache.get(ck);
 
       if (entry !== undefined) {
+        if (
+          cache.get(table)!.prefetched.has(ck) === false &&
+          cache.get(table)!.isCacheComplete === false
+        ) {
+          cache.get(table)!.spillover.add(ck);
+        }
+
         common.metrics.ponder_indexing_cache_requests_total.inc({
           table: getTableName(table),
-          type: isCacheComplete ? "complete" : "hit",
+          type: cache.get(table)!.isCacheComplete ? "complete" : "hit",
         });
         return structuredClone(entry);
       }
 
-      if (isCacheComplete) {
+      cache.get(table)!.diskReads++;
+
+      if (cache.get(table)!.isCacheComplete) {
         common.metrics.ponder_indexing_cache_requests_total.inc({
           table: getTableName(table),
           type: "complete",
@@ -393,7 +421,7 @@ export const createIndexingCache = ({
         return null;
       }
 
-      spillover.get(table)!.add(ck);
+      cache.get(table)!.spillover.add(ck);
 
       common.metrics.ponder_indexing_cache_requests_total.inc({
         table: getTableName(table),
@@ -408,7 +436,7 @@ export const createIndexingCache = ({
         )
         .then((res) => (res.length === 0 ? null : res[0]!))
         .then((row) => {
-          cache.get(table)!.set(ck, structuredClone(row));
+          cache.get(table)!.cache.set(ck, structuredClone(row));
 
           // Note: the size is not recorded because it is not possible
           // to miss the cache when in the "full in-memory" mode
@@ -449,7 +477,7 @@ export const createIndexingCache = ({
       const inInsertBuffer = insertBuffer.get(table)!.delete(ck);
       const inUpdateBuffer = updateBuffer.get(table)!.delete(ck);
 
-      cache.get(table)!.delete(ck);
+      cache.get(table)!.cache.delete(ck);
 
       const inDb = await qb
         .wrap((db) =>
@@ -462,9 +490,8 @@ export const createIndexingCache = ({
     async flush({ tableNames } = {}) {
       const copy = getCopyHelper(qb);
 
-      const shouldRecordBytes = isCacheComplete;
-
       for (const table of cache.keys()) {
+        const shouldRecordBytes = cache.get(table)!.isCacheComplete;
         if (
           tableNames !== undefined &&
           tableNames.has(getTableName(table)) === false
@@ -555,12 +582,14 @@ export const createIndexingCache = ({
             );
           }
 
+          let bytes = 0;
           for (const [key, entry] of insertBuffer.get(table)!) {
-            if (shouldRecordBytes && tableCache.has(key) === false) {
-              cacheBytes += getBytes(entry.row);
+            if (shouldRecordBytes && tableCache.cache.has(key) === false) {
+              bytes += getBytes(entry.row);
             }
-            tableCache.set(key, entry.row);
+            tableCache.cache.set(key, entry.row);
           }
+          tableCache.bytes += bytes;
           insertBuffer.get(table)!.clear();
 
           common.logger.debug({
@@ -701,12 +730,14 @@ export const createIndexingCache = ({
             endClock(),
           );
 
+          let bytes = 0;
           for (const [key, entry] of updateBuffer.get(table)!) {
-            if (shouldRecordBytes && tableCache.has(key) === false) {
-              cacheBytes += getBytes(entry.row);
+            if (shouldRecordBytes && tableCache.cache.has(key) === false) {
+              bytes += getBytes(entry.row);
             }
-            tableCache.set(key, entry.row);
+            tableCache.cache.set(key, entry.row);
           }
+          tableCache.bytes += bytes;
           updateBuffer.get(table)!.clear();
 
           common.logger.debug({
@@ -723,17 +754,39 @@ export const createIndexingCache = ({
       }
     },
     async prefetch({ events }) {
-      if (isCacheComplete) {
-        if (cacheBytes < common.options.indexingCacheMaxBytes) {
-          return;
-        }
+      let totalBytes = 0;
+      for (const table of tables) {
+        totalBytes += cache.get(table)!.bytes;
+      }
 
-        isCacheComplete = false;
-        for (const table of cache.keys()) {
-          cache.get(table)!.clear();
+      // If data from the cache needs to be evicted, start with the
+      // table with the least disk reads.
+
+      if (totalBytes > common.options.indexingCacheMaxBytes) {
+        for (const table of tables.sort(
+          (a, b) => cache.get(a)!.diskReads - cache.get(b)!.diskReads,
+        )) {
+          if (cache.get(table)!.isCacheComplete === false) continue;
+
+          common.logger.debug({
+            service: "indexing",
+            msg: `Evicting '${getTableName(table)}' rows from cache`,
+          });
+
+          totalBytes -= cache.get(table)!.bytes;
+
+          cache.get(table)!.bytes = 0;
+          cache.get(table)!.cache.clear();
+          cache.get(table)!.isCacheComplete = false;
           // Note: spillover is not cleared because it is an invariant
           // it is empty
+
+          if (totalBytes < common.options.indexingCacheMaxBytes) break;
         }
+      }
+
+      if (tables.every((table) => cache.get(table)!.isCacheComplete)) {
+        return;
       }
 
       // Use historical accesses + next event batch to determine which
@@ -748,6 +801,7 @@ export const createIndexingCache = ({
       for (const event of events) {
         if (profile.has(event.name)) {
           for (const table of tables) {
+            if (cache.get(table)!.isCacheComplete) continue;
             for (const [, { count, pattern }] of profile
               .get(event.name)!
               .get(table)!) {
@@ -764,21 +818,22 @@ export const createIndexingCache = ({
       }
 
       for (const [table, tableCache] of cache) {
-        for (const key of tableCache.keys()) {
+        if (cache.get(table)!.isCacheComplete) continue;
+        for (const key of tableCache.cache.keys()) {
           if (
-            spillover.get(table)!.has(key) ||
+            tableCache.spillover.has(key) ||
             prediction.get(table)!.has(key)
           ) {
             prediction.get(table)!.delete(key);
           } else {
-            tableCache.delete(key);
-            isCacheComplete = false;
+            tableCache.cache.delete(key);
           }
         }
       }
 
-      for (const [table] of spillover) {
-        spillover.get(table)!.clear();
+      for (const table of tables) {
+        cache.get(table)!.spillover.clear();
+        cache.get(table)!.prefetched.clear();
       }
 
       for (const [table, tablePredictions] of prediction) {
@@ -795,6 +850,10 @@ export const createIndexingCache = ({
         Array.from(prediction.entries())
           .filter(([, tablePredictions]) => tablePredictions.size > 0)
           .map(async ([table, tablePredictions]) => {
+            for (const [key] of tablePredictions) {
+              cache.get(table)!.prefetched.add(key);
+            }
+
             const conditions = dedupe(
               Array.from(tablePredictions),
               ([key]) => key,
@@ -824,9 +883,9 @@ export const createIndexingCache = ({
                 const tableCache = cache.get(table)!;
                 for (const key of tablePredictions.keys()) {
                   if (resultsPerKey.has(key)) {
-                    tableCache.set(key, resultsPerKey.get(key)!);
+                    tableCache.cache.set(key, resultsPerKey.get(key)!);
                   } else {
-                    tableCache.set(key, null);
+                    tableCache.cache.set(key, null);
                   }
                 }
               });
@@ -842,15 +901,14 @@ export const createIndexingCache = ({
       );
     },
     invalidate() {
-      isCacheComplete = false;
+      for (const tableCache of cache.values()) {
+        tableCache.isCacheComplete = false;
+      }
     },
     clear() {
       for (const tableCache of cache.values()) {
-        tableCache.clear();
-      }
-
-      for (const tableSpillover of spillover.values()) {
-        tableSpillover.clear();
+        tableCache.cache.clear();
+        tableCache.spillover.clear();
       }
 
       for (const tableBuffer of insertBuffer.values()) {
