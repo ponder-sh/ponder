@@ -38,12 +38,12 @@ import type {
   FragmentAddress,
 } from "../../packages/core/src/internal/types.js";
 import { createRpc } from "../../packages/core/src/rpc/index.js";
-import * as PONDER_SYNC from "../../packages/core/src/sync-store/schema.js";
 import {
   decodeFragment,
   getFragments,
   isFragmentAddressFactory,
-} from "../../packages/core/src/sync/fragments.js";
+} from "../../packages/core/src/runtime/fragments.js";
+import * as PONDER_SYNC from "../../packages/core/src/sync-store/schema.js";
 import {
   getChunks,
   intervalUnion,
