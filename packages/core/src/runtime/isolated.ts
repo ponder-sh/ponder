@@ -97,6 +97,14 @@ export async function runIsolated({
   const metrics = new MetricsService();
   metrics.addListeners();
   const shutdown = createShutdown();
+  if (parentPort) {
+    parentPort.on("message", (msg) => {
+      if (msg.type === "kill") {
+        shutdown.kill();
+      }
+    });
+  }
+
   const telemetry = createTelemetry({ options, logger, shutdown });
   const common = { options, logger, metrics, telemetry, shutdown };
   createExit({ common, options });

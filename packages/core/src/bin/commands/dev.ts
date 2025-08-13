@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
 import { type Database, createDatabase } from "@/database/index.js";
-import { NonRetryableUserError, ShutdownError } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -371,8 +370,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   globalThis.PONDER_NAMESPACE_BUILD = { schema, viewsSchema: undefined };
 
   process.on("uncaughtException", (error: Error) => {
-    if (error instanceof ShutdownError) return;
-    if (error instanceof NonRetryableUserError) {
+    if (error.name === "ShutdownError") return;
+    if (error.name === "NonRetryableUserError") {
       buildQueue.clear();
       buildQueue.add({ status: "error", kind: "indexing", error });
     } else {
@@ -385,8 +384,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     }
   });
   process.on("unhandledRejection", (error: Error) => {
-    if (error instanceof ShutdownError) return;
-    if (error instanceof NonRetryableUserError) {
+    if (error.name === "ShutdownError") return;
+    if (error.name === "NonRetryableUserError") {
       buildQueue.clear();
       buildQueue.add({ status: "error", kind: "indexing", error });
     } else {

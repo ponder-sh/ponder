@@ -24,7 +24,7 @@ export async function devIsolated(
   }: Omit<PonderApp, "apiBuild">,
   cliOptions: CliOptions,
 ) {
-  let appState: { [chainName: string]: WorkerInfo } = {};
+  const appState: { [chainName: string]: WorkerInfo } = {};
   const workerPath = join(__dirname, "..", "..", "runtime", "isolated.js");
 
   let isAllReady = false;
@@ -86,11 +86,9 @@ export async function devIsolated(
     }
 
     if (workerInfo.errorHandler) {
-      workerInfo.worker.off("exit", workerInfo.errorHandler);
+      workerInfo.worker.off("error", workerInfo.errorHandler);
       workerInfo.errorHandler = undefined;
     }
-
-    workerInfo.worker.terminate();
   };
 
   const setupWorker = (chain: Chain) => {
@@ -171,18 +169,18 @@ export async function devIsolated(
   common.metrics.addListeners();
 
   common.shutdown.add(() => {
-    for (const { chain } of Object.values(appState)) {
+    for (const { chain, worker } of Object.values(appState)) {
       cleanupWorker(chain.name);
+      worker.postMessage({ type: "kill" });
     }
-
-    appState = {};
   });
 
   Promise.all(
     Object.values(appState).map(async ({ promise }) => promise),
   ).finally(() => {
-    for (const { chain } of Object.values(appState)) {
+    for (const { chain, worker } of Object.values(appState)) {
       cleanupWorker(chain.name);
+      worker.terminate();
     }
   });
 }

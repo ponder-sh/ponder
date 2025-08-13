@@ -456,6 +456,10 @@ export class MetricsService {
     return this.#type;
   }
 
+  get app() {
+    return this.#app;
+  }
+
   async toAggregate(app: {
     [chainName: string]: WorkerInfo;
   }) {
@@ -474,7 +478,7 @@ export class MetricsService {
     } else {
       if (
         latestRequestTimestamp !== undefined &&
-        latestRequestTimestamp - Date.now() < 1500
+        Date.now() - latestRequestTimestamp < 1500
       ) {
         return await this.aggregatedRegistry.metrics();
       }
@@ -532,6 +536,7 @@ export class MetricsService {
   }
 
   resetIndexingMetrics() {
+    this.aggregatedRegistry = new prometheus.Registry();
     this.start_timestamp = Date.now();
     this.rps = {};
     this.progressMetadata = {
@@ -611,7 +616,7 @@ export class MetricsService {
     } else {
       if (isMainThread) {
         for (const appPerChain of Object.values(this.#app!)) {
-          appPerChain.worker.on("message", (message) => {
+          appPerChain.worker.on("message", async (message) => {
             if (message.type === GET_METRICS_RES) {
               const request = this.#requests!.get(message.requestId);
 
@@ -626,6 +631,7 @@ export class MetricsService {
               request.pending--;
               if (request.pending === 0) {
                 clearTimeout(request.errorTimeout);
+                // request.responses.push(await this.registry.getMetricsAsJSON());
                 this.aggregatedRegistry =
                   prometheus.AggregatorRegistry.aggregate(request.responses);
                 const promString = this.aggregatedRegistry.metrics();
@@ -661,11 +667,12 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
       ? await metrics.registry.getMetricsAsJSON()
       : await metrics
           .getMetrics()
+          .catch(() => {})
           .then(() => metrics.aggregatedRegistry.getMetricsAsJSON());
 
   const syncDurationMetric = aggregatedMetrics.find(
     (metric) => metric.name === "ponder_historical_duration",
-  )!.values;
+  )!;
   const totalBlocksMetric = aggregatedMetrics.find(
     (metric) => metric.name === "ponder_historical_total_blocks",
   )!;
@@ -684,9 +691,16 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
   const syncIsCompleteMetrics = aggregatedMetrics.find(
     (metric) => metric.name === "ponder_sync_is_complete",
   )!;
+  const rpcRequestMetrics = aggregatedMetrics.find(
+    (metric) => metric.name === "ponder_rpc_request_duration",
+  );
+
+  if (!syncDurationMetric || !rpcRequestMetrics || !totalBlocksMetric) {
+    return [];
+  }
 
   const syncDurationSum: { [chain: string]: number } = {};
-  for (const m of syncDurationMetric) {
+  for (const m of syncDurationMetric.values) {
     // @ts-ignore
     if (m.metricName === "ponder_historical_duration_sum") {
       syncDurationSum[m.labels.chain!] = m.value;
@@ -694,9 +708,9 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
   }
 
   const requestCount: { [chain: string]: number } = {};
-  const rpcRequestMetrics = await metrics.ponder_rpc_request_duration.get();
   for (const m of rpcRequestMetrics.values) {
     const chain = m.labels.chain!;
+    // @ts-ignore
     if (m.metricName === "ponder_rpc_request_duration_count") {
       if (requestCount[chain] === undefined) {
         requestCount[chain] = 0;
@@ -766,23 +780,35 @@ export async function getIndexingProgress(metrics: MetricsService) {
       ? await metrics.registry.getMetricsAsJSON()
       : await metrics
           .getMetrics()
+          .catch(() => {})
           .then(() => metrics.aggregatedRegistry.getMetricsAsJSON());
 
   const hasErrorMetric = aggregatedMetrics.find(
     (metric) => metric.name === "ponder_indexing_has_error",
-  )!.values[0]?.value;
+  ); //!.values[0]?.value;
   const indexingCompletedEventsMetric = aggregatedMetrics.find(
     (metric) => metric.name === "ponder_indexing_completed_events",
-  )!.values;
+  );
   const indexingFunctionDurationMetric = aggregatedMetrics.find(
     (metric) => metric.name === "ponder_indexing_function_duration",
-  )!.values;
+  );
 
-  const hasError = hasErrorMetric === 1;
+  if (
+    !hasErrorMetric ||
+    !indexingCompletedEventsMetric ||
+    !indexingFunctionDurationMetric
+  ) {
+    return {
+      hasError: false,
+      events: [],
+    };
+  }
+
+  const hasError = hasErrorMetric.values[0]?.value === 1;
 
   const indexingDurationSum: Record<string, number> = {};
   const indexingDurationCount: Record<string, number> = {};
-  for (const m of indexingFunctionDurationMetric) {
+  for (const m of indexingFunctionDurationMetric.values) {
     // @ts-ignore
     if (m.metricName === "ponder_indexing_function_duration_sum")
       indexingDurationSum[m.labels.event!] = m.value;
@@ -791,7 +817,7 @@ export async function getIndexingProgress(metrics: MetricsService) {
       indexingDurationCount[m.labels.event!] = m.value;
   }
 
-  const events = indexingCompletedEventsMetric.map((m) => {
+  const events = indexingCompletedEventsMetric.values.map((m) => {
     const count = m.value;
 
     const durationSum = indexingDurationSum[m.labels.event as string] ?? 0;
@@ -824,20 +850,30 @@ export async function getAppProgress(
       ? await metrics.registry.getMetricsAsJSON()
       : await metrics
           .getMetrics()
+          .catch(() => {})
           .then(() => metrics.aggregatedRegistry.getMetricsAsJSON());
 
   const totalSecondsMetric = aggregatedMetrics.find(
     (metric) => metric.name === "ponder_historical_total_indexing_seconds",
-  )!;
+  );
   const cachedSecondsMetric = aggregatedMetrics.find(
     (metric) => metric.name === "ponder_historical_cached_indexing_seconds",
-  )!;
+  );
   const completedSecondsMetric = aggregatedMetrics.find(
     (metric) => metric.name === "ponder_historical_completed_indexing_seconds",
-  )!;
+  );
   const timestampMetric = aggregatedMetrics.find(
     (metric) => metric.name === "ponder_indexing_timestamp",
-  )!;
+  );
+
+  if (
+    !totalSecondsMetric ||
+    !cachedSecondsMetric ||
+    !completedSecondsMetric ||
+    !timestampMetric
+  ) {
+    return [];
+  }
 
   const ordering: Ordering | undefined = await metrics.ponder_settings_info
     .get()
