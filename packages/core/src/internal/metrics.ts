@@ -1134,3 +1134,115 @@ function calculateEta(
 
   return eta;
 }
+
+export class AggregateMetricsService {
+  registry: prometheus.Registry;
+  app: {
+    [chainName: string]: WorkerInfo;
+  };
+  requests: Map<number, any> = new Map();
+
+  rps: { [chain: string]: { count: number; timestamp: number }[] } = {};
+
+  constructor(app: {
+    [chainName: string]: WorkerInfo;
+  }) {
+    this.registry = new prometheus.Registry();
+    this.app = app;
+
+    prometheus.collectDefaultMetrics({ register: this.registry });
+  }
+
+  resetIndexingMetrics() {
+    this.registry = new prometheus.Registry();
+  }
+
+  async getMetrics(): Promise<string> {
+    if (
+      latestRequestTimestamp !== undefined &&
+      Date.now() - latestRequestTimestamp < 1500
+    ) {
+      return await this.registry.metrics();
+    }
+
+    const requestId = requestCtr++;
+    latestRequestTimestamp = Date.now();
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+
+      const done = (
+        err: Error | undefined,
+        result: string | undefined = undefined,
+      ) => {
+        if (settled) return;
+        settled = true;
+
+        this.requests.delete(requestId);
+
+        if (err !== undefined) {
+          reject(err);
+        } else {
+          resolve(result as string);
+        }
+      };
+
+      const request = {
+        responses: [],
+        pending: 0,
+        done,
+        errorTimeout: setTimeout(() => {
+          const err = new Error("Operation timed out.");
+          request.done(err);
+        }, 1000),
+      };
+
+      this.requests.set(requestId, request);
+      const message = {
+        type: GET_METRICS_REQ,
+        requestId,
+      };
+
+      for (const { worker, state } of Object.values(this.app)) {
+        if (state === "failed") continue;
+        worker.postMessage(message);
+        request.pending++;
+      }
+
+      if (request.pending === 0) {
+        clearTimeout(request.errorTimeout);
+        done(undefined, "");
+      }
+    });
+  }
+
+  addListeners() {
+    if (isMainThread) {
+      for (const appPerChain of Object.values(this.app)) {
+        appPerChain.worker.on("message", async (message) => {
+          if (message.type === GET_METRICS_RES) {
+            const request = this.requests.get(message.requestId);
+
+            if (request === undefined) return;
+
+            if (message.error) {
+              request.done(new Error(message.error));
+              return;
+            }
+
+            request.responses.push(message.metrics);
+            request.pending--;
+            if (request.pending === 0) {
+              clearTimeout(request.errorTimeout);
+              this.registry = prometheus.AggregatorRegistry.aggregate(
+                request.responses,
+              );
+              const promString = this.registry.metrics();
+              request.done(undefined, promString);
+            }
+          }
+        });
+      }
+    }
+  }
+}
