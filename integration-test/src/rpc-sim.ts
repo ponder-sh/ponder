@@ -15,7 +15,7 @@ import { zeroLogsBloom } from "../../packages/core/src/sync-realtime/bloom.js";
 import { promiseWithResolvers } from "../../packages/core/src/utils/promiseWithResolvers.js";
 import { createQueue } from "../../packages/core/src/utils/queue.js";
 import * as RPC_SCHEMA from "../schema.js";
-import { DB, SEED, SIM_PARAMS, restart } from "./index.js";
+import { APP, DB, SEED, SIM_PARAMS, restart } from "./index.js";
 
 const PONDER_RPC_METHODS = [
   "eth_getBlockByNumber",
@@ -75,6 +75,23 @@ export const sim =
 
       if (seedrandom(SEED + id + nonce)() < SIM_PARAMS.RPC_ERROR_RATE) {
         throw new Error("Simulated error");
+      }
+
+      if (
+        APP &&
+        body.method === "eth_getBlockByNumber" &&
+        body.params[0] === "latest"
+      ) {
+        const index = APP.indexingBuild.chains.findIndex(
+          (_chain) => _chain.id === chain.id,
+        );
+        const number = hexToNumber(
+          APP.indexingBuild.finalizedBlocks[index]!.number,
+        );
+
+        body.params[0] = toHex(
+          number + APP.indexingBuild.chains[index].finalityBlockCount,
+        );
       }
 
       // block tag validation

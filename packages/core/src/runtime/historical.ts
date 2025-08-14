@@ -61,10 +61,7 @@ export async function* getHistoricalEventsOmnichain(params: {
       events: Event[];
       checkpoints: { chainId: number; checkpoint: string }[];
     }
-  | {
-      type: "pending";
-      pendingEvents: Event[];
-    }
+  | { type: "pending"; pendingEvents: Event[] }
 > {
   let pendingEvents: Event[] = [];
 
