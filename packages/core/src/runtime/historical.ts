@@ -64,287 +64,217 @@ export async function* getHistoricalEventsOmnichain(params: {
   | { type: "pending"; pendingEvents: Event[] }
 > {
   let pendingEvents: Event[] = [];
+  let isCatchup = false;
+  const perChainCursor = new Map<Chain, string>();
 
-  let eventGenerators = Array.from(params.perChainSync.entries()).map(
-    async function* ([
-      chain,
-      { syncProgress, childAddresses, cachedIntervals },
-    ]) {
-      const rpc =
-        params.indexingBuild.rpcs[
-          params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
-        ]!;
+  while (true) {
+    const eventGenerators = Array.from(params.perChainSync.entries()).map(
+      async function* ([
+        chain,
+        { syncProgress, childAddresses, cachedIntervals },
+      ]) {
+        const rpc =
+          params.indexingBuild.rpcs[
+            params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
+          ]!;
 
-      const sources = params.indexingBuild.sources.filter(
-        ({ filter }) => filter.chainId === chain.id,
-      );
+        const sources = params.indexingBuild.sources.filter(
+          ({ filter }) => filter.chainId === chain.id,
+        );
 
-      const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
-        ({ chainId }) => chainId === chain.id,
-      )?.checkpoint;
+        const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
+          ({ chainId }) => chainId === chain.id,
+        )?.checkpoint;
 
-      // In order to speed up the "extract" phase when there is a crash recovery,
-      // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
-      // is defined.
+        const to = min(
+          syncProgress.getCheckpoint({ tag: "finalized" }),
+          syncProgress.getCheckpoint({ tag: "end" }),
+        );
+        let from: string;
 
-      let from: string;
-      if (crashRecoveryCheckpoint === undefined) {
-        from = syncProgress.getCheckpoint({ tag: "start" });
-      } else if (
-        Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) === chain.id
-      ) {
-        from = crashRecoveryCheckpoint;
-      } else {
-        const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
-          chainId: chain.id,
-          timestamp: Number(
-            decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
-          ),
-        });
+        if (isCatchup === false) {
+          // In order to speed up the "extract" phase when there is a crash recovery,
+          // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
+          // is defined.
 
-        if (fromBlock === undefined) {
-          from = syncProgress.getCheckpoint({ tag: "start" });
+          if (crashRecoveryCheckpoint === undefined) {
+            from = syncProgress.getCheckpoint({ tag: "start" });
+          } else if (
+            Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) ===
+            chain.id
+          ) {
+            from = crashRecoveryCheckpoint;
+          } else {
+            const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
+              chainId: chain.id,
+              timestamp: Number(
+                decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
+              ),
+            });
+
+            if (fromBlock === undefined) {
+              from = syncProgress.getCheckpoint({ tag: "start" });
+            } else {
+              from = encodeCheckpoint({
+                ...ZERO_CHECKPOINT,
+                blockNumber: fromBlock.number,
+                blockTimestamp: fromBlock.timestamp,
+                chainId: BigInt(chain.id),
+              });
+            }
+          }
         } else {
+          const cursor = perChainCursor.get(chain)!;
+
+          yield {
+            events: pendingEvents.filter((event) => event.chainId === chain.id),
+            checkpoint: cursor,
+          };
+
           from = encodeCheckpoint({
             ...ZERO_CHECKPOINT,
-            blockNumber: fromBlock.number,
-            blockTimestamp: fromBlock.timestamp,
-            chainId: BigInt(chain.id),
+            blockTimestamp: decodeCheckpoint(cursor).blockTimestamp,
+            chainId: decodeCheckpoint(cursor).chainId,
+            blockNumber: decodeCheckpoint(cursor).blockNumber + 1n,
           });
+
+          if (from > to) return;
         }
-      }
 
-      const eventGenerator = await initEventGenerator({
-        common: params.common,
-        indexingBuild: params.indexingBuild,
-        chain,
-        rpc,
-        sources,
-        childAddresses,
-        syncProgress,
-        cachedIntervals,
-        from,
-        to: min(
-          syncProgress.getCheckpoint({ tag: "finalized" }),
-          syncProgress.getCheckpoint({ tag: "end" }),
-        ),
-        limit:
-          Math.round(
-            params.common.options.syncEventsQuerySize /
-              (params.indexingBuild.chains.length + 1),
-          ) + 6,
-        syncStore: params.syncStore,
-        isCatchup: false,
-      });
-
-      const to = min(
-        getOmnichainCheckpoint({
-          perChainSync: params.perChainSync,
-          tag: "finalized",
-        }),
-        getOmnichainCheckpoint({
-          perChainSync: params.perChainSync,
-          tag: "end",
-        }),
-      );
-
-      for await (let { events: rawEvents, checkpoint } of eventGenerator) {
-        const endClock = startClock();
-        let events = decodeEvents(params.common, sources, rawEvents);
-        params.common.logger.debug({
-          service: "app",
-          msg: `Decoded ${events.length} '${chain.name}' events`,
+        const eventGenerator = await initEventGenerator({
+          common: params.common,
+          indexingBuild: params.indexingBuild,
+          chain,
+          rpc,
+          sources,
+          childAddresses,
+          syncProgress,
+          cachedIntervals,
+          from,
+          to,
+          limit:
+            Math.round(
+              params.common.options.syncEventsQuerySize /
+                (params.indexingBuild.chains.length + 1),
+            ) + 6,
+          syncStore: params.syncStore,
+          isCatchup,
         });
-        params.common.metrics.ponder_historical_extract_duration.inc(
-          { step: "decode" },
-          endClock(),
+
+        const omnichainTo = min(
+          getOmnichainCheckpoint({
+            perChainSync: params.perChainSync,
+            tag: "finalized",
+          }),
+          getOmnichainCheckpoint({
+            perChainSync: params.perChainSync,
+            tag: "end",
+          }),
         );
 
-        // Removes events that have a checkpoint earlier than (or equal to)
-        // the crash recovery checkpoint.
-
-        if (crashRecoveryCheckpoint) {
-          const [, right] = partition(
-            events,
-            (event) => event.checkpoint <= crashRecoveryCheckpoint,
+        for await (let { events: rawEvents, checkpoint } of eventGenerator) {
+          const endClock = startClock();
+          let events = decodeEvents(params.common, sources, rawEvents);
+          params.common.logger.debug({
+            service: "app",
+            msg: `Decoded ${events.length} '${chain.name}' events`,
+          });
+          params.common.metrics.ponder_historical_extract_duration.inc(
+            { step: "decode" },
+            endClock(),
           );
-          events = right;
+
+          // Removes events that have a checkpoint earlier than (or equal to)
+          // the crash recovery checkpoint.
+
+          if (crashRecoveryCheckpoint) {
+            const [, right] = partition(
+              events,
+              (event) => event.checkpoint <= crashRecoveryCheckpoint,
+            );
+            events = right;
+          }
+
+          // Sort out any events between the omnichain finalized checkpoint and the single-chain
+          // finalized checkpoint and add them to pendingEvents. These events are synced during
+          // the historical phase, but must be indexed in the realtime phase because events
+          // synced in realtime on other chains might be ordered before them.
+
+          if (checkpoint > omnichainTo) {
+            const [left, right] = partition(
+              events,
+              (event) => event.checkpoint <= omnichainTo,
+            );
+            pendingEvents = pendingEvents.concat(right);
+            events = left;
+            checkpoint = omnichainTo;
+          }
+
+          yield { events, checkpoint };
         }
 
-        // Sort out any events between the omnichain finalized checkpoint and the single-chain
-        // finalized checkpoint and add them to pendingEvents. These events are synced during
-        // the historical phase, but must be indexed in the realtime phase because events
-        // synced in realtime on other chains might be ordered before them.
+        perChainCursor.set(chain, to);
+      },
+    );
 
-        if (checkpoint > to) {
-          const [left, right] = partition(
-            events,
-            (event) => event.checkpoint <= to,
-          );
-          pendingEvents = pendingEvents.concat(right);
-          events = left;
-          checkpoint = to;
-        }
+    pendingEvents = [];
 
-        yield { events, checkpoint };
-      }
-    },
-  );
+    const eventGenerator = mergeAsyncGeneratorsWithEventOrder(eventGenerators);
 
-  let eventGenerator = mergeAsyncGeneratorsWithEventOrder(eventGenerators);
-
-  for await (const { events, checkpoints } of eventGenerator) {
-    params.common.logger.debug({
-      service: "sync",
-      msg: `Sequenced ${events.length} events`,
-    });
-
-    yield { type: "events", events, checkpoints };
-  }
-
-  eventGenerators = Array.from(params.perChainSync.entries()).map(
-    async function* ([
-      chain,
-      { syncProgress, childAddresses, cachedIntervals },
-    ]) {
-      const rpc =
-        params.indexingBuild.rpcs[
-          params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
-        ]!;
-
-      const sources = params.indexingBuild.sources.filter(
-        ({ filter }) => filter.chainId === chain.id,
-      );
-
-      const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
-        ({ chainId }) => chainId === chain.id,
-      )?.checkpoint;
-
-      const previousTo = decodeCheckpoint(
-        min(
-          syncProgress.getCheckpoint({ tag: "finalized" }),
-          syncProgress.getCheckpoint({ tag: "end" }),
-        ),
-      );
-
-      const from = encodeCheckpoint({
-        ...ZERO_CHECKPOINT,
-        blockTimestamp: previousTo.blockTimestamp,
-        chainId: previousTo.chainId,
-        blockNumber: previousTo.blockNumber + 1n,
+    for await (const { events, checkpoints } of eventGenerator) {
+      params.common.logger.debug({
+        service: "sync",
+        msg: `Sequenced ${events.length} events`,
       });
 
-      syncProgress.finalized = await _eth_getBlockByNumber(rpc, {
-        blockTag: "latest",
-      }).then((latest) =>
-        _eth_getBlockByNumber(rpc, {
-          blockNumber: Math.max(
-            hexToNumber(latest.number) - chain.finalityBlockCount,
-            0,
-          ),
-        }),
-      );
+      yield { type: "events", events, checkpoints };
+    }
 
-      const to = min(
-        syncProgress.getCheckpoint({ tag: "finalized" }),
-        syncProgress.getCheckpoint({ tag: "end" }),
-      );
+    const finalizedBlocks = await Promise.all(
+      params.indexingBuild.chains.map((chain, i) => {
+        const rpc = params.indexingBuild.rpcs[i]!;
 
-      yield {
-        events: pendingEvents.filter((event) => event.chainId === chain.id),
-        checkpoint: encodeCheckpoint(previousTo),
-      };
-
-      if (from > to) return;
-
-      const eventGenerator = await initEventGenerator({
-        common: params.common,
-        indexingBuild: params.indexingBuild,
-        chain,
-        rpc,
-        sources,
-        childAddresses,
-        syncProgress,
-        cachedIntervals,
-        from,
-        to: min(
-          syncProgress.getCheckpoint({ tag: "finalized" }),
-          syncProgress.getCheckpoint({ tag: "end" }),
-        ),
-        limit:
-          Math.round(
-            params.common.options.syncEventsQuerySize /
-              (params.indexingBuild.chains.length + 1),
-          ) + 6,
-        syncStore: params.syncStore,
-        isCatchup: false,
-      });
-
-      const omnichainTo = min(
-        getOmnichainCheckpoint({
-          perChainSync: params.perChainSync,
-          tag: "finalized",
-        }),
-        getOmnichainCheckpoint({
-          perChainSync: params.perChainSync,
-          tag: "end",
-        }),
-      );
-
-      for await (let { events: rawEvents, checkpoint } of eventGenerator) {
-        const endClock = startClock();
-        let events = decodeEvents(params.common, sources, rawEvents);
-        params.common.logger.debug({
-          service: "app",
-          msg: `Decoded ${events.length} '${chain.name}' events`,
-        });
-        params.common.metrics.ponder_historical_extract_duration.inc(
-          { step: "decode" },
-          endClock(),
+        return _eth_getBlockByNumber(rpc, {
+          blockTag: "latest",
+        }).then((latest) =>
+          _eth_getBlockByNumber(rpc, {
+            blockNumber: Math.max(
+              hexToNumber(latest.number) - chain.finalityBlockCount,
+              0,
+            ),
+          }),
         );
+      }),
+    );
 
-        // Removes events that have a checkpoint earlier than (or equal to)
-        // the crash recovery checkpoint.
+    let shouldCatchup = false;
 
-        if (crashRecoveryCheckpoint) {
-          const [, right] = partition(
-            events,
-            (event) => event.checkpoint <= crashRecoveryCheckpoint,
-          );
-          events = right;
-        }
+    for (let i = 0; i < params.indexingBuild.chains.length; i++) {
+      const chain = params.indexingBuild.chains[i]!;
+      const oldFinalizedBlock =
+        params.perChainSync.get(chain)!.syncProgress.finalized;
+      const newFinalizedBlock = finalizedBlocks[i]!;
 
-        // Sort out any events between the omnichain finalized checkpoint and the single-chain
-        // finalized checkpoint and add them to pendingEvents. These events are synced during
-        // the historical phase, but must be indexed in the realtime phase because events
-        // synced in realtime on other chains might be ordered before them.
-
-        if (checkpoint > omnichainTo) {
-          const [left, right] = partition(
-            events,
-            (event) => event.checkpoint <= omnichainTo,
-          );
-          pendingEvents = pendingEvents.concat(right);
-          events = left;
-          checkpoint = omnichainTo;
-        }
-
-        yield { events, checkpoint };
+      if (
+        hexToNumber(newFinalizedBlock.number) -
+          hexToNumber(oldFinalizedBlock.number) >
+        chain.finalityBlockCount * 5
+      ) {
+        shouldCatchup = true;
+        break;
       }
-    },
-  );
+    }
 
-  pendingEvents = [];
+    if (shouldCatchup === false) break;
 
-  eventGenerator = mergeAsyncGeneratorsWithEventOrder(eventGenerators);
+    for (let i = 0; i < params.indexingBuild.chains.length; i++) {
+      const chain = params.indexingBuild.chains[i]!;
+      const finalizedBlock = finalizedBlocks[i]!;
 
-  for await (const { events, checkpoints } of eventGenerator) {
-    params.common.logger.debug({
-      service: "sync",
-      msg: `Sequenced ${events.length} events`,
-    });
+      params.perChainSync.get(chain)!.syncProgress.finalized = finalizedBlock;
+    }
 
-    yield { type: "events", events, checkpoints };
+    isCatchup = true;
   }
 
   yield { type: "pending", pendingEvents };
@@ -367,240 +297,192 @@ export async function* getHistoricalEventsMultichain(params: {
   >;
   syncStore: SyncStore;
 }) {
-  let eventGenerators = Array.from(params.perChainSync.entries()).map(
-    async function* ([
-      chain,
-      { syncProgress, childAddresses, cachedIntervals },
-    ]) {
-      const rpc =
-        params.indexingBuild.rpcs[
-          params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
-        ]!;
+  let isCatchup = false;
+  const perChainCursor = new Map<Chain, string>();
 
-      const sources = params.indexingBuild.sources.filter(
-        ({ filter }) => filter.chainId === chain.id,
-      );
+  while (true) {
+    const eventGenerators = Array.from(params.perChainSync.entries()).map(
+      async function* ([
+        chain,
+        { syncProgress, childAddresses, cachedIntervals },
+      ]) {
+        const rpc =
+          params.indexingBuild.rpcs[
+            params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
+          ]!;
 
-      const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
-        ({ chainId }) => chainId === chain.id,
-      )?.checkpoint;
+        const sources = params.indexingBuild.sources.filter(
+          ({ filter }) => filter.chainId === chain.id,
+        );
 
-      // In order to speed up the "extract" phase when there is a crash recovery,
-      // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
-      // is defined.
+        const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
+          ({ chainId }) => chainId === chain.id,
+        )?.checkpoint;
 
-      let from: string;
-      if (crashRecoveryCheckpoint === undefined) {
-        from = syncProgress.getCheckpoint({ tag: "start" });
-      } else if (
-        Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) === chain.id
-      ) {
-        from = crashRecoveryCheckpoint;
-      } else {
-        const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
-          chainId: chain.id,
-          timestamp: Number(
-            decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
-          ),
-        });
+        const to = min(
+          syncProgress.getCheckpoint({ tag: "finalized" }),
+          syncProgress.getCheckpoint({ tag: "end" }),
+        );
+        let from: string;
 
-        if (fromBlock === undefined) {
-          from = syncProgress.getCheckpoint({ tag: "start" });
+        if (isCatchup === false) {
+          // In order to speed up the "extract" phase when there is a crash recovery,
+          // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
+          // is defined.
+
+          if (crashRecoveryCheckpoint === undefined) {
+            from = syncProgress.getCheckpoint({ tag: "start" });
+          } else if (
+            Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) ===
+            chain.id
+          ) {
+            from = crashRecoveryCheckpoint;
+          } else {
+            const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
+              chainId: chain.id,
+              timestamp: Number(
+                decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
+              ),
+            });
+
+            if (fromBlock === undefined) {
+              from = syncProgress.getCheckpoint({ tag: "start" });
+            } else {
+              from = encodeCheckpoint({
+                ...ZERO_CHECKPOINT,
+                blockNumber: fromBlock.number,
+                blockTimestamp: fromBlock.timestamp,
+                chainId: BigInt(chain.id),
+              });
+            }
+          }
         } else {
+          const cursor = perChainCursor.get(chain)!;
+
           from = encodeCheckpoint({
             ...ZERO_CHECKPOINT,
-            blockNumber: fromBlock.number,
-            blockTimestamp: fromBlock.timestamp,
-            chainId: BigInt(chain.id),
+            blockTimestamp: decodeCheckpoint(cursor).blockTimestamp,
+            chainId: decodeCheckpoint(cursor).chainId,
+            blockNumber: decodeCheckpoint(cursor).blockNumber + 1n,
           });
+
+          if (from > to) return;
         }
-      }
 
-      const eventGenerator = await initEventGenerator({
-        common: params.common,
-        indexingBuild: params.indexingBuild,
-        chain,
-        rpc,
-        sources,
-        childAddresses,
-        syncProgress,
-        cachedIntervals,
-        from,
-        to: min(
-          syncProgress.getCheckpoint({ tag: "finalized" }),
-          syncProgress.getCheckpoint({ tag: "end" }),
-        ),
-        limit:
-          Math.round(
-            params.common.options.syncEventsQuerySize /
-              (params.indexingBuild.chains.length + 1),
-          ) + 6,
-        syncStore: params.syncStore,
-        isCatchup: false,
-      });
-
-      for await (const { events: rawEvents, checkpoint } of eventGenerator) {
-        const endClock = startClock();
-        let events = decodeEvents(params.common, sources, rawEvents);
-        params.common.logger.debug({
-          service: "app",
-          msg: `Decoded ${events.length} '${chain.name}' events`,
+        const eventGenerator = await initEventGenerator({
+          common: params.common,
+          indexingBuild: params.indexingBuild,
+          chain,
+          rpc,
+          sources,
+          childAddresses,
+          syncProgress,
+          cachedIntervals,
+          from,
+          to,
+          limit:
+            Math.round(
+              params.common.options.syncEventsQuerySize /
+                (params.indexingBuild.chains.length + 1),
+            ) + 6,
+          syncStore: params.syncStore,
+          isCatchup,
         });
-        params.common.metrics.ponder_historical_extract_duration.inc(
-          { step: "decode" },
-          endClock(),
-        );
 
-        // Removes events that have a checkpoint earlier than (or equal to)
-        // the crash recovery checkpoint.
-
-        if (crashRecoveryCheckpoint) {
-          const [, right] = partition(
-            events,
-            (event) => event.checkpoint <= crashRecoveryCheckpoint,
+        for await (const { events: rawEvents, checkpoint } of eventGenerator) {
+          const endClock = startClock();
+          let events = decodeEvents(params.common, sources, rawEvents);
+          params.common.logger.debug({
+            service: "app",
+            msg: `Decoded ${events.length} '${chain.name}' events`,
+          });
+          params.common.metrics.ponder_historical_extract_duration.inc(
+            { step: "decode" },
+            endClock(),
           );
-          events = right;
+
+          // Removes events that have a checkpoint earlier than (or equal to)
+          // the crash recovery checkpoint.
+
+          if (crashRecoveryCheckpoint) {
+            const [, right] = partition(
+              events,
+              (event) => event.checkpoint <= crashRecoveryCheckpoint,
+            );
+            events = right;
+          }
+
+          yield { events, checkpoint };
         }
 
-        yield { events, checkpoint };
-      }
-    },
-  );
+        perChainCursor.set(chain, to);
+      },
+    );
 
-  for await (const { events, checkpoint } of mergeAsyncGenerators(
-    eventGenerators,
-  )) {
-    params.common.logger.debug({
-      service: "sync",
-      msg: `Sequenced ${events.length} events`,
-    });
-
-    yield {
-      events,
-      checkpoints: [
-        {
-          chainId: Number(decodeCheckpoint(checkpoint).chainId),
-          checkpoint,
-        },
-      ],
-    };
-  }
-
-  eventGenerators = Array.from(params.perChainSync.entries()).map(
-    async function* ([
-      chain,
-      { syncProgress, childAddresses, cachedIntervals },
-    ]) {
-      const rpc =
-        params.indexingBuild.rpcs[
-          params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
-        ]!;
-
-      const sources = params.indexingBuild.sources.filter(
-        ({ filter }) => filter.chainId === chain.id,
-      );
-
-      const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
-        ({ chainId }) => chainId === chain.id,
-      )?.checkpoint;
-
-      const previousTo = decodeCheckpoint(
-        min(
-          syncProgress.getCheckpoint({ tag: "finalized" }),
-          syncProgress.getCheckpoint({ tag: "end" }),
-        ),
-      );
-
-      const from = encodeCheckpoint({
-        ...ZERO_CHECKPOINT,
-        blockTimestamp: previousTo.blockTimestamp,
-        chainId: previousTo.chainId,
-        blockNumber: previousTo.blockNumber + 1n,
+    for await (const { events, checkpoint } of mergeAsyncGenerators(
+      eventGenerators,
+    )) {
+      params.common.logger.debug({
+        service: "sync",
+        msg: `Sequenced ${events.length} events`,
       });
 
-      syncProgress.finalized = await _eth_getBlockByNumber(rpc, {
-        blockTag: "latest",
-      }).then((latest) =>
-        _eth_getBlockByNumber(rpc, {
-          blockNumber: Math.max(
-            hexToNumber(latest.number) - chain.finalityBlockCount,
-            0,
-          ),
-        }),
-      );
+      yield {
+        events,
+        checkpoints: [
+          {
+            chainId: Number(decodeCheckpoint(checkpoint).chainId),
+            checkpoint,
+          },
+        ],
+      };
+    }
 
-      const to = min(
-        syncProgress.getCheckpoint({ tag: "finalized" }),
-        syncProgress.getCheckpoint({ tag: "end" }),
-      );
+    const finalizedBlocks = await Promise.all(
+      params.indexingBuild.chains.map((chain, i) => {
+        const rpc = params.indexingBuild.rpcs[i]!;
 
-      if (from > to) return;
-
-      const eventGenerator = await initEventGenerator({
-        common: params.common,
-        indexingBuild: params.indexingBuild,
-        chain,
-        rpc,
-        sources,
-        childAddresses,
-        syncProgress,
-        cachedIntervals,
-        from,
-        to,
-        limit:
-          Math.round(
-            params.common.options.syncEventsQuerySize /
-              (params.indexingBuild.chains.length + 1),
-          ) + 6,
-        syncStore: params.syncStore,
-        isCatchup: true,
-      });
-
-      for await (const { events: rawEvents, checkpoint } of eventGenerator) {
-        const endClock = startClock();
-        let events = decodeEvents(params.common, sources, rawEvents);
-        params.common.logger.debug({
-          service: "app",
-          msg: `Decoded ${events.length} '${chain.name}' events`,
-        });
-        params.common.metrics.ponder_historical_extract_duration.inc(
-          { step: "decode" },
-          endClock(),
+        return _eth_getBlockByNumber(rpc, {
+          blockTag: "latest",
+        }).then((latest) =>
+          _eth_getBlockByNumber(rpc, {
+            blockNumber: Math.max(
+              hexToNumber(latest.number) - chain.finalityBlockCount,
+              0,
+            ),
+          }),
         );
+      }),
+    );
 
-        // Removes events that have a checkpoint earlier than (or equal to)
-        // the crash recovery checkpoint.
+    let shouldCatchup = false;
 
-        if (crashRecoveryCheckpoint) {
-          const [, right] = partition(
-            events,
-            (event) => event.checkpoint <= crashRecoveryCheckpoint,
-          );
-          events = right;
-        }
+    for (let i = 0; i < params.indexingBuild.chains.length; i++) {
+      const chain = params.indexingBuild.chains[i]!;
+      const oldFinalizedBlock =
+        params.perChainSync.get(chain)!.syncProgress.finalized;
+      const newFinalizedBlock = finalizedBlocks[i]!;
 
-        yield { events, checkpoint };
+      if (
+        hexToNumber(newFinalizedBlock.number) -
+          hexToNumber(oldFinalizedBlock.number) >
+        chain.finalityBlockCount * 5
+      ) {
+        shouldCatchup = true;
+        break;
       }
-    },
-  );
+    }
 
-  for await (const { events, checkpoint } of mergeAsyncGenerators(
-    eventGenerators,
-  )) {
-    params.common.logger.debug({
-      service: "sync",
-      msg: `Sequenced ${events.length} events`,
-    });
+    if (shouldCatchup === false) break;
 
-    yield {
-      events,
-      checkpoints: [
-        {
-          chainId: Number(decodeCheckpoint(checkpoint).chainId),
-          checkpoint,
-        },
-      ],
-    };
+    for (let i = 0; i < params.indexingBuild.chains.length; i++) {
+      const chain = params.indexingBuild.chains[i]!;
+      const finalizedBlock = finalizedBlocks[i]!;
+
+      params.perChainSync.get(chain)!.syncProgress.finalized = finalizedBlock;
+    }
+
+    isCatchup = true;
   }
 }
 
