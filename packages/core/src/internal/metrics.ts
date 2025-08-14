@@ -631,7 +631,6 @@ export class MetricsService {
               request.pending--;
               if (request.pending === 0) {
                 clearTimeout(request.errorTimeout);
-                // request.responses.push(await this.registry.getMetricsAsJSON());
                 this.aggregatedRegistry =
                   prometheus.AggregatorRegistry.aggregate(request.responses);
                 const promString = this.aggregatedRegistry.metrics();
@@ -785,7 +784,7 @@ export async function getIndexingProgress(metrics: MetricsService) {
 
   const hasErrorMetric = aggregatedMetrics.find(
     (metric) => metric.name === "ponder_indexing_has_error",
-  ); //!.values[0]?.value;
+  );
   const indexingCompletedEventsMetric = aggregatedMetrics.find(
     (metric) => metric.name === "ponder_indexing_completed_events",
   );
