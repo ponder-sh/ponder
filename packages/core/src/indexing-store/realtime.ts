@@ -2,7 +2,6 @@ import type { QB } from "@/database/queryBuilder.js";
 import type { Common } from "@/internal/common.js";
 import {
   DbConnectionError,
-  InvalidStoreMethodError,
   RawSqlError,
   RecordNotFoundError,
   RetryableError,
@@ -323,10 +322,6 @@ export const createRealtimeIndexingStore = ({
     // @ts-ignore
     sql: drizzle(
       errorHandler(async (_sql, params, method, typings) => {
-        if (chainId !== undefined)
-          throw new InvalidStoreMethodError(
-            `Raw SQL queries are not allowed in 'isolated' ordering.`,
-          );
         const query: QueryWithTypings = { sql: _sql, params, typings };
 
         const endClock = startClock();
