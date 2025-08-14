@@ -335,6 +335,10 @@ export const createHistoricalIndexingStore = ({
           return await qb.transaction(async (tx) => {
             if (chainId !== undefined) {
               await tx.wrap((tx) =>
+                tx.execute("SET LOCAL ROLE ponder_isolated;"),
+              );
+
+              await tx.wrap((tx) =>
                 tx.execute(`SET LOCAL app.transaction_chain_id = ${chainId};`),
               );
             }

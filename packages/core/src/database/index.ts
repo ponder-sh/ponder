@@ -639,6 +639,18 @@ export const createDatabase = async ({
       };
 
       const enableRLS = async (tx: QB) => {
+        // TODO: HANDLE ERRORS WHERE ALREADY EXISTS
+        await tx.wrap((tx) => tx.execute("CREATE ROLE ponder_isolated;"));
+        await tx.wrap((tx) =>
+          tx.execute(
+            `GRANT ALL ON SCHEMA "${namespace.schema}" TO ponder_isolated;`,
+          ),
+        );
+        await tx.wrap((tx) =>
+          tx.execute(
+            `GRANT ALL ON ALL TABLES IN SCHEMA "${namespace.schema}" TO ponder_isolated;`,
+          ),
+        );
         for (const table of tables) {
           await tx.wrap((tx) =>
             tx.execute(
