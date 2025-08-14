@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.5
+
+### Patch Changes
+
+- [#1963](https://github.com/ponder-sh/ponder/pull/1963) [`8583084`](https://github.com/ponder-sh/ponder/commit/85830844776ab0ecab49a75641d6347fddb35096) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved historical indexing cache performance.
+
 ## 0.12.4
 
 ### Patch Changes
