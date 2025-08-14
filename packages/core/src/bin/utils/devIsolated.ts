@@ -8,25 +8,12 @@ import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { isTable, sql } from "drizzle-orm";
 import type { PonderApp } from "../commands/start.js";
 import type { CliOptions } from "../ponder.js";
+import type { WorkerInfo } from "../utils/startIsolated.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-type WorkerState = "historical" | "realtime" | "complete" | "failed";
-
-export interface WorkerInfo {
-  state: WorkerState;
-  chain: Chain;
-  worker: Worker;
-  retryCount: number;
-  timeout?: NodeJS.Timeout;
-  messageHandler?: (message: any) => void;
-  exitHandler?: (code: number) => void;
-  errorHandler?: (error: Error) => void;
-  promise: Promise<void>;
-}
-
-export async function startIsolated(
+export async function devIsolated(
   {
     common,
     namespaceBuild,
@@ -34,7 +21,7 @@ export async function startIsolated(
     indexingBuild,
     crashRecoveryCheckpoint,
     database,
-  }: PonderApp,
+  }: Omit<PonderApp, "apiBuild">,
   cliOptions: CliOptions,
 ) {
   const appState: { [chainName: string]: WorkerInfo } = {};
@@ -98,7 +85,10 @@ export async function startIsolated(
       workerInfo.exitHandler = undefined;
     }
 
-    workerInfo.worker.terminate();
+    if (workerInfo.errorHandler) {
+      workerInfo.worker.off("error", workerInfo.errorHandler);
+      workerInfo.errorHandler = undefined;
+    }
   };
 
   const setupWorker = (chain: Chain) => {
@@ -140,6 +130,7 @@ export async function startIsolated(
           workerInfo.timeout = undefined;
         }
         pwr.resolve();
+        callback();
       } else {
         workerInfo.state = "failed";
 
@@ -153,15 +144,19 @@ export async function startIsolated(
         });
         pwr.reject(error);
       }
+    };
 
-      callback();
+    const errorHandler = async (error: Error) => {
+      throw error;
     };
 
     workerInfo.messageHandler = messageHandler;
     workerInfo.exitHandler = exitHandler;
+    workerInfo.errorHandler = errorHandler;
 
     workerInfo.worker.on("message", messageHandler);
     workerInfo.worker.on("exit", exitHandler);
+    workerInfo.worker.on("error", errorHandler);
 
     return workerInfo;
   };
@@ -173,11 +168,19 @@ export async function startIsolated(
   common.metrics.toAggregate(appState);
   common.metrics.addListeners();
 
-  Promise.allSettled(
-    Object.values(appState).map(async ({ promise, chain }) => {
-      return promise.finally(() => {
-        cleanupWorker(chain.name);
-      });
-    }),
-  );
+  common.shutdown.add(() => {
+    for (const { chain, worker } of Object.values(appState)) {
+      cleanupWorker(chain.name);
+      worker.postMessage({ type: "kill" });
+    }
+  });
+
+  Promise.all(
+    Object.values(appState).map(async ({ promise }) => promise),
+  ).finally(() => {
+    for (const { chain, worker } of Object.values(appState)) {
+      cleanupWorker(chain.name);
+      worker.terminate();
+    }
+  });
 }

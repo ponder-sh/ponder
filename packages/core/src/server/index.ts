@@ -5,7 +5,6 @@ import {
   getPonderMetaTable,
 } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
-import { AggregatorMetricsService } from "@/internal/metrics.js";
 import type { ApiBuild, Status } from "@/internal/types.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { startClock } from "@/utils/timer.js";
@@ -84,21 +83,6 @@ export async function createServer({
         return c.json(error as Error, 500);
       }
     })
-    .get("/metrics/:chainId", async (c) => {
-      try {
-        const chainId = c.req.param("chainId");
-        if (common.metrics instanceof AggregatorMetricsService) {
-          const metrics = await common.metrics.getMetricsPerChain(
-            Number(chainId),
-          );
-          return c.text(metrics);
-        } else {
-          return c.text("");
-        }
-      } catch (error) {
-        return c.json(error as Error, 500);
-      }
-    })
     .get("/health", (c) => {
       return c.text("", 200);
     })
@@ -124,8 +108,13 @@ export async function createServer({
       );
       const status: Status = {};
       for (const { chainName, chainId, latestCheckpoint } of checkpoints) {
+        const state =
+          common.metrics.app === undefined
+            ? undefined
+            : common.metrics.app[chainName]?.state;
         status[chainName] = {
           id: chainId,
+          state,
           block: {
             number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
             timestamp: Number(

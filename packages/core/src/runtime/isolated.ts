@@ -24,7 +24,11 @@ import {
   type RetryableError,
 } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
-import { MetricsService, getAppProgress } from "@/internal/metrics.js";
+import {
+  type AppProgress,
+  MetricsService,
+  getAppProgress,
+} from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { createTelemetry } from "@/internal/telemetry.js";
@@ -93,9 +97,29 @@ export async function runIsolated({
   const metrics = new MetricsService();
   metrics.addListeners();
   const shutdown = createShutdown();
+  if (parentPort) {
+    parentPort.on("message", (msg) => {
+      if (msg.type === "kill") {
+        shutdown.kill();
+      }
+    });
+  }
+
   const telemetry = createTelemetry({ options, logger, shutdown });
   const common = { options, logger, metrics, telemetry, shutdown };
   createExit({ common, options });
+
+  if (options.version) {
+    metrics.ponder_version_info.set(
+      {
+        version: options.version.version,
+        major: options.version.major,
+        minor: options.version.minor,
+        patch: options.version.patch,
+      },
+      1,
+    );
+  }
 
   const { preBuild, namespaceBuild, schemaBuild, indexingBuild } =
     await (async () => {
@@ -143,12 +167,24 @@ export async function runIsolated({
       };
     })();
 
+  options.indexingCacheMaxBytes =
+    options.indexingCacheMaxBytes / indexingBuild.chains.length;
+
   const database = await createDatabaseInterface({
     common,
     namespace: namespaceBuild,
     preBuild,
     schemaBuild,
   });
+
+  metrics.ponder_settings_info.set(
+    {
+      ordering: preBuild.ordering,
+      database: preBuild.databaseConfig.kind,
+      command: cliOptions.command,
+    },
+    1,
+  );
 
   const syncStore = createSyncStore({ common, database });
 
@@ -396,7 +432,9 @@ export async function runIsolated({
 
           // underlying metrics collection is actually synchronous
           // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-          const { eta, progress } = await getAppProgress(common.metrics);
+          const { eta, progress } = (await getAppProgress(
+            common.metrics,
+          )) as AppProgress;
           if (eta === undefined || progress === undefined) {
             common.logger.info({
               service: "app",

@@ -19,8 +19,21 @@ const httpRequestSizeBytes = [
   10_000_000,
 ];
 
+const GET_METRICS_REQ = "prom-client:getMetricsReq";
+const GET_METRICS_RES = "prom-client:getMetricsRes";
+
+let requestCtr = 0;
+let latestRequestTimestamp: number | undefined = undefined;
+
 export class MetricsService {
+  #type: "aggregate" | "individual";
+  #app?: {
+    [chainName: string]: WorkerInfo;
+  };
+  #requests?: Map<number, any>;
+
   registry: prometheus.Registry;
+  aggregatedRegistry: prometheus.Registry;
   start_timestamp: number;
   progressMetadata: {
     [chain: string]: {
@@ -108,7 +121,9 @@ export class MetricsService {
   ponder_postgres_pool_connections: prometheus.Gauge<"pool" | "kind"> = null!;
 
   constructor() {
+    this.#type = "individual";
     this.registry = new prometheus.Registry();
+    this.aggregatedRegistry = new prometheus.Registry();
     this.start_timestamp = Date.now();
     this.progressMetadata = {
       general: {
@@ -437,15 +452,91 @@ export class MetricsService {
     prometheus.collectDefaultMetrics({ register: this.registry });
   }
 
+  get type() {
+    return this.#type;
+  }
+
+  get app() {
+    return this.#app;
+  }
+
+  async toAggregate(app: {
+    [chainName: string]: WorkerInfo;
+  }) {
+    this.#type = "aggregate";
+    this.#app = app;
+    this.#requests = new Map();
+  }
+
   /**
    * Get string representation for all metrics.
    * @returns Metrics encoded using Prometheus v0.0.4 format.
    */
-  async getMetrics() {
-    return await this.registry.metrics();
+  async getMetrics(): Promise<string> {
+    if (this.#type === "individual") {
+      return await this.registry.metrics();
+    } else {
+      if (
+        latestRequestTimestamp !== undefined &&
+        Date.now() - latestRequestTimestamp < 1500
+      ) {
+        return await this.aggregatedRegistry.metrics();
+      }
+
+      const requestId = requestCtr++;
+      latestRequestTimestamp = Date.now();
+
+      return new Promise((resolve, reject) => {
+        let settled = false;
+
+        const done = (
+          err: Error | undefined,
+          result: string | undefined = undefined,
+        ) => {
+          if (settled) return;
+          settled = true;
+
+          this.#requests!.delete(requestId);
+
+          if (err !== undefined) {
+            reject(err);
+          } else {
+            resolve(result as string);
+          }
+        };
+
+        const request = {
+          responses: [],
+          pending: 0,
+          done,
+          errorTimeout: setTimeout(() => {
+            const err = new Error("Operation timed out.");
+            request.done(err);
+          }, 1000),
+        };
+
+        this.#requests!.set(requestId, request);
+        const message = {
+          type: GET_METRICS_REQ,
+          requestId,
+        };
+
+        for (const { worker, state } of Object.values(this.#app!)) {
+          if (state === "failed") continue;
+          worker.postMessage(message);
+          request.pending++;
+        }
+
+        if (request.pending === 0) {
+          clearTimeout(request.errorTimeout);
+          done(undefined, "");
+        }
+      });
+    }
   }
 
   resetIndexingMetrics() {
+    this.aggregatedRegistry = new prometheus.Registry();
     this.start_timestamp = Date.now();
     this.rps = {};
     this.progressMetadata = {
@@ -499,188 +590,56 @@ export class MetricsService {
   }
 
   addListeners() {
-    if (listenersAdded) return;
-    listenersAdded = true;
-    if (isMainThread === false && parentPort !== null) {
-      parentPort!.on("message", (message) => {
-        if (message.type === GET_METRICS_REQ) {
-          this.registry
-            .getMetricsAsJSON()
-            .then((metrics) => {
-              parentPort!.postMessage({
-                type: GET_METRICS_RES,
-                requestId: message.requestId,
-                metrics,
+    if (this.#type === "individual") {
+      if (isMainThread === false && parentPort !== null) {
+        parentPort!.on("message", (message) => {
+          if (message.type === GET_METRICS_REQ) {
+            this.registry
+              .getMetricsAsJSON()
+              .then((metrics) => {
+                parentPort!.postMessage({
+                  type: GET_METRICS_RES,
+                  requestId: message.requestId,
+                  metrics,
+                });
+              })
+              .catch((error) => {
+                parentPort!.postMessage({
+                  type: GET_METRICS_RES,
+                  requestId: message.requestId,
+                  error: error.message,
+                });
               });
-            })
-            .catch((error) => {
-              parentPort!.postMessage({
-                type: GET_METRICS_RES,
-                requestId: message.requestId,
-                error: error.message,
-              });
-            });
-        }
-      });
-    }
-  }
-}
-
-const GET_METRICS_REQ = "prom-client:getMetricsReq";
-const GET_METRICS_RES = "prom-client:getMetricsRes";
-
-let requestCtr = 0;
-let listenersAdded = false;
-
-export class AggregatorMetricsService extends MetricsService {
-  requests: Map<number, any>;
-  app: {
-    [chainName: string]: WorkerInfo;
-  };
-
-  constructor(app: {
-    [chainName: string]: WorkerInfo;
-  }) {
-    super();
-    this.requests = new Map();
-    this.app = app;
-  }
-
-  /**
-   * Get string representation for all metrics.
-   * @returns Metrics encoded using Prometheus v0.0.4 format.
-   */
-  override async getMetrics(): Promise<string> {
-    const requestId = requestCtr++;
-
-    return new Promise((resolve, reject) => {
-      let settled = false;
-
-      const done = (
-        err: Error | undefined,
-        result: string | undefined = undefined,
-      ) => {
-        if (settled) return;
-        settled = true;
-
-        this.requests.delete(requestId);
-
-        if (err !== undefined) {
-          reject(err);
-        } else {
-          resolve(result as string);
-        }
-      };
-
-      const request = {
-        responses: [],
-        pending: 0,
-        done,
-        errorTimeout: setTimeout(() => {
-          const err = new Error("Operation timed out.");
-          request.done(err);
-        }, 5000),
-      };
-
-      this.requests.set(requestId, request);
-      const message = {
-        type: GET_METRICS_REQ,
-        requestId,
-      };
-
-      for (const { worker, state } of Object.values(this.app)) {
-        if (state === "failed") continue;
-        worker.postMessage(message);
-        request.pending++;
-      }
-
-      if (request.pending === 0) {
-        clearTimeout(request.errorTimeout);
-        done(undefined, "");
-      }
-    });
-  }
-
-  async getMetricsPerChain(chainId: number): Promise<string> {
-    const requestId = requestCtr++;
-
-    return new Promise((resolve, reject) => {
-      let settled = false;
-
-      const done = (
-        err: Error | undefined,
-        result: string | undefined = undefined,
-      ) => {
-        if (settled) return;
-        settled = true;
-
-        this.requests.delete(requestId);
-
-        if (err !== undefined) {
-          reject(err);
-        } else {
-          resolve(result as string);
-        }
-      };
-
-      const request = {
-        responses: [],
-        pending: 0,
-        done,
-        errorTimeout: setTimeout(() => {
-          const err = new Error("Operation timed out.");
-          request.done(err);
-        }, 5000),
-      };
-
-      this.requests.set(requestId, request);
-      const message = {
-        type: GET_METRICS_REQ,
-        requestId,
-      };
-
-      for (const { worker, state, chain } of Object.values(this.app)) {
-        if (chain.id !== chainId || state === "failed") continue;
-        worker.postMessage(message);
-        request.pending++;
-      }
-
-      if (request.pending === 0) {
-        clearTimeout(request.errorTimeout);
-        done(undefined, "");
-      }
-    });
-  }
-
-  override addListeners() {
-    if (listenersAdded) return;
-    listenersAdded = true;
-    if (isMainThread) {
-      for (const appPerChain of Object.values(this.app)) {
-        appPerChain.worker.on("message", (message) => {
-          if (message.type === GET_METRICS_RES) {
-            const request = this.requests.get(message.requestId);
-
-            if (request === undefined) return;
-
-            if (message.error) {
-              request.done(new Error(message.error));
-              return;
-            }
-
-            request.responses.push(message.metrics);
-            request.pending--;
-            if (request.pending === 0) {
-              clearTimeout(request.errorTimeout);
-
-              const registry = prometheus.AggregatorRegistry.aggregate(
-                request.responses,
-              );
-              const promString = registry.metrics();
-              request.done(undefined, promString);
-            }
           }
         });
+      }
+    } else {
+      if (isMainThread) {
+        for (const appPerChain of Object.values(this.#app!)) {
+          appPerChain.worker.on("message", async (message) => {
+            if (message.type === GET_METRICS_RES) {
+              const request = this.#requests!.get(message.requestId);
+
+              if (request === undefined) return;
+
+              if (message.error) {
+                request.done(new Error(message.error));
+                return;
+              }
+
+              request.responses.push(message.metrics);
+              request.pending--;
+              if (request.pending === 0) {
+                clearTimeout(request.errorTimeout);
+                request.responses.push(await this.registry.getMetricsAsJSON());
+                this.aggregatedRegistry =
+                  prometheus.AggregatorRegistry.aggregate(request.responses);
+                const promString = this.aggregatedRegistry.metrics();
+                request.done(undefined, promString);
+              }
+            }
+          });
+        }
       }
     }
   }
@@ -703,29 +662,55 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
     rps: number;
   }[]
 > {
-  const syncDurationMetric = await metrics.ponder_historical_duration
-    .get()
-    .then((metrics) => metrics.values);
+  const aggregatedMetrics =
+    metrics.type === "individual"
+      ? await metrics.registry.getMetricsAsJSON()
+      : await metrics
+          .getMetrics()
+          .catch(() => {})
+          .then(() => metrics.aggregatedRegistry.getMetricsAsJSON());
+
+  const syncDurationMetric = aggregatedMetrics.find(
+    (metric) => metric.name === "ponder_historical_duration",
+  )!;
+  const totalBlocksMetric = aggregatedMetrics.find(
+    (metric) => metric.name === "ponder_historical_total_blocks",
+  )!;
+  const cachedBlocksMetric = aggregatedMetrics.find(
+    (metric) => metric.name === "ponder_historical_cached_blocks",
+  )!;
+  const completedBlocksMetric = aggregatedMetrics.find(
+    (metric) => metric.name === "ponder_historical_completed_blocks",
+  )!;
+  const syncBlockMetric = aggregatedMetrics.find(
+    (metric) => metric.name === "ponder_sync_block",
+  )!;
+  const syncIsRealtimeMetrics = aggregatedMetrics.find(
+    (metric) => metric.name === "ponder_sync_is_realtime",
+  )!;
+  const syncIsCompleteMetrics = aggregatedMetrics.find(
+    (metric) => metric.name === "ponder_sync_is_complete",
+  )!;
+  const rpcRequestMetrics = aggregatedMetrics.find(
+    (metric) => metric.name === "ponder_rpc_request_duration",
+  );
+
+  if (!syncDurationMetric || !rpcRequestMetrics || !totalBlocksMetric) {
+    return [];
+  }
+
   const syncDurationSum: { [chain: string]: number } = {};
-  for (const m of syncDurationMetric) {
+  for (const m of syncDurationMetric.values) {
+    // @ts-ignore
     if (m.metricName === "ponder_historical_duration_sum") {
       syncDurationSum[m.labels.chain!] = m.value;
     }
   }
 
-  const totalBlocksMetric = await metrics.ponder_historical_total_blocks.get();
-  const cachedBlocksMetric =
-    await metrics.ponder_historical_cached_blocks.get();
-  const completedBlocksMetric =
-    await metrics.ponder_historical_completed_blocks.get();
-  const syncBlockMetric = await metrics.ponder_sync_block.get();
-  const syncIsRealtimeMetrics = await metrics.ponder_sync_is_realtime.get();
-  const syncIsCompleteMetrics = await metrics.ponder_sync_is_complete.get();
-
   const requestCount: { [chain: string]: number } = {};
-  const rpcRequestMetrics = await metrics.ponder_rpc_request_duration.get();
   for (const m of rpcRequestMetrics.values) {
     const chain = m.labels.chain!;
+    // @ts-ignore
     if (m.metricName === "ponder_rpc_request_duration_count") {
       if (requestCount[chain] === undefined) {
         requestCount[chain] = 0;
@@ -746,63 +731,93 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
     }
   }
 
-  return totalBlocksMetric.values.map(({ value, labels }) => {
-    const chain = labels.chain as string;
-    const totalBlocks = value;
-    const cachedBlocks = extractMetric(cachedBlocksMetric, chain) ?? 0;
-    const completedBlocks = extractMetric(completedBlocksMetric, chain) ?? 0;
-    const syncBlock = extractMetric(syncBlockMetric, chain);
-    const isRealtime = extractMetric(syncIsRealtimeMetrics, chain);
-    const isComplete = extractMetric(syncIsCompleteMetrics, chain);
+  return totalBlocksMetric.values
+    .map(({ value, labels }) => {
+      const chain = labels.chain as string;
+      const totalBlocks = value;
+      const cachedBlocks = extractMetric(cachedBlocksMetric, chain) ?? 0;
+      const completedBlocks = extractMetric(completedBlocksMetric, chain) ?? 0;
+      const syncBlock = extractMetric(syncBlockMetric, chain);
+      const isRealtime = extractMetric(syncIsRealtimeMetrics, chain);
+      const isComplete = extractMetric(syncIsCompleteMetrics, chain);
 
-    const progress =
-      totalBlocks === 0 ? 1 : (completedBlocks + cachedBlocks) / totalBlocks;
-    const elapsed = syncDurationSum[chain]!;
-    const total = elapsed / (completedBlocks / (totalBlocks - cachedBlocks));
-    // The ETA is low quality if we've completed only one or two blocks.
-    const eta = completedBlocks >= 3 ? total - elapsed : undefined;
+      const progress =
+        totalBlocks === 0 ? 1 : (completedBlocks + cachedBlocks) / totalBlocks;
+      const elapsed = syncDurationSum[chain]!;
+      const total = elapsed / (completedBlocks / (totalBlocks - cachedBlocks));
+      // The ETA is low quality if we've completed only one or two blocks.
+      const eta = completedBlocks >= 3 ? total - elapsed : undefined;
 
-    const _length = metrics.rps[labels.chain!]!.length;
-    const _firstRps = metrics.rps[labels.chain!]![0]!;
-    const _lastRps = metrics.rps[labels.chain!]![_length - 1]!;
+      const _length = metrics.rps[labels.chain!]!.length;
+      const _firstRps = metrics.rps[labels.chain!]![0]!;
+      const _lastRps = metrics.rps[labels.chain!]![_length - 1]!;
 
-    const requests = _lastRps.count - (_length > 1 ? _firstRps.count : 0);
-    const seconds =
-      _length === 1 ? 0.1 : (_lastRps.timestamp - _firstRps.timestamp) / 1_000;
+      const requests = _lastRps.count - (_length > 1 ? _firstRps.count : 0);
+      const seconds =
+        _length === 1
+          ? 0.1
+          : (_lastRps.timestamp - _firstRps.timestamp) / 1_000;
 
-    return {
-      chainName: chain,
-      block: syncBlock,
-      progress,
-      status: isComplete ? "complete" : isRealtime ? "realtime" : "historical",
-      eta,
-      rps: requests / seconds,
-    } as const;
-  });
+      return {
+        chainName: chain,
+        block: syncBlock,
+        progress,
+        status: isComplete
+          ? "complete"
+          : isRealtime
+            ? "realtime"
+            : "historical",
+        eta,
+        rps: requests / seconds,
+      } as const;
+    })
+    .sort((a, b) => (a.chainName > b.chainName ? 1 : -1));
 }
 
 export async function getIndexingProgress(metrics: MetricsService) {
-  const hasErrorMetric = (await metrics.ponder_indexing_has_error.get())
-    .values[0]?.value;
-  const hasError = hasErrorMetric === 1;
+  const aggregatedMetrics =
+    metrics.type === "individual"
+      ? await metrics.registry.getMetricsAsJSON()
+      : await metrics
+          .getMetrics()
+          .catch(() => {})
+          .then(() => metrics.aggregatedRegistry.getMetricsAsJSON());
 
-  const indexingCompletedEventsMetric = (
-    await metrics.ponder_indexing_completed_events.get()
-  ).values;
-  const indexingFunctionDurationMetric = (
-    await metrics.ponder_indexing_function_duration.get()
-  ).values;
+  const hasErrorMetric = aggregatedMetrics.find(
+    (metric) => metric.name === "ponder_indexing_has_error",
+  );
+  const indexingCompletedEventsMetric = aggregatedMetrics.find(
+    (metric) => metric.name === "ponder_indexing_completed_events",
+  );
+  const indexingFunctionDurationMetric = aggregatedMetrics.find(
+    (metric) => metric.name === "ponder_indexing_function_duration",
+  );
+
+  if (
+    !hasErrorMetric ||
+    !indexingCompletedEventsMetric ||
+    !indexingFunctionDurationMetric
+  ) {
+    return {
+      hasError: false,
+      events: [],
+    };
+  }
+
+  const hasError = hasErrorMetric.values[0]?.value === 1;
 
   const indexingDurationSum: Record<string, number> = {};
   const indexingDurationCount: Record<string, number> = {};
-  for (const m of indexingFunctionDurationMetric) {
+  for (const m of indexingFunctionDurationMetric.values) {
+    // @ts-ignore
     if (m.metricName === "ponder_indexing_function_duration_sum")
       indexingDurationSum[m.labels.event!] = m.value;
+    // @ts-ignore
     if (m.metricName === "ponder_indexing_function_duration_count")
       indexingDurationCount[m.labels.event!] = m.value;
   }
 
-  const events = indexingCompletedEventsMetric.map((m) => {
+  const events = indexingCompletedEventsMetric.values.map((m) => {
     const count = m.value;
 
     const durationSum = indexingDurationSum[m.labels.event as string] ?? 0;
@@ -820,32 +835,61 @@ export async function getIndexingProgress(metrics: MetricsService) {
   };
 }
 
-export async function getAppProgress(metrics: MetricsService): Promise<{
+export type AppProgress = {
   mode: "historical" | "realtime" | undefined;
   progress: number | undefined;
   eta: number | undefined;
-}> {
-  const totalSecondsMetric =
-    await metrics.ponder_historical_total_indexing_seconds.get();
-  const cachedSecondsMetric =
-    await metrics.ponder_historical_cached_indexing_seconds.get();
-  const completedSecondsMetric =
-    await metrics.ponder_historical_completed_indexing_seconds.get();
-  const timestampMetric = await metrics.ponder_indexing_timestamp.get();
+  chainName?: string;
+};
+
+export async function getAppProgress(
+  metrics: MetricsService,
+): Promise<AppProgress | AppProgress[]> {
+  const aggregatedMetrics =
+    metrics.type === "individual"
+      ? await metrics.registry.getMetricsAsJSON()
+      : await metrics
+          .getMetrics()
+          .catch(() => {})
+          .then(() => metrics.aggregatedRegistry.getMetricsAsJSON());
+
+  const totalSecondsMetric = aggregatedMetrics.find(
+    (metric) => metric.name === "ponder_historical_total_indexing_seconds",
+  );
+  const cachedSecondsMetric = aggregatedMetrics.find(
+    (metric) => metric.name === "ponder_historical_cached_indexing_seconds",
+  );
+  const completedSecondsMetric = aggregatedMetrics.find(
+    (metric) => metric.name === "ponder_historical_completed_indexing_seconds",
+  );
+  const timestampMetric = aggregatedMetrics.find(
+    (metric) => metric.name === "ponder_indexing_timestamp",
+  );
+
+  if (
+    !totalSecondsMetric ||
+    !cachedSecondsMetric ||
+    !completedSecondsMetric ||
+    !timestampMetric
+  ) {
+    return [];
+  }
 
   const ordering: Ordering | undefined = await metrics.ponder_settings_info
     .get()
     .then((metric) => metric.values[0]?.labels.ordering as any);
   switch (ordering) {
     case undefined: {
-      return {
-        mode: "historical",
-        progress: undefined,
-        eta: undefined,
-      };
+      return [
+        {
+          mode: "historical",
+          progress: undefined,
+          eta: undefined,
+        },
+      ];
     }
     case "multichain": {
-      const perChainAppProgress: Awaited<ReturnType<typeof getAppProgress>>[] =
+      const perChainAppProgress: Awaited<ReturnType<typeof getAppProgress>> =
         [];
 
       for (const chainName of totalSecondsMetric.values.map(
@@ -918,7 +962,66 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
         },
       ) as any;
     }
-    case "isolated":
+    // @ts-ignore
+    // biome-ignore lint/suspicious/noFallthroughSwitchClause: Isolated for worker threads should behave as omnichain.
+    case "isolated": {
+      if (metrics.type === "aggregate") {
+        const perChainAppProgress: Awaited<ReturnType<typeof getAppProgress>> =
+          [];
+
+        for (const chainName of totalSecondsMetric.values
+          .map(({ labels }) => labels.chain as string)
+          .sort()) {
+          const totalSeconds = extractMetric(totalSecondsMetric, chainName);
+          const cachedSeconds = extractMetric(cachedSecondsMetric, chainName);
+          const completedSeconds = extractMetric(
+            completedSecondsMetric,
+            chainName,
+          );
+          const timestamp = extractMetric(timestampMetric, chainName);
+
+          if (
+            totalSeconds === undefined ||
+            cachedSeconds === undefined ||
+            completedSeconds === undefined ||
+            timestamp === undefined
+          ) {
+            continue;
+          }
+
+          const progress =
+            timestamp === 0
+              ? 0
+              : totalSeconds === 0
+                ? 1
+                : (completedSeconds + cachedSeconds) / totalSeconds;
+
+          if (!metrics.progressMetadata[chainName]) {
+            metrics.progressMetadata[chainName] = {
+              batches: [{ elapsedSeconds: 0, completedSeconds: 0 }],
+              previousTimestamp: Date.now(),
+              previousCompletedSeconds: 0,
+              rate: 0,
+            };
+          }
+
+          const eta: number | undefined = calculateEta(
+            metrics.progressMetadata[chainName]!,
+            totalSeconds,
+            cachedSeconds,
+            completedSeconds,
+          );
+          perChainAppProgress.push({
+            mode: progress === 1 ? "realtime" : "historical",
+            chainName,
+            progress,
+            eta,
+          });
+        }
+
+        return perChainAppProgress;
+      }
+    }
     case "omnichain": {
       const totalSeconds = totalSecondsMetric.values
         .map(({ value }) => value)

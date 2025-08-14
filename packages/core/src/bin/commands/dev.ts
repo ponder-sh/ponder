@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
 import { type Database, createDatabase } from "@/database/index.js";
-import { NonRetryableUserError, ShutdownError } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -19,6 +18,7 @@ import { createUi } from "@/ui/index.js";
 import { createQueue } from "@/utils/queue.js";
 import type { Result } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
+import { devIsolated } from "../utils/devIsolated.js";
 import { createExit } from "../utils/exit.js";
 
 export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
@@ -58,10 +58,17 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   let apiShutdown = createShutdown();
   const shutdown = createShutdown();
   const telemetry = createTelemetry({ options, logger, shutdown });
-  const common = { options, logger, metrics, telemetry };
+
+  const common = {
+    options,
+    logger,
+    metrics,
+    telemetry,
+    shutdown,
+  };
 
   if (options.version) {
-    metrics.ponder_version_info.set(
+    common.metrics.ponder_version_info.set(
       {
         version: options.version.version,
         major: options.version.major,
@@ -73,7 +80,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   const build = await createBuild({
-    common: { ...common, shutdown },
+    common,
     cliOptions,
   });
 
@@ -83,10 +90,10 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   if (cliOptions.disableUi !== true) {
-    createUi({ common: { ...common, shutdown } });
+    createUi({ common });
   }
 
-  const exit = createExit({ common: { ...common, shutdown }, options });
+  const exit = createExit({ common, options });
 
   let isInitialBuild = true;
 
@@ -94,21 +101,72 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     initialStart: true,
     concurrency: 1,
     worker: async (result: Result<never> & { kind: "indexing" | "api" }) => {
-      if (result.kind === "indexing") {
+      if (result.status === "error" && result.kind === "indexing") {
         await indexingShutdown.kill();
         indexingShutdown = createShutdown();
-      }
-      await apiShutdown.kill();
-      apiShutdown = createShutdown();
 
-      if (result.status === "error") {
-        // This handles indexing function build failures on hot reload.
-        metrics.ponder_indexing_has_error.set(1);
+        await apiShutdown.kill();
+        apiShutdown = createShutdown();
+
+        common.metrics.ponder_indexing_has_error.set(1);
         return;
       }
 
-      if (result.kind === "indexing") {
-        metrics.resetIndexingMetrics();
+      if (result.status === "error" && result.kind === "api") {
+        await apiShutdown.kill();
+        apiShutdown = createShutdown();
+
+        common.metrics.ponder_indexing_has_error.set(1);
+        return;
+      }
+
+      if (result.status === "success" && result.kind === "api") {
+        common.metrics.resetApiMetrics();
+
+        const apiResult = await build.executeApi({
+          indexingBuild: indexingBuild!,
+          database: database!,
+        });
+        if (apiResult.status === "error") {
+          buildQueue.add({
+            status: "error",
+            kind: "api",
+            error: apiResult.error,
+          });
+          return;
+        }
+
+        const buildResult = await build.compileApi({
+          apiResult: apiResult.result,
+        });
+        if (buildResult.status === "error") {
+          buildQueue.add({
+            status: "error",
+            kind: "api",
+            error: buildResult.error,
+          });
+          return;
+        }
+
+        const apiBuild = buildResult.result;
+
+        createServer({
+          common: common,
+          database: database!,
+          apiBuild,
+        });
+
+        return;
+      }
+
+      if (result.status === "success" && result.kind === "indexing") {
+        await indexingShutdown.kill();
+        indexingShutdown = createShutdown();
+
+        await apiShutdown.kill();
+        apiShutdown = createShutdown();
+
+        common.metrics.resetIndexingMetrics();
 
         const configResult = await build.executeConfig();
         if (configResult.status === "error") {
@@ -142,6 +200,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           ...schemaResult.result,
           ordering: preBuild.ordering,
         });
+
         if (schemaBuildResult.status === "error") {
           await exit({ reason: "Failed intial build", code: 1 });
           return;
@@ -184,6 +243,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           buildId: indexingBuildResult.result.buildId,
           ordering: preBuild.ordering,
         });
+        await database.migrateSync();
 
         const apiResult = await build.executeApi({
           indexingBuild,
@@ -227,8 +287,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           });
         }
 
-        metrics.resetApiMetrics();
-        metrics.ponder_settings_info.set(
+        common.metrics.resetApiMetrics();
+        common.metrics.ponder_settings_info.set(
           {
             ordering: preBuild.ordering,
             database: preBuild.databaseConfig.kind,
@@ -243,62 +303,58 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           apiBuild: apiBuildResult.result,
         });
 
-        if (preBuild.ordering === "omnichain") {
-          runOmnichain({
-            common: { ...common, shutdown: indexingShutdown },
-            database,
-            preBuild,
-            namespaceBuild: { schema, viewsSchema: undefined },
-            schemaBuild,
-            indexingBuild: indexingBuildResult.result,
-            crashRecoveryCheckpoint,
-          });
-        } else {
-          runMultichain({
-            common: { ...common, shutdown: indexingShutdown },
-            database,
-            preBuild,
-            namespaceBuild: { schema, viewsSchema: undefined },
-            schemaBuild,
-            indexingBuild: indexingBuildResult.result,
-            crashRecoveryCheckpoint,
-          });
+        switch (preBuild.ordering) {
+          case "omnichain": {
+            runOmnichain({
+              common: { ...common, shutdown: indexingShutdown },
+              database,
+              preBuild,
+              namespaceBuild: { schema, viewsSchema: undefined },
+              schemaBuild,
+              indexingBuild: indexingBuildResult.result,
+              crashRecoveryCheckpoint,
+            });
+
+            break;
+          }
+          case "multichain": {
+            runMultichain({
+              common: { ...common, shutdown: indexingShutdown },
+              database,
+              preBuild,
+              namespaceBuild: { schema, viewsSchema: undefined },
+              schemaBuild,
+              indexingBuild: indexingBuildResult.result,
+              crashRecoveryCheckpoint,
+            });
+
+            break;
+          }
+          case "isolated": {
+            if (preBuild.databaseConfig.kind !== "postgres") {
+              buildQueue.add({
+                status: "error",
+                kind: "indexing",
+                error: Error(
+                  "PGLite database is not supported in 'isolated' mode.",
+                ),
+              });
+              return;
+            }
+            devIsolated(
+              {
+                common: { ...common, shutdown: indexingShutdown },
+                database,
+                preBuild,
+                namespaceBuild: { schema, viewsSchema: undefined },
+                schemaBuild,
+                indexingBuild: indexingBuildResult.result,
+                crashRecoveryCheckpoint,
+              },
+              cliOptions,
+            );
+          }
         }
-      } else {
-        metrics.resetApiMetrics();
-
-        const apiResult = await build.executeApi({
-          indexingBuild: indexingBuild!,
-          database: database!,
-        });
-        if (apiResult.status === "error") {
-          buildQueue.add({
-            status: "error",
-            kind: "api",
-            error: apiResult.error,
-          });
-          return;
-        }
-
-        const buildResult = await build.compileApi({
-          apiResult: apiResult.result,
-        });
-        if (buildResult.status === "error") {
-          buildQueue.add({
-            status: "error",
-            kind: "api",
-            error: buildResult.error,
-          });
-          return;
-        }
-
-        const apiBuild = buildResult.result;
-
-        createServer({
-          common: { ...common, shutdown: apiShutdown },
-          database: database!,
-          apiBuild,
-        });
       }
     },
   });
@@ -312,8 +368,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   globalThis.PONDER_NAMESPACE_BUILD = { schema, viewsSchema: undefined };
 
   process.on("uncaughtException", (error: Error) => {
-    if (error instanceof ShutdownError) return;
-    if (error instanceof NonRetryableUserError) {
+    if (error.name === "ShutdownError") return;
+    if (error.name === "NonRetryableUserError") {
       buildQueue.clear();
       buildQueue.add({ status: "error", kind: "indexing", error });
     } else {
@@ -326,8 +382,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     }
   });
   process.on("unhandledRejection", (error: Error) => {
-    if (error instanceof ShutdownError) return;
-    if (error instanceof NonRetryableUserError) {
+    if (error.name === "ShutdownError") return;
+    if (error.name === "NonRetryableUserError") {
       buildQueue.clear();
       buildQueue.add({ status: "error", kind: "indexing", error });
     } else {
