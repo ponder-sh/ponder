@@ -631,6 +631,7 @@ export class MetricsService {
               request.pending--;
               if (request.pending === 0) {
                 clearTimeout(request.errorTimeout);
+                request.responses.push(await this.registry.getMetricsAsJSON());
                 this.aggregatedRegistry =
                   prometheus.AggregatorRegistry.aggregate(request.responses);
                 const promString = this.aggregatedRegistry.metrics();
