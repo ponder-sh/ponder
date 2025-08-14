@@ -663,15 +663,18 @@ export async function handleRealtimeSyncEvent(
 
       // Remove all finalized data
 
-      const finalizedBlocks = params.unfinalizedBlocks.filter(
-        ({ block }) =>
-          hexToNumber(block.number) <= hexToNumber(event.block.number),
-      );
+      const finalizedBlocks: typeof params.unfinalizedBlocks = [];
 
-      params.unfinalizedBlocks = params.unfinalizedBlocks.filter(
-        ({ block }) =>
-          hexToNumber(block.number) > hexToNumber(event.block.number),
-      );
+      while (params.unfinalizedBlocks.length > 0) {
+        const block = params.unfinalizedBlocks[0]!;
+
+        if (
+          hexToNumber(block.block.number) <= hexToNumber(event.block.number)
+        ) {
+          finalizedBlocks.push(block);
+          params.unfinalizedBlocks.shift();
+        } else break;
+      }
 
       // Add finalized blocks, logs, transactions, receipts, and traces to the sync-store.
 
@@ -789,10 +792,14 @@ export async function handleRealtimeSyncEvent(
 
       // Remove all reorged data
 
-      params.unfinalizedBlocks = params.unfinalizedBlocks.filter(
-        ({ block }) =>
-          hexToNumber(block.number) <= hexToNumber(event.block.number),
-      );
+      while (params.unfinalizedBlocks.length > 0) {
+        const block =
+          params.unfinalizedBlocks[params.unfinalizedBlocks.length - 1]!;
+
+        if (hexToNumber(block.block.number) > hexToNumber(event.block.number)) {
+          params.unfinalizedBlocks.pop();
+        } else break;
+      }
 
       await params.syncStore.pruneRpcRequestResults({
         chainId: params.chain.id,
