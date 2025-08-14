@@ -28,8 +28,8 @@ import type {
 import {
   isAddressFactory,
   shouldGetTransactionReceipt,
-} from "@/sync/filter.js";
-import { encodeFragment, getFragments } from "@/sync/fragments.js";
+} from "@/runtime/filter.js";
+import { encodeFragment, getFragments } from "@/runtime/fragments.js";
 import type { Interval } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";

@@ -2,6 +2,8 @@ import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
+  setupCachedIntervals,
+  setupChildAddresses,
   setupCleanup,
   setupCommon,
   setupDatabaseServices,
@@ -25,12 +27,10 @@ import {
   testClient,
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/config.js";
-import type { FactoryId, Source } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
+import { getCachedIntervals } from "@/runtime/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
-import { isAddressFactory } from "@/sync/filter.js";
 import {
-  type Address,
   encodeFunctionData,
   encodeFunctionResult,
   toHex,
@@ -44,32 +44,6 @@ beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
-
-const setupChildAddresses = (
-  sources: Source[],
-): Map<FactoryId, Map<Address, number>> => {
-  const childAddresses = new Map();
-  for (const source of sources) {
-    switch (source.filter.type) {
-      case "log":
-        if (isAddressFactory(source.filter.address)) {
-          childAddresses.set(source.filter.address.id, new Map());
-        }
-        break;
-      case "transaction":
-      case "transfer":
-      case "trace":
-        if (isAddressFactory(source.filter.fromAddress)) {
-          childAddresses.set(source.filter.fromAddress.id, new Map());
-        }
-        if (isAddressFactory(source.filter.toAddress)) {
-          childAddresses.set(source.filter.toAddress.id, new Map());
-        }
-    }
-  }
-
-  return childAddresses as Map<FactoryId, Map<Address, number>>;
-};
 
 test("createHistoricalSync()", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
@@ -89,13 +63,14 @@ test("createHistoricalSync()", async (context) => {
     rawIndexingFunctions,
   });
 
-  const historicalSync = await createHistoricalSync({
+  const historicalSync = createHistoricalSync({
     common: context.common,
     chain,
+    rpc,
     sources,
     childAddresses: setupChildAddresses(sources),
+    cachedIntervals: setupCachedIntervals(sources),
     syncStore,
-    rpc,
   });
 
   expect(historicalSync).toBeDefined();
@@ -127,13 +102,14 @@ test("sync() with log filter", async (context) => {
     rawIndexingFunctions,
   });
 
-  const historicalSync = await createHistoricalSync({
+  const historicalSync = createHistoricalSync({
     common: context.common,
     chain,
+    rpc,
     sources,
     childAddresses: setupChildAddresses(sources),
+    cachedIntervals: setupCachedIntervals(sources),
     syncStore,
-    rpc,
   });
 
   await historicalSync.sync([1, 2]);
@@ -178,13 +154,14 @@ test("sync() with log filter and transaction receipts", async (context) => {
     rawIndexingFunctions,
   });
 
-  const historicalSync = await createHistoricalSync({
+  const historicalSync = createHistoricalSync({
     common: context.common,
     chain,
+    rpc,
     sources,
     childAddresses: setupChildAddresses(sources),
+    cachedIntervals: setupCachedIntervals(sources),
     syncStore,
-    rpc,
   });
 
   await historicalSync.sync([1, 2]);
@@ -222,13 +199,14 @@ test("sync() with block filter", async (context) => {
 
   await testClient.mine({ blocks: 3 });
 
-  const historicalSync = await createHistoricalSync({
+  const historicalSync = createHistoricalSync({
     common: context.common,
     chain,
+    rpc,
     sources,
     childAddresses: setupChildAddresses(sources),
+    cachedIntervals: setupCachedIntervals(sources),
     syncStore,
-    rpc,
   });
 
   await historicalSync.sync([1, 3]);
@@ -278,10 +256,11 @@ test("sync() with log factory", async (context) => {
   const historicalSync = await createHistoricalSync({
     common: context.common,
     chain,
+    rpc,
     sources,
     childAddresses: setupChildAddresses(sources),
+    cachedIntervals: setupCachedIntervals(sources),
     syncStore,
-    rpc,
   });
 
   await historicalSync.sync([1, 3]);
@@ -370,16 +349,18 @@ test("sync() with trace filter", async (context) => {
     return rpc.request(request);
   };
 
-  const historicalSync = await createHistoricalSync({
+  const historicalSync = createHistoricalSync({
     common: context.common,
     chain,
-    sources: sources.filter(({ filter }) => filter.type === "trace"),
-    syncStore,
     rpc: {
       ...rpc,
       // @ts-ignore
       request,
     },
+    sources: sources.filter(({ filter }) => filter.type === "trace"),
+    childAddresses: setupChildAddresses(sources),
+    cachedIntervals: setupCachedIntervals(sources),
+    syncStore,
   });
 
   await historicalSync.sync([1, 3]);
@@ -423,13 +404,14 @@ test("sync() with transaction filter", async (context) => {
     rawIndexingFunctions,
   });
 
-  const historicalSync = await createHistoricalSync({
+  const historicalSync = createHistoricalSync({
     common: context.common,
     chain,
+    rpc,
     sources: sources.filter(({ filter }) => filter.type === "transaction"),
     childAddresses: setupChildAddresses(sources),
+    cachedIntervals: setupCachedIntervals(sources),
     syncStore,
-    rpc,
   });
 
   await historicalSync.sync([1, 1]);
@@ -504,16 +486,18 @@ test("sync() with transfer filter", async (context) => {
     return rpc.request(request);
   };
 
-  const historicalSync = await createHistoricalSync({
+  const historicalSync = createHistoricalSync({
     common: context.common,
     chain,
-    sources: sources.filter(({ filter }) => filter.type === "transfer"),
-    syncStore,
     rpc: {
       ...rpc,
       // @ts-ignore
       request,
     },
+    sources: sources.filter(({ filter }) => filter.type === "transfer"),
+    childAddresses: setupChildAddresses(sources),
+    cachedIntervals: setupCachedIntervals(sources),
+    syncStore,
   });
 
   await historicalSync.sync([1, 1]);
@@ -562,13 +546,14 @@ test("sync() with many filters", async (context) => {
     }),
   });
 
-  const historicalSync = await createHistoricalSync({
+  const historicalSync = createHistoricalSync({
     common: context.common,
     chain,
+    rpc,
     sources: [...erc20Sources, ...blockSources],
     childAddresses: setupChildAddresses([...erc20Sources, ...blockSources]),
+    cachedIntervals: setupCachedIntervals([...erc20Sources, ...blockSources]),
     syncStore,
-    rpc,
   });
 
   await historicalSync.sync([1, 2]);
@@ -616,13 +601,14 @@ test("sync() with cache", async (context) => {
     rawIndexingFunctions,
   });
 
-  let historicalSync = await createHistoricalSync({
+  let historicalSync = createHistoricalSync({
     common: context.common,
     chain,
+    rpc,
     sources,
     childAddresses: setupChildAddresses(sources),
+    cachedIntervals: setupCachedIntervals(sources),
     syncStore,
-    rpc,
   });
 
   await historicalSync.sync([1, 2]);
@@ -631,13 +617,20 @@ test("sync() with cache", async (context) => {
 
   const spy = vi.spyOn(rpc, "request");
 
-  historicalSync = await createHistoricalSync({
+  const cachedIntervals = await getCachedIntervals({
+    chain,
+    syncStore,
+    sources,
+  });
+
+  historicalSync = createHistoricalSync({
     common: context.common,
     chain,
+    rpc,
     sources,
     childAddresses: setupChildAddresses(sources),
+    cachedIntervals,
     syncStore,
-    rpc,
   });
 
   await historicalSync.sync([1, 2]);
@@ -670,13 +663,14 @@ test("sync() with partial cache", async (context) => {
     rawIndexingFunctions,
   });
 
-  let historicalSync = await createHistoricalSync({
+  let historicalSync = createHistoricalSync({
     common: context.common,
     chain,
+    rpc,
     sources,
     childAddresses: setupChildAddresses(sources),
+    cachedIntervals: setupCachedIntervals(sources),
     syncStore,
-    rpc,
   });
 
   await historicalSync.sync([1, 2]);
@@ -688,13 +682,20 @@ test("sync() with partial cache", async (context) => {
   // @ts-ignore
   sources[0]!.filter.address = [sources[0]!.filter.address, zeroAddress];
 
-  historicalSync = await createHistoricalSync({
+  let cachedIntervals = await getCachedIntervals({
+    chain,
+    syncStore,
+    sources,
+  });
+
+  historicalSync = createHistoricalSync({
     common: context.common,
     chain,
+    rpc,
     sources,
     childAddresses: setupChildAddresses(sources),
+    cachedIntervals,
     syncStore,
-    rpc,
   });
 
   await historicalSync.sync([1, 2]);
@@ -720,13 +721,20 @@ test("sync() with partial cache", async (context) => {
 
   spy = vi.spyOn(rpc, "request");
 
-  historicalSync = await createHistoricalSync({
+  cachedIntervals = await getCachedIntervals({
+    chain,
+    syncStore,
+    sources,
+  });
+
+  historicalSync = createHistoricalSync({
     common: context.common,
     chain,
+    rpc,
     sources,
     childAddresses: setupChildAddresses(sources),
+    cachedIntervals,
     syncStore,
-    rpc,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -781,13 +789,14 @@ test("syncBlock() with cache", async (context) => {
     }),
   });
 
-  const historicalSync = await createHistoricalSync({
+  const historicalSync = createHistoricalSync({
     common: context.common,
     chain,
+    rpc,
     sources: [...erc20Sources, ...blockSources],
     childAddresses: setupChildAddresses([...erc20Sources, ...blockSources]),
+    cachedIntervals: setupCachedIntervals([...erc20Sources, ...blockSources]),
     syncStore,
-    rpc,
   });
 
   const spy = vi.spyOn(rpc, "request");
@@ -835,13 +844,14 @@ test("syncAddress() handles many addresses", async (context) => {
     rawIndexingFunctions,
   });
 
-  const historicalSync = await createHistoricalSync({
+  const historicalSync = createHistoricalSync({
     common: context.common,
     chain,
+    rpc,
     sources,
     childAddresses: setupChildAddresses(sources),
+    cachedIntervals: setupCachedIntervals(sources),
     syncStore,
-    rpc,
   });
 
   await historicalSync.sync([1, 13]);

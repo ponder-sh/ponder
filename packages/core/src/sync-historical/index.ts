@@ -4,7 +4,6 @@ import type {
   Chain,
   Factory,
   FactoryId,
-  Filter,
   FilterWithoutBlocks,
   Fragment,
   LogFactory,
@@ -20,7 +19,6 @@ import type {
   TransferFilter,
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
-import type { SyncStore } from "@/sync-store/index.js";
 import {
   getChildAddress,
   isAddressFactory,
@@ -29,9 +27,11 @@ import {
   isTraceFilterMatched,
   isTransactionFilterMatched,
   isTransferFilterMatched,
-} from "@/sync/filter.js";
-import { shouldGetTransactionReceipt } from "@/sync/filter.js";
-import { getFragments, recoverFilter } from "@/sync/fragments.js";
+} from "@/runtime/filter.js";
+import { shouldGetTransactionReceipt } from "@/runtime/filter.js";
+import { recoverFilter } from "@/runtime/fragments.js";
+import type { CachedIntervals } from "@/runtime/index.js";
+import type { SyncStore } from "@/sync-store/index.js";
 import {
   type Interval,
   getChunks,
@@ -63,7 +63,6 @@ import {
 } from "viem";
 
 export type HistoricalSync = {
-  intervalsCache: Map<Filter, { fragment: Fragment; intervals: Interval[] }[]>;
   /**
    * Extract raw data for `interval` and return the closest-to-tip block
    * that is synced.
@@ -73,16 +72,17 @@ export type HistoricalSync = {
 
 type CreateHistoricalSyncParameters = {
   common: Common;
-  sources: Source[];
-  syncStore: SyncStore;
-  childAddresses: Map<FactoryId, Map<Address, number>>;
   chain: Chain;
   rpc: Rpc;
+  sources: Source[];
+  childAddresses: Map<FactoryId, Map<Address, number>>;
+  cachedIntervals: CachedIntervals;
+  syncStore: SyncStore;
 };
 
-export const createHistoricalSync = async (
+export const createHistoricalSync = (
   args: CreateHistoricalSyncParameters,
-): Promise<HistoricalSync> => {
+): HistoricalSync => {
   /**
    * Flag to fetch transaction receipts through _eth_getBlockReceipts (true) or _eth_getTransactionReceipt (false)
    */
@@ -130,28 +130,6 @@ export const createHistoricalSync = async (
   } = {
     estimatedRange: 500,
   };
-  /**
-   * Intervals that have been completed for all filters in `args.sources`.
-   *
-   * Note: `intervalsCache` is not updated after a new interval is synced.
-   */
-  let intervalsCache: Map<
-    Filter,
-    { fragment: Fragment; intervals: Interval[] }[]
-  >;
-  if (args.chain.disableCache) {
-    intervalsCache = new Map();
-    for (const { filter } of args.sources) {
-      intervalsCache.set(filter, []);
-      for (const { fragment } of getFragments(filter)) {
-        intervalsCache.get(filter)!.push({ fragment, intervals: [] });
-      }
-    }
-  } else {
-    intervalsCache = await args.syncStore.getIntervals({
-      filters: args.sources.map(({ filter }) => filter),
-    });
-  }
 
   // Closest-to-tip block that has been synced.
   let latestBlock: SyncBlock | undefined;
@@ -782,7 +760,6 @@ export const createHistoricalSync = async (
   };
 
   return {
-    intervalsCache,
     async sync(_interval) {
       const intervalsToSync: {
         interval: Interval;
@@ -847,7 +824,7 @@ export const createHistoricalSync = async (
 
         filterIntervals = intervalUnion(filterIntervals);
 
-        const completedIntervals = intervalsCache.get(filter)!;
+        const completedIntervals = args.cachedIntervals.get(filter)!;
         const requiredIntervals: {
           fragment: Fragment;
           intervals: Interval[];

@@ -1,3 +1,6 @@
+import type { LightBlock, SyncBlock } from "@/internal/types.js";
+import { hexToBigInt } from "viem";
+
 export type Checkpoint = {
   blockTimestamp: bigint;
   chainId: bigint;
@@ -177,4 +180,18 @@ export const max = (...checkpoints: (string | undefined)[]) => {
     if (acc > cur) return acc;
     return cur;
   });
+};
+
+/** Convert `block` to a `Checkpoint`. */
+export const blockToCheckpoint = (
+  block: LightBlock | SyncBlock,
+  chainId: number,
+  rounding: "up" | "down",
+): Checkpoint => {
+  return {
+    ...(rounding === "up" ? MAX_CHECKPOINT : ZERO_CHECKPOINT),
+    blockTimestamp: hexToBigInt(block.timestamp),
+    chainId: BigInt(chainId),
+    blockNumber: hexToBigInt(block.number),
+  };
 };

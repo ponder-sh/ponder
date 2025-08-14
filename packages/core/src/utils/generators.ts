@@ -38,22 +38,6 @@ export async function* mergeAsyncGenerators<T>(
 }
 
 /**
- * Maps the results of an async generator.
- *
- * @param generator - The generator to map.
- * @param fn - The function to map the generator.
- * @returns An async generator that yields mapped results from the input generator.
- */
-export async function* mapAsyncGenerator<T, R>(
-  generator: AsyncGenerator<T>,
-  fn: (value: T) => R,
-): AsyncGenerator<R> {
-  for await (const value of generator) {
-    yield fn(value);
-  }
-}
-
-/**
  * Buffers the results of an async generator.
  *
  * @param generator - The generator to buffer.
