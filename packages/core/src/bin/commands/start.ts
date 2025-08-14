@@ -138,6 +138,18 @@ export async function start({
     return;
   }
 
+  if (
+    preBuild.databaseConfig.kind !== "postgres" &&
+    preBuild.ordering === "isolated"
+  ) {
+    await exit({
+      reason:
+        "Failed initial build. PGLite database is not supported in 'isolated' mode.",
+      code: 1,
+    });
+    return;
+  }
+
   const database = await createDatabase({
     common,
     namespace: namespaceResult.result,

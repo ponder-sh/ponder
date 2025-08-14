@@ -3,7 +3,6 @@ import type { QB } from "@/database/queryBuilder.js";
 import type { Common } from "@/internal/common.js";
 import {
   DbConnectionError,
-  InvalidStoreMethodError,
   RawSqlError,
   RecordNotFoundError,
   RetryableError,
@@ -307,10 +306,6 @@ export const createHistoricalIndexingStore = ({
     sql: drizzle(
       errorHandler(async (_sql, params, method, typings) => {
         let isSelectOnly = false;
-        if (chainId !== undefined)
-          throw new InvalidStoreMethodError(
-            `Raw SQL queries are not allowed in 'isolated' ordering.`,
-          );
         try {
           await validateQuery(_sql, false);
           isSelectOnly = true;
