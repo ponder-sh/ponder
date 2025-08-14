@@ -73,7 +73,7 @@ export const sim =
 
       requestCount.set(id, nonce + 1);
 
-      if (seedrandom(SEED + id + nonce)() < SIM_PARAMS.ERROR_RATE) {
+      if (seedrandom(SEED + id + nonce)() < SIM_PARAMS.RPC_ERROR_RATE) {
         throw new Error("Simulated error");
       }
 
@@ -573,7 +573,7 @@ export const realtimeBlockEngine = async (
 
     const random = seedrandom(SEED + chainId + nextBlock.number);
 
-    if (random() < SIM_PARAMS.REALTIME_SHUTDOWN_RATE) {
+    if (random() < (SIM_PARAMS.REALTIME_SHUTDOWN_RATE ?? 0)) {
       await restart();
     }
 
