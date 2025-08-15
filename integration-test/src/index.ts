@@ -72,6 +72,8 @@ if (APP_ID === undefined) {
   throw new Error("App ID is required. Example: 'pnpm test [app id]'");
 }
 
+export let APP: PonderApp | undefined;
+
 // params
 
 export const pick = <T>(possibilities: T[] | readonly T[], tag: string): T => {
@@ -260,6 +262,8 @@ const pwr = promiseWithResolvers<void>();
  * 4. Replace rpc with simulated rpc
  */
 const onBuild = async (app: PonderApp) => {
+  APP = app;
+
   app.preBuild.ordering = SIM_PARAMS.ORDERING;
   app.common.options.syncEventsQuerySize = 200;
 

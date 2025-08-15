@@ -31,6 +31,7 @@ export async function initEventGenerator(params: {
   to: string;
   limit: number;
   syncStore: SyncStore;
+  isCatchup: boolean;
 }) {
   return getLocalEventGenerator(params);
 }
