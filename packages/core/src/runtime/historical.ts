@@ -90,6 +90,16 @@ export async function* getHistoricalEventsOmnichain(params: {
           syncProgress.getCheckpoint({ tag: "finalized" }),
           syncProgress.getCheckpoint({ tag: "end" }),
         );
+        const omnichainTo = min(
+          getOmnichainCheckpoint({
+            perChainSync: params.perChainSync,
+            tag: "finalized",
+          }),
+          getOmnichainCheckpoint({
+            perChainSync: params.perChainSync,
+            tag: "end",
+          }),
+        );
         let from: string;
 
         if (isCatchup === false) {
@@ -126,10 +136,21 @@ export async function* getHistoricalEventsOmnichain(params: {
         } else {
           const cursor = perChainCursor.get(chain)!;
 
-          yield {
-            events: pendingEvents.filter((event) => event.chainId === chain.id),
-            checkpoint: cursor,
-          };
+          // Yield pending events from previous iterations. Note that it is possible to
+          // previous pending events to still be pending after the catchup.
+
+          const events = pendingEvents.filter(
+            (event) =>
+              event.chainId === chain.id && event.checkpoint <= omnichainTo,
+          );
+
+          pendingEvents = pendingEvents.filter(
+            (event) =>
+              (event.chainId === chain.id &&
+                event.checkpoint <= omnichainTo) === false,
+          );
+
+          yield { events, checkpoint: min(cursor, omnichainTo) };
 
           from = encodeCheckpoint({
             ...ZERO_CHECKPOINT,
@@ -160,17 +181,6 @@ export async function* getHistoricalEventsOmnichain(params: {
           syncStore: params.syncStore,
           isCatchup,
         });
-
-        const omnichainTo = min(
-          getOmnichainCheckpoint({
-            perChainSync: params.perChainSync,
-            tag: "finalized",
-          }),
-          getOmnichainCheckpoint({
-            perChainSync: params.perChainSync,
-            tag: "end",
-          }),
-        );
 
         for await (let { events: rawEvents, checkpoint } of eventGenerator) {
           const endClock = startClock();
@@ -216,8 +226,6 @@ export async function* getHistoricalEventsOmnichain(params: {
         perChainCursor.set(chain, to);
       },
     );
-
-    pendingEvents = [];
 
     const eventGenerator = mergeAsyncGeneratorsWithEventOrder(eventGenerators);
 
