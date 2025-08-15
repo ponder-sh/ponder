@@ -325,7 +325,7 @@ export const isBlockFilterMatched = ({
   block,
 }: {
   filter: BlockFilter;
-  block: InternalBlock | SyncBlock | SyncBlockHeader;
+  block: Pick<InternalBlock | SyncBlock | SyncBlockHeader, "number">;
 }): boolean => {
   // Return `false` for out of range blocks
   if (
