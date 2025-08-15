@@ -516,7 +516,7 @@ export async function runMultichain({
     common,
     indexingBuild,
     perChainSync,
-    syncStore,
+    database,
   })) {
     switch (event.type) {
       case "block": {

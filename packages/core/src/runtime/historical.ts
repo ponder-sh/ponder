@@ -22,6 +22,7 @@ import {
   encodeCheckpoint,
   min,
 } from "@/utils/checkpoint.js";
+import { estimate } from "@/utils/estimate.js";
 import { formatPercentage } from "@/utils/format.js";
 import {
   bufferAsyncGenerator,
@@ -794,10 +795,12 @@ export async function* getLocalSyncGenerator(params: {
         logs,
         syncStore,
       });
-      await syncStore.insertIntervals({
-        intervals: requiredIntervals,
-        chainId: params.chain.id,
-      });
+      if (params.chain.disableCache === false) {
+        await syncStore.insertIntervals({
+          intervals: requiredIntervals,
+          chainId: params.chain.id,
+        });
+      }
     });
 
     params.common.logger.debug({
@@ -805,18 +808,8 @@ export async function* getLocalSyncGenerator(params: {
       msg: `Synced ${interval[1] - interval[0] + 1} '${params.chain.name}' blocks in range [${interval[0]}, ${interval[1]}]`,
     });
 
-    // Update cursor to record progress
     cursor = interval[1] + 1;
 
-    // if (synced === undefined) {
-    //   // If the all known blocks are synced, then update `syncProgress.current`, else
-    //   // progress to the next iteration.
-    //   if (interval[1] === hexToNumber(last.number)) {
-    //     params.syncProgress.current = last;
-    //   } else {
-    //     continue;
-    //   }
-    // } else {
     if (interval[1] === hexToNumber(last.number)) {
       params.syncProgress.current = last;
     }
@@ -835,21 +828,21 @@ export async function* getLocalSyncGenerator(params: {
     );
 
     // Use the duration and interval of the last call to `sync` to update estimate
-    // 25 <= estimate(new) <= estimate(prev) * 2 <= 100_000
-    estimateRange = Math.min(
-      Math.max(
-        25,
-        Math.round((1_000 * (interval[1] - interval[0])) / duration),
-      ),
-      estimateRange * 2,
-      100_000,
-    );
+    estimateRange = estimate({
+      from: interval[0],
+      to: interval[1],
+      target: params.common.options.command === "dev" ? 1_000 : 5_000,
+      result: duration,
+      min: 25,
+      max: 100_000,
+      prev: estimateRange,
+      maxIncrease: 1.5,
+    });
 
     params.common.logger.trace({
       service: "sync",
       msg: `Updated '${params.chain.name}' historical sync estimate to ${estimateRange} blocks`,
     });
-    // }
 
     yield interval[1];
 

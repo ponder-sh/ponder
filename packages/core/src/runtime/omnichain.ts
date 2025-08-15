@@ -534,7 +534,7 @@ export async function runOmnichain({
     common,
     indexingBuild,
     perChainSync,
-    syncStore,
+    database,
     pendingEvents,
   })) {
     switch (event.type) {
