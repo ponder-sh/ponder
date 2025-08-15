@@ -37,7 +37,13 @@ npm run start -- --schema $RAILWAY_DEPLOYMENT_ID
 
 :::
 
-5. Set the healthcheck path and timeout. In **Settings** → **Deploy**, set the **Healthcheck Path** to `/ready` and the **Healthcheck Timeout** to `3600` seconds (1 hour, the maximum allowed).
+5. Set the healthcheck path and timeout. Create a `railway.toml` file with the following settings:
+
+```yaml
+[deploy]
+healthcheckPath = "/ready"
+healthcheckTimeout = 10800 # 3 hours
+```
 
 :::info
 _Monorepo users:_ Use the **Root Directory** and **Start Command** options
