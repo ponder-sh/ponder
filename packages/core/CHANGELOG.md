@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.6
+
+### Patch Changes
+
+- [#1968](https://github.com/ponder-sh/ponder/pull/1968) [`ba9f480`](https://github.com/ponder-sh/ponder/commit/ba9f48048e5fe79025acca250516e73f13f14e0e) Thanks [@kyscott18](https://github.com/kyscott18)! - Improve accuracy of historical backfill to live indexing cutover.
+
 ## 0.12.5
 
 ### Patch Changes
