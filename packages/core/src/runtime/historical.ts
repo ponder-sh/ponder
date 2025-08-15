@@ -266,7 +266,7 @@ export async function* getHistoricalEventsOmnichain(params: {
       if (
         hexToNumber(newFinalizedBlock.number) -
           hexToNumber(oldFinalizedBlock.number) >
-        chain.finalityBlockCount * 5
+        chain.finalityBlockCount
       ) {
         shouldCatchup = true;
         break;
@@ -474,7 +474,7 @@ export async function* getHistoricalEventsMultichain(params: {
       if (
         hexToNumber(newFinalizedBlock.number) -
           hexToNumber(oldFinalizedBlock.number) >
-        chain.finalityBlockCount * 5
+        chain.finalityBlockCount
       ) {
         shouldCatchup = true;
         break;
