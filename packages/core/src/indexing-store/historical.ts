@@ -16,6 +16,7 @@ import type { IndexingCache } from "./cache.js";
 import {
   type IndexingStore,
   checkOnchainTable,
+  checkTableAccess,
   validateUpdateSet,
 } from "./index.js";
 
@@ -24,11 +25,13 @@ export const createHistoricalIndexingStore = ({
   schemaBuild: { schema },
   indexingCache,
   indexingErrorHandler,
+  chainId,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   indexingCache: IndexingCache;
   indexingErrorHandler: IndexingErrorHandler;
+  chainId?: number;
 }): IndexingStore => {
   let qb: QB = undefined!;
 
@@ -54,6 +57,7 @@ export const createHistoricalIndexingStore = ({
         method: "find",
       });
       checkOnchainTable(table, "find");
+      checkTableAccess(table, "find", key, chainId);
       return indexingCache.get({ table, key });
     }),
 
@@ -73,6 +77,7 @@ export const createHistoricalIndexingStore = ({
               if (Array.isArray(values)) {
                 const rows = [];
                 for (const value of values) {
+                  checkTableAccess(table, "insert", value, chainId);
                   const row = await indexingCache.get({ table, key: value });
 
                   if (row) {
@@ -90,6 +95,7 @@ export const createHistoricalIndexingStore = ({
                 }
                 return rows;
               } else {
+                checkTableAccess(table, "insert", values, chainId);
                 const row = await indexingCache.get({ table, key: values });
 
                 if (row) {
@@ -133,6 +139,7 @@ export const createHistoricalIndexingStore = ({
                         row[key] = value;
                       }
                     }
+                    checkTableAccess(table, "insert", row, chainId);
                     rows.push(
                       indexingCache.set({
                         table,
@@ -142,6 +149,7 @@ export const createHistoricalIndexingStore = ({
                       }),
                     );
                   } else {
+                    checkTableAccess(table, "insert", value, chainId);
                     rows.push(
                       indexingCache.set({
                         table,
@@ -154,6 +162,7 @@ export const createHistoricalIndexingStore = ({
                 }
                 return rows;
               } else {
+                checkTableAccess(table, "insert", values, chainId);
                 const row = await indexingCache.get({ table, key: values });
 
                 if (row) {
@@ -170,6 +179,7 @@ export const createHistoricalIndexingStore = ({
                       row[key] = value;
                     }
                   }
+                  checkTableAccess(table, "insert", row, chainId);
                   return indexingCache.set({
                     table,
                     key: values,
@@ -200,7 +210,7 @@ export const createHistoricalIndexingStore = ({
                   for (const value of values) {
                     // Note: optimistic assumption that no conflict exists
                     // because error is recovered at flush time
-
+                    checkTableAccess(table, "insert", value, chainId);
                     rows.push(
                       indexingCache.set({
                         table,
@@ -214,7 +224,7 @@ export const createHistoricalIndexingStore = ({
                 } else {
                   // Note: optimistic assumption that no conflict exists
                   // because error is recovered at flush time
-
+                  checkTableAccess(table, "insert", values, chainId);
                   const result = indexingCache.set({
                     table,
                     key: values,
@@ -224,8 +234,9 @@ export const createHistoricalIndexingStore = ({
                   return Promise.resolve(result).then(onFulfilled, onRejected);
                 }
               })().then(onFulfilled, onRejected),
-            catch: (onRejected) => inner.then(undefined, onRejected),
-            finally: (onFinally) =>
+            catch: (onRejected): Promise<any> =>
+              inner.then(undefined, onRejected),
+            finally: (onFinally): Promise<any> =>
               inner.then(
                 (value: any) => {
                   onFinally?.();
@@ -252,7 +263,7 @@ export const createHistoricalIndexingStore = ({
             method: "update",
           });
           checkOnchainTable(table, "update");
-
+          checkTableAccess(table, "update", key, chainId);
           const row = await indexingCache.get({ table, key });
 
           if (row === null) {
@@ -276,7 +287,7 @@ export const createHistoricalIndexingStore = ({
               row[key] = value;
             }
           }
-
+          checkTableAccess(table, "update", row, chainId);
           return indexingCache.set({ table, key, row, isUpdate: true });
         }),
       };
@@ -288,6 +299,7 @@ export const createHistoricalIndexingStore = ({
         method: "delete",
       });
       checkOnchainTable(table, "delete");
+      checkTableAccess(table, "delete", key, chainId);
       return indexingCache.delete({ table, key });
     }),
     // @ts-ignore
