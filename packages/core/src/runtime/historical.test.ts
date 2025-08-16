@@ -38,7 +38,7 @@ beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
 test("getLocalEventGenerator()", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context, "multichain");
+  const { syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -88,7 +88,7 @@ test("getLocalEventGenerator()", async (context) => {
 });
 
 test("getLocalEventGenerator() pagination", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context, "multichain");
+  const { syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -138,7 +138,7 @@ test("getLocalEventGenerator() pagination", async (context) => {
 });
 
 test("getLocalEventGenerator() pagination with zero interval", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context, "multichain");
+  const { syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -188,10 +188,7 @@ test("getLocalEventGenerator() pagination with zero interval", async (context) =
 });
 
 test("getLocalSyncGenerator()", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(
-    context,
-    "multichain",
-  );
+  const { database, syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -244,10 +241,7 @@ test("getLocalSyncGenerator()", async (context) => {
 });
 
 test("getLocalSyncGenerator() with partial cache", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(
-    context,
-    "multichain",
-  );
+  const { database, syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -331,7 +325,7 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
 });
 
 test("getLocalSyncGenerator() with full cache", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context, "multichain");
+  const { syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -416,7 +410,7 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
 });
 
 test("getHistoricalEventsMultichain()", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context, "multichain");
+  const { syncStore } = await setupDatabaseServices(context);
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -484,7 +478,7 @@ test("getHistoricalEventsMultichain()", async (context) => {
 });
 
 test("getHistoricalEvents() omnichain", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context, "multichain");
+  const { syncStore } = await setupDatabaseServices(context);
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
@@ -552,7 +546,7 @@ test("getHistoricalEvents() omnichain", async (context) => {
 });
 
 test("getHistoricalEvents() with crash recovery checkpoint", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context, "multichain");
+  const { syncStore } = await setupDatabaseServices(context);
 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,

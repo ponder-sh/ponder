@@ -179,11 +179,11 @@ export async function setupIsolatedDatabase(context: TestContext) {
 
 export async function setupDatabaseServices(
   context: TestContext,
-  ordering: Ordering,
   overrides: Partial<{
     namespaceBuild: NamespaceBuild;
     schemaBuild: Partial<SchemaBuild>;
     indexingBuild: Partial<IndexingBuild>;
+    ordering: Ordering;
   }> = {},
 ): Promise<{
   database: Database;
@@ -192,7 +192,7 @@ export async function setupDatabaseServices(
 }> {
   const { statements } = buildSchema({
     schema: overrides.schemaBuild?.schema ?? {},
-    ordering,
+    ordering: overrides.ordering ?? "multichain",
   });
 
   const database = await createDatabase({
@@ -214,7 +214,7 @@ export async function setupDatabaseServices(
     buildId: overrides.indexingBuild?.buildId ?? "abc",
     chains: overrides.indexingBuild?.chains ?? [],
     finalizedBlocks: overrides.indexingBuild?.finalizedBlocks ?? [],
-    ordering,
+    ordering: overrides.ordering ?? "multichain",
   });
 
   await database.migrateSync().catch((err) => {

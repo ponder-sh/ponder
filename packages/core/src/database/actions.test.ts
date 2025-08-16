@@ -56,7 +56,7 @@ const indexingErrorHandler: IndexingErrorHandler = {
 };
 
 test("finalize()", async (context) => {
-  const { database } = await setupDatabaseServices(context, "multichain", {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema: { account } },
   });
 
@@ -133,12 +133,13 @@ test("finalize() isolated", async (context) => {
     }),
   );
 
-  const { database } = await setupDatabaseServices(context, "isolated", {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: {
       schema: { account },
       statements: buildSchema({ schema: { account }, ordering: "isolated" })
         .statements,
     },
+    ordering: "isolated",
   });
 
   // setup tables, reorg tables, and metadata checkpoint
@@ -225,7 +226,7 @@ test("createIndexes()", async (context) => {
     }),
   );
 
-  const { database } = await setupDatabaseServices(context, "multichain", {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema: { account } },
   });
 
@@ -239,7 +240,7 @@ test("createIndexes()", async (context) => {
 });
 
 test("createTriggers()", async (context) => {
-  const { database } = await setupDatabaseServices(context, "multichain", {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema: { account } },
   });
 
@@ -272,7 +273,7 @@ test("createTriggers()", async (context) => {
 });
 
 test("createTriggers() duplicate", async (context) => {
-  const { database } = await setupDatabaseServices(context, "multichain", {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema: { account } },
   });
 
@@ -281,7 +282,7 @@ test("createTriggers() duplicate", async (context) => {
 });
 
 test("commitBlock()", async (context) => {
-  const { database } = await setupDatabaseServices(context, "multichain", {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema: { account } },
   });
 
@@ -320,7 +321,7 @@ test("commitBlock()", async (context) => {
 });
 
 test("revert()", async (context) => {
-  const { database } = await setupDatabaseServices(context, "multichain", {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema: { account } },
   });
 
@@ -394,7 +395,7 @@ test("revert() with composite primary key", async (context) => {
     }),
   );
 
-  const { database } = await setupDatabaseServices(context, "multichain", {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema: { test } },
   });
 
