@@ -14,7 +14,7 @@ test("recordProfilePattern() no pattern", () => {
     name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
-      block: {} as BlockEvent["event"]["block"],
+      block: { timestamp: 1n } as BlockEvent["event"]["block"],
     },
   } satisfies BlockEvent;
 
@@ -51,7 +51,7 @@ test("recordProfilePattern() with undefined log event args", () => {
       args: undefined,
       log: {} as LogEvent["event"]["log"],
       transaction: {} as LogEvent["event"]["transaction"],
-      block: {} as BlockEvent["event"]["block"],
+      block: { timestamp: 1n } as BlockEvent["event"]["block"],
     },
   } satisfies LogEvent;
 
@@ -89,7 +89,7 @@ test("recordProfilePattern() with undefined trace event args", () => {
       result: undefined,
       trace: {} as TraceEvent["event"]["trace"],
       transaction: {} as TraceEvent["event"]["transaction"],
-      block: {} as BlockEvent["event"]["block"],
+      block: { timestamp: 1n } as BlockEvent["event"]["block"],
     },
   } satisfies TraceEvent;
 
@@ -126,7 +126,7 @@ test("recordProfilePattern() with array log event args", () => {
       args: [],
       log: {} as LogEvent["event"]["log"],
       transaction: {} as LogEvent["event"]["transaction"],
-      block: {} as BlockEvent["event"]["block"],
+      block: { timestamp: 1n } as BlockEvent["event"]["block"],
     },
   } satisfies LogEvent;
 
@@ -164,7 +164,7 @@ test("recordProfilePattern() with array trace event args", () => {
       result: [],
       trace: {} as TraceEvent["event"]["trace"],
       transaction: {} as TraceEvent["event"]["transaction"],
-      block: {} as BlockEvent["event"]["block"],
+      block: { timestamp: 1n } as BlockEvent["event"]["block"],
     },
   } satisfies TraceEvent;
 
@@ -198,7 +198,7 @@ test("recordProfilePattern() chainId", () => {
     name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
-      block: {} as BlockEvent["event"]["block"],
+      block: { timestamp: 1n } as BlockEvent["event"]["block"],
     },
   } satisfies BlockEvent;
 
@@ -223,9 +223,11 @@ test("recordProfilePattern() chainId", () => {
 
   expect(pattern).toMatchInlineSnapshot(`
     {
-      "address": [
-        "chainId",
-      ],
+      "address": {
+        "value": [
+          "chainId",
+        ],
+      },
     }
   `);
 });
@@ -243,7 +245,7 @@ test("recordProfilePattern() log args", () => {
       },
       log: {} as LogEvent["event"]["log"],
       transaction: {} as LogEvent["event"]["transaction"],
-      block: {} as BlockEvent["event"]["block"],
+      block: { timestamp: 1n } as BlockEvent["event"]["block"],
     },
   } satisfies LogEvent;
 
@@ -268,10 +270,12 @@ test("recordProfilePattern() log args", () => {
 
   expect(pattern).toMatchInlineSnapshot(`
     {
-      "address": [
-        "args",
-        "address",
-      ],
+      "address": {
+        "value": [
+          "args",
+          "address",
+        ],
+      },
     }
   `);
 });
@@ -284,7 +288,7 @@ test("recordProfilePattern() block", () => {
     name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
-      block: { number: 3n } as BlockEvent["event"]["block"],
+      block: { number: 3n, timestamp: 1n } as BlockEvent["event"]["block"],
     },
   } satisfies BlockEvent;
 
@@ -309,10 +313,12 @@ test("recordProfilePattern() block", () => {
 
   expect(pattern).toMatchInlineSnapshot(`
     {
-      "address": [
-        "block",
-        "number",
-      ],
+      "address": {
+        "value": [
+          "block",
+          "number",
+        ],
+      },
     }
   `);
 });
@@ -325,7 +331,7 @@ test("recordProfilePattern() hint", () => {
     name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
-      block: { number: 3n } as BlockEvent["event"]["block"],
+      block: { number: 3n, timestamp: 1n } as BlockEvent["event"]["block"],
     },
   } satisfies BlockEvent;
 
@@ -358,10 +364,12 @@ test("recordProfilePattern() hint", () => {
 
   expect(pattern).toMatchInlineSnapshot(`
     {
-      "address": [
-        "block",
-        "number",
-      ],
+      "address": {
+        "value": [
+          "block",
+          "number",
+        ],
+      },
     }
   `);
 });
@@ -379,7 +387,7 @@ test("recordProfilePattern() object args", () => {
       },
       log: {} as LogEvent["event"]["log"],
       transaction: {} as LogEvent["event"]["transaction"],
-      block: {} as BlockEvent["event"]["block"],
+      block: { timestamp: 1n } as BlockEvent["event"]["block"],
     },
   } satisfies LogEvent;
 

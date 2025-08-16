@@ -14,6 +14,7 @@ import type {
   IndexingBuild,
   IndexingErrorHandler,
   NamespaceBuild,
+  Ordering,
   SchemaBuild,
   Source,
 } from "@/internal/types.js";
@@ -178,6 +179,7 @@ export async function setupIsolatedDatabase(context: TestContext) {
 
 export async function setupDatabaseServices(
   context: TestContext,
+  ordering: Ordering,
   overrides: Partial<{
     namespaceBuild: NamespaceBuild;
     schemaBuild: Partial<SchemaBuild>;
@@ -190,7 +192,7 @@ export async function setupDatabaseServices(
 }> {
   const { statements } = buildSchema({
     schema: overrides.schemaBuild?.schema ?? {},
-    ordering: "multichain",
+    ordering,
   });
 
   const database = await createDatabase({
@@ -210,7 +212,9 @@ export async function setupDatabaseServices(
 
   await database.migrate({
     buildId: overrides.indexingBuild?.buildId ?? "abc",
-    ordering: "multichain",
+    chains: overrides.indexingBuild?.chains ?? [],
+    finalizedBlocks: overrides.indexingBuild?.finalizedBlocks ?? [],
+    ordering,
   });
 
   await database.migrateSync().catch((err) => {

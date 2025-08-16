@@ -153,9 +153,7 @@ const createReorgTableStatement = (statement: JsonCreateTableStatement) => {
                 ),
               ),
             operation: integer().notNull(),
-            checkpoint: varchar({
-              length: 75,
-            }).notNull(),
+            checkpoint: varchar({ length: 75 }).notNull(),
           }),
         ],
         [],

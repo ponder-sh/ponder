@@ -19,7 +19,6 @@ import { runMultichain } from "@/runtime/multichain.js";
 import { runOmnichain } from "@/runtime/omnichain.js";
 import { createServer } from "@/server/index.js";
 import type { CliOptions } from "../ponder.js";
-import { runCodegen } from "../utils/codegen.js";
 import { createExit } from "../utils/exit.js";
 import { startIsolated } from "../utils/startIsolated.js";
 
@@ -158,6 +157,8 @@ export async function start({
   });
   const crashRecoveryCheckpoint = await database.migrate({
     buildId: indexingBuildResult.result.buildId,
+    chains: indexingBuildResult.result.chains,
+    finalizedBlocks: indexingBuildResult.result.finalizedBlocks,
     ordering: preBuild.ordering,
   });
 
@@ -214,9 +215,6 @@ export async function start({
   if (onBuild) {
     app = await onBuild(app);
   }
-
-  await database.migrateSync();
-  runCodegen({ common });
 
   switch (preBuild.ordering) {
     case "omnichain":
