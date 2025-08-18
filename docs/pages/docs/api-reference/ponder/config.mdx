@@ -104,19 +104,24 @@ export default createConfig({
 
 #### Guarantees
 
-The omnichain and multichain ordering strategies offer different guarantees. Multichain ordering is generally faster, but will fail or produce a non-deterministic database state if your indexing logic attempts to access the same database row(s) from multiple chains.
+Each ordering strategy offers different guarantees for how data from different chains are ordered and processed.
 
-|                                      | Omnichain                                                                   | Multichain (default)                                       | Isolated (experimental)                                     |
+- `"omnichain"` combines all chains into a single, unified stream of events.
+- `"multichain"` treats each chain independently.
+- `"multichain_isolated"` is a subset of `"multichain"` with stricter rules on cross-chain database access. **`"multichain_isolated"` uses a thread per chain and allows one chain to fail without affecting the others.**
+
+:::note
+  **Isolated ordering (experimental):** When using `ordering: "multichain_isolated"`, all tables in your schema must include a `chainId` column that is part of the primary key. This ensures complete isolation between chains and prevents any cross-chain data access.
+:::
+
+|                                      | Omnichain                                                                   | Multichain (default)                                       | Multichain isolated (experimental)                          |
 | :----------------------------------- | :-------------------------------------------------------------------------- | :--------------------------------------------------------- | :---------------------------------------------------------- |
 | Event order for any individual chain | Deterministic, by EVM execution                                             | Deterministic, by EVM execution                            | Deterministic, by EVM execution                             |
 | Event order across chains            | Deterministic, by (block timestamp, chain ID, block number)                 | Non-deterministic, no ordering guarantee                   | Complete isolation, no cross-chain ordering                 |
 | Realtime indexing latency            | Medium-high, must wait for the slowest chain to maintain ordering guarantee | Low, each chain indexes blocks as soon as they arrive      | Low, each chain operates independently                      |
 | Indexing logic constraints           | None                                                                        | Must avoid cross-chain writes **or** use commutative logic | Cross-chain reads and writes are not possible               |
+| Fault tolerance                      | Error if any chain fails                                                    | Error if any chain fails                                   | Error on one chain doesn't affect the others                |
 | Use cases                            | Bridges, cross-chain contract calls, global constraints                     | Same protocol deployed to multiple chains                  | Same protocol deployed to multiple chains                   |
-
-:::note
-  **Isolated ordering (experimental):** When using `ordering: "multichain_isolated"`, all tables in your schema must include a `chainId` column that is part of the primary key. This ensures complete isolation between chains and prevents any cross-chain data access.
-:::
 
 ### `chains`
 
