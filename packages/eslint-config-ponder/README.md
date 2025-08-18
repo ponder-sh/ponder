@@ -168,6 +168,8 @@ If you're interested in contributing to Ponder, please read the [contribution gu
 ## Packages
 
 - `ponder`
+- `@ponder/client`
+- `@ponder/react`
 - `@ponder/utils`
 - `create-ponder`
 - `eslint-config-ponder`
