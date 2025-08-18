@@ -1,5 +1,43 @@
 # ponder
 
+## 0.12.6
+
+### Patch Changes
+
+- [#1968](https://github.com/ponder-sh/ponder/pull/1968) [`ba9f480`](https://github.com/ponder-sh/ponder/commit/ba9f48048e5fe79025acca250516e73f13f14e0e) Thanks [@kyscott18](https://github.com/kyscott18)! - Improve accuracy of historical backfill to live indexing cutover.
+
+## 0.12.5
+
+### Patch Changes
+
+- [#1963](https://github.com/ponder-sh/ponder/pull/1963) [`8583084`](https://github.com/ponder-sh/ponder/commit/85830844776ab0ecab49a75641d6347fddb35096) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved historical indexing cache performance.
+
+## 0.12.4
+
+### Patch Changes
+
+- [#1964](https://github.com/ponder-sh/ponder/pull/1964) [`2e9ed4c`](https://github.com/ponder-sh/ponder/commit/2e9ed4c151f5d4db1861b69fdbba5b028dbc5da3) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved reorg handling performance.
+
+- [#1965](https://github.com/ponder-sh/ponder/pull/1965) [`4d23811`](https://github.com/ponder-sh/ponder/commit/4d238116c9749ee75a3b4d9f108064b7f5898460) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug causing extra `context.client` rpc requests to be made when `cache: "immutable"`.
+
+## 0.12.3
+
+### Patch Changes
+
+- [#1960](https://github.com/ponder-sh/ponder/pull/1960) [`12bffed`](https://github.com/ponder-sh/ponder/commit/12bffed50200bb6ceb8c280c8cfe3dc9be6d74fd) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a memory leak introduce in `v0.12.1`.
+
+## 0.12.2
+
+### Patch Changes
+
+- [#1958](https://github.com/ponder-sh/ponder/pull/1958) [`dca52ed`](https://github.com/ponder-sh/ponder/commit/dca52edec6601296590d5798560203ee321f1652) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an bug where empty rpc urls would cause `BuildError: Invalid URL`.
+
+## 0.12.1
+
+### Patch Changes
+
+- [#1949](https://github.com/ponder-sh/ponder/pull/1949) [`922bac3`](https://github.com/ponder-sh/ponder/commit/922bac364912aa3a268fd07c6e57e3efcffeea43) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Fixed a bug with crash recovery causing missing or duplicate events.
+
 ## 0.12.0
 
 ### Minor Changes

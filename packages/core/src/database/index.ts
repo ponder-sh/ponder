@@ -1,6 +1,7 @@
 import { getTableNames } from "@/drizzle/index.js";
 import {
   SHARED_OPERATION_ID_SEQUENCE,
+  getReorgTable,
   sqlToReorgTableName,
 } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
@@ -19,7 +20,7 @@ import type {
 } from "@/internal/types.js";
 import { buildMigrationProvider } from "@/sync-store/migrations.js";
 import * as PONDER_SYNC from "@/sync-store/schema.js";
-import { min } from "@/utils/checkpoint.js";
+import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
 import { createPglite, createPgliteKyselyDialect } from "@/utils/pglite.js";
@@ -33,7 +34,8 @@ import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
 import type { Pool, PoolClient } from "pg";
 import prometheus from "prom-client";
-import { revert } from "./actions.js";
+import { hexToBigInt } from "viem";
+import { crashRecovery } from "./actions.js";
 import { type QB, createQB, parseDbError } from "./queryBuilder.js";
 
 export type Database = {
@@ -51,8 +53,10 @@ export type Database = {
    */
   migrate({
     buildId,
+    chains,
+    finalizedBlocks,
     ordering,
-  }: Pick<IndexingBuild, "buildId"> & {
+  }: Pick<IndexingBuild, "buildId" | "chains" | "finalizedBlocks"> & {
     ordering: Ordering;
   }): Promise<CrashRecoveryCheckpoint>;
 };
@@ -87,7 +91,7 @@ export type PonderApp = {
   heartbeat_at: number;
 };
 
-const VERSION = "3";
+const VERSION = "4";
 
 type PGliteDriver = {
   dialect: "pglite";
@@ -124,6 +128,7 @@ export const getPonderCheckpointTable = (schema?: string) => {
       chainId: t.bigint({ mode: "number" }).notNull(),
       safeCheckpoint: t.varchar({ length: 75 }).notNull(),
       latestCheckpoint: t.varchar({ length: 75 }).notNull(),
+      finalizedCheckpoint: t.varchar({ length: 75 }).notNull(),
     }));
   }
 
@@ -132,6 +137,7 @@ export const getPonderCheckpointTable = (schema?: string) => {
     chainId: t.bigint({ mode: "number" }).notNull(),
     safeCheckpoint: t.varchar({ length: 75 }).notNull(),
     latestCheckpoint: t.varchar({ length: 75 }).notNull(),
+    finalizedCheckpoint: t.varchar({ length: 75 }).notNull(),
   }));
 };
 
@@ -605,7 +611,7 @@ export const createDatabase = async ({
         }
       }
     },
-    async migrate({ buildId, ordering }) {
+    async migrate({ buildId, chains, finalizedBlocks, ordering }) {
       const createTables = async (tx: QB) => {
         for (let i = 0; i < schemaBuild.statements.tables.sql.length; i++) {
           await tx
@@ -619,6 +625,14 @@ export const createDatabase = async ({
               e.stack = undefined;
               throw e;
             });
+        }
+
+        for (const table of tables) {
+          await tx.wrap((tx) =>
+            tx.execute(
+              `CREATE INDEX IF NOT EXISTS "${getTableName(table)}_checkpoint_index" ON "${namespace.schema}"."${getTableName(getReorgTable(table))}" ("checkpoint")`,
+            ),
+          );
         }
       };
 
@@ -638,43 +652,43 @@ export const createDatabase = async ({
         }
       };
 
-      const tryAcquireLockAndMigrate = () =>
-        adminQB.transaction({ label: "migrate" }, async (tx) => {
-          await tx.wrap((tx) =>
-            tx.execute(
-              `
+      const createAdminObjects = async (tx: QB) => {
+        await tx.wrap((tx) =>
+          tx.execute(
+            `
 CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_meta" (
   "key" TEXT PRIMARY KEY,
   "value" JSONB NOT NULL
 )`,
-            ),
-          );
+          ),
+        );
 
-          await tx.wrap((tx) =>
-            tx.execute(
-              `
+        await tx.wrap((tx) =>
+          tx.execute(
+            `
 CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
   "chain_name" TEXT PRIMARY KEY,
   "chain_id" BIGINT NOT NULL,
   "safe_checkpoint" VARCHAR(75) NOT NULL,
-  "latest_checkpoint" VARCHAR(75) NOT NULL
+  "latest_checkpoint" VARCHAR(75) NOT NULL,
+  "finalized_checkpoint" VARCHAR(75) NOT NULL
 )`,
-            ),
-          );
+          ),
+        );
 
-          await tx.wrap((tx) =>
-            tx.execute(
-              `CREATE SEQUENCE IF NOT EXISTS "${namespace.schema}"."${SHARED_OPERATION_ID_SEQUENCE}" AS integer INCREMENT BY 1`,
-            ),
-          );
+        await tx.wrap((tx) =>
+          tx.execute(
+            `CREATE SEQUENCE IF NOT EXISTS "${namespace.schema}"."${SHARED_OPERATION_ID_SEQUENCE}" AS integer INCREMENT BY 1`,
+          ),
+        );
 
-          const trigger = "status_trigger";
-          const notification = "status_notify()";
-          const channel = `${namespace.schema}_status_channel`;
+        const trigger = "status_trigger";
+        const notification = "status_notify()";
+        const channel = `${namespace.schema}_status_channel`;
 
-          await tx.wrap((tx) =>
-            tx.execute(
-              `
+        await tx.wrap((tx) =>
+          tx.execute(
+            `
 CREATE OR REPLACE FUNCTION "${namespace.schema}".${notification}
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -684,19 +698,24 @@ NOTIFY "${channel}";
 RETURN NULL;
 END;
 $$;`,
-            ),
-          );
+          ),
+        );
 
-          await tx.wrap((tx) =>
-            tx.execute(
-              `
+        await tx.wrap((tx) =>
+          tx.execute(
+            `
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
 ON "${namespace.schema}"._ponder_checkpoint
 FOR EACH STATEMENT
 EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
-            ),
-          );
+          ),
+        );
+      };
+
+      const tryAcquireLockAndMigrate = () =>
+        adminQB.transaction({ label: "migrate" }, async (tx) => {
+          await createAdminObjects(tx);
 
           // Note: All ponder versions are compatible with the next query (every version of the "_ponder_meta" table have the same columns)
 
@@ -762,9 +781,17 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
 
             await tx.wrap((tx) =>
               tx.execute(
-                `TRUNCATE TABLE "${namespace.schema}"."${getTableName(PONDER_CHECKPOINT)}" CASCADE`,
+                `DROP TABLE IF EXISTS "${namespace.schema}"."${getTableName(PONDER_CHECKPOINT)}" CASCADE`,
               ),
             );
+
+            await tx.wrap((tx) =>
+              tx.execute(
+                `DROP TABLE IF EXISTS "${namespace.schema}"."${getTableName(PONDER_META)}" CASCADE`,
+              ),
+            );
+
+            await createAdminObjects(tx);
 
             common.logger.info({
               service: "database",
@@ -772,7 +799,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             });
 
             await tx.wrap((tx) =>
-              tx.update(PONDER_META).set({ value: metadata }),
+              tx.insert(PONDER_META).values({ key: "app", value: metadata }),
             );
             return {
               status: "success",
@@ -819,13 +846,36 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
           const checkpoints = await tx.wrap((tx) =>
             tx.select().from(PONDER_CHECKPOINT),
           );
-          const crashRecoveryCheckpoint =
-            checkpoints.length === 0
-              ? undefined
-              : checkpoints.map((c) => ({
-                  chainId: c.chainId,
-                  checkpoint: c.safeCheckpoint,
-                }));
+
+          // Note: The previous app can be in three possible states:
+          // 1. Has no checkpoints, hasn't made it past the setup events
+          // 2. Has checkpoints but hasn't made it past the historical backfill
+          // 3. Has checkpoints and has made it past the historical backfill
+
+          if (checkpoints.length === 0) {
+            return {
+              status: "success",
+              crashRecoveryCheckpoint: undefined,
+            } as const;
+          }
+
+          for (const { chainId, finalizedCheckpoint } of checkpoints) {
+            const finalizedBlock =
+              finalizedBlocks[chains.findIndex((c) => c.id === chainId)]!;
+            if (
+              hexToBigInt(finalizedBlock.timestamp) <
+              decodeCheckpoint(finalizedCheckpoint).blockTimestamp
+            ) {
+              throw new MigrationError(
+                `Finalized block for chain '${chainId}' cannot move backwards`,
+              );
+            }
+          }
+
+          const crashRecoveryCheckpoint = checkpoints.map((c) => ({
+            chainId: c.chainId,
+            checkpoint: c.safeCheckpoint,
+          }));
 
           if (previousApp.is_ready === 0) {
             await tx.wrap((tx) =>
@@ -873,31 +923,8 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             });
           }
 
-          switch (ordering) {
-            case "multichain":
-            case "omnichain": {
-              // Note: it is an invariant that checkpoints.length > 0;
-              const revertCheckpoint = min(
-                ...checkpoints.map((c) => c.safeCheckpoint),
-              );
-              await revert(tx, {
-                checkpoint: revertCheckpoint,
-                tables,
-                ordering,
-              });
-              break;
-            }
-            case "isolated": {
-              // Note: it is invariant that checkpoint is chainId specific
-              for (const { safeCheckpoint } of checkpoints) {
-                await revert(tx, {
-                  checkpoint: safeCheckpoint,
-                  tables,
-                  ordering,
-                });
-              }
-              break;
-            }
+          for (const table of tables) {
+            await crashRecovery(tx, { table });
           }
 
           // Note: We don't update the `_ponder_checkpoint` table here, instead we wait for it to be updated

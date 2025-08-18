@@ -23,18 +23,10 @@ export function dedupe<item, id>(
   const seen = new Set<id | item>();
 
   return arr.filter((x) => {
-    if (seen.has(getId ? getId(x) : x)) return false;
+    const id = getId ? getId(x) : x;
+    if (seen.has(id)) return false;
 
-    seen.add(x);
+    seen.add(id);
     return true;
   });
 }
-
-dedupe(
-  [
-    { a: 1, b: 2 },
-    { a: 1, b: 2 },
-    { a: 2, b: 2 },
-  ],
-  (e) => `${e.a}_${e.b}`,
-);

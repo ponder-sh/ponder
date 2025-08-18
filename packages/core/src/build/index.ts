@@ -4,8 +4,9 @@ import path from "node:path";
 import type { CliOptions } from "@/bin/ponder.js";
 import type { Config } from "@/config/index.js";
 import type { Database } from "@/database/index.js";
+import { createQB } from "@/database/queryBuilder.js";
 import type { Common } from "@/internal/common.js";
-import { BuildError } from "@/internal/errors.js";
+import { BuildError, RetryableError } from "@/internal/errors.js";
 import type {
   ApiBuild,
   IndexingBuild,
@@ -20,6 +21,8 @@ import { createPool } from "@/utils/pg.js";
 import { createPglite } from "@/utils/pglite.js";
 import { getNextAvailablePort } from "@/utils/port.js";
 import type { Result } from "@/utils/result.js";
+import { drizzle as drizzleNodePostgres } from "drizzle-orm/node-postgres";
+import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { glob } from "glob";
 import { Hono } from "hono";
 import superjson from "superjson";
@@ -387,10 +390,11 @@ export const createBuild = async ({
       const dialect = preBuild.databaseConfig.kind;
       if (dialect === "pglite") {
         const driver = createPglite(preBuild.databaseConfig.options);
+        const qb = createQB(drizzlePglite(driver), { common });
         try {
-          await driver.query("SELECT version()");
+          await qb.wrap((db) => db.execute("SELECT version()"));
         } catch (e) {
-          const error = new BuildError(
+          const error = new RetryableError(
             `Failed to connect to PGlite database. Please check your database connection settings.\n\n${(e as any).message}`,
           );
           error.stack = undefined;
@@ -413,11 +417,11 @@ export const createBuild = async ({
           },
           common.logger,
         );
-
+        const qb = createQB(drizzleNodePostgres(pool), { common });
         try {
-          await pool.query("SELECT version()");
+          await qb.wrap((db) => db.execute("SELECT version()"));
         } catch (e) {
-          const error = new BuildError(
+          const error = new RetryableError(
             `Failed to connect to database. Please check your database connection settings.\n\n${(e as any).message}`,
           );
           error.stack = undefined;

@@ -9,6 +9,7 @@ import { isTable, sql } from "drizzle-orm";
 import type { PonderApp } from "../commands/start.js";
 import type { CliOptions } from "../ponder.js";
 import type { WorkerInfo } from "../utils/startIsolated.js";
+import { runCodegen } from "./codegen.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -24,6 +25,9 @@ export async function devIsolated(
   }: Omit<PonderApp, "apiBuild">,
   cliOptions: CliOptions,
 ) {
+  await database.migrateSync();
+  runCodegen({ common });
+
   const appState: { [chainName: string]: WorkerInfo } = {};
   const workerPath = join(__dirname, "..", "..", "runtime", "isolated.js");
 

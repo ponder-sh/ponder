@@ -80,6 +80,7 @@ test("getLocalEventGenerator()", async (context) => {
     from: syncProgress.getCheckpoint({ tag: "start" })!,
     to: syncProgress.getCheckpoint({ tag: "finalized" })!,
     limit: 100,
+    isCatchup: false,
   });
 
   const events = await drainAsyncGenerator(eventGenerator);
@@ -129,6 +130,7 @@ test("getLocalEventGenerator() pagination", async (context) => {
     from: syncProgress.getCheckpoint({ tag: "start" })!,
     to: syncProgress.getCheckpoint({ tag: "finalized" })!,
     limit: 1,
+    isCatchup: false,
   });
 
   const events = await drainAsyncGenerator(eventGenerator);
@@ -178,6 +180,7 @@ test("getLocalEventGenerator() pagination with zero interval", async (context) =
     from: syncProgress.getCheckpoint({ tag: "start" })!,
     to: syncProgress.getCheckpoint({ tag: "finalized" })!,
     limit: 1,
+    isCatchup: false,
   });
 
   const events = await drainAsyncGenerator(eventGenerator);
@@ -224,6 +227,7 @@ test("getLocalSyncGenerator()", async (context) => {
     cachedIntervals,
     syncStore,
     syncProgress,
+    isCatchup: false,
   });
 
   await drainAsyncGenerator(syncGenerator);
@@ -276,6 +280,7 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     syncProgress,
     cachedIntervals,
     syncStore,
+    isCatchup: false,
   });
 
   await drainAsyncGenerator(syncGenerator);
@@ -306,6 +311,7 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     syncProgress,
     cachedIntervals,
     syncStore,
+    isCatchup: false,
   });
 
   await drainAsyncGenerator(syncGenerator);
@@ -361,6 +367,7 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     syncProgress,
     cachedIntervals,
     syncStore,
+    isCatchup: false,
   });
 
   await drainAsyncGenerator(syncGenerator);
@@ -389,6 +396,7 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     syncProgress,
     cachedIntervals,
     syncStore,
+    isCatchup: false,
   });
 
   const insertSpy = vi.spyOn(syncStore, "insertIntervals");

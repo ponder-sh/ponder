@@ -35,6 +35,7 @@ import type {
   Seconds,
 } from "@/internal/types.js";
 import { splitEvents } from "@/runtime/events.js";
+import type { RealtimeSyncEvent } from "@/sync-realtime/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import {
   ZERO_CHECKPOINT_STRING,
@@ -55,8 +56,8 @@ import {
   type SyncProgress,
   getCachedIntervals,
   getChildAddresses,
-  getLocalSyncProgress,
 } from "./index.js";
+import { initSyncProgress } from "./init.js";
 import { getRealtimeEventsOmnichain } from "./realtime.js";
 
 export async function runOmnichain({
@@ -134,6 +135,10 @@ export async function runOmnichain({
       syncProgress: SyncProgress;
       childAddresses: ChildAddresses;
       cachedIntervals: CachedIntervals;
+      unfinalizedBlocks: Omit<
+        Extract<RealtimeSyncEvent, { type: "block" }>,
+        "type"
+      >[];
     }
   >();
   const seconds: Seconds = {};
@@ -149,7 +154,7 @@ export async function runOmnichain({
         sources,
         syncStore,
       });
-      const syncProgress = await getLocalSyncProgress({
+      const syncProgress = await initSyncProgress({
         common,
         sources,
         chain,
@@ -162,11 +167,16 @@ export async function runOmnichain({
         sources,
         syncStore,
       });
+      const unfinalizedBlocks: Omit<
+        Extract<RealtimeSyncEvent, { type: "block" }>,
+        "type"
+      >[] = [];
 
       perChainSync.set(chain, {
         syncProgress,
         childAddresses,
         cachedIntervals,
+        unfinalizedBlocks,
       });
     }),
   );
@@ -247,6 +257,9 @@ export async function runOmnichain({
               safeCheckpoint: perChainSync
                 .get(chain)!
                 .syncProgress.getCheckpoint({ tag: "start" }),
+              finalizedCheckpoint: perChainSync
+                .get(chain)!
+                .syncProgress.getCheckpoint({ tag: "start" }),
             })),
           )
           .onConflictDoUpdate({
@@ -254,6 +267,7 @@ export async function runOmnichain({
             set: {
               safeCheckpoint: sql`excluded.safe_checkpoint`,
               latestCheckpoint: sql`excluded.latest_checkpoint`,
+              finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
             },
           }),
       );
@@ -404,6 +418,7 @@ export async function runOmnichain({
                     chainId,
                     latestCheckpoint: checkpoint,
                     safeCheckpoint: checkpoint,
+                    finalizedCheckpoint: checkpoint,
                   })),
                 )
                 .onConflictDoUpdate({
@@ -411,6 +426,7 @@ export async function runOmnichain({
                   set: {
                     safeCheckpoint: sql`excluded.safe_checkpoint`,
                     latestCheckpoint: sql`excluded.latest_checkpoint`,
+                    finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
                   },
                 }),
             );
@@ -551,7 +567,7 @@ export async function runOmnichain({
                     commitBlock(tx, {
                       table,
                       checkpoint,
-                      ordering: preBuild.ordering,
+                      preBuild,
                     }),
                   ),
                 );
@@ -597,7 +613,7 @@ export async function runOmnichain({
           const counts = await revert(tx, {
             tables,
             checkpoint: event.checkpoint,
-            ordering: preBuild.ordering,
+            preBuild,
           });
 
           for (const [index, table] of tables.entries()) {
@@ -611,36 +627,21 @@ export async function runOmnichain({
         });
 
         break;
-      case "finalize":
-        await database.userQB.transaction(async (tx) => {
-          await tx.wrap((tx) =>
-            tx.update(PONDER_CHECKPOINT).set({
-              safeCheckpoint: event.checkpoint,
-            }),
-          );
+      case "finalize": {
+        const count = await finalize(database.userQB, {
+          checkpoint: event.checkpoint,
+          tables,
+          preBuild,
+          namespaceBuild,
+        });
 
-          const counts = await finalize(tx, {
-            tables,
-            checkpoint: event.checkpoint,
-            ordering: preBuild.ordering,
-          });
-
-          for (const [index, table] of tables.entries()) {
-            common.logger.info({
-              service: "database",
-              msg: `Finalized ${counts[index]} operations from '${getTableName(table)}'`,
-            });
-          }
-
-          const decoded = decodeCheckpoint(event.checkpoint);
-
-          common.logger.debug({
-            service: "database",
-            msg: `Updated finalized checkpoint to (timestamp=${decoded.blockTimestamp} chainId=${decoded.chainId} block=${decoded.blockNumber})`,
-          });
+        common.logger.info({
+          service: "database",
+          msg: `Finalized ${count} operations.`,
         });
 
         break;
+      }
       default:
         never(event);
     }

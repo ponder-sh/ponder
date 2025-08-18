@@ -1,3 +1,4 @@
+import { runCodegen } from "@/bin/utils/codegen.js";
 import {
   commitBlock,
   createIndexes,
@@ -34,6 +35,7 @@ import type {
   Seconds,
 } from "@/internal/types.js";
 import { splitEvents } from "@/runtime/events.js";
+import type { RealtimeSyncEvent } from "@/sync-realtime/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import {
   ZERO_CHECKPOINT_STRING,
@@ -53,8 +55,8 @@ import {
   type SyncProgress,
   getCachedIntervals,
   getChildAddresses,
-  getLocalSyncProgress,
 } from "./index.js";
+import { initSyncProgress } from "./init.js";
 import { getRealtimeEventsMultichain } from "./realtime.js";
 
 export async function runMultichain({
@@ -74,6 +76,10 @@ export async function runMultichain({
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   database: Database;
 }) {
+  await database.migrateSync();
+
+  runCodegen({ common });
+
   const syncStore = createSyncStore({ common, database });
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
@@ -132,6 +138,10 @@ export async function runMultichain({
       syncProgress: SyncProgress;
       childAddresses: ChildAddresses;
       cachedIntervals: CachedIntervals;
+      unfinalizedBlocks: Omit<
+        Extract<RealtimeSyncEvent, { type: "block" }>,
+        "type"
+      >[];
     }
   >();
   const seconds: Seconds = {};
@@ -147,7 +157,7 @@ export async function runMultichain({
         sources,
         syncStore,
       });
-      const syncProgress = await getLocalSyncProgress({
+      const syncProgress = await initSyncProgress({
         common,
         sources,
         chain,
@@ -160,11 +170,16 @@ export async function runMultichain({
         sources,
         syncStore,
       });
+      const unfinalizedBlocks: Omit<
+        Extract<RealtimeSyncEvent, { type: "block" }>,
+        "type"
+      >[] = [];
 
       perChainSync.set(chain, {
         syncProgress,
         childAddresses,
         cachedIntervals,
+        unfinalizedBlocks,
       });
 
       const _crashRecoveryCheckpoint = crashRecoveryCheckpoint?.find(
@@ -243,11 +258,15 @@ export async function runMultichain({
               safeCheckpoint: perChainSync
                 .get(chain)!
                 .syncProgress.getCheckpoint({ tag: "start" }),
+              finalizedCheckpoint: perChainSync
+                .get(chain)!
+                .syncProgress.getCheckpoint({ tag: "start" }),
             })),
           )
           .onConflictDoUpdate({
             target: PONDER_CHECKPOINT.chainName,
             set: {
+              finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
               safeCheckpoint: sql`excluded.safe_checkpoint`,
               latestCheckpoint: sql`excluded.latest_checkpoint`,
             },
@@ -384,6 +403,7 @@ export async function runMultichain({
                     )!.name,
                     chainId,
                     latestCheckpoint: checkpoint,
+                    finalizedCheckpoint: checkpoint,
                     safeCheckpoint: checkpoint,
                   })),
                 )
@@ -391,6 +411,7 @@ export async function runMultichain({
                   target: PONDER_CHECKPOINT.chainName,
                   set: {
                     safeCheckpoint: sql`excluded.safe_checkpoint`,
+                    finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
                     latestCheckpoint: sql`excluded.latest_checkpoint`,
                   },
                 }),
@@ -460,13 +481,7 @@ export async function runMultichain({
   const tables = Object.values(schemaBuild.schema).filter(isTable);
 
   await createIndexes(database.adminQB, { statements: schemaBuild.statements });
-  if (preBuild.ordering === "isolated") {
-    for (const chain of indexingBuild.chains) {
-      await createTriggers(database.adminQB, { tables, chainId: chain.id });
-    }
-  } else {
-    await createTriggers(database.adminQB, { tables });
-  }
+  await createTriggers(database.adminQB, { tables });
   if (namespaceBuild.viewsSchema !== undefined) {
     await createViews(database.adminQB, { tables, namespaceBuild });
 
@@ -534,11 +549,7 @@ export async function runMultichain({
 
                 await Promise.all(
                   tables.map((table) =>
-                    commitBlock(tx, {
-                      table,
-                      checkpoint,
-                      ordering: preBuild.ordering,
-                    }),
+                    commitBlock(tx, { table, checkpoint, preBuild }),
                   ),
                 );
 
@@ -576,17 +587,12 @@ export async function runMultichain({
         // in the `block` case.
 
         await database.userQB.transaction(async (tx) => {
-          preBuild.ordering === "isolated"
-            ? await dropTriggers(tx, {
-                tables,
-                chainId: Number(decodeCheckpoint(event.checkpoint).chainId),
-              })
-            : await dropTriggers(tx, { tables });
+          await dropTriggers(tx, { tables });
 
           const counts = await revert(tx, {
-            tables,
             checkpoint: event.checkpoint,
-            ordering: preBuild.ordering,
+            tables,
+            preBuild,
           });
 
           for (const [index, table] of tables.entries()) {
@@ -595,57 +601,26 @@ export async function runMultichain({
               msg: `Reverted ${counts[index]} unfinalized operations from '${getTableName(table)}'`,
             });
           }
-          preBuild.ordering === "isolated"
-            ? await createTriggers(tx, {
-                tables,
-                chainId: Number(decodeCheckpoint(event.checkpoint).chainId),
-              })
-            : await createTriggers(tx, { tables });
+
+          await createTriggers(tx, { tables });
         });
 
         break;
-      case "finalize":
-        await database.userQB.transaction(async (tx) => {
-          await tx.wrap((tx) =>
-            preBuild.ordering === "isolated"
-              ? tx
-                  .update(PONDER_CHECKPOINT)
-                  .set({
-                    safeCheckpoint: event.checkpoint,
-                  })
-                  .where(
-                    eq(
-                      PONDER_CHECKPOINT.chainId,
-                      Number(decodeCheckpoint(event.checkpoint).chainId),
-                    ),
-                  )
-              : tx.update(PONDER_CHECKPOINT).set({
-                  safeCheckpoint: event.checkpoint,
-                }),
-          );
+      case "finalize": {
+        const count = await finalize(database.userQB, {
+          checkpoint: event.checkpoint,
+          tables,
+          preBuild,
+          namespaceBuild,
+        });
 
-          const counts = await finalize(tx, {
-            tables,
-            checkpoint: event.checkpoint,
-            ordering: preBuild.ordering,
-          });
-
-          for (const [index, table] of tables.entries()) {
-            common.logger.info({
-              service: "database",
-              msg: `Finalized ${counts[index]} operations from '${getTableName(table)}'`,
-            });
-          }
-
-          const decoded = decodeCheckpoint(event.checkpoint);
-
-          common.logger.debug({
-            service: "database",
-            msg: `Updated finalized checkpoint to (timestamp=${decoded.blockTimestamp} chainId=${decoded.chainId} block=${decoded.blockNumber})`,
-          });
+        common.logger.info({
+          service: "database",
+          msg: `Finalized ${count} operations.`,
         });
 
         break;
+      }
       default:
         never(event);
     }

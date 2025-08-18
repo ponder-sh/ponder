@@ -299,7 +299,7 @@ export type ReadonlyClient<
 export type Request = Pick<
   ReadContractParameters,
   "abi" | "address" | "functionName" | "args"
-> & { blockNumber: bigint; chainId: number };
+> & { blockNumber: bigint | "latest"; chainId: number };
 /**
  * Serialized RPC request for uniquely identifying a request.
  *
@@ -344,6 +344,7 @@ export type ProfilePattern = Pick<
     | { type: "constant"; value: unknown }
     | { type: "derived"; value: string[] }
   )[];
+  cache?: "immutable";
 };
 /**
  * Serialized {@link ProfilePattern} for unique identification.
@@ -404,7 +405,7 @@ export const encodeRequest = (request: Request) => ({
         args: request.args,
       }),
     },
-    toHex(request.blockNumber),
+    request.blockNumber === "latest" ? "latest" : toHex(request.blockNumber),
   ],
 });
 
@@ -510,10 +511,9 @@ export const createCachedViemClient = ({
           if (action === "readContract") {
             const recordPatternResult = recordProfilePattern({
               event: event,
-              args: args as Omit<
-                Parameters<PonderActions["readContract"]>[0],
-                "blockNumber" | "cache"
-              >,
+              args: { ...args, cache } as Parameters<
+                PonderActions["readContract"]
+              >[0],
               hints: Array.from(profile.get(event.name)!.values()),
             });
             if (recordPatternResult) {
@@ -521,10 +521,7 @@ export const createCachedViemClient = ({
             }
           } else if (action === "multicall") {
             const contracts = (
-              args as Omit<
-                Parameters<PonderActions["multicall"]>[0],
-                "blockNumber" | "cache"
-              >
+              { ...args, cache } as Parameters<PonderActions["multicall"]>[0]
             ).contracts as ContractFunctionParameters[];
 
             if (contracts.length < 10) {

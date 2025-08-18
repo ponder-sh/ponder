@@ -4,7 +4,7 @@
  * second array contains all elements that do not satisfy the
  * predicate.
  *
- * Note: It is assumed that the array is sorted.
+ * Note: It is assumed that the array monotonically goes from true to false.
  *
  * @param array - The array to partition.
  * @param predicate - The predicate to partition the array by.
@@ -22,6 +22,18 @@ export const partition = <T>(
   array: T[],
   predicate: (item: T) => boolean,
 ): [T[], T[]] => {
+  if (array.length === 0) {
+    return [[], []];
+  }
+
+  if (predicate(array[0]!) === false) {
+    return [[], array];
+  }
+
+  if (predicate(array[array.length - 1]!)) {
+    return [array, []];
+  }
+
   let low = 0;
   let high = array.length;
 

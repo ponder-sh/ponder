@@ -38,12 +38,12 @@ import type {
   FragmentAddress,
 } from "../../packages/core/src/internal/types.js";
 import { createRpc } from "../../packages/core/src/rpc/index.js";
-import * as PONDER_SYNC from "../../packages/core/src/sync-store/schema.js";
 import {
   decodeFragment,
   getFragments,
   isFragmentAddressFactory,
-} from "../../packages/core/src/sync/fragments.js";
+} from "../../packages/core/src/runtime/fragments.js";
+import * as PONDER_SYNC from "../../packages/core/src/sync-store/schema.js";
 import {
   getChunks,
   intervalUnion,
@@ -71,6 +71,8 @@ export const PORT = process.env.PORT ?? 42069;
 if (APP_ID === undefined) {
   throw new Error("App ID is required. Example: 'pnpm test [app id]'");
 }
+
+export let APP: PonderApp | undefined;
 
 // params
 
@@ -106,21 +108,31 @@ export const SIM_PARAMS = {
   ),
   REALTIME_DELAY_RATE: pick([0, 0.4, 0.8], "realtime-delay-rate"),
   UNFINALIZED_BLOCKS: pick([0, 0, 100, 100, 1000, 1100], "unfinalized-blocks"),
-  // SHUTDOWN_TIMER: pick(
-  //   [
-  //     undefined,
-  //     () => new Promise((resolve) => setTimeout(resolve, 1000)),
-  //     () => new Promise((resolve) => setTimeout(resolve, 5000)),
-  //   ],
-  //   "shutdown",
-  // ),
-  // REALTIME_SHUTDOWN_RATE: pick([0, 0.001, 0.002], "realtime-shutdown-rate"),
+  SHUTDOWN_TIMER:
+    APP_ID === "super-assessment"
+      ? undefined
+      : pick(
+          [
+            undefined,
+            () => new Promise((resolve) => setTimeout(resolve, 500)),
+            () => new Promise((resolve) => setTimeout(resolve, 1000)),
+            () => new Promise((resolve) => setTimeout(resolve, 2000)),
+            () => new Promise((resolve) => setTimeout(resolve, 5000)),
+          ],
+          "shutdown",
+        ),
+  REALTIME_SHUTDOWN_RATE:
+    APP_ID === "super-assessment"
+      ? undefined
+      : pick([0, 0.001, 0.002], "realtime-shutdown-rate"),
   ORDERING: pick(["multichain", "omnichain"], "ordering"),
   REALTIME_BLOCK_HAS_TRANSACTIONS: pick(
     [true, false],
     "realtime-block-has-transactions",
   ),
 };
+
+export let RESTART_COUNT = 0;
 
 export const DB = drizzle(DATABASE_URL!, { casing: "snake_case" });
 export const APP_DB = drizzle(`${DATABASE_URL!}/${UUID}`, {
@@ -250,6 +262,8 @@ const pwr = promiseWithResolvers<void>();
  * 4. Replace rpc with simulated rpc
  */
 const onBuild = async (app: PonderApp) => {
+  APP = app;
+
   app.preBuild.ordering = SIM_PARAMS.ORDERING;
   app.common.options.syncEventsQuerySize = 200;
 
@@ -1256,9 +1270,32 @@ const onBuild = async (app: PonderApp) => {
     const end = intervals[intervals.length - 1]![1];
 
     if (SIM_PARAMS.UNFINALIZED_BLOCKS !== 0) {
-      app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(rpc, {
-        blockNumber: end - SIM_PARAMS.UNFINALIZED_BLOCKS,
-      });
+      const { rows } = await APP_DB.execute(`
+SELECT number FROM ponder_sync.blocks WHERE timestamp > (
+  SELECT SUBSTRING(finalized_checkpoint, 1, 10)::numeric as t FROM _ponder_checkpoint WHERE chain_name = '${chain.name}'
+) AND chain_id = ${chain.id} ORDER BY timestamp ASC LIMIT 1`);
+
+      if (rows.length > 0) {
+        app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(
+          rpc,
+          {
+            blockNumber: Math.min(
+              Math.max(
+                Number(rows[0]!.number),
+                end - SIM_PARAMS.UNFINALIZED_BLOCKS,
+              ),
+              end - 10,
+            ),
+          },
+        );
+      } else {
+        app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(
+          rpc,
+          {
+            blockNumber: end - SIM_PARAMS.UNFINALIZED_BLOCKS,
+          },
+        );
+      }
     }
 
     // TODO(kyle) delete unfinalized data
@@ -1322,6 +1359,8 @@ const onBuild = async (app: PonderApp) => {
           isAccepted = await onBlock(block!);
         }
 
+        await onBlock(block!);
+
         app.common.logger.warn({
           service: "sim",
           msg: `Realtime block subscription for chain '${chain.name}' completed`,
@@ -1354,6 +1393,9 @@ let kill = await start({
 });
 
 export const restart = async () => {
+  if (RESTART_COUNT === 2) return;
+  RESTART_COUNT += 1;
+  console.log("Restarting app");
   await kill!();
   kill = await start({
     cliOptions: {
@@ -1367,10 +1409,10 @@ export const restart = async () => {
   });
 };
 
-// if (SIM_PARAMS.SHUTDOWN_TIMER) {
-//   await SIM_PARAMS.SHUTDOWN_TIMER();
-//   await restart();
-// }
+if (SIM_PARAMS.SHUTDOWN_TIMER) {
+  await SIM_PARAMS.SHUTDOWN_TIMER();
+  await restart();
+}
 
 if (SIM_PARAMS.UNFINALIZED_BLOCKS === 0) {
   while (true) {
