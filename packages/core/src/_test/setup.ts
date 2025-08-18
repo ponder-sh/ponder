@@ -192,7 +192,7 @@ export async function setupDatabaseServices(
     schema: overrides.schemaBuild?.schema ?? {},
   });
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     namespace: overrides.namespaceBuild ?? {
       schema: "public",

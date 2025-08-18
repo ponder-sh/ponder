@@ -134,7 +134,7 @@ export async function start({
     return;
   }
 
-  database = await createDatabase({
+  database = createDatabase({
     common,
     namespace: namespaceResult.result,
     preBuild,
@@ -145,6 +145,8 @@ export async function start({
     chains: indexingBuildResult.result.chains,
     finalizedBlocks: indexingBuildResult.result.finalizedBlocks,
   });
+
+  await database.migrateSync();
 
   const apiResult = await build.executeApi({
     indexingBuild: indexingBuildResult.result,

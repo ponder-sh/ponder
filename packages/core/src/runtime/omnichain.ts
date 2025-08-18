@@ -78,8 +78,6 @@ export async function runOmnichain({
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   database: Database;
 }) {
-  await database.migrateSync();
-
   runCodegen({ common });
 
   const syncStore = createSyncStore({ common, database });
