@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.7
+
+### Patch Changes
+
+- [#1976](https://github.com/ponder-sh/ponder/pull/1976) [`b501a13`](https://github.com/ponder-sh/ponder/commit/b501a134454ef8fabc4850fb45aa08ef8e3809d3) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved `ponder serve` support for readonly roles.
+
 ## 0.12.6
 
 ### Patch Changes
