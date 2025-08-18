@@ -4,7 +4,10 @@ import { Worker } from "node:worker_threads";
 import { createIndexes, createViews } from "@/database/actions.js";
 import { getPonderMetaTable } from "@/database/index.js";
 import type { Chain } from "@/internal/types.js";
-import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
+import {
+  type PromiseWithResolvers,
+  promiseWithResolvers,
+} from "@/utils/promiseWithResolvers.js";
 import { isTable, sql } from "drizzle-orm";
 import type { PonderApp } from "../commands/start.js";
 import type { CliOptions } from "../ponder.js";
@@ -24,7 +27,7 @@ export interface WorkerInfo {
   messageHandler?: (message: any) => void;
   exitHandler?: (code: number) => void;
   errorHandler?: (error: Error) => void;
-  promise: Promise<void>;
+  pwr: PromiseWithResolvers<void>;
 }
 
 export async function startIsolated(
@@ -119,7 +122,7 @@ export async function startIsolated(
         },
       }),
       retryCount: 0,
-      promise: pwr.promise,
+      pwr,
     };
 
     const messageHandler = (message: any) => {
@@ -178,8 +181,8 @@ export async function startIsolated(
   common.metrics.addListeners();
 
   Promise.allSettled(
-    Object.values(appState).map(async ({ promise, chain }) => {
-      return promise.finally(() => {
+    Object.values(appState).map(async ({ pwr, chain }) => {
+      return pwr.promise.finally(() => {
         cleanupWorker(chain.name);
       });
     }),

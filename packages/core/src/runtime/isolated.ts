@@ -30,7 +30,7 @@ import {
   getAppProgress,
 } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
-import { createShutdown } from "@/internal/shutdown.js";
+import { type Shutdown, createShutdown } from "@/internal/shutdown.js";
 import { createTelemetry } from "@/internal/telemetry.js";
 import type {
   CrashRecoveryCheckpoint,
@@ -65,26 +65,54 @@ import {
 import { getRealtimeEventsIsolated } from "./realtime.js";
 
 const isWorker = isMainThread === false;
+let isKilled = false;
 
 if (isWorker && parentPort) {
-  await runIsolated({
-    cliOptions: workerData.cliOptions,
-    crashRecoveryCheckpoint: workerData.crashRecoveryCheckpoint,
-    chainId: workerData.chainId,
-    onReady: async () => {
-      parentPort!.postMessage({ type: "ready" });
-    },
+  const shutdown = createShutdown();
+  parentPort.on("message", async (msg) => {
+    if (msg.type === "kill") {
+      if (isKilled) return;
+      isKilled = true;
+      await shutdown.kill();
+    }
   });
+
+  try {
+    await runIsolated({
+      cliOptions: workerData.cliOptions,
+      crashRecoveryCheckpoint: workerData.crashRecoveryCheckpoint,
+      shutdown,
+      chainId: workerData.chainId,
+      onReady: async () => {
+        parentPort!.postMessage({ type: "ready" });
+      },
+    });
+
+    parentPort!.postMessage({ type: "done" });
+  } catch (err) {
+    const error = err as Error;
+
+    parentPort!.postMessage({
+      type: "error",
+      error: {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      },
+    });
+  }
 }
 
 export async function runIsolated({
   cliOptions,
   crashRecoveryCheckpoint,
+  shutdown,
   chainId,
   onReady,
 }: {
   cliOptions: CliOptions;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
+  shutdown: Shutdown;
   chainId: number;
   onReady: () => Promise<void>;
 }) {
@@ -96,14 +124,6 @@ export async function runIsolated({
   });
   const metrics = new MetricsService();
   metrics.addListeners();
-  const shutdown = createShutdown();
-  if (parentPort) {
-    parentPort.on("message", (msg) => {
-      if (msg.type === "kill") {
-        shutdown.kill();
-      }
-    });
-  }
 
   const telemetry = createTelemetry({ options, logger, shutdown });
   const common = { options, logger, metrics, telemetry, shutdown };

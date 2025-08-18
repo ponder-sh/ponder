@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
 import { type Database, createDatabase } from "@/database/index.js";
+import { nonRetryableUserErrorNames } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -370,7 +371,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   process.on("uncaughtException", (error: Error) => {
     if (error.name === "ShutdownError") return;
-    if (error.name === "NonRetryableUserError") {
+    if (nonRetryableUserErrorNames.includes(error.name)) {
       buildQueue.clear();
       buildQueue.add({ status: "error", kind: "indexing", error });
     } else {
@@ -384,7 +385,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   });
   process.on("unhandledRejection", (error: Error) => {
     if (error.name === "ShutdownError") return;
-    if (error.name === "NonRetryableUserError") {
+    if (nonRetryableUserErrorNames.includes(error.name)) {
       buildQueue.clear();
       buildQueue.add({ status: "error", kind: "indexing", error });
     } else {

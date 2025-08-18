@@ -14,6 +14,8 @@ import { runCodegen } from "./codegen.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+let appState: { [chainName: string]: WorkerInfo } = {};
+
 export async function devIsolated(
   {
     common,
@@ -28,7 +30,11 @@ export async function devIsolated(
   await database.migrateSync();
   runCodegen({ common });
 
-  const appState: { [chainName: string]: WorkerInfo } = {};
+  for (const { worker } of Object.values(appState)) {
+    worker.terminate();
+  }
+
+  appState = {};
   const workerPath = join(__dirname, "..", "..", "runtime", "isolated.js");
 
   let isAllReady = false;
@@ -88,11 +94,6 @@ export async function devIsolated(
       workerInfo.worker.off("exit", workerInfo.exitHandler);
       workerInfo.exitHandler = undefined;
     }
-
-    if (workerInfo.errorHandler) {
-      workerInfo.worker.off("error", workerInfo.errorHandler);
-      workerInfo.errorHandler = undefined;
-    }
   };
 
   const setupWorker = (chain: Chain) => {
@@ -109,35 +110,43 @@ export async function devIsolated(
         },
       }),
       retryCount: 0,
-      promise: pwr.promise,
+      pwr,
     };
 
     const messageHandler = (message: any) => {
       switch (message.type) {
         case "ready": {
           workerInfo.state = "realtime";
+          break;
+        }
+        case "done": {
+          workerInfo.state = "complete";
+          pwr.resolve();
+          break;
+        }
+        case "error": {
+          workerInfo.state = "failed";
           if (workerInfo.timeout) {
             clearTimeout(workerInfo.timeout);
             workerInfo.timeout = undefined;
           }
-          break;
+          common.logger.error({
+            service: "app",
+            msg: `Chain '${chain.name}' failed with error ${message.error.message}.`,
+          });
+          throw message.error;
         }
+      }
+      if (workerInfo.timeout) {
+        clearTimeout(workerInfo.timeout);
+        workerInfo.timeout = undefined;
       }
       callback();
     };
 
     const exitHandler = async (code: number) => {
-      if (code === 0) {
-        workerInfo.state = "complete";
-        if (workerInfo.timeout) {
-          clearTimeout(workerInfo.timeout);
-          workerInfo.timeout = undefined;
-        }
-        pwr.resolve();
-        callback();
-      } else {
+      if (code !== 0) {
         workerInfo.state = "failed";
-
         const error = new Error(
           `Chain '${chain.name}' exited with code ${code}.`,
         );
@@ -146,21 +155,16 @@ export async function devIsolated(
           service: "app",
           msg: error.message,
         });
+
         pwr.reject(error);
       }
     };
 
-    const errorHandler = async (error: Error) => {
-      throw error;
-    };
-
     workerInfo.messageHandler = messageHandler;
     workerInfo.exitHandler = exitHandler;
-    workerInfo.errorHandler = errorHandler;
 
     workerInfo.worker.on("message", messageHandler);
     workerInfo.worker.on("exit", exitHandler);
-    workerInfo.worker.on("error", errorHandler);
 
     return workerInfo;
   };
@@ -172,19 +176,19 @@ export async function devIsolated(
   common.metrics.toAggregate(appState);
   common.metrics.addListeners();
 
-  common.shutdown.add(() => {
-    for (const { chain, worker } of Object.values(appState)) {
-      cleanupWorker(chain.name);
-      worker.postMessage({ type: "kill" });
+  common.shutdown.add(async () => {
+    for (const { pwr } of Object.values(appState)) {
+      pwr.resolve();
     }
   });
 
-  Promise.all(
-    Object.values(appState).map(async ({ promise }) => promise),
-  ).finally(() => {
+  Promise.allSettled(
+    Object.values(appState).map(async ({ pwr }) => pwr.promise),
+  ).finally(async () => {
+    await common.metrics.getMetrics().catch(() => {});
     for (const { chain, worker } of Object.values(appState)) {
       cleanupWorker(chain.name);
-      worker.terminate();
+      worker.postMessage({ type: "kill" });
     }
   });
 }

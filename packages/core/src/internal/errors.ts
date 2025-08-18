@@ -196,3 +196,20 @@ export class IndexingFunctionError extends NonRetryableUserError {
     Object.setPrototypeOf(this, IndexingFunctionError.prototype);
   }
 }
+
+export const nonRetryableUserErrorNames = [
+  ShutdownError,
+  BuildError,
+  MigrationError,
+  UniqueConstraintError,
+  NotNullConstraintError,
+  InvalidStoreAccessError,
+  RecordNotFoundError,
+  CheckConstraintError,
+  InvalidStoreMethodError,
+  UndefinedTableError,
+  BigIntSerializationError,
+  DelayedInsertError,
+  RawSqlError,
+  IndexingFunctionError,
+].map((err) => err.name);
