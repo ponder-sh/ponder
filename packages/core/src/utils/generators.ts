@@ -37,29 +37,6 @@ export async function* mergeAsyncGenerators<T>(
   }
 }
 
-// async function lookAhead<T, P>(
-//   generator: AsyncGenerator<T>,
-//   callback1: (
-//     tx: QB,
-//     params: T,
-//     promise: Promise<void> | undefined,
-//   ) => Promise<P>,
-//   callback2: (tx: QB, params: P) => Promise<void>,
-// ): Promise<void> {
-//   let promise1: Promise<P> | undefined;
-//   let promise2: Promise<void> | undefined;
-
-//   for await (const result of generator) {
-//     await database.userQB.transaction(async (tx) => {
-//       promise1 = callback1(tx, result, promise2);
-//       await promise2;
-//       promise2 = callback2(tx, await promise1);
-//     });
-//   }
-
-//   await promise2;
-// }
-
 /**
  * Buffers the results of an async generator.
  *

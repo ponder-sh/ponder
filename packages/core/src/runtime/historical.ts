@@ -26,6 +26,7 @@ import { estimate } from "@/utils/estimate.js";
 import { formatPercentage } from "@/utils/format.js";
 import {
   bufferAsyncGenerator,
+  createCallbackGenerator,
   mergeAsyncGenerators,
 } from "@/utils/generators.js";
 import {
@@ -36,6 +37,7 @@ import {
   intervalUnion,
 } from "@/utils/interval.js";
 import { partition } from "@/utils/partition.js";
+// import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
 import { zipperMany } from "@/utils/zipper.js";
@@ -604,7 +606,7 @@ export async function* getLocalSyncGenerator(params: {
 }) {
   const label = { chain: params.chain.name };
 
-  let cursor = hexToNumber(params.syncProgress.start.number);
+  let first = hexToNumber(params.syncProgress.start.number);
   const last =
     params.syncProgress.end === undefined
       ? params.syncProgress.finalized
@@ -755,7 +757,7 @@ export async function* getLocalSyncGenerator(params: {
       });
     }
 
-    cursor = hexToNumber(params.syncProgress.current.number) + 1;
+    first = hexToNumber(params.syncProgress.current.number) + 1;
   } else {
     params.common.logger.info({
       service: "historical",
@@ -765,16 +767,24 @@ export async function* getLocalSyncGenerator(params: {
 
   const historicalSync = createHistoricalSync(params);
 
-  while (true) {
-    // Select a range of blocks to sync bounded by `finalizedBlock`.
-    // It is important for devEx that the interval is not too large, because
-    // time spent syncing ≈ time before indexing function feedback.
+  // 1. interval generator
+  // 2. interval generator consumer (syncInterval)
+  // 3. synchronization mechanism (pwr)
 
-    const interval: Interval = [
-      Math.min(cursor, hexToNumber(last.number)),
-      Math.min(cursor + estimateRange, hexToNumber(last.number)),
-    ];
+  const { callback: intervalCallback, generator: intervalGenerator } =
+    createCallbackGenerator<Interval, void>();
 
+  intervalCallback([
+    Math.min(first, hexToNumber(last.number)),
+    Math.min(first + estimateRange, hexToNumber(last.number)),
+  ]);
+
+  // let synchronizationPwr = promiseWithResolvers<void>();
+  // synchronizationPwr.resolve();
+
+  // Note: `onComplete` does not have any effect here, because `intervalCallback` is
+  // never awaited.
+  for await (const { value: interval, onComplete } of intervalGenerator) {
     const endClock = startClock();
 
     const requiredIntervals = getRequiredSyncIntervals({
@@ -789,6 +799,17 @@ export async function* getLocalSyncGenerator(params: {
         requiredIntervals,
         syncStore,
       });
+
+      // Note: `synchronizationPwr` ...
+      // console.log(1);
+      // await synchronizationPwr.promise;
+      // console.log(2);
+
+      intervalCallback([
+        Math.min(interval[1] + 1, hexToNumber(last.number)),
+        Math.min(interval[1] + 1 + estimateRange, hexToNumber(last.number)),
+      ]);
+
       await historicalSync.sync2({
         interval,
         requiredIntervals,
@@ -807,8 +828,6 @@ export async function* getLocalSyncGenerator(params: {
       service: "sync",
       msg: `Synced ${interval[1] - interval[0] + 1} '${params.chain.name}' blocks in range [${interval[0]}, ${interval[1]}]`,
     });
-
-    cursor = interval[1] + 1;
 
     if (interval[1] === hexToNumber(last.number)) {
       params.syncProgress.current = last;
@@ -845,6 +864,10 @@ export async function* getLocalSyncGenerator(params: {
     });
 
     yield interval[1];
+
+    // synchronizationPwr.resolve();
+    // synchronizationPwr = promiseWithResolvers<void>();
+    onComplete();
 
     if (params.syncProgress.isEnd() || params.syncProgress.isFinalized()) {
       params.common.logger.info({
