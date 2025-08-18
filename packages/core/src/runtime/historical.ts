@@ -37,7 +37,7 @@ import {
   intervalUnion,
 } from "@/utils/interval.js";
 import { partition } from "@/utils/partition.js";
-// import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
 import { zipperMany } from "@/utils/zipper.js";
@@ -772,19 +772,28 @@ export async function* getLocalSyncGenerator(params: {
   // 3. synchronization mechanism (pwr)
 
   const { callback: intervalCallback, generator: intervalGenerator } =
-    createCallbackGenerator<Interval, void>();
+    createCallbackGenerator<
+      { interval: Interval; promise: Promise<void> },
+      void
+    >();
 
-  intervalCallback([
-    Math.min(first, hexToNumber(last.number)),
-    Math.min(first + estimateRange, hexToNumber(last.number)),
-  ]);
+  const pwr = promiseWithResolvers<void>();
+  pwr.resolve();
 
-  // let synchronizationPwr = promiseWithResolvers<void>();
-  // synchronizationPwr.resolve();
+  intervalCallback({
+    interval: [
+      first,
+      Math.min(first + estimateRange, hexToNumber(last.number)),
+    ],
+    promise: pwr.promise,
+  });
 
   // Note: `onComplete` does not have any effect here, because `intervalCallback` is
   // never awaited.
-  for await (const { value: interval, onComplete } of intervalGenerator) {
+  for await (const {
+    value: { interval, promise },
+    onComplete,
+  } of intervalGenerator) {
     const endClock = startClock();
 
     const requiredIntervals = getRequiredSyncIntervals({
@@ -793,6 +802,10 @@ export async function* getLocalSyncGenerator(params: {
       cachedIntervals: params.cachedIntervals,
     });
 
+    const pwr = promiseWithResolvers<void>();
+
+    // TODO(kyle) iife
+
     await params.database.userQB.transaction(async (tx) => {
       const syncStore = createSyncStore({ common: params.common, qb: tx });
       const { logs } = await historicalSync.sync1({
@@ -800,15 +813,17 @@ export async function* getLocalSyncGenerator(params: {
         syncStore,
       });
 
-      // Note: `synchronizationPwr` ...
-      // console.log(1);
-      // await synchronizationPwr.promise;
-      // console.log(2);
+      await promise;
 
-      intervalCallback([
-        Math.min(interval[1] + 1, hexToNumber(last.number)),
-        Math.min(interval[1] + 1 + estimateRange, hexToNumber(last.number)),
-      ]);
+      // TODO(kyle) skip lookahead if the interval is the last one
+
+      intervalCallback({
+        interval: [
+          Math.min(interval[1] + 1, hexToNumber(last.number)),
+          Math.min(interval[1] + 1 + estimateRange, hexToNumber(last.number)),
+        ],
+        promise: pwr.promise,
+      });
 
       await historicalSync.sync2({
         interval,
@@ -863,11 +878,10 @@ export async function* getLocalSyncGenerator(params: {
       msg: `Updated '${params.chain.name}' historical sync estimate to ${estimateRange} blocks`,
     });
 
-    yield interval[1];
-
-    // synchronizationPwr.resolve();
-    // synchronizationPwr = promiseWithResolvers<void>();
+    pwr.resolve();
     onComplete();
+
+    yield interval[1];
 
     if (params.syncProgress.isEnd() || params.syncProgress.isFinalized()) {
       params.common.logger.info({
