@@ -76,8 +76,6 @@ export async function runMultichain({
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   database: Database;
 }) {
-  await database.migrateSync();
-
   runCodegen({ common });
 
   const syncStore = createSyncStore({ common, database });
