@@ -141,7 +141,7 @@ export const getPonderCheckpointTable = (schema?: string) => {
   }));
 };
 
-export const createDatabaseInterface = async ({
+export const createDatabaseInterface = ({
   common,
   namespace,
   preBuild,
@@ -151,7 +151,7 @@ export const createDatabaseInterface = async ({
   namespace: NamespaceBuild;
   preBuild: Pick<PreBuild, "databaseConfig">;
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
-}): Promise<DatabaseInterface> => {
+}): DatabaseInterface => {
   let driver: PGliteDriver | PostgresDriver;
   let syncQB: QB<typeof PONDER_SYNC>;
   let adminQB: QB;
@@ -284,7 +284,7 @@ export const createDatabaseInterface = async ({
   };
 };
 
-export const createDatabase = async ({
+export const createDatabase = ({
   common,
   namespace,
   preBuild,
@@ -294,7 +294,7 @@ export const createDatabase = async ({
   namespace: NamespaceBuild;
   preBuild: Pick<PreBuild, "databaseConfig">;
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
-}): Promise<Database> => {
+}): Database => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
 
   const PONDER_META = getPonderMetaTable(namespace.schema);
@@ -348,11 +348,6 @@ export const createDatabase = async ({
         await (driver as PGliteDriver).instance.close();
       }
     });
-
-    await driver.instance.query(
-      `CREATE SCHEMA IF NOT EXISTS "${namespace.schema}"`,
-    );
-    await driver.instance.query(`SET search_path TO "${namespace.schema}"`);
 
     syncQB = createQB(
       drizzlePglite((driver as PGliteDriver).instance, {
@@ -430,10 +425,6 @@ export const createDatabase = async ({
       ),
       listen: undefined,
     };
-
-    await driver.admin.query(
-      `CREATE SCHEMA IF NOT EXISTS "${namespace.schema}"`,
-    );
 
     syncQB = createQB(
       drizzleNodePg(driver.sync, {
@@ -715,6 +706,16 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
 
       const tryAcquireLockAndMigrate = () =>
         adminQB.transaction({ label: "migrate" }, async (tx) => {
+          await tx.wrap((tx) =>
+            tx.execute(`CREATE SCHEMA IF NOT EXISTS "${namespace.schema}"`),
+          );
+
+          if (dialect === "pglite" || dialect === "pglite_test") {
+            await tx.wrap((tx) =>
+              tx.execute(`SET search_path TO "${namespace.schema}"`),
+            );
+          }
+
           await createAdminObjects(tx);
 
           // Note: All ponder versions are compatible with the next query (every version of the "_ponder_meta" table have the same columns)

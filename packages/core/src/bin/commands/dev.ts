@@ -234,7 +234,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         }
         indexingBuild = indexingBuildResult.result;
 
-        database = await createDatabase({
+        database = createDatabase({
           common: { ...common, shutdown: indexingShutdown },
           namespace: { schema, viewsSchema: undefined },
           preBuild,
@@ -246,6 +246,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           finalizedBlocks: indexingBuildResult.result.finalizedBlocks,
           ordering: preBuild.ordering,
         });
+
+        await database.migrateSync();
 
         const apiResult = await build.executeApi({
           indexingBuild,

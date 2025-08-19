@@ -1,5 +1,9 @@
 import { createBuild } from "@/build/index.js";
-import { createDatabase, getPonderMetaTable } from "@/database/index.js";
+import {
+  SCHEMATA,
+  createDatabase,
+  getPonderMetaTable,
+} from "@/database/index.js";
 import { sql } from "@/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
@@ -74,18 +78,35 @@ export async function createViews({
     return;
   }
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common,
     // Note: `namespace` is not used in this command
     namespace: {
-      schema: "public",
+      schema: cliOptions.schema!,
       viewsSchema: undefined,
     },
     preBuild: buildResult.result,
     schemaBuild: emptySchemaBuild,
   });
 
-  const PONDER_META = getPonderMetaTable(cliOptions.schema);
+  const schemaExists = await database.adminQB
+    .wrap((db) =>
+      db
+        .select()
+        .from(SCHEMATA)
+        .where(eq(SCHEMATA.schemaName, cliOptions.schema!)),
+    )
+    .then((res) => res.length > 0);
+
+  if (schemaExists === false) {
+    await exit({
+      reason: `Schema '${cliOptions.schema!}' does not exist.`,
+      code: 1,
+    });
+    return;
+  }
+
+  const PONDER_META = getPonderMetaTable(cliOptions.schema!);
 
   const meta = await database.adminQB.wrap((db) =>
     db
@@ -97,7 +118,7 @@ export async function createViews({
   if (meta.length === 0) {
     logger.warn({
       service: "create-views",
-      msg: `No Ponder app found in schema ${cliOptions.schema}.`,
+      msg: `No Ponder app found in schema ${cliOptions.schema!}.`,
     });
     await exit({ reason: "Create views failed", code: 0 });
     return;
@@ -115,7 +136,7 @@ export async function createViews({
 
     await database.adminQB.wrap((db) =>
       db.execute(
-        `CREATE VIEW "${cliOptions.viewsSchema}"."${table}" AS SELECT * FROM "${cliOptions.schema}"."${table}"`,
+        `CREATE VIEW "${cliOptions.viewsSchema}"."${table}" AS SELECT * FROM "${cliOptions.schema!}"."${table}"`,
       ),
     );
   }
@@ -142,7 +163,7 @@ export async function createViews({
   await database.adminQB.wrap((db) =>
     db.execute(
       sql.raw(
-        `CREATE VIEW "${cliOptions.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${cliOptions.schema}"."_ponder_meta"`,
+        `CREATE VIEW "${cliOptions.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${cliOptions.schema!}"."_ponder_meta"`,
       ),
     ),
   );
@@ -150,7 +171,7 @@ export async function createViews({
   await database.adminQB.wrap((db) =>
     db.execute(
       sql.raw(
-        `CREATE VIEW "${cliOptions.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${cliOptions.schema}"."_ponder_checkpoint"`,
+        `CREATE VIEW "${cliOptions.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${cliOptions.schema!}"."_ponder_checkpoint"`,
       ),
     ),
   );
@@ -179,7 +200,7 @@ $$;`,
       `
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
-ON "${cliOptions.schema}"._ponder_checkpoint
+ON "${cliOptions.schema!}"._ponder_checkpoint
 FOR EACH STATEMENT
 EXECUTE PROCEDURE "${cliOptions.viewsSchema}".${notification};`,
     ),

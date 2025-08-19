@@ -51,7 +51,7 @@ const indexingErrorHandler: IndexingErrorHandler = {
 };
 
 test("migrate() succeeds with empty schema", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     namespace: {
       schema: "public",
@@ -108,7 +108,7 @@ test("migrate() with empty schema creates tables and enums", async (context) => 
     }),
   );
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     namespace: {
       schema: "public",
@@ -146,7 +146,7 @@ test("migrate() with empty schema creates tables and enums", async (context) => 
 });
 
 test("migrate() throws with schema used", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     namespace: {
       schema: "public",
@@ -171,7 +171,7 @@ test("migrate() throws with schema used", async (context) => {
 
   context.common.shutdown = createShutdown();
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     namespace: {
       schema: "public",
@@ -209,7 +209,7 @@ test("migrate() throws with schema used after waiting for lock", async (context)
   context.common.options.databaseHeartbeatInterval = 250;
   context.common.options.databaseHeartbeatTimeout = 1000;
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     namespace: {
       schema: "public",
@@ -231,7 +231,7 @@ test("migrate() throws with schema used after waiting for lock", async (context)
     ordering: "multichain",
   });
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     namespace: {
       schema: "public",
@@ -262,7 +262,7 @@ test("migrate() throws with schema used after waiting for lock", async (context)
 });
 
 test("migrate() succeeds with crash recovery", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     namespace: {
       schema: "public",
@@ -288,7 +288,7 @@ test("migrate() succeeds with crash recovery", async (context) => {
 
   context.common.shutdown = createShutdown();
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     namespace: {
       schema: "public",
@@ -329,7 +329,7 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
   context.common.options.databaseHeartbeatInterval = 750;
   context.common.options.databaseHeartbeatTimeout = 500;
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     namespace: {
       schema: "public",
@@ -351,7 +351,7 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
     ordering: "multichain",
   });
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     namespace: {
       schema: "public",
@@ -378,7 +378,7 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
 });
 
 test("migrateSync()", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     namespace: {
       schema: "public",
@@ -407,7 +407,7 @@ test("migrateSync()", async (context) => {
 test.skip("migrateSync() handles concurrent migrations", async (context) => {
   if (context.databaseConfig.kind !== "postgres") return;
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     namespace: {
       schema: "public",
@@ -438,7 +438,7 @@ test.skip("migrateSync() handles concurrent migrations", async (context) => {
 });
 
 test("migrate() with crash recovery reverts rows", async (context) => {
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     namespace: {
       schema: "public",
@@ -512,7 +512,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
 
   context.common.shutdown = createShutdown();
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     namespace: {
       schema: "public",
@@ -579,7 +579,7 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
     }),
   );
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     namespace: {
       schema: "public",
@@ -627,7 +627,7 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
 
   context.common.shutdown = createShutdown();
 
-  const databaseTwo = await createDatabase({
+  const databaseTwo = createDatabase({
     common: context.common,
     namespace: {
       schema: "public",
@@ -668,7 +668,7 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
   context.common.options.databaseHeartbeatInterval = 250;
   context.common.options.databaseHeartbeatTimeout = 625;
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     namespace: {
       schema: "public",

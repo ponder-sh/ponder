@@ -58,7 +58,7 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common,
     // Note: `namespace` is not used in this command
     namespace: { schema: "public", viewsSchema: undefined },

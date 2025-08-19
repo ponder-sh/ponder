@@ -532,6 +532,25 @@ export const getLogsRetryHelper = ({
     }
   }
 
+  // erpc
+  match = sError.match(/upstream request range exceeded max allowed range/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range:
+        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
+        2n,
+    });
+
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        ranges,
+        shouldRetry: true,
+        isSuggestedRange: false,
+      } as const;
+    }
+  }
+
   // No match found
   return { shouldRetry: false } as const;
 };

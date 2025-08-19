@@ -1,12 +1,14 @@
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
-import { createDatabase } from "@/database/index.js";
+import { SCHEMATA, createDatabase } from "@/database/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
 import { createServer } from "@/server/index.js";
+import { mergeResults } from "@/utils/result.js";
+import { eq } from "drizzle-orm";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 
@@ -117,12 +119,29 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common,
     namespace: namespaceResult.result,
     preBuild,
     schemaBuild,
   });
+
+  const schemaExists = await database.adminQB
+    .wrap((db) =>
+      db
+        .select()
+        .from(SCHEMATA)
+        .where(eq(SCHEMATA.schemaName, namespaceResult.result.schema)),
+    )
+    .then((res) => res.length > 0);
+
+  if (schemaExists === false) {
+    await exit({
+      reason: `Schema '${namespaceResult.result.schema}' does not exist.`,
+      code: 1,
+    });
+    return;
+  }
 
   const apiResult = await build.executeApi({
     indexingBuild: indexingBuildResult.result,

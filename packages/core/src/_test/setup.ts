@@ -195,7 +195,7 @@ export async function setupDatabaseServices(
     ordering: overrides.ordering ?? "multichain",
   });
 
-  const database = await createDatabase({
+  const database = createDatabase({
     common: context.common,
     namespace: overrides.namespaceBuild ?? {
       schema: "public",
