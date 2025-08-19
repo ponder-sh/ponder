@@ -100,7 +100,7 @@ export default createConfig({
 
 | field        |             type                                       |                              |
 | :----------- | :----------------------------------------------------: | :--------------------------- |
-| **ordering** | `"omnichain" \| "multichain" \| "multichain_isolated"` | **Default:** `"multichain"`. |
+| **ordering** | `"omnichain" \| "multichain" \| "isolated"` | **Default:** `"multichain"`. |
 
 #### Guarantees
 
@@ -108,10 +108,10 @@ Each ordering strategy offers different guarantees for how data from different c
 
 - `"omnichain"` combines all chains into a single, unified stream of events.
 - `"multichain"` treats each chain independently.
-- `"multichain_isolated"` is a subset of `"multichain"` with stricter rules on cross-chain database access. **`"multichain_isolated"` uses a thread per chain and allows one chain to fail without affecting the others.**
+- `"isolated"` is a subset of `"multichain"` with stricter rules on cross-chain database access. **`"isolated"` uses a thread per chain and allows one chain to fail without affecting the others.**
 
 :::note
-  **Isolated ordering (experimental):** When using `ordering: "multichain_isolated"`, all tables in your schema must include a `chainId` column that is part of the primary key. This ensures complete isolation between chains and prevents any cross-chain data access.
+  **Isolated ordering (experimental):** When using `ordering: "isolated"`, all tables in your schema must include a `chainId` column that is part of the primary key. This ensures complete isolation between chains and prevents any cross-chain data access.
 :::
 
 |                                      | Omnichain                                                                   | Multichain (default)                                       | Multichain isolated (experimental)                          |
@@ -122,6 +122,7 @@ Each ordering strategy offers different guarantees for how data from different c
 | Indexing logic constraints           | None                                                                        | Must avoid cross-chain writes **or** use commutative logic | Cross-chain reads and writes are not possible               |
 | Fault tolerance                      | Error if any chain fails                                                    | Error if any chain fails                                   | Error on one chain doesn't affect the others                |
 | Use cases                            | Bridges, cross-chain contract calls, global constraints                     | Same protocol deployed to multiple chains                  | Same protocol deployed to multiple chains                   |
+
 
 ### `chains`
 
