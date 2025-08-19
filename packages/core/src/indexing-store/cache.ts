@@ -25,6 +25,7 @@ import {
   getTableName,
   isTable,
   or,
+  sql,
 } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import copy from "pg-copy-streams";
@@ -881,7 +882,9 @@ export const createIndexingCache = ({
                         Object.entries(getTableColumns(table)).map(
                           ([columnName, column]) => [
                             columnName,
-                            `excluded."${getColumnCasing(column, "snake_case")}"`,
+                            sql.raw(
+                              `excluded."${getColumnCasing(column, "snake_case")}"`,
+                            ),
                           ],
                         ),
                       ),
