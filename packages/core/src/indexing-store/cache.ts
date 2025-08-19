@@ -5,7 +5,11 @@ import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import { addErrorMeta, toErrorMeta } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
-import { CopyFlushError, DelayedInsertError } from "@/internal/errors.js";
+import {
+  CopyFlushError,
+  DelayedInsertError,
+  RetryableError,
+} from "@/internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
   Event,
@@ -80,6 +84,7 @@ export type IndexingCache = {
 
 const SAMPLING_RATE = 10;
 const PREDICTION_THRESHOLD = 0.25;
+const LOW_BATCH_THRESHOLD = 20;
 
 /**
  * Database row.
@@ -317,6 +322,8 @@ export const createIndexingCache = ({
   /** Profiling data about access patterns for each event. */
   const profile: Profile = new Map();
 
+  let isFlushRetry = false;
+
   const tables = Object.values(schema).filter(isTable);
 
   for (const table of tables) {
@@ -490,68 +497,84 @@ export const createIndexingCache = ({
     async flush({ tableNames } = {}) {
       const copy = getCopyHelper(qb);
 
-      for (const table of cache.keys()) {
-        const shouldRecordBytes = cache.get(table)!.isCacheComplete;
-        if (
-          tableNames !== undefined &&
-          tableNames.has(getTableName(table)) === false
-        ) {
-          continue;
-        }
+      // Note `isFlushRetry` is true when the previous flush failed. When `isFlushRetry` is false, this
+      // function takes an optimized fast path, with support for small batch sizes.
 
-        const tableCache = cache.get(table)!;
+      if (isFlushRetry) {
+        for (const table of cache.keys()) {
+          const shouldRecordBytes = cache.get(table)!.isCacheComplete;
+          if (
+            tableNames !== undefined &&
+            tableNames.has(getTableName(table)) === false
+          ) {
+            continue;
+          }
 
-        const insertValues = Array.from(insertBuffer.get(table)!.values());
-        const updateValues = Array.from(updateBuffer.get(table)!.values());
+          const tableCache = cache.get(table)!;
 
-        if (insertValues.length > 0) {
-          const endClock = startClock();
+          const insertValues = Array.from(insertBuffer.get(table)!.values());
+          const updateValues = Array.from(updateBuffer.get(table)!.values());
 
-          await qb.wrap((db) => db.execute("SAVEPOINT flush"));
+          if (insertValues.length > 0) {
+            const endClock = startClock();
 
-          try {
-            const text = getCopyText(
-              table,
-              insertValues.map(({ row }) => row),
-            );
+            await qb.wrap((db) => db.execute("SAVEPOINT flush"));
 
-            await new Promise(setImmediate);
-
-            await copy(table, text);
-          } catch (_error) {
-            let error = _error as Error;
-            const result = await recoverBatchError(
-              insertValues,
-              async (values) => {
-                await qb.wrap((db) => db.execute("ROLLBACK to flush"));
-                const text = getCopyText(
-                  table,
-                  values.map(({ row }) => row),
-                );
-                await copy(table, text);
-
-                await qb.wrap((db) => db.execute("SAVEPOINT flush"));
-              },
-            );
-
-            if (result.status === "error") {
-              error = new DelayedInsertError(result.error.message);
-              error.stack = undefined;
-
-              addErrorMeta(
-                error,
-                `db.insert arguments:\n${prettyPrint(result.value.row)}`,
+            try {
+              const text = getCopyText(
+                table,
+                insertValues.map(({ row }) => row),
               );
 
-              if (result.value.metadata.event) {
-                addErrorMeta(error, toErrorMeta(result.value.metadata.event));
+              await new Promise(setImmediate);
 
-                common.logger.warn({
-                  service: "indexing",
-                  msg: `Error inserting into '${getTableName(table)}' in '${result.value.metadata.event.name}'`,
+              await copy(table, text);
+            } catch (_error) {
+              let error = _error as Error;
+              const result = await recoverBatchError(
+                insertValues,
+                async (values) => {
+                  await qb.wrap((db) => db.execute("ROLLBACK to flush"));
+                  const text = getCopyText(
+                    table,
+                    values.map(({ row }) => row),
+                  );
+                  await copy(table, text);
+
+                  await qb.wrap((db) => db.execute("SAVEPOINT flush"));
+                },
+              );
+
+              if (result.status === "error") {
+                error = new DelayedInsertError(result.error.message);
+                error.stack = undefined;
+
+                addErrorMeta(
                   error,
-                });
+                  `db.insert arguments:\n${prettyPrint(result.value.row)}`,
+                );
+
+                if (result.value.metadata.event) {
+                  addErrorMeta(error, toErrorMeta(result.value.metadata.event));
+
+                  common.logger.warn({
+                    service: "indexing",
+                    msg: `Error inserting into '${getTableName(table)}' in '${result.value.metadata.event.name}'`,
+                    error,
+                  });
+                } else {
+                  common.logger.warn({
+                    service: "indexing",
+                    msg: `Error inserting into '${getTableName(table)}'`,
+                    error,
+                  });
+                }
+
+                // @ts-ignore remove meta from error
+                error.meta = undefined;
               } else {
+                error.stack = undefined;
+
                 common.logger.warn({
                   service: "indexing",
                   msg: `Error inserting into '${getTableName(table)}'`,
@@ -559,20 +582,9 @@ export const createIndexingCache = ({
                 });
               }
 
-              // @ts-ignore remove meta from error
-              error.meta = undefined;
-            } else {
-              error.stack = undefined;
-
-              common.logger.warn({
-                service: "indexing",
-                msg: `Error inserting into '${getTableName(table)}'`,
-                error,
-              });
+              throw error;
             }
 
-            throw error;
-          } finally {
             common.metrics.ponder_indexing_cache_query_duration.observe(
               {
                 table: getTableName(table),
@@ -580,54 +592,42 @@ export const createIndexingCache = ({
               },
               endClock(),
             );
-          }
 
-          let bytes = 0;
-          for (const [key, entry] of insertBuffer.get(table)!) {
-            if (shouldRecordBytes && tableCache.cache.has(key) === false) {
-              bytes += getBytes(entry.row);
+            let bytes = 0;
+            for (const [key, entry] of insertBuffer.get(table)!) {
+              if (shouldRecordBytes && tableCache.cache.has(key) === false) {
+                bytes += getBytes(entry.row);
+              }
+              tableCache.cache.set(key, entry.row);
             }
-            tableCache.cache.set(key, entry.row);
+            tableCache.bytes += bytes;
+            insertBuffer.get(table)!.clear();
+
+            common.logger.debug({
+              service: "database",
+              msg: `Inserted ${insertValues.length} '${getTableName(table)}' rows`,
+            });
+
+            await new Promise(setImmediate);
           }
-          tableCache.bytes += bytes;
-          insertBuffer.get(table)!.clear();
 
-          common.logger.debug({
-            service: "database",
-            msg: `Inserted ${insertValues.length} '${getTableName(
-              table,
-            )}' rows`,
-          });
+          if (updateValues.length > 0) {
+            // Steps for flushing "update" entries:
+            // 1. Create temp table
+            // 2. Copy into temp table
+            // 3. Update target table with data from temp
 
-          await new Promise(setImmediate);
-        }
+            const primaryKeys = getPrimaryKeyColumns(table);
 
-        if (updateValues.length > 0) {
-          // Steps for flushing "update" entries:
-          // 1. Create temp table
-          // 2. Copy into temp table
-          // 3. Update target table with data from temp
-
-          const primaryKeys = getPrimaryKeyColumns(table);
-          const set = Object.values(getTableColumns(table))
-            .map(
-              (column) =>
-                `"${getColumnCasing(
-                  column,
-                  "snake_case",
-                )}" = source."${getColumnCasing(column, "snake_case")}"`,
-            )
-            .join(",\n");
-
-          const createTempTableQuery = `
-              CREATE TEMP TABLE IF NOT EXISTS "${getTableName(table)}" 
+            const createTempTableQuery = `
+              CREATE TEMP TABLE IF NOT EXISTS "${getTableName(table)}"
               ON COMMIT DROP
               AS SELECT * FROM "${
                 getTableConfig(table).schema ?? "public"
               }"."${getTableName(table)}"
               WITH NO DATA;
             `;
-          const updateQuery = ` 
+            const updateQuery = `
               WITH source AS (
                 DELETE FROM "${getTableName(table)}"
                 RETURNING *
@@ -635,61 +635,81 @@ export const createIndexingCache = ({
               UPDATE "${
                 getTableConfig(table).schema ?? "public"
               }"."${getTableName(table)}" as target
-              SET ${set}
+              SET ${Object.values(getTableColumns(table))
+                .map(
+                  (column) =>
+                    `"${getColumnCasing(
+                      column,
+                      "snake_case",
+                    )}" = source."${getColumnCasing(column, "snake_case")}"`,
+                )
+                .join(",\n")}
               FROM source
               WHERE ${primaryKeys
                 .map(({ sql }) => `target."${sql}" = source."${sql}"`)
                 .join(" AND ")};
             `;
 
-          const endClock = startClock();
+            const endClock = startClock();
 
-          await qb.wrap((db) => db.execute(createTempTableQuery));
-          await qb.wrap((db) => db.execute("SAVEPOINT flush"));
+            await qb.wrap((db) => db.execute(createTempTableQuery));
+            await qb.wrap((db) => db.execute("SAVEPOINT flush"));
 
-          try {
-            const text = getCopyText(
-              table,
-              updateValues.map(({ row }) => row),
-            );
-
-            await new Promise(setImmediate);
-
-            await copy(table, text, false);
-          } catch (_error) {
-            let error = _error as Error;
-            const result = await recoverBatchError(
-              updateValues,
-              async (values) => {
-                await qb.wrap((db) => db.execute("ROLLBACK to flush"));
-                const text = getCopyText(
-                  table,
-                  values.map(({ row }) => row),
-                );
-                await copy(table, text, false);
-
-                await qb.wrap((db) => db.execute("SAVEPOINT flush"));
-              },
-            );
-
-            if (result.status === "error") {
-              error = new DelayedInsertError(result.error.message);
-              error.stack = undefined;
-
-              addErrorMeta(
-                error,
-                `db.update arguments:\n${prettyPrint(result.value.row)}`,
+            try {
+              const text = getCopyText(
+                table,
+                updateValues.map(({ row }) => row),
               );
 
-              if (result.value.metadata.event) {
-                addErrorMeta(error, toErrorMeta(result.value.metadata.event));
+              await new Promise(setImmediate);
 
-                common.logger.warn({
-                  service: "indexing",
-                  msg: `Error updating '${getTableName(table)}' in '${result.value.metadata.event.name}'`,
+              await copy(table, text, false);
+            } catch (_error) {
+              let error = _error as Error;
+              const result = await recoverBatchError(
+                updateValues,
+                async (values) => {
+                  await qb.wrap((db) => db.execute("ROLLBACK to flush"));
+                  const text = getCopyText(
+                    table,
+                    values.map(({ row }) => row),
+                  );
+                  await copy(table, text, false);
+
+                  await qb.wrap((db) => db.execute("SAVEPOINT flush"));
+                },
+              );
+
+              if (result.status === "error") {
+                error = new DelayedInsertError(result.error.message);
+                error.stack = undefined;
+
+                addErrorMeta(
                   error,
-                });
+                  `db.update arguments:\n${prettyPrint(result.value.row)}`,
+                );
+
+                if (result.value.metadata.event) {
+                  addErrorMeta(error, toErrorMeta(result.value.metadata.event));
+
+                  common.logger.warn({
+                    service: "indexing",
+                    msg: `Error updating '${getTableName(table)}' in '${result.value.metadata.event.name}'`,
+                    error,
+                  });
+                } else {
+                  common.logger.warn({
+                    service: "indexing",
+                    msg: `Error updating '${getTableName(table)}'`,
+                    error,
+                  });
+                }
+
+                // @ts-ignore remove meta from error
+                error.meta = undefined;
               } else {
+                error.stack = undefined;
+
                 common.logger.warn({
                   service: "indexing",
                   msg: `Error updating '${getTableName(table)}'`,
@@ -697,20 +717,11 @@ export const createIndexingCache = ({
                 });
               }
 
-              // @ts-ignore remove meta from error
-              error.meta = undefined;
-            } else {
-              error.stack = undefined;
-
-              common.logger.warn({
-                service: "indexing",
-                msg: `Error updating '${getTableName(table)}'`,
-                error,
-              });
+              throw error;
             }
 
-            throw error;
-          } finally {
+            await qb.wrap((db) => db.execute(updateQuery));
+
             common.metrics.ponder_indexing_cache_query_duration.observe(
               {
                 table: getTableName(table),
@@ -718,40 +729,198 @@ export const createIndexingCache = ({
               },
               endClock(),
             );
-          }
 
-          await qb.wrap((db) => db.execute(updateQuery));
-
-          common.metrics.ponder_indexing_cache_query_duration.observe(
-            {
-              table: getTableName(table),
-              method: "flush",
-            },
-            endClock(),
-          );
-
-          let bytes = 0;
-          for (const [key, entry] of updateBuffer.get(table)!) {
-            if (shouldRecordBytes && tableCache.cache.has(key) === false) {
-              bytes += getBytes(entry.row);
+            let bytes = 0;
+            for (const [key, entry] of updateBuffer.get(table)!) {
+              if (shouldRecordBytes && tableCache.cache.has(key) === false) {
+                bytes += getBytes(entry.row);
+              }
+              tableCache.cache.set(key, entry.row);
             }
-            tableCache.cache.set(key, entry.row);
+            tableCache.bytes += bytes;
+            updateBuffer.get(table)!.clear();
+
+            common.logger.debug({
+              service: "database",
+              msg: `Updated ${updateValues.length} '${getTableName(table)}' rows`,
+            });
+
+            await new Promise(setImmediate);
           }
-          tableCache.bytes += bytes;
-          updateBuffer.get(table)!.clear();
 
-          common.logger.debug({
-            service: "database",
-            msg: `Updated ${updateValues.length} '${getTableName(table)}' rows`,
-          });
-
-          await new Promise(setImmediate);
+          if (insertValues.length > 0 || updateValues.length > 0) {
+            await qb.wrap((db) => db.execute("RELEASE flush"));
+          }
         }
+      } else {
+        isFlushRetry = true;
 
-        if (insertValues.length > 0 || updateValues.length > 0) {
-          await qb.wrap((db) => db.execute("RELEASE flush"));
-        }
+        await Promise.all(
+          Array.from(cache.keys()).map(async (table) => {
+            const shouldRecordBytes = cache.get(table)!.isCacheComplete;
+            if (
+              tableNames !== undefined &&
+              tableNames.has(getTableName(table)) === false
+            ) {
+              return;
+            }
+
+            const tableCache = cache.get(table)!;
+
+            const insertValues = Array.from(insertBuffer.get(table)!.values());
+            const updateValues = Array.from(updateBuffer.get(table)!.values());
+
+            if (insertValues.length > 0) {
+              const endClock = startClock();
+
+              if (insertValues.length > LOW_BATCH_THRESHOLD) {
+                const text = getCopyText(
+                  table,
+                  insertValues.map(({ row }) => row),
+                );
+
+                await new Promise(setImmediate);
+
+                await copy(table, text);
+              } else {
+                await qb.wrap((db) =>
+                  db.insert(table).values(insertValues.map(({ row }) => row)),
+                );
+              }
+
+              common.metrics.ponder_indexing_cache_query_duration.observe(
+                {
+                  table: getTableName(table),
+                  method: "flush",
+                },
+                endClock(),
+              );
+
+              let bytes = 0;
+              for (const [key, entry] of insertBuffer.get(table)!) {
+                if (shouldRecordBytes && tableCache.cache.has(key) === false) {
+                  bytes += getBytes(entry.row);
+                }
+                tableCache.cache.set(key, entry.row);
+              }
+              tableCache.bytes += bytes;
+              insertBuffer.get(table)!.clear();
+
+              common.logger.debug({
+                service: "database",
+                msg: `Inserted ${insertValues.length} '${getTableName(table)}' rows`,
+              });
+
+              await new Promise(setImmediate);
+            }
+
+            if (updateValues.length > 0) {
+              const primaryKeys = getPrimaryKeyColumns(table);
+
+              const endClock = startClock();
+
+              if (updateValues.length > LOW_BATCH_THRESHOLD) {
+                // Steps for flushing "update" entries:
+                // 1. Create temp table
+                // 2. Copy into temp table
+                // 3. Update target table with data from temp
+
+                const createTempTableQuery = `
+                CREATE TEMP TABLE IF NOT EXISTS "${getTableName(table)}" 
+                ON COMMIT DROP
+                AS SELECT * FROM "${
+                  getTableConfig(table).schema ?? "public"
+                }"."${getTableName(table)}"
+                WITH NO DATA;
+              `;
+
+                const updateQuery = ` 
+                WITH source AS (
+                  DELETE FROM "${getTableName(table)}"
+                  RETURNING *
+                )
+                UPDATE "${
+                  getTableConfig(table).schema ?? "public"
+                }"."${getTableName(table)}" as target
+                SET ${Object.values(getTableColumns(table))
+                  .map(
+                    (column) =>
+                      `"${getColumnCasing(
+                        column,
+                        "snake_case",
+                      )}" = source."${getColumnCasing(column, "snake_case")}"`,
+                  )
+                  .join(",\n")}
+                FROM source
+                WHERE ${primaryKeys
+                  .map(({ sql }) => `target."${sql}" = source."${sql}"`)
+                  .join(" AND ")};
+              `;
+
+                await qb.wrap((db) => db.execute(createTempTableQuery));
+
+                const text = getCopyText(
+                  table,
+                  updateValues.map(({ row }) => row),
+                );
+
+                await new Promise(setImmediate);
+
+                await copy(table, text, false);
+
+                await qb.wrap((db) => db.execute(updateQuery));
+              } else {
+                await qb.wrap((db) =>
+                  db
+                    .insert(table)
+                    .values(updateValues.map(({ row }) => row))
+                    .onConflictDoUpdate({
+                      // @ts-ignore
+                      target: primaryKeys.map(({ js }) => table[js]!),
+                      set: Object.fromEntries(
+                        Object.entries(getTableColumns(table)).map(
+                          ([columnName, column]) => [
+                            columnName,
+                            `excluded."${getColumnCasing(column, "snake_case")}"`,
+                          ],
+                        ),
+                      ),
+                    }),
+                );
+              }
+
+              common.metrics.ponder_indexing_cache_query_duration.observe(
+                {
+                  table: getTableName(table),
+                  method: "flush",
+                },
+                endClock(),
+              );
+
+              let bytes = 0;
+              for (const [key, entry] of updateBuffer.get(table)!) {
+                if (shouldRecordBytes && tableCache.cache.has(key) === false) {
+                  bytes += getBytes(entry.row);
+                }
+                tableCache.cache.set(key, entry.row);
+              }
+              tableCache.bytes += bytes;
+              updateBuffer.get(table)!.clear();
+
+              common.logger.debug({
+                service: "database",
+                msg: `Updated ${updateValues.length} '${getTableName(table)}' rows`,
+              });
+
+              await new Promise(setImmediate);
+            }
+          }),
+        ).catch((error) => {
+          throw new RetryableError(error.message);
+        });
       }
+
+      isFlushRetry = false;
     },
     async prefetch({ events }) {
       let totalBytes = 0;

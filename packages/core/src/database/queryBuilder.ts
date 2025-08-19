@@ -1,4 +1,5 @@
 import type { Common } from "@/internal/common.js";
+import { BaseError } from "@/internal/errors.js";
 import {
   BigIntSerializationError,
   CheckConstraintError,
@@ -7,7 +8,6 @@ import {
   NotNullConstraintError,
   ShutdownError,
   UniqueConstraintError,
-  getBaseError,
 } from "@/internal/errors.js";
 import type { Schema } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
@@ -79,8 +79,12 @@ export type QB<
     | { $dialect: "postgres"; $client: pg.Pool | pg.PoolClient }
   );
 
-export const parseDbError = (e: any): Error => {
-  let error = getBaseError(e);
+export const parseDbError = (error: any): Error => {
+  const stack = error.stack;
+
+  if (error instanceof BaseError) {
+    return error;
+  }
 
   if (error?.message?.includes("violates not-null constraint")) {
     error = new NotNullConstraintError(error.message);
@@ -113,7 +117,7 @@ export const parseDbError = (e: any): Error => {
     error = new DbConnectionError(error.message);
   }
 
-  error.stack = e.stack;
+  error.stack = stack;
 
   return error;
 };
@@ -319,10 +323,10 @@ export const createQB = <
               };
 
               const result = await callback(tx);
-              // @ts-ignore
-              tx.wrap = undefined;
-              // @ts-ignore
-              tx.transaction = undefined;
+              // // @ts-ignore
+              // tx.wrap = undefined;
+              // // @ts-ignore
+              // tx.transaction = undefined;
               return result;
             }, config),
           { isTransaction: true, isTransactionStatement: false },
@@ -387,10 +391,10 @@ export const createQB = <
               };
 
               const result = await callback(tx);
-              // @ts-ignore
-              tx.wrap = undefined;
-              // @ts-ignore
-              tx.transaction = undefined;
+              // // @ts-ignore
+              // tx.wrap = undefined;
+              // // @ts-ignore
+              // tx.transaction = undefined;
               return result;
             }, config),
           { label, isTransaction: true, isTransactionStatement: false },
