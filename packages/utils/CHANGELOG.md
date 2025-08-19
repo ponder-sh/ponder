@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.2.11
+
+### Patch Changes
+
+- [#1978](https://github.com/ponder-sh/ponder/pull/1978) [`5e6f338`](https://github.com/ponder-sh/ponder/commit/5e6f3380a6a78b800dd4c31dd3e3ddc6cc772eab) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for erpc eth_getLogs retry ranges.
+
 ## 0.2.10
 
 ### Patch Changes
