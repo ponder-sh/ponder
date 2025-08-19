@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.9
+
+### Patch Changes
+
+- [#1981](https://github.com/ponder-sh/ponder/pull/1981) [`54ae1d5`](https://github.com/ponder-sh/ponder/commit/54ae1d50f64440d280cd9e84914d6609f50d3a7c) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug causing the error `TypeError: qb.wrap is not a function`.
+
 ## 0.12.8
 
 ### Patch Changes
