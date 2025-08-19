@@ -62,7 +62,7 @@ export const checkTableAccess = (
   chainId?: number,
 ) => {
   if (chainId === undefined) return;
-  if ("chainId" in key && key.chainId === chainId) return;
+  if ("chainId" in key && String(key.chainId) === String(chainId)) return;
   throw new InvalidStoreAccessError(
     "chainId" in key
       ? `db.${method}() on ${getTableConfig(table).name} is accessing a row with chainId different from event's chainId.`
