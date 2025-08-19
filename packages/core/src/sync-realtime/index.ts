@@ -849,7 +849,15 @@ export const createRealtimeSync = (
         for (const pendingBlock of pendingBlocks) {
           yield* reconcileBlock(pendingBlock);
         }
-        yield* reconcileBlock(blockWithEventData, blockCallback);
+
+        if (
+          hexToNumber(block.number) - hexToNumber(latestBlock.number) >
+          MAX_QUEUED_BLOCKS
+        ) {
+          blockCallback?.(false);
+        } else {
+          yield* reconcileBlock(blockWithEventData, blockCallback);
+        }
         return;
       }
 
