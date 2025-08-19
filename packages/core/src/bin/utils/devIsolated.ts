@@ -27,7 +27,6 @@ export async function devIsolated(
   }: Omit<PonderApp, "apiBuild">,
   cliOptions: CliOptions,
 ) {
-  await database.migrateSync();
   runCodegen({ common });
 
   for (const { worker } of Object.values(appState)) {

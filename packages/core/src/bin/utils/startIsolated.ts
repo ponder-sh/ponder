@@ -40,7 +40,6 @@ export async function startIsolated(
   }: PonderApp,
   cliOptions: CliOptions,
 ) {
-  await database.migrateSync();
   runCodegen({ common });
 
   const appState: { [chainName: string]: WorkerInfo } = {};

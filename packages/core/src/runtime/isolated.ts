@@ -194,7 +194,7 @@ export async function runIsolated({
   options.indexingCacheMaxBytes =
     options.indexingCacheMaxBytes / indexingBuild.chains.length;
 
-  const database = await createDatabaseInterface({
+  const database = createDatabaseInterface({
     common,
     namespace: namespaceBuild,
     preBuild,
