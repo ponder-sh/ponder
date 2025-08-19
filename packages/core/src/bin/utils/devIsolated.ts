@@ -80,11 +80,6 @@ export async function devIsolated(
     const workerInfo = appState[chainName];
     if (!workerInfo) return;
 
-    if (workerInfo.timeout) {
-      clearTimeout(workerInfo.timeout);
-      workerInfo.timeout = undefined;
-    }
-
     if (workerInfo.messageHandler) {
       workerInfo.worker.off("message", workerInfo.messageHandler);
       workerInfo.messageHandler = undefined;
@@ -117,38 +112,42 @@ export async function devIsolated(
       switch (message.type) {
         case "ready": {
           workerInfo.state = "realtime";
+          callback();
+          common.logger.info({
+            service: "app",
+            msg: `Completed '${chain.name}' historical indexing.`,
+          });
           break;
         }
         case "done": {
           workerInfo.state = "complete";
+          callback();
+          common.logger.info({
+            service: "app",
+            msg: `Completed '${chain.name}' indexing.`,
+          });
           pwr.resolve();
           break;
         }
         case "error": {
           workerInfo.state = "failed";
-          if (workerInfo.timeout) {
-            clearTimeout(workerInfo.timeout);
-            workerInfo.timeout = undefined;
-          }
+          callback();
           common.logger.error({
             service: "app",
-            msg: `Chain '${chain.name}' failed with error ${message.error.message}.`,
+            msg: `Chain '${chain.name}' failed with error '${message.error.message}'.`,
           });
           throw message.error;
         }
       }
-      if (workerInfo.timeout) {
-        clearTimeout(workerInfo.timeout);
-        workerInfo.timeout = undefined;
-      }
-      callback();
     };
 
     const exitHandler = async (code: number) => {
       if (code !== 0) {
+        const prevState = workerInfo.state;
         workerInfo.state = "failed";
+        callback();
         const error = new Error(
-          `Chain '${chain.name}' exited with code ${code}.`,
+          `Failed '${chain.name}' ${prevState} indexing with exit code ${code}.`,
         );
 
         common.logger.error({
@@ -185,7 +184,6 @@ export async function devIsolated(
   Promise.allSettled(
     Object.values(appState).map(async ({ pwr }) => pwr.promise),
   ).finally(async () => {
-    await common.metrics.getMetrics().catch(() => {});
     for (const { chain, worker } of Object.values(appState)) {
       cleanupWorker(chain.name);
       worker.postMessage({ type: "kill" });

@@ -23,7 +23,6 @@ export interface WorkerInfo {
   chain: Chain;
   worker: Worker;
   retryCount: number;
-  timeout?: NodeJS.Timeout;
   messageHandler?: (message: any) => void;
   exitHandler?: (code: number) => void;
   errorHandler?: (error: Error) => void;
@@ -90,11 +89,6 @@ export async function startIsolated(
     const workerInfo = appState[chainName];
     if (!workerInfo) return;
 
-    if (workerInfo.timeout) {
-      clearTimeout(workerInfo.timeout);
-      workerInfo.timeout = undefined;
-    }
-
     if (workerInfo.messageHandler) {
       workerInfo.worker.off("message", workerInfo.messageHandler);
       workerInfo.messageHandler = undefined;
@@ -104,8 +98,6 @@ export async function startIsolated(
       workerInfo.worker.off("exit", workerInfo.exitHandler);
       workerInfo.exitHandler = undefined;
     }
-
-    workerInfo.worker.terminate();
   };
 
   const setupWorker = (chain: Chain) => {
@@ -129,39 +121,51 @@ export async function startIsolated(
       switch (message.type) {
         case "ready": {
           workerInfo.state = "realtime";
-          if (workerInfo.timeout) {
-            clearTimeout(workerInfo.timeout);
-            workerInfo.timeout = undefined;
-          }
+          callback();
+          common.logger.info({
+            service: "app",
+            msg: `Completed '${chain.name}' historical indexing.`,
+          });
           break;
         }
+        case "done": {
+          workerInfo.state = "complete";
+          callback();
+          common.logger.info({
+            service: "app",
+            msg: `Completed '${chain.name}' indexing.`,
+          });
+          pwr.resolve();
+          break;
+        }
+        case "error": {
+          const prevState = workerInfo.state;
+          workerInfo.state = "failed";
+          callback();
+          common.logger.error({
+            service: "app",
+            msg: `Failed '${chain.name}' ${prevState} indexing.`,
+            error: message.error,
+          });
+          pwr.reject(message.error);
+        }
       }
-      callback();
     };
 
     const exitHandler = async (code: number) => {
-      if (code === 0) {
-        workerInfo.state = "complete";
-        if (workerInfo.timeout) {
-          clearTimeout(workerInfo.timeout);
-          workerInfo.timeout = undefined;
-        }
-        pwr.resolve();
-      } else {
+      if (code !== 0) {
+        const prevState = workerInfo.state;
         workerInfo.state = "failed";
-
+        callback();
         const error = new Error(
-          `Chain '${chain.name}' exited with code ${code}.`,
+          `Failed '${chain.name}' ${prevState} indexing with exit code ${code}.`,
         );
-
         common.logger.error({
           service: "app",
           msg: error.message,
         });
         pwr.reject(error);
       }
-
-      callback();
     };
 
     workerInfo.messageHandler = messageHandler;
@@ -180,10 +184,17 @@ export async function startIsolated(
   common.metrics.toAggregate(appState);
   common.metrics.addListeners();
 
+  common.shutdown.add(async () => {
+    for (const { pwr } of Object.values(appState)) {
+      pwr.resolve();
+    }
+  });
+
   Promise.allSettled(
-    Object.values(appState).map(async ({ pwr, chain }) => {
+    Object.values(appState).map(async ({ pwr, chain, worker }) => {
       return pwr.promise.finally(() => {
         cleanupWorker(chain.name);
+        worker.postMessage({ type: "kill" });
       });
     }),
   );

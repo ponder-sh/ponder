@@ -69,6 +69,9 @@ let isKilled = false;
 
 if (isWorker && parentPort) {
   const shutdown = createShutdown();
+  const metrics = new MetricsService();
+  metrics.addListeners();
+
   parentPort.on("message", async (msg) => {
     if (msg.type === "kill") {
       if (isKilled) return;
@@ -82,6 +85,7 @@ if (isWorker && parentPort) {
       cliOptions: workerData.cliOptions,
       crashRecoveryCheckpoint: workerData.crashRecoveryCheckpoint,
       shutdown,
+      metrics,
       chainId: workerData.chainId,
       onReady: async () => {
         parentPort!.postMessage({ type: "ready" });
@@ -107,12 +111,14 @@ export async function runIsolated({
   cliOptions,
   crashRecoveryCheckpoint,
   shutdown,
+  metrics,
   chainId,
   onReady,
 }: {
   cliOptions: CliOptions;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   shutdown: Shutdown;
+  metrics: MetricsService;
   chainId: number;
   onReady: () => Promise<void>;
 }) {
@@ -122,8 +128,6 @@ export async function runIsolated({
     level: options.logLevel,
     mode: options.logFormat,
   });
-  const metrics = new MetricsService();
-  metrics.addListeners();
 
   const telemetry = createTelemetry({ options, logger, shutdown });
   const common = { options, logger, metrics, telemetry, shutdown };
@@ -551,11 +555,6 @@ export async function runIsolated({
     ),
   );
   common.metrics.ponder_indexing_timestamp.set(label, seconds[chain.name]!.end);
-
-  common.logger.info({
-    service: "indexing",
-    msg: `Completed '${chain.name}' historical indexing`,
-  });
 
   const tables = Object.values(schemaBuild.schema).filter(isTable);
   await createTriggers(database.adminQB, { tables, chainId });
