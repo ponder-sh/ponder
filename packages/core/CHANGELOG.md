@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.11
+
+### Patch Changes
+
+- [`b5d73c8`](https://github.com/ponder-sh/ponder/commit/b5d73c8a3502d2dab901b79a7981b432bf0bfd6e) Thanks [@kyscott18](https://github.com/kyscott18)! - Improve historical indexing performance for tables with string-concatenated primary keys.
+
 ## 0.12.10
 
 ### Patch Changes
