@@ -30,7 +30,7 @@ export const createRealtimeIndexingStore = ({
   indexingErrorHandler: IndexingErrorHandler;
 }): IndexingStore => {
   let qb: QB = undefined!;
-  let isProcessingEvents = false;
+  let isProcessingEvents = true;
 
   const storeMethodWrapper = (fn: (...args: any[]) => Promise<any>) => {
     return async (...args: any[]) => {
