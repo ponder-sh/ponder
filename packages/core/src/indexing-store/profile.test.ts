@@ -471,3 +471,110 @@ test("recordProfilePattern() string concat", () => {
     }
   `);
 });
+
+test("recordProfilePattern() string concat mixed delimiters", () => {
+  const event = {
+    type: "log",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: {
+        address: zeroAddress,
+      },
+      log: {} as LogEvent["event"]["log"],
+      transaction: {} as LogEvent["event"]["transaction"],
+      block: { timestamp: 26n } as BlockEvent["event"]["block"],
+    },
+  } satisfies LogEvent;
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      id: p.text().primaryKey(),
+      address: p.bigint().notNull(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const primaryKeyCache = new Map<Table, [string, Column][]>();
+
+  primaryKeyCache.set(schema.account, [["id", schema.account.id]]);
+
+  const pattern = recordProfilePattern(
+    event,
+    schema.account,
+    { id: `${1}-${zeroAddress}_${zeroAddress}` },
+    [],
+    primaryKeyCache,
+  );
+
+  expect(pattern).toBe(undefined);
+});
+
+test("recordProfilePattern() string concat hint", () => {
+  const event = {
+    type: "log",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: {
+        address: zeroAddress,
+      },
+      log: {} as LogEvent["event"]["log"],
+      transaction: {} as LogEvent["event"]["transaction"],
+      block: { timestamp: 26n } as BlockEvent["event"]["block"],
+    },
+  } satisfies LogEvent;
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      id: p.text().primaryKey(),
+      address: p.bigint().notNull(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const primaryKeyCache = new Map<Table, [string, Column][]>();
+
+  primaryKeyCache.set(schema.account, [["id", schema.account.id]]);
+
+  let pattern = recordProfilePattern(
+    event,
+    schema.account,
+    { id: `${1}-${zeroAddress}` },
+    [],
+    primaryKeyCache,
+  );
+
+  pattern = recordProfilePattern(
+    event,
+    schema.account,
+    { id: `${1}-${zeroAddress}` },
+    [pattern!],
+    primaryKeyCache,
+  );
+
+  expect(pattern).toMatchInlineSnapshot(`
+    {
+      "id": {
+        "delimiter": "-",
+        "values": [
+          {
+            "value": [
+              "chainId",
+            ],
+          },
+          {
+            "value": [
+              "args",
+              "address",
+            ],
+          },
+        ],
+      },
+    }
+  `);
+});
