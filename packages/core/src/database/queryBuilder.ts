@@ -323,10 +323,6 @@ export const createQB = <
               };
 
               const result = await callback(tx);
-              // // @ts-ignore
-              // tx.wrap = undefined;
-              // // @ts-ignore
-              // tx.transaction = undefined;
               return result;
             }, config),
           { isTransaction: true, isTransactionStatement: false },
@@ -391,10 +387,6 @@ export const createQB = <
               };
 
               const result = await callback(tx);
-              // // @ts-ignore
-              // tx.wrap = undefined;
-              // // @ts-ignore
-              // tx.transaction = undefined;
               return result;
             }, config),
           { label, isTransaction: true, isTransactionStatement: false },
