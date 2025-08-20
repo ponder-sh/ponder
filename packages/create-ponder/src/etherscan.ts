@@ -8,24 +8,22 @@ import prettier from "prettier";
 import type { Chain } from "viem";
 import * as chains from "viem/chains";
 
-type ChainExplorer = {
-  name: string;
-  id: number;
-  explorer: NonNullable<Chain["blockExplorers"]>[string];
-};
+const chainsByExplorerHostname: Map<string, Chain> = new Map();
+for (const chain_ of Object.values(chains)) {
+  const chain = chain_ as Chain;
 
-const chainExplorerByHostname: Record<string, ChainExplorer> = {};
+  const explorers = Object.values(chain.blockExplorers ?? {});
+  const hostnames = explorers.flatMap((explorer) => [
+    new URL(explorer.url).hostname,
+    ...(explorer.apiUrl ? [new URL(explorer.apiUrl).hostname] : []),
+  ]);
 
-for (const [name, chain] of Object.entries(chains)) {
-  for (const explorer of Object.values((chain as Chain).blockExplorers ?? {})) {
-    const hostname = new URL(explorer.url).hostname;
-    chainExplorerByHostname[hostname] = {
-      name,
-      id: (chain as Chain).id,
-      explorer,
-    };
+  for (const hostname of hostnames) {
+    chainsByExplorerHostname.set(hostname, chain);
   }
 }
+
+export const PUBLIC_ETHERSCAN_API_KEY = "JU6GP915F8WU6EBM2S8XJVJR87DDEB5CF3";
 
 export const fromEtherscan = async ({
   rootDir,
@@ -38,26 +36,15 @@ export const fromEtherscan = async ({
 }) => {
   const warnings: string[] = [];
 
-  const apiKey = etherscanApiKey || process.env.ETHERSCAN_API_KEY;
-  const explorerUrl = new URL(etherscanLink);
+  const apiKey =
+    etherscanApiKey ??
+    process.env.ETHERSCAN_API_KEY ??
+    PUBLIC_ETHERSCAN_API_KEY;
 
-  const chainExplorer = chainExplorerByHostname[explorerUrl.hostname];
-  if (!chainExplorer)
-    throw new Error(
-      `Block explorer (${explorerUrl.hostname}) is not present in viem/chains.`,
-    );
+  const url = new URL(etherscanLink);
+  const hostname = url.hostname;
 
-  const name = chainExplorer.name;
-  const chainId = chainExplorer.id;
-  const apiUrl = chainExplorer.explorer.apiUrl;
-  if (!apiUrl)
-    throw new Error(
-      `${pico.red("✗")} Block explorer (${
-        explorerUrl.hostname
-      }) does not have a API URL registered in viem/chains.`,
-    );
-
-  const pathComponents = explorerUrl.pathname.slice(1).split("/");
+  const pathComponents = url.pathname.slice(1).split("/");
   const contractAddress = pathComponents[1];
 
   if (
@@ -67,15 +54,28 @@ export const fromEtherscan = async ({
   ) {
     throw new Error(
       `${pico.red("✗")} Invalid block explorer URL (${
-        explorerUrl.href
+        url.href
       }). Expected path "/address/<contract-address>".`,
     );
   }
 
+  const chain = chainsByExplorerHostname.get(hostname) ?? null;
+
+  const apiUrl = await getEtherscanApiUrl(hostname, apiKey);
+
+  const etherscanRequest = async (searchParams: URLSearchParams) => {
+    const url = new URL(apiUrl.toString());
+    for (const [key, value] of searchParams.entries()) {
+      url.searchParams.append(key, value);
+    }
+    url.searchParams.append("apikey", apiKey);
+    await wait(1000);
+    return await fetchWithRetry(url.toString());
+  };
+
   const abiResult = await getContractAbiAndName(
     contractAddress,
-    apiUrl,
-    apiKey,
+    etherscanRequest,
   );
 
   warnings.push(...abiResult.warnings);
@@ -89,18 +89,14 @@ export const fromEtherscan = async ({
 
   let blockNumber: number | undefined = undefined;
   try {
-    if (!apiKey) await wait(5000);
     const txHash = await getContractCreationTxn(
       contractAddress,
-      apiUrl,
-      apiKey,
+      etherscanRequest,
     );
 
-    if (!apiKey) await wait(5000);
     const contractCreationBlockNumber = await getTxBlockNumber(
       txHash,
-      apiUrl,
-      apiKey,
+      etherscanRequest,
     );
 
     blockNumber = contractCreationBlockNumber;
@@ -120,20 +116,16 @@ export const fromEtherscan = async ({
         item.inputs[0]!.name === "implementation",
     )
   ) {
-    if (!apiKey) await wait(5000);
     const { implAddresses } = await getProxyImplementationAddresses({
       contractAddress,
-      apiUrl,
       fromBlock: blockNumber,
-      apiKey,
+      etherscanRequest,
     });
 
     for (const implAddress of implAddresses) {
-      if (!apiKey) await wait(5000);
       const abiResult = await getContractAbiAndName(
         implAddress,
-        apiUrl,
-        apiKey,
+        etherscanRequest,
       );
 
       warnings.push(...abiResult.warnings);
@@ -189,9 +181,12 @@ export const fromEtherscan = async ({
   }
 
   // Build and return the partial ponder config.
+  const chainName = chain?.name ?? "unknown";
+  const chainId = chain?.id ?? 0;
+
   const config: SerializableConfig = {
     chains: {
-      [name]: {
+      [chainName]: {
         id: chainId,
         rpc: `http(process.env.PONDER_RPC_URL_${chainId})`,
       },
@@ -200,7 +195,7 @@ export const fromEtherscan = async ({
       [contractName]: {
         abi: abiConfig!,
         address: contractAddress,
-        chain: name,
+        chain: chainName,
         startBlock: blockNumber ?? undefined,
       },
     },
@@ -209,53 +204,30 @@ export const fromEtherscan = async ({
   return { config, warnings };
 };
 
-const fetchEtherscan = async (url: string) => {
-  const maxRetries = 5;
-  let retryCount = 0;
-
-  while (retryCount <= maxRetries) {
-    try {
-      const response = await fetch(url);
-      const data = (await response.json()) as any;
-      return data;
-    } catch (error) {
-      retryCount++;
-      if (retryCount > maxRetries) {
-        throw new Error(`Max retries reached: ${(error as Error).message}`);
-      }
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-  }
-};
-
 const getContractCreationTxn = async (
   contractAddress: string,
-  apiUrl: string,
-  apiKey?: string,
+  etherscanRequest: (searchParams: URLSearchParams) => Promise<any>,
 ) => {
   const searchParams = new URLSearchParams({
     module: "contract",
     action: "getcontractcreation",
     contractaddresses: contractAddress,
   });
-  if (apiKey) searchParams.append("apikey", apiKey);
-  const data = await fetchEtherscan(`${apiUrl}?${searchParams.toString()}`);
+  const data = await etherscanRequest(searchParams);
 
   return data.result[0].txHash as string;
 };
 
 const getTxBlockNumber = async (
   txHash: string,
-  apiUrl: string,
-  apiKey?: string,
+  etherscanRequest: (searchParams: URLSearchParams) => Promise<any>,
 ) => {
   const searchParams = new URLSearchParams({
     module: "proxy",
     action: "eth_getTransactionByHash",
     txhash: txHash,
   });
-  if (apiKey) searchParams.append("apikey", apiKey);
-  const data = await fetchEtherscan(`${apiUrl}?${searchParams.toString()}`);
+  const data = await etherscanRequest(searchParams);
 
   const hexBlockNumber = data.result.blockNumber as string;
   return Number.parseInt(hexBlockNumber.slice(2), 16);
@@ -263,22 +235,19 @@ const getTxBlockNumber = async (
 
 const getContractAbiAndName = async (
   contractAddress: string,
-  apiUrl: string,
-  apiKey?: string,
+  etherscanRequest: (searchParams: URLSearchParams) => Promise<any>,
 ) => {
-  const searchParams = new URLSearchParams({
-    module: "contract",
-    action: "getsourcecode",
-    address: contractAddress,
-  });
-  if (apiKey) searchParams.append("apikey", apiKey);
-
   const warnings: string[] = [];
   let abi: Abi;
   let contractName: string;
 
   try {
-    const data = await fetchEtherscan(`${apiUrl}?${searchParams.toString()}`);
+    const searchParams = new URLSearchParams({
+      module: "contract",
+      action: "getsourcecode",
+      address: contractAddress,
+    });
+    const data = await etherscanRequest(searchParams);
 
     const rawAbi = data.result[0].ABI as string;
     if (rawAbi === "Contract source code not verified") {
@@ -306,14 +275,12 @@ const getContractAbiAndName = async (
 
 const getProxyImplementationAddresses = async ({
   contractAddress,
-  apiUrl,
   fromBlock,
-  apiKey,
+  etherscanRequest,
 }: {
   contractAddress: string;
-  apiUrl: string;
   fromBlock?: number;
-  apiKey?: string;
+  etherscanRequest: (searchParams: URLSearchParams) => Promise<any>;
 }) => {
   const searchParams = new URLSearchParams({
     module: "logs",
@@ -324,8 +291,7 @@ const getProxyImplementationAddresses = async ({
     topic0:
       "0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b",
   });
-  if (apiKey) searchParams.append("apikey", apiKey);
-  const data = await fetchEtherscan(`${apiUrl}?${searchParams.toString()}`);
+  const data = await etherscanRequest(searchParams);
 
   const logs = data.result;
 
@@ -341,4 +307,114 @@ const getProxyImplementationAddresses = async ({
   }) as string[];
 
   return { implAddresses };
+};
+
+/**
+ * 1) If the chain is not present in viem/chains, make a hail mary attempt to
+ *    infer an Etherscan V1 API URL from the provided hostname. If that fails,
+ *    throw an error that the chain was not found in viem/chains.
+ * 2) Try the Etherscan V2 API using the chain ID from viem/chains.
+ * 3) Try the explorer API URL associated with the provided hostname from viem/chains.
+ * 4) Try any other block explorer API URLs present in viem/chains.
+ * 5) Throw an error that no valid explorer API URL was found.
+ */
+export async function getChainUrls(hostname: string, apiKey: string) {
+  const chain = chainsByExplorerHostname.get(hostname) ?? null;
+  if (chain === null) {
+    const possibleApiUrl = `https://api.${hostname}/api`;
+    const isEtherscanApi = await testEtherscanApi(possibleApiUrl, apiKey);
+    if (isEtherscanApi) {
+      return {
+        rpc: null,
+        blockscout: null,
+        etherscanV2: new URL(possibleApiUrl),
+      };
+    } else {
+      throw new Error(
+        `Block explorer (${hostname}) is not present in viem/chains.`,
+      );
+    }
+  }
+
+  const etherscanV2ApiUrl = `https://api.etherscan.io/v2/api?chainid=${chain.id}`;
+
+  const matchedViemExplorerApiUrl = Object.values(
+    chain.blockExplorers ?? {},
+  ).find(
+    (explorer) =>
+      explorer.url.includes(hostname) || explorer.apiUrl?.includes(hostname),
+  )?.apiUrl;
+
+  const otherViemExplorerApiUrls = Object.values(chain.blockExplorers ?? {})
+    .map((explorer) => explorer.apiUrl)
+    .filter(
+      (apiUrl): apiUrl is string =>
+        apiUrl !== undefined && apiUrl !== matchedViemExplorerApiUrl,
+    );
+
+  const possibleApiUrls = [
+    etherscanV2ApiUrl,
+    matchedViemExplorerApiUrl,
+    ...otherViemExplorerApiUrls,
+  ].filter((apiUrl): apiUrl is string => apiUrl !== undefined);
+
+  for (const apiUrl of possibleApiUrls) {
+    const isEtherscanApi = await testEtherscanApi(apiUrl, apiKey);
+    if (isEtherscanApi) {
+      return new URL(apiUrl);
+    }
+  }
+
+  throw new Error(
+    `Block explorer (${hostname}) does not have a valid API URL registered in viem/chains.`,
+  );
+}
+
+async function testEtherscanApi(baseUrl: string, apiKey: string) {
+  const url = new URL(baseUrl);
+  // url.searchParams.append("module", "proxy");
+  // url.searchParams.append("action", "eth_blockNumber");
+  url.searchParams.append("module", "block");
+  url.searchParams.append("action", "eth_block_number");
+  url.searchParams.append("apikey", apiKey);
+  try {
+    console.log(url.toString());
+    const res = await fetch(url.toString());
+    const body = (await res.json()) as any;
+
+    if (res.ok === false || body.status === "0" || body.message === "NOTOK") {
+      console.log(body);
+      return false;
+    }
+
+    // Example response
+    // {
+    //   status: '0',
+    //   message: 'NOTOK',
+    //   result: 'Missing or unsupported chainid parameter (required for v2 api), please see https://api.etherscan.io/v2/chainlist for the list of supported chainids'
+    // }
+
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+const fetchWithRetry = async (url: string) => {
+  const maxRetries = 5;
+  let retryCount = 0;
+
+  while (retryCount <= maxRetries) {
+    try {
+      const response = await fetch(url);
+      const data = (await response.json()) as any;
+      return data;
+    } catch (error) {
+      retryCount++;
+      if (retryCount > maxRetries) {
+        throw new Error(`Max retries reached: ${(error as Error).message}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
 };
