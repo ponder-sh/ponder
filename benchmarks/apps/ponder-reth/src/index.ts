@@ -47,6 +47,4 @@ ponder.on("RocketTokenRETH:Approval", async ({ event, context }) => {
     owner: event.args.owner,
     spender: event.args.spender,
   });
-
-  await context.db.sql.select().from(account).limit(1);
 });
