@@ -726,7 +726,7 @@ export const createHistoricalSync = (
 
       const queue = createQueue({
         browser: false,
-        concurrency: 25,
+        concurrency: 40,
         initialStart: true,
         worker: syncBlock,
       });
