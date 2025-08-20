@@ -3,6 +3,7 @@ import type { QB } from "@/database/queryBuilder.js";
 import type { Common } from "@/internal/common.js";
 import {
   DbConnectionError,
+  NonRetryableUserError,
   RawSqlError,
   RecordNotFoundError,
   RetryableError,
@@ -31,11 +32,24 @@ export const createHistoricalIndexingStore = ({
   indexingErrorHandler: IndexingErrorHandler;
 }): IndexingStore => {
   let qb: QB = undefined!;
+  let isProcessingEvents = false;
 
-  const errorHandler = (fn: (...args: any[]) => Promise<any>) => {
+  const storeMethodWrapper = (fn: (...args: any[]) => Promise<any>) => {
     return async (...args: any[]) => {
       try {
-        return await fn(...args);
+        if (isProcessingEvents === false) {
+          throw new NonRetryableUserError(
+            "Indexing store query executed outside of the indexing function. Make sure all 'context.db' queries are properly awaited.",
+          );
+        }
+        const result = await fn(...args);
+        // @ts-expect-error typescript bug lol
+        if (isProcessingEvents === false) {
+          throw new NonRetryableUserError(
+            "Indexing store query executed outside of the indexing function. Make sure all 'context.db' queries are properly awaited.",
+          );
+        }
+        return result;
       } catch (error) {
         if (error instanceof RetryableError) {
           indexingErrorHandler.setRetryableError(error);
@@ -48,7 +62,7 @@ export const createHistoricalIndexingStore = ({
 
   return {
     // @ts-ignore
-    find: errorHandler((table: Table, key) => {
+    find: storeMethodWrapper((table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "find",
@@ -63,7 +77,7 @@ export const createHistoricalIndexingStore = ({
         values: (values: any) => {
           // @ts-ignore
           const inner = {
-            onConflictDoNothing: errorHandler(async () => {
+            onConflictDoNothing: storeMethodWrapper(async () => {
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -104,7 +118,7 @@ export const createHistoricalIndexingStore = ({
                 });
               }
             }),
-            onConflictDoUpdate: errorHandler(async (valuesU: any) => {
+            onConflictDoUpdate: storeMethodWrapper(async (valuesU: any) => {
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -188,7 +202,7 @@ export const createHistoricalIndexingStore = ({
             }),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
             then: (onFulfilled, onRejected) =>
-              errorHandler(async () => {
+              storeMethodWrapper(async () => {
                 common.metrics.ponder_indexing_store_queries_total.inc({
                   table: getTableName(table),
                   method: "insert",
@@ -246,7 +260,7 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     update(table: Table, key) {
       return {
-        set: errorHandler(async (values: any) => {
+        set: storeMethodWrapper(async (values: any) => {
           common.metrics.ponder_indexing_store_queries_total.inc({
             table: getTableName(table),
             method: "update",
@@ -282,7 +296,7 @@ export const createHistoricalIndexingStore = ({
       };
     },
     // @ts-ignore
-    delete: errorHandler(async (table: Table, key) => {
+    delete: storeMethodWrapper(async (table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "delete",
@@ -292,7 +306,7 @@ export const createHistoricalIndexingStore = ({
     }),
     // @ts-ignore
     sql: drizzle(
-      errorHandler(async (_sql, params, method, typings) => {
+      storeMethodWrapper(async (_sql, params, method, typings) => {
         let isSelectOnly = false;
         try {
           await validateQuery(_sql, false);
@@ -346,6 +360,9 @@ export const createHistoricalIndexingStore = ({
     ),
     set qb(_qb: QB) {
       qb = _qb;
+    },
+    set isProcessingEvents(_isProcessingEvents: boolean) {
+      isProcessingEvents = _isProcessingEvents;
     },
   };
 };

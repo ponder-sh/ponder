@@ -309,6 +309,7 @@ export async function runMultichain({
       await database.userQB.transaction(async (tx) => {
         try {
           historicalIndexingStore.qb = tx;
+          historicalIndexingStore.isProcessingEvents = true;
           indexingCache.qb = tx;
 
           common.metrics.ponder_historical_transform_duration.inc(
@@ -354,6 +355,9 @@ export async function runMultichain({
               await new Promise(setImmediate);
             }
           }
+
+          historicalIndexingStore.isProcessingEvents = false;
+
           await new Promise(setImmediate);
 
           // underlying metrics collection is actually synchronous
@@ -532,11 +536,14 @@ export async function runMultichain({
 
               try {
                 realtimeIndexingStore.qb = tx;
+                realtimeIndexingStore.isProcessingEvents = true;
 
                 await indexing.processEvents({
                   events,
                   db: realtimeIndexingStore,
                 });
+
+                realtimeIndexingStore.isProcessingEvents = false;
 
                 common.logger.info({
                   service: "app",
