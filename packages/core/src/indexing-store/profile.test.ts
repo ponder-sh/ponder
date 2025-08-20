@@ -412,3 +412,62 @@ test("recordProfilePattern() object args", () => {
 
   expect(pattern).toBe(undefined);
 });
+
+test("recordProfilePattern() string concat", () => {
+  const event = {
+    type: "log",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: {
+        address: zeroAddress,
+      },
+      log: {} as LogEvent["event"]["log"],
+      transaction: {} as LogEvent["event"]["transaction"],
+      block: { timestamp: 26n } as BlockEvent["event"]["block"],
+    },
+  } satisfies LogEvent;
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      id: p.text().primaryKey(),
+      address: p.bigint().notNull(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const primaryKeyCache = new Map<Table, [string, Column][]>();
+
+  primaryKeyCache.set(schema.account, [["id", schema.account.id]]);
+
+  const pattern = recordProfilePattern(
+    event,
+    schema.account,
+    { id: `${1}-${zeroAddress}` },
+    [],
+    primaryKeyCache,
+  );
+
+  expect(pattern).toMatchInlineSnapshot(`
+    {
+      "id": {
+        "delimiter": "-",
+        "values": [
+          {
+            "value": [
+              "chainId",
+            ],
+          },
+          {
+            "value": [
+              "args",
+              "address",
+            ],
+          },
+        ],
+      },
+    }
+  `);
+});
