@@ -4,7 +4,7 @@ import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import type { Column, Table } from "drizzle-orm";
 import { zeroAddress } from "viem";
 import { expect, test } from "vitest";
-import { recordProfilePattern } from "./profile.js";
+import { recordProfilePattern, recoverProfilePattern } from "./profile.js";
 
 test("recordProfilePattern() no pattern", () => {
   const event = {
@@ -230,6 +230,8 @@ test("recordProfilePattern() chainId", () => {
       },
     }
   `);
+
+  expect(recoverProfilePattern(pattern!, event)).toMatchInlineSnapshot();
 });
 
 test("recordProfilePattern() log args", () => {
@@ -278,6 +280,8 @@ test("recordProfilePattern() log args", () => {
       },
     }
   `);
+
+  expect(recoverProfilePattern(pattern!, event)).toMatchInlineSnapshot();
 });
 
 test("recordProfilePattern() block", () => {
@@ -321,6 +325,8 @@ test("recordProfilePattern() block", () => {
       },
     }
   `);
+
+  expect(recoverProfilePattern(pattern!, event)).toMatchInlineSnapshot();
 });
 
 test("recordProfilePattern() hint", () => {
@@ -372,6 +378,8 @@ test("recordProfilePattern() hint", () => {
       },
     }
   `);
+
+  expect(recoverProfilePattern(pattern!, event)).toMatchInlineSnapshot();
 });
 
 test("recordProfilePattern() object args", () => {
@@ -468,6 +476,12 @@ test("recordProfilePattern() string concat", () => {
           },
         ],
       },
+    }
+  `);
+
+  expect(recoverProfilePattern(pattern!, event)).toMatchInlineSnapshot(`
+    {
+      "id": "1-0x0000000000000000000000000000000000000000",
     }
   `);
 });
@@ -575,6 +589,12 @@ test("recordProfilePattern() string concat hint", () => {
           },
         ],
       },
+    }
+  `);
+
+  expect(recoverProfilePattern(pattern!, event)).toMatchInlineSnapshot(`
+    {
+      "id": "1-0x0000000000000000000000000000000000000000",
     }
   `);
 });
