@@ -119,7 +119,17 @@ type EventName = string;
  * }
  */
 export type ProfilePattern = {
-  [key: string]: { value: string[]; fn?: (value: unknown) => unknown };
+  [key: string]:
+    | {
+        type: "derived";
+        value: string[];
+        fn?: (value: unknown) => unknown;
+      }
+    | {
+        type: "delimeter";
+        values: { value: string[]; fn?: (value: unknown) => unknown }[];
+        delimiter: string;
+      };
 };
 
 /**
