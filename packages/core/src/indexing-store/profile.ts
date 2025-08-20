@@ -19,7 +19,7 @@ const eq = (target: bigint | string | number | boolean, value: any) => {
   return false;
 };
 
-const delimiters = ["-", "_", "#", "$"];
+const delimiters = ["-", "_", ":", "#", "$"];
 
 export const recordProfilePattern = (
   event: Event,
