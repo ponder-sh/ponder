@@ -855,7 +855,7 @@ export async function* getLocalSyncGenerator(params: {
     estimateRange = estimate({
       from: interval[0],
       to: interval[1],
-      target: params.common.options.command === "dev" ? 1_000 : 5_000,
+      target: params.common.options.command === "dev" ? 2_000 : 10_000,
       result: duration,
       min: 25,
       max: 100_000,
