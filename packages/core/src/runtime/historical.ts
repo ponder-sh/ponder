@@ -734,7 +734,7 @@ export async function* getLocalSyncGenerator(params: {
       hexToNumber(params.syncProgress.current.timestamp),
     );
 
-    // `getEvents` can make progress without calling `sync`, so immediately "yield"
+    // `getHistoricalEvents` can make progress without calling `sync`, so immediately "yield"
     yield hexToNumber(params.syncProgress.current.number);
 
     if (
@@ -767,15 +767,8 @@ export async function* getLocalSyncGenerator(params: {
 
   const historicalSync = createHistoricalSync(params);
 
-  // 1. interval generator
-  // 2. interval generator consumer (syncInterval)
-  // 3. synchronization mechanism (pwr)
-
   const { callback: intervalCallback, generator: intervalGenerator } =
-    createCallbackGenerator<
-      { interval: Interval; promise: Promise<void> },
-      void
-    >();
+    createCallbackGenerator<{ interval: Interval; promise: Promise<void> }>();
 
   const pwr = promiseWithResolvers<void>();
   pwr.resolve();
@@ -788,14 +781,13 @@ export async function* getLocalSyncGenerator(params: {
     promise: pwr.promise,
   });
 
-  // Note: `onComplete` does not have any effect here, because `intervalCallback` is
-  // never awaited.
-  for await (const {
-    value: { interval, promise },
-    onComplete,
-  } of intervalGenerator) {
+  async function syncInterval({
+    interval,
+    promise,
+  }: { interval: Interval; promise: Promise<void> }) {
     const endClock = startClock();
 
+    const isSyncComplete = interval[1] === hexToNumber(last.number);
     const requiredIntervals = getRequiredSyncIntervals({
       interval,
       sources: params.sources,
@@ -803,8 +795,6 @@ export async function* getLocalSyncGenerator(params: {
     });
 
     const pwr = promiseWithResolvers<void>();
-
-    // TODO(kyle) iife
 
     await params.database.userQB.transaction(async (tx) => {
       const syncStore = createSyncStore({ common: params.common, qb: tx });
@@ -815,15 +805,15 @@ export async function* getLocalSyncGenerator(params: {
 
       await promise;
 
-      // TODO(kyle) skip lookahead if the interval is the last one
-
-      intervalCallback({
-        interval: [
-          Math.min(interval[1] + 1, hexToNumber(last.number)),
-          Math.min(interval[1] + 1 + estimateRange, hexToNumber(last.number)),
-        ],
-        promise: pwr.promise,
-      });
+      if (isSyncComplete === false) {
+        intervalCallback({
+          interval: [
+            Math.min(interval[1] + 1, hexToNumber(last.number)),
+            Math.min(interval[1] + 1 + estimateRange, hexToNumber(last.number)),
+          ],
+          promise: pwr.promise,
+        });
+      }
 
       await historicalSync.sync2({
         interval,
@@ -879,17 +869,29 @@ export async function* getLocalSyncGenerator(params: {
     });
 
     pwr.resolve();
-    onComplete();
+  }
 
-    yield interval[1];
+  const { callback, generator } =
+    createCallbackGenerator<IteratorResult<number>>();
 
-    if (params.syncProgress.isEnd() || params.syncProgress.isFinalized()) {
-      params.common.logger.info({
-        service: "sync",
-        msg: `Completed '${params.chain.name}' historical sync`,
+  (async () => {
+    for await (const { interval, promise } of intervalGenerator) {
+      syncInterval({ interval, promise }).then(() => {
+        callback({ value: interval[1], done: false });
+
+        if (interval[1] === hexToNumber(last.number)) {
+          callback({ value: undefined, done: true });
+        }
       });
-      return;
     }
+  })();
+
+  for await (const result of generator) {
+    if (result.done) {
+      break;
+    }
+
+    yield result.value;
   }
 }
 

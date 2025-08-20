@@ -33,7 +33,7 @@ import {
   min,
 } from "@/utils/checkpoint.js";
 import {
-  createCallbackGenerator,
+  createCallbackGeneratorWithPromise,
   mergeAsyncGenerators,
 } from "@/utils/generators.js";
 import { type Interval, intervalIntersection } from "@/utils/interval.js";
@@ -559,7 +559,7 @@ export async function* getRealtimeEventGenerator(params: {
     msg: `Initialized '${params.chain.name}' realtime sync with ${childCount} factory child addresses`,
   });
 
-  const { callback, generator } = createCallbackGenerator<
+  const { callback, generator } = createCallbackGeneratorWithPromise<
     SyncBlock | SyncBlockHeader,
     boolean
   >();
