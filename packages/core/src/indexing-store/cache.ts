@@ -119,7 +119,12 @@ type EventName = string;
  * }
  */
 export type ProfilePattern = {
-  [key: string]: { value: string[]; fn?: (value: unknown) => unknown };
+  [key: string]:
+    | { value: string[]; fn?: (value: unknown) => unknown }
+    | {
+        values: { value: string[]; fn?: (value: unknown) => unknown }[];
+        delimiter: string;
+      };
 };
 
 /**
