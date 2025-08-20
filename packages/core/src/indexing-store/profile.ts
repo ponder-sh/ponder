@@ -43,7 +43,7 @@ export const recordProfilePattern = (
     // @ts-ignore
     const value = key[js]!;
 
-    const pattern = matchEventParametersToKey(event, value);
+    const pattern = matchEventParameters(event, value);
 
     if (pattern === undefined) return undefined;
 
@@ -53,7 +53,7 @@ export const recordProfilePattern = (
   return result;
 };
 
-const matchEventParametersToKey = (
+const matchEventParameters = (
   event: Event,
   value: any,
 ): ProfilePattern["string"] | undefined => {
@@ -454,7 +454,7 @@ const matchEventParametersToKey = (
         };
 
         for (const subValue of subValues) {
-          const match = matchEventParametersToKey(event, subValue);
+          const match = matchEventParameters(event, subValue);
           if (match !== undefined && "value" in match) {
             result.values.push(match);
             continue;
