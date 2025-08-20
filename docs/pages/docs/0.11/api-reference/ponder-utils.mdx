@@ -1,0 +1,253 @@
+# `@ponder/utils` [API reference]
+
+The `@ponder/utils` package provides utility functions for common tasks in Ponder apps.
+
+## `mergeAbis`
+
+Combines many ABIs into one. Removes duplicate items if necessary.
+
+#### Usage
+
+```ts [index.ts]
+import { mergeAbis } from "@ponder/utils";
+import { erc20Abi, erc4626Abi } from "viem";
+
+const tokenAbi = mergeAbis([erc20Abi, erc4626Abi]);
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ABIs` | `Abi[]` | A list of ABIs to merge. |
+
+#### Returns
+
+A new ABI including all items from the input list, with duplicates removed.
+
+#### Usage in Ponder
+
+Use `mergeAbis` to include multiple ABIs for a single contract. This is especially useful for proxy contracts that have had several different implementation ABIs.
+
+For convenience, `ponder` re-exports `mergeAbis` from `@ponder/utils`.
+
+```ts [ponder.config.ts]
+import { createConfig, mergeAbis } from "ponder"; // [!code focus]
+
+import { ERC1967ProxyAbi } from "./abis/ERC1967Proxy";  // [!code focus]
+import { NameRegistryAbi } from "./abis/NameRegistry";  // [!code focus]
+import { NameRegistry2Abi } from "./abis/NameRegistry2";  // [!code focus]
+
+export default createConfig({
+  contracts: {
+    FarcasterNameRegistry: {
+      abi: mergeAbis([ERC1967ProxyAbi, NameRegistryAbi, NameRegistry2Abi]),  // [!code focus]
+      // ...
+    },
+  },
+  // ...
+});
+```
+
+## `replaceBigInts`
+
+Replaces all [`BigInt`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/BigInt) values in an object (deep traversal) with a new value, specified by a replacer function.
+
+#### Usage
+
+This example simply converts `BigInt` values to a string.
+
+```ts [index.ts] {5}
+import { replaceBigInts } from "@ponder/utils";
+
+const obj = { a: 100n, b: [-12n, 3_000_000_000n] };
+
+const result = replaceBigInts(obj, (v) => String(v));
+//    ?^ { a: '100', b: [ '-12', '3000000000' ] }
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `value` | `any` | The scalar, array, or object containing `BigInt` values to be replaced. |
+| `replacer` | `(value: bigint) => JSONSerializable` | A custom replacer function that will be called for each `BigInt` value. |
+
+#### Returns
+
+The scalar, array, or object with all `BigInt` values replaced.
+
+#### Replacer functions
+
+Here are three common ways to replace `BigInt` values.
+
+| Encoding            | Replacer type                  | Replacer function                                                 |
+| :------------------ | :----------------------------- | :---------------------------------------------------------------- |
+| **Hex**             | `0x${string}`                  | [`numberToHex`](https://viem.sh/docs/utilities/toHex#numbertohex) |
+| **String**          | `string`                       | `String`                                                          |
+| **Lossless string** | `#bigint.${string}`            | `(x) => #bigint.${String(x)}`                                    |
+
+See the [Wagmi FAQ](https://wagmi.sh/react/guides/faq#bigint-serialization) for more information on `BigInt` serialization.
+
+
+#### Usage in Ponder: `json` columns
+
+The [`json` column type](/docs/schema/tables#column-types) does not support `BigInt` values. Use `replaceBigInts` to prepare objects containing `BigInt` values for insertion.
+
+```ts [src/index.ts] {2,9}
+import { ponder } from "ponder:registry";
+import { userOperations } from "ponder:schema";
+import { replaceBigInts } from "@ponder/utils";
+import { toHex } from "viem";
+
+ponder.on("EntryPoint:UserOp", async ({ event, context }) => {
+  await context.db.insert(userOperations).values({
+    id: event.log.id,
+    receipt: replaceBigInts(event.transactionReceipt, toHex),
+  });
+});
+```
+
+To maintain type safety for column values, use the `ReplaceBigInts` helper type in the column `$type` annotation.
+
+```ts [ponder.schema.ts] {1,7}
+import { onchainTable } from "ponder";
+import type { ReplaceBigInts } from "@ponder/utils";
+import type { TransactionReceipt, Hex } from "viem";
+
+export const userOperations = onchainTable("user_operations", (t) => ({
+  id: t.text().primaryKey(),
+  receipt: t.json<ReplaceBigInts<TransactionReceipt, Hex>>(),
+}));
+```
+
+#### Usage in Ponder: API endpoints
+
+The GraphQL API automatically serializes `BigInt` values to strings before returning them in HTTP responses. In custom API endpoints, you need to handle this serialization process manually.
+
+```ts [src/api/index.ts]
+import { ponder } from "ponder:registry";
+import { accounts } from "ponder:schema";
+import { replaceBigInts } from "@ponder/utils"; // [!code focus]
+import { numberToHex } from "viem";
+
+ponder.get("/whale-balances", async (c) => {
+  const rows = await c.db
+    .select({
+      address: accounts.address,
+      ethBalance: accounts.ethBalance,
+      dogeBalance: accounts.dogeBalance,
+    })
+    .from(accounts)
+    .where(eq(accounts.address, address));
+
+  const result = replaceBigInts(rows, (v) => numberToHex(v)); // [!code focus]
+
+  return c.json(result);
+});
+```
+
+## Transports
+
+The `@ponder/utils` package exports two new [Viem transports](https://viem.sh/docs/clients/intro#transports), `loadBalance` and `rateLimit`. These transports are useful for managing the RPC request workloads that Ponder apps commonly encounter.
+
+### `loadBalance`
+
+The `loadBalance` Transport distributes requests across a list of inner Transports in a simple round-robin scheme.
+
+#### Usage
+
+```ts {7-12}
+import { loadBalance } from "@ponder/utils"; // [!code focus]
+import { createPublicClient, fallback, http, webSocket } from "viem";
+import { mainnet } from "viem/chains";
+
+const transport = loadBalance([ // [!code focus]
+  http("https://cloudflare-eth.com"), // [!code focus]
+  webSocket("wss://ethereum-rpc.publicnode.com"), // [!code focus]
+  rateLimit(http("https://rpc.ankr.com/eth"), { requestsPerSecond: 5 }), // [!code focus]
+]), // [!code focus]
+
+const client = createPublicClient({ chain: mainnet, transport });
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `Transports` | `Transport[]` | A list of Transports to load balance requests across. |
+
+#### Usage in Ponder
+
+For convenience, `ponder` re-exports `loadBalance` from `@ponder/utils`.
+
+```ts [ponder.config.ts] {8-13}
+import { createConfig, loadBalance } from "ponder";
+import { http, webSocket, rateLimit } from "viem";
+
+export default createConfig({
+  chains: {
+    mainnet: {
+      id: 1,
+      rpc: loadBalance([ // [!code focus]
+        http("https://cloudflare-eth.com"), // [!code focus]
+        http("https://eth-mainnet.public.blastapi.io"), // [!code focus]
+        webSocket("wss://ethereum-rpc.publicnode.com"), // [!code focus]
+        rateLimit(http("https://rpc.ankr.com/eth"), { requestsPerSecond: 5 }), // [!code focus]
+      ]), // [!code focus]
+    },
+  },
+  // ...
+});
+```
+
+### `rateLimit`
+
+The `rateLimit` Transport limits the number of requests per second submitted to an inner Transport using a first-in-first-out queue.
+
+#### Usage
+
+```ts {7-9}
+import { rateLimit } from "@ponder/utils";
+import { createPublicClient, fallback, http } from "viem";
+import { mainnet } from "viem/chains";
+
+const client = createPublicClient({
+  chain: mainnet,
+  transport: rateLimit(http("https://eth-mainnet.g.alchemy.com/v2/..."), {
+    requestsPerSecond: 25,
+  }),
+});
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `Transport` | `Transport` | An inner transport to rate limit. |
+| `requestsPerSecond` | `number` | The maximum number of requests per second to allow. |
+| `browser` | `boolean` (default: `true`) | If `false`, the internal queue will use the Node.js-specific `process.nextTick()` API to schedule requests. This leads to more predictable behavior in Node.js, but is not available in the browser. |
+
+
+#### Usage in Ponder
+
+For convenience, `ponder` re-exports `rateLimit` from `@ponder/utils`.
+
+```ts [ponder.config.ts] {8-10}
+import { createConfig, rateLimit } from "ponder";
+import { http } from "viem";
+
+export default createConfig({
+  chains: {
+    mainnet: {
+      id: 1,
+      rpc: rateLimit(http(process.env.PONDER_RPC_URL_1), {
+        requestsPerSecond: 25,
+      }),
+    },
+  },
+  contracts: {
+    // ...
+  },
+});
+```

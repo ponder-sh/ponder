@@ -114,6 +114,119 @@ export const sidebar = {
       ],
     },
   ],
+  "/docs/0.11": [
+    {
+      text: "Introduction",
+      items: [
+        { text: "Get started", link: "/docs/0.11/get-started" },
+        { text: "Requirements", link: "/docs/0.11/requirements" },
+        { text: "Database", link: "/docs/0.11/database" },
+        { text: "Migration guide", link: "/docs/0.11/migration-guide" },
+      ],
+    },
+    {
+      text: "Config",
+      items: [
+        { text: "Chains", link: "/docs/0.11/config/chains" },
+        { text: "Contracts", link: "/docs/0.11/config/contracts" },
+        { text: "Accounts", link: "/docs/0.11/config/accounts" },
+        { text: "Block intervals", link: "/docs/0.11/config/block-intervals" },
+      ],
+    },
+    {
+      text: "Schema",
+      items: [
+        { text: "Tables", link: "/docs/0.11/schema/tables" },
+        { text: "Relations", link: "/docs/0.11/schema/relations" },
+      ],
+    },
+    {
+      text: "Indexing",
+      items: [
+        { text: "Overview", link: "/docs/0.11/indexing/overview" },
+        { text: "Write to the database", link: "/docs/0.11/indexing/write" },
+        { text: "Read contract data", link: "/docs/0.11/indexing/read-contracts" },
+      ],
+    },
+    {
+      text: "Query",
+      items: [
+        {
+          text: "HTTP",
+          items: [
+            { text: "SQL over HTTP", link: "/docs/0.11/query/sql-over-http" },
+            { text: "GraphQL", link: "/docs/0.11/query/graphql" },
+            { text: "API endpoints", link: "/docs/0.11/query/api-endpoints" },
+          ],
+        },
+        { text: "Direct SQL", link: "/docs/0.11/query/direct-sql" },
+      ],
+    },
+    {
+      text: "Production",
+      items: [
+        { text: "Marble ✨", link: "/docs/0.11/production/marble" },
+        { text: "Railway", link: "/docs/0.11/production/railway" },
+        { text: "Self-hosting", link: "/docs/0.11/production/self-hosting" },
+      ],
+    },
+    {
+      text: "Guides",
+      items: [
+        { text: "Offchain data", link: "/docs/0.11/guides/offchain-data" },
+        { text: "Factory pattern", link: "/docs/0.11/guides/factory" },
+        { text: "Call traces", link: "/docs/0.11/guides/call-traces" },
+        { text: "Transaction receipts", link: "/docs/0.11/guides/receipts" },
+        { text: "Time-series data", link: "/docs/0.11/guides/time-series" },
+        { text: "Foundry", link: "/docs/0.11/guides/foundry" },
+      ],
+    },
+    {
+      text: "API reference",
+      items: [
+        { text: "create-ponder", link: "/docs/0.11/api-reference/create-ponder" },
+        {
+          text: "ponder",
+          items: [
+            {
+              text: "CLI (dev, start, serve)",
+              link: "/docs/0.11/api-reference/ponder/cli",
+            },
+            {
+              text: "ponder.config.ts",
+              link: "/docs/0.11/api-reference/ponder/config",
+            },
+            {
+              text: "ponder.schema.ts",
+              link: "/docs/0.11/api-reference/ponder/schema",
+            },
+            {
+              text: "Indexing functions",
+              link: "/docs/0.11/api-reference/ponder/indexing-functions",
+            },
+            {
+              text: "API endpoints",
+              link: "/docs/0.11/api-reference/ponder/api-endpoints",
+            },
+            {
+              text: "Database reference",
+              link: "/docs/0.11/api-reference/ponder/database",
+            },
+          ],
+        },
+        { text: "@ponder/client", link: "/docs/0.11/api-reference/ponder-client" },
+        { text: "@ponder/react", link: "/docs/0.11/api-reference/ponder-react" },
+        { text: "@ponder/utils", link: "/docs/0.11/api-reference/ponder-utils" },
+      ],
+    },
+    {
+      text: "Advanced",
+      items: [
+        { text: "Observability", link: "/docs/0.11/advanced/observability" },
+        { text: "Telemetry", link: "/docs/0.11/advanced/telemetry" },
+      ],
+    },
+  ],
   "/docs/0.10/": [
     {
       text: "Introduction",

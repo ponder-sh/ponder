@@ -111,6 +111,14 @@ const versions = [
     isLatest: true,
   },
   {
+    label: "Version 0.11",
+    activeLabel: "Version 0.11",
+    patch: "0.11.43",
+    prefix: "/docs/0.11",
+    home: "/get-started",
+    isLatest: false,
+  },
+  {
     label: "Version 0.10",
     activeLabel: "Version 0.10",
     patch: "0.10.26",

@@ -1,0 +1,198 @@
+# Chains [Configure chain IDs and RPC endpoints]
+
+Use the `chains` field in `ponder.config.ts` to configure chain IDs and names, RPC endpoints, and connection options.
+
+This guide describes each configuration option and suggests patterns for common use cases. Visit the config [API reference](/docs/api-reference/ponder/config) for more information.
+
+## Example
+
+This config sets up two chains: Ethereum mainnet and Optimism.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  chains: {
+    mainnet: {
+      id: 1,
+      rpc: process.env.PONDER_RPC_URL_1,
+    },
+    optimism: {
+      id: 10,
+      rpc: [
+        process.env.PONDER_RPC_URL_10,
+        "https://optimism.llamarpc.com",
+      ],
+    },
+  },
+  contracts: { /* ... */ },
+});
+```
+
+## Name
+
+Each chain must have a unique name, provided as a key to the `chains` object. The contract, account, and block interval `chain` options reference the chain name.
+
+Within indexing functions, the `context.chain.name` property contains the chain name of the current event.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  chains: {
+    mainnet: { // [!code focus]
+      id: 1,
+      rpc: process.env.PONDER_RPC_URL_1,
+    },
+  },
+  contracts: {
+    Blitmap: {
+      abi: BlitmapAbi,
+      chain: "mainnet", // [!code focus]
+      address: "0x8d04a8c79cEB0889Bdd12acdF3Fa9D207eD3Ff63",
+    },
+  },
+});
+```
+
+## Chain ID
+
+Use the `id` field to specify a unique [Chain ID](https://chainlist.org) for each chain. Within indexing functions, the `context.chain.id` property contains the chain ID of the current event.
+
+The indexing engine uses `id` in the cache key for RPC responses. To avoid cache issues, make sure `id` always matches the chain ID of the configured RPC endpoint.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  chains: {
+    mainnet: {
+      id: 1, // [!code focus]
+      rpc: "https://eth.llamarpc.com",
+    },
+  },
+  contracts: { /* ... */ },
+});
+```
+
+:::info
+  Ponder does not support chain IDs greater than JavaScript's `Number.MAX_SAFE_INTEGER` (9007199254740991).
+:::
+
+## RPC endpoints
+
+:::warning
+  Most Ponder apps require a paid RPC provider plan to avoid rate-limiting.
+:::
+
+Use the `rpc` field to provide one or more RPC endpoints for each chain.
+
+Ponder dynamically adapts to provider rate limits to avoid 429 errors and maximize performance. Providing multiple endpoints enables intelligent load balancing and fallback logic to improve reliability.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  chains: {
+    mainnet: {
+      id: 1,
+      rpc: "https://eth-mainnet.g.alchemy.com/v2/...", // [!code focus]
+    },
+  },
+  contracts: { /* ... */ },
+});
+```
+
+### Custom transport
+
+The `rpc` field also accepts a [Viem Transport](https://viem.sh/docs/clients/intro#transports), which can be useful if you need more granular control over how RPC requests are made.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+import { http, fallback } from "viem"; // [!code focus]
+
+export default createConfig({
+  chains: {
+    mainnet: {
+      id: 1,
+      rpc: fallback([ // [!code focus]
+        http("https://eth-mainnet.g.alchemy.com/v2/..."), // [!code focus]
+        http("https://quaint-large-card.quiknode.pro/..."), // [!code focus]
+      ]), // [!code focus]
+    },
+  },
+});
+```
+
+Here are a few common transport options.
+
+* [`http`](https://viem.sh/docs/clients/transports/http)
+* [`webSocket`](https://viem.sh/docs/clients/transports/websocket)
+* [`fallback`](https://viem.sh/docs/clients/transports/fallback)
+* [`loadBalance`](/docs/api-reference/ponder-utils#loadbalance)
+* [`rateLimit`](/docs/api-reference/ponder-utils#ratelimit)
+
+## WebSocket
+
+Use the optional `ws` field to specify a WebSocket RPC endpoint for each chain.
+
+When provided, Ponder will use WebSocket connections for realtime block subscriptions instead of polling. Websocket connections typically offer lower latency and reduced RPC usage.
+
+:::info
+  If the WebSocket connection becomes unstable or fails, Ponder automatically falls back to the default polling mechanism to ensure continuous indexing.
+:::
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  chains: {
+    mainnet: {
+      id: 1,
+      rpc: "https://eth-mainnet.g.alchemy.com/v2/...",
+      ws: "wss://eth-mainnet.g.alchemy.com/v2/...", // [!code focus]
+    },
+  },
+  contracts: { /* ... */ },
+});
+```
+
+## Polling interval
+
+The `pollingInterval` option controls how frequently (in milliseconds) the indexing engine checks for a new block in realtime. The default is `1000` (1 second).
+
+If you set `pollingInterval` greater than the chain's block time, it **does not reduce RPC usage**. The indexing engine still fetches every block to check for reorgs. The default is suitable for most chains.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  chains: {
+    mainnet: {
+      id: 1,
+      rpc: process.env.PONDER_RPC_URL_1,
+      pollingInterval: 2_000, // 2 seconds [!code focus]
+    },
+  },
+});
+```
+
+## Disable caching
+
+Use the `disableCache` option to disable caching for RPC responses. The default is `false`.
+
+Set this option to `true` when indexing a development node like Anvil, where the chain state / history may change. [Read more](/docs/guides/foundry) about indexing Anvil.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  chains: {
+    anvil: {
+      id: 31337,
+      rpc: "http://127.0.0.1:8545",
+      disableCache: true, // [!code focus]
+    },
+  },
+});
+```
