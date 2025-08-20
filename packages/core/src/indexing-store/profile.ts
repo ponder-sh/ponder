@@ -56,31 +56,32 @@ export const recordProfilePattern = (
 const matchEventParameters = (
   event: Event,
   value: any,
-): ProfilePattern["string"] | undefined => {
+): ProfilePattern[keyof ProfilePattern] | undefined => {
   if (eq(event.chainId, value)) {
-    return { value: ["chainId"] };
+    return { type: "derived", value: ["chainId"] };
   }
 
   if (eq(event.event.id, value)) {
-    return { value: ["id"] };
+    return { type: "derived", value: ["id"] };
   }
 
   switch (event.type) {
     case "block": {
       if (eq(event.event.block.hash, value)) {
-        return { value: ["block", "hash"] };
+        return { type: "derived", value: ["block", "hash"] };
       }
 
       if (eq(event.event.block.number, value)) {
-        return { value: ["block", "number"] };
+        return { type: "derived", value: ["block", "number"] };
       }
 
       if (eq(event.event.block.timestamp, value)) {
-        return { value: ["block", "timestamp"] };
+        return { type: "derived", value: ["block", "timestamp"] };
       }
 
       if (eq(event.event.block.timestamp / 60n, value)) {
         return {
+          type: "derived",
           value: ["block", "timestamp"],
           fn: (value) => (value as bigint) / 60n,
         };
@@ -88,6 +89,7 @@ const matchEventParameters = (
 
       if (eq(event.event.block.timestamp / 3600n, value)) {
         return {
+          type: "derived",
           value: ["block", "timestamp"],
           fn: (value) => (value as bigint) / 3600n,
         };
@@ -95,13 +97,14 @@ const matchEventParameters = (
 
       if (eq(event.event.block.timestamp / 86400n, value)) {
         return {
+          type: "derived",
           value: ["block", "timestamp"],
           fn: (value) => (value as bigint) / 86400n,
         };
       }
 
       if (eq(event.event.block.miner, value)) {
-        return { value: ["block", "miner"] };
+        return { type: "derived", value: ["block", "miner"] };
       }
 
       break;
@@ -109,19 +112,20 @@ const matchEventParameters = (
 
     case "transaction": {
       if (eq(event.event.block.hash, value)) {
-        return { value: ["block", "hash"] };
+        return { type: "derived", value: ["block", "hash"] };
       }
 
       if (eq(event.event.block.number, value)) {
-        return { value: ["block", "number"] };
+        return { type: "derived", value: ["block", "number"] };
       }
 
       if (eq(event.event.block.timestamp, value)) {
-        return { value: ["block", "timestamp"] };
+        return { type: "derived", value: ["block", "timestamp"] };
       }
 
       if (eq(event.event.block.timestamp / 60n, value)) {
         return {
+          type: "derived",
           value: ["block", "timestamp"],
           fn: (value) => (value as bigint) / 60n,
         };
@@ -129,6 +133,7 @@ const matchEventParameters = (
 
       if (eq(event.event.block.timestamp / 3600n, value)) {
         return {
+          type: "derived",
           value: ["block", "timestamp"],
           fn: (value) => (value as bigint) / 3600n,
         };
@@ -136,36 +141,40 @@ const matchEventParameters = (
 
       if (eq(event.event.block.timestamp / 86400n, value)) {
         return {
+          type: "derived",
           value: ["block", "timestamp"],
           fn: (value) => (value as bigint) / 86400n,
         };
       }
 
       if (eq(event.event.block.miner, value)) {
-        return { value: ["block", "miner"] };
+        return { type: "derived", value: ["block", "miner"] };
       }
 
       if (eq(event.event.transaction.hash, value)) {
-        return { value: ["transaction", "hash"] };
+        return { type: "derived", value: ["transaction", "hash"] };
       }
 
       if (eq(event.event.transaction.from, value)) {
-        return { value: ["transaction", "from"] };
+        return { type: "derived", value: ["transaction", "from"] };
       }
 
       if (event.event.transaction.to && eq(event.event.transaction.to, value)) {
-        return { value: ["transaction", "to"] };
+        return { type: "derived", value: ["transaction", "to"] };
       }
 
       if (eq(event.event.transaction.transactionIndex, value)) {
-        return { value: ["transaction", "transactionIndex"] };
+        return { type: "derived", value: ["transaction", "transactionIndex"] };
       }
 
       if (
         event.event.transactionReceipt?.contractAddress &&
         eq(event.event.transactionReceipt.contractAddress, value)
       ) {
-        return { value: ["transactionReceipt", "contractAddress"] };
+        return {
+          type: "derived",
+          value: ["transactionReceipt", "contractAddress"],
+        };
       }
 
       break;
@@ -183,33 +192,34 @@ const matchEventParameters = (
           ] as string | bigint | number | boolean;
 
           if (typeof argValue !== "object" && eq(argValue, value)) {
-            return { value: ["args", argKey] };
+            return { type: "derived", value: ["args", argKey] };
           }
         }
       }
 
       if (eq(event.event.log.address, value)) {
-        return { value: ["log", "address"] };
+        return { type: "derived", value: ["log", "address"] };
       }
 
       if (eq(event.event.log.logIndex, value)) {
-        return { value: ["log", "logIndex"] };
+        return { type: "derived", value: ["log", "logIndex"] };
       }
 
       if (eq(event.event.block.hash, value)) {
-        return { value: ["block", "hash"] };
+        return { type: "derived", value: ["block", "hash"] };
       }
 
       if (eq(event.event.block.number, value)) {
-        return { value: ["block", "number"] };
+        return { type: "derived", value: ["block", "number"] };
       }
 
       if (eq(event.event.block.timestamp, value)) {
-        return { value: ["block", "timestamp"] };
+        return { type: "derived", value: ["block", "timestamp"] };
       }
 
       if (eq(event.event.block.timestamp / 60n, value)) {
         return {
+          type: "derived",
           value: ["block", "timestamp"],
           fn: (value) => (value as bigint) / 60n,
         };
@@ -217,6 +227,7 @@ const matchEventParameters = (
 
       if (eq(event.event.block.timestamp / 3600n, value)) {
         return {
+          type: "derived",
           value: ["block", "timestamp"],
           fn: (value) => (value as bigint) / 3600n,
         };
@@ -224,36 +235,40 @@ const matchEventParameters = (
 
       if (eq(event.event.block.timestamp / 86400n, value)) {
         return {
+          type: "derived",
           value: ["block", "timestamp"],
           fn: (value) => (value as bigint) / 86400n,
         };
       }
 
       if (eq(event.event.block.miner, value)) {
-        return { value: ["block", "miner"] };
+        return { type: "derived", value: ["block", "miner"] };
       }
 
       if (eq(event.event.transaction.hash, value)) {
-        return { value: ["transaction", "hash"] };
+        return { type: "derived", value: ["transaction", "hash"] };
       }
 
       if (eq(event.event.transaction.from, value)) {
-        return { value: ["transaction", "from"] };
+        return { type: "derived", value: ["transaction", "from"] };
       }
 
       if (event.event.transaction.to && eq(event.event.transaction.to, value)) {
-        return { value: ["transaction", "to"] };
+        return { type: "derived", value: ["transaction", "to"] };
       }
 
       if (eq(event.event.transaction.transactionIndex, value)) {
-        return { value: ["transaction", "transactionIndex"] };
+        return { type: "derived", value: ["transaction", "transactionIndex"] };
       }
 
       if (
         event.event.transactionReceipt?.contractAddress &&
         eq(event.event.transactionReceipt.contractAddress, value)
       ) {
-        return { value: ["transactionReceipt", "contractAddress"] };
+        return {
+          type: "derived",
+          value: ["transactionReceipt", "contractAddress"],
+        };
       }
 
       break;
@@ -271,7 +286,7 @@ const matchEventParameters = (
           ] as string | bigint | number | boolean;
 
           if (typeof argValue !== "object" && eq(argValue, value)) {
-            return { value: ["args", argKey] };
+            return { type: "derived", value: ["args", argKey] };
           }
         }
       }
@@ -287,33 +302,34 @@ const matchEventParameters = (
           ] as string | bigint | number | boolean;
 
           if (typeof argValue !== "object" && eq(argValue, value)) {
-            return { value: ["result", argKey] };
+            return { type: "derived", value: ["result", argKey] };
           }
         }
       }
 
       if (eq(event.event.trace.from, value)) {
-        return { value: ["trace", "from"] };
+        return { type: "derived", value: ["trace", "from"] };
       }
 
       if (event.event.trace.to && eq(event.event.trace.to, value)) {
-        return { value: ["trace", "to"] };
+        return { type: "derived", value: ["trace", "to"] };
       }
 
       if (eq(event.event.block.hash, value)) {
-        return { value: ["block", "hash"] };
+        return { type: "derived", value: ["block", "hash"] };
       }
 
       if (eq(event.event.block.number, value)) {
-        return { value: ["block", "number"] };
+        return { type: "derived", value: ["block", "number"] };
       }
 
       if (eq(event.event.block.timestamp, value)) {
-        return { value: ["block", "timestamp"] };
+        return { type: "derived", value: ["block", "timestamp"] };
       }
 
       if (eq(event.event.block.timestamp / 60n, value)) {
         return {
+          type: "derived",
           value: ["block", "timestamp"],
           fn: (value) => (value as bigint) / 60n,
         };
@@ -321,6 +337,7 @@ const matchEventParameters = (
 
       if (eq(event.event.block.timestamp / 3600n, value)) {
         return {
+          type: "derived",
           value: ["block", "timestamp"],
           fn: (value) => (value as bigint) / 3600n,
         };
@@ -328,36 +345,40 @@ const matchEventParameters = (
 
       if (eq(event.event.block.timestamp / 86400n, value)) {
         return {
+          type: "derived",
           value: ["block", "timestamp"],
           fn: (value) => (value as bigint) / 86400n,
         };
       }
 
       if (eq(event.event.block.miner, value)) {
-        return { value: ["block", "miner"] };
+        return { type: "derived", value: ["block", "miner"] };
       }
 
       if (eq(event.event.transaction.hash, value)) {
-        return { value: ["transaction", "hash"] };
+        return { type: "derived", value: ["transaction", "hash"] };
       }
 
       if (eq(event.event.transaction.from, value)) {
-        return { value: ["transaction", "from"] };
+        return { type: "derived", value: ["transaction", "from"] };
       }
 
       if (event.event.transaction.to && eq(event.event.transaction.to, value)) {
-        return { value: ["transaction", "to"] };
+        return { type: "derived", value: ["transaction", "to"] };
       }
 
       if (eq(event.event.transaction.transactionIndex, value)) {
-        return { value: ["transaction", "transactionIndex"] };
+        return { type: "derived", value: ["transaction", "transactionIndex"] };
       }
 
       if (
         event.event.transactionReceipt?.contractAddress &&
         eq(event.event.transactionReceipt.contractAddress, value)
       ) {
-        return { value: ["transactionReceipt", "contractAddress"] };
+        return {
+          type: "derived",
+          value: ["transactionReceipt", "contractAddress"],
+        };
       }
 
       break;
@@ -365,35 +386,36 @@ const matchEventParameters = (
 
     case "transfer": {
       if (eq(event.event.transfer.from, value)) {
-        return { value: ["transfer", "from"] };
+        return { type: "derived", value: ["transfer", "from"] };
       }
 
       if (eq(event.event.transfer.to, value)) {
-        return { value: ["transfer", "to"] };
+        return { type: "derived", value: ["transfer", "to"] };
       }
 
       if (eq(event.event.trace.from, value)) {
-        return { value: ["trace", "from"] };
+        return { type: "derived", value: ["trace", "from"] };
       }
 
       if (event.event.trace.to && eq(event.event.trace.to, value)) {
-        return { value: ["trace", "to"] };
+        return { type: "derived", value: ["trace", "to"] };
       }
 
       if (eq(event.event.block.hash, value)) {
-        return { value: ["block", "hash"] };
+        return { type: "derived", value: ["block", "hash"] };
       }
 
       if (eq(event.event.block.number, value)) {
-        return { value: ["block", "number"] };
+        return { type: "derived", value: ["block", "number"] };
       }
 
       if (eq(event.event.block.timestamp, value)) {
-        return { value: ["block", "timestamp"] };
+        return { type: "derived", value: ["block", "timestamp"] };
       }
 
       if (eq(event.event.block.timestamp / 60n, value)) {
         return {
+          type: "derived",
           value: ["block", "timestamp"],
           fn: (value) => (value as bigint) / 60n,
         };
@@ -401,6 +423,7 @@ const matchEventParameters = (
 
       if (eq(event.event.block.timestamp / 3600n, value)) {
         return {
+          type: "derived",
           value: ["block", "timestamp"],
           fn: (value) => (value as bigint) / 3600n,
         };
@@ -408,36 +431,40 @@ const matchEventParameters = (
 
       if (eq(event.event.block.timestamp / 86400n, value)) {
         return {
+          type: "derived",
           value: ["block", "timestamp"],
           fn: (value) => (value as bigint) / 86400n,
         };
       }
 
       if (eq(event.event.block.miner, value)) {
-        return { value: ["block", "miner"] };
+        return { type: "derived", value: ["block", "miner"] };
       }
 
       if (eq(event.event.transaction.hash, value)) {
-        return { value: ["transaction", "hash"] };
+        return { type: "derived", value: ["transaction", "hash"] };
       }
 
       if (eq(event.event.transaction.from, value)) {
-        return { value: ["transaction", "from"] };
+        return { type: "derived", value: ["transaction", "from"] };
       }
 
       if (event.event.transaction.to && eq(event.event.transaction.to, value)) {
-        return { value: ["transaction", "to"] };
+        return { type: "derived", value: ["transaction", "to"] };
       }
 
       if (eq(event.event.transaction.transactionIndex, value)) {
-        return { value: ["transaction", "transactionIndex"] };
+        return { type: "derived", value: ["transaction", "transactionIndex"] };
       }
 
       if (
         event.event.transactionReceipt?.contractAddress &&
         eq(event.event.transactionReceipt.contractAddress, value)
       ) {
-        return { value: ["transactionReceipt", "contractAddress"] };
+        return {
+          type: "derived",
+          value: ["transactionReceipt", "contractAddress"],
+        };
       }
 
       break;
@@ -448,14 +475,15 @@ const matchEventParameters = (
     del: for (const delimiter of delimiters) {
       const subValues = value.split(delimiter);
       if (subValues.length > 1) {
-        const result = {
-          values: [] as any,
+        const result: ProfilePattern[keyof ProfilePattern] = {
+          type: "delimeter",
+          values: [],
           delimiter,
         };
 
         for (const subValue of subValues) {
           const match = matchEventParameters(event, subValue);
-          if (match !== undefined && "value" in match) {
+          if (match?.type === "derived") {
             result.values.push(match);
             continue;
           }
@@ -477,10 +505,9 @@ export const recoverProfilePattern = (
 ): Row => {
   const result: Row = {};
 
-  for (const [key, _value] of Object.entries(pattern)) {
-    if ("fn" in _value) {
-      const { value, fn } = _value;
-
+  for (const [key, _pattern] of Object.entries(pattern)) {
+    if (_pattern.type === "derived") {
+      const { value, fn } = _pattern;
       if (value[0] === "chainId") {
         result[key] = event.chainId;
       } else {
@@ -496,11 +523,8 @@ export const recoverProfilePattern = (
 
         result[key] = _result;
       }
-    }
-
-    if ("delimiter" in _value) {
-      const { values, delimiter } = _value;
-
+    } else {
+      const { values, delimiter } = _pattern;
       result[key] = values
         .map(({ value, fn }) => {
           if (value[0] === "chainId") {

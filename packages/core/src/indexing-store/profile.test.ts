@@ -224,6 +224,7 @@ test("recordProfilePattern() chainId", () => {
   expect(pattern).toMatchInlineSnapshot(`
     {
       "address": {
+        "type": "derived",
         "value": [
           "chainId",
         ],
@@ -231,7 +232,11 @@ test("recordProfilePattern() chainId", () => {
     }
   `);
 
-  expect(recoverProfilePattern(pattern!, event)).toMatchInlineSnapshot();
+  expect(recoverProfilePattern(pattern!, event)).toMatchInlineSnapshot(`
+    {
+      "address": 1,
+    }
+  `);
 });
 
 test("recordProfilePattern() log args", () => {
@@ -273,6 +278,7 @@ test("recordProfilePattern() log args", () => {
   expect(pattern).toMatchInlineSnapshot(`
     {
       "address": {
+        "type": "derived",
         "value": [
           "args",
           "address",
@@ -281,7 +287,11 @@ test("recordProfilePattern() log args", () => {
     }
   `);
 
-  expect(recoverProfilePattern(pattern!, event)).toMatchInlineSnapshot();
+  expect(recoverProfilePattern(pattern!, event)).toMatchInlineSnapshot(`
+    {
+      "address": "0x0000000000000000000000000000000000000000",
+    }
+  `);
 });
 
 test("recordProfilePattern() block", () => {
@@ -318,6 +328,7 @@ test("recordProfilePattern() block", () => {
   expect(pattern).toMatchInlineSnapshot(`
     {
       "address": {
+        "type": "derived",
         "value": [
           "block",
           "number",
@@ -326,7 +337,11 @@ test("recordProfilePattern() block", () => {
     }
   `);
 
-  expect(recoverProfilePattern(pattern!, event)).toMatchInlineSnapshot();
+  expect(recoverProfilePattern(pattern!, event)).toMatchInlineSnapshot(`
+    {
+      "address": 3n,
+    }
+  `);
 });
 
 test("recordProfilePattern() hint", () => {
@@ -371,6 +386,7 @@ test("recordProfilePattern() hint", () => {
   expect(pattern).toMatchInlineSnapshot(`
     {
       "address": {
+        "type": "derived",
         "value": [
           "block",
           "number",
@@ -379,7 +395,11 @@ test("recordProfilePattern() hint", () => {
     }
   `);
 
-  expect(recoverProfilePattern(pattern!, event)).toMatchInlineSnapshot();
+  expect(recoverProfilePattern(pattern!, event)).toMatchInlineSnapshot(`
+    {
+      "address": 3n,
+    }
+  `);
 });
 
 test("recordProfilePattern() object args", () => {
@@ -462,13 +482,16 @@ test("recordProfilePattern() string concat", () => {
     {
       "id": {
         "delimiter": "-",
+        "type": "delimeter",
         "values": [
           {
+            "type": "derived",
             "value": [
               "chainId",
             ],
           },
           {
+            "type": "derived",
             "value": [
               "args",
               "address",
@@ -575,13 +598,16 @@ test("recordProfilePattern() string concat hint", () => {
     {
       "id": {
         "delimiter": "-",
+        "type": "delimeter",
         "values": [
           {
+            "type": "derived",
             "value": [
               "chainId",
             ],
           },
           {
+            "type": "derived",
             "value": [
               "args",
               "address",
