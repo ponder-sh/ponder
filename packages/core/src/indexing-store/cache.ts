@@ -812,7 +812,7 @@ export const createIndexingCache = ({
                 msg: `Inserted ${insertValues.length} '${getTableName(table)}' rows`,
               });
 
-              // await new Promise(setImmediate);
+              await new Promise(setImmediate);
             }
 
             if (updateValues.length > 0) {
@@ -915,7 +915,7 @@ export const createIndexingCache = ({
                 msg: `Updated ${updateValues.length} '${getTableName(table)}' rows`,
               });
 
-              // await new Promise(setImmediate);
+              await new Promise(setImmediate);
             }
           }),
         ).catch((error) => {
