@@ -1,5 +1,13 @@
 # ponder
 
+## 0.12.12
+
+### Patch Changes
+
+- [#1984](https://github.com/ponder-sh/ponder/pull/1984) [`09c7ccd`](https://github.com/ponder-sh/ponder/commit/09c7ccde1615a33fb78f56a7ab25ed3af35520fb) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved `db.sql` performance.
+
+- [#1990](https://github.com/ponder-sh/ponder/pull/1990) [`77eea0d`](https://github.com/ponder-sh/ponder/commit/77eea0d168a429fbde253578d9c8ea520525e21d) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused apps using pglite to deadlock.
+
 ## 0.12.11
 
 ### Patch Changes
