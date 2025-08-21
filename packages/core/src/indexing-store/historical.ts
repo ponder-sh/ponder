@@ -6,13 +6,14 @@ import {
   RawSqlError,
   RecordNotFoundError,
   RetryableError,
+  UniqueConstraintError,
 } from "@/internal/errors.js";
 import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
-import type { IndexingCache } from "./cache.js";
+import type { IndexingCache, Row } from "./cache.js";
 import {
   type IndexingStore,
   checkOnchainTable,
@@ -198,29 +199,69 @@ export const createHistoricalIndexingStore = ({
                 if (Array.isArray(values)) {
                   const rows = [];
                   for (const value of values) {
-                    // Note: optimistic assumption that no conflict exists
-                    // because error is recovered at flush time
-
-                    rows.push(
-                      indexingCache.set({
+                    if (qb.$dialect === "pglite") {
+                      const row = await indexingCache.get({
                         table,
                         key: value,
-                        row: value,
-                        isUpdate: false,
-                      }),
-                    );
+                      });
+
+                      if (row) {
+                        throw new UniqueConstraintError(
+                          `Primary key conflict in table '${getTableName(table)}'`,
+                        );
+                      } else {
+                        rows.push(
+                          indexingCache.set({
+                            table,
+                            key: value,
+                            row: value,
+                            isUpdate: false,
+                          }),
+                        );
+                      }
+                    } else {
+                      // Note: optimistic assumption that no conflict exists
+                      // because error is recovered at flush time
+
+                      rows.push(
+                        indexingCache.set({
+                          table,
+                          key: value,
+                          row: value,
+                          isUpdate: false,
+                        }),
+                      );
+                    }
                   }
                   return Promise.resolve(rows).then(onFulfilled, onRejected);
                 } else {
-                  // Note: optimistic assumption that no conflict exists
-                  // because error is recovered at flush time
+                  let result: Row;
+                  if (qb.$dialect === "pglite") {
+                    const row = await indexingCache.get({ table, key: values });
 
-                  const result = indexingCache.set({
-                    table,
-                    key: values,
-                    row: values,
-                    isUpdate: false,
-                  });
+                    if (row) {
+                      throw new UniqueConstraintError(
+                        `Primary key conflict in table '${getTableName(table)}'`,
+                      );
+                    } else {
+                      result = indexingCache.set({
+                        table,
+                        key: values,
+                        row: values,
+                        isUpdate: false,
+                      });
+                    }
+                  } else {
+                    // Note: optimistic assumption that no conflict exists
+                    // because error is recovered at flush time
+
+                    result = indexingCache.set({
+                      table,
+                      key: values,
+                      row: values,
+                      isUpdate: false,
+                    });
+                  }
                   return Promise.resolve(result).then(onFulfilled, onRejected);
                 }
               })().then(onFulfilled, onRejected),
