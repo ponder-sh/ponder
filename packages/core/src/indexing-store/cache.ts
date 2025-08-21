@@ -509,9 +509,10 @@ export const createIndexingCache = ({
       const copy = getCopyHelper(qb);
 
       // Note `isFlushRetry` is true when the previous flush failed. When `isFlushRetry` is false, this
-      // function takes an optimized fast path, with support for small batch sizes.
+      // function takes an optimized fast path, with support for small batch sizes. PGlite always takes
+      // the fast path because it doesn't support delayed insert errors.
 
-      if (isFlushRetry) {
+      if (isFlushRetry && qb.$dialect === "postgres") {
         for (const table of cache.keys()) {
           const shouldRecordBytes = cache.get(table)!.isCacheComplete;
           if (
