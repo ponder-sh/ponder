@@ -51,6 +51,12 @@ export const createHistoricalIndexingStore = ({
         }
         return result;
       } catch (error) {
+        if (isProcessingEvents === false) {
+          throw new NonRetryableUserError(
+            "Indexing store query executed outside of the indexing function. Make sure all 'context.db' queries are properly awaited.",
+          );
+        }
+
         if (error instanceof RetryableError) {
           indexingErrorHandler.setRetryableError(error);
         }

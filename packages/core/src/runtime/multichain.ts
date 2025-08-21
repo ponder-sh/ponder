@@ -235,11 +235,15 @@ export async function runMultichain({
   if (crashRecoveryCheckpoint === undefined) {
     await database.userQB.transaction(async (tx) => {
       historicalIndexingStore.qb = tx;
+      historicalIndexingStore.isProcessingEvents = true;
+
       indexingCache.qb = tx;
 
       await indexing.processSetupEvents({
         db: historicalIndexingStore,
       });
+
+      historicalIndexingStore.isProcessingEvents = false;
 
       await indexingCache.flush();
 
