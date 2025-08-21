@@ -633,7 +633,6 @@ export const createIndexingCache = ({
 
             const createTempTableQuery = `
               CREATE TEMP TABLE IF NOT EXISTS "${getTableName(table)}"
-              ON COMMIT DROP
               AS SELECT * FROM "${
                 getTableConfig(table).schema ?? "public"
               }"."${getTableName(table)}"
@@ -840,7 +839,6 @@ export const createIndexingCache = ({
 
                 const createTempTableQuery = `
                 CREATE TEMP TABLE IF NOT EXISTS "${getTableName(table)}" 
-                ON COMMIT DROP
                 AS SELECT * FROM "${
                   getTableConfig(table).schema ?? "public"
                 }"."${getTableName(table)}"
@@ -878,8 +876,9 @@ export const createIndexingCache = ({
                 await copy(table, text, false);
 
                 await qb.wrap((db) => db.execute(updateQuery));
+
                 await qb.wrap((db) =>
-                  db.execute(`TRUNCATE TABLE "${getTableName(table)}"`),
+                  db.execute(`TRUNCATE "${getTableName(table)}"`),
                 );
               } else {
                 await qb.wrap((db) =>
