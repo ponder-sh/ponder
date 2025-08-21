@@ -603,6 +603,40 @@ test("missing rows", async (context) => {
   expect(error).toBeDefined();
 });
 
+test("unawaited promise", async (context) => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingErrorHandler,
+  });
+  indexingStore.qb = database.userQB;
+
+  indexingStore.isProcessingEvents = false;
+
+  const promise = indexingStore
+    .insert(schema.account)
+    .values({
+      address: zeroAddress,
+      balance: 10n,
+    })
+    .onConflictDoUpdate({
+      balance: 16n,
+    });
+
+  await expect(promise!).rejects.toThrowError();
+});
+
 test("notNull", async (context) => {
   let schema = {
     account: onchainTable("account", (p) => ({

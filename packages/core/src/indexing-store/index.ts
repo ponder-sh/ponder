@@ -12,7 +12,10 @@ import type { Table } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import type { Row } from "./cache.js";
 
-export type IndexingStore = Db<Schema> & { qb: QB };
+export type IndexingStore = Db<Schema> & {
+  qb: QB;
+  isProcessingEvents: boolean;
+};
 
 export const validateUpdateSet = (
   table: Table,

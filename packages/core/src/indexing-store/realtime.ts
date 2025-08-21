@@ -2,6 +2,7 @@ import type { QB } from "@/database/queryBuilder.js";
 import type { Common } from "@/internal/common.js";
 import {
   DbConnectionError,
+  NonRetryableUserError,
   RawSqlError,
   RecordNotFoundError,
   RetryableError,
@@ -29,12 +30,31 @@ export const createRealtimeIndexingStore = ({
   indexingErrorHandler: IndexingErrorHandler;
 }): IndexingStore => {
   let qb: QB = undefined!;
+  let isProcessingEvents = true;
 
-  const errorHandler = (fn: (...args: any[]) => Promise<any>) => {
+  const storeMethodWrapper = (fn: (...args: any[]) => Promise<any>) => {
     return async (...args: any[]) => {
       try {
-        return await fn(...args);
+        if (isProcessingEvents === false) {
+          throw new NonRetryableUserError(
+            "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
+          );
+        }
+        const result = await fn(...args);
+        // @ts-expect-error typescript bug lol
+        if (isProcessingEvents === false) {
+          throw new NonRetryableUserError(
+            "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
+          );
+        }
+        return result;
       } catch (error) {
+        if (isProcessingEvents === false) {
+          throw new NonRetryableUserError(
+            "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
+          );
+        }
+
         if (error instanceof RetryableError) {
           indexingErrorHandler.setRetryableError(error);
         }
@@ -56,7 +76,7 @@ export const createRealtimeIndexingStore = ({
 
   return {
     // @ts-ignore
-    find: errorHandler(async (table: Table, key) => {
+    find: storeMethodWrapper(async (table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "find",
@@ -70,7 +90,7 @@ export const createRealtimeIndexingStore = ({
         values: (values: any) => {
           // @ts-ignore
           const inner = {
-            onConflictDoNothing: errorHandler(async () => {
+            onConflictDoNothing: storeMethodWrapper(async () => {
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -112,7 +132,7 @@ export const createRealtimeIndexingStore = ({
                   .then(parseResult),
               );
             }),
-            onConflictDoUpdate: errorHandler(async (valuesU: any) => {
+            onConflictDoUpdate: storeMethodWrapper(async (valuesU: any) => {
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -183,7 +203,7 @@ export const createRealtimeIndexingStore = ({
             }),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
             then: (onFulfilled, onRejected) =>
-              errorHandler(async () => {
+              storeMethodWrapper(async () => {
                 common.metrics.ponder_indexing_store_queries_total.inc({
                   table: getTableName(table),
                   method: "insert",
@@ -243,7 +263,7 @@ export const createRealtimeIndexingStore = ({
     // @ts-ignore
     update(table: Table, key) {
       return {
-        set: errorHandler(async (values: any) => {
+        set: storeMethodWrapper(async (values: any) => {
           common.metrics.ponder_indexing_store_queries_total.inc({
             table: getTableName(table),
             method: "update",
@@ -284,7 +304,7 @@ export const createRealtimeIndexingStore = ({
       };
     },
     // @ts-ignore
-    delete: errorHandler(async (table: Table, key) => {
+    delete: storeMethodWrapper(async (table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "delete",
@@ -299,7 +319,7 @@ export const createRealtimeIndexingStore = ({
     }),
     // @ts-ignore
     sql: drizzle(
-      errorHandler(async (_sql, params, method, typings) => {
+      storeMethodWrapper(async (_sql, params, method, typings) => {
         const query: QueryWithTypings = { sql: _sql, params, typings };
 
         const endClock = startClock();
@@ -333,6 +353,9 @@ export const createRealtimeIndexingStore = ({
     ),
     set qb(_qb: QB) {
       qb = _qb;
+    },
+    set isProcessingEvents(_isProcessingEvents: boolean) {
+      isProcessingEvents = _isProcessingEvents;
     },
   };
 };
