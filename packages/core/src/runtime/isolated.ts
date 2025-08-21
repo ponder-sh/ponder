@@ -11,7 +11,8 @@ import {
   revert,
 } from "@/database/actions.js";
 import {
-  createDatabaseInterface,
+  type DatabaseInterface,
+  createDatabase,
   getPonderCheckpointTable,
 } from "@/database/index.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
@@ -194,7 +195,7 @@ export async function runIsolated({
   options.indexingCacheMaxBytes =
     options.indexingCacheMaxBytes / indexingBuild.chains.length;
 
-  const database = createDatabaseInterface({
+  const database: DatabaseInterface = createDatabase({
     common,
     namespace: namespaceBuild,
     preBuild,
