@@ -24,6 +24,10 @@ import {
   type PgColumnsBuilders as _PgColumnsBuilders,
   getPgColumnBuilders,
 } from "drizzle-orm/pg-core/columns/all";
+import {
+  PgBigNumberBuilder,
+  type PgBigNumberBuilderInitial,
+} from "./bigdecimal.js";
 import { PgBigintBuilder, type PgBigintBuilderInitial } from "./bigint.js";
 import { PgBytesBuilder, type PgBytesBuilderInitial } from "./bytes.js";
 import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
@@ -61,6 +65,15 @@ export function bigint<name extends string>(
 ): PgBigintBuilderInitial<name>;
 export function bigint(columnName?: string) {
   return new PgBigintBuilder(columnName ?? "");
+}
+
+// @ts-ignore
+export function bignumber(): PgBigNumberBuilderInitial<"">;
+export function bignumber<name extends string>(
+  columnName: name,
+): PgBigNumberBuilderInitial<name>;
+export function bignumber(columnName?: string) {
+  return new PgBigNumberBuilder(columnName ?? "");
 }
 
 export function json(): PgJsonBuilderInitial<"">;
@@ -176,6 +189,7 @@ export type PgColumnsBuilders = Omit<
    * }));
    */
   bigint: typeof bigint;
+  bignumber: typeof bignumber;
   /**
    * Create a column for Ethereum bytes
    *
@@ -298,7 +312,17 @@ function pgTableWithSchema<
 
   const parsedColumns: columns =
     typeof columns === "function"
-      ? columns({ ...restColumns, int8, hex, bigint, bytes, text, json, jsonb })
+      ? columns({
+          ...restColumns,
+          int8,
+          hex,
+          bigint,
+          bignumber,
+          bytes,
+          text,
+          json,
+          jsonb,
+        })
       : columns;
 
   const builtColumns = Object.fromEntries(
