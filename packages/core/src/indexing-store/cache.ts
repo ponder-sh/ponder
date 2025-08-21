@@ -756,7 +756,9 @@ export const createIndexingCache = ({
       } else {
         isFlushRetry = true;
 
-        await Promise.all(
+        // Note: Must use `Promise.allSettled` to avoid short-circuiting while queries are running.
+
+        const results = await Promise.allSettled(
           Array.from(cache.keys()).map(async (table) => {
             const shouldRecordBytes = cache.get(table)!.isCacheComplete;
             if (
@@ -918,9 +920,15 @@ export const createIndexingCache = ({
               await new Promise(setImmediate);
             }
           }),
-        ).catch((error) => {
-          throw new RetryableError(error.message);
-        });
+        );
+
+        if (results.some((result) => result.status === "rejected")) {
+          const rejected = results.find(
+            (result): result is PromiseRejectedResult =>
+              result.status === "rejected",
+          )!;
+          throw new RetryableError(rejected.reason.message);
+        }
       }
 
       isFlushRetry = false;
