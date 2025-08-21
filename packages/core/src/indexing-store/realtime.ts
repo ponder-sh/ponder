@@ -107,12 +107,15 @@ export const createRealtimeIndexingStore = ({
                 return rows;
               };
 
-              if (chainId !== undefined)
-                Array.isArray(values)
-                  ? values.map((v) =>
-                      checkTableAccess(table, "insert", v, chainId),
-                    )
-                  : checkTableAccess(table, "insert", values, chainId);
+              if (chainId !== undefined) {
+                if (Array.isArray(values)) {
+                  for (const value of values) {
+                    checkTableAccess(table, "insert", value, chainId);
+                  }
+                } else {
+                  checkTableAccess(table, "insert", values, chainId);
+                }
+              }
 
               return qb.wrap((db) =>
                 db
@@ -202,12 +205,15 @@ export const createRealtimeIndexingStore = ({
                   method: "insert",
                 });
                 checkOnchainTable(table, "insert");
-                if (chainId !== undefined)
-                  Array.isArray(values)
-                    ? values.map((v) =>
-                        checkTableAccess(table, "insert", v, chainId),
-                      )
-                    : checkTableAccess(table, "insert", values, chainId);
+                if (chainId !== undefined) {
+                  if (Array.isArray(values)) {
+                    for (const value of values) {
+                      checkTableAccess(table, "insert", value, chainId);
+                    }
+                  } else {
+                    checkTableAccess(table, "insert", values, chainId);
+                  }
+                }
 
                 // Note: `onConflictDoNothing` is used to ensure the transaction will only fail
                 // for connection issues. This is a workaround to avoid the transaction being aborted.

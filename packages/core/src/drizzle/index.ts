@@ -14,12 +14,12 @@ export const getTableNames = (table: PgTable) => {
     trigger(chainId?: number) {
       return chainId === undefined
         ? sqlToReorgTableName(sql)
-        : `_${chainId}_${sqlToReorgTableName(sql)}`;
+        : `${sqlToReorgTableName(sql)}_${chainId}`;
     },
     triggerFn(chainId?: number) {
       return chainId === undefined
         ? `operation_reorg__${sql}()`
-        : `_${chainId}_operation_reorg__${sql}()`;
+        : `operation_reorg__${sql}_${chainId}()`;
     },
   };
 };

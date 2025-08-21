@@ -357,6 +357,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
               },
               cliOptions,
             );
+
+            break;
           }
         }
       }

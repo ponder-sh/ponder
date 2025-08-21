@@ -120,6 +120,7 @@ export const createHistoricalIndexingStore = ({
               if (Array.isArray(values)) {
                 const rows = [];
                 for (const value of values) {
+                  checkTableAccess(table, "insert", value, chainId);
                   const row = await indexingCache.get({
                     table,
                     key: value,
@@ -139,7 +140,6 @@ export const createHistoricalIndexingStore = ({
                         row[key] = value;
                       }
                     }
-                    checkTableAccess(table, "insert", row, chainId);
                     rows.push(
                       indexingCache.set({
                         table,
@@ -149,7 +149,6 @@ export const createHistoricalIndexingStore = ({
                       }),
                     );
                   } else {
-                    checkTableAccess(table, "insert", value, chainId);
                     rows.push(
                       indexingCache.set({
                         table,
@@ -179,7 +178,6 @@ export const createHistoricalIndexingStore = ({
                       row[key] = value;
                     }
                   }
-                  checkTableAccess(table, "insert", row, chainId);
                   return indexingCache.set({
                     table,
                     key: values,
@@ -208,9 +206,9 @@ export const createHistoricalIndexingStore = ({
                 if (Array.isArray(values)) {
                   const rows = [];
                   for (const value of values) {
+                    checkTableAccess(table, "insert", value, chainId);
                     // Note: optimistic assumption that no conflict exists
                     // because error is recovered at flush time
-                    checkTableAccess(table, "insert", value, chainId);
                     rows.push(
                       indexingCache.set({
                         table,
@@ -287,7 +285,6 @@ export const createHistoricalIndexingStore = ({
               row[key] = value;
             }
           }
-          checkTableAccess(table, "update", row, chainId);
           return indexingCache.set({ table, key, row, isUpdate: true });
         }),
       };

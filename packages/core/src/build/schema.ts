@@ -104,7 +104,7 @@ export const buildSchema = ({
           undefined
         ) {
           throw new Error(
-            `Schema validation failed: '${name}.chainId' has to be primary.`,
+            `Schema validation failed: '${name}.chainId' column is required to be in the primary key when ordering is 'isolated'.`,
           );
         }
       }

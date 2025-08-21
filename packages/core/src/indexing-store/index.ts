@@ -65,7 +65,7 @@ export const checkTableAccess = (
   if ("chainId" in key && String(key.chainId) === String(chainId)) return;
   throw new InvalidStoreAccessError(
     "chainId" in key
-      ? `db.${method}() on ${getTableConfig(table).name} is accessing a row with chainId different from event's chainId.`
-      : `db.${method}() on ${getTableConfig(table).name} must specify 'chainId' field in 'isolated' ordering.`,
+      ? `db.${method}(${getTableConfig(table).name}) cannot access rows on different chains when ordering is 'isolated'.`
+      : `db.${method}(${getTableConfig(table).name}) must specify 'chainId' when ordering is 'isolated'.`,
   );
 };

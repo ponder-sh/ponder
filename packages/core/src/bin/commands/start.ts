@@ -227,6 +227,7 @@ export async function start({
       break;
     case "isolated": {
       startIsolated(app, cliOptions);
+      break;
     }
   }
   createServer(app);
