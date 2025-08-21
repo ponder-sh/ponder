@@ -639,10 +639,6 @@ export const createIndexingCache = ({
               WITH NO DATA;
             `;
             const updateQuery = `
-              WITH source AS (
-                DELETE FROM "${getTableName(table)}"
-                RETURNING *
-              )
               UPDATE "${
                 getTableConfig(table).schema ?? "public"
               }"."${getTableName(table)}" as target
@@ -655,7 +651,7 @@ export const createIndexingCache = ({
                     )}" = source."${getColumnCasing(column, "snake_case")}"`,
                 )
                 .join(",\n")}
-              FROM source
+              FROM "${getTableName(table)}" source
               WHERE ${primaryKeys
                 .map(({ sql }) => `target."${sql}" = source."${sql}"`)
                 .join(" AND ")};
@@ -732,6 +728,9 @@ export const createIndexingCache = ({
             }
 
             await qb.wrap((db) => db.execute(updateQuery));
+            await qb.wrap((db) =>
+              db.execute(`TRUNCATE TABLE "${getTableName(table)}"`),
+            );
 
             common.metrics.ponder_indexing_cache_query_duration.observe(
               {
@@ -847,11 +846,7 @@ export const createIndexingCache = ({
                 WITH NO DATA;
               `;
 
-                const updateQuery = ` 
-                WITH source AS (
-                  DELETE FROM "${getTableName(table)}"
-                  RETURNING *
-                )
+                const updateQuery = `
                 UPDATE "${
                   getTableConfig(table).schema ?? "public"
                 }"."${getTableName(table)}" as target
@@ -864,7 +859,7 @@ export const createIndexingCache = ({
                       )}" = source."${getColumnCasing(column, "snake_case")}"`,
                   )
                   .join(",\n")}
-                FROM source
+                FROM "${getTableName(table)}" source
                 WHERE ${primaryKeys
                   .map(({ sql }) => `target."${sql}" = source."${sql}"`)
                   .join(" AND ")};
@@ -882,6 +877,9 @@ export const createIndexingCache = ({
                 await copy(table, text, false);
 
                 await qb.wrap((db) => db.execute(updateQuery));
+                await qb.wrap((db) =>
+                  db.execute(`TRUNCATE TABLE "${getTableName(table)}"`),
+                );
               } else {
                 await qb.wrap((db) =>
                   db
