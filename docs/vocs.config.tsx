@@ -84,13 +84,9 @@ export default defineConfig({
    */
   head({ path }) {
     const canonicalSubpath = getCanonicalSubpath(path);
-    const canonicalTag = canonicalSubpath ? (
-      <link rel="canonical" href={`${baseUrl}${canonicalSubpath}`} />
-    ) : null;
 
     return (
       <>
-        {canonicalTag}
         <link rel="preload" as="image" href="/hero.png" />
         <script async src="https://sa-api.ponder.sh/latest.js" />
         <noscript>
@@ -100,6 +96,9 @@ export default defineConfig({
             referrerPolicy="no-referrer-when-downgrade"
           />
         </noscript>
+        {canonicalSubpath !== null ? (
+          <link rel="canonical" href={`${baseUrl}${canonicalSubpath}`} />
+        ) : null}
       </>
     );
   },
