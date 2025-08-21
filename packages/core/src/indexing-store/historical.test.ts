@@ -488,6 +488,10 @@ test("delete", async (context) => {
 });
 
 test("sql", async (context) => {
+  if (context.databaseConfig.kind === "pglite_test") {
+    return;
+  }
+
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),

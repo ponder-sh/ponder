@@ -395,12 +395,51 @@ export const createQB = <
     };
   };
 
-  addQBMethods(db);
+  if (dialect === "postgres") {
+    addQBMethods(db);
+  } else {
+    // @ts-ignore
+    db.transaction = async (...args) => {
+      if (typeof args[0] === "function") {
+        const [callback] = args as [
+          (
+            tx: PgTransaction<
+              PgQueryResultHKT,
+              TSchema,
+              ExtractTablesWithRelations<TSchema>
+            >,
+          ) => Promise<unknown>,
+        ];
+
+        // @ts-expect-error
+        return retryLogMetricErrorWrap(() => callback(db), {
+          isTransactionStatement: true,
+        });
+      } else {
+        const [{ label }, callback] = args as [
+          { label: string },
+          (
+            tx: PgTransaction<
+              PgQueryResultHKT,
+              TSchema,
+              ExtractTablesWithRelations<TSchema>
+            >,
+          ) => Promise<unknown>,
+        ];
+
+        // @ts-expect-error
+        return retryLogMetricErrorWrap(() => callback(db), {
+          label,
+          isTransactionStatement: true,
+        });
+      }
+    };
+  }
 
   const qb = db as unknown as QB<TSchema, TClient>;
   qb.raw = db;
 
-  qb.$dialect = "postgres";
+  qb.$dialect = dialect;
   qb.$client = db.$client;
 
   // @ts-expect-error
@@ -408,7 +447,7 @@ export const createQB = <
     if (typeof args[0] === "function") {
       const [query] = args;
       // @ts-expect-error
-      return retryLogMetricErrorWrap(async () => query(qb), {
+      return retryLogMetricErrorWrap(() => query(qb), {
         isTransactionStatement: false,
       });
     } else {
