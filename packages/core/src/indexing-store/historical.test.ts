@@ -13,7 +13,6 @@ import {
   type RetryableError,
 } from "@/internal/errors.js";
 import type { IndexingErrorHandler } from "@/internal/types.js";
-import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { eq } from "drizzle-orm";
 import { pgTable } from "drizzle-orm/pg-core";
 import { toBytes, zeroAddress } from "viem";
