@@ -878,7 +878,7 @@ export const createIndexingCache = ({
                 await qb.wrap((db) => db.execute(updateQuery));
 
                 await qb.wrap((db) =>
-                  db.execute(`TRUNCATE "${getTableName(table)}"`),
+                  db.execute(`TRUNCATE TABLE "${getTableName(table)}"`),
                 );
               } else {
                 await qb.wrap((db) =>
