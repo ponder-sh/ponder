@@ -39,21 +39,21 @@ export const createHistoricalIndexingStore = ({
       try {
         if (isProcessingEvents === false) {
           throw new NonRetryableUserError(
-            "Indexing store query executed outside of the indexing function. Make sure all 'context.db' queries are properly awaited.",
+            "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
           );
         }
         const result = await fn(...args);
         // @ts-expect-error typescript bug lol
         if (isProcessingEvents === false) {
           throw new NonRetryableUserError(
-            "Indexing store query executed outside of the indexing function. Make sure all 'context.db' queries are properly awaited.",
+            "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
           );
         }
         return result;
       } catch (error) {
         if (isProcessingEvents === false) {
           throw new NonRetryableUserError(
-            "Indexing store query executed outside of the indexing function. Make sure all 'context.db' queries are properly awaited.",
+            "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
           );
         }
 
