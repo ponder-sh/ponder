@@ -579,8 +579,21 @@ export async function* getRealtimeEventsIsolated(params: {
   let executedEvents: Event[] = [];
   /** Events that have not been executed. */
   let pendingEvents: Event[] = params.pendingEvents;
+  const unfinalizedBlocks: Omit<
+    Extract<RealtimeSyncEvent, { type: "block" }>,
+    "type"
+  >[] = [];
 
   for await (const { event } of eventGenerator) {
+    await handleRealtimeSyncEvent(event, {
+      common: params.common,
+      chain,
+      sources,
+      syncProgress,
+      unfinalizedBlocks,
+      syncStore: params.syncStore,
+    });
+
     switch (event.type) {
       case "block": {
         const events = buildEvents({
