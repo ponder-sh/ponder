@@ -11,10 +11,7 @@ import type { Rpc } from "@/rpc/index.js";
 import { buildEvents, decodeEvents } from "@/runtime/events.js";
 import { isAddressFactory } from "@/runtime/filter.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
-import {
-  createSyncStore,
-  getSafeCrashRecoveryBlock,
-} from "@/sync-store/index.js";
+import { createSyncStore } from "@/sync-store/index.js";
 import {
   MAX_CHECKPOINT,
   ZERO_CHECKPOINT,
@@ -127,15 +124,15 @@ export async function* getHistoricalEventsOmnichain(params: {
           ) {
             from = crashRecoveryCheckpoint;
           } else {
-            const fromBlock = await getSafeCrashRecoveryBlock(
-              params.database.syncQB,
-              {
-                chainId: chain.id,
-                timestamp: Number(
-                  decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
-                ),
-              },
-            );
+            const fromBlock = await createSyncStore({
+              common: params.common,
+              qb: params.database.syncQB,
+            }).getSafeCrashRecoveryBlock({
+              chainId: chain.id,
+              timestamp: Number(
+                decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
+              ),
+            });
 
             if (fromBlock === undefined) {
               from = syncProgress.getCheckpoint({ tag: "start" });
@@ -361,15 +358,15 @@ export async function* getHistoricalEventsMultichain(params: {
           ) {
             from = crashRecoveryCheckpoint;
           } else {
-            const fromBlock = await getSafeCrashRecoveryBlock(
-              params.database.syncQB,
-              {
-                chainId: chain.id,
-                timestamp: Number(
-                  decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
-                ),
-              },
-            );
+            const fromBlock = await createSyncStore({
+              common: params.common,
+              qb: params.database.syncQB,
+            }).getSafeCrashRecoveryBlock({
+              chainId: chain.id,
+              timestamp: Number(
+                decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
+              ),
+            });
 
             if (fromBlock === undefined) {
               from = syncProgress.getCheckpoint({ tag: "start" });

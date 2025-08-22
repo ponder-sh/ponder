@@ -73,6 +73,10 @@ export type SyncStore = {
     chainId: number;
   }): Promise<void>;
   getChildAddresses(args: { factory: Factory }): Promise<Map<Address, number>>;
+  getSafeCrashRecoveryBlock(args: {
+    chainId: number;
+    timestamp: number;
+  }): Promise<{ number: bigint; timestamp: bigint } | undefined>;
   insertLogs(args: { logs: SyncLog[]; chainId: number }): Promise<void>;
   insertBlocks(args: {
     blocks: (SyncBlock | SyncBlockHeader)[];
@@ -122,6 +126,10 @@ export type SyncStore = {
     requests: EIP1193Parameters[];
     chainId: number;
   }): Promise<(string | undefined)[]>;
+  pruneRpcRequestResults(args: {
+    blocks: Pick<LightBlock, "number">[];
+    chainId: number;
+  }): Promise<void>;
   pruneByChain(args: { chainId: number }): Promise<void>;
 };
 
@@ -329,6 +337,31 @@ export const createSyncStore = ({
         }
         return result;
       });
+  },
+  getSafeCrashRecoveryBlock: async ({
+    chainId,
+    timestamp,
+  }: { chainId: number; timestamp: number }): Promise<
+    { number: bigint; timestamp: bigint } | undefined
+  > => {
+    const rows = await qb.wrap({ label: "select_crash_recovery_block" }, (db) =>
+      db
+        .select({
+          number: PONDER_SYNC.blocks.number,
+          timestamp: PONDER_SYNC.blocks.timestamp,
+        })
+        .from(PONDER_SYNC.blocks)
+        .where(
+          and(
+            eq(PONDER_SYNC.blocks.chainId, BigInt(chainId)),
+            lt(PONDER_SYNC.blocks.timestamp, BigInt(timestamp)),
+          ),
+        )
+        .orderBy(desc(PONDER_SYNC.blocks.number))
+        .limit(1),
+    );
+
+    return rows[0];
   },
   insertLogs: async ({ logs, chainId }) => {
     if (logs.length === 0) return;
@@ -1031,6 +1064,22 @@ export const createSyncStore = ({
 
     return requestHashes.map((requestHash) => results.get(requestHash));
   },
+  pruneRpcRequestResults: async ({ blocks, chainId }) => {
+    if (blocks.length === 0) return;
+
+    const numbers = blocks.map(({ number }) => BigInt(hexToNumber(number)));
+
+    await qb.wrap({ label: "delete_rpc_requests" }, (db) =>
+      db
+        .delete(PONDER_SYNC.rpcRequestResults)
+        .where(
+          and(
+            eq(PONDER_SYNC.rpcRequestResults.chainId, BigInt(chainId)),
+            inArray(PONDER_SYNC.rpcRequestResults.blockNumber, numbers),
+          ),
+        ),
+    );
+  },
   pruneByChain: async ({ chainId }) =>
     qb.transaction(async (tx) => {
       await tx.wrap({ label: "delete_logs" }, (db) =>
@@ -1071,53 +1120,6 @@ export const createSyncStore = ({
       );
     }),
 });
-
-export const getSafeCrashRecoveryBlock = async (
-  qb: QB,
-  { chainId, timestamp }: { chainId: number; timestamp: number },
-): Promise<{ number: bigint; timestamp: bigint } | undefined> => {
-  const rows = await qb.wrap({ label: "select_crash_recovery_block" }, (db) =>
-    db
-      .select({
-        number: PONDER_SYNC.blocks.number,
-        timestamp: PONDER_SYNC.blocks.timestamp,
-      })
-      .from(PONDER_SYNC.blocks)
-      .where(
-        and(
-          eq(PONDER_SYNC.blocks.chainId, BigInt(chainId)),
-          lt(PONDER_SYNC.blocks.timestamp, BigInt(timestamp)),
-        ),
-      )
-      .orderBy(desc(PONDER_SYNC.blocks.number))
-      .limit(1),
-  );
-
-  return rows[0];
-};
-
-export const pruneRpcRequestResults = async (
-  qb: QB,
-  {
-    blocks,
-    chainId,
-  }: { blocks: Pick<LightBlock, "number">[]; chainId: number },
-) => {
-  if (blocks.length === 0) return;
-
-  const numbers = blocks.map(({ number }) => BigInt(hexToNumber(number)));
-
-  await qb.wrap({ label: "delete_rpc_requests" }, (db) =>
-    db
-      .delete(PONDER_SYNC.rpcRequestResults)
-      .where(
-        and(
-          eq(PONDER_SYNC.rpcRequestResults.chainId, BigInt(chainId)),
-          inArray(PONDER_SYNC.rpcRequestResults.blockNumber, numbers),
-        ),
-      ),
-  );
-};
 
 const addressFilter = (
   address:

@@ -24,7 +24,7 @@ import {
   type RealtimeSyncEvent,
   createRealtimeSync,
 } from "@/sync-realtime/index.js";
-import { createSyncStore, pruneRpcRequestResults } from "@/sync-store/index.js";
+import { createSyncStore } from "@/sync-store/index.js";
 import {
   ZERO_CHECKPOINT_STRING,
   blockToCheckpoint,
@@ -812,7 +812,10 @@ export async function handleRealtimeSyncEvent(
         } else break;
       }
 
-      await pruneRpcRequestResults(params.database.syncQB, {
+      await createSyncStore({
+        common: params.common,
+        qb: params.database.syncQB,
+      }).pruneRpcRequestResults({
         chainId: params.chain.id,
         blocks: event.reorgedBlocks,
       });
