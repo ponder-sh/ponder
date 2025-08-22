@@ -468,9 +468,9 @@ export const createRpc = ({
   let unsubscribe: (() => Promise<any>) | undefined;
 
   const disconnect = async () => {
-    if (unsubscribe !== undefined) {
-      await unsubscribe();
-    }
+    try {
+      await unsubscribe?.();
+    } catch {}
   };
 
   const rpc: Rpc = {
@@ -520,7 +520,7 @@ export const createRpc = ({
                   });
                   webSocketErrorCount = 0;
                 } else {
-                  if (!isSubscribed) return;
+                  if (isSubscribed === false) return;
                   const error = data.error as Error;
 
                   if (webSocketErrorCount === RETRY_COUNT) {
@@ -545,8 +545,8 @@ export const createRpc = ({
                 }
               },
               onError: async (_error) => {
-                // Note: Since the viem webSocket transaport impl throws the promise and calls onError callback on failed subscribe, it should be debounced.
-                if (!isSubscribed) return;
+                // Note: Since the viem webSocket transport impl rejects the promise and calls onError callback on failed subscribe, it should be debounced.
+                if (isSubscribed === false) return;
                 const error = _error as Error;
 
                 if (webSocketErrorCount === RETRY_COUNT) {
