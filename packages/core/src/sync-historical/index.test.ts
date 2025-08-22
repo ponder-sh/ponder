@@ -46,8 +46,6 @@ beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
 test("createHistoricalSync()", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -70,14 +68,13 @@ test("createHistoricalSync()", async (context) => {
     sources,
     childAddresses: setupChildAddresses(sources),
     cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
   expect(historicalSync).toBeDefined();
 });
 
 test("sync() with log filter", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const chain = getChain();
   const rpc = createRpc({
@@ -109,7 +106,6 @@ test("sync() with log filter", async (context) => {
     sources,
     childAddresses: setupChildAddresses(sources),
     cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
   await historicalSync.sync([1, 2]);
@@ -128,7 +124,7 @@ test("sync() with log filter", async (context) => {
 });
 
 test("sync() with log filter and transaction receipts", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const chain = getChain();
   const rpc = createRpc({
@@ -161,7 +157,6 @@ test("sync() with log filter and transaction receipts", async (context) => {
     sources,
     childAddresses: setupChildAddresses(sources),
     cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
   await historicalSync.sync([1, 2]);
@@ -180,7 +175,7 @@ test("sync() with log filter and transaction receipts", async (context) => {
 });
 
 test("sync() with block filter", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const chain = getChain();
   const rpc = createRpc({
@@ -206,7 +201,6 @@ test("sync() with block filter", async (context) => {
     sources,
     childAddresses: setupChildAddresses(sources),
     cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
   await historicalSync.sync([1, 3]);
@@ -225,7 +219,7 @@ test("sync() with block filter", async (context) => {
 });
 
 test("sync() with log factory", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const chain = getChain();
   const rpc = createRpc({
@@ -260,7 +254,6 @@ test("sync() with log factory", async (context) => {
     sources,
     childAddresses: setupChildAddresses(sources),
     cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
   await historicalSync.sync([1, 3]);
@@ -283,7 +276,7 @@ test("sync() with log factory", async (context) => {
 });
 
 test("sync() with trace filter", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const chain = getChain();
   const rpc = createRpc({
@@ -360,7 +353,7 @@ test("sync() with trace filter", async (context) => {
     sources: sources.filter(({ filter }) => filter.type === "trace"),
     childAddresses: setupChildAddresses(sources),
     cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
+    database,
   });
 
   await historicalSync.sync([1, 3]);
@@ -379,7 +372,7 @@ test("sync() with trace filter", async (context) => {
 });
 
 test("sync() with transaction filter", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const chain = getChain();
   const rpc = createRpc({
@@ -411,7 +404,6 @@ test("sync() with transaction filter", async (context) => {
     sources: sources.filter(({ filter }) => filter.type === "transaction"),
     childAddresses: setupChildAddresses(sources),
     cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
   await historicalSync.sync([1, 1]);
@@ -437,7 +429,7 @@ test("sync() with transaction filter", async (context) => {
 });
 
 test("sync() with transfer filter", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const chain = getChain();
   const rpc = createRpc({
@@ -497,7 +489,6 @@ test("sync() with transfer filter", async (context) => {
     sources: sources.filter(({ filter }) => filter.type === "transfer"),
     childAddresses: setupChildAddresses(sources),
     cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
   await historicalSync.sync([1, 1]);
@@ -553,7 +544,6 @@ test("sync() with many filters", async (context) => {
     sources: [...erc20Sources, ...blockSources],
     childAddresses: setupChildAddresses([...erc20Sources, ...blockSources]),
     cachedIntervals: setupCachedIntervals([...erc20Sources, ...blockSources]),
-    syncStore,
   });
 
   await historicalSync.sync([1, 2]);
@@ -576,7 +566,7 @@ test("sync() with many filters", async (context) => {
 });
 
 test("sync() with cache", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+  const { syncStore, database } = await setupDatabaseServices(context);
 
   const chain = getChain();
   const rpc = createRpc({
@@ -608,7 +598,6 @@ test("sync() with cache", async (context) => {
     sources,
     childAddresses: setupChildAddresses(sources),
     cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
   await historicalSync.sync([1, 2]);
@@ -630,7 +619,7 @@ test("sync() with cache", async (context) => {
     sources,
     childAddresses: setupChildAddresses(sources),
     cachedIntervals,
-    syncStore,
+    database,
   });
 
   await historicalSync.sync([1, 2]);
@@ -638,7 +627,7 @@ test("sync() with cache", async (context) => {
 });
 
 test("sync() with partial cache", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const chain = getChain();
   const rpc = createRpc({
@@ -670,7 +659,6 @@ test("sync() with partial cache", async (context) => {
     sources,
     childAddresses: setupChildAddresses(sources),
     cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
   await historicalSync.sync([1, 2]);
@@ -695,7 +683,6 @@ test("sync() with partial cache", async (context) => {
     sources,
     childAddresses: setupChildAddresses(sources),
     cachedIntervals,
-    syncStore,
   });
 
   await historicalSync.sync([1, 2]);
@@ -734,7 +721,6 @@ test("sync() with partial cache", async (context) => {
     sources,
     childAddresses: setupChildAddresses(sources),
     cachedIntervals,
-    syncStore,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -760,7 +746,7 @@ test("sync() with partial cache", async (context) => {
 });
 
 test("syncBlock() with cache", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const chain = getChain();
   const rpc = createRpc({
@@ -796,7 +782,6 @@ test("syncBlock() with cache", async (context) => {
     sources: [...erc20Sources, ...blockSources],
     childAddresses: setupChildAddresses([...erc20Sources, ...blockSources]),
     cachedIntervals: setupCachedIntervals([...erc20Sources, ...blockSources]),
-    syncStore,
   });
 
   const spy = vi.spyOn(rpc, "request");
@@ -809,7 +794,7 @@ test("syncBlock() with cache", async (context) => {
 });
 
 test("syncAddress() handles many addresses", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices(context);
 
   const chain = getChain();
   const rpc = createRpc({
@@ -851,7 +836,6 @@ test("syncAddress() handles many addresses", async (context) => {
     sources,
     childAddresses: setupChildAddresses(sources),
     cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
   await historicalSync.sync([1, 13]);
