@@ -37,6 +37,7 @@ import {
   mergeAsyncGenerators,
 } from "@/utils/generators.js";
 import { type Interval, intervalIntersection } from "@/utils/interval.js";
+import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { startClock } from "@/utils/timer.js";
 import { type Address, hexToNumber } from "viem";
@@ -708,7 +709,7 @@ export async function handleRealtimeSyncEvent(
       await params.database.syncQB.transaction(async (tx) => {
         const syncStore = createSyncStore({ common: params.common, qb: tx });
 
-        await Promise.all([
+        await promiseAllSettledWithThrow([
           syncStore.insertBlocks({
             blocks: finalizedBlocks
               .filter(({ hasMatchedFilter }) => hasMatchedFilter)

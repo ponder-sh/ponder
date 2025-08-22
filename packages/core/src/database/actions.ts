@@ -7,6 +7,7 @@ import type {
   SchemaBuild,
 } from "@/internal/types.js";
 import { MAX_CHECKPOINT_STRING, decodeCheckpoint } from "@/utils/checkpoint.js";
+import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
 import { eq, getTableColumns, getTableName } from "drizzle-orm";
 import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
 import { getPonderCheckpointTable } from "./index.js";
@@ -30,7 +31,7 @@ export const createTriggers = async (
   { tables }: { tables: PgTable[] },
 ) => {
   await qb.transaction(async (tx) => {
-    await Promise.all(
+    await promiseAllSettledWithThrow(
       tables.map(async (table) => {
         const schema = getTableConfig(table).schema ?? "public";
         const columns = getTableColumns(table);
@@ -80,7 +81,7 @@ export const dropTriggers = async (
   { tables }: { tables: PgTable[] },
 ) => {
   await qb.transaction(async (tx) => {
-    await Promise.all(
+    await promiseAllSettledWithThrow(
       tables.map(async (table) => {
         const schema = getTableConfig(table).schema ?? "public";
 

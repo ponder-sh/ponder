@@ -17,6 +17,7 @@ import type {
 } from "@/internal/types.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { prettyPrint } from "@/utils/print.js";
+import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
 import { startClock } from "@/utils/timer.js";
 import {
   type Column,
@@ -765,9 +766,9 @@ export const createIndexingCache = ({
       } else {
         isFlushRetry = true;
 
-        // Note: Must use `Promise.allSettled` to avoid short-circuiting while queries are running.
+        // Note: Must use `promiseAllSettledWithThrow` to avoid short-circuiting while queries are running.
 
-        const results = await Promise.allSettled(
+        await promiseAllSettledWithThrow(
           Array.from(cache.keys()).map(async (table) => {
             const shouldRecordBytes = cache.get(table)!.isCacheComplete;
             if (
@@ -928,15 +929,9 @@ export const createIndexingCache = ({
               await new Promise(setImmediate);
             }
           }),
-        );
-
-        if (results.some((result) => result.status === "rejected")) {
-          const rejected = results.find(
-            (result): result is PromiseRejectedResult =>
-              result.status === "rejected",
-          )!;
-          throw new RetryableError(rejected.reason.message);
-        }
+        ).catch((error) => {
+          throw new RetryableError(error.message);
+        });
       }
 
       isFlushRetry = false;

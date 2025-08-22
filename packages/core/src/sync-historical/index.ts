@@ -32,6 +32,7 @@ import { shouldGetTransactionReceipt } from "@/runtime/filter.js";
 import type { CachedIntervals, IntervalWithFilter } from "@/runtime/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import { type Interval, getChunks, intervalRange } from "@/utils/interval.js";
+import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
 import { createQueue } from "@/utils/queue.js";
 import {
   _debug_traceBlockByNumber,
@@ -700,7 +701,7 @@ export const createHistoricalSync = (
           transactionsByHash.set(transaction.hash, transaction);
         }
 
-        await Promise.all([
+        await promiseAllSettledWithThrow([
           syncStore.insertBlocks({
             blocks: [block],
             chainId: args.chain.id,

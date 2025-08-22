@@ -46,6 +46,7 @@ import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { recordAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
+import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
 import { startClock } from "@/utils/timer.js";
 import { eq, getTableName, isTable, sql } from "drizzle-orm";
 import { getHistoricalEventsMultichain } from "./historical.js";
@@ -554,7 +555,7 @@ export async function runMultichain({
                   msg: `Indexed ${events.length} '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
                 });
 
-                await Promise.all(
+                await promiseAllSettledWithThrow(
                   tables.map((table) => commitBlock(tx, { table, checkpoint })),
                 );
 

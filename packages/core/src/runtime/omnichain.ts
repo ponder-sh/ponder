@@ -573,7 +573,7 @@ export async function runOmnichain({
                   msg: `Indexed ${events.length} '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
                 });
 
-                await Promise.all(
+                await promiseAllSettledWithThrow(
                   tables.map((table) => commitBlock(tx, { table, checkpoint })),
                 );
 
