@@ -33,10 +33,11 @@ import {
   min,
 } from "@/utils/checkpoint.js";
 import {
-  createCallbackGeneratorWithPromise,
+  createCallbackGenerator,
   mergeAsyncGenerators,
 } from "@/utils/generators.js";
 import { type Interval, intervalIntersection } from "@/utils/interval.js";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { startClock } from "@/utils/timer.js";
 import { type Address, hexToNumber } from "viem";
 import type { ChildAddresses, SyncProgress } from "./index.js";
@@ -559,14 +560,22 @@ export async function* getRealtimeEventGenerator(params: {
     msg: `Initialized '${params.chain.name}' realtime sync with ${childCount} factory child addresses`,
   });
 
-  const { callback, generator } = createCallbackGeneratorWithPromise<
-    SyncBlock | SyncBlockHeader,
-    boolean
-  >();
+  const { callback, generator } = createCallbackGenerator<{
+    block: SyncBlock | SyncBlockHeader;
+    blockCallback: (isAccepted: boolean) => void;
+    promise: Promise<boolean>;
+  }>();
 
-  params.rpc.subscribe({ onBlock: callback, onError: realtimeSync.onError });
+  params.rpc.subscribe({
+    onBlock: (block) => {
+      const pwr = promiseWithResolvers<boolean>();
+      callback({ block, blockCallback: pwr.resolve, promise: pwr.promise });
+      return pwr.promise;
+    },
+    onError: realtimeSync.onError,
+  });
 
-  for await (const { value: block, onComplete } of generator) {
+  for await (const { block, blockCallback } of generator) {
     const arrivalMs = Date.now();
 
     const endClock = startClock();
@@ -584,7 +593,7 @@ export async function* getRealtimeEventGenerator(params: {
         );
       }
 
-      onComplete(isAccepted);
+      blockCallback(isAccepted);
     });
 
     for await (const event of syncGenerator) {

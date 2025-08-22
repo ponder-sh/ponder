@@ -164,18 +164,16 @@ test("bufferAsyncGenerator() yields all results", async () => {
 });
 
 test("createCallbackGenerator()", async () => {
-  const { callback, generator } = createCallbackGenerator<number, number>();
+  const { callback, generator } = createCallbackGenerator<number>();
 
   (async () => {
     for (let i = 0; i < 5; i++) {
-      await callback(i);
+      callback(i);
       await new Promise((res) => setTimeout(res, 1000));
     }
   })();
 
-  for await (const { value, onComplete } of generator) {
-    onComplete(value + 1);
-
+  for await (const value of generator) {
     if (value === 4) break;
   }
 });
