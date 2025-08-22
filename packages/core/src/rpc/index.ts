@@ -507,6 +507,12 @@ export const createRpc = ({
 
       for (let i = 0; i <= RETRY_COUNT; ++i) {
         try {
+          common.logger.debug({
+            service: "rpc",
+            msg: `Subscribing to '${chain.name}' with newHeads`,
+          });
+
+          // resolves once connection is established.
           unsubscribe = await wsTransport
             .value!.subscribe({
               params: ["newHeads"],
