@@ -167,7 +167,7 @@ export function buildGraphQLSchema({
               });
             }
 
-            if (["Int", "Float", "BigInt"].includes(type.name)) {
+            if (["Int", "Float", "BigInt", "Timestamp"].includes(type.name)) {
               conditionSuffixes.numeric.forEach((suffix) => {
                 filterFields[`${columnName}${suffix}`] = {
                   type: type,
@@ -453,7 +453,13 @@ export function buildGraphQLSchema({
 
   return new GraphQLSchema({
     // Include these here so they are listed first in the printed schema.
-    types: [GraphQLJSON, GraphQLBigInt, GraphQLPageInfo, GraphQLMeta],
+    types: [
+      GraphQLJSON,
+      GraphQLBigInt,
+      GraphQLTimestamp,
+      GraphQLPageInfo,
+      GraphQLMeta,
+    ],
     query: new GraphQLObjectType({
       name: "Query",
       fields: queryFields,
@@ -481,6 +487,51 @@ const GraphQLBigInt = new GraphQLScalarType({
     } else {
       throw new Error(
         `Invalid value kind provided for field of type BigInt: ${value.kind}. Expected: StringValue`,
+      );
+    }
+  },
+});
+
+const GraphQLTimestamp = new GraphQLScalarType({
+  name: "Timestamp",
+  serialize: (value: any) => {
+    if (value instanceof Date) {
+      return value.getTime(); // Return as number (milliseconds)
+    }
+    if (typeof value === "number") {
+      return value;
+    }
+    if (typeof value === "string") {
+      const date = new Date(value);
+      return date.getTime();
+    }
+    throw new Error(`Cannot serialize value as Timestamp: ${value}`);
+  },
+  parseValue: (value: any) => {
+    if (typeof value === "number") {
+      return new Date(value);
+    }
+    if (typeof value === "string") {
+      const timestamp = Number.parseInt(value, 10);
+      if (Number.isNaN(timestamp)) {
+        throw new Error(`Invalid timestamp value: ${value}`);
+      }
+      return new Date(timestamp);
+    }
+    throw new Error(`Cannot parse value as Timestamp: ${value}`);
+  },
+  parseLiteral: (value: any) => {
+    if (value.kind === "IntValue") {
+      return new Date(Number.parseInt(value.value, 10));
+    } else if (value.kind === "StringValue") {
+      const timestamp = Number.parseInt(value.value, 10);
+      if (Number.isNaN(timestamp)) {
+        throw new Error(`Invalid timestamp value: ${value.value}`);
+      }
+      return new Date(timestamp);
+    } else {
+      throw new Error(
+        `Invalid value kind provided for field of type Timestamp: ${value.kind}. Expected: IntValue or StringValue`,
       );
     }
   },
@@ -521,7 +572,7 @@ const columnToGraphQLCore = (
     case "json":
       return GraphQLJSON;
     case "date":
-      return GraphQLString;
+      return GraphQLTimestamp;
     case "string":
       return GraphQLString;
     case "bigint":
