@@ -6,77 +6,29 @@ on:
   workflow_dispatch:
 
 jobs:
-  bench-ponder:
-    name: Bench:Ponder
-    runs-on: ubuntu-22.04
+  bench:
+    name: Bench
+    runs-on: default
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        app_id:
+          - "reth"
 
     steps:
-      - name: Clone repository
-        uses: actions/checkout@v3
-
-      - name: Setup
-        uses: ./.github/actions/setup
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/setup
+      - uses: oven-sh/setup-bun@v2
 
       - run: pnpm build
       - run: pnpm install
 
-      - name: Bench
-        run: pnpm bench:ponder:ci apps/ponder-reth/
+      - name: Bench ${{ matrix.app_id }}
+        run: |
+          cd benchmark
+          pnpm benchmark ${{ matrix.app_id }}
         env:
-          PONDER_RPC_URL_1: ${{ secrets.ANVIL_FORK_URL }}
-
-  bench-subgraph:
-    name: Bench:Subgraph
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    services:
-      postgres:
-        image: postgres
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-          POSTGRES_INITDB_ARGS: -E UTF8 --locale=C
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-        ports:
-          - 5432:5432
-      ipfs:
-        image: ipfs/go-ipfs:v0.10.0
-        ports:
-          - 5001:5001
-      graph-node:
-        image: graphprotocol/graph-node:latest
-        # Would be best to get this health check working, but so far it hasn't been an issue.
-        # options: >-
-        #   --health-cmd "curl --fail http://graph-node:8040"
-        env:
-          postgres_host: postgres
-          postgres_user: postgres
-          postgres_pass: postgres
-          postgres_db: postgres
-          ipfs: ipfs:5001
-          ethereum: mainnet:${{ secrets.ANVIL_FORK_URL }}
-          ETHEREUM_REORG_THRESHOLD: 0
-          GRAPH_LOG: debug
-        ports:
-          - 8000:8000
-          - 8001:8001
-          - 8020:8020
-          - 8030:8030
-          - 8040:8040
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v3
-
-      - name: Setup
-        uses: ./.github/actions/setup
-
-      - name: Bench
-        run: pnpm bench:subgraph:ci apps/subgraph-reth/
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          DATABASE_URL: ${{ secrets.TEST_CONNECTION_STRING }}
+          PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
+          PGDATABASE: railway
