@@ -534,7 +534,7 @@ importers:
     dependencies:
       forge-std:
         specifier: github:foundry-rs/forge-std
-        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/60acb7aaadcce2d68e52986a0a66fe79f07d138f
+        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/6bce1540c7a5d1c40eec032a1ae16f0e01f82b92
 
   examples/with-foundry/ponder:
     dependencies:
@@ -936,6 +936,9 @@ importers:
       execa:
         specifier: ^8.0.1
         version: 8.0.1
+      mitata:
+        specifier: ^1.0.34
+        version: 1.0.34
       rimraf:
         specifier: ^5.0.5
         version: 5.0.5
@@ -5345,9 +5348,9 @@ packages:
     resolution: {integrity: sha512-TMKDUnIte6bfb5nWv7V/caI169OHgvwjb7V4WkeUvbQQdjr5rWKqHFiKWb/fcOwB+CzBT+qbWjvj+DVwRskpIg==}
     engines: {node: '>=14'}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/60acb7aaadcce2d68e52986a0a66fe79f07d138f:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/60acb7aaadcce2d68e52986a0a66fe79f07d138f}
-    version: 1.9.7
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/6bce1540c7a5d1c40eec032a1ae16f0e01f82b92:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/6bce1540c7a5d1c40eec032a1ae16f0e01f82b92}
+    version: 1.10.0
 
   format@0.2.2:
     resolution: {integrity: sha512-wzsgA6WOq+09wrU1tsJ09udeR/YZRaeArL9e1wPbFg3GG2yDnC2ldKpxs4xunpFF9DgqCqOIra3bc1HWrJ37Ww==}
@@ -6396,6 +6399,9 @@ packages:
   minizlib@3.0.2:
     resolution: {integrity: sha512-oG62iEk+CYt5Xj2YqI5Xi9xWUeZhDI8jjQmC5oThVH5JGCTgIjr7ciJDzC7MBzYd//WvR1OTmP5Q38Q8ShQtVA==}
     engines: {node: '>= 18'}
+
+  mitata@1.0.34:
+    resolution: {integrity: sha512-Mc3zrtNBKIMeHSCQ0XqRLo1vbdIx1wvFV9c8NJAiyho6AjNfMY8bVhbS12bwciUdd1t4rj8099CH3N3NFahaUA==}
 
   mkdirp@1.0.4:
     resolution: {integrity: sha512-vVqVZQyf3WLx2Shd0qJ9xuvqgAyKPLAiqITEtqW0oIUjzo3PePDd6fW9iFz30ef7Ysp/oiWqbhszeGWW2T6Gzw==}
@@ -12770,7 +12776,7 @@ snapshots:
       cross-spawn: 7.0.6
       signal-exit: 4.1.0
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/60acb7aaadcce2d68e52986a0a66fe79f07d138f: {}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/6bce1540c7a5d1c40eec032a1ae16f0e01f82b92: {}
 
   format@0.2.2: {}
 
@@ -14167,6 +14173,8 @@ snapshots:
   minizlib@3.0.2:
     dependencies:
       minipass: 7.1.2
+
+  mitata@1.0.34: {}
 
   mkdirp@1.0.4: {}
 
