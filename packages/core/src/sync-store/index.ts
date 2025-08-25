@@ -138,7 +138,7 @@ export const createSyncStore = ({
   database,
 }: {
   common: Common;
-  database: Omit<Database, "migrateSync" | "migrate">;
+  database: Database;
 }): SyncStore => ({
   insertIntervals: async ({ intervals, chainId }) => {
     if (intervals.length === 0) return;

@@ -62,8 +62,6 @@ export type Database = {
   }): Promise<CrashRecoveryCheckpoint>;
 };
 
-export type DatabaseInterface = Omit<Database, "migrateSync" | "migrate">;
-
 export const SCHEMATA = pgSchema("information_schema").table(
   "schemata",
   (t) => ({
