@@ -1,9 +1,13 @@
+import type {
+  AbiParameter,
+  AbiParameterToPrimitiveType,
+  DecodeAbiParametersReturnType,
+  Hex,
+} from "viem";
 import {
+  AbiDecodingDataSizeTooSmallError,
   AbiDecodingZeroDataError,
-  type AbiParameter,
-  type AbiParameterToPrimitiveType,
-  type DecodeAbiParametersReturnType,
-  type Hex,
+  InvalidAbiDecodingTypeError,
   checksumAddress,
   hexToBigInt,
   hexToNumber,
@@ -15,9 +19,15 @@ const TRUE_BOOL =
 const FIXED_ARRAY_REGEX = /^(.*)\[(\d+)\]$/;
 const DYNAMIC_ARRAY_REGEX = /^(.*)\[\]$/;
 
-const cursor = { index: 2, offset: 2, length: 0 };
+const cursor = { index: 2, offset: 2, length: 2, readCount: 0, readLimit: 0 };
 
 function readWord(data: Hex): Hex {
+  if (cursor.readCount > cursor.readLimit) {
+    throw new Error("Recursive read limit exceeded.");
+  }
+
+  cursor.readCount++;
+
   if (data.length - cursor.index < 64) {
     throw new Error("Invalid data length.");
   }
@@ -27,6 +37,11 @@ function readWord(data: Hex): Hex {
 
 /**
  * Decode a list of abi parameters.
+ *
+ * @param params - The abi parameters to decode.
+ * @param data - The data to decode.
+ * @param formatAddress - An optional function to format addresses.
+ * @param out - An optional array to store the decoded parameters.
  *
  * @see https://github.com/wevm/viem/blob/38525bf1d55ec3fe0569e47700c7f9e70d3c971c/src/utils/abi/decodeAbiParameters.ts
  */
@@ -50,9 +65,19 @@ export function decodeAbiParameters<
     throw new AbiDecodingZeroDataError();
   }
 
+  if (data.length > 2 && data.length < 66) {
+    throw new AbiDecodingDataSizeTooSmallError({
+      data,
+      params: params as readonly AbiParameter[],
+      size: (data.length - 2) / 2,
+    });
+  }
+
   cursor.index = 2;
   cursor.offset = 2;
   cursor.length = data.length;
+  cursor.readCount = 0;
+  cursor.readLimit = Math.floor(data.length / 64) + 8_192;
 
   for (const param of params) {
     if (data.length - cursor.index < 64) {
@@ -74,6 +99,10 @@ function _decodeAbiParameter(
     const _type = param.type;
     const [_, type, length] = param.type.match(FIXED_ARRAY_REGEX)!;
     param.type = type!;
+
+    if (length === "0") {
+      throw new Error("Invalid data length.");
+    }
 
     if (isAbiParameterDeeplyStatic(param) === false) {
       const _offset = cursor.offset;
@@ -100,6 +129,9 @@ function _decodeAbiParameter(
 
     const value: unknown[] = [];
     for (let i = 0; i < Number.parseInt(length!, 10); ++i) {
+      if (data.length - cursor.index < 64) {
+        throw new Error("Invalid data length.");
+      }
       value.push(_decodeAbiParameter(param, data, formatAddress));
     }
 
@@ -129,6 +161,9 @@ function _decodeAbiParameter(
     for (let i = 0; i < hexToNumber(length!); ++i) {
       if (deeplyStatic === false) {
         cursor.index = cursor.offset + i * 64;
+      }
+      if (data.length - cursor.index < 64) {
+        throw new Error("Invalid data length.");
       }
 
       value.push(_decodeAbiParameter(param, data, formatAddress));
@@ -191,7 +226,10 @@ function _decodeAbiParameter(
   }
 
   if (param.type === "address") {
-    // TODO(kyle) check data length
+    if (data.length - cursor.index < 64) {
+      throw new Error("Invalid data length.");
+    }
+
     const address =
       `0x${data.slice(cursor.index + 24, cursor.index + 64)}` as const;
     cursor.index += 64;
@@ -211,7 +249,11 @@ function _decodeAbiParameter(
 
   if (param.type.startsWith("bytes") && param.type.length > 5) {
     const [_, size] = param.type.split("bytes");
-    // TODO(kyle) check data length
+
+    if (data.length - cursor.index < Number.parseInt(size!, 10) * 2) {
+      throw new Error("Invalid data length.");
+    }
+
     const value =
       `0x${data.slice(cursor.index, cursor.index + Number.parseInt(size!, 10) * 2)}` as const;
 
@@ -238,7 +280,10 @@ function _decodeAbiParameter(
       return "";
     }
 
-    // TODO(kyle) check data length
+    if (data.length - cursor.index < hexToNumber(length) * 2) {
+      throw new Error("Invalid data length.");
+    }
+
     const value =
       `0x${data.slice(cursor.index, cursor.index + hexToNumber(length) * 2)}` as const;
 
@@ -261,7 +306,10 @@ function _decodeAbiParameter(
       return "0x";
     }
 
-    // TODO(kyle) check data length
+    if (data.length - cursor.index < hexToNumber(length) * 2) {
+      throw new Error("Invalid data length.");
+    }
+
     const value =
       `0x${data.slice(cursor.index, cursor.index + hexToNumber(length) * 2)}` as const;
 
@@ -270,11 +318,17 @@ function _decodeAbiParameter(
     return value;
   }
 
-  throw new Error(`Invalid parameter type: ${param.type}`);
+  throw new InvalidAbiDecodingTypeError(param.type, {
+    docsPath: "/docs/contract/decodeAbiParameters",
+  });
 }
 
 /**
  * Decode a single abi parameter.
+ *
+ * @param param - The abi parameter to decode.
+ * @param data - The data to decode.
+ * @param formatAddress - An optional function to format addresses.
  *
  * @see https://github.com/wevm/viem/blob/38525bf1d55ec3fe0569e47700c7f9e70d3c971c/src/utils/abi/decodeAbiParameters.ts
  */
@@ -325,7 +379,9 @@ export function decodeAbiParameter<const param extends AbiParameter>(
     return (data === TRUE_BOOL) as AbiParameterToPrimitiveType<param>;
   }
 
-  throw new Error(`Invalid parameter type: ${param.type}`);
+  throw new InvalidAbiDecodingTypeError(param.type, {
+    docsPath: "/docs/contract/decodeAbiParameters",
+  });
 }
 
 function isAbiParameterFixedArray(param: AbiParameter) {
@@ -352,17 +408,6 @@ function isAbiParameterDeeplyStatic(param: AbiParameter): boolean {
   if (isAbiParameterFixedArray(param)) {
     const _type = param.type;
     const [_, type] = param.type.match(FIXED_ARRAY_REGEX)!;
-    param.type = type!;
-
-    const result = isAbiParameterDeeplyStatic(param);
-
-    param.type = _type;
-    return result;
-  }
-
-  if (isAbiParameterDynamicArray(param)) {
-    const _type = param.type;
-    const [_, type] = param.type.match(DYNAMIC_ARRAY_REGEX)!;
     param.type = type!;
 
     const result = isAbiParameterDeeplyStatic(param);
