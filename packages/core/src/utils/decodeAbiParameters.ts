@@ -1,327 +1,375 @@
 import {
-  AbiDecodingDataSizeTooSmallError,
   AbiDecodingZeroDataError,
   type AbiParameter,
+  type AbiParameterToPrimitiveType,
   type DecodeAbiParametersReturnType,
   type Hex,
-  InvalidAbiDecodingTypeError,
+  checksumAddress,
   hexToBigInt,
-  hexToBool,
   hexToNumber,
   hexToString,
-  size,
-  trim,
 } from "viem";
-import { type Cursor, createCursor, readBytes, setPosition } from "./cursor.js";
 
+const TRUE_BOOL =
+  "0x0000000000000000000000000000000000000000000000000000000000000001" as const;
+const FIXED_ARRAY_REGEX = /^(.*)\[(\d+)\]$/;
+const DYNAMIC_ARRAY_REGEX = /^(.*)\[\]$/;
+
+const cursor = { index: 2, offset: 2, length: 0 };
+
+function readWord(data: Hex): Hex {
+  if (data.length - cursor.index < 64) {
+    throw new Error("Invalid data length.");
+  }
+
+  return `0x${data.slice(cursor.index, cursor.index + 64)}` as const;
+}
+
+/**
+ * Decode a list of abi parameters.
+ *
+ * @see https://github.com/wevm/viem/blob/38525bf1d55ec3fe0569e47700c7f9e70d3c971c/src/utils/abi/decodeAbiParameters.ts
+ */
 export function decodeAbiParameters<
   const params extends readonly AbiParameter[],
->(params: params, data: Hex): DecodeAbiParametersReturnType<params> {
-  if (size(data) === 0 && params.length > 0)
+>(
+  params: params,
+  data: Hex,
+  {
+    formatAddress = checksumAddress,
+    out = [] as DecodeAbiParametersReturnType<params>,
+  }: {
+    formatAddress?: (address: Hex) => Hex;
+    out?: DecodeAbiParametersReturnType<params>;
+  } = {
+    formatAddress: checksumAddress,
+    out: [] as DecodeAbiParametersReturnType<params>,
+  },
+): DecodeAbiParametersReturnType<params> {
+  if (data.length <= 2 && params.length > 0) {
     throw new AbiDecodingZeroDataError();
-  if (size(data) && size(data) < 32)
-    throw new AbiDecodingDataSizeTooSmallError({
-      data,
-      params: params as readonly AbiParameter[],
-      size: size(data),
-    });
-
-  const cursor = createCursor(data);
-
-  let consumed = 0;
-  const values = [];
-  for (let i = 0; i < params.length; ++i) {
-    const param = params[i]!;
-    setPosition(cursor, consumed);
-    const [data, consumed_] = decodeParameter(cursor, param, {
-      staticPosition: 0,
-    });
-    consumed += consumed_;
-    values.push(data);
   }
-  return values as DecodeAbiParametersReturnType<params>;
-}
 
-function decodeParameter(
-  cursor: Cursor,
-  param: AbiParameter,
-  { staticPosition }: { staticPosition: number },
-) {
-  const arrayComponents = getArrayComponents(param.type);
-  if (arrayComponents) {
-    const [length, type] = arrayComponents;
-    return decodeArray(cursor, { ...param, type }, { length, staticPosition });
-  }
-  if (param.type === "tuple")
-    return decodeTuple(cursor, param as TupleAbiParameter, { staticPosition });
+  cursor.index = 2;
+  cursor.offset = 2;
+  cursor.length = data.length;
 
-  if (param.type === "address") return decodeAddress(cursor);
-  if (param.type === "bool") return decodeBool(cursor);
-  if (param.type.startsWith("bytes"))
-    return decodeBytes(cursor, param, { staticPosition });
-  if (param.type.startsWith("uint") || param.type.startsWith("int"))
-    return decodeNumber(cursor, param);
-  if (param.type === "string") return decodeString(cursor, { staticPosition });
-  throw new InvalidAbiDecodingTypeError(param.type, {
-    docsPath: "/docs/contract/decodeAbiParameters",
-  });
-}
-
-export function getArrayComponents(
-  type: string,
-): [length: number | null, innerType: string] | undefined {
-  const matches = type.match(/^(.*)\[(\d+)?\]$/);
-  return matches
-    ? // Return `null` if the array is dynamic.
-      [matches[2] ? Number(matches[2]) : null, matches[1]!]
-    : undefined;
-}
-
-////////////////////////////////////////////////////////////////////
-// Type Decoders
-
-const sizeOfLength = 32;
-const sizeOfOffset = 32;
-
-function decodeAddress(cursor: Cursor) {
-  const value = readBytes(cursor, 32);
-
-  return [`0x${value.slice(-40)}`, 32];
-}
-
-function decodeArray(
-  cursor: Cursor,
-  param: AbiParameter,
-  { length, staticPosition }: { length: number | null; staticPosition: number },
-) {
-  // If the length of the array is not known in advance (dynamic array),
-  // this means we will need to wonder off to the pointer and decode.
-  if (!length) {
-    // Dealing with a dynamic type, so get the offset of the array data.
-
-    const offset = hexToNumber(readBytes(cursor, sizeOfOffset));
-    //const offset = bytesToNumber(cursor.readBytes(sizeOfOffset));
-
-    // Start is the static position of current slot + offset.
-    const start = staticPosition + offset;
-    const startOfData = start + sizeOfLength;
-
-    // Get the length of the array from the offset.
-    setPosition(cursor, start);
-    const length = hexToNumber(readBytes(cursor, sizeOfLength));
-    //const length = bytesToNumber(cursor.readBytes(sizeOfLength));
-
-    // Check if the array has any dynamic children.
-    const dynamicChild = hasDynamicChild(param);
-
-    let consumed = 0;
-    const value: unknown[] = [];
-    for (let i = 0; i < length; ++i) {
-      // If any of the children is dynamic, then all elements will be offset pointer, thus size of one slot (32 bytes).
-      // Otherwise, elements will be the size of their encoding (consumed bytes).
-      setPosition(cursor, startOfData + (dynamicChild ? i * 32 : consumed));
-      const [data, consumed_] = decodeParameter(cursor, param, {
-        staticPosition: startOfData,
-      });
-      consumed += consumed_;
-      value.push(data);
+  for (const param of params) {
+    if (data.length - cursor.index < 64) {
+      throw new Error("Invalid data length.");
     }
 
-    // As we have gone wondering, restore to the original position + next slot.
-    setPosition(cursor, staticPosition + 32);
-    return [value, 32];
+    (out as unknown[]).push(_decodeAbiParameter(param, data, formatAddress));
   }
 
-  // If the length of the array is known in advance,
-  // and the length of an element deeply nested in the array is not known,
-  // we need to decode the offset of the array data.
-  if (hasDynamicChild(param)) {
-    // Dealing with dynamic types, so get the offset of the array data.
-    const offset = hexToNumber(readBytes(cursor, sizeOfOffset));
-    //const offset = bytesToNumber(cursor.readBytes(sizeOfOffset));
+  return out;
+}
 
-    // Start is the static position of current slot + offset.
-    const start = staticPosition + offset;
+function _decodeAbiParameter(
+  param: AbiParameter,
+  data: Hex,
+  formatAddress: (address: Hex) => Hex = checksumAddress,
+): unknown {
+  if (isAbiParameterFixedArray(param)) {
+    const _type = param.type;
+    const [_, type, length] = param.type.match(FIXED_ARRAY_REGEX)!;
+    param.type = type!;
+
+    if (isAbiParameterDeeplyStatic(param) === false) {
+      const _offset = cursor.offset;
+      const _index = cursor.index;
+
+      const offset = readWord(data);
+
+      cursor.index = cursor.offset + hexToNumber(offset) * 2;
+      cursor.offset += hexToNumber(offset) * 2;
+
+      const value: unknown[] = [];
+      for (let i = 0; i < Number.parseInt(length!, 10); ++i) {
+        cursor.index = cursor.offset + i * 64;
+
+        value.push(_decodeAbiParameter(param, data, formatAddress));
+      }
+
+      cursor.offset = _offset;
+      cursor.index = _index + 64;
+      param.type = _type;
+
+      return value;
+    }
 
     const value: unknown[] = [];
-    for (let i = 0; i < length; ++i) {
-      // Move cursor along to the next slot (next offset pointer).
-      setPosition(cursor, start + i * 32);
-      const [data] = decodeParameter(cursor, param, {
-        staticPosition: start,
-      });
-      value.push(data);
+    for (let i = 0; i < Number.parseInt(length!, 10); ++i) {
+      value.push(_decodeAbiParameter(param, data, formatAddress));
     }
 
-    // As we have gone wondering, restore to the original position + next slot.
-    setPosition(cursor, staticPosition + 32);
-    return [value, 32];
+    param.type = _type;
+    return value;
   }
 
-  // If the length of the array is known in advance and the array is deeply static,
-  // then we can just decode each element in sequence.
-  let consumed = 0;
-  const value: unknown[] = [];
-  for (let i = 0; i < length; ++i) {
-    const [data, consumed_] = decodeParameter(cursor, param, {
-      staticPosition: staticPosition + consumed,
-    });
-    consumed += consumed_;
-    value.push(data);
-  }
-  return [value, consumed];
-}
+  if (isAbiParameterDynamicArray(param)) {
+    const _offset = cursor.offset;
+    const _index = cursor.index;
 
-function decodeBool(cursor: Cursor) {
-  return [hexToBool(readBytes(cursor, 32), { size: 32 }), 32];
-}
+    const offset = readWord(data);
 
-function decodeBytes(
-  cursor: Cursor,
-  param: AbiParameter,
-  { staticPosition }: { staticPosition: number },
-) {
-  const [_, size] = param.type.split("bytes");
-  if (!size) {
-    // Dealing with dynamic types, so get the offset of the bytes data.
-    const offset = hexToNumber(readBytes(cursor, 32));
-    // const offset = bytesToNumber(cursor.readBytes(32));
+    cursor.index = cursor.offset + hexToNumber(offset) * 2;
+    cursor.offset += hexToNumber(offset) * 2 + 64;
 
-    // Set position of the cursor to start of bytes data.
-    setPosition(cursor, staticPosition + offset);
+    const length = readWord(data);
+    cursor.index += 64;
 
-    const length = hexToNumber(readBytes(cursor, 32));
-    // const length = bytesToNumber(cursor.readBytes(32));
+    const _type = param.type;
+    const [_, type] = param.type.match(DYNAMIC_ARRAY_REGEX)!;
+    param.type = type!;
 
-    // If there is no length, we have zero data.
-    if (length === 0) {
-      // As we have gone wondering, restore to the original position + next slot.
-      setPosition(cursor, staticPosition + 32);
-      return ["0x", 32];
+    const deeplyStatic = isAbiParameterDeeplyStatic(param);
+
+    const value: unknown[] = [];
+    for (let i = 0; i < hexToNumber(length!); ++i) {
+      if (deeplyStatic === false) {
+        cursor.index = cursor.offset + i * 64;
+      }
+
+      value.push(_decodeAbiParameter(param, data, formatAddress));
     }
 
-    const data = readBytes(cursor, length);
+    cursor.offset = _offset;
+    cursor.index = _index + 64;
+    param.type = _type;
 
-    // As we have gone wondering, restore to the original position + next slot.
-    setPosition(cursor, staticPosition + 32);
-    return [data, 32];
+    return value;
   }
 
-  const value = readBytes(cursor, Number.parseInt(size), 32);
-  return [value, 32];
-}
+  if (param.type === "tuple") {
+    const components = (
+      param as Extract<AbiParameter, { components: readonly AbiParameter[] }>
+    ).components;
 
-function decodeNumber(cursor: Cursor, param: AbiParameter) {
-  const signed = param.type.startsWith("int");
-  const size = Number.parseInt(param.type.split("int")[1] || "256");
-  const value = readBytes(cursor, 32);
-  return [
-    size > 48 ? hexToBigInt(value, { signed }) : hexToNumber(value, { signed }),
-    32,
-  ];
-}
+    const hasUnnamedChild =
+      components.length === 0 ||
+      components.some((component) => component.name === undefined);
 
-type TupleAbiParameter = AbiParameter & { components: readonly AbiParameter[] };
+    const value: any = hasUnnamedChild ? [] : {};
 
-function decodeTuple(
-  cursor: Cursor,
-  param: TupleAbiParameter,
-  { staticPosition }: { staticPosition: number },
-) {
-  // Tuples can have unnamed components (i.e. they are arrays), so we must
-  // determine whether the tuple is named or unnamed. In the case of a named
-  // tuple, the value will be an object where each property is the name of the
-  // component. In the case of an unnamed tuple, the value will be an array.
-  const hasUnnamedChild =
-    param.components.length === 0 || param.components.some(({ name }) => !name);
+    if (isAbiParameterDeeplyStatic(param)) {
+      for (let i = 0; i < components.length; ++i) {
+        const component = components[i]!;
+        const _value = _decodeAbiParameter(component, data, formatAddress);
 
-  // Initialize the value to an object or an array, depending on whether the
-  // tuple is named or unnamed.
-  const value: any = hasUnnamedChild ? [] : {};
-  let consumed = 0;
+        if (hasUnnamedChild) {
+          value.push(_value);
+        } else {
+          value[component.name!] = _value;
+        }
+      }
 
-  // If the tuple has a dynamic child, we must first decode the offset to the
-  // tuple data.
-  if (hasDynamicChild(param)) {
-    // Dealing with dynamic types, so get the offset of the tuple data.
-    const offset = hexToNumber(readBytes(cursor, sizeOfOffset));
-    // const offset = bytesToNumber(cursor.readBytes(sizeOfOffset));
-
-    // Start is the static position of referencing slot + offset.
-    const start = staticPosition + offset;
-
-    for (let i = 0; i < param.components.length; ++i) {
-      const component = param.components[i]!;
-      setPosition(cursor, start + consumed);
-      const [data, consumed_] = decodeParameter(cursor, component, {
-        staticPosition: start,
-      });
-      consumed += consumed_;
-      value[hasUnnamedChild ? i : component?.name!] = data;
+      return value;
     }
 
-    // As we have gone wondering, restore to the original position + next slot.
-    setPosition(cursor, staticPosition + 32);
-    return [value, 32];
+    const _offset = cursor.offset;
+    const _index = cursor.index;
+    const offset = readWord(data);
+    cursor.offset += hexToNumber(offset) * 2;
+    cursor.index = cursor.offset;
+
+    for (let i = 0; i < components.length; ++i) {
+      const component = components[i]!;
+      const _value = _decodeAbiParameter(component, data, formatAddress);
+
+      if (hasUnnamedChild) {
+        value.push(_value);
+      } else {
+        value[component.name!] = _value;
+      }
+    }
+
+    cursor.offset = _offset;
+    cursor.index = _index + 64;
+
+    return value;
   }
 
-  // If the tuple has static children, we can just decode each component
-  // in sequence.
-  for (let i = 0; i < param.components.length; ++i) {
-    const component = param.components[i]!;
-    const [data, consumed_] = decodeParameter(cursor, component, {
-      staticPosition,
-    });
-    value[hasUnnamedChild ? i : component?.name!] = data;
-    consumed += consumed_;
+  if (param.type === "address") {
+    // TODO(kyle) check data length
+    const address =
+      `0x${data.slice(cursor.index + 24, cursor.index + 64)}` as const;
+    cursor.index += 64;
+    return formatAddress(address);
   }
-  return [value, consumed];
+
+  if (param.type.startsWith("uint") || param.type.startsWith("int")) {
+    const signed = param.type.startsWith("int");
+    const size = Number.parseInt(param.type.split("int")[1] || "256", 10);
+    const value = readWord(data);
+    cursor.index += 64;
+
+    return size > 48
+      ? hexToBigInt(value, { signed })
+      : hexToNumber(value, { signed });
+  }
+
+  if (param.type.startsWith("bytes") && param.type.length > 5) {
+    const [_, size] = param.type.split("bytes");
+    // TODO(kyle) check data length
+    const value =
+      `0x${data.slice(cursor.index, cursor.index + Number.parseInt(size!, 10) * 2)}` as const;
+
+    cursor.index += 64;
+    return value;
+  }
+
+  if (param.type === "bool") {
+    const value = readWord(data);
+    cursor.index += 64;
+    return value === TRUE_BOOL;
+  }
+
+  if (param.type === "string") {
+    const _index = cursor.index;
+
+    const offset = readWord(data);
+    cursor.index = cursor.offset + hexToNumber(offset) * 2;
+    const length = readWord(data);
+    cursor.index += 64;
+
+    if (hexToNumber(length) === 0) {
+      cursor.index = _index + 64;
+      return "";
+    }
+
+    // TODO(kyle) check data length
+    const value =
+      `0x${data.slice(cursor.index, cursor.index + hexToNumber(length) * 2)}` as const;
+
+    cursor.index = _index + 64;
+
+    return hexToString(value);
+  }
+
+  if (param.type === "bytes") {
+    const index = cursor.index;
+
+    const offset = readWord(data);
+    cursor.index = cursor.offset + hexToNumber(offset) * 2;
+
+    const length = readWord(data);
+    cursor.index += 64;
+
+    if (hexToNumber(length) === 0) {
+      cursor.index = index + 64;
+      return "0x";
+    }
+
+    // TODO(kyle) check data length
+    const value =
+      `0x${data.slice(cursor.index, cursor.index + hexToNumber(length) * 2)}` as const;
+
+    cursor.index = index + 64;
+
+    return value;
+  }
+
+  throw new Error(`Invalid parameter type: ${param.type}`);
 }
 
-function decodeString(
-  cursor: Cursor,
-  { staticPosition }: { staticPosition: number },
-) {
-  // Get offset to start of string data.
-  const offset = hexToNumber(readBytes(cursor, 32));
-  // const offset = bytesToNumber(cursor.readBytes(32));
-
-  // Start is the static position of current slot + offset.
-  const start = staticPosition + offset;
-  setPosition(cursor, start);
-
-  const length = hexToNumber(readBytes(cursor, 32));
-  // const length = bytesToNumber(cursor.readBytes(32));
-
-  // If there is no length, we have zero data (empty string).
-  if (length === 0) {
-    setPosition(cursor, staticPosition + 32);
-    return ["", 32];
+/**
+ * Decode a single abi parameter.
+ *
+ * @see https://github.com/wevm/viem/blob/38525bf1d55ec3fe0569e47700c7f9e70d3c971c/src/utils/abi/decodeAbiParameters.ts
+ */
+export function decodeAbiParameter<const param extends AbiParameter>(
+  param: param,
+  data: Hex,
+  {
+    formatAddress = checksumAddress,
+  }: {
+    formatAddress?: (address: Hex) => Hex;
+  } = {
+    formatAddress: checksumAddress,
+  },
+): AbiParameterToPrimitiveType<param> {
+  if (data.length <= 2) {
+    throw new AbiDecodingZeroDataError();
   }
 
-  const data = readBytes(cursor, length, 32);
-  const value = hexToString(trim(data));
+  if (data.length !== 66) {
+    throw new Error(
+      `Invalid data length. Expected 66 bytes, got ${data.length}`,
+    );
+  }
 
-  // As we have gone wondering, restore to the original position + next slot.
-  setPosition(cursor, staticPosition + 32);
+  if (param.type === "address") {
+    const address = `0x${data.slice(2 + 12 * 2)}` as const;
+    return formatAddress(address) as AbiParameterToPrimitiveType<param>;
+  }
 
-  return [value, 32];
+  if (param.type.startsWith("uint") || param.type.startsWith("int")) {
+    const signed = param.type.startsWith("int");
+    const size = Number.parseInt(param.type.split("int")[1] || "256", 10);
+
+    return (
+      size > 48 ? hexToBigInt(data, { signed }) : hexToNumber(data, { signed })
+    ) as AbiParameterToPrimitiveType<param>;
+  }
+
+  if (param.type.startsWith("bytes") && param.type.length > 5) {
+    const [_, size] = param.type.split("bytes");
+    return data.slice(
+      0,
+      2 + Number.parseInt(size!, 10) * 2,
+    ) as AbiParameterToPrimitiveType<param>;
+  }
+
+  if (param.type === "bool") {
+    return (data === TRUE_BOOL) as AbiParameterToPrimitiveType<param>;
+  }
+
+  throw new Error(`Invalid parameter type: ${param.type}`);
 }
 
-function hasDynamicChild(param: AbiParameter) {
+function isAbiParameterFixedArray(param: AbiParameter) {
+  return FIXED_ARRAY_REGEX.test(param.type);
+}
+
+function isAbiParameterDynamicArray(param: AbiParameter) {
+  return DYNAMIC_ARRAY_REGEX.test(param.type);
+}
+
+function isAbiParameterDeeplyStatic(param: AbiParameter): boolean {
   const { type } = param;
-  if (type === "string") return true;
-  if (type === "bytes") return true;
-  if (type.endsWith("[]")) return true;
 
-  if (type === "tuple") return (param as any).components?.some(hasDynamicChild);
+  if (type === "string") return false;
+  if (type === "bytes") return false;
+  if (type.endsWith("[]")) return false;
 
-  const arrayComponents = getArrayComponents(param.type);
-  if (
-    arrayComponents &&
-    hasDynamicChild({ ...param, type: arrayComponents[1] } as AbiParameter)
-  )
-    return true;
+  if (type === "tuple") {
+    return (
+      param as Extract<AbiParameter, { components: readonly AbiParameter[] }>
+    ).components.every(isAbiParameterDeeplyStatic);
+  }
 
-  return false;
+  if (isAbiParameterFixedArray(param)) {
+    const _type = param.type;
+    const [_, type] = param.type.match(FIXED_ARRAY_REGEX)!;
+    param.type = type!;
+
+    const result = isAbiParameterDeeplyStatic(param);
+
+    param.type = _type;
+    return result;
+  }
+
+  if (isAbiParameterDynamicArray(param)) {
+    const _type = param.type;
+    const [_, type] = param.type.match(DYNAMIC_ARRAY_REGEX)!;
+    param.type = type!;
+
+    const result = isAbiParameterDeeplyStatic(param);
+
+    param.type = _type;
+    return result;
+  }
+
+  return true;
 }

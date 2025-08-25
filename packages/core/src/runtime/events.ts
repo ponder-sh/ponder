@@ -23,12 +23,16 @@ import {
   ZERO_CHECKPOINT,
   encodeCheckpoint,
 } from "@/utils/checkpoint.js";
-import { decodeAbiParameters } from "@/utils/decodeAbiParameters.js";
+import {
+  decodeAbiParameter,
+  decodeAbiParameters,
+} from "@/utils/decodeAbiParameters.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { never } from "@/utils/never.js";
 import type { AbiEvent, AbiParameter } from "abitype";
 import {
   type Address,
+  type DecodeAbiParametersReturnType,
   DecodeLogDataMismatch,
   DecodeLogTopicsMismatch,
   type Hash,
@@ -555,7 +559,11 @@ export const decodeEvents = (
   return events;
 };
 
-/** @see https://github.com/wevm/viem/blob/main/src/utils/abi/decodeEventLog.ts#L99 */
+/**
+ * Decode an event log.
+ *
+ * @see https://github.com/wevm/viem/blob/main/src/utils/abi/decodeEventLog.ts#L99
+ * */
 export function decodeEventLog({
   abiItem,
   topics,
@@ -568,7 +576,7 @@ export function decodeEventLog({
   const { inputs } = abiItem;
   const isUnnamed = inputs?.some((x) => !("name" in x && x.name));
 
-  let args: any = isUnnamed ? [] : {};
+  const args: any = isUnnamed ? [] : {};
 
   const [, ...argTopics] = topics;
 
@@ -592,14 +600,22 @@ export function decodeEventLog({
   const nonIndexedInputs = inputs.filter((x) => !("indexed" in x && x.indexed));
   if (nonIndexedInputs.length > 0) {
     if (data && data !== "0x") {
-      const decodedData = decodeAbiParameters(nonIndexedInputs, data);
-      if (decodedData) {
-        if (isUnnamed) args = [...args, ...decodedData];
-        else {
+      const out = [] as DecodeAbiParametersReturnType<typeof nonIndexedInputs>;
+      decodeAbiParameters(nonIndexedInputs, data, {
+        out,
+        formatAddress: toLowerCase,
+      });
+      if (out) {
+        if (isUnnamed) {
+          for (let i = 0; i < out.length; i++) {
+            args.push(out[i]);
+          }
+        } else {
           for (let i = 0; i < nonIndexedInputs.length; i++) {
-            args[nonIndexedInputs[i]!.name!] = decodedData[i];
+            args[nonIndexedInputs[i]!.name!] = out[i];
           }
         }
+        out.length = 0;
       }
     } else {
       throw new DecodeLogDataMismatch({
@@ -622,10 +638,10 @@ function decodeTopic({ param, value }: { param: AbiParameter; value: Hex }) {
     param.type === "bytes" ||
     param.type === "tuple" ||
     param.type.match(ARRAY_REGEX)
-  )
+  ) {
     return value;
-  const decodedArg = decodeAbiParameters([param], value) || [];
-  return decodedArg[0];
+  }
+  return decodeAbiParameter(param, value, { formatAddress: toLowerCase });
 }
 
 export const syncBlockToInternal = ({
