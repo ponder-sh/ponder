@@ -3,6 +3,7 @@ import type {
   Chain,
   FactoryId,
   Filter,
+  FilterWithoutBlocks,
   Fragment,
   LightBlock,
   Source,
@@ -10,7 +11,7 @@ import type {
 import type { SyncBlock } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
 import { isAddressFactory } from "@/runtime/filter.js";
-import { getFragments } from "@/runtime/fragments.js";
+import { getFragments, recoverFilter } from "@/runtime/fragments.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
   MAX_CHECKPOINT,
@@ -19,8 +20,11 @@ import {
 } from "@/utils/checkpoint.js";
 import {
   type Interval,
+  intervalBounds,
+  intervalDifference,
   intervalIntersection,
   intervalIntersectionMany,
+  intervalUnion,
   sortIntervals,
 } from "@/utils/interval.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
@@ -44,6 +48,11 @@ export type CachedIntervals = Map<
   Filter,
   { fragment: Fragment; intervals: Interval[] }[]
 >;
+
+export type IntervalWithFilter = {
+  interval: Interval;
+  filter: FilterWithoutBlocks;
+};
 
 export async function getLocalSyncProgress(params: {
   common: Common;
@@ -243,6 +252,128 @@ export async function getCachedIntervals(params: {
   }
 
   return cachedIntervals;
+}
+
+/**
+ * Returns the intervals that need to be synced to complete the `interval`
+ * for all `sources`.
+ *
+ * Note: This function dynamically builds filters using `recoverFilter`.
+ * Fragments are used to create a minimal filter, to avoid refetching data
+ * even if a filter is only partially synced.
+ *
+ * @param params.sources - The sources to sync.
+ * @param params.interval - The interval to sync.
+ * @param params.cachedIntervals - The cached intervals for the sources.
+ * @returns The intervals that need to be synced.
+ */
+export function getRequiredSyncIntervals(params: {
+  sources: Source[];
+  interval: Interval;
+  cachedIntervals: CachedIntervals;
+}): IntervalWithFilter[] {
+  const requiredSyncIntervals: IntervalWithFilter[] = [];
+
+  // Determine the requests that need to be made, and which intervals need to be inserted.
+  // Fragments are used to create a minimal filter, to avoid refetching data even if a filter
+  // is only partially synced.
+
+  for (const { filter } of params.sources) {
+    let filterIntervals: Interval[] = [
+      [
+        Math.max(filter.fromBlock ?? 0, params.interval[0]),
+        Math.min(
+          filter.toBlock ?? Number.POSITIVE_INFINITY,
+          params.interval[1],
+        ),
+      ],
+    ];
+
+    switch (filter.type) {
+      case "log":
+        if (isAddressFactory(filter.address)) {
+          filterIntervals.push([
+            Math.max(filter.address.fromBlock ?? 0, params.interval[0]),
+            Math.min(
+              filter.address.toBlock ?? Number.POSITIVE_INFINITY,
+              params.interval[1],
+            ),
+          ]);
+        }
+        break;
+      case "trace":
+      case "transaction":
+      case "transfer":
+        if (isAddressFactory(filter.fromAddress)) {
+          filterIntervals.push([
+            Math.max(filter.fromAddress.fromBlock ?? 0, params.interval[0]),
+            Math.min(
+              filter.fromAddress.toBlock ?? Number.POSITIVE_INFINITY,
+              params.interval[1],
+            ),
+          ]);
+        }
+
+        if (isAddressFactory(filter.toAddress)) {
+          filterIntervals.push([
+            Math.max(filter.toAddress.fromBlock ?? 0, params.interval[0]),
+            Math.min(
+              filter.toAddress.toBlock ?? Number.POSITIVE_INFINITY,
+              params.interval[1],
+            ),
+          ]);
+        }
+    }
+
+    filterIntervals = filterIntervals.filter(([start, end]) => start <= end);
+
+    if (filterIntervals.length === 0) {
+      continue;
+    }
+
+    filterIntervals = intervalUnion(filterIntervals);
+
+    const completedIntervals = params.cachedIntervals.get(filter)!;
+    const requiredIntervals: {
+      fragment: Fragment;
+      intervals: Interval[];
+    }[] = [];
+
+    for (const {
+      fragment,
+      intervals: fragmentIntervals,
+    } of completedIntervals) {
+      const requiredFragmentIntervals = intervalDifference(
+        filterIntervals,
+        fragmentIntervals,
+      );
+
+      if (requiredFragmentIntervals.length > 0) {
+        requiredIntervals.push({
+          fragment,
+          intervals: requiredFragmentIntervals,
+        });
+      }
+    }
+
+    if (requiredIntervals.length > 0) {
+      const requiredInterval = intervalBounds(
+        requiredIntervals.flatMap(({ intervals }) => intervals),
+      );
+
+      const requiredFilter = recoverFilter(
+        filter,
+        requiredIntervals.map(({ fragment }) => fragment),
+      );
+
+      requiredSyncIntervals.push({
+        filter: requiredFilter,
+        interval: requiredInterval,
+      });
+    }
+  }
+
+  return requiredSyncIntervals;
 }
 
 /** Returns the closest-to-tip block that has been synced for all `sources`. */

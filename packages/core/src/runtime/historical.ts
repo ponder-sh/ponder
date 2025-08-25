@@ -1,3 +1,4 @@
+import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
   Chain,
@@ -10,7 +11,7 @@ import type { Rpc } from "@/rpc/index.js";
 import { buildEvents, decodeEvents } from "@/runtime/events.js";
 import { isAddressFactory } from "@/runtime/filter.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
-import type { SyncStore } from "@/sync-store/index.js";
+import { createSyncStore } from "@/sync-store/index.js";
 import {
   MAX_CHECKPOINT,
   ZERO_CHECKPOINT,
@@ -18,9 +19,11 @@ import {
   encodeCheckpoint,
   min,
 } from "@/utils/checkpoint.js";
+import { estimate } from "@/utils/estimate.js";
 import { formatPercentage } from "@/utils/format.js";
 import {
   bufferAsyncGenerator,
+  createCallbackGenerator,
   mergeAsyncGenerators,
 } from "@/utils/generators.js";
 import {
@@ -31,11 +34,17 @@ import {
   intervalUnion,
 } from "@/utils/interval.js";
 import { partition } from "@/utils/partition.js";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
 import { zipperMany } from "@/utils/zipper.js";
 import { hexToNumber } from "viem";
-import type { CachedIntervals, ChildAddresses, SyncProgress } from "./index.js";
+import {
+  type CachedIntervals,
+  type ChildAddresses,
+  type SyncProgress,
+  getRequiredSyncIntervals,
+} from "./index.js";
 import { initEventGenerator } from "./init.js";
 import { getOmnichainCheckpoint } from "./omnichain.js";
 
@@ -54,7 +63,7 @@ export async function* getHistoricalEventsOmnichain(params: {
       cachedIntervals: CachedIntervals;
     }
   >;
-  syncStore: SyncStore;
+  database: Database;
 }): AsyncGenerator<
   | {
       type: "events";
@@ -115,7 +124,10 @@ export async function* getHistoricalEventsOmnichain(params: {
           ) {
             from = crashRecoveryCheckpoint;
           } else {
-            const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
+            const fromBlock = await createSyncStore({
+              common: params.common,
+              qb: params.database.syncQB,
+            }).getSafeCrashRecoveryBlock({
               chainId: chain.id,
               timestamp: Number(
                 decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
@@ -178,7 +190,7 @@ export async function* getHistoricalEventsOmnichain(params: {
               params.common.options.syncEventsQuerySize /
                 (params.indexingBuild.chains.length + 1),
             ) + 6,
-          syncStore: params.syncStore,
+          database: params.database,
           isCatchup,
         });
 
@@ -303,7 +315,7 @@ export async function* getHistoricalEventsMultichain(params: {
       cachedIntervals: CachedIntervals;
     }
   >;
-  syncStore: SyncStore;
+  database: Database;
 }) {
   let isCatchup = false;
   const perChainCursor = new Map<Chain, string>();
@@ -346,7 +358,10 @@ export async function* getHistoricalEventsMultichain(params: {
           ) {
             from = crashRecoveryCheckpoint;
           } else {
-            const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
+            const fromBlock = await createSyncStore({
+              common: params.common,
+              qb: params.database.syncQB,
+            }).getSafeCrashRecoveryBlock({
               chainId: chain.id,
               timestamp: Number(
                 decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
@@ -393,7 +408,7 @@ export async function* getHistoricalEventsMultichain(params: {
               params.common.options.syncEventsQuerySize /
                 (params.indexingBuild.chains.length + 1),
             ) + 6,
-          syncStore: params.syncStore,
+          database: params.database,
           isCatchup,
         });
 
@@ -505,9 +520,14 @@ export async function* getLocalEventGenerator(params: {
   from: string;
   to: string;
   limit: number;
-  syncStore: SyncStore;
+  database: Database;
   isCatchup: boolean;
 }) {
+  const syncStore = createSyncStore({
+    common: params.common,
+    qb: params.database.syncQB,
+  });
+
   const fromBlock = Number(decodeCheckpoint(params.from).blockNumber);
   const toBlock = Number(decodeCheckpoint(params.to).blockNumber);
   let cursor = fromBlock;
@@ -525,7 +545,7 @@ export async function* getLocalEventGenerator(params: {
   )) {
     while (cursor <= Math.min(syncCursor, toBlock)) {
       const { blockData, cursor: queryCursor } =
-        await params.syncStore.getEventBlockData({
+        await syncStore.getEventBlockData({
           filters: params.sources.map(({ filter }) => filter),
           fromBlock: cursor,
           toBlock: Math.min(syncCursor, toBlock),
@@ -578,12 +598,12 @@ export async function* getLocalSyncGenerator(params: {
   syncProgress: SyncProgress;
   childAddresses: ChildAddresses;
   cachedIntervals: CachedIntervals;
-  syncStore: SyncStore;
+  database: Database;
   isCatchup: boolean;
 }) {
   const label = { chain: params.chain.name };
 
-  let cursor = hexToNumber(params.syncProgress.start.number);
+  let first = hexToNumber(params.syncProgress.start.number);
   const last =
     params.syncProgress.end === undefined
       ? params.syncProgress.finalized
@@ -711,7 +731,7 @@ export async function* getLocalSyncGenerator(params: {
       hexToNumber(params.syncProgress.current.timestamp),
     );
 
-    // `getEvents` can make progress without calling `sync`, so immediately "yield"
+    // `getHistoricalEvents` can make progress without calling `sync`, so immediately "yield"
     yield hexToNumber(params.syncProgress.current.number);
 
     if (
@@ -734,7 +754,7 @@ export async function* getLocalSyncGenerator(params: {
       });
     }
 
-    cursor = hexToNumber(params.syncProgress.current.number) + 1;
+    first = hexToNumber(params.syncProgress.current.number) + 1;
   } else {
     params.common.logger.info({
       service: "historical",
@@ -744,87 +764,131 @@ export async function* getLocalSyncGenerator(params: {
 
   const historicalSync = createHistoricalSync(params);
 
-  while (true) {
-    // Select a range of blocks to sync bounded by `finalizedBlock`.
-    // It is important for devEx that the interval is not too large, because
-    // time spent syncing ≈ time before indexing function feedback.
+  const { callback: intervalCallback, generator: intervalGenerator } =
+    createCallbackGenerator<{ interval: Interval; promise: Promise<void> }>();
 
-    const interval: Interval = [
-      Math.min(cursor, hexToNumber(last.number)),
-      Math.min(cursor + estimateRange, hexToNumber(last.number)),
-    ];
+  const pwr = promiseWithResolvers<void>();
+  pwr.resolve();
 
+  intervalCallback({
+    interval: [
+      first,
+      Math.min(first + estimateRange, hexToNumber(last.number)),
+    ],
+    promise: pwr.promise,
+  });
+
+  async function syncInterval({
+    interval,
+    promise,
+  }: { interval: Interval; promise: Promise<void> }) {
     const endClock = startClock();
 
-    const synced = await historicalSync.sync(interval);
+    const isSyncComplete = interval[1] === hexToNumber(last.number);
+    const requiredIntervals = getRequiredSyncIntervals({
+      interval,
+      sources: params.sources,
+      cachedIntervals: params.cachedIntervals,
+    });
+
+    const pwr = promiseWithResolvers<void>();
+
+    await params.database.userQB.transaction(async (tx) => {
+      const syncStore = createSyncStore({ common: params.common, qb: tx });
+      const { logs } = await historicalSync.sync1({
+        requiredIntervals,
+        syncStore,
+      });
+
+      await promise;
+
+      if (isSyncComplete === false) {
+        intervalCallback({
+          interval: [
+            Math.min(interval[1] + 1, hexToNumber(last.number)),
+            Math.min(interval[1] + 1 + estimateRange, hexToNumber(last.number)),
+          ],
+          promise: pwr.promise,
+        });
+      }
+
+      await historicalSync.sync2({
+        interval,
+        requiredIntervals,
+        logs,
+        syncStore,
+      });
+      if (params.chain.disableCache === false) {
+        await syncStore.insertIntervals({
+          intervals: requiredIntervals,
+          chainId: params.chain.id,
+        });
+      }
+    });
 
     params.common.logger.debug({
       service: "sync",
       msg: `Synced ${interval[1] - interval[0] + 1} '${params.chain.name}' blocks in range [${interval[0]}, ${interval[1]}]`,
     });
 
-    // Update cursor to record progress
-    cursor = interval[1] + 1;
-
-    // `synced` will be undefined if a cache hit occur in `historicalSync.sync()`.
-
-    if (synced === undefined) {
-      // If the all known blocks are synced, then update `syncProgress.current`, else
-      // progress to the next iteration.
-      if (interval[1] === hexToNumber(last.number)) {
-        params.syncProgress.current = last;
-      } else {
-        continue;
-      }
-    } else {
-      if (interval[1] === hexToNumber(last.number)) {
-        params.syncProgress.current = last;
-      } else {
-        params.syncProgress.current = synced;
-      }
-
-      const duration = endClock();
-
-      params.common.metrics.ponder_sync_block.set(
-        label,
-        hexToNumber(params.syncProgress.current!.number),
-      );
-      params.common.metrics.ponder_sync_block_timestamp.set(
-        label,
-        hexToNumber(params.syncProgress.current!.timestamp),
-      );
-      params.common.metrics.ponder_historical_duration.observe(label, duration);
-      params.common.metrics.ponder_historical_completed_blocks.inc(
-        label,
-        interval[1] - interval[0] + 1,
-      );
-
-      // Use the duration and interval of the last call to `sync` to update estimate
-      // 25 <= estimate(new) <= estimate(prev) * 2 <= 100_000
-      estimateRange = Math.min(
-        Math.max(
-          25,
-          Math.round((1_000 * (interval[1] - interval[0])) / duration),
-        ),
-        estimateRange * 2,
-        100_000,
-      );
-
-      params.common.logger.trace({
-        service: "sync",
-        msg: `Updated '${params.chain.name}' historical sync estimate to ${estimateRange} blocks`,
-      });
+    if (interval[1] === hexToNumber(last.number)) {
+      params.syncProgress.current = last;
     }
 
-    yield hexToNumber(params.syncProgress.current!.number);
+    const duration = endClock();
 
-    if (params.syncProgress.isEnd() || params.syncProgress.isFinalized()) {
-      params.common.logger.info({
-        service: "sync",
-        msg: `Completed '${params.chain.name}' historical sync`,
+    params.common.metrics.ponder_sync_block.set(label, interval[1]);
+    // params.common.metrics.ponder_sync_block_timestamp.set(
+    //   label,
+    //   hexToNumber(params.syncProgress.current!.timestamp),
+    // );
+    params.common.metrics.ponder_historical_duration.observe(label, duration);
+    params.common.metrics.ponder_historical_completed_blocks.inc(
+      label,
+      interval[1] - interval[0] + 1,
+    );
+
+    // Use the duration and interval of the last call to `sync` to update estimate
+    estimateRange = estimate({
+      from: interval[0],
+      to: interval[1],
+      target: params.common.options.command === "dev" ? 2_000 : 10_000,
+      result: duration,
+      min: 25,
+      max: 100_000,
+      prev: estimateRange,
+      maxIncrease: 1.5,
+    });
+
+    params.common.logger.trace({
+      service: "sync",
+      msg: `Updated '${params.chain.name}' historical sync estimate to ${estimateRange} blocks`,
+    });
+
+    pwr.resolve();
+  }
+
+  const { callback, generator } =
+    createCallbackGenerator<IteratorResult<number>>();
+
+  (async () => {
+    for await (const { interval, promise } of intervalGenerator) {
+      syncInterval({ interval, promise }).then(() => {
+        callback({ value: interval[1], done: false });
+
+        if (interval[1] === hexToNumber(last.number)) {
+          callback({ value: undefined, done: true });
+        }
       });
-      return;
     }
+  })();
+
+  for await (const result of generator) {
+    if (result.done) {
+      break;
+    }
+
+    yield result.value;
   }
 }
 

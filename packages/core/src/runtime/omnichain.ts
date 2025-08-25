@@ -48,6 +48,7 @@ import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { recordAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
+import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
 import { startClock } from "@/utils/timer.js";
 import { eq, getTableName, isTable, sql } from "drizzle-orm";
 import { getHistoricalEventsOmnichain } from "./historical.js";
@@ -80,7 +81,7 @@ export async function runOmnichain({
 }) {
   runCodegen({ common });
 
-  const syncStore = createSyncStore({ common, database });
+  const syncStore = createSyncStore({ common, qb: database.syncQB });
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
   const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
@@ -289,7 +290,7 @@ export async function runOmnichain({
       indexingBuild,
       crashRecoveryCheckpoint,
       perChainSync,
-      syncStore,
+      database,
     }),
     (params) => {
       common.metrics.ponder_historical_concurrency_group_duration.inc(
@@ -534,7 +535,7 @@ export async function runOmnichain({
     common,
     indexingBuild,
     perChainSync,
-    syncStore,
+    database,
     pendingEvents,
   })) {
     switch (event.type) {
@@ -573,7 +574,7 @@ export async function runOmnichain({
                   msg: `Indexed ${events.length} '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
                 });
 
-                await Promise.all(
+                await promiseAllSettledWithThrow(
                   tables.map((table) => commitBlock(tx, { table, checkpoint })),
                 );
 

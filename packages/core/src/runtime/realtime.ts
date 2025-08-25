@@ -1,3 +1,4 @@
+import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
   Chain,
@@ -23,7 +24,7 @@ import {
   type RealtimeSyncEvent,
   createRealtimeSync,
 } from "@/sync-realtime/index.js";
-import type { SyncStore } from "@/sync-store/index.js";
+import { createSyncStore } from "@/sync-store/index.js";
 import {
   ZERO_CHECKPOINT_STRING,
   blockToCheckpoint,
@@ -36,6 +37,8 @@ import {
   mergeAsyncGenerators,
 } from "@/utils/generators.js";
 import { type Interval, intervalIntersection } from "@/utils/interval.js";
+import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { startClock } from "@/utils/timer.js";
 import { type Address, hexToNumber } from "viem";
 import type { ChildAddresses, SyncProgress } from "./index.js";
@@ -69,7 +72,7 @@ export async function* getRealtimeEventsOmnichain(params: {
       >[];
     }
   >;
-  syncStore: SyncStore;
+  database: Database;
   pendingEvents: Event[];
 }): AsyncGenerator<RealtimeEvent> {
   const eventGenerators = Array.from(params.perChainSync.entries())
@@ -100,7 +103,7 @@ export async function* getRealtimeEventsOmnichain(params: {
         sources,
         syncProgress,
         childAddresses,
-        syncStore: params.syncStore,
+        database: params.database,
       });
     })
     .filter(
@@ -135,7 +138,7 @@ export async function* getRealtimeEventsOmnichain(params: {
       sources,
       syncProgress,
       unfinalizedBlocks,
-      syncStore: params.syncStore,
+      database: params.database,
     });
 
     switch (event.type) {
@@ -328,7 +331,7 @@ export async function* getRealtimeEventsMultichain(params: {
       >[];
     }
   >;
-  syncStore: SyncStore;
+  database: Database;
 }): AsyncGenerator<RealtimeEvent> {
   const eventGenerators = Array.from(params.perChainSync.entries())
     .map(([chain, { syncProgress, childAddresses }]) => {
@@ -358,7 +361,7 @@ export async function* getRealtimeEventsMultichain(params: {
         sources,
         syncProgress,
         childAddresses,
-        syncStore: params.syncStore,
+        database: params.database,
       });
     })
     .filter(
@@ -389,7 +392,7 @@ export async function* getRealtimeEventsMultichain(params: {
       sources,
       syncProgress,
       unfinalizedBlocks,
-      syncStore: params.syncStore,
+      database: params.database,
     });
 
     switch (event.type) {
@@ -544,7 +547,7 @@ export async function* getRealtimeEventGenerator(params: {
   sources: Source[];
   syncProgress: SyncProgress;
   childAddresses: ChildAddresses;
-  syncStore: SyncStore;
+  database: Database;
 }) {
   const realtimeSync = createRealtimeSync(params);
 
@@ -558,14 +561,22 @@ export async function* getRealtimeEventGenerator(params: {
     msg: `Initialized '${params.chain.name}' realtime sync with ${childCount} factory child addresses`,
   });
 
-  const { callback, generator } = createCallbackGenerator<
-    SyncBlock | SyncBlockHeader,
-    boolean
-  >();
+  const { callback, generator } = createCallbackGenerator<{
+    block: SyncBlock | SyncBlockHeader;
+    blockCallback: (isAccepted: boolean) => void;
+    promise: Promise<boolean>;
+  }>();
 
-  params.rpc.subscribe({ onBlock: callback, onError: realtimeSync.onError });
+  params.rpc.subscribe({
+    onBlock: (block) => {
+      const pwr = promiseWithResolvers<boolean>();
+      callback({ block, blockCallback: pwr.resolve, promise: pwr.promise });
+      return pwr.promise;
+    },
+    onError: realtimeSync.onError,
+  });
 
-  for await (const { value: block, onComplete } of generator) {
+  for await (const { block, blockCallback } of generator) {
     const arrivalMs = Date.now();
 
     const endClock = startClock();
@@ -583,7 +594,7 @@ export async function* getRealtimeEventGenerator(params: {
         );
       }
 
-      onComplete(isAccepted);
+      blockCallback(isAccepted);
     });
 
     for await (const event of syncGenerator) {
@@ -623,7 +634,7 @@ export async function handleRealtimeSyncEvent(
       Extract<RealtimeSyncEvent, { type: "block" }>,
       "type"
     >[];
-    syncStore: SyncStore;
+    database: Database;
   },
 ) {
   switch (event.type) {
@@ -695,81 +706,82 @@ export async function handleRealtimeSyncEvent(
         }
       }
 
-      await Promise.all([
-        params.syncStore.insertBlocks({
-          blocks: finalizedBlocks
-            .filter(({ hasMatchedFilter }) => hasMatchedFilter)
-            .map(({ block }) => block),
-          chainId: params.chain.id,
-        }),
-        params.syncStore.insertTransactions({
-          transactions: finalizedBlocks.flatMap(
-            ({ transactions }) => transactions,
-          ),
-          chainId: params.chain.id,
-        }),
-        params.syncStore.insertTransactionReceipts({
-          transactionReceipts: finalizedBlocks.flatMap(
-            ({ transactionReceipts }) => transactionReceipts,
-          ),
-          chainId: params.chain.id,
-        }),
-        params.syncStore.insertLogs({
-          logs: finalizedBlocks.flatMap(({ logs }) => logs),
-          chainId: params.chain.id,
-        }),
-        params.syncStore.insertTraces({
-          traces: finalizedBlocks.flatMap(({ traces, block, transactions }) =>
-            traces.map((trace) => ({
-              trace,
-              block: block as SyncBlock, // SyncBlock is expected for traces.length !== 0
-              transaction: transactions.find(
-                (t) => t.hash === trace.transactionHash,
-              )!,
-            })),
-          ),
-          chainId: params.chain.id,
-        }),
-        ...Array.from(childAddresses.entries()).map(
-          ([factory, childAddresses]) =>
-            params.syncStore.insertChildAddresses({
-              factory,
-              childAddresses,
-              chainId: params.chain.id,
-            }),
-        ),
-      ]);
+      await params.database.syncQB.transaction(async (tx) => {
+        const syncStore = createSyncStore({ common: params.common, qb: tx });
 
-      // Add corresponding intervals to the sync-store
-      // Note: this should happen after insertion so the database doesn't become corrupted
+        await promiseAllSettledWithThrow([
+          syncStore.insertBlocks({
+            blocks: finalizedBlocks
+              .filter(({ hasMatchedFilter }) => hasMatchedFilter)
+              .map(({ block }) => block),
+            chainId: params.chain.id,
+          }),
+          syncStore.insertTransactions({
+            transactions: finalizedBlocks.flatMap(
+              ({ transactions }) => transactions,
+            ),
+            chainId: params.chain.id,
+          }),
+          syncStore.insertTransactionReceipts({
+            transactionReceipts: finalizedBlocks.flatMap(
+              ({ transactionReceipts }) => transactionReceipts,
+            ),
+            chainId: params.chain.id,
+          }),
+          syncStore.insertLogs({
+            logs: finalizedBlocks.flatMap(({ logs }) => logs),
+            chainId: params.chain.id,
+          }),
+          syncStore.insertTraces({
+            traces: finalizedBlocks.flatMap(({ traces, block, transactions }) =>
+              traces.map((trace) => ({
+                trace,
+                block: block as SyncBlock, // SyncBlock is expected for traces.length !== 0
+                transaction: transactions.find(
+                  (t) => t.hash === trace.transactionHash,
+                )!,
+              })),
+            ),
+            chainId: params.chain.id,
+          }),
+          ...Array.from(childAddresses.entries()).map(
+            ([factory, childAddresses]) =>
+              syncStore.insertChildAddresses({
+                factory,
+                childAddresses,
+                chainId: params.chain.id,
+              }),
+          ),
+        ]);
 
-      if (params.chain.disableCache === false) {
-        const syncedIntervals: {
-          interval: Interval;
-          filter: Filter;
-        }[] = [];
+        if (params.chain.disableCache === false) {
+          const syncedIntervals: {
+            interval: Interval;
+            filter: Filter;
+          }[] = [];
 
-        for (const { filter } of params.sources) {
-          const intervals = intervalIntersection(
-            [finalizedInterval],
-            [
+          for (const { filter } of params.sources) {
+            const intervals = intervalIntersection(
+              [finalizedInterval],
               [
-                filter.fromBlock ?? 0,
-                filter.toBlock ?? Number.POSITIVE_INFINITY,
+                [
+                  filter.fromBlock ?? 0,
+                  filter.toBlock ?? Number.POSITIVE_INFINITY,
+                ],
               ],
-            ],
-          );
+            );
 
-          for (const interval of intervals) {
-            syncedIntervals.push({ interval, filter });
+            for (const interval of intervals) {
+              syncedIntervals.push({ interval, filter });
+            }
           }
-        }
 
-        await params.syncStore.insertIntervals({
-          intervals: syncedIntervals,
-          chainId: params.chain.id,
-        });
-      }
+          await syncStore.insertIntervals({
+            intervals: syncedIntervals,
+            chainId: params.chain.id,
+          });
+        }
+      });
 
       break;
     }
@@ -801,7 +813,10 @@ export async function handleRealtimeSyncEvent(
         } else break;
       }
 
-      await params.syncStore.pruneRpcRequestResults({
+      await createSyncStore({
+        common: params.common,
+        qb: params.database.syncQB,
+      }).pruneRpcRequestResults({
         chainId: params.chain.id,
         blocks: event.reorgedBlocks,
       });
