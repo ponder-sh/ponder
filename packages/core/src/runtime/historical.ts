@@ -524,24 +524,32 @@ export async function* getLocalEventGenerator(params: {
     Number.POSITIVE_INFINITY,
   )) {
     while (cursor <= Math.min(syncCursor, toBlock)) {
-      const { blockData, cursor: queryCursor } =
-        await params.syncStore.getEventBlockData({
-          filters: params.sources.map(({ filter }) => filter),
-          fromBlock: cursor,
-          toBlock: Math.min(syncCursor, toBlock),
-          chainId: params.chain.id,
-          limit: params.limit,
-        });
+      const {
+        blocks,
+        logs,
+        transactions,
+        transactionReceipts,
+        traces,
+        cursor: queryCursor,
+      } = await params.syncStore.getEventData({
+        filters: params.sources.map(({ filter }) => filter),
+        fromBlock: cursor,
+        toBlock: Math.min(syncCursor, toBlock),
+        chainId: params.chain.id,
+        limit: params.limit,
+      });
 
       const endClock = startClock();
-      const events = blockData.flatMap((bd) =>
-        buildEvents({
-          sources: params.sources,
-          blockData: bd,
-          childAddresses: params.childAddresses,
-          chainId: params.chain.id,
-        }),
-      );
+      const events = buildEvents({
+        sources: params.sources,
+        blocks,
+        logs,
+        transactions,
+        transactionReceipts,
+        traces,
+        childAddresses: params.childAddresses,
+        chainId: params.chain.id,
+      });
       params.common.metrics.ponder_historical_extract_duration.inc(
         { step: "build" },
         endClock(),
@@ -557,12 +565,12 @@ export async function* getLocalEventGenerator(params: {
       cursor = queryCursor + 1;
       if (cursor === toBlock) {
         yield { events, checkpoint: params.to };
-      } else if (blockData.length > 0) {
+      } else if (blocks.length > 0) {
         const checkpoint = encodeCheckpoint({
           ...MAX_CHECKPOINT,
-          blockTimestamp: blockData[blockData.length - 1]!.block.timestamp,
+          blockTimestamp: blocks[blocks.length - 1]!.timestamp,
           chainId: BigInt(params.chain.id),
-          blockNumber: blockData[blockData.length - 1]!.block.number,
+          blockNumber: blocks[blocks.length - 1]!.number,
         });
         yield { events, checkpoint };
       }

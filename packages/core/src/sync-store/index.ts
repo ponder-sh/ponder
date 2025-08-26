@@ -98,20 +98,18 @@ export type SyncStore = {
     }[];
     chainId: number;
   }): Promise<void>;
-  getEventBlockData(args: {
+  getEventData(args: {
     filters: Filter[];
     fromBlock: number;
     toBlock: number;
     chainId: number;
     limit: number;
   }): Promise<{
-    blockData: {
-      block: InternalBlock;
-      logs: InternalLog[];
-      transactions: InternalTransaction[];
-      transactionReceipts: InternalTransactionReceipt[];
-      traces: InternalTrace[];
-    }[];
+    blocks: InternalBlock[];
+    logs: InternalLog[];
+    transactions: InternalTransaction[];
+    transactionReceipts: InternalTransactionReceipt[];
+    traces: InternalTrace[];
     cursor: number;
   }>;
   insertRpcRequestResults(args: {
@@ -542,14 +540,14 @@ export const createSyncStore = ({
       );
     }
   },
-  getEventBlockData: async ({
+  getEventData: async ({
     filters,
     fromBlock,
     toBlock,
     chainId,
     limit: _limit,
   }) => {
-    let limit = _limit;
+    const limit = _limit;
 
     // @ts-ignore
     const fn = async () => {
@@ -765,7 +763,7 @@ export const createSyncStore = ({
           : [],
       ]);
 
-      const supremum = Math.min(
+      let supremum = Math.min(
         blocksRows.length < limit
           ? Number.POSITIVE_INFINITY
           : Number(blocksRows[blocksRows.length - 1]!.number),
@@ -786,184 +784,167 @@ export const createSyncStore = ({
           : Number(tracesRows[tracesRows.length - 1]!.blockNumber),
       );
 
+      // If limit is reached for row other than block, decrement supremum
+      if (
+        blocksRows.length < limit &&
+        Math.max(
+          transactionsRows.length,
+          transactionReceiptsRows.length,
+          logsRows.length,
+          tracesRows.length,
+        ) === limit
+      ) {
+        supremum -= 1;
+      }
+
       endClock = startClock();
 
-      const blockData: {
-        block: InternalBlock;
-        logs: InternalLog[];
-        transactions: InternalTransaction[];
-        transactionReceipts: InternalTransactionReceipt[];
-        traces: InternalTrace[];
-      }[] = [];
-      let transactionIndex = 0;
-      let transactionReceiptIndex = 0;
-      let traceIndex = 0;
-      let logIndex = 0;
-      for (const block of blocksRows) {
-        if (Number(block.number) > supremum) {
+      for (let i = 0; i < blocksRows.length; i++) {
+        if (Number(blocksRows[i]!.number) > supremum) {
+          blocksRows.splice(i);
           break;
         }
 
-        const transactions: InternalTransaction[] = [];
-        const transactionReceipts: InternalTransactionReceipt[] = [];
-        const logs: InternalLog[] = [];
-        const traces: InternalTrace[] = [];
+        const block = blocksRows[i]!;
+        const internalBlock = block as unknown as InternalBlock;
 
-        while (
-          transactionIndex < transactionsRows.length &&
-          transactionsRows[transactionIndex]!.blockNumber === block.number
-        ) {
-          const transaction = transactionsRows[transactionIndex]!;
-          const internalTransaction =
-            transaction as unknown as InternalTransaction;
+        internalBlock.miner = toLowerCase(block.miner);
+      }
 
-          internalTransaction.blockNumber = Number(transaction.blockNumber);
-          internalTransaction.from = toLowerCase(transaction.from);
-          if (transaction.to !== null) {
-            internalTransaction.to = toLowerCase(transaction.to);
-          }
-
-          if (transaction.type === "0x0") {
-            internalTransaction.type = "legacy";
-            internalTransaction.accessList = undefined;
-            internalTransaction.maxFeePerGas = undefined;
-            internalTransaction.maxPriorityFeePerGas = undefined;
-          } else if (transaction.type === "0x1") {
-            internalTransaction.type = "eip2930";
-            internalTransaction.accessList = JSON.parse(
-              transaction.accessList!,
-            );
-            internalTransaction.maxFeePerGas = undefined;
-            internalTransaction.maxPriorityFeePerGas = undefined;
-          } else if (transaction.type === "0x2") {
-            internalTransaction.type = "eip1559";
-            internalTransaction.gasPrice = undefined;
-            internalTransaction.accessList = undefined;
-          } else if (transaction.type === "0x7e") {
-            internalTransaction.type = "deposit";
-            internalTransaction.gasPrice = undefined;
-            internalTransaction.accessList = undefined;
-          }
-
-          transactions.push(internalTransaction);
-          transactionIndex++;
+      for (let i = 0; i < transactionsRows.length; i++) {
+        if (Number(transactionsRows[i]!.blockNumber) > supremum) {
+          transactionsRows.splice(i);
+          break;
         }
 
-        while (
-          transactionReceiptIndex < transactionReceiptsRows.length &&
-          transactionReceiptsRows[transactionReceiptIndex]!.blockNumber ===
-            block.number
-        ) {
-          const transactionReceipt =
-            transactionReceiptsRows[transactionReceiptIndex]!;
+        const transaction = transactionsRows[i]!;
+        const internalTransaction =
+          transaction as unknown as InternalTransaction;
 
-          const internalTransactionReceipt =
-            transactionReceipt as unknown as InternalTransactionReceipt;
+        internalTransaction.blockNumber = Number(transaction.blockNumber);
+        internalTransaction.from = toLowerCase(transaction.from);
+        if (transaction.to !== null) {
+          internalTransaction.to = toLowerCase(transaction.to);
+        }
 
-          internalTransactionReceipt.blockNumber = Number(
-            transactionReceipt.blockNumber,
+        if (transaction.type === "0x0") {
+          internalTransaction.type = "legacy";
+          internalTransaction.accessList = undefined;
+          internalTransaction.maxFeePerGas = undefined;
+          internalTransaction.maxPriorityFeePerGas = undefined;
+        } else if (transaction.type === "0x1") {
+          internalTransaction.type = "eip2930";
+          internalTransaction.accessList = JSON.parse(transaction.accessList!);
+          internalTransaction.maxFeePerGas = undefined;
+          internalTransaction.maxPriorityFeePerGas = undefined;
+        } else if (transaction.type === "0x2") {
+          internalTransaction.type = "eip1559";
+          internalTransaction.gasPrice = undefined;
+          internalTransaction.accessList = undefined;
+        } else if (transaction.type === "0x7e") {
+          internalTransaction.type = "deposit";
+          internalTransaction.gasPrice = undefined;
+          internalTransaction.accessList = undefined;
+        }
+      }
+
+      for (let i = 0; i < transactionReceiptsRows.length; i++) {
+        if (Number(transactionReceiptsRows[i]!.blockNumber) > supremum) {
+          transactionReceiptsRows.splice(i);
+          break;
+        }
+
+        const transactionReceipt = transactionReceiptsRows[i]!;
+
+        const internalTransactionReceipt =
+          transactionReceipt as unknown as InternalTransactionReceipt;
+
+        internalTransactionReceipt.blockNumber = Number(
+          transactionReceipt.blockNumber,
+        );
+        if (transactionReceipt.contractAddress !== null) {
+          internalTransactionReceipt.contractAddress = toLowerCase(
+            transactionReceipt.contractAddress,
           );
-          if (transactionReceipt.contractAddress !== null) {
-            internalTransactionReceipt.contractAddress = toLowerCase(
-              transactionReceipt.contractAddress,
-            );
-          }
-          internalTransactionReceipt.from = toLowerCase(
-            transactionReceipt.from,
-          );
-          if (transactionReceipt.to !== null) {
-            internalTransactionReceipt.to = toLowerCase(transactionReceipt.to);
-          }
-          internalTransactionReceipt.status =
-            transactionReceipt.status === "0x1"
-              ? "success"
-              : transactionReceipt.status === "0x0"
-                ? "reverted"
-                : (transactionReceipt.status as InternalTransactionReceipt["status"]);
-          internalTransactionReceipt.type =
-            transactionReceipt.type === "0x0"
-              ? "legacy"
-              : transactionReceipt.type === "0x1"
-                ? "eip2930"
-                : transactionReceipt.type === "0x2"
-                  ? "eip1559"
-                  : transactionReceipt.type === "0x7e"
-                    ? "deposit"
-                    : transactionReceipt.type;
+        }
+        internalTransactionReceipt.from = toLowerCase(transactionReceipt.from);
+        if (transactionReceipt.to !== null) {
+          internalTransactionReceipt.to = toLowerCase(transactionReceipt.to);
+        }
+        internalTransactionReceipt.status =
+          transactionReceipt.status === "0x1"
+            ? "success"
+            : transactionReceipt.status === "0x0"
+              ? "reverted"
+              : (transactionReceipt.status as InternalTransactionReceipt["status"]);
+        internalTransactionReceipt.type =
+          transactionReceipt.type === "0x0"
+            ? "legacy"
+            : transactionReceipt.type === "0x1"
+              ? "eip2930"
+              : transactionReceipt.type === "0x2"
+                ? "eip1559"
+                : transactionReceipt.type === "0x7e"
+                  ? "deposit"
+                  : transactionReceipt.type;
+      }
 
-          transactionReceipts.push(internalTransactionReceipt);
-          transactionReceiptIndex++;
+      for (let i = 0; i < tracesRows.length; i++) {
+        if (Number(tracesRows[i]!.blockNumber) > supremum) {
+          tracesRows.splice(i);
+          break;
         }
 
-        while (
-          logIndex < logsRows.length &&
-          logsRows[logIndex]!.blockNumber === block.number
-        ) {
-          const log = logsRows[logIndex]!;
-          const internalLog = log as unknown as InternalLog;
+        const trace = tracesRows[i]!;
+        const internalTrace = trace as unknown as InternalTrace;
 
-          internalLog.blockNumber = Number(log.blockNumber);
-          internalLog.address = toLowerCase(log.address);
-          internalLog.removed = false;
-          internalLog.topics = [
-            // @ts-ignore
-            log.topic0,
-            log.topic1,
-            log.topic2,
-            log.topic3,
-          ];
-          // @ts-ignore
-          log.topic0 = undefined;
-          // @ts-ignore
-          log.topic1 = undefined;
-          // @ts-ignore
-          log.topic2 = undefined;
-          // @ts-ignore
-          log.topic3 = undefined;
+        internalTrace.blockNumber = Number(trace.blockNumber);
 
-          logs.push(internalLog);
-          logIndex++;
+        internalTrace.from = toLowerCase(trace.from);
+        if (trace.to !== null) {
+          internalTrace.to = toLowerCase(trace.to);
         }
 
-        while (
-          traceIndex < tracesRows.length &&
-          tracesRows[traceIndex]!.blockNumber === block.number
-        ) {
-          const trace = tracesRows[traceIndex]!;
-          const internalTrace = trace as unknown as InternalTrace;
-
-          internalTrace.blockNumber = Number(trace.blockNumber);
-
-          internalTrace.from = toLowerCase(trace.from);
-          if (trace.to !== null) {
-            internalTrace.to = toLowerCase(trace.to);
-          }
-
-          if (trace.output === null) {
-            internalTrace.output = undefined;
-          }
-
-          if (trace.error === null) {
-            internalTrace.error = undefined;
-          }
-
-          if (trace.revertReason === null) {
-            internalTrace.revertReason = undefined;
-          }
-
-          traces.push(internalTrace);
-          traceIndex++;
+        if (trace.output === null) {
+          internalTrace.output = undefined;
         }
 
-        block.miner = toLowerCase(block.miner);
+        if (trace.error === null) {
+          internalTrace.error = undefined;
+        }
 
-        blockData.push({
-          block,
-          logs,
-          transactions,
-          traces,
-          transactionReceipts,
-        });
+        if (trace.revertReason === null) {
+          internalTrace.revertReason = undefined;
+        }
+      }
+
+      for (let i = 0; i < logsRows.length; i++) {
+        if (Number(logsRows[i]!.blockNumber) > supremum) {
+          logsRows.splice(i);
+          break;
+        }
+
+        const log = logsRows[i]!;
+        const internalLog = log as unknown as InternalLog;
+
+        internalLog.blockNumber = Number(log.blockNumber);
+        internalLog.address = toLowerCase(log.address);
+        internalLog.removed = false;
+        internalLog.topics = [
+          // @ts-ignore
+          log.topic0,
+          log.topic1,
+          log.topic2,
+          log.topic3,
+        ];
+        // @ts-ignore
+        log.topic0 = undefined;
+        // @ts-ignore
+        log.topic1 = undefined;
+        // @ts-ignore
+        log.topic2 = undefined;
+        // @ts-ignore
+        log.topic3 = undefined;
       }
 
       common.metrics.ponder_historical_extract_duration.inc(
@@ -973,40 +954,50 @@ export const createSyncStore = ({
 
       await new Promise(setImmediate);
 
-      let cursor: number;
-      if (
-        Math.max(
-          blocksRows.length,
-          transactionsRows.length,
-          transactionReceiptsRows.length,
-          logsRows.length,
-          tracesRows.length,
-        ) !== limit
-      ) {
-        cursor = toBlock;
-      } else if (
-        blocksRows.length === limit &&
-        Math.max(
-          transactionsRows.length,
-          transactionReceiptsRows.length,
-          logsRows.length,
-          tracesRows.length,
-        ) !== limit
-      ) {
-        // all events for `supremum` block have been extracted
-        cursor = supremum;
-      } else {
-        // there may be events for `supremum` block that have not been extracted
-        blockData.pop();
-        cursor = supremum - 1;
+      return {
+        blocks: blocksRows as InternalBlock[],
+        logs: logsRows as InternalLog[],
+        transactions: transactionsRows as InternalTransaction[],
+        transactionReceipts:
+          transactionReceiptsRows as InternalTransactionReceipt[],
+        traces: tracesRows as InternalTrace[],
+        cursor: supremum,
+      };
 
-        if (cursor < fromBlock) {
-          limit = limit * 2;
-          return await fn();
-        }
-      }
+      // let cursor: number;
+      // if (
+      //   Math.max(
+      //     blocksRows.length,
+      //     transactionsRows.length,
+      //     transactionReceiptsRows.length,
+      //     logsRows.length,
+      //     tracesRows.length,
+      //   ) !== limit
+      // ) {
+      //   cursor = toBlock;
+      // } else if (
+      //   blocksRows.length === limit &&
+      //   Math.max(
+      //     transactionsRows.length,
+      //     transactionReceiptsRows.length,
+      //     logsRows.length,
+      //     tracesRows.length,
+      //   ) !== limit
+      // ) {
+      //   // all events for `supremum` block have been extracted
+      //   cursor = supremum;
+      // } else {
+      //   // there may be events for `supremum` block that have not been extracted
+      //   blockData.pop();
+      //   cursor = supremum - 1;
 
-      return { blockData, cursor };
+      //   if (cursor < fromBlock) {
+      //     limit = limit * 2;
+      //     return await fn();
+      //   }
+      // }
+
+      // return { blockData, cursor };
     };
 
     return fn();
