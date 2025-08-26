@@ -39,7 +39,11 @@ export const EVENT_TYPES = {
   traces: 7,
 } as const;
 
-export const encodeCheckpoint = (checkpoint: Checkpoint) => {
+const encodedChainIds = new Map<number | bigint, string>();
+
+export const encodeCheckpoint = (
+  checkpoint: Checkpoint | { [K in keyof Checkpoint]: number },
+) => {
   const {
     blockTimestamp,
     chainId,
@@ -49,21 +53,23 @@ export const encodeCheckpoint = (checkpoint: Checkpoint) => {
     eventIndex,
   } = checkpoint;
 
-  if (eventType < 0 || eventType > 9)
+  if (eventType < 0 || eventType > 9) {
     throw new Error(
       `Got invalid event type ${eventType}, expected a number from 0 to 9`,
     );
+  }
 
-  const result =
-    blockTimestamp.toString().padStart(BLOCK_TIMESTAMP_DIGITS, "0") +
-    chainId.toString().padStart(CHAIN_ID_DIGITS, "0") +
-    blockNumber.toString().padStart(BLOCK_NUMBER_DIGITS, "0") +
-    transactionIndex.toString().padStart(TRANSACTION_INDEX_DIGITS, "0") +
-    eventType.toString() +
-    eventIndex.toString().padStart(EVENT_INDEX_DIGITS, "0");
+  let encodedChainId = encodedChainIds.get(chainId);
+  if (encodedChainId === undefined) {
+    encodedChainId = chainId.toString().padStart(CHAIN_ID_DIGITS, "0");
+    encodedChainIds.set(chainId, encodedChainId);
+  }
 
-  if (result.length !== CHECKPOINT_LENGTH)
+  const result = `${blockTimestamp.toString().padStart(BLOCK_TIMESTAMP_DIGITS, "0")}${encodedChainId}${blockNumber.toString().padStart(BLOCK_NUMBER_DIGITS, "0")}${transactionIndex.toString().padStart(TRANSACTION_INDEX_DIGITS, "0")}${eventType.toString()}${eventIndex.toString().padStart(EVENT_INDEX_DIGITS, "0")}`;
+
+  if (result.length !== CHECKPOINT_LENGTH) {
     throw new Error(`Invalid stringified checkpoint: ${result}`);
+  }
 
   return result;
 };
