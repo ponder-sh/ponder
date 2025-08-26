@@ -543,7 +543,6 @@ export const validateTracesAndBlock = (
   block: SyncBlock,
   blockIdentifier: "number" | "hash",
 ) => {
-  const traceIds = new Set<string>();
   const transactionHashes = new Set(block.transactions.map((t) => t.hash));
   for (const [index, trace] of traces.entries()) {
     if (transactionHashes.has(trace.transactionHash) === false) {
@@ -561,25 +560,6 @@ export const validateTracesAndBlock = (
       ];
       error.stack = undefined;
       throw error;
-    }
-
-    const id = `${trace.transactionHash}-${trace.trace.index}`;
-    if (traceIds.has(id)) {
-      const error = new RpcProviderError(
-        `Inconsistent RPC response data. The traces array contains two objects with index ${trace.trace.index} for transaction hash ${trace.transactionHash}.`,
-      );
-      error.meta = [
-        "Please report this error to the RPC operator.",
-        eth_getBlockText(
-          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
-        ),
-        debug_traceBlockText(
-          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
-        ),
-      ];
-      throw error;
-    } else {
-      traceIds.add(id);
     }
   }
 
