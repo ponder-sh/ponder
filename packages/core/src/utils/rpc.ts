@@ -353,13 +353,13 @@ export const validateTransactionsAndBlock = (
   blockIdentifier: "number" | "hash",
 ) => {
   const transactionIds = new Set<Hex>();
-  for (const transaction of block.transactions) {
+  for (const [index, transaction] of block.transactions.entries()) {
     if (block.hash !== transaction.blockHash) {
       const error = new RpcProviderError(
-        `Detected inconsistent RPC responses. 'transaction.blockHash' ${transaction.blockHash} does not match 'block.hash' ${block.hash}`,
+        `Inconsistent RPC response data. The transaction at index ${index} of the 'block.transactions' array has a 'transaction.blockHash' of ${transaction.blockHash}, but the block itself has a 'block.hash' of ${block.hash}.`,
       );
       error.meta = [
-        "This error is caused by the upstream RPC provider returning mismatching responses.",
+        "Please report this error to the RPC operator.",
         eth_getBlockText(
           blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
         ),
@@ -370,10 +370,10 @@ export const validateTransactionsAndBlock = (
 
     if (block.number !== transaction.blockNumber) {
       const error = new RpcProviderError(
-        `Detected inconsistent RPC responses. 'transaction.blockNumber' ${transaction.blockNumber} does not match 'block.number' ${block.number}`,
+        `Inconsistent RPC response data. The transaction at index ${index} of the 'block.transactions' array has a 'transaction.blockNumber' of ${transaction.blockNumber} (${hexToNumber(transaction.blockNumber)}), but the block itself has a 'block.number' of ${block.number} (${hexToNumber(block.number)}).`,
       );
       error.meta = [
-        "This error is caused by the upstream RPC provider returning mismatching responses.",
+        "Please report this error to the RPC operator.",
         eth_getBlockText(
           blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
         ),
@@ -384,10 +384,10 @@ export const validateTransactionsAndBlock = (
 
     if (transactionIds.has(transaction.transactionIndex)) {
       const error = new RpcProviderError(
-        `Detected invalid eth_getBlock response. Duplicate transaction index ${transaction.transactionIndex} for block ${block.hash}.`,
+        `Inconsistent RPC response data. The 'block.transactions' array contains two objects with a 'transactionIndex' of ${transaction.transactionIndex} (${hexToNumber(transaction.transactionIndex)}). The duplicate was found at array index ${index}.`,
       );
       error.meta = [
-        "This error is caused by the upstream RPC provider returning mismatching responses.",
+        "Please report this error to the RPC operator.",
         eth_getBlockText(
           blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
         ),
@@ -411,12 +411,12 @@ export const validateLogsAndBlock = (
   block: SyncBlock,
   blockIdentifier: "number" | "hash",
 ) => {
-  if (block.logsBloom !== zeroLogsBloom && logs.length === 3) {
+  if (block.logsBloom !== zeroLogsBloom && logs.length === 0) {
     const error = new RpcProviderError(
-      "Detected invalid eth_getLogs response. `block.logsBloom` is not empty but zero logs were returned.",
+      `Inconsistent RPC response data. The logs array has length 0, but the associated block has a non-empty 'block.logsBloom'.`,
     );
     error.meta = [
-      "This error is caused by the upstream RPC provider returning mismatching responses.",
+      "Please report this error to the RPC operator.",
       eth_getBlockText(
         blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
       ),
@@ -436,13 +436,13 @@ export const validateLogsAndBlock = (
     ]),
   );
 
-  for (const log of logs) {
+  for (const [index, log] of logs.entries()) {
     if (block.hash !== log.blockHash) {
       const error = new RpcProviderError(
-        `Detected inconsistent RPC responses. 'log.blockHash' ${log.blockHash} does not match 'block.hash' ${block.hash}`,
+        `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) has a 'log.blockHash' of ${log.blockHash}, but the associated block has a 'block.hash' of ${block.hash}.`,
       );
       error.meta = [
-        "This error is caused by the upstream RPC provider returning mismatching responses.",
+        "Please report this error to the RPC operator.",
         eth_getBlockText(
           blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
         ),
@@ -456,10 +456,10 @@ export const validateLogsAndBlock = (
 
     if (block.number !== log.blockNumber) {
       const error = new RpcProviderError(
-        `Detected inconsistent RPC responses. 'log.blockNumber' ${log.blockNumber} does not match 'block.number' ${block.number}`,
+        `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) has a 'log.blockNumber' of ${log.blockNumber} (${hexToNumber(log.blockNumber)}), but the associated block has a 'block.number' of ${block.number} (${hexToNumber(block.number)}).`,
       );
       error.meta = [
-        "This error is caused by the upstream RPC provider returning mismatching responses.",
+        "Please report this error to the RPC operator.",
         eth_getBlockText(
           blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
         ),
@@ -475,10 +475,10 @@ export const validateLogsAndBlock = (
       const transaction = transactionByIndex.get(log.transactionIndex);
       if (transaction === undefined) {
         const error = new RpcProviderError(
-          `Detected inconsistent RPC responses. 'log.transactionIndex' ${log.transactionIndex} not found in 'block.transactions' for block ${block.hash}`,
+          `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) has a 'log.transactionIndex' of ${log.transactionIndex} (${hexToNumber(log.transactionIndex)}), but the associated 'block.transactions' array does not contain a transaction matching that 'transactionIndex'.`,
         );
         error.meta = [
-          "This error is caused by the upstream RPC provider returning mismatching responses.",
+          "Please report this error to the RPC operator.",
           eth_getBlockText(
             blockIdentifier === "number"
               ? hexToNumber(block.number)
@@ -494,10 +494,10 @@ export const validateLogsAndBlock = (
         throw error;
       } else if (transaction.hash !== log.transactionHash) {
         const error = new RpcProviderError(
-          `Detected inconsistent RPC responses. 'log.transactionHash' ${log.transactionHash} does not match 'transaction.hash' ${transaction.hash} for block ${block.hash}`,
+          `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) matches a transaction in the associated 'block.transactions' array by 'transactionIndex' ${log.transactionIndex} (${hexToNumber(log.transactionIndex)}), but the log has a 'log.transactionHash' of ${log.transactionHash} while the transaction has a 'transaction.hash' of ${transaction.hash}.`,
         );
         error.meta = [
-          "This error is caused by the upstream RPC provider returning mismatching responses.",
+          "Please report this error to the RPC operator.",
           eth_getBlockText(
             blockIdentifier === "number"
               ? hexToNumber(block.number)
@@ -516,10 +516,10 @@ export const validateLogsAndBlock = (
 
     if (logIndexes.has(log.logIndex)) {
       const error = new RpcProviderError(
-        `Detected invalid eth_getLogs response. Duplicate log index ${log.logIndex} for block ${log.blockHash}.`,
+        `Inconsistent RPC response data. The logs array contains two objects with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}). The duplicate was found at array index ${index}.`,
       );
       error.meta = [
-        "This error is caused by the upstream RPC provider returning mismatching responses.",
+        "Please report this error to the RPC operator.",
         eth_getBlockText(
           blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
         ),
@@ -545,13 +545,13 @@ export const validateTracesAndBlock = (
 ) => {
   const traceIds = new Set<string>();
   const transactionHashes = new Set(block.transactions.map((t) => t.hash));
-  for (const trace of traces) {
+  for (const [index, trace] of traces.entries()) {
     if (transactionHashes.has(trace.transactionHash) === false) {
       const error = new RpcProviderError(
-        `Detected inconsistent RPC responses. 'trace.transactionHash' ${trace.transactionHash} not found in 'block.transactions' ${block.hash}`,
+        `Inconsistent RPC response data. The top-level trace at array index ${index} has a 'transactionHash' of ${trace.transactionHash}, but the associated 'block.transactions' array does not contain a transaction matching that hash.`,
       );
       error.meta = [
-        "This error is caused by the upstream RPC provider returning mismatching responses.",
+        "Please report this error to the RPC operator.",
         eth_getBlockText(
           blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
         ),
@@ -566,10 +566,10 @@ export const validateTracesAndBlock = (
     const id = `${trace.transactionHash}-${trace.trace.index}`;
     if (traceIds.has(id)) {
       const error = new RpcProviderError(
-        `Detected invalid debug_traceBlockByHash response. Duplicate trace index ${trace.trace.index} for transaction ${trace.transactionHash}.`,
+        `Inconsistent RPC response data. The traces array contains two objects with index ${trace.trace.index} for transaction hash ${trace.transactionHash}.`,
       );
       error.meta = [
-        "This error is caused by the upstream RPC provider returning mismatching responses.",
+        "Please report this error to the RPC operator.",
         eth_getBlockText(
           blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
         ),
@@ -586,10 +586,10 @@ export const validateTracesAndBlock = (
   // Use the fact that any transaction produces a trace to validate.
   if (block.transactions.length !== 0 && traces.length === 0) {
     const error = new RpcProviderError(
-      "Detected invalid debug_traceBlock response. `block.transactions` is not empty but zero traces were returned.",
+      `Inconsistent RPC response data. The traces array has length 0, but the associated 'block.transactions' array has length ${block.transactions.length}.`,
     );
     error.meta = [
-      "This error is caused by the upstream RPC provider returning mismatching responses.",
+      "Please report this error to the RPC operator.",
       eth_getBlockText(
         blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
       ),
@@ -613,14 +613,14 @@ export const validateReceiptsAndBlock = (
 ) => {
   const receiptIds = new Set<string>();
 
-  for (const receipt of receipts) {
+  for (const [index, receipt] of receipts.entries()) {
     const id = receipt.transactionHash;
     if (receiptIds.has(id)) {
       const error = new RpcProviderError(
-        `Detected invalid ${method} response. Duplicate receipt for transaction ${receipt.transactionHash}.`,
+        `Inconsistent RPC response data. The receipts array contains two objects with a 'transactionHash' of ${receipt.transactionHash}. The duplicate was found at array index ${index}.`,
       );
       error.meta = [
-        "This error is caused by the upstream RPC provider returning mismatching responses.",
+        "Please report this error to the RPC operator.",
         eth_getBlockText(
           blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
         ),
@@ -642,13 +642,13 @@ export const validateReceiptsAndBlock = (
     ]),
   );
 
-  for (const receipt of receipts) {
+  for (const [index, receipt] of receipts.entries()) {
     if (block.hash !== receipt.blockHash) {
       const error = new RpcProviderError(
-        `Detected inconsistent RPC responses. 'receipt.blockHash' ${receipt.blockHash} does not match 'block.hash' ${block.hash}`,
+        `Inconsistent RPC response data. The receipt at array index ${index} has a 'receipt.blockHash' of ${receipt.blockHash}, but the associated block has a 'block.hash' of ${block.hash}.`,
       );
       error.meta = [
-        "This error is caused by the upstream RPC provider returning mismatching responses.",
+        "Please report this error to the RPC operator.",
         eth_getBlockText(
           blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
         ),
@@ -662,10 +662,10 @@ export const validateReceiptsAndBlock = (
 
     if (block.number !== receipt.blockNumber) {
       const error = new RpcProviderError(
-        `Detected inconsistent RPC responses. 'receipt.blockNumber' ${receipt.blockNumber} does not match 'block.number' ${block.number}`,
+        `Inconsistent RPC response data. The receipt at array index ${index} has a 'receipt.blockNumber' of ${receipt.blockNumber} (${hexToNumber(receipt.blockNumber)}), but the associated block has a 'block.number' of ${block.number} (${hexToNumber(block.number)}).`,
       );
       error.meta = [
-        "This error is caused by the upstream RPC provider returning mismatching responses.",
+        "Please report this error to the RPC operator.",
         eth_getBlockText(
           blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
         ),
@@ -680,10 +680,10 @@ export const validateReceiptsAndBlock = (
     const transaction = transactionByIndex.get(receipt.transactionIndex);
     if (transaction === undefined) {
       const error = new RpcProviderError(
-        `Detected inconsistent RPC responses. 'receipt.transactionIndex' ${receipt.transactionIndex} not found in 'block.transactions' for block ${block.hash}`,
+        `Inconsistent RPC response data. The receipt at array index ${index} has a 'receipt.transactionIndex' of ${receipt.transactionIndex} (${hexToNumber(receipt.transactionIndex)}), but the associated 'block.transactions' array does not contain a transaction matching that 'transactionIndex'.`,
       );
       error.meta = [
-        "This error is caused by the upstream RPC provider returning mismatching responses.",
+        "Please report this error to the RPC operator.",
         eth_getBlockText(
           blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
         ),
@@ -695,10 +695,10 @@ export const validateReceiptsAndBlock = (
       throw error;
     } else if (transaction.hash !== receipt.transactionHash) {
       const error = new RpcProviderError(
-        `Detected inconsistent RPC responses. 'receipt.transactionHash' ${receipt.transactionHash} does not match 'transaction.hash' ${transaction.hash} for block ${block.hash}`,
+        `Inconsistent RPC response data. The receipt at array index ${index} matches a transaction in the associated 'block.transactions' array by 'transactionIndex' ${receipt.transactionIndex} (${hexToNumber(receipt.transactionIndex)}), but the receipt has a 'receipt.transactionHash' of ${receipt.transactionHash} while the transaction has a 'transaction.hash' of ${transaction.hash}.`,
       );
       error.meta = [
-        "This error is caused by the upstream RPC provider returning mismatching responses.",
+        "Please report this error to the RPC operator.",
         eth_getBlockText(
           blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
         ),
@@ -716,10 +716,10 @@ export const validateReceiptsAndBlock = (
     block.transactions.length !== receipts.length
   ) {
     const error = new RpcProviderError(
-      `Detected inconsistent RPC responses. 'block.transactions' length ${block.transactions.length} does not match 'receipts' length ${receipts.length} for block ${block.hash}`,
+      `Inconsistent RPC response data. The receipts array has length ${receipts.length}, but the associated 'block.transactions' array has length ${block.transactions.length}.`,
     );
     error.meta = [
-      "This error is caused by the upstream RPC provider returning mismatching responses.",
+      "Please report this error to the RPC operator.",
       eth_getBlockText(
         blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
       ),
