@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.13
+
+### Patch Changes
+
+- [#1998](https://github.com/ponder-sh/ponder/pull/1998) [`7aa3bb3`](https://github.com/ponder-sh/ponder/commit/7aa3bb303787a9fa40cbfcfd8b6aafee522e67dc) Thanks [@kyscott18](https://github.com/kyscott18)! - Remove rpc calls from `ponder serve` build step.
+
 ## 0.12.12
 
 ### Patch Changes
