@@ -102,10 +102,8 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const indexingBuildResult = await build.compileIndexing({
+  const indexingBuildResult = await build.compileIndexingConfig({
     configResult: configResult.result,
-    schemaResult: schemaResult.result,
-    indexingResult: indexingResult.result,
   });
 
   if (indexingBuildResult.status === "error") {
@@ -159,10 +157,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     name: "lifecycle:session_start",
     properties: {
       cli_command: "serve",
-      ...buildPayload({
-        preBuild,
-        schemaBuild,
-      }),
+      ...buildPayload({ preBuild, schemaBuild }),
     },
   });
 
