@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.15
+
+### Patch Changes
+
+- [#2001](https://github.com/ponder-sh/ponder/pull/2001) [`f432c8a`](https://github.com/ponder-sh/ponder/commit/f432c8a1524536a31cc7545bd7216fc8c50a4446) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved error logs when RPC responses are invalid.
+
 ## 0.12.14
 
 ### Patch Changes
