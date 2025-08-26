@@ -74,6 +74,27 @@ export const buildEvents = ({
   let transactionReceiptsIndex = 0;
   let tracesIndex = 0;
 
+  const blockSourceIndexes: number[] = [];
+  const transactionSourceIndexes: number[] = [];
+  const logSourceIndexes: number[] = [];
+  const traceSourceIndexes: number[] = [];
+  const transferSourceIndexes: number[] = [];
+
+  for (let i = 0; i < sources.length; i++) {
+    const source = sources[i]!;
+    if (source.filter.type === "block") {
+      blockSourceIndexes.push(i);
+    } else if (source.filter.type === "transaction") {
+      transactionSourceIndexes.push(i);
+    } else if (source.filter.type === "log") {
+      logSourceIndexes.push(i);
+    } else if (source.filter.type === "trace") {
+      traceSourceIndexes.push(i);
+    } else if (source.filter.type === "transfer") {
+      transferSourceIndexes.push(i);
+    }
+  }
+
   for (const block of blocks) {
     const blockNumber = Number(block.number);
     const blockTimestamp = Number(block.timestamp);
@@ -97,7 +118,7 @@ export const buildEvents = ({
 
       // TODO(kyle) transaction may be undefined for zkSync
 
-      for (let i = 0; i < sources.length; i++) {
+      for (const i of transactionSourceIndexes) {
         const source = sources[i]!;
         const filter = source.filter;
         if (chainId !== filter.chainId) continue;
@@ -150,7 +171,7 @@ export const buildEvents = ({
       ) {
         const log = logs[logsIndex]!;
 
-        for (let i = 0; i < sources.length; i++) {
+        for (const i of logSourceIndexes) {
           const source = sources[i]!;
           const filter = source.filter;
           if (chainId !== filter.chainId) continue;
@@ -198,7 +219,7 @@ export const buildEvents = ({
       ) {
         const trace = traces[tracesIndex]!;
 
-        for (let i = 0; i < sources.length; i++) {
+        for (const i of traceSourceIndexes) {
           const source = sources[i]!;
           const filter = source.filter;
           if (chainId !== filter.chainId) continue;
@@ -247,7 +268,7 @@ export const buildEvents = ({
           }
         }
 
-        for (let i = 0; i < sources.length; i++) {
+        for (const i of transferSourceIndexes) {
           const source = sources[i]!;
           const filter = source.filter;
           if (chainId !== filter.chainId) continue;
@@ -299,7 +320,7 @@ export const buildEvents = ({
       transactionsIndex++;
     }
 
-    for (let i = 0; i < sources.length; i++) {
+    for (const i of blockSourceIndexes) {
       const source = sources[i]!;
       const filter = source.filter;
       if (chainId !== filter.chainId) continue;
