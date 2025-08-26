@@ -46,7 +46,7 @@ import {
 import { isAddressFactory } from "./filter.js";
 
 /**
- * Create `RawEvent`s from raw data types
+ * Create `RawEvent`s from raw data types.
  */
 export const buildEvents = ({
   sources,
@@ -69,11 +69,6 @@ export const buildEvents = ({
 }) => {
   const events: RawEvent[] = [];
 
-  let logsIndex = 0;
-  let transactionsIndex = 0;
-  let transactionReceiptsIndex = 0;
-  let tracesIndex = 0;
-
   const blockSourceIndexes: number[] = [];
   const transactionSourceIndexes: number[] = [];
   const logSourceIndexes: number[] = [];
@@ -94,6 +89,11 @@ export const buildEvents = ({
       transferSourceIndexes.push(i);
     }
   }
+
+  let transactionsIndex = 0;
+  let transactionReceiptsIndex = 0;
+  let tracesIndex = 0;
+  let logsIndex = 0;
 
   for (const block of blocks) {
     const blockNumber = Number(block.number);
@@ -116,7 +116,7 @@ export const buildEvents = ({
         transactionReceiptsIndex++;
       }
 
-      // TODO(kyle) transaction may be undefined for zkSync
+      // TODO(kyle) zkSync logs may not have a corresponding transaction.
 
       for (const i of transactionSourceIndexes) {
         const source = sources[i]!;
@@ -347,6 +347,9 @@ export const buildEvents = ({
       }
     }
   }
+
+  // Note: This function relies on the fact that the events are processed in order,
+  // so no need to call `.sort()`.
 
   return events;
 };
