@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.14
+
+### Patch Changes
+
+- [#1997](https://github.com/ponder-sh/ponder/pull/1997) [`0839a2e`](https://github.com/ponder-sh/ponder/commit/0839a2edc66d58702611f2055fa677346161fcd7) Thanks [@kyscott18](https://github.com/kyscott18)! - Improve historical indexing performance with faster abi decoding.
+
 ## 0.12.13
 
 ### Patch Changes
