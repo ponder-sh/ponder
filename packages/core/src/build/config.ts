@@ -117,8 +117,8 @@ export async function buildConfigAndIndexingFunctions({
     return blockNumberOrTag;
   };
 
-  const chains: Chain[] = await Promise.all(
-    Object.entries(config.chains).map(async ([chainName, chain]) => {
+  const chains: Chain[] = Object.entries(config.chains).map(
+    ([chainName, chain]) => {
       const matchedChain = Object.values(viemChains).find((c) =>
         "id" in c ? c.id === chain.id : false,
       );
@@ -182,7 +182,7 @@ export async function buildConfigAndIndexingFunctions({
         disableCache: chain.disableCache ?? false,
         viemChain: matchedChain,
       } satisfies Chain;
-    }),
+    },
   );
 
   const chainIds = new Set<number>();
@@ -1031,6 +1031,105 @@ export async function buildConfigAndIndexingFunctions({
   };
 }
 
+export function buildConfig({
+  common,
+  config,
+}: { common: Common; config: Config }): {
+  chains: Chain[];
+  rpcs: Rpc[];
+  logs: { level: "warn" | "info" | "debug"; msg: string }[];
+} {
+  const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
+
+  const chains: Chain[] = Object.entries(config.chains).map(
+    ([chainName, chain]) => {
+      const matchedChain = Object.values(viemChains).find((c) =>
+        "id" in c ? c.id === chain.id : false,
+      );
+
+      if (chain.rpc === undefined || chain.rpc === "") {
+        if (matchedChain === undefined) {
+          throw new Error(
+            `Chain "${chainName}" with id ${chain.id} has no RPC defined and no default RPC URL was found in 'viem/chains'.`,
+          );
+        }
+
+        chain.rpc = matchedChain.rpcUrls.default.http as string[];
+      }
+
+      if (typeof chain.rpc === "string" || Array.isArray(chain.rpc)) {
+        const rpcs = Array.isArray(chain.rpc) ? chain.rpc : [chain.rpc];
+
+        if (rpcs.length === 0) {
+          throw new Error(
+            `Chain "${chainName}" with id ${chain.id} has no RPC URLs.`,
+          );
+        }
+
+        if (matchedChain) {
+          for (const rpc of rpcs) {
+            for (const http of matchedChain.rpcUrls.default.http) {
+              if (http === rpc) {
+                logs.push({
+                  level: "warn",
+                  msg: `Chain '${chainName}' is using a public RPC URL (${http}). Most apps require an RPC URL with a higher rate limit.`,
+                });
+                break;
+              }
+            }
+            for (const ws of matchedChain.rpcUrls.default.webSocket ?? []) {
+              if (ws === rpc) {
+                logs.push({
+                  level: "warn",
+                  msg: `Chain '${chainName}' is using a public RPC URL (${ws}). Most apps require an RPC URL with a higher rate limit.`,
+                });
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (chain.pollingInterval !== undefined && chain.pollingInterval! < 100) {
+        throw new Error(
+          `Invalid 'pollingInterval' for chain '${chainName}. Expected 100 milliseconds or greater, got ${chain.pollingInterval} milliseconds.`,
+        );
+      }
+
+      return {
+        id: chain.id,
+        name: chainName,
+        rpc: chain.rpc,
+        ws: chain.ws,
+        pollingInterval: chain.pollingInterval ?? 1_000,
+        finalityBlockCount: getFinalityBlockCount({ chain: matchedChain }),
+        disableCache: chain.disableCache ?? false,
+        viemChain: matchedChain,
+      } satisfies Chain;
+    },
+  );
+
+  const chainIds = new Set<number>();
+  for (const chain of chains) {
+    if (chainIds.has(chain.id)) {
+      throw new Error(
+        `Invalid id for chain "${chain.name}". ${chain.id} is already in use.`,
+      );
+    }
+    chainIds.add(chain.id);
+  }
+
+  const rpcs = chains.map((chain) =>
+    createRpc({
+      common,
+      chain,
+      concurrency: Math.floor(common.options.rpcMaxConcurrency / chains.length),
+    }),
+  );
+
+  return { chains, rpcs, logs };
+}
+
 export async function safeBuildConfigAndIndexingFunctions({
   common,
   config,
@@ -1054,6 +1153,26 @@ export async function safeBuildConfigAndIndexingFunctions({
       rpcs: result.rpcs,
       finalizedBlocks: result.finalizedBlocks,
       indexingFunctions: result.indexingFunctions,
+      logs: result.logs,
+    } as const;
+  } catch (_error) {
+    const buildError = new BuildError((_error as Error).message);
+    buildError.stack = undefined;
+    return { status: "error", error: buildError } as const;
+  }
+}
+
+export async function safeBuildConfig({
+  common,
+  config,
+}: { common: Common; config: Config }) {
+  try {
+    const result = buildConfig({ common, config });
+
+    return {
+      status: "success",
+      chains: result.chains,
+      rpcs: result.rpcs,
       logs: result.logs,
     } as const;
   } catch (_error) {
