@@ -70,7 +70,7 @@ export type Build = {
   compileSchema: (params: { schema: Schema }) => Result<SchemaBuild>;
   compileIndexingConfig: (params: {
     configResult: Extract<ConfigResult, { status: "success" }>["result"];
-  }) => Promise<Result<Pick<IndexingBuild, "chains" | "rpcs">>>;
+  }) => Result<Pick<IndexingBuild, "chains" | "rpcs">>;
   compileIndexing: (params: {
     configResult: Extract<ConfigResult, { status: "success" }>["result"];
     schemaResult: Extract<SchemaResult, { status: "success" }>["result"];
@@ -473,9 +473,9 @@ export const createBuild = async ({
         },
       } as const;
     },
-    async compileIndexingConfig({ configResult }) {
+    compileIndexingConfig({ configResult }) {
       // Validates and build the config
-      const buildConfigResult = await safeBuildConfig({
+      const buildConfigResult = safeBuildConfig({
         common,
         config: configResult.config,
       });

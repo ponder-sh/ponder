@@ -1162,7 +1162,7 @@ export async function safeBuildConfigAndIndexingFunctions({
   }
 }
 
-export async function safeBuildConfig({
+export function safeBuildConfig({
   common,
   config,
 }: { common: Common; config: Config }) {

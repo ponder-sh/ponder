@@ -96,13 +96,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const indexingResult = await build.executeIndexingFunctions();
-  if (indexingResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
-    return;
-  }
-
-  const indexingBuildResult = await build.compileIndexingConfig({
+  const indexingBuildResult = build.compileIndexingConfig({
     configResult: configResult.result,
   });
 
