@@ -1,5 +1,6 @@
 import type { Common } from "@/internal/common.js";
 import type {
+  BlockEvent,
   Event,
   FactoryId,
   InternalBlock,
@@ -7,6 +8,7 @@ import type {
   InternalTrace,
   InternalTransaction,
   InternalTransactionReceipt,
+  LogEvent,
   RawEvent,
   Source,
   SyncBlock,
@@ -15,6 +17,9 @@ import type {
   SyncTrace,
   SyncTransaction,
   SyncTransactionReceipt,
+  TraceEvent,
+  TransactionEvent,
+  TransferEvent,
 } from "@/internal/types.js";
 import {
   EVENT_TYPES,
@@ -381,58 +386,61 @@ export const splitEvents = (
   return result;
 };
 
+/**
+ * Decode `RawEvent`s into `Event`s.
+ *
+ * @dev `rawEvents` is mutated.
+ */
 export const decodeEvents = (
   common: Common,
   sources: Source[],
   rawEvents: RawEvent[],
 ): Event[] => {
-  // TODO(kyle) improve memory usage
   const events: Event[] = [];
 
-  for (const event of rawEvents) {
-    const source = sources[event.sourceIndex]!;
+  for (const rawEvent of rawEvents) {
+    const source = sources[rawEvent.sourceIndex]!;
+    const filter = source.filter;
 
     switch (source.type) {
       case "contract": {
-        switch (source.filter.type) {
+        switch (filter.type) {
           case "log": {
             try {
               if (
-                event.log!.topics[0] === undefined ||
-                source.abiEvents.bySelector[event.log!.topics[0]] === undefined
+                rawEvent.log!.topics[0] === undefined ||
+                source.abiEvents.bySelector[rawEvent.log!.topics[0]] ===
+                  undefined
               ) {
                 throw new Error();
               }
 
               const { safeName, item } =
-                source.abiEvents.bySelector[event.log!.topics[0]]!;
+                source.abiEvents.bySelector[rawEvent.log!.topics[0]]!;
 
               const args = decodeEventLog({
                 abiItem: item,
-                data: event.log!.data,
-                topics: event.log!.topics,
+                data: rawEvent.log!.data,
+                topics: rawEvent.log!.topics,
               });
+
+              const event = rawEvent as unknown as LogEvent["event"];
+              event.id = rawEvent.checkpoint;
+              event.args = args;
 
               events.push({
                 type: "log",
-                chainId: event.chainId,
-                checkpoint: event.checkpoint,
+                chainId: rawEvent.chainId,
+                checkpoint: rawEvent.checkpoint,
 
                 name: `${source.name}:${safeName}`,
 
-                event: {
-                  id: event.checkpoint,
-                  args,
-                  log: event.log!,
-                  block: event.block,
-                  transaction: event.transaction!,
-                  transactionReceipt: event.transactionReceipt,
-                },
+                event,
               });
             } catch (err) {
-              const blockNumber = event?.block?.number ?? "unknown";
-              const msg = `Unable to decode log, skipping it. blockNumber: ${blockNumber}, logIndex: ${event.log?.logIndex}, data: ${event.log?.data}, topics: ${event.log?.topics}`;
-              if (source.filter.address === undefined) {
+              const blockNumber = rawEvent?.block?.number ?? "unknown";
+              const msg = `Unable to decode log, skipping it. blockNumber: ${blockNumber}, logIndex: ${rawEvent.log?.logIndex}, data: ${rawEvent.log?.data}, topics: ${rawEvent.log?.topics}`;
+              if (filter.address === undefined) {
                 common.logger.debug({ service: "app", msg });
               } else {
                 common.logger.warn({ service: "app", msg });
@@ -443,7 +451,7 @@ export const decodeEvents = (
 
           case "trace": {
             try {
-              const selector = event
+              const selector = rawEvent
                 .trace!.input.slice(0, 10)
                 .toLowerCase() as Hex;
 
@@ -456,37 +464,34 @@ export const decodeEvents = (
 
               const { args, functionName } = decodeFunctionData({
                 abi: [item],
-                data: event.trace!.input,
+                data: rawEvent.trace!.input,
               });
 
               const result = decodeFunctionResult({
                 abi: [item],
-                data: event.trace!.output!,
+                data: rawEvent.trace!.output!,
                 functionName,
               });
 
+              const event = rawEvent as unknown as TraceEvent["event"];
+              event.id = rawEvent.checkpoint;
+              event.args = args;
+              event.result = result;
+
               events.push({
                 type: "trace",
-                chainId: event.chainId,
-                checkpoint: event.checkpoint,
+                chainId: rawEvent.chainId,
+                checkpoint: rawEvent.checkpoint,
 
                 // NOTE: `safename` includes ()
                 name: `${source.name}.${safeName}`,
 
-                event: {
-                  id: event.checkpoint,
-                  args,
-                  result,
-                  trace: event.trace!,
-                  block: event.block,
-                  transaction: event.transaction!,
-                  transactionReceipt: event.transactionReceipt,
-                },
+                event,
               });
             } catch (err) {
-              const blockNumber = event?.block?.number ?? "unknown";
-              const msg = `Unable to decode trace, skipping it. blockNumber: ${blockNumber}, transactionIndex: ${event.transaction?.transactionIndex}, traceIndex: ${event.trace?.traceIndex}, input: ${event.trace?.input}, output: ${event.trace?.output}`;
-              if (source.filter.toAddress === undefined) {
+              const blockNumber = rawEvent?.block?.number ?? "unknown";
+              const msg = `Unable to decode trace, skipping it. blockNumber: ${blockNumber}, transactionIndex: ${rawEvent.transaction?.transactionIndex}, traceIndex: ${rawEvent.trace?.traceIndex}, input: ${rawEvent.trace?.input}, output: ${rawEvent.trace?.output}`;
+              if (filter.toAddress === undefined) {
                 common.logger.debug({ service: "app", msg });
               } else {
                 common.logger.warn({ service: "app", msg });
@@ -494,58 +499,50 @@ export const decodeEvents = (
             }
             break;
           }
-
-          default:
-            never(source.filter);
         }
         break;
       }
 
       case "account": {
-        switch (source.filter.type) {
+        switch (filter.type) {
           case "transaction": {
-            const isFrom = source.filter.toAddress === undefined;
+            const isFrom = filter.toAddress === undefined;
+
+            const event = rawEvent as unknown as TransactionEvent["event"];
+            event.id = rawEvent.checkpoint;
 
             events.push({
               type: "transaction",
-              chainId: event.chainId,
-              checkpoint: event.checkpoint,
+              chainId: rawEvent.chainId,
+              checkpoint: rawEvent.checkpoint,
 
               name: `${source.name}:transaction:${isFrom ? "from" : "to"}`,
 
-              event: {
-                id: event.checkpoint,
-                block: event.block,
-                transaction: event.transaction!,
-                transactionReceipt: event.transactionReceipt,
-              },
+              event,
             });
 
             break;
           }
 
           case "transfer": {
-            const isFrom = source.filter.toAddress === undefined;
+            const isFrom = filter.toAddress === undefined;
+
+            const event = rawEvent as unknown as TransferEvent["event"];
+            event.id = rawEvent.checkpoint;
+            event.transfer = {
+              from: rawEvent.trace!.from,
+              to: rawEvent.trace!.to!,
+              value: rawEvent.trace!.value!,
+            };
 
             events.push({
               type: "transfer",
-              chainId: event.chainId,
-              checkpoint: event.checkpoint,
+              chainId: rawEvent.chainId,
+              checkpoint: rawEvent.checkpoint,
 
               name: `${source.name}:transfer:${isFrom ? "from" : "to"}`,
 
-              event: {
-                id: event.checkpoint,
-                transfer: {
-                  from: event.trace!.from,
-                  to: event.trace!.to!,
-                  value: event.trace!.value!,
-                },
-                block: event.block,
-                transaction: event.transaction!,
-                transactionReceipt: event.transactionReceipt,
-                trace: event.trace!,
-              },
+              event,
             });
 
             break;
@@ -555,15 +552,15 @@ export const decodeEvents = (
       }
 
       case "block": {
+        const event = rawEvent as unknown as BlockEvent["event"];
+        event.id = rawEvent.checkpoint;
+
         events.push({
           type: "block",
-          chainId: event.chainId,
-          checkpoint: event.checkpoint,
+          chainId: rawEvent.chainId,
+          checkpoint: rawEvent.checkpoint,
           name: `${source.name}:block`,
-          event: {
-            id: event.checkpoint,
-            block: event.block,
-          },
+          event,
         });
         break;
       }
@@ -571,6 +568,13 @@ export const decodeEvents = (
       default:
         never(source);
     }
+
+    // @ts-ignore
+    rawEvent.chainId = undefined;
+    // @ts-ignore
+    rawEvent.sourceIndex = undefined;
+    // @ts-ignore
+    rawEvent.checkpoint = undefined;
   }
 
   return events;
