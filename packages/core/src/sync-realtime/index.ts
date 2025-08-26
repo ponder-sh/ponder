@@ -190,6 +190,7 @@ export const createRealtimeSync = (
         transactionReceipts,
         block,
         "eth_getTransactionReceipt",
+        "hash",
       );
 
       return transactionReceipts;
@@ -214,7 +215,12 @@ export const createRealtimeSync = (
       return syncTransactionReceipts(block, transactionHashes);
     }
 
-    validateReceiptsAndBlock(blockReceipts, block, "eth_getBlockReceipts");
+    validateReceiptsAndBlock(
+      blockReceipts,
+      block,
+      "eth_getBlockReceipts",
+      "hash",
+    );
 
     const transactionReceipts = blockReceipts.filter((receipt) =>
       transactionHashes.has(receipt.transactionHash),
@@ -267,7 +273,7 @@ export const createRealtimeSync = (
         logs = await _eth_getLogs(args.rpc, { blockHash: block.hash });
       }
 
-      validateLogsAndBlock(logs, block);
+      validateLogsAndBlock(logs, block, "hash");
 
       // Note: Exact `logsBloom` validations were considered too strict to add to `validateLogsAndBlock`.
       let isInvalidLogsBloom = false;
@@ -351,7 +357,7 @@ export const createRealtimeSync = (
         traces = await _debug_traceBlockByHash(args.rpc, { hash: block.hash });
       }
 
-      validateTracesAndBlock(traces, block);
+      validateTracesAndBlock(traces, block, "hash");
     }
 
     ////////
@@ -458,7 +464,7 @@ export const createRealtimeSync = (
         hash: maybeBlockHeader.hash,
       });
     }
-    validateTransactionsAndBlock(block);
+    validateTransactionsAndBlock(block, "hash");
 
     const transactions = block.transactions.filter((transaction) => {
       let isMatched = requiredTransactions.has(transaction.hash);
