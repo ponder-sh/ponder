@@ -1,6 +1,5 @@
 import type { Common } from "@/internal/common.js";
 import type {
-  BlockEvent,
   Event,
   FactoryId,
   InternalBlock,
@@ -8,7 +7,6 @@ import type {
   InternalTrace,
   InternalTransaction,
   InternalTransactionReceipt,
-  LogEvent,
   RawEvent,
   Source,
   SyncBlock,
@@ -17,9 +15,6 @@ import type {
   SyncTrace,
   SyncTransaction,
   SyncTransactionReceipt,
-  TraceEvent,
-  TransactionEvent,
-  TransferEvent,
 } from "@/internal/types.js";
 import {
   EVENT_TYPES,
@@ -424,10 +419,6 @@ export const decodeEvents = (
                 topics: rawEvent.log!.topics,
               });
 
-              const event = rawEvent as unknown as LogEvent["event"];
-              event.id = rawEvent.checkpoint;
-              event.args = args;
-
               events.push({
                 type: "log",
                 chainId: rawEvent.chainId,
@@ -435,7 +426,14 @@ export const decodeEvents = (
 
                 name: `${source.name}:${safeName}`,
 
-                event,
+                event: {
+                  id: rawEvent.checkpoint,
+                  args,
+                  block: rawEvent.block,
+                  transaction: rawEvent.transaction!,
+                  transactionReceipt: rawEvent.transactionReceipt,
+                  log: rawEvent.log!,
+                },
               });
             } catch (err) {
               const blockNumber = rawEvent?.block?.number ?? "unknown";
@@ -473,11 +471,6 @@ export const decodeEvents = (
                 functionName,
               });
 
-              const event = rawEvent as unknown as TraceEvent["event"];
-              event.id = rawEvent.checkpoint;
-              event.args = args;
-              event.result = result;
-
               events.push({
                 type: "trace",
                 chainId: rawEvent.chainId,
@@ -486,7 +479,15 @@ export const decodeEvents = (
                 // NOTE: `safename` includes ()
                 name: `${source.name}.${safeName}`,
 
-                event,
+                event: {
+                  id: rawEvent.checkpoint,
+                  args,
+                  result,
+                  block: rawEvent.block,
+                  transaction: rawEvent.transaction!,
+                  transactionReceipt: rawEvent.transactionReceipt,
+                  trace: rawEvent.trace!,
+                },
               });
             } catch (err) {
               const blockNumber = rawEvent?.block?.number ?? "unknown";
@@ -508,9 +509,6 @@ export const decodeEvents = (
           case "transaction": {
             const isFrom = filter.toAddress === undefined;
 
-            const event = rawEvent as unknown as TransactionEvent["event"];
-            event.id = rawEvent.checkpoint;
-
             events.push({
               type: "transaction",
               chainId: rawEvent.chainId,
@@ -518,7 +516,12 @@ export const decodeEvents = (
 
               name: `${source.name}:transaction:${isFrom ? "from" : "to"}`,
 
-              event,
+              event: {
+                id: rawEvent.checkpoint,
+                block: rawEvent.block,
+                transaction: rawEvent.transaction!,
+                transactionReceipt: rawEvent.transactionReceipt,
+              },
             });
 
             break;
@@ -527,14 +530,6 @@ export const decodeEvents = (
           case "transfer": {
             const isFrom = filter.toAddress === undefined;
 
-            const event = rawEvent as unknown as TransferEvent["event"];
-            event.id = rawEvent.checkpoint;
-            event.transfer = {
-              from: rawEvent.trace!.from,
-              to: rawEvent.trace!.to!,
-              value: rawEvent.trace!.value!,
-            };
-
             events.push({
               type: "transfer",
               chainId: rawEvent.chainId,
@@ -542,7 +537,18 @@ export const decodeEvents = (
 
               name: `${source.name}:transfer:${isFrom ? "from" : "to"}`,
 
-              event,
+              event: {
+                id: rawEvent.checkpoint,
+                transfer: {
+                  from: rawEvent.trace!.from,
+                  to: rawEvent.trace!.to!,
+                  value: rawEvent.trace!.value!,
+                },
+                block: rawEvent.block,
+                transaction: rawEvent.transaction!,
+                transactionReceipt: rawEvent.transactionReceipt,
+                trace: rawEvent.trace!,
+              },
             });
 
             break;
@@ -552,15 +558,15 @@ export const decodeEvents = (
       }
 
       case "block": {
-        const event = rawEvent as unknown as BlockEvent["event"];
-        event.id = rawEvent.checkpoint;
-
         events.push({
           type: "block",
           chainId: rawEvent.chainId,
           checkpoint: rawEvent.checkpoint,
           name: `${source.name}:block`,
-          event,
+          event: {
+            id: rawEvent.checkpoint,
+            block: rawEvent.block,
+          },
         });
         break;
       }
@@ -568,13 +574,6 @@ export const decodeEvents = (
       default:
         never(source);
     }
-
-    // @ts-ignore
-    rawEvent.chainId = undefined;
-    // @ts-ignore
-    rawEvent.sourceIndex = undefined;
-    // @ts-ignore
-    rawEvent.checkpoint = undefined;
   }
 
   return events;
