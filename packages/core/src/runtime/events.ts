@@ -409,9 +409,11 @@ export const decodeEvents = (
   sources: Source[],
   rawEvents: RawEvent[],
 ): Event[] => {
-  const events: Event[] = [];
+  const events: Event[] = Array(rawEvents.length);
+  let skippedEvents = 0;
 
-  for (const rawEvent of rawEvents) {
+  for (let i = 0; i < rawEvents.length; i++) {
+    const rawEvent = rawEvents[i]!;
     const source = sources[rawEvent.sourceIndex]!;
     const filter = source.filter;
 
@@ -437,7 +439,7 @@ export const decodeEvents = (
                 topics: rawEvent.log!.topics,
               });
 
-              events.push({
+              events[i] = {
                 type: "log",
                 chainId: rawEvent.chainId,
                 checkpoint: rawEvent.checkpoint,
@@ -452,7 +454,7 @@ export const decodeEvents = (
                   transactionReceipt: rawEvent.transactionReceipt,
                   log: rawEvent.log!,
                 },
-              });
+              };
             } catch (err) {
               const blockNumber = rawEvent?.block?.number ?? "unknown";
               const msg = `Unable to decode log, skipping it. blockNumber: ${blockNumber}, logIndex: ${rawEvent.log?.logIndex}, data: ${rawEvent.log?.data}, topics: ${rawEvent.log?.topics}`;
@@ -461,6 +463,8 @@ export const decodeEvents = (
               } else {
                 common.logger.warn({ service: "app", msg });
               }
+
+              skippedEvents += 1;
             }
             break;
           }
@@ -489,7 +493,7 @@ export const decodeEvents = (
                 functionName,
               });
 
-              events.push({
+              events[i] = {
                 type: "trace",
                 chainId: rawEvent.chainId,
                 checkpoint: rawEvent.checkpoint,
@@ -506,7 +510,7 @@ export const decodeEvents = (
                   transactionReceipt: rawEvent.transactionReceipt,
                   trace: rawEvent.trace!,
                 },
-              });
+              };
             } catch (err) {
               const blockNumber = rawEvent?.block?.number ?? "unknown";
               const msg = `Unable to decode trace, skipping it. blockNumber: ${blockNumber}, transactionIndex: ${rawEvent.transaction?.transactionIndex}, traceIndex: ${rawEvent.trace?.traceIndex}, input: ${rawEvent.trace?.input}, output: ${rawEvent.trace?.output}`;
@@ -515,6 +519,8 @@ export const decodeEvents = (
               } else {
                 common.logger.warn({ service: "app", msg });
               }
+
+              skippedEvents += 1;
             }
             break;
           }
@@ -527,7 +533,7 @@ export const decodeEvents = (
           case "transaction": {
             const isFrom = filter.toAddress === undefined;
 
-            events.push({
+            events[i] = {
               type: "transaction",
               chainId: rawEvent.chainId,
               checkpoint: rawEvent.checkpoint,
@@ -540,7 +546,7 @@ export const decodeEvents = (
                 transaction: rawEvent.transaction!,
                 transactionReceipt: rawEvent.transactionReceipt,
               },
-            });
+            };
 
             break;
           }
@@ -548,7 +554,7 @@ export const decodeEvents = (
           case "transfer": {
             const isFrom = filter.toAddress === undefined;
 
-            events.push({
+            events[i] = {
               type: "transfer",
               chainId: rawEvent.chainId,
               checkpoint: rawEvent.checkpoint,
@@ -567,7 +573,7 @@ export const decodeEvents = (
                 transactionReceipt: rawEvent.transactionReceipt,
                 trace: rawEvent.trace!,
               },
-            });
+            };
 
             break;
           }
@@ -576,7 +582,7 @@ export const decodeEvents = (
       }
 
       case "block": {
-        events.push({
+        events[i] = {
           type: "block",
           chainId: rawEvent.chainId,
           checkpoint: rawEvent.checkpoint,
@@ -585,7 +591,7 @@ export const decodeEvents = (
             id: rawEvent.checkpoint,
             block: rawEvent.block,
           },
-        });
+        };
         break;
       }
 
@@ -594,6 +600,7 @@ export const decodeEvents = (
     }
   }
 
+  events.length -= skippedEvents;
   return events;
 };
 
