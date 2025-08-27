@@ -22,6 +22,7 @@ import {
 import { type NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
+import pg from "pg";
 import seedrandom from "seedrandom";
 import { type Address, type RpcBlock, custom, hexToNumber } from "viem";
 import packageJson from "../../packages/core/package.json" assert {
@@ -134,14 +135,17 @@ export const SIM_PARAMS = {
 
 export let RESTART_COUNT = 0;
 
-export const DB = drizzle(DATABASE_URL!, { casing: "snake_case" });
-export const APP_DB = drizzle(`${DATABASE_URL!}/${UUID}`, {
-  casing: "snake_case",
-});
-
 // 1. Setup database
 
+const DB_CLIENT = new pg.Client(DATABASE_URL!);
+await DB_CLIENT.connect();
+export const DB = drizzle(DB_CLIENT, { casing: "snake_case" });
+
 await DB.execute(sql.raw(`CREATE DATABASE "${UUID}" TEMPLATE "${APP_ID}"`));
+
+const APP_DB_CLIENT = new pg.Client(`${DATABASE_URL!}/${UUID}`);
+await APP_DB_CLIENT.connect();
+export const APP_DB = drizzle(APP_DB_CLIENT, { casing: "snake_case" });
 
 await APP_DB.execute(
   sql.raw(
@@ -1550,5 +1554,8 @@ for (const key of Object.keys(schema)) {
 console.log("Updating metadata");
 
 await DB.update(metadata).set({ success: true }).where(eq(metadata.id, UUID));
+
+await APP_DB_CLIENT.end();
+await DB_CLIENT.end();
 
 process.exit(0);

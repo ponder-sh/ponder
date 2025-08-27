@@ -1,4 +1,4 @@
-import { pgSchema, pgTable, primaryKey } from "drizzle-orm/pg-core";
+import { index, pgSchema, pgTable, primaryKey } from "drizzle-orm/pg-core";
 
 export const metadata = pgTable("metadata", (t) => ({
   id: t.uuid().primaryKey(),
@@ -22,7 +22,10 @@ export const blocks = rpcCache.table(
     hash: t.text().notNull(),
     body: t.jsonb().notNull(),
   }),
-  (table) => [primaryKey({ columns: [table.chainId, table.number] })],
+  (table) => [
+    primaryKey({ columns: [table.chainId, table.number] }),
+    index().on(table.chainId, table.hash),
+  ],
 );
 
 export const transactionReceipts = rpcCache.table(

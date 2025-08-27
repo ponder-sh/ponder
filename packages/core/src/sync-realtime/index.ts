@@ -831,9 +831,9 @@ export const createRealtimeSync = (
 
         const pendingBlocks = await Promise.all(
           missingBlockRange.map((blockNumber) =>
-            _eth_getBlockByNumber(args.rpc, {
-              blockNumber,
-            }).then((block) => fetchBlockEventData(block)),
+            _eth_getBlockByNumber(args.rpc, { blockNumber }).then((block) =>
+              fetchBlockEventData(block),
+            ),
           ),
         );
 
