@@ -134,423 +134,421 @@ export type SyncStore = {
 export const createSyncStore = ({
   common,
   database,
-}: { common: Common; database: Database }): SyncStore => ({
-  insertIntervals: async ({ intervals, chainId }) => {
-    if (intervals.length === 0) return;
+}: { common: Common; database: Database }): SyncStore => {
+  const syncStore: SyncStore = {
+    insertIntervals: async ({ intervals, chainId }) => {
+      if (intervals.length === 0) return;
 
-    const perFragmentIntervals = new Map<FragmentId, Interval[]>();
-    const values: (typeof PONDER_SYNC.intervals.$inferInsert)[] = [];
+      const perFragmentIntervals = new Map<FragmentId, Interval[]>();
+      const values: (typeof PONDER_SYNC.intervals.$inferInsert)[] = [];
 
-    // dedupe and merge matching fragments
+      // dedupe and merge matching fragments
 
-    for (const { filter, interval } of intervals) {
-      for (const fragment of getFragments(filter)) {
-        const fragmentId = encodeFragment(fragment.fragment);
-        if (perFragmentIntervals.has(fragmentId) === false) {
-          perFragmentIntervals.set(fragmentId, []);
-        }
-
-        perFragmentIntervals.get(fragmentId)!.push(interval);
-      }
-    }
-
-    // NOTE: In order to force proper range union behavior, `interval[1]` must
-    // be rounded up.
-
-    for (const [fragmentId, intervals] of perFragmentIntervals) {
-      const numranges = intervals
-        .map((interval) => {
-          const start = interval[0];
-          const end = interval[1] + 1;
-          return `numrange(${start}, ${end}, '[]')`;
-        })
-        .join(", ");
-
-      values.push({
-        fragmentId: fragmentId,
-        chainId: BigInt(chainId),
-        // @ts-expect-error
-        blocks: sql.raw(`nummultirange(${numranges})`),
-      });
-    }
-
-    await database.syncQB.wrap({ label: "insert_intervals" }, (db) =>
-      db
-        .insert(PONDER_SYNC.intervals)
-        .values(values)
-        .onConflictDoUpdate({
-          target: PONDER_SYNC.intervals.fragmentId,
-          set: { blocks: sql`intervals.blocks + excluded.blocks` },
-        }),
-    );
-  },
-  getIntervals: async ({ filters }) => {
-    const queries = filters.flatMap((filter, i) => {
-      const fragments = getFragments(filter);
-      return fragments.map((fragment, j) =>
-        database.syncQB.raw
-          .select({
-            mergedBlocks: sql<string>`range_agg(unnested.blocks)`.as(
-              "merged_blocks",
-            ),
-            filter: sql.raw(`'${i}'`).as("filter"),
-            fragment: sql.raw(`'${j}'`).as("fragment"),
-          })
-          .from(
-            database.syncQB.raw
-              .select({ blocks: sql.raw("unnest(blocks)").as("blocks") })
-              .from(PONDER_SYNC.intervals)
-              .where(
-                inArray(PONDER_SYNC.intervals.fragmentId, fragment.adjacentIds),
-              )
-              .as("unnested"),
-          ),
-      );
-    });
-
-    let rows: Awaited<(typeof queries)[number]>;
-
-    if (queries.length > 1) {
-      rows = await database.syncQB.wrap({ label: "select_intervals" }, () =>
-        // @ts-expect-error
-        unionAll(...queries),
-      );
-    } else {
-      rows = await database.syncQB.wrap({ label: "select_intervals" }, () =>
-        queries[0]!.execute(),
-      );
-    }
-
-    const result = new Map<
-      Filter,
-      { fragment: Fragment; intervals: Interval[] }[]
-    >();
-
-    // NOTE: `interval[1]` must be rounded down in order to offset the previous
-    // rounding.
-
-    for (let i = 0; i < filters.length; i++) {
-      const filter = filters[i]!;
-      const fragments = getFragments(filter);
-      result.set(filter, []);
-      for (let j = 0; j < fragments.length; j++) {
-        const fragment = fragments[j]!;
-        const intervals = rows
-          .filter((row) => row.filter === `${i}`)
-          .filter((row) => row.fragment === `${j}`)
-          .map((row) =>
-            (row.mergedBlocks
-              ? (JSON.parse(`[${row.mergedBlocks.slice(1, -1)}]`) as Interval[])
-              : []
-            ).map((interval) => [interval[0], interval[1] - 1] as Interval),
-          )[0]!;
-
-        result.get(filter)!.push({ fragment: fragment.fragment, intervals });
-      }
-    }
-
-    return result;
-  },
-
-  insertChildAddresses: async ({ factory, childAddresses, chainId }) => {
-    if (childAddresses.size === 0) return;
-
-    const { id, ..._factory } = factory;
-
-    const batchSize = Math.floor(common.options.databaseMaxQueryParameters / 3);
-
-    const values: (typeof PONDER_SYNC.factoryAddresses.$inferInsert)[] = [];
-
-    const factoryInsert = database.syncQB.raw.$with("factory_insert").as(
-      database.syncQB.raw
-        .insert(PONDER_SYNC.factories)
-        .values({ factory: _factory })
-        // @ts-expect-error bug with drizzle-orm
-        .returning({ id: PONDER_SYNC.factories.id })
-        .onConflictDoUpdate({
-          target: PONDER_SYNC.factories.factory,
-          set: { factory: sql`excluded.factory` },
-        }),
-    );
-
-    for (const [address, blockNumber] of childAddresses) {
-      values.push({
-        // @ts-expect-error
-        factoryId: sql`(SELECT id FROM factory_insert)`,
-        chainId: BigInt(chainId),
-        blockNumber: BigInt(blockNumber),
-        address,
-      });
-    }
-
-    for (let i = 0; i < values.length; i += batchSize) {
-      await database.syncQB.wrap({ label: "insert_child_addresses" }, (db) =>
-        db
-          .with(factoryInsert)
-          .insert(PONDER_SYNC.factoryAddresses)
-          .values(values.slice(i, i + batchSize)),
-      );
-    }
-  },
-  getChildAddresses: ({ factory }) => {
-    const { id, ..._factory } = factory;
-
-    const factoryInsert = database.syncQB.raw.$with("factory_insert").as(
-      database.syncQB.raw
-        .insert(PONDER_SYNC.factories)
-        .values({ factory: _factory })
-        // @ts-expect-error bug with drizzle-orm
-        .returning({ id: PONDER_SYNC.factories.id })
-        .onConflictDoUpdate({
-          target: PONDER_SYNC.factories.factory,
-          set: { factory: sql`excluded.factory` },
-        }),
-    );
-
-    return database.syncQB
-      .wrap({ label: "select_child_addresses" }, (db) =>
-        db
-          .with(factoryInsert)
-          .select({
-            address: PONDER_SYNC.factoryAddresses.address,
-            blockNumber: PONDER_SYNC.factoryAddresses.blockNumber,
-          })
-          .from(PONDER_SYNC.factoryAddresses)
-          .where(
-            eq(
-              PONDER_SYNC.factoryAddresses.factoryId,
-              database.syncQB.raw
-                .select({ id: factoryInsert.id })
-                .from(factoryInsert),
-            ),
-          ),
-      )
-      .then((rows) => {
-        const result = new Map<Address, number>();
-        for (const { address, blockNumber } of rows) {
-          if (
-            result.has(address) === false ||
-            result.get(address)! > Number(blockNumber)
-          ) {
-            result.set(address, Number(blockNumber));
+      for (const { filter, interval } of intervals) {
+        for (const fragment of getFragments(filter)) {
+          const fragmentId = encodeFragment(fragment.fragment);
+          if (perFragmentIntervals.has(fragmentId) === false) {
+            perFragmentIntervals.set(fragmentId, []);
           }
+
+          perFragmentIntervals.get(fragmentId)!.push(interval);
         }
-        return result;
-      });
-  },
-  getSafeCrashRecoveryBlock: async ({ chainId, timestamp }) => {
-    const rows = await database.syncQB.wrap(
-      { label: "select_crash_recovery_block" },
-      (db) =>
-        db
-          .select({
-            number: PONDER_SYNC.blocks.number,
-            timestamp: PONDER_SYNC.blocks.timestamp,
+      }
+
+      // NOTE: In order to force proper range union behavior, `interval[1]` must
+      // be rounded up.
+
+      for (const [fragmentId, intervals] of perFragmentIntervals) {
+        const numranges = intervals
+          .map((interval) => {
+            const start = interval[0];
+            const end = interval[1] + 1;
+            return `numrange(${start}, ${end}, '[]')`;
           })
-          .from(PONDER_SYNC.blocks)
-          .where(
-            and(
-              eq(PONDER_SYNC.blocks.chainId, BigInt(chainId)),
-              lt(PONDER_SYNC.blocks.timestamp, BigInt(timestamp)),
-            ),
-          )
-          .orderBy(desc(PONDER_SYNC.blocks.number))
-          .limit(1),
-    );
+          .join(", ");
 
-    return rows[0];
-  },
-  insertLogs: async ({ logs, chainId }) => {
-    if (logs.length === 0) return;
+        values.push({
+          fragmentId: fragmentId,
+          chainId: BigInt(chainId),
+          // @ts-expect-error
+          blocks: sql.raw(`nummultirange(${numranges})`),
+        });
+      }
 
-    // Calculate `batchSize` based on how many parameters the
-    // input will have
-    const batchSize = Math.floor(
-      common.options.databaseMaxQueryParameters /
-        Object.keys(encodeLog({ log: logs[0]!, chainId })).length,
-    );
-
-    // As an optimization, logs that are matched by a factory do
-    // not contain a checkpoint, because not corresponding block is
-    // fetched (no block.timestamp). However, when a log is matched by
-    // both a log filter and a factory, the checkpoint must be included
-    // in the db.
-
-    for (let i = 0; i < logs.length; i += batchSize) {
-      await database.syncQB.wrap({ label: "insert_logs" }, (db) =>
+      await database.syncQB.wrap({ label: "insert_intervals" }, (db) =>
         db
-          .insert(PONDER_SYNC.logs)
-          .values(
-            logs
-              .slice(i, i + batchSize)
-              .map((log) => encodeLog({ log, chainId })),
-          )
-          .onConflictDoNothing({
-            target: [
-              PONDER_SYNC.logs.chainId,
-              PONDER_SYNC.logs.blockNumber,
-              PONDER_SYNC.logs.logIndex,
-            ],
+          .insert(PONDER_SYNC.intervals)
+          .values(values)
+          .onConflictDoUpdate({
+            target: PONDER_SYNC.intervals.fragmentId,
+            set: { blocks: sql`intervals.blocks + excluded.blocks` },
           }),
       );
-    }
-  },
-  insertBlocks: async ({ blocks, chainId }) => {
-    if (blocks.length === 0) return;
-
-    // Calculate `batchSize` based on how many parameters the
-    // input will have
-    const batchSize = Math.floor(
-      common.options.databaseMaxQueryParameters /
-        Object.keys(encodeBlock({ block: blocks[0]!, chainId })).length,
-    );
-
-    for (let i = 0; i < blocks.length; i += batchSize) {
-      await database.syncQB.wrap({ label: "insert_blocks" }, (db) =>
-        db
-          .insert(PONDER_SYNC.blocks)
-          .values(
-            blocks
-              .slice(i, i + batchSize)
-              .map((block) => encodeBlock({ block, chainId })),
-          )
-          .onConflictDoNothing({
-            target: [PONDER_SYNC.blocks.chainId, PONDER_SYNC.blocks.number],
-          }),
-      );
-    }
-  },
-  insertTransactions: async ({ transactions, chainId }) => {
-    if (transactions.length === 0) return;
-
-    // Calculate `batchSize` based on how many parameters the
-    // input will have
-    const batchSize = Math.floor(
-      common.options.databaseMaxQueryParameters /
-        Object.keys(
-          encodeTransaction({
-            transaction: transactions[0]!,
-            chainId,
-          }),
-        ).length,
-    );
-
-    // As an optimization for the migration, transactions inserted before 0.8 do not
-    // contain a checkpoint. However, for correctness the checkpoint must be inserted
-    // for new transactions (using onConflictDoUpdate).
-
-    for (let i = 0; i < transactions.length; i += batchSize) {
-      await database.syncQB.wrap({ label: "insert_transactions" }, (db) =>
-        db
-          .insert(PONDER_SYNC.transactions)
-          .values(
-            transactions
-              .slice(i, i + batchSize)
-              .map((transaction) =>
-                encodeTransaction({ transaction, chainId }),
+    },
+    getIntervals: async ({ filters }) => {
+      const queries = filters.flatMap((filter, i) => {
+        const fragments = getFragments(filter);
+        return fragments.map((fragment, j) =>
+          database.syncQB.raw
+            .select({
+              mergedBlocks: sql<string>`range_agg(unnested.blocks)`.as(
+                "merged_blocks",
               ),
-          )
-          .onConflictDoNothing({
-            target: [
-              PONDER_SYNC.transactions.chainId,
-              PONDER_SYNC.transactions.blockNumber,
-              PONDER_SYNC.transactions.transactionIndex,
-            ],
+              filter: sql.raw(`'${i}'`).as("filter"),
+              fragment: sql.raw(`'${j}'`).as("fragment"),
+            })
+            .from(
+              database.syncQB.raw
+                .select({ blocks: sql.raw("unnest(blocks)").as("blocks") })
+                .from(PONDER_SYNC.intervals)
+                .where(
+                  inArray(
+                    PONDER_SYNC.intervals.fragmentId,
+                    fragment.adjacentIds,
+                  ),
+                )
+                .as("unnested"),
+            ),
+        );
+      });
+
+      let rows: Awaited<(typeof queries)[number]>;
+
+      if (queries.length > 1) {
+        rows = await database.syncQB.wrap({ label: "select_intervals" }, () =>
+          // @ts-expect-error
+          unionAll(...queries),
+        );
+      } else {
+        rows = await database.syncQB.wrap({ label: "select_intervals" }, () =>
+          queries[0]!.execute(),
+        );
+      }
+
+      const result = new Map<
+        Filter,
+        { fragment: Fragment; intervals: Interval[] }[]
+      >();
+
+      // NOTE: `interval[1]` must be rounded down in order to offset the previous
+      // rounding.
+
+      for (let i = 0; i < filters.length; i++) {
+        const filter = filters[i]!;
+        const fragments = getFragments(filter);
+        result.set(filter, []);
+        for (let j = 0; j < fragments.length; j++) {
+          const fragment = fragments[j]!;
+          const intervals = rows
+            .filter((row) => row.filter === `${i}`)
+            .filter((row) => row.fragment === `${j}`)
+            .map((row) =>
+              (row.mergedBlocks
+                ? (JSON.parse(
+                    `[${row.mergedBlocks.slice(1, -1)}]`,
+                  ) as Interval[])
+                : []
+              ).map((interval) => [interval[0], interval[1] - 1] as Interval),
+            )[0]!;
+
+          result.get(filter)!.push({ fragment: fragment.fragment, intervals });
+        }
+      }
+
+      return result;
+    },
+
+    insertChildAddresses: async ({ factory, childAddresses, chainId }) => {
+      if (childAddresses.size === 0) return;
+
+      const { id, ..._factory } = factory;
+
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters / 3,
+      );
+
+      const values: (typeof PONDER_SYNC.factoryAddresses.$inferInsert)[] = [];
+
+      const factoryInsert = database.syncQB.raw.$with("factory_insert").as(
+        database.syncQB.raw
+          .insert(PONDER_SYNC.factories)
+          .values({ factory: _factory })
+          // @ts-expect-error bug with drizzle-orm
+          .returning({ id: PONDER_SYNC.factories.id })
+          .onConflictDoUpdate({
+            target: PONDER_SYNC.factories.factory,
+            set: { factory: sql`excluded.factory` },
           }),
       );
-    }
-  },
-  insertTransactionReceipts: async ({ transactionReceipts, chainId }) => {
-    if (transactionReceipts.length === 0) return;
 
-    // Calculate `batchSize` based on how many parameters the
-    // input will have
-    const batchSize = Math.floor(
-      common.options.databaseMaxQueryParameters /
-        Object.keys(
-          encodeTransactionReceipt({
-            transactionReceipt: transactionReceipts[0]!,
-            chainId,
+      for (const [address, blockNumber] of childAddresses) {
+        values.push({
+          // @ts-expect-error
+          factoryId: sql`(SELECT id FROM factory_insert)`,
+          chainId: BigInt(chainId),
+          blockNumber: BigInt(blockNumber),
+          address,
+        });
+      }
+
+      for (let i = 0; i < values.length; i += batchSize) {
+        await database.syncQB.wrap({ label: "insert_child_addresses" }, (db) =>
+          db
+            .with(factoryInsert)
+            .insert(PONDER_SYNC.factoryAddresses)
+            .values(values.slice(i, i + batchSize)),
+        );
+      }
+    },
+    getChildAddresses: ({ factory }) => {
+      const { id, ..._factory } = factory;
+
+      const factoryInsert = database.syncQB.raw.$with("factory_insert").as(
+        database.syncQB.raw
+          .insert(PONDER_SYNC.factories)
+          .values({ factory: _factory })
+          // @ts-expect-error bug with drizzle-orm
+          .returning({ id: PONDER_SYNC.factories.id })
+          .onConflictDoUpdate({
+            target: PONDER_SYNC.factories.factory,
+            set: { factory: sql`excluded.factory` },
           }),
-        ).length,
-    );
+      );
 
-    for (let i = 0; i < transactionReceipts.length; i += batchSize) {
-      await database.syncQB.wrap(
-        { label: "insert_transaction_receipts" },
+      return database.syncQB
+        .wrap({ label: "select_child_addresses" }, (db) =>
+          db
+            .with(factoryInsert)
+            .select({
+              address: PONDER_SYNC.factoryAddresses.address,
+              blockNumber: PONDER_SYNC.factoryAddresses.blockNumber,
+            })
+            .from(PONDER_SYNC.factoryAddresses)
+            .where(
+              eq(
+                PONDER_SYNC.factoryAddresses.factoryId,
+                database.syncQB.raw
+                  .select({ id: factoryInsert.id })
+                  .from(factoryInsert),
+              ),
+            ),
+        )
+        .then((rows) => {
+          const result = new Map<Address, number>();
+          for (const { address, blockNumber } of rows) {
+            if (
+              result.has(address) === false ||
+              result.get(address)! > Number(blockNumber)
+            ) {
+              result.set(address, Number(blockNumber));
+            }
+          }
+          return result;
+        });
+    },
+    getSafeCrashRecoveryBlock: async ({ chainId, timestamp }) => {
+      const rows = await database.syncQB.wrap(
+        { label: "select_crash_recovery_block" },
         (db) =>
           db
-            .insert(PONDER_SYNC.transactionReceipts)
+            .select({
+              number: PONDER_SYNC.blocks.number,
+              timestamp: PONDER_SYNC.blocks.timestamp,
+            })
+            .from(PONDER_SYNC.blocks)
+            .where(
+              and(
+                eq(PONDER_SYNC.blocks.chainId, BigInt(chainId)),
+                lt(PONDER_SYNC.blocks.timestamp, BigInt(timestamp)),
+              ),
+            )
+            .orderBy(desc(PONDER_SYNC.blocks.number))
+            .limit(1),
+      );
+
+      return rows[0];
+    },
+    insertLogs: async ({ logs, chainId }) => {
+      if (logs.length === 0) return;
+
+      // Calculate `batchSize` based on how many parameters the
+      // input will have
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters /
+          Object.keys(encodeLog({ log: logs[0]!, chainId })).length,
+      );
+
+      // As an optimization, logs that are matched by a factory do
+      // not contain a checkpoint, because not corresponding block is
+      // fetched (no block.timestamp). However, when a log is matched by
+      // both a log filter and a factory, the checkpoint must be included
+      // in the db.
+
+      for (let i = 0; i < logs.length; i += batchSize) {
+        await database.syncQB.wrap({ label: "insert_logs" }, (db) =>
+          db
+            .insert(PONDER_SYNC.logs)
             .values(
-              transactionReceipts
+              logs
                 .slice(i, i + batchSize)
-                .map((transactionReceipt) =>
-                  encodeTransactionReceipt({
-                    transactionReceipt,
-                    chainId,
-                  }),
+                .map((log) => encodeLog({ log, chainId })),
+            )
+            .onConflictDoNothing({
+              target: [
+                PONDER_SYNC.logs.chainId,
+                PONDER_SYNC.logs.blockNumber,
+                PONDER_SYNC.logs.logIndex,
+              ],
+            }),
+        );
+      }
+    },
+    insertBlocks: async ({ blocks, chainId }) => {
+      if (blocks.length === 0) return;
+
+      // Calculate `batchSize` based on how many parameters the
+      // input will have
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters /
+          Object.keys(encodeBlock({ block: blocks[0]!, chainId })).length,
+      );
+
+      for (let i = 0; i < blocks.length; i += batchSize) {
+        await database.syncQB.wrap({ label: "insert_blocks" }, (db) =>
+          db
+            .insert(PONDER_SYNC.blocks)
+            .values(
+              blocks
+                .slice(i, i + batchSize)
+                .map((block) => encodeBlock({ block, chainId })),
+            )
+            .onConflictDoNothing({
+              target: [PONDER_SYNC.blocks.chainId, PONDER_SYNC.blocks.number],
+            }),
+        );
+      }
+    },
+    insertTransactions: async ({ transactions, chainId }) => {
+      if (transactions.length === 0) return;
+
+      // Calculate `batchSize` based on how many parameters the
+      // input will have
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters /
+          Object.keys(
+            encodeTransaction({
+              transaction: transactions[0]!,
+              chainId,
+            }),
+          ).length,
+      );
+
+      // As an optimization for the migration, transactions inserted before 0.8 do not
+      // contain a checkpoint. However, for correctness the checkpoint must be inserted
+      // for new transactions (using onConflictDoUpdate).
+
+      for (let i = 0; i < transactions.length; i += batchSize) {
+        await database.syncQB.wrap({ label: "insert_transactions" }, (db) =>
+          db
+            .insert(PONDER_SYNC.transactions)
+            .values(
+              transactions
+                .slice(i, i + batchSize)
+                .map((transaction) =>
+                  encodeTransaction({ transaction, chainId }),
                 ),
             )
             .onConflictDoNothing({
               target: [
-                PONDER_SYNC.transactionReceipts.chainId,
-                PONDER_SYNC.transactionReceipts.blockNumber,
-                PONDER_SYNC.transactionReceipts.transactionIndex,
+                PONDER_SYNC.transactions.chainId,
+                PONDER_SYNC.transactions.blockNumber,
+                PONDER_SYNC.transactions.transactionIndex,
               ],
             }),
+        );
+      }
+    },
+    insertTransactionReceipts: async ({ transactionReceipts, chainId }) => {
+      if (transactionReceipts.length === 0) return;
+
+      // Calculate `batchSize` based on how many parameters the
+      // input will have
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters /
+          Object.keys(
+            encodeTransactionReceipt({
+              transactionReceipt: transactionReceipts[0]!,
+              chainId,
+            }),
+          ).length,
       );
-    }
-  },
-  insertTraces: async ({ traces, chainId }) => {
-    if (traces.length === 0) return;
 
-    // Calculate `batchSize` based on how many parameters the
-    // input will have
-    const batchSize = Math.floor(
-      common.options.databaseMaxQueryParameters /
-        Object.keys(
-          encodeTrace({
-            trace: traces[0]!.trace,
-            block: traces[0]!.block,
-            transaction: traces[0]!.transaction,
-            chainId,
-          }),
-        ).length,
-    );
+      for (let i = 0; i < transactionReceipts.length; i += batchSize) {
+        await database.syncQB.wrap(
+          { label: "insert_transaction_receipts" },
+          (db) =>
+            db
+              .insert(PONDER_SYNC.transactionReceipts)
+              .values(
+                transactionReceipts
+                  .slice(i, i + batchSize)
+                  .map((transactionReceipt) =>
+                    encodeTransactionReceipt({
+                      transactionReceipt,
+                      chainId,
+                    }),
+                  ),
+              )
+              .onConflictDoNothing({
+                target: [
+                  PONDER_SYNC.transactionReceipts.chainId,
+                  PONDER_SYNC.transactionReceipts.blockNumber,
+                  PONDER_SYNC.transactionReceipts.transactionIndex,
+                ],
+              }),
+        );
+      }
+    },
+    insertTraces: async ({ traces, chainId }) => {
+      if (traces.length === 0) return;
 
-    for (let i = 0; i < traces.length; i += batchSize) {
-      await database.syncQB.wrap({ label: "insert_traces" }, (db) =>
-        db
-          .insert(PONDER_SYNC.traces)
-          .values(
-            traces
-              .slice(i, i + batchSize)
-              .map(({ trace, block, transaction }) =>
-                encodeTrace({ trace, block, transaction, chainId }),
-              ),
-          )
-          .onConflictDoNothing({
-            target: [
-              PONDER_SYNC.traces.chainId,
-              PONDER_SYNC.traces.blockNumber,
-              PONDER_SYNC.traces.transactionIndex,
-              PONDER_SYNC.traces.traceIndex,
-            ],
-          }),
+      // Calculate `batchSize` based on how many parameters the
+      // input will have
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters /
+          Object.keys(
+            encodeTrace({
+              trace: traces[0]!.trace,
+              block: traces[0]!.block,
+              transaction: traces[0]!.transaction,
+              chainId,
+            }),
+          ).length,
       );
-    }
-  },
-  getEventData: async ({
-    filters,
-    fromBlock,
-    toBlock,
-    chainId,
-    limit: _limit,
-  }) => {
-    const limit = _limit;
 
-    // @ts-ignore
-    const fn = async () => {
+      for (let i = 0; i < traces.length; i += batchSize) {
+        await database.syncQB.wrap({ label: "insert_traces" }, (db) =>
+          db
+            .insert(PONDER_SYNC.traces)
+            .values(
+              traces
+                .slice(i, i + batchSize)
+                .map(({ trace, block, transaction }) =>
+                  encodeTrace({ trace, block, transaction, chainId }),
+                ),
+            )
+            .onConflictDoNothing({
+              target: [
+                PONDER_SYNC.traces.chainId,
+                PONDER_SYNC.traces.blockNumber,
+                PONDER_SYNC.traces.transactionIndex,
+                PONDER_SYNC.traces.traceIndex,
+              ],
+            }),
+        );
+      }
+    },
+    getEventData: async ({ filters, fromBlock, toBlock, chainId, limit }) => {
       const logFilters = filters.filter(
         (f): f is LogFilter => f.type === "log",
       );
@@ -763,7 +761,7 @@ export const createSyncStore = ({
           : [],
       ]);
 
-      let supremum = Math.min(
+      const supremum = Math.min(
         blocksRows.length < limit
           ? Number.POSITIVE_INFINITY
           : Number(blocksRows[blocksRows.length - 1]!.number),
@@ -784,24 +782,48 @@ export const createSyncStore = ({
           : Number(tracesRows[tracesRows.length - 1]!.blockNumber),
       );
 
-      // If limit is reached for row other than block, decrement supremum
+      let cursor: number;
       if (
-        blocksRows.length < limit &&
+        Math.max(
+          blocksRows.length,
+          transactionsRows.length,
+          transactionReceiptsRows.length,
+          logsRows.length,
+          tracesRows.length,
+        ) !== limit
+      ) {
+        cursor = toBlock;
+      } else if (
+        blocksRows.length === limit &&
         Math.max(
           transactionsRows.length,
           transactionReceiptsRows.length,
           logsRows.length,
           tracesRows.length,
-        ) === limit
+        ) !== limit
       ) {
-        supremum -= 1;
+        // all events for `supremum` block have been extracted
+        cursor = supremum;
+      } else {
+        // there may be events for `supremum` block that have not been extracted
+        cursor = supremum - 1;
+
+        if (cursor < fromBlock) {
+          return syncStore.getEventData({
+            filters,
+            fromBlock,
+            toBlock,
+            chainId,
+            limit: limit * 2,
+          });
+        }
       }
 
       endClock = startClock();
 
       for (let i = 0; i < blocksRows.length; i++) {
-        if (Number(blocksRows[i]!.number) > supremum) {
-          blocksRows.splice(i);
+        if (Number(blocksRows[i]!.number) > cursor) {
+          blocksRows.length = i;
           break;
         }
 
@@ -812,8 +834,8 @@ export const createSyncStore = ({
       }
 
       for (let i = 0; i < transactionsRows.length; i++) {
-        if (Number(transactionsRows[i]!.blockNumber) > supremum) {
-          transactionsRows.splice(i);
+        if (Number(transactionsRows[i]!.blockNumber) > cursor) {
+          transactionsRows.length = i;
           break;
         }
 
@@ -849,8 +871,8 @@ export const createSyncStore = ({
       }
 
       for (let i = 0; i < transactionReceiptsRows.length; i++) {
-        if (Number(transactionReceiptsRows[i]!.blockNumber) > supremum) {
-          transactionReceiptsRows.splice(i);
+        if (Number(transactionReceiptsRows[i]!.blockNumber) > cursor) {
+          transactionReceiptsRows.length = i;
           break;
         }
 
@@ -890,8 +912,8 @@ export const createSyncStore = ({
       }
 
       for (let i = 0; i < tracesRows.length; i++) {
-        if (Number(tracesRows[i]!.blockNumber) > supremum) {
-          tracesRows.splice(i);
+        if (Number(tracesRows[i]!.blockNumber) > cursor) {
+          tracesRows.length = i;
           break;
         }
 
@@ -919,8 +941,8 @@ export const createSyncStore = ({
       }
 
       for (let i = 0; i < logsRows.length; i++) {
-        if (Number(logsRows[i]!.blockNumber) > supremum) {
-          logsRows.splice(i);
+        if (Number(logsRows[i]!.blockNumber) > cursor) {
+          logsRows.length = i;
           break;
         }
 
@@ -961,162 +983,130 @@ export const createSyncStore = ({
         transactionReceipts:
           transactionReceiptsRows as InternalTransactionReceipt[],
         traces: tracesRows as InternalTrace[],
-        cursor: supremum,
+        cursor,
       };
+    },
+    insertRpcRequestResults: async ({ requests, chainId }) => {
+      if (requests.length === 0) return;
 
-      // let cursor: number;
-      // if (
-      //   Math.max(
-      //     blocksRows.length,
-      //     transactionsRows.length,
-      //     transactionReceiptsRows.length,
-      //     logsRows.length,
-      //     tracesRows.length,
-      //   ) !== limit
-      // ) {
-      //   cursor = toBlock;
-      // } else if (
-      //   blocksRows.length === limit &&
-      //   Math.max(
-      //     transactionsRows.length,
-      //     transactionReceiptsRows.length,
-      //     logsRows.length,
-      //     tracesRows.length,
-      //   ) !== limit
-      // ) {
-      //   // all events for `supremum` block have been extracted
-      //   cursor = supremum;
-      // } else {
-      //   // there may be events for `supremum` block that have not been extracted
-      //   blockData.pop();
-      //   cursor = supremum - 1;
+      const values = requests.map(({ request, blockNumber, result }) => ({
+        requestHash: crypto
+          .createHash("md5")
+          .update(toLowerCase(JSON.stringify(orderObject(request))))
+          .digest("hex"),
+        chainId: BigInt(chainId),
+        blockNumber: blockNumber ? BigInt(blockNumber) : undefined,
+        result,
+      }));
 
-      //   if (cursor < fromBlock) {
-      //     limit = limit * 2;
-      //     return await fn();
-      //   }
-      // }
-
-      // return { blockData, cursor };
-    };
-
-    return fn();
-  },
-  insertRpcRequestResults: async ({ requests, chainId }) => {
-    if (requests.length === 0) return;
-
-    const values = requests.map(({ request, blockNumber, result }) => ({
-      requestHash: crypto
-        .createHash("md5")
-        .update(toLowerCase(JSON.stringify(orderObject(request))))
-        .digest("hex"),
-      chainId: BigInt(chainId),
-      blockNumber: blockNumber ? BigInt(blockNumber) : undefined,
-      result,
-    }));
-
-    await database.syncQB.wrap({ label: "insert_rpc_requests" }, (db) =>
-      db
-        .insert(PONDER_SYNC.rpcRequestResults)
-        .values(values)
-        .onConflictDoNothing({
-          target: [
-            PONDER_SYNC.rpcRequestResults.requestHash,
-            PONDER_SYNC.rpcRequestResults.chainId,
-          ],
-        }),
-    );
-  },
-  getRpcRequestResults: async ({ requests, chainId }) => {
-    if (requests.length === 0) return [];
-
-    const requestHashes = requests.map((request) =>
-      crypto
-        .createHash("md5")
-        .update(toLowerCase(JSON.stringify(orderObject(request))))
-        .digest("hex"),
-    );
-
-    const result = await database.syncQB.wrap(
-      { label: "select_rpc_requests" },
-      (db) =>
+      await database.syncQB.wrap({ label: "insert_rpc_requests" }, (db) =>
         db
-          .select({
-            request_hash: PONDER_SYNC.rpcRequestResults.requestHash,
-            result: PONDER_SYNC.rpcRequestResults.result,
-          })
-          .from(PONDER_SYNC.rpcRequestResults)
+          .insert(PONDER_SYNC.rpcRequestResults)
+          .values(values)
+          .onConflictDoNothing({
+            target: [
+              PONDER_SYNC.rpcRequestResults.requestHash,
+              PONDER_SYNC.rpcRequestResults.chainId,
+            ],
+          }),
+      );
+    },
+    getRpcRequestResults: async ({ requests, chainId }) => {
+      if (requests.length === 0) return [];
+
+      const requestHashes = requests.map((request) =>
+        crypto
+          .createHash("md5")
+          .update(toLowerCase(JSON.stringify(orderObject(request))))
+          .digest("hex"),
+      );
+
+      const result = await database.syncQB.wrap(
+        { label: "select_rpc_requests" },
+        (db) =>
+          db
+            .select({
+              request_hash: PONDER_SYNC.rpcRequestResults.requestHash,
+              result: PONDER_SYNC.rpcRequestResults.result,
+            })
+            .from(PONDER_SYNC.rpcRequestResults)
+            .where(
+              and(
+                eq(PONDER_SYNC.rpcRequestResults.chainId, BigInt(chainId)),
+                inArray(
+                  PONDER_SYNC.rpcRequestResults.requestHash,
+                  requestHashes,
+                ),
+              ),
+            ),
+      );
+
+      const results = new Map<string, string | undefined>();
+      for (const row of result) {
+        results.set(row.request_hash, row.result);
+      }
+
+      return requestHashes.map((requestHash) => results.get(requestHash));
+    },
+    pruneRpcRequestResults: async ({ blocks, chainId }) => {
+      if (blocks.length === 0) return;
+
+      const numbers = blocks.map(({ number }) => BigInt(hexToNumber(number)));
+
+      await database.syncQB.wrap({ label: "delete_rpc_requests" }, (db) =>
+        db
+          .delete(PONDER_SYNC.rpcRequestResults)
           .where(
             and(
               eq(PONDER_SYNC.rpcRequestResults.chainId, BigInt(chainId)),
-              inArray(PONDER_SYNC.rpcRequestResults.requestHash, requestHashes),
+              inArray(PONDER_SYNC.rpcRequestResults.blockNumber, numbers),
             ),
           ),
-    );
+      );
+    },
+    pruneByChain: async ({ chainId }) =>
+      database.syncQB.transaction(async (tx) => {
+        await tx.wrap({ label: "delete_logs" }, (db) =>
+          db
+            .delete(PONDER_SYNC.logs)
+            .where(eq(PONDER_SYNC.logs.chainId, BigInt(chainId)))
+            .execute(),
+        );
+        await tx.wrap({ label: "delete_blocks" }, (db) =>
+          db
+            .delete(PONDER_SYNC.blocks)
+            .where(eq(PONDER_SYNC.blocks.chainId, BigInt(chainId)))
+            .execute(),
+        );
+        await tx.wrap({ label: "delete_traces" }, (db) =>
+          db
+            .delete(PONDER_SYNC.traces)
+            .where(eq(PONDER_SYNC.traces.chainId, BigInt(chainId)))
+            .execute(),
+        );
+        await tx.wrap({ label: "delete_transactions" }, (db) =>
+          db
+            .delete(PONDER_SYNC.transactions)
+            .where(eq(PONDER_SYNC.transactions.chainId, BigInt(chainId)))
+            .execute(),
+        );
+        await tx.wrap({ label: "delete_transaction_receipts" }, (db) =>
+          db
+            .delete(PONDER_SYNC.transactionReceipts)
+            .where(eq(PONDER_SYNC.transactionReceipts.chainId, BigInt(chainId)))
+            .execute(),
+        );
+        await tx.wrap({ label: "delete_factory_addresses" }, (db) =>
+          db
+            .delete(PONDER_SYNC.factoryAddresses)
+            .where(eq(PONDER_SYNC.factoryAddresses.chainId, BigInt(chainId)))
+            .execute(),
+        );
+      }),
+  };
 
-    const results = new Map<string, string | undefined>();
-    for (const row of result) {
-      results.set(row.request_hash, row.result);
-    }
-
-    return requestHashes.map((requestHash) => results.get(requestHash));
-  },
-  pruneRpcRequestResults: async ({ blocks, chainId }) => {
-    if (blocks.length === 0) return;
-
-    const numbers = blocks.map(({ number }) => BigInt(hexToNumber(number)));
-
-    await database.syncQB.wrap({ label: "delete_rpc_requests" }, (db) =>
-      db
-        .delete(PONDER_SYNC.rpcRequestResults)
-        .where(
-          and(
-            eq(PONDER_SYNC.rpcRequestResults.chainId, BigInt(chainId)),
-            inArray(PONDER_SYNC.rpcRequestResults.blockNumber, numbers),
-          ),
-        ),
-    );
-  },
-  pruneByChain: async ({ chainId }) =>
-    database.syncQB.transaction(async (tx) => {
-      await tx.wrap({ label: "delete_logs" }, (db) =>
-        db
-          .delete(PONDER_SYNC.logs)
-          .where(eq(PONDER_SYNC.logs.chainId, BigInt(chainId)))
-          .execute(),
-      );
-      await tx.wrap({ label: "delete_blocks" }, (db) =>
-        db
-          .delete(PONDER_SYNC.blocks)
-          .where(eq(PONDER_SYNC.blocks.chainId, BigInt(chainId)))
-          .execute(),
-      );
-      await tx.wrap({ label: "delete_traces" }, (db) =>
-        db
-          .delete(PONDER_SYNC.traces)
-          .where(eq(PONDER_SYNC.traces.chainId, BigInt(chainId)))
-          .execute(),
-      );
-      await tx.wrap({ label: "delete_transactions" }, (db) =>
-        db
-          .delete(PONDER_SYNC.transactions)
-          .where(eq(PONDER_SYNC.transactions.chainId, BigInt(chainId)))
-          .execute(),
-      );
-      await tx.wrap({ label: "delete_transaction_receipts" }, (db) =>
-        db
-          .delete(PONDER_SYNC.transactionReceipts)
-          .where(eq(PONDER_SYNC.transactionReceipts.chainId, BigInt(chainId)))
-          .execute(),
-      );
-      await tx.wrap({ label: "delete_factory_addresses" }, (db) =>
-        db
-          .delete(PONDER_SYNC.factoryAddresses)
-          .where(eq(PONDER_SYNC.factoryAddresses.chainId, BigInt(chainId)))
-          .execute(),
-      );
-    }),
-});
+  return syncStore;
+};
 
 const addressFilter = (
   address:
