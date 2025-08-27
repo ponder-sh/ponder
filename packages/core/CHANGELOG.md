@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.16
+
+### Patch Changes
+
+- [#2004](https://github.com/ponder-sh/ponder/pull/2004) [`769d8a0`](https://github.com/ponder-sh/ponder/commit/769d8a0f1a0eb91e69c48cdecef079038ac85441) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for validating `@ponder/client` queries with window defintions. Fixed the error `WindowDef not supported`.
+
 ## 0.12.15
 
 ### Patch Changes
