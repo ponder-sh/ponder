@@ -47,6 +47,8 @@ import { isAddressFactory } from "./filter.js";
 
 /**
  * Create `RawEvent`s from raw data types.
+ *
+ * @dev `blocks`, `transactions`, `transactionReceipts`, `logs`, `traces` must be ordered by onchain execution.
  */
 export const buildEvents = ({
   sources,
@@ -98,6 +100,14 @@ export const buildEvents = ({
   for (const block of blocks) {
     const blockNumber = Number(block.number);
     const blockTimestamp = Number(block.timestamp);
+
+    while (
+      transactionsIndex < transactions.length &&
+      transactions[transactionsIndex]!.blockNumber < blockNumber
+    ) {
+      transactionsIndex++;
+    }
+
     while (
       transactionsIndex < transactions.length &&
       transactions[transactionsIndex]!.blockNumber === blockNumber
@@ -115,8 +125,6 @@ export const buildEvents = ({
         transactionReceipt = transactionReceipts[transactionReceiptsIndex]!;
         transactionReceiptsIndex++;
       }
-
-      // TODO(kyle) zkSync logs may not have a corresponding transaction.
 
       for (const i of transactionSourceIndexes) {
         const source = sources[i]!;
@@ -155,13 +163,21 @@ export const buildEvents = ({
               eventType: EVENT_TYPES.transactions,
               eventIndex: 0,
             }),
-            log: undefined,
-            trace: undefined,
             block,
             transaction,
             transactionReceipt: transactionReceipt!,
           });
         }
+      }
+
+      while (
+        logsIndex < logs.length &&
+        (logs[logsIndex]!.blockNumber < blockNumber ||
+          (logs[logsIndex]!.blockNumber === blockNumber &&
+            logs[logsIndex]!.transactionIndex < transaction.transactionIndex))
+      ) {
+        // TODO(kyle) zkSync logs may not have a corresponding transaction.
+        logsIndex++;
       }
 
       while (
@@ -204,12 +220,21 @@ export const buildEvents = ({
               transactionReceipt: shouldGetTransactionReceipt(filter)
                 ? transactionReceipt
                 : undefined,
-              trace: undefined,
             });
           }
         }
 
         logsIndex++;
+      }
+
+      while (
+        tracesIndex < traces.length &&
+        (traces[tracesIndex]!.blockNumber < blockNumber ||
+          (traces[tracesIndex]!.blockNumber === blockNumber &&
+            traces[tracesIndex]!.transactionIndex <
+              transaction.transactionIndex))
+      ) {
+        tracesIndex++;
       }
 
       while (
@@ -257,7 +282,6 @@ export const buildEvents = ({
                 eventType: EVENT_TYPES.traces,
                 eventIndex: trace.traceIndex,
               }),
-              log: undefined,
               trace,
               block,
               transaction,
@@ -339,10 +363,6 @@ export const buildEvents = ({
             eventIndex: ZERO_CHECKPOINT.eventIndex,
           }),
           block,
-          log: undefined,
-          trace: undefined,
-          transaction: undefined,
-          transactionReceipt: undefined,
         });
       }
     }
@@ -383,8 +403,6 @@ export const splitEvents = (
 
 /**
  * Decode `RawEvent`s into `Event`s.
- *
- * @dev `rawEvents` is mutated.
  */
 export const decodeEvents = (
   common: Common,
