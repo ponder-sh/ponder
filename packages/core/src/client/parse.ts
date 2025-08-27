@@ -58,6 +58,7 @@ export const validateQuery = async (
   };
 
   if (parseResult.error !== null) {
+    console.log(parseResult.error);
     throw new Error(parseResult.error);
   }
 
@@ -628,6 +629,17 @@ const ALLOWED_FUNCTIONS = new Set([
   "json_object_agg",
   "json_array_agg",
   "json_build_array",
+  "row_number",
+  "rank",
+  "dense_rank",
+  "percent_rank",
+  "cume_dist",
+  "ntile",
+  "lag",
+  "lead",
+  "first_value",
+  "last_value",
+  "nth_value",
 ]);
 
 const FUNC_CALL_VALIDATOR: ValidatorNode<"FuncCall"> = {
@@ -698,6 +710,16 @@ const SORT_BY_VALIDATOR: ValidatorNode<"SortBy"> = {
   children: (node) => [
     ...(node.node ? [node.node] : []),
     ...(node.useOp ?? []),
+  ],
+};
+
+const WINDOW_DEF_VALIDATOR: ValidatorNode<"WindowDef"> = {
+  node: "WindowDef",
+  children: (node) => [
+    ...(node.partitionClause ?? []),
+    ...(node.orderClause ?? []),
+    ...(node.startOffset ? [node.startOffset] : []),
+    ...(node.endOffset ? [node.endOffset] : []),
   ],
 };
 
@@ -919,6 +941,7 @@ const ALLOW_LIST = new Map(
     RES_TARGET_VALIDATOR,
     MULTI_ASSIGN_REF_VALIDATOR,
     SORT_BY_VALIDATOR,
+    WINDOW_DEF_VALIDATOR,
     RANGE_SUBSELECT_VALIDATOR,
     SORT_GROUP_CLAUSE_VALIDATOR,
     GROUPING_SET_VALIDATOR,
@@ -984,7 +1007,6 @@ const FIND_LIST = new Map(
 // SetToDefault
 // Query
 // RoleSpec
-// WindowDef
 // RangeFunction
 // RangeTableFunc
 // RangeTableFuncCol

@@ -54,40 +54,93 @@ test("validateQuery() cache", async () => {
   await validateQuery("SELECT * FROM users;");
   await validateQuery("SELECT * FROM users;");
 
-  expect(() =>
+  await expect(() =>
     validateQuery(`SET statement_timeout = '1s';`),
   ).rejects.toThrow();
-  expect(() =>
+  await expect(() =>
     validateQuery(`SET statement_timeout = '1s';`),
   ).rejects.toThrow();
 });
 
-test("validateQuery() select into", () => {
-  expect(() => validateQuery("SELECT * INTO users;")).rejects.toThrow();
+test("validateQuery() select into", async () => {
+  await expect(() => validateQuery("SELECT * INTO users;")).rejects.toThrow();
 });
 
-test("validateQuery() schema name", () => {
-  expect(() =>
+test("validateQuery() schema name", async () => {
+  await expect(() =>
     validateQuery("SELECT * FROM offchain.metadata;"),
   ).rejects.toThrow();
 });
-test("validateQuery() system tables", () => {
-  expect(() =>
+test("validateQuery() system tables", async () => {
+  await expect(() =>
     validateQuery("SELECT * FROM pg_stat_activity;"),
   ).rejects.toThrow();
 });
 
-test("validateQuery() recursive cte", () => {
-  expect(() =>
+test("validateQuery() recursive cte", async () => {
+  await expect(() =>
     validateQuery(
       "WITH RECURSIVE infinite_cte AS (SELECT 1 AS num UNION ALL SELECT num + 1 FROM infinite_cte) SELECT * FROM infinite_cte;",
     ),
   ).rejects.toThrow();
 });
 
-test("validateQuery() function call", () => {
-  expect(() => validateQuery("SELECT count(*) from users;")).not.toThrow();
-  expect(() => validateQuery("SELECT blow_up();")).rejects.toThrow();
+test("validateQuery() function call", async () => {
+  await validateQuery("SELECT count(*) from users;");
+  await expect(() => validateQuery("SELECT blow_up();")).rejects.toThrow();
+});
+
+test("validateQuery() window def", async () => {
+  await validateQuery(`
+  SELECT
+    ohlc.pool,
+    p.market_cap_usd,
+    p.liquidity,
+    t.name,
+    t.symbol,
+    t.address,
+    ohlc.volume as volumeUsd,
+    p.holder_count,
+    p.created_at,
+    p.integrator,
+    p.type,
+    p.chain_id,
+    ((ohlc.close - ohlc.open) / ohlc.open * 100) as "percent_day_change",
+    p.graduation_percentage,
+    p.max_threshold,
+    p.graduation_balance,
+    ohlc.open,
+    ohlc.close,
+    p.last_swap_timestamp,
+    p.migrated
+  FROM (
+  WITH base AS (
+    SELECT
+      fmbu.pool,
+      fmbu.minute_id,
+      fmbu.volume_usd,
+      fmbu.open,
+      fmbu.close
+    FROM fifteen_minute_bucket_usd AS fmbu
+    WHERE
+      fmbu.minute_id > $1
+      AND fmbu.volume_usd > 1001941466175525071
+      AND fmbu.open  > 0
+      AND fmbu.close > 0
+  )
+  SELECT DISTINCT ON (pool)
+    pool,
+    SUM(volume_usd) OVER (PARTITION BY pool)                                      AS volume,
+    FIRST_VALUE(open)  OVER (PARTITION BY pool ORDER BY minute_id ASC)            AS open,
+    FIRST_VALUE(close) OVER (PARTITION BY pool ORDER BY minute_id DESC)           AS close
+  FROM base
+  ORDER BY pool, minute_id ASC
+) AS ohlc
+  JOIN token t ON t.pool = ohlc.pool
+  JOIN pool p ON p.address = ohlc.pool
+  ORDER BY $1 ASC
+  OFFSET $3
+  LIMIT $4`);
 });
 
 test("validateQuery() handles large query", async () => {
