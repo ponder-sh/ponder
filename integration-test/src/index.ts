@@ -22,7 +22,6 @@ import {
 import { type NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
-import pg from "pg";
 import seedrandom from "seedrandom";
 import { type Address, type RpcBlock, custom, hexToNumber } from "viem";
 import packageJson from "../../packages/core/package.json" assert {
@@ -73,9 +72,13 @@ if (APP_ID === undefined) {
   throw new Error("App ID is required. Example: 'pnpm test [app id]'");
 }
 
-export let APP: PonderApp | undefined;
+// app state
 
-// params
+export let APP: PonderApp | undefined;
+export let IS_REALTIME = false;
+export let RESTART_COUNT = 0;
+
+// sim params
 
 export const pick = <T>(possibilities: T[] | readonly T[], tag: string): T => {
   return possibilities[
@@ -133,20 +136,14 @@ export const SIM_PARAMS = {
   ),
 };
 
-export let RESTART_COUNT = 0;
-
 // 1. Setup database
 
-const DB_CLIENT = new pg.Client(DATABASE_URL!);
-await DB_CLIENT.connect();
-export const DB = drizzle(DB_CLIENT, { casing: "snake_case" });
+export const DB = drizzle(DATABASE_URL!, { casing: "snake_case" });
+export const APP_DB = drizzle(`${DATABASE_URL!}/${UUID}`, {
+  casing: "snake_case",
+});
 
 await DB.execute(sql.raw(`CREATE DATABASE "${UUID}" TEMPLATE "${APP_ID}"`));
-
-const APP_DB_CLIENT = new pg.Client(`${DATABASE_URL!}/${UUID}`);
-await APP_DB_CLIENT.connect();
-export const APP_DB = drizzle(APP_DB_CLIENT, { casing: "snake_case" });
-
 await APP_DB.execute(
   sql.raw(
     "CREATE TABLE ponder_sync.expected_intervals AS SELECT * FROM ponder_sync.intervals",
@@ -283,46 +280,22 @@ const onBuild = async (app: PonderApp) => {
         schema: PONDER_SYNC,
       }),
     ),
-    {
-      common: app.common,
-      isAdmin: false,
-    },
+    { common: app.common, isAdmin: false },
   );
 
   app.database.adminQB = createQB(
-    dbSim(
-      drizzle(app.database.driver.admin!, {
-        casing: "snake_case",
-      }),
-    ),
-    {
-      common: app.common,
-      isAdmin: true,
-    },
+    dbSim(drizzle(app.database.driver.admin!, { casing: "snake_case" })),
+    { common: app.common, isAdmin: true },
   );
 
   app.database.userQB = createQB(
-    dbSim(
-      drizzle(app.database.driver.user!, {
-        casing: "snake_case",
-      }),
-    ),
-    {
-      common: app.common,
-      isAdmin: false,
-    },
+    dbSim(drizzle(app.database.driver.user!, { casing: "snake_case" })),
+    { common: app.common, isAdmin: false },
   );
 
   app.database.readonlyQB = createQB(
-    dbSim(
-      drizzle(app.database.driver.readonly!, {
-        casing: "snake_case",
-      }),
-    ),
-    {
-      common: app.common,
-      isAdmin: false,
-    },
+    dbSim(drizzle(app.database.driver.readonly!, { casing: "snake_case" })),
+    { common: app.common, isAdmin: false },
   );
 
   if (APP_ID === "super-assessment") {
@@ -1275,9 +1248,9 @@ const onBuild = async (app: PonderApp) => {
 
     if (SIM_PARAMS.UNFINALIZED_BLOCKS !== 0) {
       const { rows } = await APP_DB.execute(`
-SELECT number FROM ponder_sync.blocks WHERE timestamp > (
-  SELECT SUBSTRING(finalized_checkpoint, 1, 10)::numeric as t FROM _ponder_checkpoint WHERE chain_name = '${chain.name}'
-) AND chain_id = ${chain.id} ORDER BY timestamp ASC LIMIT 1`);
+      SELECT number FROM ponder_sync.blocks WHERE timestamp > (
+        SELECT SUBSTRING(finalized_checkpoint, 1, 10)::numeric as t FROM _ponder_checkpoint WHERE chain_name = '${chain.name}'
+      ) AND chain_id = ${chain.id} ORDER BY timestamp ASC LIMIT 1`);
 
       if (rows.length > 0) {
         app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(
@@ -1352,6 +1325,8 @@ SELECT number FROM ponder_sync.blocks WHERE timestamp > (
 
     rpc.subscribe = ({ onBlock }) => {
       (async () => {
+        IS_REALTIME = true;
+
         let block: RpcBlock | RpcBlockHeader;
         let isAccepted: boolean;
 
@@ -1362,8 +1337,6 @@ SELECT number FROM ponder_sync.blocks WHERE timestamp > (
         while (isAccepted! === false) {
           isAccepted = await onBlock(block!);
         }
-
-        await onBlock(block!);
 
         app.common.logger.warn({
           service: "sim",
@@ -1415,7 +1388,9 @@ export const restart = async () => {
 
 if (SIM_PARAMS.SHUTDOWN_TIMER) {
   await SIM_PARAMS.SHUTDOWN_TIMER();
-  await restart();
+  if (IS_REALTIME === false) {
+    await restart();
+  }
 }
 
 if (SIM_PARAMS.UNFINALIZED_BLOCKS === 0) {
@@ -1555,7 +1530,7 @@ console.log("Updating metadata");
 
 await DB.update(metadata).set({ success: true }).where(eq(metadata.id, UUID));
 
-await APP_DB_CLIENT.end();
-await DB_CLIENT.end();
+// await APP_DB_CLIENT.end();
+// await DB_CLIENT.end();
 
 process.exit(0);
