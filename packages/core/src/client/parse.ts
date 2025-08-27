@@ -58,7 +58,6 @@ export const validateQuery = async (
   };
 
   if (parseResult.error !== null) {
-    console.log(parseResult.error);
     throw new Error(parseResult.error);
   }
 
