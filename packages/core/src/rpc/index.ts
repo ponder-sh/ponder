@@ -521,7 +521,10 @@ export const createRpc = ({
             ws.on("message", (data: Buffer) => {
               try {
                 const msg = JSON.parse(data.toString());
-                if (msg.method === "eth_subscription") {
+                if (
+                  msg.method === "eth_subscription" &&
+                  msg.params.subscription === subscriptionId
+                ) {
                   onBlock(standardizeBlock(msg.params.result, true));
 
                   common.logger.debug({
@@ -593,10 +596,10 @@ export const createRpc = ({
                 webSocketErrorCount += 1;
               }
 
-              if (ws && ws.readyState !== ws.OPEN) {
-                resolve();
+              if (ws && ws.readyState === ws.OPEN) {
+                ws.close();
               } else {
-                ws?.close();
+                resolve();
               }
             });
 
