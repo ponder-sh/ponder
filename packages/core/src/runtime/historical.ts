@@ -22,7 +22,7 @@ import {
 import { formatPercentage } from "@/utils/format.js";
 import {
   bufferAsyncGenerator,
-  // mergeAsyncGenerators,
+  mergeAsyncGenerators,
 } from "@/utils/generators.js";
 import {
   type Interval,
@@ -307,7 +307,7 @@ export function getHistoricalEventsMultichain(params: {
   syncStore: SyncStore;
 }): AsyncGenerator<{ events: RawEvent[] }> {
   const isCatchup = false;
-  const perChainCursor = new Map<Chain, string>();
+  // const perChainCursor = new Map<Chain, string>();
 
   // while (true) {
   const eventGenerators = Array.from(params.perChainSync.entries()).map(
@@ -329,51 +329,50 @@ export function getHistoricalEventsMultichain(params: {
         syncProgress.getCheckpoint({ tag: "finalized" }),
         syncProgress.getCheckpoint({ tag: "end" }),
       );
-      let from: string;
 
-      if (isCatchup === false) {
-        // In order to speed up the "extract" phase when there is a crash recovery,
-        // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
-        // is defined.
+      // if (isCatchup === false) {
+      // In order to speed up the "extract" phase when there is a crash recovery,
+      // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
+      // is defined.
 
-        // if (crashRecoveryCheckpoint === undefined) {
-        from = syncProgress.getCheckpoint({ tag: "start" });
-        // } else if (
-        //   Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) ===
-        //   chain.id
-        // ) {
-        //   from = crashRecoveryCheckpoint;
-        // } else {
-        //   const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
-        //     chainId: chain.id,
-        //     timestamp: Number(
-        //       decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
-        //     ),
-        //   });
+      // if (crashRecoveryCheckpoint === undefined) {
+      const from = syncProgress.getCheckpoint({ tag: "start" });
+      // } else if (
+      //   Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) ===
+      //   chain.id
+      // ) {
+      //   from = crashRecoveryCheckpoint;
+      // } else {
+      //   const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
+      //     chainId: chain.id,
+      //     timestamp: Number(
+      //       decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
+      //     ),
+      //   });
 
-        //   if (fromBlock === undefined) {
-        //     from = syncProgress.getCheckpoint({ tag: "start" });
-        //   } else {
-        //     from = encodeCheckpoint({
-        //       ...ZERO_CHECKPOINT,
-        //       blockNumber: fromBlock.number,
-        //       blockTimestamp: fromBlock.timestamp,
-        //       chainId: BigInt(chain.id),
-        //     });
-        //   }
-        // }
-      } else {
-        const cursor = perChainCursor.get(chain)!;
+      //   if (fromBlock === undefined) {
+      //     from = syncProgress.getCheckpoint({ tag: "start" });
+      //   } else {
+      //     from = encodeCheckpoint({
+      //       ...ZERO_CHECKPOINT,
+      //       blockNumber: fromBlock.number,
+      //       blockTimestamp: fromBlock.timestamp,
+      //       chainId: BigInt(chain.id),
+      //     });
+      //   }
+      // }
+      // } else {
+      //   const cursor = perChainCursor.get(chain)!;
 
-        from = encodeCheckpoint({
-          ...ZERO_CHECKPOINT,
-          blockTimestamp: decodeCheckpoint(cursor).blockTimestamp,
-          chainId: decodeCheckpoint(cursor).chainId,
-          blockNumber: decodeCheckpoint(cursor).blockNumber + 1n,
-        });
+      //   from = encodeCheckpoint({
+      //     ...ZERO_CHECKPOINT,
+      //     blockTimestamp: decodeCheckpoint(cursor).blockTimestamp,
+      //     chainId: decodeCheckpoint(cursor).chainId,
+      //     blockNumber: decodeCheckpoint(cursor).blockNumber + 1n,
+      //   });
 
-        if (from > to) return;
-      }
+      //   if (from > to) return;
+      // }
 
       return getLocalEventGenerator({
         common: params.common,
@@ -425,7 +424,7 @@ export function getHistoricalEventsMultichain(params: {
     },
   );
 
-  return eventGenerators[0]!;
+  return mergeAsyncGenerators(eventGenerators);
 
   // for await (const { events, checkpoint } of mergeAsyncGenerators(
   //   eventGenerators,
