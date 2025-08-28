@@ -1,6 +1,8 @@
 import { onchainTable } from "@/index.js";
 import { bench, run } from "mitata";
 import {
+  denormalizeColumn,
+  denormalizeRow,
   getCacheKey,
   getPrimaryKeyCache,
   normalizeColumn,
@@ -20,7 +22,17 @@ bench("normalizeColumn", () => {
 
 // 97.69 ns/iter
 bench("normalizeRow", () => {
-  normalizeRow(table, { address: "0x123" }, false);
+  normalizeRow(table, { address: "0x123", balance: 1n }, false);
+}).gc("inner");
+
+// 2.56 ns/iter
+bench("denormalizeColumn", () => {
+  denormalizeColumn(table.address, "0x123");
+}).gc("inner");
+
+// 77.15 ns/iter
+bench("denormalizeRow", () => {
+  denormalizeRow(table, { address: "0x123", balance: "1" });
 }).gc("inner");
 
 // 39.77 ns/iter

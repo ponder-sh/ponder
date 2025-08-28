@@ -32,6 +32,7 @@ import {
   recoverProfilePattern,
 } from "./profile.js";
 import {
+  denormalizeRow,
   getCacheKey,
   getPrimaryKeyCache,
   getWhereCondition,
@@ -428,7 +429,10 @@ export const createIndexingCache = ({
           table: getTableName(table),
           type: cache.get(table)!.isCacheComplete ? "complete" : "hit",
         });
-        return structuredClone(bufferEntry.row);
+        return denormalizeRow(
+          table,
+          JSON.parse(JSON.stringify(bufferEntry.row)),
+        );
       }
 
       const entry = cache.get(table)!.cache.get(ck);
@@ -445,7 +449,9 @@ export const createIndexingCache = ({
           table: getTableName(table),
           type: cache.get(table)!.isCacheComplete ? "complete" : "hit",
         });
-        return structuredClone(entry);
+        return entry === null
+          ? null
+          : denormalizeRow(table, JSON.parse(JSON.stringify(entry)));
       }
 
       cache.get(table)!.diskReads++;
@@ -473,7 +479,17 @@ export const createIndexingCache = ({
         )
         .then((res) => (res.length === 0 ? null : res[0]!))
         .then((row) => {
-          cache.get(table)!.cache.set(ck, structuredClone(row));
+          cache
+            .get(table)!
+            .cache.set(
+              ck,
+              row === null
+                ? null
+                : denormalizeRow(
+                    table,
+                    JSON.parse(JSON.stringify(normalizeRow(table, row, false))),
+                  ),
+            );
 
           // Note: the size is not recorded because it is not possible
           // to miss the cache when in the "full in-memory" mode
@@ -496,17 +512,17 @@ export const createIndexingCache = ({
 
       if (isUpdate) {
         updateBuffer.get(table)!.set(ck, {
-          row: structuredClone(row),
+          row: JSON.parse(JSON.stringify(row)),
           metadata: { event },
         });
       } else {
         insertBuffer.get(table)!.set(ck, {
-          row: structuredClone(row),
+          row: JSON.parse(JSON.stringify(row)),
           metadata: { event },
         });
       }
 
-      return row;
+      return denormalizeRow(table, row);
     },
     async delete({ table, key }) {
       const ck = getCacheKey(table, key, primaryKeyCache);
