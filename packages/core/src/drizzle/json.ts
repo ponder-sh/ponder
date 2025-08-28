@@ -1,4 +1,4 @@
-import { BigIntSerializationError, getBaseError } from "@/internal/errors.js";
+import { type BaseError, BigIntSerializationError } from "@/internal/errors.js";
 import { type ColumnBaseConfig, entityKind } from "drizzle-orm";
 import type {
   ColumnBuilderBaseConfig,
@@ -54,10 +54,10 @@ export class PgJson<
     try {
       return JSON.stringify(value);
     } catch (_error) {
-      let error = getBaseError(_error);
+      let error = _error as Error;
       if (error?.message?.includes("Do not know how to serialize a BigInt")) {
         error = new BigIntSerializationError(error.message);
-        error.meta.push(
+        (error as BaseError).meta.push(
           "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/api-reference/ponder-utils#replacebigints",
         );
       }
@@ -129,10 +129,10 @@ export class PgJsonb<
     try {
       return JSON.stringify(value);
     } catch (_error) {
-      let error = getBaseError(_error);
+      let error = _error as Error;
       if (error?.message?.includes("Do not know how to serialize a BigInt")) {
         error = new BigIntSerializationError(error.message);
-        error.meta.push(
+        (error as BaseError).meta.push(
           "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/api-reference/ponder-utils#replacebigints",
         );
       }

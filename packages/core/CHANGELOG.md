@@ -1,5 +1,55 @@
 # ponder
 
+## 0.12.16
+
+### Patch Changes
+
+- [#2004](https://github.com/ponder-sh/ponder/pull/2004) [`769d8a0`](https://github.com/ponder-sh/ponder/commit/769d8a0f1a0eb91e69c48cdecef079038ac85441) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for validating `@ponder/client` queries with window defintions. Fixed the error `WindowDef not supported`.
+
+## 0.12.15
+
+### Patch Changes
+
+- [#2001](https://github.com/ponder-sh/ponder/pull/2001) [`f432c8a`](https://github.com/ponder-sh/ponder/commit/f432c8a1524536a31cc7545bd7216fc8c50a4446) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved error logs when RPC responses are invalid.
+
+## 0.12.14
+
+### Patch Changes
+
+- [#1997](https://github.com/ponder-sh/ponder/pull/1997) [`0839a2e`](https://github.com/ponder-sh/ponder/commit/0839a2edc66d58702611f2055fa677346161fcd7) Thanks [@kyscott18](https://github.com/kyscott18)! - Improve historical indexing performance with faster abi decoding.
+
+## 0.12.13
+
+### Patch Changes
+
+- [#1998](https://github.com/ponder-sh/ponder/pull/1998) [`7aa3bb3`](https://github.com/ponder-sh/ponder/commit/7aa3bb303787a9fa40cbfcfd8b6aafee522e67dc) Thanks [@kyscott18](https://github.com/kyscott18)! - Remove rpc calls from `ponder serve` build step.
+
+## 0.12.12
+
+### Patch Changes
+
+- [#1984](https://github.com/ponder-sh/ponder/pull/1984) [`09c7ccd`](https://github.com/ponder-sh/ponder/commit/09c7ccde1615a33fb78f56a7ab25ed3af35520fb) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved `db.sql` performance.
+
+- [#1990](https://github.com/ponder-sh/ponder/pull/1990) [`77eea0d`](https://github.com/ponder-sh/ponder/commit/77eea0d168a429fbde253578d9c8ea520525e21d) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused apps using pglite to deadlock.
+
+## 0.12.11
+
+### Patch Changes
+
+- [`b5d73c8`](https://github.com/ponder-sh/ponder/commit/b5d73c8a3502d2dab901b79a7981b432bf0bfd6e) Thanks [@kyscott18](https://github.com/kyscott18)! - Improve historical indexing performance for tables with string-concatenated primary keys.
+
+## 0.12.10
+
+### Patch Changes
+
+- [`a426e07`](https://github.com/ponder-sh/ponder/commit/a426e072a5ae44288dade27b7492d0065c59504e) Thanks [@typedarray](https://github.com/typedarray)! - Release avoid `0.11` patch holding `latest` tag on NPM.
+
+## 0.12.9
+
+### Patch Changes
+
+- [#1981](https://github.com/ponder-sh/ponder/pull/1981) [`54ae1d5`](https://github.com/ponder-sh/ponder/commit/54ae1d50f64440d280cd9e84914d6609f50d3a7c) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug causing the error `TypeError: qb.wrap is not a function`.
+
 ## 0.12.8
 
 ### Patch Changes

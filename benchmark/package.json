@@ -1,0 +1,15 @@
+{
+  "name": "ponder-benchmark",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "benchmark": "bun run src/index.ts",
+    "create:app": "bun run src/create-app.ts"
+  },
+  "devDependencies": {
+    "commander": "^12.0.0",
+    "drizzle-orm": "0.41.0",
+    "pg": "^8.15.6",
+    "ponder": "workspace:*"
+  }
+}

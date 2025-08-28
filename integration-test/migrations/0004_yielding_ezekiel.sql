@@ -1,0 +1,1 @@
+CREATE INDEX "eth_getBlock_chain_id_hash_index" ON "rpc_cache"."eth_getBlock" USING btree ("chain_id","hash");

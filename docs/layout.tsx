@@ -3,10 +3,9 @@ import { DropdownMenu } from "radix-ui";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router";
-import type { SidebarItem } from "vocs";
 import pkg from "../packages/core/package.json";
 import { cn } from "./components/utils";
-import { sidebar } from "./sidebar";
+import { getBestSubpathForVersion, getCanonicalSubpath } from "./sidebar";
 
 const useIsomorphicLayoutEffect =
   typeof window === "undefined" ? useEffect : useLayoutEffect;
@@ -103,6 +102,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
 const versions = [
   {
+    key: "latest",
     label: "Latest Version",
     activeLabel: "Latest Version",
     patch: pkg.version,
@@ -111,24 +111,30 @@ const versions = [
     isLatest: true,
   },
   {
+    key: "0.11",
+    label: "Version 0.11",
+    activeLabel: "Version 0.11",
+    patch: "0.11.43",
+    prefix: "/docs/0.11",
+    isLatest: false,
+  },
+  {
+    key: "0.10",
     label: "Version 0.10",
     activeLabel: "Version 0.10",
     patch: "0.10.26",
     prefix: "/docs/0.10",
-    home: "/get-started",
     isLatest: false,
   },
-];
+] as const;
 
 function VersionPickerDesktop() {
-  const { pathname } = useLocation();
+  const { pathname: subpath } = useLocation();
   const activeVersion = [...versions]
     .sort((a, b) => b.prefix.length - a.prefix.length)
-    .find((v) => pathname.startsWith(v.prefix));
+    .find((v) => subpath.startsWith(v.prefix));
 
   if (!activeVersion) return null;
-
-  const subpath = pathname.replace(activeVersion.prefix, "");
 
   return (
     <div className="pt-4">
@@ -158,9 +164,9 @@ function VersionPickerDesktop() {
             alignOffset={-1}
             className="z-50 w-[calc(var(--vocs-sidebar_width)-2*var(--vocs-sidebar\_horizontalPadding)+26px)] bg-[var(--vocs-color_background)] border border-[var(--vocs-color_border)] text-[length:var(--vocs-fontSize_14)] font-[var(--vocs-fontWeight_medium)] rounded-lg flex flex-col shadow-lg"
           >
-            {versions.map((v, index) => (
+            {versions.map((toVersion, index) => (
               <DropdownMenu.Item
-                key={v.prefix}
+                key={toVersion.prefix}
                 asChild
                 className={cn(
                   "pt-[10px] pb-[10px] px-[12px]",
@@ -172,11 +178,11 @@ function VersionPickerDesktop() {
                   },
                 )}
               >
-                <Link to={findBestPage(subpath, v)}>
+                <Link to={getBestSubpathForVersion(subpath, activeVersion.key, toVersion.key)}>
                   <div className="flex flex-col items-start gap-1 leading-tight">
-                    <span className="vocs_Sidebar_sectionTitle">{v.label}</span>
+                    <span className="vocs_Sidebar_sectionTitle">{toVersion.label}</span>
                     <span className="text-[11px] text-[var(--vocs-color_text3)]">
-                      {v.patch}
+                      {toVersion.patch}
                     </span>
                   </div>
                 </Link>
@@ -190,21 +196,19 @@ function VersionPickerDesktop() {
 }
 
 function VersionPickerMobile() {
-  const { pathname } = useLocation();
+  const { pathname: subpath } = useLocation();
   const activeVersion = [...versions]
     .sort((a, b) => b.prefix.length - a.prefix.length)
-    .find((v) => pathname.startsWith(v.prefix));
+    .find((v) => subpath.startsWith(v.prefix));
 
   if (!activeVersion) return null;
 
-  const subpath = pathname.replace(activeVersion.prefix, "");
-
   return (
     <div className="pt-2 flex flex-col">
-      {versions.map((v) => (
+      {versions.map((toVersion) => (
         <Link
-          to={findBestPage(subpath, v)}
-          key={v.prefix}
+          to={getBestSubpathForVersion(subpath, activeVersion.key, toVersion.key)}
+          key={toVersion.prefix}
           className={cn(
             "flex flex-row items-center justify-between",
             "pt-[10px] pb-[10px]",
@@ -213,12 +217,12 @@ function VersionPickerMobile() {
           )}
         >
           <div className="flex flex-col items-start gap-1 leading-tight">
-            <span className="vocs_Sidebar_sectionTitle">{v.label}</span>
+            <span className="vocs_Sidebar_sectionTitle">{toVersion.label}</span>
             <span className="text-[11px] text-[var(--vocs-color_text3)]">
-              {v.patch}
+              {toVersion.patch}
             </span>
           </div>
-          {v.label === activeVersion.label && <CheckIcon className="w-4 h-4" />}
+          {toVersion.label === activeVersion.label && <CheckIcon className="w-4 h-4" />}
         </Link>
       ))}
     </div>
@@ -232,6 +236,9 @@ function OutdatedVersionCallout() {
     .find((v) => pathname.startsWith(v.prefix));
 
   if (activeVersion === undefined || activeVersion.isLatest) return null;
+
+  const latestHref = getCanonicalSubpath(pathname)
+  const latestAnchorTag = latestHref ? <> Visit the <a className="vocs_Anchor" href={latestHref}>latest version</a> of this page.</> : null
 
   return (
     <aside className="vocs_Aside vocs_Callout vocs_Callout_warning">
@@ -253,48 +260,11 @@ function OutdatedVersionCallout() {
         </svg>
       </div>
       <div className="vocs_Callout_content">
-        <p className="vocs_Paragraph">
-          You are viewing the documentation for an outdated version of Ponder.
+      <p className="vocs_Paragraph">
+          You are viewing the documentation for an outdated version of Ponder.{' '}
+          {latestAnchorTag}
         </p>
       </div>
     </aside>
   );
-}
-
-function findBestPage(
-  subpath: string,
-  targetVersion: (typeof versions)[number],
-): string {
-  const targetFullPath = targetVersion.prefix + subpath;
-
-  // Ensure the prefix key for the sidebar has a trailing slash
-  const sidebarKey = targetVersion.prefix.endsWith("/")
-    ? targetVersion.prefix
-    : `${targetVersion.prefix}/`;
-
-  // @ts-ignore
-  const versionSidebar = sidebar[sidebarKey] as SidebarItem[];
-
-  function searchItems(items: SidebarItem[] | undefined): string | null {
-    if (!items) return null;
-    for (const item of items) {
-      if (item.link && item.link === targetFullPath) {
-        return item.link;
-      }
-      if (item.items) {
-        const found = searchItems(item.items);
-        if (found) return found;
-      }
-    }
-    return null;
-  }
-
-  if (versionSidebar) {
-    const foundPage = searchItems(versionSidebar);
-    if (foundPage) {
-      return foundPage;
-    }
-  }
-
-  return `${targetVersion.prefix}${targetVersion.home}`;
 }

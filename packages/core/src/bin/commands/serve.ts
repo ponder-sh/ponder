@@ -101,16 +101,8 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const indexingResult = await build.executeIndexingFunctions();
-  if (indexingResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
-    return;
-  }
-
-  const indexingBuildResult = await build.compileIndexing({
+  const indexingBuildResult = build.compileIndexingConfig({
     configResult: configResult.result,
-    schemaResult: schemaResult.result,
-    indexingResult: indexingResult.result,
   });
 
   if (indexingBuildResult.status === "error") {
@@ -164,10 +156,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     name: "lifecycle:session_start",
     properties: {
       cli_command: "serve",
-      ...buildPayload({
-        preBuild,
-        schemaBuild,
-      }),
+      ...buildPayload({ preBuild, schemaBuild }),
     },
   });
 

@@ -1,22 +1,32 @@
 import { remarkMermaid } from "@theguild/remark-mermaid";
 import { defineConfig } from "vocs";
-import { sidebar } from "./sidebar";
+import { getCanonicalSubpath, sidebar } from "./sidebar";
 
 const baseUrl =
   process.env.VERCEL_ENV === "production"
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : `https://${process.env.VERCEL_URL}`;
+    : process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "http://localhost:5173";
 
 export default defineConfig({
   title: "Ponder",
   titleTemplate: "%s – Ponder",
-  banner: { 
+  banner: {
     // @ts-expect-error
-    dismissable: 'false', 
-    backgroundColor: 'var(--vocs-color_heading)', 
-    textColor: 'var(--vocs-color_background)',
-    content: <div>Introducing <a href="https://marble.xyz" target="_blank">Marble</a>, the company behind Ponder</div>,
-    height: '36px', 
+    dismissable: "false",
+    backgroundColor: "var(--vocs-color_heading)",
+    textColor: "var(--vocs-color_background)",
+    content: (
+      <div>
+        Introducing{" "}
+        <a href="https://marble.xyz" target="_blank">
+          Marble
+        </a>
+        , the company behind Ponder
+      </div>
+    ),
+    height: "36px",
   },
   description:
     "Ponder is an open-source backend framework for robust, performant, and maintainable crypto apps.",
@@ -63,11 +73,18 @@ export default defineConfig({
   search: {
     boostDocument(documentId) {
       if (documentId.startsWith("pages/docs/0.10")) return 0;
+      if (documentId.startsWith("pages/docs/0.11")) return 0;
       if (documentId.startsWith("pages/docs/api-reference")) return 0.25;
       return 1;
     },
   },
-  head() {
+  /**
+   * The `path` argument looks like '/docs/0.11/schema/relations' or '/docs/advanced/observability'.
+   * To improve SEO and LLM indexing, we want to add canonical tags to the head for any non-latest pages.
+   */
+  head({ path }) {
+    const canonicalSubpath = getCanonicalSubpath(path);
+
     return (
       <>
         <link rel="preload" as="image" href="/hero.png" />
@@ -79,6 +96,9 @@ export default defineConfig({
             referrerPolicy="no-referrer-when-downgrade"
           />
         </noscript>
+        {canonicalSubpath !== null ? (
+          <link rel="canonical" href={`${baseUrl}${canonicalSubpath}`} />
+        ) : null}
       </>
     );
   },

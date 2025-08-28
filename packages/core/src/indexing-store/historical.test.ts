@@ -488,6 +488,10 @@ test("delete", async (context) => {
 });
 
 test("sql", async (context) => {
+  if (context.databaseConfig.kind === "pglite_test") {
+    return;
+  }
+
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -734,6 +738,48 @@ test("missing rows", async (context) => {
           .values({ address: zeroAddress }),
     ).rejects.toThrow();
   });
+});
+
+test("unawaited promise", async (context) => {
+  const { database } = await setupDatabaseServices(context);
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount: {},
+  });
+
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  indexingCache.qb = database.userQB;
+  indexingStore.qb = database.userQB;
+
+  indexingStore.isProcessingEvents = false;
+
+  const promise = indexingStore
+    .insert(schema.account)
+    .values({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: 90n,
+    })
+    .onConflictDoUpdate({
+      balance: 16n,
+    });
+
+  await expect(promise!).rejects.toThrowError();
 });
 
 test("notNull", async (context) => {

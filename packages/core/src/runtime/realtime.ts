@@ -780,7 +780,7 @@ export async function* getRealtimeEventGenerator(params: {
       yield { chain: params.chain, event };
     }
 
-    if (params.syncProgress.isFinalized() && params.syncProgress.isEnd()) {
+    if (block.number === params.syncProgress.end?.number) {
       // The realtime service can be killed if `endBlock` is
       // defined has become finalized.
 

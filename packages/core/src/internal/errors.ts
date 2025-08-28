@@ -1,11 +1,3 @@
-export function getBaseError(err: any) {
-  if (err instanceof BaseError) return err;
-  if (err instanceof Error) return new BaseError(err.message);
-  if (typeof err?.message === "string") return new BaseError(err.message);
-  if (typeof err === "string") return new BaseError(err);
-  return new BaseError("unknown error");
-}
-
 /** Base class for all known errors. */
 export class BaseError extends Error {
   override name = "BaseError";
@@ -213,3 +205,12 @@ export const nonRetryableUserErrorNames = [
   RawSqlError,
   IndexingFunctionError,
 ].map((err) => err.name);
+
+export class RpcProviderError extends BaseError {
+  override name = "RpcProviderError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, RpcProviderError.prototype);
+  }
+}
