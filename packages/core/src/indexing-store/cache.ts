@@ -1,5 +1,3 @@
-import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
 import type { QB } from "@/database/queryBuilder.js";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
@@ -225,30 +223,49 @@ const getBytes = (value: unknown) => {
 const ESCAPE_REGEX = /([\\\b\f\n\r\t\v])/g;
 
 export const getCopyText = (table: Table, rows: Row[]) => {
+  let result = "";
   const columns = Object.entries(getTableColumns(table));
-  const results = new Array(rows.length);
   for (let i = 0; i < rows.length; i++) {
+    const isLastRow = i === rows.length - 1;
     const row = rows[i]!;
-    const values = new Array(columns.length);
     for (let j = 0; j < columns.length; j++) {
+      const isLastColumn = j === columns.length - 1;
       const [columnName, column] = columns[j]!;
       let value = row[columnName];
-      if (value === null || value === undefined) {
-        values[j] = "\\N";
-      } else {
-        if (column.mapToDriverValue !== undefined) {
-          value = column.mapToDriverValue(value);
-        }
+      if (isLastColumn) {
         if (value === null || value === undefined) {
-          values[j] = "\\N";
+          result += "\\N";
         } else {
-          values[j] = String(value).replace(ESCAPE_REGEX, "\\$1");
+          if (column.mapToDriverValue !== undefined) {
+            value = column.mapToDriverValue(value);
+            if (value === null || value === undefined) {
+              result += "\\N";
+            } else {
+              result += `${String(value).replace(ESCAPE_REGEX, "\\$1")}`;
+            }
+          }
+        }
+      } else {
+        if (value === null || value === undefined) {
+          result += "\\N\t";
+        } else {
+          if (column.mapToDriverValue !== undefined) {
+            value = column.mapToDriverValue(value);
+          }
+          if (value === null || value === undefined) {
+            result += "\\N\t";
+          } else {
+            result += `${String(value).replace(ESCAPE_REGEX, "\\$1")}\t`;
+          }
         }
       }
     }
-    results[i] = values.join("\t");
+    if (isLastRow === false) {
+      result += "\n";
+    }
   }
-  return results.join("\n");
+
+  return result;
 };
 
 export const getCopyHelper = (qb: QB) => {
@@ -276,15 +293,19 @@ export const getCopyHelper = (qb: QB) => {
             table,
           )}"`
         : `"${getTableName(table)}"`;
-      await pipeline(
-        Readable.from(text),
-        qb.$client.query(copy.from(`COPY ${target} FROM STDIN`)),
-      )
-        // Note: `TransactionError` is applied because the query
-        // uses the low-level `$client.query` method.
-        .catch((error) => {
-          throw new CopyFlushError(error.message);
-        });
+      const copyStream = qb.$client.query(
+        copy.from(`COPY ${target} FROM STDIN`),
+      );
+
+      await new Promise((resolve, reject) => {
+        copyStream.on("finish", resolve);
+        copyStream.on("error", reject);
+
+        copyStream.write(text);
+        copyStream.end();
+      }).catch((error) => {
+        throw new CopyFlushError(error.message);
+      });
     };
   }
 };
