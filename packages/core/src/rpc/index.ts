@@ -43,7 +43,6 @@ export type Rpc = {
   subscribe: (params: {
     onBlock: (block: SyncBlock | SyncBlockHeader) => Promise<boolean>;
     onError: (error: Error) => void;
-    polling?: boolean;
   }) => void;
   unsubscribe: () => Promise<void>;
 };
@@ -464,160 +463,169 @@ export const createRpc = ({
   const rpc: Rpc = {
     // @ts-ignore
     request: queue.add,
-    subscribe({ onBlock, onError, polling = false }) {
-      let isFetching = false;
+    subscribe({ onBlock, onError }) {
+      (async () => {
+        while (true) {
+          if (isUnsubscribed) return;
+          let isFetching = false;
 
-      if (polling || chain.ws === undefined) {
-        common.logger.debug({
-          service: "rpc",
-          msg: `Created '${chain.name}' polling subscription`,
-        });
-
-        interval = setInterval(async () => {
-          if (isFetching) return;
-
-          isFetching = true;
-
-          try {
-            const block = await _eth_getBlockByNumber(rpc, {
-              blockTag: "latest",
-            });
-            // Note: `onBlock` should never throw.
-            await onBlock(block);
-          } catch (error) {
-            onError(error as Error);
-          } finally {
-            isFetching = false;
-          }
-        }, chain.pollingInterval);
-        common.shutdown.add(() => {
-          clearInterval(interval);
-        });
-
-        return;
-      }
-
-      ws = new WebSocket(chain.ws);
-
-      ws.on("open", () => {
-        common.logger.debug({
-          service: "rpc",
-          msg: `Created '${chain.name}' websocket subscription`,
-        });
-
-        const subscriptionRequest = {
-          jsonrpc: "2.0",
-          id: 1,
-          method: "eth_subscribe",
-          params: ["newHeads"],
-        };
-
-        ws?.send(JSON.stringify(subscriptionRequest));
-      });
-
-      ws.on("message", (data: Buffer) => {
-        try {
-          const msg = JSON.parse(data.toString());
-          if (msg.method === "eth_subscription") {
-            onBlock(standardizeBlock(msg.params.result, true));
-
+          if (chain.ws === undefined || webSocketErrorCount >= RETRY_COUNT) {
             common.logger.debug({
               service: "rpc",
-              msg: `Received successful '${chain.name}' websocket subscription data`,
+              msg: `Created '${chain.name}' polling subscription`,
             });
-            webSocketErrorCount = 0;
-          } else if (msg.result) {
-            subscriptionId = msg.result;
-          } else if (msg.error) {
-            ws?.close();
 
-            if (webSocketErrorCount === RETRY_COUNT) {
-              common.logger.warn({
-                service: "rpc",
-                msg: `Failed '${chain.name}' websocket subscription after ${webSocketErrorCount + 1} consecutive errors. Switching to polling`,
-                error: msg.error as Error,
-              });
-            } else {
+            interval = setInterval(async () => {
+              if (isFetching) return;
+
+              isFetching = true;
+
+              try {
+                const block = await _eth_getBlockByNumber(rpc, {
+                  blockTag: "latest",
+                });
+                // Note: `onBlock` should never throw.
+                await onBlock(block);
+              } catch (error) {
+                onError(error as Error);
+              } finally {
+                isFetching = false;
+              }
+            }, chain.pollingInterval);
+            common.shutdown.add(() => {
+              clearInterval(interval);
+            });
+
+            return;
+          }
+
+          await new Promise<void>((resolve) => {
+            ws = new WebSocket(chain.ws!);
+
+            ws.on("open", () => {
               common.logger.debug({
                 service: "rpc",
-                msg: `Received '${chain.name}' websocket subscription error`,
-                error: msg.error as Error,
+                msg: `Created '${chain.name}' websocket subscription`,
               });
 
-              webSocketErrorCount += 1;
-            }
-          } else {
-            common.logger.debug({
-              service: "rpc",
-              msg: `Received unrecognized '${chain.name}' websocket message`,
-            });
-          }
-        } catch (error) {
-          ws?.close();
+              const subscriptionRequest = {
+                jsonrpc: "2.0",
+                id: 1,
+                method: "eth_subscribe",
+                params: ["newHeads"],
+              };
 
-          if (webSocketErrorCount >= RETRY_COUNT) {
-            common.logger.warn({
-              service: "rpc",
-              msg: `Failed '${chain.name}' websocket subscription after ${webSocketErrorCount + 1} consecutive errors. Switching to polling`,
-              error: error as Error,
-            });
-          } else {
-            common.logger.debug({
-              service: "rpc",
-              msg: `Received '${chain.name}' websocket subscription error`,
-              error: error as Error,
+              ws?.send(JSON.stringify(subscriptionRequest));
             });
 
-            webSocketErrorCount += 1;
-          }
-        }
-      });
+            ws.on("message", (data: Buffer) => {
+              try {
+                const msg = JSON.parse(data.toString());
+                if (msg.method === "eth_subscription") {
+                  onBlock(standardizeBlock(msg.params.result, true));
 
-      ws.on("close", async () => {
-        common.logger.debug({
-          service: "rpc",
-          msg: `Closed '${chain.name}' websocket connection`,
-        });
+                  common.logger.debug({
+                    service: "rpc",
+                    msg: `Received successful '${chain.name}' websocket subscription data`,
+                  });
+                  webSocketErrorCount = 0;
+                } else if (msg.result) {
+                  subscriptionId = msg.result;
+                } else if (msg.error) {
+                  if (webSocketErrorCount === RETRY_COUNT) {
+                    common.logger.warn({
+                      service: "rpc",
+                      msg: `Failed '${chain.name}' websocket subscription after ${webSocketErrorCount + 1} consecutive errors. Switching to polling`,
+                      error: msg.error as Error,
+                    });
+                  } else {
+                    common.logger.debug({
+                      service: "rpc",
+                      msg: `Received '${chain.name}' websocket subscription error`,
+                      error: msg.error as Error,
+                    });
 
-        ws = undefined;
-        if (isUnsubscribed) return;
+                    webSocketErrorCount += 1;
+                  }
 
-        if (webSocketErrorCount >= RETRY_COUNT) {
-          rpc.subscribe({ onBlock, onError, polling: true });
-        } else {
-          const duration = BASE_DURATION * 2 ** webSocketErrorCount;
+                  ws?.close();
+                } else {
+                  common.logger.debug({
+                    service: "rpc",
+                    msg: `Received unrecognized '${chain.name}' websocket message`,
+                  });
+                }
+              } catch (error) {
+                if (webSocketErrorCount >= RETRY_COUNT) {
+                  common.logger.warn({
+                    service: "rpc",
+                    msg: `Failed '${chain.name}' websocket subscription after ${webSocketErrorCount + 1} consecutive errors. Switching to polling`,
+                    error: error as Error,
+                  });
+                } else {
+                  common.logger.debug({
+                    service: "rpc",
+                    msg: `Received '${chain.name}' websocket subscription error`,
+                    error: error as Error,
+                  });
 
-          common.logger.debug({
-            service: "rpc",
-            msg: `Retrying '${chain.name}' websocket connection after ${duration} milliseconds`,
+                  webSocketErrorCount += 1;
+                }
+
+                ws?.close();
+              }
+            });
+
+            ws.on("error", async (error) => {
+              if (webSocketErrorCount >= RETRY_COUNT) {
+                common.logger.warn({
+                  service: "rpc",
+                  msg: `Failed '${chain.name}' websocket subscription after ${webSocketErrorCount + 1} consecutive errors. Switching to polling`,
+                  error,
+                });
+              } else {
+                common.logger.debug({
+                  service: "rpc",
+                  msg: `Received '${chain.name}' websocket subscription error`,
+                  error,
+                });
+
+                webSocketErrorCount += 1;
+              }
+
+              if (ws && ws.readyState !== ws.OPEN) {
+                resolve();
+              } else {
+                ws?.close();
+              }
+            });
+
+            ws.on("close", async () => {
+              common.logger.debug({
+                service: "rpc",
+                msg: `Closed '${chain.name}' websocket connection`,
+              });
+
+              ws = undefined;
+
+              if (isUnsubscribed || webSocketErrorCount >= RETRY_COUNT) {
+                resolve();
+              } else {
+                const duration = BASE_DURATION * 2 ** webSocketErrorCount;
+
+                common.logger.debug({
+                  service: "rpc",
+                  msg: `Retrying '${chain.name}' websocket connection after ${duration} milliseconds`,
+                });
+
+                await wait(duration);
+
+                resolve();
+              }
+            });
           });
-
-          await wait(duration);
-
-          // TODO(kyle) is this infinite recursion
-          rpc.subscribe({ onBlock, onError, polling: false });
         }
-      });
-
-      ws.on("error", async (error) => {
-        ws?.close();
-
-        if (webSocketErrorCount >= RETRY_COUNT) {
-          common.logger.warn({
-            service: "rpc",
-            msg: `Failed '${chain.name}' websocket subscription after ${webSocketErrorCount + 1} consecutive errors. Switching to polling`,
-            error,
-          });
-        } else {
-          common.logger.debug({
-            service: "rpc",
-            msg: `Received '${chain.name}' websocket subscription error`,
-            error,
-          });
-
-          webSocketErrorCount += 1;
-        }
-      });
+      })();
     },
     async unsubscribe() {
       clearInterval(interval);
