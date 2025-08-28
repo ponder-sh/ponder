@@ -112,19 +112,6 @@ export const SIM_PARAMS = {
   ),
   REALTIME_DELAY_RATE: pick([0, 0.4, 0.8], "realtime-delay-rate"),
   UNFINALIZED_BLOCKS: pick([0, 0, 100, 100, 1000, 1100], "unfinalized-blocks"),
-  SHUTDOWN_TIMER:
-    APP_ID === "super-assessment"
-      ? undefined
-      : pick(
-          [
-            undefined,
-            () => new Promise((resolve) => setTimeout(resolve, 500)),
-            () => new Promise((resolve) => setTimeout(resolve, 1000)),
-            () => new Promise((resolve) => setTimeout(resolve, 2000)),
-            () => new Promise((resolve) => setTimeout(resolve, 5000)),
-          ],
-          "shutdown",
-        ),
   REALTIME_SHUTDOWN_RATE:
     APP_ID === "super-assessment"
       ? undefined
@@ -1385,13 +1372,6 @@ export const restart = async () => {
     onBuild,
   });
 };
-
-if (SIM_PARAMS.SHUTDOWN_TIMER) {
-  await SIM_PARAMS.SHUTDOWN_TIMER();
-  if (IS_REALTIME === false) {
-    await restart();
-  }
-}
 
 if (SIM_PARAMS.UNFINALIZED_BLOCKS === 0) {
   while (true) {
