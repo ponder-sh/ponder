@@ -361,7 +361,7 @@ export const defaultBlockFilterInclude: Exclude<
   "block.transactionsRoot",
 ];
 
-const defaultTransactionInclude: `transaction.${keyof InternalTransaction}`[] =
+export const defaultTransactionInclude: `transaction.${keyof InternalTransaction}`[] =
   [
     "transaction.from",
     "transaction.gas",
@@ -394,7 +394,7 @@ export const defaultTransactionReceiptInclude: `transactionReceipt.${keyof Inter
     "transactionReceipt.type",
   ];
 
-const defaultTraceInclude: `trace.${keyof InternalTrace}`[] = [
+export const defaultTraceInclude: `trace.${keyof InternalTrace}`[] = [
   "trace.traceIndex",
   "trace.type",
   "trace.from",

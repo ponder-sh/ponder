@@ -16,9 +16,21 @@ import type {
   Schema,
   SetupEvent,
 } from "@/internal/types.js";
-import { isAddressFactory } from "@/runtime/filter.js";
+import {
+  defaultBlockFilterInclude,
+  defaultTraceInclude,
+  defaultTransactionInclude,
+  defaultTransactionReceiptInclude,
+  isAddressFactory,
+} from "@/runtime/filter.js";
 import type { Db } from "@/types/db.js";
-import type { Block, Log, Trace, Transaction } from "@/types/eth.js";
+import type {
+  Block,
+  Log,
+  Trace,
+  Transaction,
+  TransactionReceipt,
+} from "@/types/eth.js";
 import type { DeepPartial } from "@/types/utils.js";
 import {
   ZERO_CHECKPOINT,
@@ -354,6 +366,120 @@ export const createIndexing = ({
       updateCompletedEvents();
     },
   };
+};
+
+const defaultLogInclude: `log.${keyof Log}`[] = [
+  "log.address",
+  "log.data",
+  "log.logIndex",
+  "log.removed",
+  "log.topics",
+];
+
+const accessCount: {
+  [prop: string]: number;
+} = {};
+
+const logProxyHandler: ProxyHandler<Log> = {
+  get(obj, prop, receiver) {
+    if (typeof prop === "symbol") return Reflect.get(obj, prop, receiver);
+
+    const key: `log.${keyof Log}` = `log.${prop as keyof Log}`;
+    const isCountable =
+      typeof prop === "string" && defaultLogInclude.includes(key);
+
+    if (isCountable) {
+      const key = `log.${prop}`;
+      accessCount[key] =
+        accessCount[key] !== undefined ? accessCount[key] + 1 : 1;
+    }
+
+    return Reflect.get(obj, prop, receiver);
+  },
+};
+
+const transactionProxyHandler: ProxyHandler<Transaction> = {
+  get(obj, prop, receiver) {
+    if (typeof prop === "symbol") return Reflect.get(obj, prop, receiver);
+    const key: `transaction.${keyof Transaction}` = `transaction.${prop as keyof Transaction}`;
+    const isCountable =
+      typeof prop === "string" && defaultTransactionInclude.includes(key);
+
+    if (isCountable) {
+      accessCount[key] =
+        accessCount[key] !== undefined ? accessCount[key] + 1 : 1;
+    }
+
+    return Reflect.get(obj, prop, receiver);
+  },
+};
+
+const transactionReceiptProxyHandler: ProxyHandler<TransactionReceipt> = {
+  get(obj, prop, receiver) {
+    if (typeof prop === "symbol") return Reflect.get(obj, prop, receiver);
+    const key: `transactionReceipt.${keyof TransactionReceipt}` = `transactionReceipt.${prop as keyof TransactionReceipt}`;
+    const isCountable =
+      typeof prop === "string" &&
+      defaultTransactionReceiptInclude.includes(key);
+
+    if (isCountable) {
+      accessCount[key] =
+        accessCount[key] !== undefined ? accessCount[key] + 1 : 1;
+    }
+
+    return Reflect.get(obj, prop, receiver);
+  },
+};
+
+const blockProxyHandler: ProxyHandler<Block> = {
+  get(obj, prop, receiver) {
+    if (typeof prop === "symbol") return Reflect.get(obj, prop, receiver);
+    const key: `block.${keyof Block}` = `block.${prop as keyof Block}`;
+    const isCountable =
+      typeof prop === "string" && defaultBlockFilterInclude.includes(key);
+
+    if (isCountable) {
+      accessCount[key] =
+        accessCount[key] !== undefined ? accessCount[key] + 1 : 1;
+    }
+
+    return Reflect.get(obj, prop, receiver);
+  },
+};
+
+const traceProxyHandler: ProxyHandler<Trace> = {
+  get(obj, prop, receiver) {
+    if (typeof prop === "symbol") return Reflect.get(obj, prop, receiver);
+    const key: `trace.${keyof Trace}` = `trace.${prop as keyof Trace}`;
+    const isCountable =
+      typeof prop === "string" && defaultTraceInclude.includes(key);
+
+    if (isCountable) {
+      accessCount[key] =
+        accessCount[key] !== undefined ? accessCount[key] + 1 : 1;
+    }
+
+    return Reflect.get(obj, prop, receiver);
+  },
+};
+
+export const toProxy = (event: Event["event"]): Event["event"] => {
+  return {
+    ...event,
+    log: "log" in event ? new Proxy(event.log, logProxyHandler) : undefined,
+    block:
+      "block" in event ? new Proxy(event.block, blockProxyHandler) : undefined,
+    transaction:
+      "transaction" in event
+        ? new Proxy(event.transaction, transactionProxyHandler)
+        : undefined,
+    transactionReceipt:
+      "transactionReceipt" in event && event.transactionReceipt !== undefined
+        ? new Proxy(event.transactionReceipt, transactionReceiptProxyHandler)
+        : undefined,
+    trace:
+      "trace" in event ? new Proxy(event.trace, traceProxyHandler) : undefined,
+  } as Event["event"];
 };
 
 export const toErrorMeta = (
