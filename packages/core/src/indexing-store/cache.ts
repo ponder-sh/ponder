@@ -19,7 +19,6 @@ import { dedupe } from "@/utils/dedupe.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import {
-  type Column,
   type Table,
   getTableColumns,
   getTableName,
@@ -34,7 +33,12 @@ import {
   recordProfilePattern,
   recoverProfilePattern,
 } from "./profile.js";
-import { getCacheKey, getWhereCondition, normalizeRow } from "./utils.js";
+import {
+  getCacheKey,
+  getPrimaryKeyCache,
+  getWhereCondition,
+  normalizeRow,
+} from "./utils.js";
 
 export type IndexingCache = {
   /**
@@ -325,7 +329,6 @@ export const createIndexingCache = ({
 }): IndexingCache => {
   let event: Event | undefined;
   let qb: QB = undefined!;
-  const primaryKeyCache = new Map<Table, [string, Column][]>();
 
   const cache: Cache = new Map();
   const insertBuffer: Buffer = new Map();
@@ -336,6 +339,7 @@ export const createIndexingCache = ({
   let isFlushRetry = false;
 
   const tables = Object.values(schema).filter(isTable);
+  const primaryKeyCache = getPrimaryKeyCache(tables);
 
   for (const table of tables) {
     cache.set(table, {
@@ -348,12 +352,6 @@ export const createIndexingCache = ({
     });
     insertBuffer.set(table, new Map());
     updateBuffer.set(table, new Map());
-
-    primaryKeyCache.set(table, []);
-    for (const { js } of getPrimaryKeyColumns(table)) {
-      // @ts-expect-error
-      primaryKeyCache.get(table)!.push([js, table[js]!]);
-    }
   }
 
   return {
@@ -490,7 +488,7 @@ export const createIndexingCache = ({
       return row;
     },
     async delete({ table, key }) {
-      const ck = getCacheKey(table, key);
+      const ck = getCacheKey(table, key, primaryKeyCache);
 
       const inInsertBuffer = insertBuffer.get(table)!.delete(ck);
       const inUpdateBuffer = updateBuffer.get(table)!.delete(ck);
@@ -997,7 +995,7 @@ export const createIndexingCache = ({
               const ev = (count * SAMPLING_RATE) / eventCount[event.name]!;
               if (ev > PREDICTION_THRESHOLD) {
                 const row = recoverProfilePattern(pattern, event);
-                const key = getCacheKey(table, row);
+                const key = getCacheKey(table, row, primaryKeyCache);
                 prediction.get(table)!.set(key, row);
               }
             }

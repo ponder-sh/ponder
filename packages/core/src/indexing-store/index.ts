@@ -1,5 +1,4 @@
 import type { QB } from "@/database/queryBuilder.js";
-import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { onchain } from "@/drizzle/onchain.js";
 import {
   InvalidStoreMethodError,
@@ -8,7 +7,7 @@ import {
 } from "@/internal/errors.js";
 import type { Schema } from "@/internal/types.js";
 import type { Db } from "@/types/db.js";
-import type { Table } from "drizzle-orm";
+import type { Column, Table } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import type { Row } from "./cache.js";
 
@@ -21,10 +20,12 @@ export const validateUpdateSet = (
   table: Table,
   set: Object,
   prev: Row,
-): Object => {
-  const primaryKeys = getPrimaryKeyColumns(table);
+  cache: Map<Table, [string, Column][]>,
+) => {
+  const primaryKeys = cache.get(table)!;
 
-  for (const { js } of primaryKeys) {
+  for (let i = 0; i < primaryKeys.length; i++) {
+    const [js] = primaryKeys[i]!;
     if (js in set) {
       // Note: Noop on the primary keys if they are identical, otherwise throw an error.
       if ((set as Row)[js] !== prev[js]) {
@@ -34,8 +35,6 @@ export const validateUpdateSet = (
       }
     }
   }
-
-  return set;
 };
 
 /** Throw an error if `table` is not an `onchainTable`. */
