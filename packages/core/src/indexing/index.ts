@@ -17,7 +17,6 @@ import type {
   SetupEvent,
 } from "@/internal/types.js";
 import {
-  defaultBlockFilterInclude,
   defaultBlockInclude,
   defaultLogInclude,
   defaultTraceInclude,
@@ -26,13 +25,7 @@ import {
   isAddressFactory,
 } from "@/runtime/filter.js";
 import type { Db } from "@/types/db.js";
-import type {
-  Block,
-  Log,
-  Trace,
-  Transaction,
-  TransactionReceipt,
-} from "@/types/eth.js";
+import type { Block, Log, Trace, Transaction } from "@/types/eth.js";
 import type { DeepPartial } from "@/types/utils.js";
 import {
   ZERO_CHECKPOINT,
@@ -373,9 +366,8 @@ export const createIndexing = ({
 const accessMetadata: {
   [eventName: string]: {
     eventCount: number;
-    latestAccess: {
-      [field: string]: number;
-    };
+    accessed: Set<string>;
+    resolved: boolean;
     logInclude: typeof defaultLogInclude;
     traceInclude: typeof defaultTraceInclude;
     blockInclude: typeof defaultBlockInclude;
@@ -384,120 +376,89 @@ const accessMetadata: {
   };
 } = {};
 
-const logProxyHandler = (eventName: string): ProxyHandler<Log> => {
+const proxyHandler = (
+  eventName: string,
+  type: "log" | "block" | "trace" | "transaction" | "transactionReceipt",
+): ProxyHandler<any> => {
   return {
     get(obj, prop, receiver) {
-      if (typeof prop === "symbol") return Reflect.get(obj, prop, receiver);
-      const key: `log.${keyof Log}` = `log.${prop as keyof Log}`;
-
-      if (typeof prop === "string" && defaultLogInclude.includes(key)) {
-        accessMetadata[eventName]!.latestAccess[key] =
-          accessMetadata[eventName]!.eventCount;
+      if (typeof prop === "string") {
+        const key = `${type}.${prop}`;
+        accessMetadata[eventName]!.accessed.add(key);
       }
-
       return Reflect.get(obj, prop, receiver);
     },
   };
 };
 
-const transactionProxyHandler = (
-  eventName: string,
-): ProxyHandler<Transaction> => ({
-  get(obj, prop, receiver) {
-    if (typeof prop === "symbol") return Reflect.get(obj, prop, receiver);
-    const key: `transaction.${keyof Transaction}` = `transaction.${prop as keyof Transaction}`;
-
-    if (typeof prop === "string" && defaultTransactionInclude.includes(key)) {
-      accessMetadata[eventName]!.latestAccess[key] =
-        accessMetadata[eventName]!.eventCount;
-    }
-
-    return Reflect.get(obj, prop, receiver);
-  },
-});
-
-const transactionReceiptProxyHandler = (
-  eventName: string,
-): ProxyHandler<TransactionReceipt> => ({
-  get(obj, prop, receiver) {
-    if (typeof prop === "symbol") return Reflect.get(obj, prop, receiver);
-    const key: `transactionReceipt.${keyof TransactionReceipt}` = `transactionReceipt.${prop as keyof TransactionReceipt}`;
-
-    if (
-      typeof prop === "string" &&
-      defaultTransactionReceiptInclude.includes(key)
-    ) {
-      accessMetadata[eventName]!.latestAccess[key] =
-        accessMetadata[eventName]!.eventCount;
-    }
-
-    return Reflect.get(obj, prop, receiver);
-  },
-});
-
-const blockProxyHandler = (eventName: string): ProxyHandler<Block> => ({
-  get(obj, prop, receiver) {
-    if (typeof prop === "symbol") return Reflect.get(obj, prop, receiver);
-    const key: `block.${keyof Block}` = `block.${prop as keyof Block}`;
-
-    if (typeof prop === "string" && defaultBlockInclude.includes(key)) {
-      accessMetadata[eventName]!.latestAccess[key] =
-        accessMetadata[eventName]!.eventCount;
-    }
-
-    return Reflect.get(obj, prop, receiver);
-  },
-});
-
-const traceProxyHandler = (eventName: string): ProxyHandler<Trace> => ({
-  get(obj, prop, receiver) {
-    if (typeof prop === "symbol") return Reflect.get(obj, prop, receiver);
-    const key: `trace.${keyof Trace}` = `trace.${prop as keyof Trace}`;
-
-    if (typeof prop === "string" && defaultTraceInclude.includes(key)) {
-      accessMetadata[eventName]!.latestAccess[key] =
-        accessMetadata[eventName]!.eventCount;
-    }
-
-    return Reflect.get(obj, prop, receiver);
-  },
-});
-
 export const toProxy = (event: Event): Event => {
-  if (event.name in accessMetadata === false) {
+  if (accessMetadata[event.name] === undefined) {
     accessMetadata[event.name] = {
       eventCount: 0,
-      latestAccess: {},
+      resolved: false,
+      accessed: new Set(),
       logInclude: defaultLogInclude,
       traceInclude: defaultTraceInclude,
-      blockInclude: defaultBlockFilterInclude,
+      blockInclude: defaultBlockInclude,
       transactionInclude: defaultTransactionInclude,
       transactionReceiptInclude: defaultTransactionReceiptInclude,
     };
+  }
+
+  if (
+    accessMetadata[event.name]!.resolved === false &&
+    accessMetadata[event.name]!.eventCount++ > 100
+  ) {
+    accessMetadata[event.name]!.resolved = true;
+    accessMetadata[event.name]!.logInclude = accessMetadata[
+      event.name
+    ]!.logInclude.filter((key) =>
+      accessMetadata[event.name]!.accessed.has(key),
+    );
+    accessMetadata[event.name]!.traceInclude = accessMetadata[
+      event.name
+    ]!.traceInclude.filter((key) =>
+      accessMetadata[event.name]!.accessed.has(key),
+    );
+    accessMetadata[event.name]!.blockInclude = accessMetadata[
+      event.name
+    ]!.blockInclude.filter((key) =>
+      accessMetadata[event.name]!.accessed.has(key),
+    );
+    accessMetadata[event.name]!.transactionInclude = accessMetadata[
+      event.name
+    ]!.transactionInclude.filter((key) =>
+      accessMetadata[event.name]!.accessed.has(key),
+    );
+    accessMetadata[event.name]!.transactionReceiptInclude = accessMetadata[
+      event.name
+    ]!.transactionReceiptInclude.filter((key) =>
+      accessMetadata[event.name]!.accessed.has(key),
+    );
   }
 
   switch (event.type) {
     case "block": {
       event.event = {
         ...event.event,
-        block: new Proxy(event.event.block, blockProxyHandler(event.name)),
+        block: new Proxy(event.event.block, proxyHandler(event.name, "block")),
       };
       break;
     }
     case "transaction": {
       event.event = {
         ...event.event,
-        block: new Proxy(event.event.block, blockProxyHandler(event.name)),
+        block: new Proxy(event.event.block, proxyHandler(event.name, "block")),
         transaction: new Proxy(
           event.event.transaction,
-          transactionProxyHandler(event.name),
+          proxyHandler(event.name, "transaction"),
         ),
         transactionReceipt:
           event.event.transactionReceipt === undefined
             ? undefined
             : new Proxy(
                 event.event.transactionReceipt,
-                transactionReceiptProxyHandler(event.name),
+                proxyHandler(event.name, "transactionReceipt"),
               ),
       };
       break;
@@ -505,18 +466,18 @@ export const toProxy = (event: Event): Event => {
     case "log": {
       event.event = {
         ...event.event,
-        log: new Proxy(event.event.log, logProxyHandler(event.name)),
-        block: new Proxy(event.event.block, blockProxyHandler(event.name)),
+        log: new Proxy(event.event.log, proxyHandler(event.name, "log")),
+        block: new Proxy(event.event.block, proxyHandler(event.name, "block")),
         transaction: new Proxy(
           event.event.transaction,
-          transactionProxyHandler(event.name),
+          proxyHandler(event.name, "transaction"),
         ),
         transactionReceipt:
           event.event.transactionReceipt === undefined
             ? undefined
             : new Proxy(
                 event.event.transactionReceipt,
-                transactionReceiptProxyHandler(event.name),
+                proxyHandler(event.name, "transactionReceipt"),
               ),
       };
       break;
@@ -525,18 +486,18 @@ export const toProxy = (event: Event): Event => {
     case "trace": {
       event.event = {
         ...event.event,
-        trace: new Proxy(event.event.trace, traceProxyHandler(event.name)),
-        block: new Proxy(event.event.block, blockProxyHandler(event.name)),
+        trace: new Proxy(event.event.trace, proxyHandler(event.name, "trace")),
+        block: new Proxy(event.event.block, proxyHandler(event.name, "block")),
         transaction: new Proxy(
           event.event.transaction,
-          transactionProxyHandler(event.name),
+          proxyHandler(event.name, "transaction"),
         ),
         transactionReceipt:
           event.event.transactionReceipt === undefined
             ? undefined
             : new Proxy(
                 event.event.transactionReceipt,
-                transactionReceiptProxyHandler(event.name),
+                proxyHandler(event.name, "transactionReceipt"),
               ),
       };
       break;
