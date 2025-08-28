@@ -1,6 +1,6 @@
 import type { QB } from "@/database/queryBuilder.js";
 import type { OnchainTable } from "@/drizzle/onchain.js";
-import { normalizeColumn } from "@/indexing-store/utils.js";
+import { denormalizeColumn, normalizeColumn } from "@/indexing-store/utils.js";
 import type { Schema, Status } from "@/internal/types.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
@@ -1070,7 +1070,13 @@ export function buildDataLoaderCache(qb: QB) {
                         `Unknown column '${table.tsName}.${col}' used in dataloader row ID fragment`,
                       );
                     }
-                    return [col, normalizeColumn(column, val, false)];
+                    return [
+                      col,
+                      denormalizeColumn(
+                        column,
+                        normalizeColumn(column, val, false),
+                      ),
+                    ];
                   }),
                 ),
               )

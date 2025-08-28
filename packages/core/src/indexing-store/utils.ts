@@ -62,7 +62,12 @@ export const normalizeColumn = (
     return null;
   }
   if (value === null) return null;
-  if (column.mapToDriverValue === undefined) return value;
+  if (column.mapToDriverValue === undefined) {
+    if (typeof value === "bigint") {
+      value = String(value);
+    }
+    return value;
+  }
 
   try {
     if (Array.isArray(value) && column instanceof PgArray) {
@@ -71,9 +76,12 @@ export const normalizeColumn = (
           return v;
         }
 
-        return column.baseColumn.mapFromDriverValue(
-          column.baseColumn.mapToDriverValue(v),
-        );
+        v = column.baseColumn.mapToDriverValue(v);
+        if (typeof v === "bigint") {
+          v = String(v);
+        }
+
+        return v;
       });
     }
 
@@ -81,7 +89,12 @@ export const normalizeColumn = (
       return value;
     }
 
-    return column.mapFromDriverValue(column.mapToDriverValue(value));
+    value = column.mapToDriverValue(value);
+    if (typeof value === "bigint") {
+      value = String(value);
+    }
+
+    return value;
   } catch (e) {
     if (
       (e as Error)?.message?.includes("Do not know how to serialize a BigInt")
@@ -95,6 +108,24 @@ export const normalizeColumn = (
 
     throw e;
   }
+};
+
+export const denormalizeColumn = (column: Column, value: unknown): unknown => {
+  if (Array.isArray(value) && column instanceof PgArray) {
+    return value.map((v) => {
+      if (column.baseColumn.columnType === "PgTimestamp") {
+        return v;
+      }
+
+      return column.baseColumn.mapFromDriverValue(v);
+    });
+  }
+
+  if (column.columnType === "PgTimestamp") {
+    return value;
+  }
+
+  return column.mapFromDriverValue(value);
 };
 
 export const normalizeRow = (
@@ -122,6 +153,16 @@ export const normalizeRow = (
     row[columnName] = normalizeColumn(column, row[columnName], isUpdate);
   }
 
+  return row;
+};
+
+export const denormalizeRow = (
+  table: Table,
+  row: { [key: string]: unknown },
+) => {
+  for (const [columnName, column] of Object.entries(getTableColumns(table))) {
+    row[columnName] = denormalizeColumn(column, row[columnName]);
+  }
   return row;
 };
 
