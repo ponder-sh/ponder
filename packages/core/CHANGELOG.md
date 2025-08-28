@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.17
+
+### Patch Changes
+
+- [#2007](https://github.com/ponder-sh/ponder/pull/2007) [`cfb5fb3`](https://github.com/ponder-sh/ponder/commit/cfb5fb303f29ddb13843000368f45fdf4a2937ec) Thanks [@kyscott18](https://github.com/kyscott18)! - Added several math functions to `@ponder/client` query allow list.
+
 ## 0.12.16
 
 ### Patch Changes
