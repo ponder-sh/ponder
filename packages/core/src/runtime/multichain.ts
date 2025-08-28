@@ -34,7 +34,7 @@ import type {
   SchemaBuild,
   Seconds,
 } from "@/internal/types.js";
-import { splitEvents } from "@/runtime/events.js";
+import { decodeEvents, splitEvents } from "@/runtime/events.js";
 import type { RealtimeSyncEvent } from "@/sync-realtime/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import {
@@ -44,7 +44,6 @@ import {
 } from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
-import { recordAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
 import { eq, getTableName, isTable, sql } from "drizzle-orm";
@@ -278,37 +277,27 @@ export async function runMultichain({
   }
 
   // Run historical indexing until complete.
-  for await (const events of recordAsyncGenerator(
-    getHistoricalEventsMultichain({
-      common,
-      indexingBuild,
-      crashRecoveryCheckpoint,
-      perChainSync,
-      syncStore,
-    }),
-    (params) => {
-      common.metrics.ponder_historical_concurrency_group_duration.inc(
-        { group: "extract" },
-        params.await,
-      );
-      common.metrics.ponder_historical_concurrency_group_duration.inc(
-        { group: "transform" },
-        params.yield,
-      );
-    },
-  )) {
+  for await (const { events: rawEvents } of getHistoricalEventsMultichain({
+    common,
+    indexingBuild,
+    crashRecoveryCheckpoint,
+    perChainSync,
+    syncStore,
+  })) {
     let endClock = startClock();
+
+    const events = decodeEvents(common, indexingBuild.sources, rawEvents);
 
     indexingCache.qb = database.userQB;
     await Promise.all([
-      indexingCache.prefetch({ events: events.events }),
-      cachedViemClient.prefetch({ events: events.events }),
+      indexingCache.prefetch({ events }),
+      cachedViemClient.prefetch({ events }),
     ]);
     common.metrics.ponder_historical_transform_duration.inc(
       { step: "prefetch" },
       endClock(),
     );
-    if (events.events.length > 0) {
+    if (events.length > 0) {
       endClock = startClock();
       await database.userQB.transaction(async (tx) => {
         try {
@@ -323,7 +312,7 @@ export async function runMultichain({
 
           endClock = startClock();
 
-          const eventChunks = chunk(events.events, 93);
+          const eventChunks = chunk(events, 93);
           for (const eventChunk of eventChunks) {
             await indexing.processEvents({
               events: eventChunk,
@@ -370,12 +359,12 @@ export async function runMultichain({
           if (eta === undefined || progress === undefined) {
             common.logger.info({
               service: "app",
-              msg: `Indexed ${events.events.length} events`,
+              msg: `Indexed ${events.length} events`,
             });
           } else {
             common.logger.info({
               service: "app",
-              msg: `Indexed ${events.events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
+              msg: `Indexed ${events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
             });
           }
 
@@ -396,31 +385,31 @@ export async function runMultichain({
           );
           endClock = startClock();
 
-          if (events.checkpoints.length > 0) {
-            await tx.wrap({ label: "update_checkpoints" }, (tx) =>
-              tx
-                .insert(PONDER_CHECKPOINT)
-                .values(
-                  events.checkpoints.map(({ chainId, checkpoint }) => ({
-                    chainName: indexingBuild.chains.find(
-                      (chain) => chain.id === chainId,
-                    )!.name,
-                    chainId,
-                    latestCheckpoint: checkpoint,
-                    finalizedCheckpoint: checkpoint,
-                    safeCheckpoint: checkpoint,
-                  })),
-                )
-                .onConflictDoUpdate({
-                  target: PONDER_CHECKPOINT.chainName,
-                  set: {
-                    safeCheckpoint: sql`excluded.safe_checkpoint`,
-                    finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
-                    latestCheckpoint: sql`excluded.latest_checkpoint`,
-                  },
-                }),
-            );
-          }
+          // if (events.checkpoints.length > 0) {
+          //   await tx.wrap({ label: "update_checkpoints" }, (tx) =>
+          //     tx
+          //       .insert(PONDER_CHECKPOINT)
+          //       .values(
+          //         events.checkpoints.map(({ chainId, checkpoint }) => ({
+          //           chainName: indexingBuild.chains.find(
+          //             (chain) => chain.id === chainId,
+          //           )!.name,
+          //           chainId,
+          //           latestCheckpoint: checkpoint,
+          //           finalizedCheckpoint: checkpoint,
+          //           safeCheckpoint: checkpoint,
+          //         })),
+          //       )
+          //       .onConflictDoUpdate({
+          //         target: PONDER_CHECKPOINT.chainName,
+          //         set: {
+          //           safeCheckpoint: sql`excluded.safe_checkpoint`,
+          //           finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
+          //           latestCheckpoint: sql`excluded.latest_checkpoint`,
+          //         },
+          //       }),
+          //   );
+          // }
 
           common.metrics.ponder_historical_transform_duration.inc(
             { step: "finalize" },

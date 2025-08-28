@@ -4,6 +4,7 @@ import type {
   CrashRecoveryCheckpoint,
   Event,
   IndexingBuild,
+  RawEvent,
   Source,
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
@@ -21,7 +22,7 @@ import {
 import { formatPercentage } from "@/utils/format.js";
 import {
   bufferAsyncGenerator,
-  mergeAsyncGenerators,
+  // mergeAsyncGenerators,
 } from "@/utils/generators.js";
 import {
   type Interval,
@@ -288,7 +289,7 @@ export async function* getHistoricalEventsOmnichain(params: {
   yield { type: "pending", pendingEvents };
 }
 
-export async function* getHistoricalEventsMultichain(params: {
+export function getHistoricalEventsMultichain(params: {
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
@@ -304,194 +305,193 @@ export async function* getHistoricalEventsMultichain(params: {
     }
   >;
   syncStore: SyncStore;
-}) {
-  let isCatchup = false;
+}): AsyncGenerator<{ events: RawEvent[] }> {
+  const isCatchup = false;
   const perChainCursor = new Map<Chain, string>();
 
-  while (true) {
-    const eventGenerators = Array.from(params.perChainSync.entries()).map(
-      async function* ([
-        chain,
-        { syncProgress, childAddresses, cachedIntervals },
-      ]) {
-        const rpc =
-          params.indexingBuild.rpcs[
-            params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
-          ]!;
+  // while (true) {
+  const eventGenerators = Array.from(params.perChainSync.entries()).map(
+    ([chain, { syncProgress, childAddresses, cachedIntervals }]) => {
+      const rpc =
+        params.indexingBuild.rpcs[
+          params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
+        ]!;
 
-        const sources = params.indexingBuild.sources.filter(
-          ({ filter }) => filter.chainId === chain.id,
-        );
+      const sources = params.indexingBuild.sources.filter(
+        ({ filter }) => filter.chainId === chain.id,
+      );
 
-        const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
-          ({ chainId }) => chainId === chain.id,
-        )?.checkpoint;
+      // const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
+      //   ({ chainId }) => chainId === chain.id,
+      // )?.checkpoint;
 
-        const to = min(
-          syncProgress.getCheckpoint({ tag: "finalized" }),
-          syncProgress.getCheckpoint({ tag: "end" }),
-        );
-        let from: string;
+      const to = min(
+        syncProgress.getCheckpoint({ tag: "finalized" }),
+        syncProgress.getCheckpoint({ tag: "end" }),
+      );
+      let from: string;
 
-        if (isCatchup === false) {
-          // In order to speed up the "extract" phase when there is a crash recovery,
-          // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
-          // is defined.
+      if (isCatchup === false) {
+        // In order to speed up the "extract" phase when there is a crash recovery,
+        // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
+        // is defined.
 
-          if (crashRecoveryCheckpoint === undefined) {
-            from = syncProgress.getCheckpoint({ tag: "start" });
-          } else if (
-            Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) ===
-            chain.id
-          ) {
-            from = crashRecoveryCheckpoint;
-          } else {
-            const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
-              chainId: chain.id,
-              timestamp: Number(
-                decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
-              ),
-            });
+        // if (crashRecoveryCheckpoint === undefined) {
+        from = syncProgress.getCheckpoint({ tag: "start" });
+        // } else if (
+        //   Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) ===
+        //   chain.id
+        // ) {
+        //   from = crashRecoveryCheckpoint;
+        // } else {
+        //   const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
+        //     chainId: chain.id,
+        //     timestamp: Number(
+        //       decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
+        //     ),
+        //   });
 
-            if (fromBlock === undefined) {
-              from = syncProgress.getCheckpoint({ tag: "start" });
-            } else {
-              from = encodeCheckpoint({
-                ...ZERO_CHECKPOINT,
-                blockNumber: fromBlock.number,
-                blockTimestamp: fromBlock.timestamp,
-                chainId: BigInt(chain.id),
-              });
-            }
-          }
-        } else {
-          const cursor = perChainCursor.get(chain)!;
+        //   if (fromBlock === undefined) {
+        //     from = syncProgress.getCheckpoint({ tag: "start" });
+        //   } else {
+        //     from = encodeCheckpoint({
+        //       ...ZERO_CHECKPOINT,
+        //       blockNumber: fromBlock.number,
+        //       blockTimestamp: fromBlock.timestamp,
+        //       chainId: BigInt(chain.id),
+        //     });
+        //   }
+        // }
+      } else {
+        const cursor = perChainCursor.get(chain)!;
 
-          from = encodeCheckpoint({
-            ...ZERO_CHECKPOINT,
-            blockTimestamp: decodeCheckpoint(cursor).blockTimestamp,
-            chainId: decodeCheckpoint(cursor).chainId,
-            blockNumber: decodeCheckpoint(cursor).blockNumber + 1n,
-          });
-
-          if (from > to) return;
-        }
-
-        const eventGenerator = await initEventGenerator({
-          common: params.common,
-          indexingBuild: params.indexingBuild,
-          chain,
-          rpc,
-          sources,
-          childAddresses,
-          syncProgress,
-          cachedIntervals,
-          from,
-          to,
-          limit:
-            Math.round(
-              params.common.options.syncEventsQuerySize /
-                (params.indexingBuild.chains.length + 1),
-            ) + 6,
-          syncStore: params.syncStore,
-          isCatchup,
+        from = encodeCheckpoint({
+          ...ZERO_CHECKPOINT,
+          blockTimestamp: decodeCheckpoint(cursor).blockTimestamp,
+          chainId: decodeCheckpoint(cursor).chainId,
+          blockNumber: decodeCheckpoint(cursor).blockNumber + 1n,
         });
 
-        for await (const { events: rawEvents, checkpoint } of eventGenerator) {
-          const endClock = startClock();
-          let events = decodeEvents(params.common, sources, rawEvents);
-          params.common.logger.debug({
-            service: "app",
-            msg: `Decoded ${events.length} '${chain.name}' events`,
-          });
-          params.common.metrics.ponder_historical_extract_duration.inc(
-            { step: "decode" },
-            endClock(),
-          );
+        if (from > to) return;
+      }
 
-          // Removes events that have a checkpoint earlier than (or equal to)
-          // the crash recovery checkpoint.
-
-          if (crashRecoveryCheckpoint) {
-            const [, right] = partition(
-              events,
-              (event) => event.checkpoint <= crashRecoveryCheckpoint,
-            );
-            events = right;
-          }
-
-          yield { events, checkpoint };
-        }
-
-        perChainCursor.set(chain, to);
-      },
-    );
-
-    for await (const { events, checkpoint } of mergeAsyncGenerators(
-      eventGenerators,
-    )) {
-      params.common.logger.debug({
-        service: "sync",
-        msg: `Sequenced ${events.length} events`,
+      return getLocalEventGenerator({
+        common: params.common,
+        // indexingBuild: params.indexingBuild,
+        chain,
+        rpc,
+        sources,
+        childAddresses,
+        syncProgress,
+        cachedIntervals,
+        from,
+        to,
+        limit:
+          Math.round(
+            params.common.options.syncEventsQuerySize /
+              (params.indexingBuild.chains.length + 1),
+          ) + 6,
+        syncStore: params.syncStore,
+        isCatchup,
       });
 
-      yield {
-        events,
-        checkpoints: [
-          {
-            chainId: Number(decodeCheckpoint(checkpoint).chainId),
-            checkpoint,
-          },
-        ],
-      };
-    }
+      // for await (const { events: rawEvents, checkpoint } of eventGenerator) {
+      //   const endClock = startClock();
+      //   let events = decodeEvents(params.common, sources, rawEvents);
+      //   params.common.logger.debug({
+      //     service: "app",
+      //     msg: `Decoded ${events.length} '${chain.name}' events`,
+      //   });
+      //   params.common.metrics.ponder_historical_extract_duration.inc(
+      //     { step: "decode" },
+      //     endClock(),
+      //   );
 
-    const finalizedBlocks = await Promise.all(
-      params.indexingBuild.chains.map((chain, i) => {
-        const rpc = params.indexingBuild.rpcs[i]!;
+      //   // Removes events that have a checkpoint earlier than (or equal to)
+      //   // the crash recovery checkpoint.
 
-        return _eth_getBlockByNumber(rpc, {
-          blockTag: "latest",
-        }).then((latest) =>
-          _eth_getBlockByNumber(rpc, {
-            blockNumber: Math.max(
-              hexToNumber(latest.number) - chain.finalityBlockCount,
-              0,
-            ),
-          }),
-        );
-      }),
-    );
+      //   // if (crashRecoveryCheckpoint) {
+      //   //   const [, right] = partition(
+      //   //     events,
+      //   //     (event) => event.checkpoint <= crashRecoveryCheckpoint,
+      //   //   );
+      //   //   events = right;
+      //   // }
 
-    let shouldCatchup = false;
+      //   yield { events, checkpoint };
+      // }
 
-    for (let i = 0; i < params.indexingBuild.chains.length; i++) {
-      const chain = params.indexingBuild.chains[i]!;
-      const oldFinalizedBlock =
-        params.perChainSync.get(chain)!.syncProgress.finalized;
-      const newFinalizedBlock = finalizedBlocks[i]!;
+      // perChainCursor.set(chain, to);
+    },
+  );
 
-      if (
-        hexToNumber(newFinalizedBlock.number) -
-          hexToNumber(oldFinalizedBlock.number) >
-        chain.finalityBlockCount
-      ) {
-        shouldCatchup = true;
-        break;
-      }
-    }
+  return eventGenerators[0]!;
 
-    if (shouldCatchup === false) break;
+  // for await (const { events, checkpoint } of mergeAsyncGenerators(
+  //   eventGenerators,
+  // )) {
+  //   params.common.logger.debug({
+  //     service: "sync",
+  //     msg: `Sequenced ${events.length} events`,
+  //   });
 
-    for (let i = 0; i < params.indexingBuild.chains.length; i++) {
-      const chain = params.indexingBuild.chains[i]!;
-      const finalizedBlock = finalizedBlocks[i]!;
+  //   yield {
+  //     events,
+  //     checkpoints: [
+  //       {
+  //         chainId: Number(decodeCheckpoint(checkpoint).chainId),
+  //         checkpoint,
+  //       },
+  //     ],
+  //   };
+  // }
 
-      params.perChainSync.get(chain)!.syncProgress.finalized = finalizedBlock;
-    }
+  // const finalizedBlocks = await Promise.all(
+  //   params.indexingBuild.chains.map((chain, i) => {
+  //     const rpc = params.indexingBuild.rpcs[i]!;
 
-    isCatchup = true;
-  }
+  //     return _eth_getBlockByNumber(rpc, {
+  //       blockTag: "latest",
+  //     }).then((latest) =>
+  //       _eth_getBlockByNumber(rpc, {
+  //         blockNumber: Math.max(
+  //           hexToNumber(latest.number) - chain.finalityBlockCount,
+  //           0,
+  //         ),
+  //       }),
+  //     );
+  //   }),
+  // );
+
+  // let shouldCatchup = false;
+
+  // for (let i = 0; i < params.indexingBuild.chains.length; i++) {
+  //   const chain = params.indexingBuild.chains[i]!;
+  //   const oldFinalizedBlock =
+  //     params.perChainSync.get(chain)!.syncProgress.finalized;
+  //   const newFinalizedBlock = finalizedBlocks[i]!;
+
+  //   if (
+  //     hexToNumber(newFinalizedBlock.number) -
+  //       hexToNumber(oldFinalizedBlock.number) >
+  //     chain.finalityBlockCount
+  //   ) {
+  //     shouldCatchup = true;
+  //     break;
+  //   }
+  // }
+
+  // if (shouldCatchup === false) break;
+
+  // for (let i = 0; i < params.indexingBuild.chains.length; i++) {
+  //   const chain = params.indexingBuild.chains[i]!;
+  //   const finalizedBlock = finalizedBlocks[i]!;
+
+  //   params.perChainSync.get(chain)!.syncProgress.finalized = finalizedBlock;
+  // }
+
+  // isCatchup = true;
+  // }
 }
 
 export async function* getLocalEventGenerator(params: {
