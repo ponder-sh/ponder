@@ -1,3 +1,4 @@
+import { isMainThread } from "node:worker_threads";
 import { getTableNames } from "@/drizzle/index.js";
 import {
   SHARED_OPERATION_ID_SEQUENCE,
@@ -14,6 +15,7 @@ import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
   NamespaceBuild,
+  Ordering,
   PreBuild,
   SchemaBuild,
 } from "@/internal/types.js";
@@ -54,11 +56,13 @@ export type Database = {
     buildId,
     chains,
     finalizedBlocks,
-  }: Pick<
-    IndexingBuild,
-    "buildId" | "chains" | "finalizedBlocks"
-  >): Promise<CrashRecoveryCheckpoint>;
+    ordering,
+  }: Pick<IndexingBuild, "buildId" | "chains" | "finalizedBlocks"> & {
+    ordering: Ordering;
+  }): Promise<CrashRecoveryCheckpoint>;
 };
+
+export type DatabaseInterface = Omit<Database, "migrateSync" | "migrate">;
 
 export const SCHEMATA = pgSchema("information_schema").table(
   "schemata",
@@ -166,16 +170,18 @@ export const createDatabase = ({
 
   const dialect = preBuild.databaseConfig.kind;
 
-  if (namespace.viewsSchema) {
-    common.logger.info({
-      service: "database",
-      msg: `Using database schema '${namespace.schema}' and views schema '${namespace.viewsSchema}'`,
-    });
-  } else {
-    common.logger.info({
-      service: "database",
-      msg: `Using database schema '${namespace.schema}'`,
-    });
+  if (isMainThread) {
+    if (namespace.viewsSchema) {
+      common.logger.info({
+        service: "database",
+        msg: `Using database schema '${namespace.schema}' and views schema '${namespace.viewsSchema}'`,
+      });
+    } else {
+      common.logger.info({
+        service: "database",
+        msg: `Using database schema '${namespace.schema}'`,
+      });
+    }
   }
 
   if (dialect === "pglite" || dialect === "pglite_test") {
@@ -456,7 +462,7 @@ export const createDatabase = ({
         }
       }
     },
-    async migrate({ buildId, chains, finalizedBlocks }) {
+    async migrate({ buildId, chains, finalizedBlocks, ordering }) {
       const createTables = async (tx: QB) => {
         for (let i = 0; i < schemaBuild.statements.tables.sql.length; i++) {
           await tx
@@ -740,13 +746,28 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
           }
 
           // Remove triggers
+          const removeTriggers = async (chainId?: number) => {
+            for (const table of tables) {
+              await tx.wrap((tx) =>
+                tx.execute(
+                  `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger(chainId)}" ON "${namespace.schema}"."${getTableName(table)}"`,
+                ),
+              );
 
-          for (const table of tables) {
-            await tx.wrap((tx) =>
-              tx.execute(
-                `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
-              ),
-            );
+              await tx.wrap((tx) =>
+                tx.execute(
+                  `DROP TRIGGER IF EXISTS "_${getTableNames(table).trigger(chainId)}" ON "${namespace.schema}"."${getTableName(table)}"`,
+                ),
+              );
+            }
+          };
+
+          if (ordering === "isolated") {
+            for (const { chainId } of checkpoints) {
+              await removeTriggers(chainId);
+            }
+          } else {
+            await removeTriggers(undefined);
           }
 
           // Remove indexes

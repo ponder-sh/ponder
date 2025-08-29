@@ -18,6 +18,7 @@ import type { IndexingCache, Row } from "./cache.js";
 import {
   type IndexingStore,
   checkOnchainTable,
+  checkTableAccess,
   validateUpdateSet,
 } from "./index.js";
 
@@ -26,11 +27,13 @@ export const createHistoricalIndexingStore = ({
   schemaBuild: { schema },
   indexingCache,
   indexingErrorHandler,
+  chainId,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   indexingCache: IndexingCache;
   indexingErrorHandler: IndexingErrorHandler;
+  chainId?: number;
 }): IndexingStore => {
   let qb: QB = undefined!;
   let isProcessingEvents = true;
@@ -75,6 +78,7 @@ export const createHistoricalIndexingStore = ({
         method: "find",
       });
       checkOnchainTable(table, "find");
+      checkTableAccess(table, "find", key, chainId);
       return indexingCache.get({ table, key });
     }),
 
@@ -94,6 +98,7 @@ export const createHistoricalIndexingStore = ({
               if (Array.isArray(values)) {
                 const rows = [];
                 for (const value of values) {
+                  checkTableAccess(table, "insert", value, chainId);
                   const row = await indexingCache.get({ table, key: value });
 
                   if (row) {
@@ -111,6 +116,7 @@ export const createHistoricalIndexingStore = ({
                 }
                 return rows;
               } else {
+                checkTableAccess(table, "insert", values, chainId);
                 const row = await indexingCache.get({ table, key: values });
 
                 if (row) {
@@ -135,6 +141,7 @@ export const createHistoricalIndexingStore = ({
               if (Array.isArray(values)) {
                 const rows = [];
                 for (const value of values) {
+                  checkTableAccess(table, "insert", value, chainId);
                   const row = await indexingCache.get({
                     table,
                     key: value,
@@ -175,6 +182,7 @@ export const createHistoricalIndexingStore = ({
                 }
                 return rows;
               } else {
+                checkTableAccess(table, "insert", values, chainId);
                 const row = await indexingCache.get({ table, key: values });
 
                 if (row) {
@@ -219,6 +227,8 @@ export const createHistoricalIndexingStore = ({
                 if (Array.isArray(values)) {
                   const rows = [];
                   for (const value of values) {
+                    checkTableAccess(table, "insert", value, chainId);
+
                     if (qb.$dialect === "pglite") {
                       const row = await indexingCache.get({
                         table,
@@ -255,6 +265,7 @@ export const createHistoricalIndexingStore = ({
                   }
                   return Promise.resolve(rows).then(onFulfilled, onRejected);
                 } else {
+                  checkTableAccess(table, "insert", values, chainId);
                   let result: Row;
                   if (qb.$dialect === "pglite") {
                     const row = await indexingCache.get({ table, key: values });
@@ -285,8 +296,9 @@ export const createHistoricalIndexingStore = ({
                   return Promise.resolve(result).then(onFulfilled, onRejected);
                 }
               })().then(onFulfilled, onRejected),
-            catch: (onRejected) => inner.then(undefined, onRejected),
-            finally: (onFinally) =>
+            catch: (onRejected): Promise<any> =>
+              inner.then(undefined, onRejected),
+            finally: (onFinally): Promise<any> =>
               inner.then(
                 (value: any) => {
                   onFinally?.();
@@ -313,7 +325,7 @@ export const createHistoricalIndexingStore = ({
             method: "update",
           });
           checkOnchainTable(table, "update");
-
+          checkTableAccess(table, "update", key, chainId);
           const row = await indexingCache.get({ table, key });
 
           if (row === null) {
@@ -337,7 +349,6 @@ export const createHistoricalIndexingStore = ({
               row[key] = value;
             }
           }
-
           return indexingCache.set({ table, key, row, isUpdate: true });
         }),
       };
@@ -349,6 +360,7 @@ export const createHistoricalIndexingStore = ({
         method: "delete",
       });
       checkOnchainTable(table, "delete");
+      checkTableAccess(table, "delete", key, chainId);
       return indexingCache.delete({ table, key });
     }),
     // @ts-ignore
