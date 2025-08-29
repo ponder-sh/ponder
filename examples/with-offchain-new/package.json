@@ -9,8 +9,7 @@
     "codegen": "ponder codegen",
     "lint": "eslint .",
     "typecheck": "tsc",
-    "generate-migrations": "npx drizzle-kit generate",
-    "apply-migrations": "npx drizzle-kit migrate"
+    "generate-migrations": "npx drizzle-kit generate"
   },
   "dependencies": {
     "@ponder/client": "workspace:^",

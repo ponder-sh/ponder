@@ -10,17 +10,17 @@ import * as offchainSchema from "./offchain.schema";
 // Note: `ponderSchema` doesn't have information about which database schema
 // to use, so we need to set it with the `setDatabaseSchema` function.
 
-setDatabaseSchema(ponderSchema, "prod");
+// setDatabaseSchema(ponderSchema, "prod");
 
-export const metadataRelations = relations(
-  offchainSchema.metadataTable,
-  ({ one }) => ({
-    token: one(ponderSchema.token, {
-      fields: [offchainSchema.metadataTable.tokenId],
-      references: [ponderSchema.token.id],
-    }),
-  }),
-);
+// export const accountMetadataRelations = relations(
+//   offchainSchema.accountMetadata,
+//   ({ one }) => ({
+//     token: one(ponderSchema.token, {
+//       fields: [offchainSchema.metadataTable.tokenId],
+//       references: [ponderSchema.token.id],
+//     }),
+//   }),
+// );
 
 export * from "../ponder.schema";
 export * from "./offchain.schema";
