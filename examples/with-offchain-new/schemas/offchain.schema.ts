@@ -1,4 +1,4 @@
-import { json, numeric, pgSchema } from "drizzle-orm/pg-core";
+import { pgSchema, text } from "drizzle-orm/pg-core";
 
 const offchainSchema = pgSchema("offchain");
 
@@ -8,7 +8,7 @@ const offchainSchema = pgSchema("offchain");
 // However, the ponder bigint and hex columns are simple aliases
 // for numeric(78) and text respectively.
 
-export const metadataTable = offchainSchema.table("metadata", {
-  tokenId: numeric({ precision: 78, scale: 0 }).primaryKey(),
-  metadata: json(),
+export const accountMetadata = offchainSchema.table("metadata", {
+  address: text().primaryKey(),
+  graffiti: text(),
 });
