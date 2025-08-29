@@ -20,11 +20,7 @@ import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { _eth_getBlockByNumber, _eth_getLogs } from "@/utils/rpc.js";
 import { parseEther } from "viem";
 import { beforeEach, expect, test } from "vitest";
-import {
-  syncBlockToInternal,
-  syncLogToInternal,
-  syncTransactionToInternal,
-} from "./events.js";
+import { syncLogToInternal } from "./events.js";
 import { getFragments } from "./fragments.js";
 import { mergeAsyncGeneratorsWithEventOrder } from "./historical.js";
 import { getCachedBlock, getLocalSyncProgress } from "./index.js";
@@ -462,7 +458,7 @@ test("historical events match realtime events", async (context) => {
     chainId: 1,
   });
 
-  const { blockData: historicalBlockData } = await syncStore.getEventBlockData({
+  const { logs } = await syncStore.getEventData({
     filters: [sources[0]!.filter],
     fromBlock: 0,
     toBlock: 10,
@@ -470,21 +466,9 @@ test("historical events match realtime events", async (context) => {
     limit: 3,
   });
 
-  const realtimeBlockData = [
-    {
-      block: syncBlockToInternal({ block: rpcBlock }),
-      logs: rpcLogs.map((log) => syncLogToInternal({ log })),
-      transactions: rpcBlock.transactions.map((transaction) =>
-        syncTransactionToInternal({ transaction }),
-      ),
-      transactionReceipts: [],
-      traces: [],
-    },
-  ];
-
   // Note: blocks and transactions are not asserted because they are non deterministic
 
-  expect(historicalBlockData[0]!.logs).toMatchInlineSnapshot(`
+  expect(logs).toMatchInlineSnapshot(`
     [
       {
         "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
@@ -507,7 +491,9 @@ test("historical events match realtime events", async (context) => {
     ]
   `);
 
-  expect(realtimeBlockData[0]!.logs).toMatchInlineSnapshot(`
+  expect(
+    rpcLogs.map((log) => syncLogToInternal({ log })),
+  ).toMatchInlineSnapshot(`
     [
       {
         "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
