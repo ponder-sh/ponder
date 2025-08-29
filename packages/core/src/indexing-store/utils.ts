@@ -38,11 +38,24 @@ export const getEmptyValue = (column: Column, isUpdate: boolean) => {
   return undefined;
 };
 
+export const getPrimaryKeyCache = (tables: Table[]) => {
+  const cache = new Map<Table, [string, Column][]>();
+
+  for (const table of tables) {
+    cache.set(table, []);
+    for (const { js } of getPrimaryKeyColumns(table)) {
+      // @ts-expect-error
+      cache.get(table)!.push([js, table[js]!]);
+    }
+  }
+
+  return cache;
+};
+
 export const normalizeColumn = (
   column: Column,
   value: unknown,
   isUpdate: boolean,
-  // @ts-ignore
 ): unknown => {
   if (value === undefined) {
     if (hasEmptyValue(column)) return getEmptyValue(column, isUpdate);
@@ -79,6 +92,8 @@ export const normalizeColumn = (
       );
       throw error;
     }
+
+    throw e;
   }
 };
 
@@ -113,25 +128,25 @@ export const normalizeRow = (
 export const getCacheKey = (
   table: Table,
   key: object,
-  cache?: Map<Table, [string, Column][]>,
+  cache: Map<Table, [string, Column][]>,
 ): string => {
-  if (cache) {
-    const primaryKeys = cache.get(table)!;
-    return (
-      primaryKeys
-        // @ts-ignore
-        .map(([pk, col]) => normalizeColumn(col, key[pk]))
-        .join("_")
-    );
+  const primaryKeys = cache.get(table)!;
+
+  if (primaryKeys.length === 1) {
+    const [pk, col] = primaryKeys[0]!;
+    // @ts-expect-error
+    return String(normalizeColumn(col, key[pk]!, false));
   }
 
-  const primaryKeys = getPrimaryKeyColumns(table);
-  return (
-    primaryKeys
-      // @ts-ignore
-      .map((pk) => normalizeColumn(table[pk.js], key[pk.js]))
-      .join("_")
-  );
+  let result = "";
+  for (let i = 0; i < primaryKeys.length; i++) {
+    const [pk, col] = primaryKeys[i]!;
+    // @ts-expect-error
+    const value = normalizeColumn(col, key[pk]!, false);
+    result += `${String(value)}_`;
+  }
+
+  return result;
 };
 
 /** Returns an sql where condition for `table` with `key`. */

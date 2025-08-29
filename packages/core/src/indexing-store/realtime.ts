@@ -11,14 +11,19 @@ import {
 import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
-import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
+import {
+  type QueryWithTypings,
+  type Table,
+  getTableName,
+  isTable,
+} from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
 import {
   type IndexingStore,
   checkOnchainTable,
   validateUpdateSet,
 } from "./index.js";
-import { getCacheKey, getWhereCondition } from "./utils.js";
+import { getCacheKey, getPrimaryKeyCache, getWhereCondition } from "./utils.js";
 
 export const createRealtimeIndexingStore = ({
   common,
@@ -31,6 +36,9 @@ export const createRealtimeIndexingStore = ({
 }): IndexingStore => {
   let qb: QB = undefined!;
   let isProcessingEvents = true;
+
+  const tables = Object.values(schema).filter(isTable);
+  const primaryKeyCache = getPrimaryKeyCache(tables);
 
   const storeMethodWrapper = (fn: (...args: any[]) => Promise<any>) => {
     return async (...args: any[]) => {
@@ -111,8 +119,8 @@ export const createRealtimeIndexingStore = ({
 
                 for (let i = 0; i < values.length; i++) {
                   if (
-                    getCacheKey(table, values[i]) ===
-                    getCacheKey(table, result[resultIndex]!)
+                    getCacheKey(table, values[i], primaryKeyCache) ===
+                    getCacheKey(table, result[resultIndex]!, primaryKeyCache)
                   ) {
                     rows.push(result[resultIndex++]!);
                   } else {
@@ -146,9 +154,8 @@ export const createRealtimeIndexingStore = ({
 
                   if (row) {
                     const set =
-                      typeof valuesU === "function"
-                        ? validateUpdateSet(table, valuesU(row), row)
-                        : validateUpdateSet(table, valuesU, row);
+                      typeof valuesU === "function" ? valuesU(row) : valuesU;
+                    validateUpdateSet(table, set, row, primaryKeyCache);
 
                     rows.push(
                       await qb.wrap((db) =>
@@ -178,9 +185,8 @@ export const createRealtimeIndexingStore = ({
 
                 if (row) {
                   const set =
-                    typeof valuesU === "function"
-                      ? validateUpdateSet(table, valuesU(row), row)
-                      : validateUpdateSet(table, valuesU, row);
+                    typeof valuesU === "function" ? valuesU(row) : valuesU;
+                  validateUpdateSet(table, set, row, primaryKeyCache);
 
                   return qb.wrap((db) =>
                     db
@@ -280,7 +286,9 @@ export const createRealtimeIndexingStore = ({
               throw error;
             }
 
-            const set = validateUpdateSet(table, values(row), row);
+            const set = values(row);
+            validateUpdateSet(table, set, row, primaryKeyCache);
+
             return qb.wrap((db) =>
               db
                 .update(table)
@@ -290,7 +298,8 @@ export const createRealtimeIndexingStore = ({
                 .then((res) => res[0]),
             );
           } else {
-            const set = validateUpdateSet(table, values, row!);
+            const set = values;
+            validateUpdateSet(table, set, row!, primaryKeyCache);
             return qb.wrap((db) =>
               db
                 .update(table)
