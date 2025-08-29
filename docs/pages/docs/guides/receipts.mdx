@@ -56,7 +56,9 @@ If you only need the transaction receipt in special cases, or you need the `logs
 import { ponder } from "ponder:registry";
 
 ponder.on("Blitmap:Mint", async ({ event }) => {
-  const receipt = await context.client.getTransactionReceipt(event.transactionHash);
+  const receipt = await context.client.getTransactionReceipt({
+    hash: event.transaction.hash
+  });
   console.log(receipt);
 
   // ...
