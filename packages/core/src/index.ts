@@ -59,7 +59,7 @@ export type {
   OnchainEnum,
 } from "@/drizzle/onchain.js";
 
-export type { ReadonlyDrizzle } from "@/types/db.js";
+export type { ReadonlyDrizzle, Drizzle } from "@/types/db.js";
 
 export { client } from "@/client/index.js";
 

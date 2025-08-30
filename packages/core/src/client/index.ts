@@ -1,5 +1,5 @@
 import type { Schema } from "@/internal/types.js";
-import type { ReadonlyDrizzle } from "@/types/db.js";
+import type { Drizzle } from "@/types/db.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import type { QueryWithTypings } from "drizzle-orm";
 import type { PgSession } from "drizzle-orm/pg-core";
@@ -28,9 +28,7 @@ import { validateQuery } from "./parse.js";
  * export default app;
  * ```
  */
-export const client = ({
-  db,
-}: { db: ReadonlyDrizzle<Schema>; schema: Schema }) => {
+export const client = ({ db }: { db: Drizzle<Schema>; schema: Schema }) => {
   // @ts-ignore
   const session: PgSession = db._.session;
   const driver = globalThis.PONDER_DATABASE.driver;
