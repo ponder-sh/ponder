@@ -25,13 +25,13 @@ declare module "ponder:schema" {
 }
 
 declare module "ponder:api" {
-  import type { ReadonlyDrizzle } from "ponder";
+  import type { Drizzle } from "ponder";
   import type { PublicClient } from "viem";
 
   type schema = typeof import("ponder:internal").schema;
   type config = typeof import("ponder:internal").config;
 
-  export const db: ReadonlyDrizzle<schema>;
+  export const db: Drizzle<schema>;
   export const publicClients: {
     [chainName in keyof config["default"]["chains"]]: PublicClient;
   };
