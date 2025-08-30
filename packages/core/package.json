@@ -1,5 +1,5 @@
 {
-  "name": "@standardweb3/ponder",
+  "name": "ponder",
   "version": "0.12.16",
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
