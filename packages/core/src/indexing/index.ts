@@ -364,19 +364,6 @@ export const createIndexing = ({
   };
 };
 
-const accessMetadata: {
-  [eventName: string]: {
-    eventCount: number;
-    accessed: Set<string>;
-    resolved: boolean;
-    logInclude: typeof defaultLogInclude;
-    traceInclude: typeof defaultTraceInclude;
-    blockInclude: typeof defaultBlockInclude;
-    transactionInclude: typeof defaultTransactionInclude;
-    transactionReceiptInclude: typeof defaultTransactionReceiptInclude;
-  };
-} = {};
-
 const defaultInclude = new Set(
   ...defaultLogInclude,
   ...defaultBlockInclude,
@@ -385,15 +372,37 @@ const defaultInclude = new Set(
   ...defaultTransactionReceiptInclude,
 );
 
+export const columnAccessPattern: {
+  logInclude: typeof defaultLogInclude;
+  blockInclude: typeof defaultBlockInclude;
+  traceInclude: typeof defaultTraceInclude;
+  transactionInclude: typeof defaultTransactionInclude;
+  transactionReceiptInclude: typeof defaultTransactionReceiptInclude;
+  accessed: Set<string>;
+  metadata: {
+    [eventName: string]: {
+      eventCount: number;
+      resolved: boolean;
+    };
+  };
+} = {
+  logInclude: [...defaultLogInclude],
+  blockInclude: [...defaultBlockInclude],
+  traceInclude: [...defaultTraceInclude],
+  transactionInclude: [...defaultTransactionInclude],
+  transactionReceiptInclude: [...defaultTransactionReceiptInclude],
+  accessed: new Set(),
+  metadata: {},
+};
+
 const proxyHandler = (
-  eventName: string,
   type: "log" | "block" | "trace" | "transaction" | "transactionReceipt",
 ): ProxyHandler<any> => {
   return {
     get(obj, prop, receiver) {
       if (typeof prop === "string") {
         const key = `${type}.${prop}`;
-        accessMetadata[eventName]!.accessed.add(key);
+        columnAccessPattern.accessed.add(key);
 
         if (prop in obj === false && defaultInclude.has(key)) {
           throw new InvalidEventAccessError(key);
@@ -405,73 +414,63 @@ const proxyHandler = (
 };
 
 export const toProxy = (event: Event): Event => {
-  if (accessMetadata[event.name] === undefined) {
-    accessMetadata[event.name] = {
+  if (columnAccessPattern.metadata[event.name] === undefined) {
+    columnAccessPattern.metadata[event.name] = {
       eventCount: 0,
       resolved: false,
-      accessed: new Set(),
-      logInclude: defaultLogInclude,
-      traceInclude: defaultTraceInclude,
-      blockInclude: defaultBlockInclude,
-      transactionInclude: defaultTransactionInclude,
-      transactionReceiptInclude: defaultTransactionReceiptInclude,
     };
   }
 
   if (
-    accessMetadata[event.name]!.resolved === false &&
-    accessMetadata[event.name]!.eventCount++ > 100
+    columnAccessPattern.metadata[event.name]!.resolved === false &&
+    columnAccessPattern.metadata[event.name]!.eventCount++ > 100
   ) {
-    accessMetadata[event.name]!.resolved = true;
-    accessMetadata[event.name]!.logInclude = accessMetadata[
-      event.name
-    ]!.logInclude.filter((key) =>
-      accessMetadata[event.name]!.accessed.has(key),
-    );
-    accessMetadata[event.name]!.traceInclude = accessMetadata[
-      event.name
-    ]!.traceInclude.filter((key) =>
-      accessMetadata[event.name]!.accessed.has(key),
-    );
-    accessMetadata[event.name]!.blockInclude = accessMetadata[
-      event.name
-    ]!.blockInclude.filter((key) =>
-      accessMetadata[event.name]!.accessed.has(key),
-    );
-    accessMetadata[event.name]!.transactionInclude = accessMetadata[
-      event.name
-    ]!.transactionInclude.filter((key) =>
-      accessMetadata[event.name]!.accessed.has(key),
-    );
-    accessMetadata[event.name]!.transactionReceiptInclude = accessMetadata[
-      event.name
-    ]!.transactionReceiptInclude.filter((key) =>
-      accessMetadata[event.name]!.accessed.has(key),
-    );
+    columnAccessPattern.metadata[event.name]!.resolved = true;
+    if (
+      Object.values(columnAccessPattern.metadata).every(
+        ({ resolved }) => resolved,
+      )
+    ) {
+      columnAccessPattern.logInclude.filter((key) =>
+        columnAccessPattern.accessed.has(key),
+      );
+      columnAccessPattern.blockInclude.filter((key) =>
+        columnAccessPattern.accessed.has(key),
+      );
+      columnAccessPattern.traceInclude.filter((key) =>
+        columnAccessPattern.accessed.has(key),
+      );
+      columnAccessPattern.transactionInclude.filter((key) =>
+        columnAccessPattern.accessed.has(key),
+      );
+      columnAccessPattern.transactionReceiptInclude.filter((key) =>
+        columnAccessPattern.accessed.has(key),
+      );
+    }
   }
 
   switch (event.type) {
     case "block": {
       event.event = {
         ...event.event,
-        block: new Proxy(event.event.block, proxyHandler(event.name, "block")),
+        block: new Proxy(event.event.block, proxyHandler("block")),
       };
       break;
     }
     case "transaction": {
       event.event = {
         ...event.event,
-        block: new Proxy(event.event.block, proxyHandler(event.name, "block")),
+        block: new Proxy(event.event.block, proxyHandler("block")),
         transaction: new Proxy(
           event.event.transaction,
-          proxyHandler(event.name, "transaction"),
+          proxyHandler("transaction"),
         ),
         transactionReceipt:
           event.event.transactionReceipt === undefined
             ? undefined
             : new Proxy(
                 event.event.transactionReceipt,
-                proxyHandler(event.name, "transactionReceipt"),
+                proxyHandler("transactionReceipt"),
               ),
       };
       break;
@@ -479,18 +478,18 @@ export const toProxy = (event: Event): Event => {
     case "log": {
       event.event = {
         ...event.event,
-        log: new Proxy(event.event.log, proxyHandler(event.name, "log")),
-        block: new Proxy(event.event.block, proxyHandler(event.name, "block")),
+        log: new Proxy(event.event.log, proxyHandler("log")),
+        block: new Proxy(event.event.block, proxyHandler("block")),
         transaction: new Proxy(
           event.event.transaction,
-          proxyHandler(event.name, "transaction"),
+          proxyHandler("transaction"),
         ),
         transactionReceipt:
           event.event.transactionReceipt === undefined
             ? undefined
             : new Proxy(
                 event.event.transactionReceipt,
-                proxyHandler(event.name, "transactionReceipt"),
+                proxyHandler("transactionReceipt"),
               ),
       };
       break;
@@ -499,18 +498,18 @@ export const toProxy = (event: Event): Event => {
     case "trace": {
       event.event = {
         ...event.event,
-        trace: new Proxy(event.event.trace, proxyHandler(event.name, "trace")),
-        block: new Proxy(event.event.block, proxyHandler(event.name, "block")),
+        trace: new Proxy(event.event.trace, proxyHandler("trace")),
+        block: new Proxy(event.event.block, proxyHandler("block")),
         transaction: new Proxy(
           event.event.transaction,
-          proxyHandler(event.name, "transaction"),
+          proxyHandler("transaction"),
         ),
         transactionReceipt:
           event.event.transactionReceipt === undefined
             ? undefined
             : new Proxy(
                 event.event.transactionReceipt,
-                proxyHandler(event.name, "transactionReceipt"),
+                proxyHandler("transactionReceipt"),
               ),
       };
       break;

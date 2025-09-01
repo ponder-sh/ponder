@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import type { Database } from "@/database/index.js";
+import { columnAccessPattern } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
   BlockFilter,
@@ -566,38 +567,27 @@ export const createSyncStore = ({
         (f): f is TransferFilter => f.type === "transfer",
       );
 
-      const shouldQueryBlocks = true;
+      const shouldQueryBlocks = columnAccessPattern.blockInclude.length > 0;
       const shouldQueryLogs = logFilters.length > 0;
       const shouldQueryTraces =
-        traceFilters.length > 0 || transferFilters.length > 0;
+        columnAccessPattern.traceInclude.length > 0 &&
+        (traceFilters.length > 0 || transferFilters.length > 0);
       const shouldQueryTransactions =
-        transactionFilters.length > 0 || shouldQueryLogs || shouldQueryTraces;
-      const shouldQueryTransactionReceipts = filters.some(
-        shouldGetTransactionReceipt,
-      );
+        columnAccessPattern.transactionInclude.length > 0 &&
+        (transactionFilters.length > 0 || shouldQueryLogs || shouldQueryTraces);
+      const shouldQueryTransactionReceipts =
+        columnAccessPattern.transactionReceiptInclude.length > 0 &&
+        filters.some(shouldGetTransactionReceipt);
+
+      const blockSelect: Record<string, any> = {};
+      for (const columnKey of columnAccessPattern.blockInclude) {
+        const columnName = columnKey.replace("block.", "");
+        blockSelect[columnName] =
+          PONDER_SYNC.blocks[columnName as keyof typeof PONDER_SYNC.blocks];
+      }
 
       const blocksQuery = database.syncQB.raw
-        .select({
-          number: PONDER_SYNC.blocks.number,
-          timestamp: PONDER_SYNC.blocks.timestamp,
-          hash: PONDER_SYNC.blocks.hash,
-          parentHash: PONDER_SYNC.blocks.parentHash,
-          logsBloom: PONDER_SYNC.blocks.logsBloom,
-          miner: PONDER_SYNC.blocks.miner,
-          gasUsed: PONDER_SYNC.blocks.gasUsed,
-          gasLimit: PONDER_SYNC.blocks.gasLimit,
-          baseFeePerGas: PONDER_SYNC.blocks.baseFeePerGas,
-          nonce: PONDER_SYNC.blocks.nonce,
-          mixHash: PONDER_SYNC.blocks.mixHash,
-          stateRoot: PONDER_SYNC.blocks.stateRoot,
-          receiptsRoot: PONDER_SYNC.blocks.receiptsRoot,
-          transactionsRoot: PONDER_SYNC.blocks.transactionsRoot,
-          sha3Uncles: PONDER_SYNC.blocks.sha3Uncles,
-          size: PONDER_SYNC.blocks.size,
-          difficulty: PONDER_SYNC.blocks.difficulty,
-          totalDifficulty: PONDER_SYNC.blocks.totalDifficulty,
-          extraData: PONDER_SYNC.blocks.extraData,
-        })
+        .select(blockSelect as any)
         .from(PONDER_SYNC.blocks)
         .where(
           and(
@@ -609,26 +599,17 @@ export const createSyncStore = ({
         .orderBy(asc(PONDER_SYNC.blocks.number))
         .limit(limit);
 
+      const transactionSelect: Record<string, any> = {};
+      for (const columnKey of columnAccessPattern.transactionInclude) {
+        const columnName = columnKey.replace("transaction.", "");
+        transactionSelect[columnName] =
+          PONDER_SYNC.transactions[
+            columnName as keyof typeof PONDER_SYNC.transactions
+          ];
+      }
+
       const transactionsQuery = database.syncQB.raw
-        .select({
-          blockNumber: PONDER_SYNC.transactions.blockNumber,
-          transactionIndex: PONDER_SYNC.transactions.transactionIndex,
-          hash: PONDER_SYNC.transactions.hash,
-          from: PONDER_SYNC.transactions.from,
-          to: PONDER_SYNC.transactions.to,
-          input: PONDER_SYNC.transactions.input,
-          value: PONDER_SYNC.transactions.value,
-          nonce: PONDER_SYNC.transactions.nonce,
-          r: PONDER_SYNC.transactions.r,
-          s: PONDER_SYNC.transactions.s,
-          v: PONDER_SYNC.transactions.v,
-          type: PONDER_SYNC.transactions.type,
-          gas: PONDER_SYNC.transactions.gas,
-          gasPrice: PONDER_SYNC.transactions.gasPrice,
-          maxFeePerGas: PONDER_SYNC.transactions.maxFeePerGas,
-          maxPriorityFeePerGas: PONDER_SYNC.transactions.maxPriorityFeePerGas,
-          accessList: PONDER_SYNC.transactions.accessList,
-        })
+        .select(transactionSelect as any)
         .from(PONDER_SYNC.transactions)
         .where(
           and(
@@ -643,20 +624,17 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
+      const transactionReceiptSelect: Record<string, any> = {};
+      for (const columnKey of columnAccessPattern.transactionReceiptInclude) {
+        const columnName = columnKey.replace("transactionReceipt.", "");
+        transactionReceiptSelect[columnName] =
+          PONDER_SYNC.transactionReceipts[
+            columnName as keyof typeof PONDER_SYNC.transactionReceipts
+          ];
+      }
+
       const transactionReceiptsQuery = database.syncQB.raw
-        .select({
-          blockNumber: PONDER_SYNC.transactionReceipts.blockNumber,
-          transactionIndex: PONDER_SYNC.transactionReceipts.transactionIndex,
-          from: PONDER_SYNC.transactionReceipts.from,
-          to: PONDER_SYNC.transactionReceipts.to,
-          contractAddress: PONDER_SYNC.transactionReceipts.contractAddress,
-          logsBloom: PONDER_SYNC.transactionReceipts.logsBloom,
-          gasUsed: PONDER_SYNC.transactionReceipts.gasUsed,
-          cumulativeGasUsed: PONDER_SYNC.transactionReceipts.cumulativeGasUsed,
-          effectiveGasPrice: PONDER_SYNC.transactionReceipts.effectiveGasPrice,
-          status: PONDER_SYNC.transactionReceipts.status,
-          type: PONDER_SYNC.transactionReceipts.type,
-        })
+        .select(transactionReceiptSelect as any)
         .from(PONDER_SYNC.transactionReceipts)
         .where(
           and(
@@ -671,18 +649,15 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
+      const logSelect: Record<string, any> = {};
+      for (const columnKey of columnAccessPattern.logInclude) {
+        const columnName = columnKey.replace("log.", "");
+        logSelect[columnName] =
+          PONDER_SYNC.logs[columnName as keyof typeof PONDER_SYNC.logs];
+      }
+
       const logsQuery = database.syncQB.raw
-        .select({
-          blockNumber: PONDER_SYNC.logs.blockNumber,
-          logIndex: PONDER_SYNC.logs.logIndex,
-          transactionIndex: PONDER_SYNC.logs.transactionIndex,
-          address: PONDER_SYNC.logs.address,
-          topic0: PONDER_SYNC.logs.topic0,
-          topic1: PONDER_SYNC.logs.topic1,
-          topic2: PONDER_SYNC.logs.topic2,
-          topic3: PONDER_SYNC.logs.topic3,
-          data: PONDER_SYNC.logs.data,
-        })
+        .select(logSelect as any)
         .from(PONDER_SYNC.logs)
         .where(
           and(
@@ -698,23 +673,16 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
+      // Build select object dynamically based on columnAccessPattern.traceInclude
+      const traceSelect: Record<string, any> = {};
+      for (const columnKey of columnAccessPattern.traceInclude) {
+        const columnName = columnKey.replace("trace.", "");
+        traceSelect[columnName] =
+          PONDER_SYNC.traces[columnName as keyof typeof PONDER_SYNC.traces];
+      }
+
       const tracesQuery = database.syncQB.raw
-        .select({
-          blockNumber: PONDER_SYNC.traces.blockNumber,
-          transactionIndex: PONDER_SYNC.traces.transactionIndex,
-          traceIndex: PONDER_SYNC.traces.traceIndex,
-          from: PONDER_SYNC.traces.from,
-          to: PONDER_SYNC.traces.to,
-          input: PONDER_SYNC.traces.input,
-          output: PONDER_SYNC.traces.output,
-          value: PONDER_SYNC.traces.value,
-          type: PONDER_SYNC.traces.type,
-          gas: PONDER_SYNC.traces.gas,
-          gasUsed: PONDER_SYNC.traces.gasUsed,
-          error: PONDER_SYNC.traces.error,
-          revertReason: PONDER_SYNC.traces.revertReason,
-          subcalls: PONDER_SYNC.traces.subcalls,
-        })
+        .select(traceSelect as any)
         .from(PONDER_SYNC.traces)
         .where(
           and(
