@@ -5,6 +5,7 @@ import type { Common } from "@/internal/common.js";
 import {
   BaseError,
   IndexingFunctionError,
+  InvalidEventAccessError,
   ShutdownError,
 } from "@/internal/errors.js";
 import type {
@@ -349,7 +350,7 @@ export const createIndexing = ({
           msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
         });
 
-        await executeEvent({ event });
+        await executeEvent({ event: toProxy(event) });
 
         common.logger.trace({
           service: "indexing",
@@ -376,6 +377,14 @@ const accessMetadata: {
   };
 } = {};
 
+const defaultInclude = new Set(
+  ...defaultLogInclude,
+  ...defaultBlockInclude,
+  ...defaultTraceInclude,
+  ...defaultTransactionInclude,
+  ...defaultTransactionReceiptInclude,
+);
+
 const proxyHandler = (
   eventName: string,
   type: "log" | "block" | "trace" | "transaction" | "transactionReceipt",
@@ -385,6 +394,10 @@ const proxyHandler = (
       if (typeof prop === "string") {
         const key = `${type}.${prop}`;
         accessMetadata[eventName]!.accessed.add(key);
+
+        if (prop in obj === false && defaultInclude.has(key)) {
+          throw new InvalidEventAccessError(key);
+        }
       }
       return Reflect.get(obj, prop, receiver);
     },
