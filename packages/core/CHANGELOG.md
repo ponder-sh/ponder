@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.20
+
+### Patch Changes
+
+- [#2009](https://github.com/ponder-sh/ponder/pull/2009) [`78fe92e`](https://github.com/ponder-sh/ponder/commit/78fe92eff8e4f8af54e7c4224e5af3da168134f0) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved historical indexing performance.
+
 ## 0.12.19
 
 ### Patch Changes
