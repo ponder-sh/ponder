@@ -237,7 +237,7 @@ export function buildGraphQLSchema({
 
             fieldConfigMap[relationName] = {
               // Note: There is a `relation.isNullable` field here but it appears
-              // to be internal / incorrect. Until we have support for foriegn
+              // to be internal / incorrect. Until we have support for foreign
               // key constraints, all `one` relations must be nullable.
               type: referencedEntityType,
               resolve: (parent, _args, context) => {

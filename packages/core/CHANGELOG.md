@@ -1,5 +1,30 @@
 # ponder
 
+## 0.12.20
+
+### Patch Changes
+
+- [#2009](https://github.com/ponder-sh/ponder/pull/2009) [`78fe92e`](https://github.com/ponder-sh/ponder/commit/78fe92eff8e4f8af54e7c4224e5af3da168134f0) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved historical indexing performance.
+
+## 0.12.19
+
+### Patch Changes
+
+- [#2016](https://github.com/ponder-sh/ponder/pull/2016) [`7372fd6`](https://github.com/ponder-sh/ponder/commit/7372fd6ac2d96298674b14fe369841cd14df54c3) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved `/status` accuracy when using `endBlock`.
+
+## 0.12.18
+
+### Patch Changes
+
+- Updated dependencies [[`5de9cc0`](https://github.com/ponder-sh/ponder/commit/5de9cc0de28711b3e1d1e36a7ae60c83eb7fed39)]:
+  - @ponder/utils@0.2.12
+
+## 0.12.17
+
+### Patch Changes
+
+- [#2007](https://github.com/ponder-sh/ponder/pull/2007) [`cfb5fb3`](https://github.com/ponder-sh/ponder/commit/cfb5fb303f29ddb13843000368f45fdf4a2937ec) Thanks [@kyscott18](https://github.com/kyscott18)! - Added several math functions to `@ponder/client` query allow list.
+
 ## 0.12.16
 
 ### Patch Changes

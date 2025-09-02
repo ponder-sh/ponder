@@ -12,7 +12,12 @@ import {
 import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
-import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
+import {
+  type QueryWithTypings,
+  type Table,
+  getTableName,
+  isTable,
+} from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
 import type { IndexingCache, Row } from "./cache.js";
 import {
@@ -21,6 +26,7 @@ import {
   checkTableAccess,
   validateUpdateSet,
 } from "./index.js";
+import { getPrimaryKeyCache } from "./utils.js";
 
 export const createHistoricalIndexingStore = ({
   common,
@@ -37,6 +43,9 @@ export const createHistoricalIndexingStore = ({
 }): IndexingStore => {
   let qb: QB = undefined!;
   let isProcessingEvents = true;
+
+  const tables = Object.values(schema).filter(isTable);
+  const primaryKeyCache = getPrimaryKeyCache(tables);
 
   const storeMethodWrapper = (fn: (...args: any[]) => Promise<any>) => {
     return async (...args: any[]) => {
@@ -149,13 +158,15 @@ export const createHistoricalIndexingStore = ({
 
                   if (row) {
                     if (typeof valuesU === "function") {
-                      const set = validateUpdateSet(table, valuesU(row), row);
+                      const set = valuesU(row);
+                      validateUpdateSet(table, set, row, primaryKeyCache);
                       for (const [key, value] of Object.entries(set)) {
                         if (value === undefined) continue;
                         row[key] = value;
                       }
                     } else {
-                      const set = validateUpdateSet(table, valuesU, row);
+                      const set = valuesU;
+                      validateUpdateSet(table, set, row, primaryKeyCache);
                       for (const [key, value] of Object.entries(set)) {
                         if (value === undefined) continue;
                         row[key] = value;
@@ -187,13 +198,15 @@ export const createHistoricalIndexingStore = ({
 
                 if (row) {
                   if (typeof valuesU === "function") {
-                    const set = validateUpdateSet(table, valuesU(row), row);
+                    const set = valuesU(row);
+                    validateUpdateSet(table, set, row, primaryKeyCache);
                     for (const [key, value] of Object.entries(set)) {
                       if (value === undefined) continue;
                       row[key] = value;
                     }
                   } else {
-                    const set = validateUpdateSet(table, valuesU, row);
+                    const set = valuesU;
+                    validateUpdateSet(table, set, row, primaryKeyCache);
                     for (const [key, value] of Object.entries(set)) {
                       if (value === undefined) continue;
                       row[key] = value;
@@ -337,13 +350,15 @@ export const createHistoricalIndexingStore = ({
           }
 
           if (typeof values === "function") {
-            const set = validateUpdateSet(table, values(row), row);
+            const set = values(row);
+            validateUpdateSet(table, set, row, primaryKeyCache);
             for (const [key, value] of Object.entries(set)) {
               if (value === undefined) continue;
               row[key] = value;
             }
           } else {
-            const set = validateUpdateSet(table, values, row);
+            const set = values;
+            validateUpdateSet(table, set, row, primaryKeyCache);
             for (const [key, value] of Object.entries(set)) {
               if (value === undefined) continue;
               row[key] = value;
