@@ -551,7 +551,7 @@ export const getLogsRetryHelper = ({
     }
   }
 
-  // tron json rpc
+  // tron
   match = sError.match(/exceed max block range: (\d+)/);
   if (match !== null) {
     const ranges = chunk({ params, range: BigInt(match[1]!) - 1n });

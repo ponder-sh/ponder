@@ -3,12 +3,13 @@ import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { type Params, getRequest } from "./utils.js";
 
-const request = getRequest(process.env.RPC_URL_TRON_JSON!);
+const request = getRequest("https://api.trongrid.io/jsonrpc");
 const fromBlock = 71583814n;
 const maxBlockRange = 5000n;
-const TEST_ADDRESS = "0x543208eB34ecad8f91a4D83e597d3c39D67ca47B"; // THePheuMzpeYaEscvEPJhmvzjvQAq1ptqe from https://tronscan.org/#/tools/code-converter/tron-ethereum-address
+// THePheuMzpeYaEscvEPJhmvzjvQAq1ptqe from https://tronscan.org/#/tools/code-converter/tron-ethereum-address
+const TEST_ADDRESS = "0x543208eB34ecad8f91a4D83e597d3c39D67ca47B";
 
-test("tron json rpc success", async () => {
+test("tron success", async () => {
   const logs = await request({
     method: "eth_getLogs",
     params: [
@@ -23,7 +24,7 @@ test("tron json rpc success", async () => {
   expect(logs).toHaveLength(4);
 });
 
-test("tron json rpc response size", async () => {
+test("tron response size", async () => {
   const params: Params = [
     {
       fromBlock: numberToHex(fromBlock),
