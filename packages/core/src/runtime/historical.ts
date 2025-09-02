@@ -574,7 +574,7 @@ export async function* getHistoricalEventsIsolated(params: {
       if (from > to) return;
     }
 
-    const rawEventGenerator = await initEventGenerator({
+    const eventGenerator = await initEventGenerator({
       common: params.common,
       indexingBuild: params.indexingBuild,
       chain,
@@ -594,7 +594,7 @@ export async function* getHistoricalEventsIsolated(params: {
       isCatchup,
     });
 
-    for await (const { events: rawEvents, checkpoint } of rawEventGenerator) {
+    for await (const { events: rawEvents, checkpoint } of eventGenerator) {
       const endClock = startClock();
       let events = decodeEvents(params.common, sources, rawEvents);
       params.common.logger.debug({
@@ -642,8 +642,10 @@ export async function* getHistoricalEventsIsolated(params: {
       hexToNumber(finalizedBlock.number) -
         hexToNumber(syncProgress.finalized.number) <=
       chain.finalityBlockCount
-    )
+    ) {
       break;
+    }
+
     syncProgress.finalized = finalizedBlock;
     isCatchup = true;
   }

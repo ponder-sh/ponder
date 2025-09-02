@@ -545,12 +545,15 @@ export async function* getRealtimeEventsIsolated(params: {
     "sources" | "chains" | "rpcs" | "finalizedBlocks"
   >;
   syncStore: SyncStore;
-  pendingEvents: Event[];
   chain: Chain;
   syncProgress: SyncProgress;
   childAddresses: ChildAddresses;
+  unfinalizedBlocks: Omit<
+    Extract<RealtimeSyncEvent, { type: "block" }>,
+    "type"
+  >[];
 }): AsyncGenerator<RealtimeEvent> {
-  const { chain, syncProgress, childAddresses } = params;
+  const { chain, syncProgress, childAddresses, unfinalizedBlocks } = params;
 
   if (syncProgress.isEnd()) {
     params.common.metrics.ponder_sync_is_complete.set({ chain: chain.name }, 1);
@@ -578,11 +581,7 @@ export async function* getRealtimeEventsIsolated(params: {
   /** Events that have been executed but not finalized. */
   let executedEvents: Event[] = [];
   /** Events that have not been executed. */
-  let pendingEvents: Event[] = params.pendingEvents;
-  const unfinalizedBlocks: Omit<
-    Extract<RealtimeSyncEvent, { type: "block" }>,
-    "type"
-  >[] = [];
+  let pendingEvents: Event[] = [];
 
   for await (const { event } of eventGenerator) {
     await handleRealtimeSyncEvent(event, {
@@ -637,16 +636,13 @@ export async function* getRealtimeEventsIsolated(params: {
 
         const readyEvents = pendingEvents
           .concat(decodedEvents)
-          .filter((e) => e.checkpoint < checkpoint)
           .sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
-        pendingEvents = pendingEvents
-          .concat(decodedEvents)
-          .filter((e) => e.checkpoint > checkpoint);
+        pendingEvents = [];
         executedEvents = executedEvents.concat(readyEvents);
 
         params.common.logger.debug({
           service: "sync",
-          msg: `Sequenced ${readyEvents.length} events`,
+          msg: `Sequenced ${readyEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
         });
 
         yield {
@@ -659,12 +655,12 @@ export async function* getRealtimeEventsIsolated(params: {
         break;
       }
       case "finalize": {
-        const to = syncProgress.getCheckpoint({ tag: "finalized" });
+        const checkpoint = syncProgress.getCheckpoint({ tag: "finalized" });
 
         // index of the first unfinalized event
         let finalizeIndex: number | undefined = undefined;
         for (const [index, event] of executedEvents.entries()) {
-          if (event.checkpoint > to) {
+          if (event.checkpoint > checkpoint) {
             finalizeIndex = index;
             break;
           }
@@ -685,7 +681,7 @@ export async function* getRealtimeEventsIsolated(params: {
           msg: `Finalized ${finalizedEvents.length} executed events`,
         });
 
-        yield { type: "finalize", chain, checkpoint: to };
+        yield { type: "finalize", chain, checkpoint };
         break;
       }
 
@@ -702,14 +698,21 @@ export async function* getRealtimeEventsIsolated(params: {
 
         const checkpoint = syncProgress.getCheckpoint({ tag: "current" });
 
+        // index of the first reorged event
+        let reorgIndex: number | undefined = undefined;
+        for (const [index, event] of executedEvents.entries()) {
+          if (event.chainId === chain.id && event.checkpoint > checkpoint) {
+            reorgIndex = index;
+            break;
+          }
+        }
+
+        if (reorgIndex === undefined) continue;
+
         // Move events from executed to pending
 
-        const reorgedEvents = executedEvents.filter(
-          (e) => e.checkpoint > checkpoint,
-        );
-        executedEvents = executedEvents.filter(
-          (e) => e.checkpoint < checkpoint,
-        );
+        const reorgedEvents = executedEvents.slice(reorgIndex);
+        executedEvents = executedEvents.slice(0, reorgIndex);
         pendingEvents = pendingEvents.concat(reorgedEvents);
 
         params.common.logger.debug({

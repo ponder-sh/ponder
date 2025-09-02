@@ -40,6 +40,7 @@ import type {
   SchemaBuild,
   Seconds,
 } from "@/internal/types.js";
+import type { RealtimeSyncEvent } from "@/sync-realtime/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import {
   ZERO_CHECKPOINT_STRING,
@@ -285,6 +286,10 @@ export async function runIsolated({
     sources,
     syncStore,
   });
+  const unfinalizedBlocks: Omit<
+    Extract<RealtimeSyncEvent, { type: "block" }>,
+    "type"
+  >[] = [];
 
   const start = Number(
     decodeCheckpoint(syncProgress.getCheckpoint({ tag: "start" }))
@@ -414,7 +419,6 @@ export async function runIsolated({
         try {
           historicalIndexingStore.qb = tx;
           historicalIndexingStore.isProcessingEvents = true;
-
           indexingCache.qb = tx;
 
           common.metrics.ponder_historical_transform_duration.inc(
@@ -584,7 +588,7 @@ export async function runIsolated({
     chain,
     childAddresses,
     syncStore,
-    pendingEvents: [],
+    unfinalizedBlocks,
   })) {
     switch (event.type) {
       case "block": {
@@ -619,11 +623,7 @@ export async function runIsolated({
 
                 await Promise.all(
                   tables.map((table) =>
-                    commitBlock(tx, {
-                      table,
-                      checkpoint,
-                      preBuild,
-                    }),
+                    commitBlock(tx, { table, checkpoint, preBuild }),
                   ),
                 );
 
@@ -664,8 +664,8 @@ export async function runIsolated({
           await dropTriggers(tx, { tables, chainId });
 
           const counts = await revert(tx, {
-            tables,
             checkpoint: event.checkpoint,
+            tables,
             preBuild,
           });
 
