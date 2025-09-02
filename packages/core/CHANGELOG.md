@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.19
+
+### Patch Changes
+
+- [#2016](https://github.com/ponder-sh/ponder/pull/2016) [`7372fd6`](https://github.com/ponder-sh/ponder/commit/7372fd6ac2d96298674b14fe369841cd14df54c3) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved `/status` accuracy when using `endBlock`.
+
 ## 0.12.18
 
 ### Patch Changes
