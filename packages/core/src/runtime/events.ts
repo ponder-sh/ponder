@@ -114,6 +114,18 @@ export const buildEvents = ({
     ) {
       const transaction = transactions[transactionsIndex]!;
 
+      while (
+        transactionReceiptsIndex < transactionReceipts.length &&
+        (transactionReceipts[transactionReceiptsIndex]!.blockNumber <
+          blockNumber ||
+          (transactionReceipts[transactionReceiptsIndex]!.blockNumber ===
+            blockNumber &&
+            transactionReceipts[transactionReceiptsIndex]!.transactionIndex <
+              transaction.transactionIndex))
+      ) {
+        transactionReceiptsIndex++;
+      }
+
       let transactionReceipt: InternalTransactionReceipt | undefined;
       if (
         transactionReceiptsIndex < transactionReceipts.length &&
