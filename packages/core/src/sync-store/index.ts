@@ -586,8 +586,12 @@ export const createSyncStore = ({
           PONDER_SYNC.blocks[columnName as keyof typeof PONDER_SYNC.blocks];
       }
 
+      blockSelect.timestamp = PONDER_SYNC.blocks.timestamp;
+      blockSelect.number = PONDER_SYNC.blocks.number;
+      blockSelect.hash = PONDER_SYNC.blocks.hash;
+
       const blocksQuery = database.syncQB.raw
-        .select(blockSelect as any)
+        .select(blockSelect)
         .from(PONDER_SYNC.blocks)
         .where(
           and(
@@ -608,8 +612,14 @@ export const createSyncStore = ({
           ];
       }
 
+      transactionSelect.blockNumber = PONDER_SYNC.transactions.blockNumber;
+      transactionSelect.transactionIndex =
+        PONDER_SYNC.transactions.transactionIndex;
+      transactionSelect.from = PONDER_SYNC.transactions.from;
+      transactionSelect.to = PONDER_SYNC.transactions.to;
+
       const transactionsQuery = database.syncQB.raw
-        .select(transactionSelect as any)
+        .select(transactionSelect)
         .from(PONDER_SYNC.transactions)
         .where(
           and(
@@ -633,6 +643,14 @@ export const createSyncStore = ({
           ];
       }
 
+      transactionReceiptSelect.blockNumber =
+        PONDER_SYNC.transactionReceipts.blockNumber;
+      transactionReceiptSelect.transactionIndex =
+        PONDER_SYNC.transactionReceipts.transactionIndex;
+      transactionReceiptSelect.status = PONDER_SYNC.transactionReceipts.status;
+      transactionReceiptSelect.from = PONDER_SYNC.transactionReceipts.from;
+      transactionReceiptSelect.to = PONDER_SYNC.transactionReceipts.to;
+
       const transactionReceiptsQuery = database.syncQB.raw
         .select(transactionReceiptSelect as any)
         .from(PONDER_SYNC.transactionReceipts)
@@ -649,15 +667,18 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
-      const logSelect: Record<string, any> = {};
-      for (const columnKey of columnAccessPattern.logInclude) {
-        const columnName = columnKey.replace("log.", "");
-        logSelect[columnName] =
-          PONDER_SYNC.logs[columnName as keyof typeof PONDER_SYNC.logs];
-      }
-
       const logsQuery = database.syncQB.raw
-        .select(logSelect as any)
+        .select({
+          blockNumber: PONDER_SYNC.logs.blockNumber,
+          logIndex: PONDER_SYNC.logs.logIndex,
+          transactionIndex: PONDER_SYNC.logs.transactionIndex,
+          address: PONDER_SYNC.logs.address,
+          topic0: PONDER_SYNC.logs.topic0,
+          topic1: PONDER_SYNC.logs.topic1,
+          topic2: PONDER_SYNC.logs.topic2,
+          topic3: PONDER_SYNC.logs.topic3,
+          data: PONDER_SYNC.logs.data,
+        })
         .from(PONDER_SYNC.logs)
         .where(
           and(
@@ -673,7 +694,6 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
-      // Build select object dynamically based on columnAccessPattern.traceInclude
       const traceSelect: Record<string, any> = {};
       for (const columnKey of columnAccessPattern.traceInclude) {
         const columnName = columnKey.replace("trace.", "");
@@ -681,8 +701,18 @@ export const createSyncStore = ({
           PONDER_SYNC.traces[columnName as keyof typeof PONDER_SYNC.traces];
       }
 
+      traceSelect.blockNumber = PONDER_SYNC.traces.blockNumber;
+      traceSelect.from = PONDER_SYNC.traces.from;
+      traceSelect.to = PONDER_SYNC.traces.to;
+      traceSelect.input = PONDER_SYNC.traces.input;
+      traceSelect.value = PONDER_SYNC.traces.value;
+      traceSelect.type = PONDER_SYNC.traces.type;
+      traceSelect.error = PONDER_SYNC.traces.error;
+      traceSelect.traceIndex = PONDER_SYNC.traces.traceIndex;
+      traceSelect.transactionIndex = PONDER_SYNC.traces.transactionIndex;
+
       const tracesQuery = database.syncQB.raw
-        .select(traceSelect as any)
+        .select(traceSelect)
         .from(PONDER_SYNC.traces)
         .where(
           and(
@@ -786,9 +816,9 @@ export const createSyncStore = ({
             transaction as unknown as InternalTransaction;
 
           internalTransaction.blockNumber = Number(transaction.blockNumber);
-          internalTransaction.from = toLowerCase(transaction.from);
+          internalTransaction.from = toLowerCase(transaction.from) as Address;
           if (transaction.to !== null) {
-            internalTransaction.to = toLowerCase(transaction.to);
+            internalTransaction.to = toLowerCase(transaction.to) as Address;
           }
 
           if (transaction.type === "0x0") {
@@ -831,16 +861,21 @@ export const createSyncStore = ({
           internalTransactionReceipt.blockNumber = Number(
             transactionReceipt.blockNumber,
           );
-          if (transactionReceipt.contractAddress !== null) {
+          if (
+            transactionReceipt.contractAddress !== undefined &&
+            transactionReceipt.contractAddress !== null
+          ) {
             internalTransactionReceipt.contractAddress = toLowerCase(
               transactionReceipt.contractAddress,
-            );
+            ) as Address;
           }
           internalTransactionReceipt.from = toLowerCase(
             transactionReceipt.from,
-          );
+          ) as Address;
           if (transactionReceipt.to !== null) {
-            internalTransactionReceipt.to = toLowerCase(transactionReceipt.to);
+            internalTransactionReceipt.to = toLowerCase(
+              transactionReceipt.to,
+            ) as Address;
           }
           internalTransactionReceipt.status =
             transactionReceipt.status === "0x1"
@@ -902,9 +937,9 @@ export const createSyncStore = ({
 
           internalTrace.blockNumber = Number(trace.blockNumber);
 
-          internalTrace.from = toLowerCase(trace.from);
+          internalTrace.from = toLowerCase(trace.from) as Address;
           if (trace.to !== null) {
-            internalTrace.to = toLowerCase(trace.to);
+            internalTrace.to = toLowerCase(trace.to) as Address;
           }
 
           if (trace.output === null) {
@@ -931,6 +966,12 @@ export const createSyncStore = ({
           transactions,
           traces,
           transactionReceipts,
+        } as {
+          block: InternalBlock;
+          logs: InternalLog[];
+          transactions: InternalTransaction[];
+          transactionReceipts: InternalTransactionReceipt[];
+          traces: InternalTrace[];
         });
       }
 
