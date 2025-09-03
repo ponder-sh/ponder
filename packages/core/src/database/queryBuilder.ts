@@ -145,123 +145,123 @@ export const createQB = <
   const dialect = db.$client instanceof PGlite ? "pglite" : "postgres";
 
   // Retry, logging, metrics, and error parsing wrapper
-  const retryLogMetricErrorWrap = async <T>(
-    fn: () => Promise<T>,
-    {
-      label,
-      isTransaction,
-      isTransactionStatement,
-    }: {
-      label?: string;
-      isTransaction: boolean;
-      isTransactionStatement: boolean;
-    },
-  ): Promise<T> => {
-    // First error thrown is often the most useful
-    let firstError: any;
-    let hasError = false;
+  // const retryLogMetricErrorWrap = async <T>(
+  //   fn: () => Promise<T>,
+  //   {
+  //     label,
+  //     isTransaction,
+  //     isTransactionStatement,
+  //   }: {
+  //     label?: string;
+  //     isTransaction: boolean;
+  //     isTransactionStatement: boolean;
+  //   },
+  // ): Promise<T> => {
+  //   // First error thrown is often the most useful
+  //   let firstError: any;
+  //   let hasError = false;
 
-    for (let i = 0; i <= RETRY_COUNT; i++) {
-      const endClock = startClock();
-      const id = crypto.randomUUID().slice(0, 8);
+  //   for (let i = 0; i <= RETRY_COUNT; i++) {
+  //     const endClock = startClock();
+  //     const id = crypto.randomUUID().slice(0, 8);
 
-      if (label) {
-        common.logger.trace({
-          service: "database",
-          msg: `Started '${label}' database method (id=${id})`,
-        });
-      }
+  //     if (label) {
+  //       common.logger.trace({
+  //         service: "database",
+  //         msg: `Started '${label}' database method (id=${id})`,
+  //       });
+  //     }
 
-      try {
-        if (common.shutdown.isKilled && isAdmin === false) {
-          throw new ShutdownError();
-        }
+  //     try {
+  //       if (common.shutdown.isKilled && isAdmin === false) {
+  //         throw new ShutdownError();
+  //       }
 
-        const result = await fn();
-        if (label) {
-          common.metrics.ponder_database_method_duration.observe(
-            { method: label },
-            endClock(),
-          );
-        }
+  //       const result = await fn();
+  //       if (label) {
+  //         common.metrics.ponder_database_method_duration.observe(
+  //           { method: label },
+  //           endClock(),
+  //         );
+  //       }
 
-        return result;
-      } catch (e) {
-        const error = parseDbError(e);
+  //       return result;
+  //     } catch (e) {
+  //       const error = parseDbError(e);
 
-        if (common.shutdown.isKilled) {
-          throw new ShutdownError();
-        }
+  //       if (common.shutdown.isKilled) {
+  //         throw new ShutdownError();
+  //       }
 
-        if (label) {
-          common.metrics.ponder_database_method_duration.observe(
-            { method: label },
-            endClock(),
-          );
-          common.metrics.ponder_database_method_error_total.inc({
-            method: label,
-          });
-        }
+  //       if (label) {
+  //         common.metrics.ponder_database_method_duration.observe(
+  //           { method: label },
+  //           endClock(),
+  //         );
+  //         common.metrics.ponder_database_method_error_total.inc({
+  //           method: label,
+  //         });
+  //       }
 
-        if (!hasError) {
-          hasError = true;
-          firstError = error;
-        }
+  //       if (!hasError) {
+  //         hasError = true;
+  //         firstError = error;
+  //       }
 
-        // Two types of transaction environments
-        // 1. Inside callback (running user statements or control flow statements): Throw error, retry
-        // later. We want the error bubbled up out of the callback, so the transaction is properly rolled back.
-        // 2. Outside callback (running entire transaction, user statements + control flow statements): Retry immediately.
+  //       // Two types of transaction environments
+  //       // 1. Inside callback (running user statements or control flow statements): Throw error, retry
+  //       // later. We want the error bubbled up out of the callback, so the transaction is properly rolled back.
+  //       // 2. Outside callback (running entire transaction, user statements + control flow statements): Retry immediately.
 
-        if (isTransaction) {
-          if (error instanceof NonRetryableUserError) {
-            throw error;
-          }
-        } else if (isTransactionStatement) {
-          // Transaction statements are not immediately retried, so the transaction will be properly rolled back.
-          common.logger.warn({
-            service: "database",
-            msg: `Failed ${label ? `'${label}' ` : ""}database query (id=${id})`,
-            error,
-          });
-          throw error;
-        } else if (error instanceof NonRetryableUserError) {
-          common.logger.warn({
-            service: "database",
-            msg: `Failed ${label ? `'${label}' ` : ""}database query (id=${id})`,
-            error,
-          });
-          throw error;
-        }
+  //       if (isTransaction) {
+  //         if (error instanceof NonRetryableUserError) {
+  //           throw error;
+  //         }
+  //       } else if (isTransactionStatement) {
+  //         // Transaction statements are not immediately retried, so the transaction will be properly rolled back.
+  //         common.logger.warn({
+  //           service: "database",
+  //           msg: `Failed ${label ? `'${label}' ` : ""}database query (id=${id})`,
+  //           error,
+  //         });
+  //         throw error;
+  //       } else if (error instanceof NonRetryableUserError) {
+  //         common.logger.warn({
+  //           service: "database",
+  //           msg: `Failed ${label ? `'${label}' ` : ""}database query (id=${id})`,
+  //           error,
+  //         });
+  //         throw error;
+  //       }
 
-        if (i === RETRY_COUNT) {
-          common.logger.warn({
-            service: "database",
-            msg: `Failed ${label ? `'${label}' ` : ""}database query after '${i + 1}' attempts (id=${id})`,
-            error,
-          });
-          throw firstError;
-        }
+  //       if (i === RETRY_COUNT) {
+  //         common.logger.warn({
+  //           service: "database",
+  //           msg: `Failed ${label ? `'${label}' ` : ""}database query after '${i + 1}' attempts (id=${id})`,
+  //           error,
+  //         });
+  //         throw firstError;
+  //       }
 
-        const duration = BASE_DURATION * 2 ** i;
-        common.logger.debug({
-          service: "database",
-          msg: `Failed ${label ? `'${label}' ` : ""}database query, retrying after ${duration} milliseconds (id=${id})`,
-          error,
-        });
-        await wait(duration);
-      } finally {
-        if (label) {
-          common.logger.trace({
-            service: "database",
-            msg: `Completed '${label}' database method in ${Math.round(endClock())}ms (id=${id})`,
-          });
-        }
-      }
-    }
+  //       const duration = BASE_DURATION * 2 ** i;
+  //       common.logger.debug({
+  //         service: "database",
+  //         msg: `Failed ${label ? `'${label}' ` : ""}database query, retrying after ${duration} milliseconds (id=${id})`,
+  //         error,
+  //       });
+  //       await wait(duration);
+  //     } finally {
+  //       if (label) {
+  //         common.logger.trace({
+  //           service: "database",
+  //           msg: `Completed '${label}' database method in ${Math.round(endClock())}ms (id=${id})`,
+  //         });
+  //       }
+  //     }
+  //   }
 
-    throw "unreachable";
-  };
+  //   throw "unreachable";
+  // };
 
   // Add QB methods to the transaction object
   const addQBMethods = (db: PgDatabase<PgQueryResultHKT, TSchema>) => {
@@ -283,50 +283,34 @@ export const createQB = <
         // Note: We want to retry errors from `callback` but include
         // the transaction control statements in `_transaction`.
 
-        return retryLogMetricErrorWrap(
-          () =>
-            _transaction(async (tx) => {
-              addQBMethods(tx);
+        return _transaction(async (tx) => {
+          addQBMethods(tx);
 
-              // @ts-expect-error
-              tx.raw = tx;
+          // @ts-expect-error
+          tx.raw = tx;
 
-              Object.assign(tx, { $dialect: dialect });
-              // @ts-expect-error
-              Object.assign(tx, { $client: tx.session.client });
+          Object.assign(tx, { $dialect: dialect });
+          // @ts-expect-error
+          Object.assign(tx, { $client: tx.session.client });
 
-              // Note: `tx.wrap` should not retry errors, because the transaction will be aborted
-              // @ts-ignore
-              (tx as unknown as QB<TSchema, TClient>).wrap = (...args) => {
-                if (typeof args[0] === "function") {
-                  const [query] = args;
-                  return retryLogMetricErrorWrap(
-                    async () =>
-                      query(tx as unknown as InnerQB<TSchema, TClient>),
-                    { isTransaction: false, isTransactionStatement: true },
-                  );
-                } else {
-                  const [{ label }, query] = args as [
-                    { label: string },
-                    (db: InnerQB<TSchema, TClient>) => unknown,
-                  ];
-                  return retryLogMetricErrorWrap(
-                    async () =>
-                      query(tx as unknown as InnerQB<TSchema, TClient>),
-                    {
-                      label,
-                      isTransaction: false,
-                      isTransactionStatement: true,
-                    },
-                  );
-                }
-              };
+          // Note: `tx.wrap` should not retry errors, because the transaction will be aborted
+          // @ts-ignore
+          (tx as unknown as QB<TSchema, TClient>).wrap = (...args) => {
+            if (typeof args[0] === "function") {
+              const [query] = args;
+              return query(tx as unknown as InnerQB<TSchema, TClient>);
+            } else {
+              const [{ label }, query] = args as [
+                { label: string },
+                (db: InnerQB<TSchema, TClient>) => unknown,
+              ];
+              return query(tx as unknown as InnerQB<TSchema, TClient>);
+            }
+          };
 
-              const result = await callback(tx);
-              return result;
-            }, config),
-          { isTransaction: true, isTransactionStatement: false },
-        );
+          const result = await callback(tx);
+          return result;
+        }, config);
       } else {
         const [{ label }, callback, config] = args as unknown as [
           { label: string },
@@ -343,54 +327,34 @@ export const createQB = <
         // Note: We want to retry errors from `callback` but include
         // the transaction control statements in `_transaction`.
 
-        return retryLogMetricErrorWrap(
-          () =>
-            _transaction(async (tx) => {
-              addQBMethods(tx);
+        return _transaction(async (tx) => {
+          addQBMethods(tx);
 
-              // @ts-expect-error
-              tx.raw = tx;
+          // @ts-expect-error
+          tx.raw = tx;
 
-              Object.assign(tx, { $dialect: dialect });
-              // @ts-expect-error
-              Object.assign(tx, { $client: tx.session.client });
+          Object.assign(tx, { $dialect: dialect });
+          // @ts-expect-error
+          Object.assign(tx, { $client: tx.session.client });
 
-              // Note: `tx.wrap` should not retry errors, because the transaction will be aborted
-              // @ts-ignore
-              (tx as unknown as QB<TSchema, TClient>).wrap = (...args) => {
-                if (typeof args[0] === "function") {
-                  const [query] = args;
-                  return retryLogMetricErrorWrap(
-                    async () =>
-                      query(tx as unknown as InnerQB<TSchema, TClient>),
-                    {
-                      label,
-                      isTransaction: false,
-                      isTransactionStatement: true,
-                    },
-                  );
-                } else {
-                  const [{ label }, query] = args as [
-                    { label: string },
-                    (db: InnerQB<TSchema, TClient>) => unknown,
-                  ];
-                  return retryLogMetricErrorWrap(
-                    async () =>
-                      query(tx as unknown as InnerQB<TSchema, TClient>),
-                    {
-                      label,
-                      isTransaction: false,
-                      isTransactionStatement: true,
-                    },
-                  );
-                }
-              };
+          // Note: `tx.wrap` should not retry errors, because the transaction will be aborted
+          // @ts-ignore
+          (tx as unknown as QB<TSchema, TClient>).wrap = (...args) => {
+            if (typeof args[0] === "function") {
+              const [query] = args;
+              return query(tx as unknown as InnerQB<TSchema, TClient>);
+            } else {
+              const [{ label }, query] = args as [
+                { label: string },
+                (db: InnerQB<TSchema, TClient>) => unknown,
+              ];
+              return query(tx as unknown as InnerQB<TSchema, TClient>);
+            }
+          };
 
-              const result = await callback(tx);
-              return result;
-            }, config),
-          { label, isTransaction: true, isTransactionStatement: false },
-        );
+          const result = await callback(tx);
+          return result;
+        }, config);
       }
     };
   };
@@ -412,9 +376,11 @@ export const createQB = <
         ];
 
         // @ts-expect-error
-        return retryLogMetricErrorWrap(() => callback(db), {
-          isTransactionStatement: true,
-        });
+        return callback(db);
+
+        // return retryLogMetricErrorWrap(() => callback(db), {
+        //   isTransactionStatement: true,
+        // });
       } else {
         const [{ label }, callback] = args as [
           { label: string },
@@ -428,10 +394,11 @@ export const createQB = <
         ];
 
         // @ts-expect-error
-        return retryLogMetricErrorWrap(() => callback(db), {
-          label,
-          isTransactionStatement: true,
-        });
+        return callback(db);
+        // return retryLogMetricErrorWrap(() => callback(db), {
+        //   label,
+        //   isTransactionStatement: true,
+        // });
       }
     };
   }
@@ -447,16 +414,18 @@ export const createQB = <
     if (typeof args[0] === "function") {
       const [query] = args;
       // @ts-expect-error
-      return retryLogMetricErrorWrap(() => query(qb), {
-        isTransactionStatement: false,
-      });
+      return query(qb);
+      // return retryLogMetricErrorWrap(() => query(qb), {
+      //   isTransactionStatement: false,
+      // });
     } else {
       const [{ label }, query] = args;
       // @ts-expect-error
-      return retryLogMetricErrorWrap(() => query(qb), {
-        isTransactionStatement: false,
-        label,
-      });
+      return query(qb);
+      // return retryLogMetricErrorWrap(() => query(qb), {
+      //   isTransactionStatement: false,
+      //   label,
+      // });
     }
   };
 
