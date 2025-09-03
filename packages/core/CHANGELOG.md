@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.21
+
+### Patch Changes
+
+- [#2006](https://github.com/ponder-sh/ponder/pull/2006) [`908b4b2`](https://github.com/ponder-sh/ponder/commit/908b4b2034174ff96900f98ad60141581fac9c49) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved websocket handling.
+
 ## 0.12.20
 
 ### Patch Changes
