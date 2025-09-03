@@ -54,6 +54,26 @@ export type Context = {
   >;
 };
 
+export const columnAccessPattern: {
+  logInclude: typeof defaultLogInclude;
+  blockInclude: typeof defaultBlockInclude;
+  traceInclude: typeof defaultTraceInclude;
+  transactionInclude: typeof defaultTransactionInclude;
+  transactionReceiptInclude: typeof defaultTransactionReceiptInclude;
+  accessed: Set<string>;
+  eventCount: number;
+  resolved: boolean;
+} = {
+  logInclude: [...defaultLogInclude],
+  blockInclude: [...defaultBlockInclude],
+  traceInclude: [...defaultTraceInclude],
+  transactionInclude: [...defaultTransactionInclude],
+  transactionReceiptInclude: [...defaultTransactionReceiptInclude],
+  accessed: new Set(),
+  eventCount: 0,
+  resolved: false,
+};
+
 export type Indexing = {
   processSetupEvents: (params: {
     db: IndexingStore;
@@ -372,29 +392,6 @@ const defaultInclude = new Set(
   ...defaultTransactionReceiptInclude,
 );
 
-export const columnAccessPattern: {
-  logInclude: typeof defaultLogInclude;
-  blockInclude: typeof defaultBlockInclude;
-  traceInclude: typeof defaultTraceInclude;
-  transactionInclude: typeof defaultTransactionInclude;
-  transactionReceiptInclude: typeof defaultTransactionReceiptInclude;
-  accessed: Set<string>;
-  metadata: {
-    [eventName: string]: {
-      eventCount: number;
-      resolved: boolean;
-    };
-  };
-} = {
-  logInclude: [...defaultLogInclude],
-  blockInclude: [...defaultBlockInclude],
-  traceInclude: [...defaultTraceInclude],
-  transactionInclude: [...defaultTransactionInclude],
-  transactionReceiptInclude: [...defaultTransactionReceiptInclude],
-  accessed: new Set(),
-  metadata: {},
-};
-
 const proxyHandler = (
   type: "log" | "block" | "trace" | "transaction" | "transactionReceipt",
 ): ProxyHandler<any> => {
@@ -414,39 +411,23 @@ const proxyHandler = (
 };
 
 export const toProxy = (event: Event): Event => {
-  if (columnAccessPattern.metadata[event.name] === undefined) {
-    columnAccessPattern.metadata[event.name] = {
-      eventCount: 0,
-      resolved: false,
-    };
-  }
-
-  if (
-    columnAccessPattern.metadata[event.name]!.resolved === false &&
-    columnAccessPattern.metadata[event.name]!.eventCount++ > 100
-  ) {
-    columnAccessPattern.metadata[event.name]!.resolved = true;
-    if (
-      Object.values(columnAccessPattern.metadata).every(
-        ({ resolved }) => resolved,
-      )
-    ) {
-      columnAccessPattern.logInclude.filter((key) =>
-        columnAccessPattern.accessed.has(key),
-      );
-      columnAccessPattern.blockInclude.filter((key) =>
-        columnAccessPattern.accessed.has(key),
-      );
-      columnAccessPattern.traceInclude.filter((key) =>
-        columnAccessPattern.accessed.has(key),
-      );
-      columnAccessPattern.transactionInclude.filter((key) =>
-        columnAccessPattern.accessed.has(key),
-      );
-      columnAccessPattern.transactionReceiptInclude.filter((key) =>
-        columnAccessPattern.accessed.has(key),
-      );
-    }
+  if (columnAccessPattern.eventCount++ > 1000) {
+    columnAccessPattern.resolved = true;
+    columnAccessPattern.logInclude.filter((key) =>
+      columnAccessPattern.accessed.has(key),
+    );
+    columnAccessPattern.blockInclude.filter((key) =>
+      columnAccessPattern.accessed.has(key),
+    );
+    columnAccessPattern.traceInclude.filter((key) =>
+      columnAccessPattern.accessed.has(key),
+    );
+    columnAccessPattern.transactionInclude.filter((key) =>
+      columnAccessPattern.accessed.has(key),
+    );
+    columnAccessPattern.transactionReceiptInclude.filter((key) =>
+      columnAccessPattern.accessed.has(key),
+    );
   }
 
   switch (event.type) {
