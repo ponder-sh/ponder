@@ -4,6 +4,7 @@ import { columnAccessPattern } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
   BlockFilter,
+  Event,
   Factory,
   Filter,
   FilterWithoutBlocks,
@@ -31,6 +32,7 @@ import {
   shouldGetTransactionReceipt,
 } from "@/runtime/filter.js";
 import { encodeFragment, getFragments } from "@/runtime/fragments.js";
+import { dedupe } from "@/utils/dedupe.js";
 import type { Interval } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
@@ -50,7 +52,12 @@ import {
   sql,
 } from "drizzle-orm";
 import { type PgColumn, unionAll } from "drizzle-orm/pg-core";
-import { type Address, type EIP1193Parameters, hexToNumber } from "viem";
+import {
+  type Address,
+  type EIP1193Parameters,
+  type Hash,
+  hexToNumber,
+} from "viem";
 import {
   encodeBlock,
   encodeLog,
@@ -115,6 +122,9 @@ export type SyncStore = {
     }[];
     cursor: number;
   }>;
+  refetchEventData(args: {
+    events: Event[];
+  }): Promise<Event[]>;
   insertRpcRequestResults(args: {
     requests: {
       request: EIP1193Parameters;
@@ -589,6 +599,8 @@ export const createSyncStore = ({
       blockSelect.timestamp = PONDER_SYNC.blocks.timestamp;
       blockSelect.number = PONDER_SYNC.blocks.number;
       blockSelect.hash = PONDER_SYNC.blocks.hash;
+      blockSelect.logsBloom = PONDER_SYNC.blocks.logsBloom;
+      blockSelect.parentHash = PONDER_SYNC.blocks.parentHash;
 
       const blocksQuery = database.syncQB.raw
         .select(blockSelect)
@@ -617,6 +629,8 @@ export const createSyncStore = ({
         PONDER_SYNC.transactions.transactionIndex;
       transactionSelect.from = PONDER_SYNC.transactions.from;
       transactionSelect.to = PONDER_SYNC.transactions.to;
+      transactionSelect.hash = PONDER_SYNC.transactions.hash;
+      transactionSelect.blockHash = PONDER_SYNC.transactions.blockHash;
 
       const transactionsQuery = database.syncQB.raw
         .select(transactionSelect)
@@ -650,6 +664,10 @@ export const createSyncStore = ({
       transactionReceiptSelect.status = PONDER_SYNC.transactionReceipts.status;
       transactionReceiptSelect.from = PONDER_SYNC.transactionReceipts.from;
       transactionReceiptSelect.to = PONDER_SYNC.transactionReceipts.to;
+      transactionReceiptSelect.blockHash =
+        PONDER_SYNC.transactionReceipts.blockHash;
+      transactionReceiptSelect.transactionHash =
+        PONDER_SYNC.transactionReceipts.transactionHash;
 
       const transactionReceiptsQuery = database.syncQB.raw
         .select(transactionReceiptSelect as any)
@@ -1019,6 +1037,236 @@ export const createSyncStore = ({
     };
 
     return fn();
+  },
+  refetchEventData: async ({ events }) => {
+    const chainIds = dedupe(events.map((event) => event.chainId));
+
+    await Promise.all(
+      chainIds.map(async (chainId) => {
+        const blocksToQuery: Set<bigint> = new Set();
+        const transactionsToQuery: Set<Hash> = new Set();
+        const transactionReceiptsToQuery: Set<Hash> = new Set();
+        const logsToQuery: Set<[bigint, number]> = new Set();
+        const tracesToQuery: Set<[bigint, number]> = new Set();
+
+        for (const event of events) {
+          if (event.chainId !== chainId) continue;
+
+          blocksToQuery.add(event.event.block.number);
+          switch (event.type) {
+            case "log": {
+              transactionsToQuery.add(event.event.transaction.hash);
+              logsToQuery.add([
+                event.event.block.number,
+                event.event.log.logIndex,
+              ]);
+              event.event.transactionReceipt !== undefined &&
+                transactionReceiptsToQuery.add(event.event.transaction.hash);
+              break;
+            }
+            case "trace":
+            case "transfer": {
+              transactionsToQuery.add(event.event.transaction.hash);
+              tracesToQuery.add([
+                event.event.block.number,
+                event.event.trace.traceIndex,
+              ]);
+              event.event.transactionReceipt !== undefined &&
+                transactionReceiptsToQuery.add(event.event.transaction.hash);
+              break;
+            }
+            case "transaction": {
+              transactionsToQuery.add(event.event.transaction.hash);
+              event.event.transactionReceipt !== undefined &&
+                transactionReceiptsToQuery.add(event.event.transaction.hash);
+              break;
+            }
+          }
+        }
+
+        const blocksQuery = database.syncQB.raw
+          .select({
+            number: PONDER_SYNC.blocks.number,
+            timestamp: PONDER_SYNC.blocks.timestamp,
+            hash: PONDER_SYNC.blocks.hash,
+            parentHash: PONDER_SYNC.blocks.parentHash,
+            logsBloom: PONDER_SYNC.blocks.logsBloom,
+            miner: PONDER_SYNC.blocks.miner,
+            gasUsed: PONDER_SYNC.blocks.gasUsed,
+            gasLimit: PONDER_SYNC.blocks.gasLimit,
+            baseFeePerGas: PONDER_SYNC.blocks.baseFeePerGas,
+            nonce: PONDER_SYNC.blocks.nonce,
+            mixHash: PONDER_SYNC.blocks.mixHash,
+            stateRoot: PONDER_SYNC.blocks.stateRoot,
+            receiptsRoot: PONDER_SYNC.blocks.receiptsRoot,
+            transactionsRoot: PONDER_SYNC.blocks.transactionsRoot,
+            sha3Uncles: PONDER_SYNC.blocks.sha3Uncles,
+            size: PONDER_SYNC.blocks.size,
+            difficulty: PONDER_SYNC.blocks.difficulty,
+            totalDifficulty: PONDER_SYNC.blocks.totalDifficulty,
+            extraData: PONDER_SYNC.blocks.extraData,
+          })
+          .from(PONDER_SYNC.blocks)
+          .where(
+            and(
+              eq(PONDER_SYNC.blocks.chainId, BigInt(chainId)),
+              inArray(PONDER_SYNC.blocks.number, Array.from(blocksToQuery)),
+            ),
+          )
+          .orderBy(asc(PONDER_SYNC.blocks.number));
+
+        const transactionsQuery = database.syncQB.raw
+          .select({
+            blockNumber: PONDER_SYNC.transactions.blockNumber,
+            transactionIndex: PONDER_SYNC.transactions.transactionIndex,
+            hash: PONDER_SYNC.transactions.hash,
+            from: PONDER_SYNC.transactions.from,
+            to: PONDER_SYNC.transactions.to,
+            input: PONDER_SYNC.transactions.input,
+            value: PONDER_SYNC.transactions.value,
+            nonce: PONDER_SYNC.transactions.nonce,
+            r: PONDER_SYNC.transactions.r,
+            s: PONDER_SYNC.transactions.s,
+            v: PONDER_SYNC.transactions.v,
+            type: PONDER_SYNC.transactions.type,
+            gas: PONDER_SYNC.transactions.gas,
+            gasPrice: PONDER_SYNC.transactions.gasPrice,
+            maxFeePerGas: PONDER_SYNC.transactions.maxFeePerGas,
+            maxPriorityFeePerGas: PONDER_SYNC.transactions.maxPriorityFeePerGas,
+            accessList: PONDER_SYNC.transactions.accessList,
+          })
+          .from(PONDER_SYNC.transactions)
+          .where(
+            and(
+              eq(PONDER_SYNC.transactions.chainId, BigInt(chainId)),
+              inArray(
+                PONDER_SYNC.transactions.hash,
+                Array.from(transactionsToQuery),
+              ),
+            ),
+          )
+          .orderBy(
+            asc(PONDER_SYNC.transactions.blockNumber),
+            asc(PONDER_SYNC.transactions.transactionIndex),
+          );
+
+        const transactionReceiptsQuery = database.syncQB.raw
+          .select({
+            blockNumber: PONDER_SYNC.transactionReceipts.blockNumber,
+            transactionIndex: PONDER_SYNC.transactionReceipts.transactionIndex,
+            from: PONDER_SYNC.transactionReceipts.from,
+            to: PONDER_SYNC.transactionReceipts.to,
+            contractAddress: PONDER_SYNC.transactionReceipts.contractAddress,
+            logsBloom: PONDER_SYNC.transactionReceipts.logsBloom,
+            gasUsed: PONDER_SYNC.transactionReceipts.gasUsed,
+            cumulativeGasUsed:
+              PONDER_SYNC.transactionReceipts.cumulativeGasUsed,
+            effectiveGasPrice:
+              PONDER_SYNC.transactionReceipts.effectiveGasPrice,
+            status: PONDER_SYNC.transactionReceipts.status,
+            type: PONDER_SYNC.transactionReceipts.type,
+          })
+          .from(PONDER_SYNC.transactionReceipts)
+          .where(
+            and(
+              eq(PONDER_SYNC.transactionReceipts.chainId, BigInt(chainId)),
+              inArray(
+                PONDER_SYNC.transactionReceipts.transactionHash,
+                Array.from(transactionReceiptsToQuery),
+              ),
+            ),
+          )
+          .orderBy(
+            asc(PONDER_SYNC.transactionReceipts.blockNumber),
+            asc(PONDER_SYNC.transactionReceipts.transactionIndex),
+          );
+
+        const logsQuery = database.syncQB.raw
+          .select({
+            blockNumber: PONDER_SYNC.logs.blockNumber,
+            logIndex: PONDER_SYNC.logs.logIndex,
+            transactionIndex: PONDER_SYNC.logs.transactionIndex,
+            address: PONDER_SYNC.logs.address,
+            topic0: PONDER_SYNC.logs.topic0,
+            topic1: PONDER_SYNC.logs.topic1,
+            topic2: PONDER_SYNC.logs.topic2,
+            topic3: PONDER_SYNC.logs.topic3,
+            data: PONDER_SYNC.logs.data,
+          })
+          .from(PONDER_SYNC.logs)
+          .where(
+            and(
+              eq(PONDER_SYNC.logs.chainId, BigInt(chainId)),
+              or(
+                ...Array.from(logsToQuery).map(([blockNumber, logIndex]) =>
+                  and(
+                    eq(PONDER_SYNC.logs.blockNumber, blockNumber),
+                    eq(PONDER_SYNC.logs.logIndex, logIndex),
+                  ),
+                ),
+              ),
+            ),
+          )
+          .orderBy(
+            asc(PONDER_SYNC.logs.blockNumber),
+            asc(PONDER_SYNC.logs.logIndex),
+          );
+
+        const tracesQuery = database.syncQB.raw
+          .select({
+            blockNumber: PONDER_SYNC.traces.blockNumber,
+            transactionIndex: PONDER_SYNC.traces.transactionIndex,
+            traceIndex: PONDER_SYNC.traces.traceIndex,
+            from: PONDER_SYNC.traces.from,
+            to: PONDER_SYNC.traces.to,
+            input: PONDER_SYNC.traces.input,
+            output: PONDER_SYNC.traces.output,
+            value: PONDER_SYNC.traces.value,
+            type: PONDER_SYNC.traces.type,
+            gas: PONDER_SYNC.traces.gas,
+            gasUsed: PONDER_SYNC.traces.gasUsed,
+            error: PONDER_SYNC.traces.error,
+            revertReason: PONDER_SYNC.traces.revertReason,
+            subcalls: PONDER_SYNC.traces.subcalls,
+          })
+          .from(PONDER_SYNC.traces)
+          .where(
+            and(
+              eq(PONDER_SYNC.traces.chainId, BigInt(chainId)),
+              or(
+                ...Array.from(tracesToQuery).map(([blockNumber, traceIndex]) =>
+                  and(
+                    eq(PONDER_SYNC.traces.blockNumber, blockNumber),
+                    eq(PONDER_SYNC.traces.traceIndex, traceIndex),
+                  ),
+                ),
+              ),
+            ),
+          )
+          .orderBy(
+            asc(PONDER_SYNC.traces.blockNumber),
+            asc(PONDER_SYNC.traces.traceIndex),
+          );
+
+        const [
+          blocksRows,
+          transactionsRows,
+          transactionReceiptsRows,
+          logsRows,
+          tracesRows,
+        ] = await Promise.all([
+          blocksQuery,
+          transactionsQuery,
+          transactionReceiptsQuery,
+          logsQuery,
+          tracesQuery,
+        ]);
+
+        // TODO: Replace event's block, tx, trace and logs with newly fetched versions.
+      }),
+    );
+
+    return events;
   },
   insertRpcRequestResults: async ({ requests, chainId }) => {
     if (requests.length === 0) return;
