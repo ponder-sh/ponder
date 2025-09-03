@@ -54,26 +54,6 @@ export type Context = {
   >;
 };
 
-export const columnAccessPattern: {
-  logInclude: typeof defaultLogInclude;
-  blockInclude: typeof defaultBlockInclude;
-  traceInclude: typeof defaultTraceInclude;
-  transactionInclude: typeof defaultTransactionInclude;
-  transactionReceiptInclude: typeof defaultTransactionReceiptInclude;
-  accessed: Set<string>;
-  eventCount: number;
-  resolved: boolean;
-} = {
-  logInclude: [...defaultLogInclude],
-  blockInclude: [...defaultBlockInclude],
-  traceInclude: [...defaultTraceInclude],
-  transactionInclude: [...defaultTransactionInclude],
-  transactionReceiptInclude: [...defaultTransactionReceiptInclude],
-  accessed: new Set(),
-  eventCount: 0,
-  resolved: false,
-};
-
 export type Indexing = {
   processSetupEvents: (params: {
     db: IndexingStore;
@@ -378,6 +358,10 @@ export const createIndexing = ({
         });
       }
 
+      if (columnAccessPattern.eventCount++ > 1000) {
+        columnAccessPattern.resolve();
+      }
+
       // set completed events
       updateCompletedEvents();
     },
@@ -391,6 +375,45 @@ const defaultInclude = new Set(
   ...defaultTransactionInclude,
   ...defaultTransactionReceiptInclude,
 );
+
+export const columnAccessPattern: {
+  logInclude: typeof defaultLogInclude;
+  blockInclude: typeof defaultBlockInclude;
+  traceInclude: typeof defaultTraceInclude;
+  transactionInclude: typeof defaultTransactionInclude;
+  transactionReceiptInclude: typeof defaultTransactionReceiptInclude;
+  accessed: Set<string>;
+  eventCount: number;
+  resolved: boolean;
+  resolve: () => void;
+} = {
+  logInclude: [...defaultLogInclude],
+  blockInclude: [...defaultBlockInclude],
+  traceInclude: [...defaultTraceInclude],
+  transactionInclude: [...defaultTransactionInclude],
+  transactionReceiptInclude: [...defaultTransactionReceiptInclude],
+  accessed: new Set(),
+  eventCount: 0,
+  resolved: false,
+  resolve: () => {
+    columnAccessPattern.resolved = true;
+    columnAccessPattern.logInclude.filter((key) =>
+      columnAccessPattern.accessed.has(key),
+    );
+    columnAccessPattern.blockInclude.filter((key) =>
+      columnAccessPattern.accessed.has(key),
+    );
+    columnAccessPattern.traceInclude.filter((key) =>
+      columnAccessPattern.accessed.has(key),
+    );
+    columnAccessPattern.transactionInclude.filter((key) =>
+      columnAccessPattern.accessed.has(key),
+    );
+    columnAccessPattern.transactionReceiptInclude.filter((key) =>
+      columnAccessPattern.accessed.has(key),
+    );
+  },
+};
 
 const proxyHandler = (
   type: "log" | "block" | "trace" | "transaction" | "transactionReceipt",
@@ -411,25 +434,6 @@ const proxyHandler = (
 };
 
 export const toProxy = (event: Event): Event => {
-  if (columnAccessPattern.eventCount++ > 1000) {
-    columnAccessPattern.resolved = true;
-    columnAccessPattern.logInclude.filter((key) =>
-      columnAccessPattern.accessed.has(key),
-    );
-    columnAccessPattern.blockInclude.filter((key) =>
-      columnAccessPattern.accessed.has(key),
-    );
-    columnAccessPattern.traceInclude.filter((key) =>
-      columnAccessPattern.accessed.has(key),
-    );
-    columnAccessPattern.transactionInclude.filter((key) =>
-      columnAccessPattern.accessed.has(key),
-    );
-    columnAccessPattern.transactionReceiptInclude.filter((key) =>
-      columnAccessPattern.accessed.has(key),
-    );
-  }
-
   switch (event.type) {
     case "block": {
       event.event = {
