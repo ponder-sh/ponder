@@ -6,13 +6,13 @@ import {
   DbConnectionError,
   NonRetryableUserError,
   NotNullConstraintError,
-  ShutdownError,
+  // ShutdownError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
 import type { Schema } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
-import { startClock } from "@/utils/timer.js";
-import { wait } from "@/utils/wait.js";
+// import { startClock } from "@/utils/timer.js";
+// import { wait } from "@/utils/wait.js";
 import { PGlite } from "@electric-sql/pglite";
 import type { ExtractTablesWithRelations } from "drizzle-orm";
 import type {
@@ -23,8 +23,8 @@ import type {
 } from "drizzle-orm/pg-core";
 import type pg from "pg";
 
-const RETRY_COUNT = 9;
-const BASE_DURATION = 125;
+// const RETRY_COUNT = 9;
+// const BASE_DURATION = 125;
 
 type InnerQB<
   TSchema extends Schema = Schema,
@@ -140,6 +140,7 @@ export const createQB = <
     | pg.PoolClient,
 >(
   db: Drizzle<TSchema> & { $client: TClient },
+  // @ts-ignore
   { common, isAdmin }: { common: Common; isAdmin?: boolean },
 ): QB<TSchema, TClient> => {
   const dialect = db.$client instanceof PGlite ? "pglite" : "postgres";
@@ -300,6 +301,7 @@ export const createQB = <
               const [query] = args;
               return query(tx as unknown as InnerQB<TSchema, TClient>);
             } else {
+              // @ts-ignore
               const [{ label }, query] = args as [
                 { label: string },
                 (db: InnerQB<TSchema, TClient>) => unknown,
@@ -312,6 +314,7 @@ export const createQB = <
           return result;
         }, config);
       } else {
+        // @ts-ignore
         const [{ label }, callback, config] = args as unknown as [
           { label: string },
           (
@@ -344,6 +347,7 @@ export const createQB = <
               const [query] = args;
               return query(tx as unknown as InnerQB<TSchema, TClient>);
             } else {
+              // @ts-ignore
               const [{ label }, query] = args as [
                 { label: string },
                 (db: InnerQB<TSchema, TClient>) => unknown,
@@ -382,6 +386,7 @@ export const createQB = <
         //   isTransactionStatement: true,
         // });
       } else {
+        // @ts-ignore
         const [{ label }, callback] = args as [
           { label: string },
           (
@@ -419,6 +424,7 @@ export const createQB = <
       //   isTransactionStatement: false,
       // });
     } else {
+      // @ts-ignore
       const [{ label }, query] = args;
       // @ts-expect-error
       return query(qb);
