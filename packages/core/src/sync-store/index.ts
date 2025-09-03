@@ -1262,7 +1262,7 @@ export const createSyncStore = ({
           tracesQuery,
         ]);
 
-        // TODO: Replace event's block, tx, trace and logs with newly fetched versions.
+        // TODO: Replace event's block, tx, trace and logs with newly fetched versions. It is invariant that events are chronologically sorted.
       }),
     );
 
