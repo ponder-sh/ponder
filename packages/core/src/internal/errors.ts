@@ -124,6 +124,18 @@ export class CopyFlushError extends RetryableError {
   }
 }
 
+export class InvalidEventAccessError extends RetryableError {
+  override name = "InvalidEventAccessError";
+  key: string;
+
+  constructor(key: string, message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, InvalidEventAccessError.prototype);
+
+    this.key = key;
+  }
+}
+
 // Non-retryable indexing store errors
 
 export class InvalidStoreMethodError extends NonRetryableUserError {
@@ -177,17 +189,5 @@ export class IndexingFunctionError extends NonRetryableUserError {
   constructor(message?: string | undefined) {
     super(message);
     Object.setPrototypeOf(this, IndexingFunctionError.prototype);
-  }
-}
-
-export class InvalidEventAccessError extends NonRetryableUserError {
-  override name = "InvalidEventAccessError";
-  key: string;
-
-  constructor(key: string, message?: string | undefined) {
-    super(message);
-    Object.setPrototypeOf(this, InvalidEventAccessError.prototype);
-
-    this.key = key;
   }
 }

@@ -428,6 +428,7 @@ const proxyHandler = (
         columnAccessPattern.accessed.add(key);
 
         if (prop in obj === false && defaultInclude.has(key)) {
+          columnAccessPattern.resolved = false;
           throw new InvalidEventAccessError(key);
         }
       }
