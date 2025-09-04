@@ -358,7 +358,10 @@ export const createIndexing = ({
         });
       }
 
-      if (columnAccessPattern.eventCount++ > 1000) {
+      if (
+        columnAccessPattern.resolved === false &&
+        columnAccessPattern.eventCount++ > 1000
+      ) {
         columnAccessPattern.resolve();
       }
 
