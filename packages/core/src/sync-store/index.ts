@@ -1181,37 +1181,6 @@ export const createSyncStore = ({
             asc(PONDER_SYNC.transactionReceipts.transactionIndex),
           );
 
-        const logsQuery = database.syncQB.raw
-          .select({
-            blockNumber: PONDER_SYNC.logs.blockNumber,
-            logIndex: PONDER_SYNC.logs.logIndex,
-            transactionIndex: PONDER_SYNC.logs.transactionIndex,
-            address: PONDER_SYNC.logs.address,
-            topic0: PONDER_SYNC.logs.topic0,
-            topic1: PONDER_SYNC.logs.topic1,
-            topic2: PONDER_SYNC.logs.topic2,
-            topic3: PONDER_SYNC.logs.topic3,
-            data: PONDER_SYNC.logs.data,
-          })
-          .from(PONDER_SYNC.logs)
-          .where(
-            and(
-              eq(PONDER_SYNC.logs.chainId, BigInt(chainId)),
-              or(
-                ...Array.from(logsToQuery).map(([blockNumber, logIndex]) =>
-                  and(
-                    eq(PONDER_SYNC.logs.blockNumber, blockNumber),
-                    eq(PONDER_SYNC.logs.logIndex, logIndex),
-                  ),
-                ),
-              ),
-            ),
-          )
-          .orderBy(
-            asc(PONDER_SYNC.logs.blockNumber),
-            asc(PONDER_SYNC.logs.logIndex),
-          );
-
         const tracesQuery = database.syncQB.raw
           .select({
             blockNumber: PONDER_SYNC.traces.blockNumber,
@@ -1252,17 +1221,170 @@ export const createSyncStore = ({
           blocksRows,
           transactionsRows,
           transactionReceiptsRows,
-          logsRows,
           tracesRows,
         ] = await Promise.all([
-          blocksQuery,
-          transactionsQuery,
-          transactionReceiptsQuery,
-          logsQuery,
-          tracesQuery,
+          blocksQuery.then((blocks) =>
+            blocks.map((block) => {
+              block.miner = toLowerCase(block.miner);
+              return block;
+            }),
+          ),
+          transactionsQuery.then((transactions) =>
+            transactions.map((transaction) => {
+              const internalTransaction =
+                transaction as unknown as InternalTransaction;
+
+              internalTransaction.blockNumber = Number(transaction.blockNumber);
+              internalTransaction.from = toLowerCase(
+                transaction.from,
+              ) as Address;
+              if (transaction.to !== null) {
+                internalTransaction.to = toLowerCase(transaction.to) as Address;
+              }
+
+              if (transaction.type === "0x0") {
+                internalTransaction.type = "legacy";
+                internalTransaction.accessList = undefined;
+                internalTransaction.maxFeePerGas = undefined;
+                internalTransaction.maxPriorityFeePerGas = undefined;
+              } else if (transaction.type === "0x1") {
+                internalTransaction.type = "eip2930";
+                internalTransaction.accessList = JSON.parse(
+                  transaction.accessList!,
+                );
+                internalTransaction.maxFeePerGas = undefined;
+                internalTransaction.maxPriorityFeePerGas = undefined;
+              } else if (transaction.type === "0x2") {
+                internalTransaction.type = "eip1559";
+                internalTransaction.gasPrice = undefined;
+                internalTransaction.accessList = undefined;
+              } else if (transaction.type === "0x7e") {
+                internalTransaction.type = "deposit";
+                internalTransaction.gasPrice = undefined;
+                internalTransaction.accessList = undefined;
+              }
+
+              return internalTransaction;
+            }),
+          ),
+          transactionReceiptsQuery.then((transactionReceipts) =>
+            transactionReceipts.map((transactionReceipt) => {
+              const internalTransactionReceipt =
+                transactionReceipt as unknown as InternalTransactionReceipt;
+
+              internalTransactionReceipt.blockNumber = Number(
+                transactionReceipt.blockNumber,
+              );
+              if (
+                transactionReceipt.contractAddress !== undefined &&
+                transactionReceipt.contractAddress !== null
+              ) {
+                internalTransactionReceipt.contractAddress = toLowerCase(
+                  transactionReceipt.contractAddress,
+                ) as Address;
+              }
+              internalTransactionReceipt.from = toLowerCase(
+                transactionReceipt.from,
+              ) as Address;
+              if (transactionReceipt.to !== null) {
+                internalTransactionReceipt.to = toLowerCase(
+                  transactionReceipt.to,
+                ) as Address;
+              }
+              internalTransactionReceipt.status =
+                transactionReceipt.status === "0x1"
+                  ? "success"
+                  : transactionReceipt.status === "0x0"
+                    ? "reverted"
+                    : (transactionReceipt.status as InternalTransactionReceipt["status"]);
+              internalTransactionReceipt.type =
+                transactionReceipt.type === "0x0"
+                  ? "legacy"
+                  : transactionReceipt.type === "0x1"
+                    ? "eip2930"
+                    : transactionReceipt.type === "0x2"
+                      ? "eip1559"
+                      : transactionReceipt.type === "0x7e"
+                        ? "deposit"
+                        : transactionReceipt.type;
+              return internalTransactionReceipt;
+            }),
+          ),
+          tracesQuery.then((traces) =>
+            traces.map((trace) => {
+              const internalTrace = trace as unknown as InternalTrace;
+
+              internalTrace.blockNumber = Number(trace.blockNumber);
+
+              internalTrace.from = toLowerCase(trace.from) as Address;
+              if (trace.to !== null) {
+                internalTrace.to = toLowerCase(trace.to) as Address;
+              }
+
+              if (trace.output === null) {
+                internalTrace.output = undefined;
+              }
+
+              if (trace.error === null) {
+                internalTrace.error = undefined;
+              }
+
+              if (trace.revertReason === null) {
+                internalTrace.revertReason = undefined;
+              }
+
+              return internalTrace;
+            }),
+          ),
         ]);
 
-        // TODO: Replace event's block, tx, trace and logs with newly fetched versions. It is invariant that events are chronologically sorted.
+        let blockIdx = 0;
+        let transactionIdx = 0;
+        let transactionReceiptIdx = 0;
+        let traceIdx = 0;
+
+        // NOTE: It is invariant that events are chronologically sorted.
+        for (const event of events) {
+          if (event.chainId !== chainId) continue;
+          if (event.event.block.number !== blocksRows[blockIdx]!.number)
+            blockIdx++;
+
+          if (event.type !== "block") {
+            if (
+              event.event.transaction.hash !==
+              transactionsRows[transactionIdx]!.hash
+            )
+              transactionIdx++;
+            event.event.transaction = transactionsRows[transactionIdx]!;
+
+            if (event.event.transactionReceipt !== undefined) {
+              if (
+                event.event.block.number !==
+                  BigInt(
+                    transactionReceiptsRows[transactionReceiptIdx]!.blockNumber,
+                  ) ||
+                event.event.transaction.transactionIndex !==
+                  transactionReceiptsRows[transactionReceiptIdx]!
+                    .transactionIndex
+              )
+                transactionReceiptIdx++;
+              event.event.transactionReceipt =
+                transactionReceiptsRows[transactionReceiptIdx]!;
+            }
+          }
+
+          if (event.type === "trace") {
+            if (
+              event.event.block.number !==
+                BigInt(tracesRows[traceIdx]!.blockNumber) ||
+              event.event.trace.traceIndex !== tracesRows[traceIdx]!.traceIndex
+            )
+              traceIdx++;
+            event.event.trace = tracesRows[traceIdx]!;
+          }
+
+          event.event.block = blocksRows[blockIdx]!;
+        }
       }),
     );
 
