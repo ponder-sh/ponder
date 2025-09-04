@@ -360,7 +360,7 @@ export const createIndexing = ({
 
       if (
         columnAccessPattern.resolved === false &&
-        columnAccessPattern.eventCount++ > 1000
+        columnAccessPattern.eventCount > 1000
       ) {
         columnAccessPattern.resolve();
       }
@@ -437,6 +437,7 @@ const proxyHandler = (
 };
 
 export const toProxy = (event: Event): Event => {
+  columnAccessPattern.eventCount++;
   switch (event.type) {
     case "block": {
       event.event = {
