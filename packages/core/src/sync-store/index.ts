@@ -1046,41 +1046,23 @@ export const createSyncStore = ({
         const blocksToQuery: Set<bigint> = new Set();
         const transactionsToQuery: Set<Hash> = new Set();
         const transactionReceiptsToQuery: Set<Hash> = new Set();
-        const logsToQuery: Set<[bigint, number]> = new Set();
         const tracesToQuery: Set<[bigint, number]> = new Set();
 
         for (const event of events) {
           if (event.chainId !== chainId) continue;
 
           blocksToQuery.add(event.event.block.number);
-          switch (event.type) {
-            case "log": {
-              transactionsToQuery.add(event.event.transaction.hash);
-              logsToQuery.add([
-                event.event.block.number,
-                event.event.log.logIndex,
-              ]);
-              event.event.transactionReceipt !== undefined &&
-                transactionReceiptsToQuery.add(event.event.transaction.hash);
-              break;
-            }
-            case "trace":
-            case "transfer": {
-              transactionsToQuery.add(event.event.transaction.hash);
-              tracesToQuery.add([
-                event.event.block.number,
-                event.event.trace.traceIndex,
-              ]);
-              event.event.transactionReceipt !== undefined &&
-                transactionReceiptsToQuery.add(event.event.transaction.hash);
-              break;
-            }
-            case "transaction": {
-              transactionsToQuery.add(event.event.transaction.hash);
-              event.event.transactionReceipt !== undefined &&
-                transactionReceiptsToQuery.add(event.event.transaction.hash);
-              break;
-            }
+          if (event.type !== "block") {
+            transactionsToQuery.add(event.event.transaction.hash);
+            event.event.transactionReceipt !== undefined &&
+              transactionReceiptsToQuery.add(event.event.transaction.hash);
+          }
+
+          if (event.type === "trace") {
+            tracesToQuery.add([
+              event.event.block.number,
+              event.event.trace.traceIndex,
+            ]);
           }
         }
 

@@ -20,6 +20,7 @@ import { createCachedViemClient } from "@/indexing/client.js";
 import { createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import {
+  InvalidEventAccessError,
   NonRetryableUserError,
   type RetryableError,
 } from "@/internal/errors.js";
@@ -430,6 +431,16 @@ export async function runMultichain({
             });
           }
 
+          if (error instanceof InvalidEventAccessError) {
+            common.logger.warn({
+              service: "app",
+              msg: "Refetching events due to restricted column selection",
+            });
+            events.events = await syncStore.refetchEventData({
+              events: events.events,
+            });
+          }
+
           throw error;
         }
       });
@@ -523,7 +534,7 @@ export async function runMultichain({
             msg: `Partitioned events into ${perBlockEvents.length} blocks`,
           });
 
-          for (const { checkpoint, events } of perBlockEvents) {
+          for (let { checkpoint, events } of perBlockEvents) {
             await database.userQB.transaction(async (tx) => {
               const chain = indexingBuild.chains.find(
                 (chain) =>
@@ -557,6 +568,14 @@ export async function runMultichain({
                     service: "app",
                     msg: `Retrying '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
                   });
+                }
+
+                if (error instanceof InvalidEventAccessError) {
+                  common.logger.warn({
+                    service: "app",
+                    msg: `Refetching '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)} due to restricted column selection`,
+                  });
+                  events = await syncStore.refetchEventData({ events });
                 }
 
                 throw error;
