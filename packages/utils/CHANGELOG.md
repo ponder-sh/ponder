@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.2.12
+
+### Patch Changes
+
+- [#2014](https://github.com/ponder-sh/ponder/pull/2014) [`5de9cc0`](https://github.com/ponder-sh/ponder/commit/5de9cc0de28711b3e1d1e36a7ae60c83eb7fed39) Thanks [@odiinnn](https://github.com/odiinnn)! - Added support for retrying tron eth_getLogs errors.
+
 ## 0.2.11
 
 ### Patch Changes

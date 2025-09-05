@@ -315,6 +315,12 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   process.on("uncaughtException", (error: Error) => {
     if (error instanceof ShutdownError) return;
     if (error instanceof NonRetryableUserError) {
+      common.logger.error({
+        service: "process",
+        msg: "Caught uncaughtException event",
+        error,
+      });
+
       buildQueue.clear();
       buildQueue.add({ status: "error", kind: "indexing", error });
     } else {
@@ -329,6 +335,12 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   process.on("unhandledRejection", (error: Error) => {
     if (error instanceof ShutdownError) return;
     if (error instanceof NonRetryableUserError) {
+      common.logger.error({
+        service: "process",
+        msg: "Caught unhandledRejection event",
+        error,
+      });
+
       buildQueue.clear();
       buildQueue.add({ status: "error", kind: "indexing", error });
     } else {

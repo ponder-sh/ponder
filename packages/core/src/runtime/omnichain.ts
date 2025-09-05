@@ -242,11 +242,14 @@ export async function runOmnichain({
   if (crashRecoveryCheckpoint === undefined) {
     await database.userQB.transaction(async (tx) => {
       historicalIndexingStore.qb = tx;
+      historicalIndexingStore.isProcessingEvents = true;
       indexingCache.qb = tx;
 
       await indexing.processSetupEvents({
         db: historicalIndexingStore,
       });
+
+      historicalIndexingStore.isProcessingEvents = false;
 
       await indexingCache.flush();
 
@@ -323,6 +326,7 @@ export async function runOmnichain({
       await database.userQB.transaction(async (tx) => {
         try {
           historicalIndexingStore.qb = tx;
+          historicalIndexingStore.isProcessingEvents = true;
           indexingCache.qb = tx;
 
           common.metrics.ponder_historical_transform_duration.inc(
@@ -376,6 +380,9 @@ export async function runOmnichain({
               await new Promise(setImmediate);
             }
           }
+
+          historicalIndexingStore.isProcessingEvents = false;
+
           await new Promise(setImmediate);
 
           // underlying metrics collection is actually synchronous
@@ -565,11 +572,14 @@ export async function runOmnichain({
 
               try {
                 realtimeIndexingStore.qb = tx;
+                realtimeIndexingStore.isProcessingEvents = true;
 
                 await indexing.processEvents({
                   events,
                   db: realtimeIndexingStore,
                 });
+
+                realtimeIndexingStore.isProcessingEvents = false;
 
                 common.logger.info({
                   service: "app",

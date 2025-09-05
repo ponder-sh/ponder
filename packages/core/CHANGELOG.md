@@ -1,5 +1,68 @@
 # ponder
 
+## 0.12.21
+
+### Patch Changes
+
+- [#2006](https://github.com/ponder-sh/ponder/pull/2006) [`908b4b2`](https://github.com/ponder-sh/ponder/commit/908b4b2034174ff96900f98ad60141581fac9c49) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved websocket handling.
+
+## 0.12.20
+
+### Patch Changes
+
+- [#2009](https://github.com/ponder-sh/ponder/pull/2009) [`78fe92e`](https://github.com/ponder-sh/ponder/commit/78fe92eff8e4f8af54e7c4224e5af3da168134f0) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved historical indexing performance.
+
+## 0.12.19
+
+### Patch Changes
+
+- [#2016](https://github.com/ponder-sh/ponder/pull/2016) [`7372fd6`](https://github.com/ponder-sh/ponder/commit/7372fd6ac2d96298674b14fe369841cd14df54c3) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved `/status` accuracy when using `endBlock`.
+
+## 0.12.18
+
+### Patch Changes
+
+- Updated dependencies [[`5de9cc0`](https://github.com/ponder-sh/ponder/commit/5de9cc0de28711b3e1d1e36a7ae60c83eb7fed39)]:
+  - @ponder/utils@0.2.12
+
+## 0.12.17
+
+### Patch Changes
+
+- [#2007](https://github.com/ponder-sh/ponder/pull/2007) [`cfb5fb3`](https://github.com/ponder-sh/ponder/commit/cfb5fb303f29ddb13843000368f45fdf4a2937ec) Thanks [@kyscott18](https://github.com/kyscott18)! - Added several math functions to `@ponder/client` query allow list.
+
+## 0.12.16
+
+### Patch Changes
+
+- [#2004](https://github.com/ponder-sh/ponder/pull/2004) [`769d8a0`](https://github.com/ponder-sh/ponder/commit/769d8a0f1a0eb91e69c48cdecef079038ac85441) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for validating `@ponder/client` queries with window defintions. Fixed the error `WindowDef not supported`.
+
+## 0.12.15
+
+### Patch Changes
+
+- [#2001](https://github.com/ponder-sh/ponder/pull/2001) [`f432c8a`](https://github.com/ponder-sh/ponder/commit/f432c8a1524536a31cc7545bd7216fc8c50a4446) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved error logs when RPC responses are invalid.
+
+## 0.12.14
+
+### Patch Changes
+
+- [#1997](https://github.com/ponder-sh/ponder/pull/1997) [`0839a2e`](https://github.com/ponder-sh/ponder/commit/0839a2edc66d58702611f2055fa677346161fcd7) Thanks [@kyscott18](https://github.com/kyscott18)! - Improve historical indexing performance with faster abi decoding.
+
+## 0.12.13
+
+### Patch Changes
+
+- [#1998](https://github.com/ponder-sh/ponder/pull/1998) [`7aa3bb3`](https://github.com/ponder-sh/ponder/commit/7aa3bb303787a9fa40cbfcfd8b6aafee522e67dc) Thanks [@kyscott18](https://github.com/kyscott18)! - Remove rpc calls from `ponder serve` build step.
+
+## 0.12.12
+
+### Patch Changes
+
+- [#1984](https://github.com/ponder-sh/ponder/pull/1984) [`09c7ccd`](https://github.com/ponder-sh/ponder/commit/09c7ccde1615a33fb78f56a7ab25ed3af35520fb) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved `db.sql` performance.
+
+- [#1990](https://github.com/ponder-sh/ponder/pull/1990) [`77eea0d`](https://github.com/ponder-sh/ponder/commit/77eea0d168a429fbde253578d9c8ea520525e21d) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused apps using pglite to deadlock.
+
 ## 0.12.11
 
 ### Patch Changes

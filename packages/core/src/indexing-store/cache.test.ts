@@ -407,6 +407,7 @@ test("prefetch() evicts rows", async (context) => {
     await indexingCache.flush();
     // prefetch() should evict rows from the cache to free memory
     await indexingCache.prefetch({ events: [] });
+    await indexingCache.prefetch({ events: [] });
 
     const result = indexingCache.has({
       table: schema.account,

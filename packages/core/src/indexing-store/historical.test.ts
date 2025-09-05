@@ -488,6 +488,10 @@ test("delete", async (context) => {
 });
 
 test("sql", async (context) => {
+  if (context.databaseConfig.kind === "pglite_test") {
+    return;
+  }
+
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -736,6 +740,48 @@ test("missing rows", async (context) => {
   });
 });
 
+test("unawaited promise", async (context) => {
+  const { database } = await setupDatabaseServices(context);
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount: {},
+  });
+
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  indexingCache.qb = database.userQB;
+  indexingStore.qb = database.userQB;
+
+  indexingStore.isProcessingEvents = false;
+
+  const promise = indexingStore
+    .insert(schema.account)
+    .values({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: 90n,
+    })
+    .onConflictDoUpdate({
+      balance: 16n,
+    });
+
+  await expect(promise!).rejects.toThrowError();
+});
+
 test("notNull", async (context) => {
   const { database } = await setupDatabaseServices(context);
 
@@ -952,17 +998,99 @@ test("$onUpdateFn", async (context) => {
   });
 });
 
+test("basic columns", async (context) => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+      int2: p.smallint().notNull(),
+      int8n: p.int8({ mode: "number" }).notNull(),
+      int8b: p.int8({ mode: "bigint" }).notNull(),
+      boolean: p.boolean().notNull(),
+      text: p.text().notNull(),
+      varchar: p.varchar().notNull(),
+      char: p.char().notNull(),
+      numeric: p.numeric().notNull(),
+      real: p.real().notNull(),
+      doublePrecision: p.doublePrecision().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount: {},
+  });
+
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
+
+    await indexingStore.insert(schema.account).values({
+      address: zeroAddress,
+      balance: 20n,
+      int2: 20,
+      int8n: 20,
+      int8b: 20n,
+      boolean: true,
+      text: "20",
+      varchar: "20",
+      char: "2",
+      numeric: "20",
+      real: 20,
+      doublePrecision: 20,
+    });
+
+    const result = await indexingStore.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "address": "0x0000000000000000000000000000000000000000",
+        "balance": 20n,
+        "boolean": true,
+        "char": "2",
+        "doublePrecision": 20,
+        "int2": 20,
+        "int8b": 20n,
+        "int8n": 20,
+        "numeric": "20",
+        "real": 20,
+        "text": "20",
+        "varchar": "20",
+      }
+    `);
+
+    await indexingCache.flush();
+  });
+});
+
 test("array", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
-  // dynamic size
-
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
       balances: p.bigint().array().notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  // dynamic size
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -996,19 +1124,23 @@ test("array", async (context) => {
       balances: [20n],
     });
 
+    await indexingCache.flush();
+
     // TODO(kyle) fixed size
   });
 });
 
 test("text array", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     test: onchainTable("test", (p) => ({
       address: p.hex().primaryKey(),
       textArray: p.text().array().notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -1047,12 +1179,12 @@ test("text array", async (context) => {
       ],
     }
   `);
+
+    await indexingCache.flush();
   });
 });
 
 test("enum", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const moodEnum = onchainEnum("mood", ["sad", "ok", "happy"]);
   const schema = {
     moodEnum,
@@ -1061,6 +1193,10 @@ test("enum", async (context) => {
       mood: moodEnum(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -1094,19 +1230,23 @@ test("enum", async (context) => {
       mood: "ok",
     });
 
+    await indexingCache.flush();
+
     // TODO(kyle) error
   });
 });
 
 test("json bigint", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
       metadata: p.json().$type<{ balance: bigint }>(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -1136,14 +1276,16 @@ test("json bigint", async (context) => {
 });
 
 test("bytes", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
       calldata: t.bytes().notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -1176,18 +1318,22 @@ test("bytes", async (context) => {
       address: zeroAddress,
       calldata: toBytes(zeroAddress),
     });
+
+    await indexingCache.flush();
   });
 });
 
 test("text with null bytes", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
       name: t.text().notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -1220,12 +1366,12 @@ test("text with null bytes", async (context) => {
       address: zeroAddress,
       name: "tencentclub",
     });
+
+    await indexingCache.flush();
   });
 });
 
 test.skip("time", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1233,6 +1379,10 @@ test.skip("time", async (context) => {
     })),
   };
 
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
@@ -1264,12 +1414,12 @@ test.skip("time", async (context) => {
       address: zeroAddress,
       time: "04:05:06",
     });
+
+    await indexingCache.flush();
   });
 });
 
 test("timestamp", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1277,6 +1427,10 @@ test("timestamp", async (context) => {
     })),
   };
 
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
@@ -1308,18 +1462,22 @@ test("timestamp", async (context) => {
       address: zeroAddress,
       timestamp: new Date(1742925862000),
     });
+
+    await indexingCache.flush();
   });
 });
 
 test.skip("date", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
       date: t.date({ mode: "date" }).notNull(),
     })),
   };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,
@@ -1352,12 +1510,12 @@ test.skip("date", async (context) => {
       address: zeroAddress,
       date: new Date("2025-03-25T00:00:00.000Z"),
     });
+
+    await indexingCache.flush();
   });
 });
 
 test.skip("interval", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1365,6 +1523,10 @@ test.skip("interval", async (context) => {
     })),
   };
 
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
@@ -1396,12 +1558,12 @@ test.skip("interval", async (context) => {
       address: zeroAddress,
       interval: "1 day",
     });
+
+    await indexingCache.flush();
   });
 });
 
 test("point", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1409,6 +1571,10 @@ test("point", async (context) => {
     })),
   };
 
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
@@ -1440,12 +1606,12 @@ test("point", async (context) => {
       address: zeroAddress,
       point: [1, 2],
     });
+
+    await indexingCache.flush();
   });
 });
 
 test("line", async (context) => {
-  const { database } = await setupDatabaseServices(context);
-
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1453,6 +1619,10 @@ test("line", async (context) => {
     })),
   };
 
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
@@ -1484,5 +1654,7 @@ test("line", async (context) => {
       address: zeroAddress,
       line: [1, 2, 3],
     });
+
+    await indexingCache.flush();
   });
 });

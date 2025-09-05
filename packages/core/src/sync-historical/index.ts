@@ -339,6 +339,7 @@ export const createHistoricalSync = (
         transactionReceipts,
         block,
         "eth_getTransactionReceipt",
+        "number",
       );
 
       return transactionReceipts;
@@ -361,7 +362,12 @@ export const createHistoricalSync = (
       return syncTransactionReceipts(block, transactionHashes);
     }
 
-    validateReceiptsAndBlock(blockReceipts, block, "eth_getBlockReceipts");
+    validateReceiptsAndBlock(
+      blockReceipts,
+      block,
+      "eth_getBlockReceipts",
+      "number",
+    );
 
     const transactionReceipts = blockReceipts.filter((receipt) =>
       transactionHashes.has(receipt.transactionHash),
@@ -506,8 +512,8 @@ export const createHistoricalSync = (
     for (const block of blocks) {
       const logs = logsPerBlock.get(hexToNumber(block.number))!;
 
-      validateTransactionsAndBlock(block);
-      validateLogsAndBlock(logs, block);
+      validateTransactionsAndBlock(block, "number");
+      validateLogsAndBlock(logs, block, "number");
 
       for (const log of logs) {
         if (log.transactionHash === zeroHash) {
@@ -559,7 +565,7 @@ export const createHistoricalSync = (
     await Promise.all(
       requiredBlocks.map(async (number) => {
         const block = await syncBlock(number);
-        validateTransactionsAndBlock(block);
+        validateTransactionsAndBlock(block, "number");
         return block;
       }),
     );
@@ -588,7 +594,7 @@ export const createHistoricalSync = (
     const requiredBlocks: Set<SyncBlock> = new Set();
 
     for (const block of blocks) {
-      validateTransactionsAndBlock(block);
+      validateTransactionsAndBlock(block, "number");
 
       for (const transaction of block.transactions) {
         if (isTransactionFilterMatched({ filter, transaction }) === false) {
@@ -716,8 +722,8 @@ export const createHistoricalSync = (
 
         const block = await syncBlock(number);
 
-        validateTransactionsAndBlock(block);
-        validateTracesAndBlock(traces, block);
+        validateTransactionsAndBlock(block, "number");
+        validateTracesAndBlock(traces, block, "number");
 
         requiredBlocks.add(block);
 

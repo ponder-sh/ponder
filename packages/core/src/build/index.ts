@@ -31,7 +31,10 @@ import { ViteNodeServer } from "vite-node/server";
 import { installSourcemapsSupport } from "vite-node/source-map";
 import { normalizeModuleId, toFilePath } from "vite-node/utils";
 import viteTsconfigPathsPlugin from "vite-tsconfig-paths";
-import { safeBuildConfigAndIndexingFunctions } from "./config.js";
+import {
+  safeBuildConfig,
+  safeBuildConfigAndIndexingFunctions,
+} from "./config.js";
 import { vitePluginPonder } from "./plugin.js";
 import { safeBuildPre } from "./pre.js";
 import { safeBuildSchema } from "./schema.js";
@@ -40,7 +43,7 @@ import { parseViteNodeError } from "./stacktrace.js";
 declare global {
   var PONDER_COMMON: Common;
   var PONDER_NAMESPACE_BUILD: NamespaceBuild;
-  var PONDER_INDEXING_BUILD: IndexingBuild;
+  var PONDER_INDEXING_BUILD: Pick<IndexingBuild, "chains" | "rpcs">;
   var PONDER_DATABASE: Database;
 }
 
@@ -59,12 +62,15 @@ export type Build = {
   executeSchema: () => Promise<SchemaResult>;
   executeIndexingFunctions: () => Promise<IndexingResult>;
   executeApi: (params: {
-    indexingBuild: IndexingBuild;
+    indexingBuild: Pick<IndexingBuild, "chains" | "rpcs">;
     database: Database;
   }) => Promise<ApiResult>;
   namespaceCompile: () => Result<NamespaceBuild>;
   preCompile: (params: { config: Config }) => Promise<Result<PreBuild>>;
   compileSchema: (params: { schema: Schema }) => Result<SchemaBuild>;
+  compileIndexingConfig: (params: {
+    configResult: Extract<ConfigResult, { status: "success" }>["result"];
+  }) => Result<Pick<IndexingBuild, "chains" | "rpcs">>;
   compileIndexing: (params: {
     configResult: Extract<ConfigResult, { status: "success" }>["result"];
     schemaResult: Extract<SchemaResult, { status: "success" }>["result"];
@@ -464,6 +470,34 @@ export const createBuild = async ({
         result: {
           schema,
           statements: buildSchemaResult.statements,
+        },
+      } as const;
+    },
+    compileIndexingConfig({ configResult }) {
+      // Validates and build the config
+      const buildConfigResult = safeBuildConfig({
+        common,
+        config: configResult.config,
+      });
+      if (buildConfigResult.status === "error") {
+        common.logger.error({
+          service: "build",
+          msg: "Failed build",
+          error: buildConfigResult.error,
+        });
+
+        return buildConfigResult;
+      }
+
+      for (const log of buildConfigResult.logs) {
+        common.logger[log.level]({ service: "build", msg: log.msg });
+      }
+
+      return {
+        status: "success",
+        result: {
+          chains: buildConfigResult.chains,
+          rpcs: buildConfigResult.rpcs,
         },
       } as const;
     },

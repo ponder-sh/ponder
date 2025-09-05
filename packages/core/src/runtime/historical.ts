@@ -555,7 +555,7 @@ export async function* getLocalEventGenerator(params: {
       await new Promise(setImmediate);
 
       cursor = queryCursor + 1;
-      if (cursor === toBlock) {
+      if (cursor >= toBlock) {
         yield { events, checkpoint: params.to };
       } else if (blockData.length > 0) {
         const checkpoint = encodeCheckpoint({

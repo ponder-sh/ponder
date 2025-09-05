@@ -405,7 +405,7 @@ test.skip("migrateSync() handles concurrent migrations", async (context) => {
 
   await Promise.all([database.migrateSync(), database.migrateSync()]);
 
-  // transaction gets called when perfoming a migration
+  // transaction gets called when performing a migration
   expect(spy).toHaveBeenCalledTimes(3);
 
   // Note: this is a hack to avoid trying to update the metadata table on shutdown

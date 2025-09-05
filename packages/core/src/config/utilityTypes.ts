@@ -96,7 +96,7 @@ export type FormatAbiFunction<
       : never;
 
 /**
- * Return an union of safe event names that handle event overridding.
+ * Return an union of safe event names that handle event overriding.
  */
 export type SafeEventNames<
   abi extends Abi,
@@ -105,7 +105,7 @@ export type SafeEventNames<
 > = abiEvents extends abiEvents ? FormatAbiEvent<abi, abiEvents> : never;
 
 /**
- * Return an union of safe function names that handle function overridding.
+ * Return an union of safe function names that handle function overriding.
  */
 export type SafeFunctionNames<
   abi extends Abi,

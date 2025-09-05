@@ -15,7 +15,7 @@ import { zeroLogsBloom } from "../../packages/core/src/sync-realtime/bloom.js";
 import { promiseWithResolvers } from "../../packages/core/src/utils/promiseWithResolvers.js";
 import { createQueue } from "../../packages/core/src/utils/queue.js";
 import * as RPC_SCHEMA from "../schema.js";
-import { APP, DB, SEED, SIM_PARAMS, restart } from "./index.js";
+import { APP, DB, IS_REALTIME, SEED, SIM_PARAMS, restart } from "./index.js";
 
 const PONDER_RPC_METHODS = [
   "eth_getBlockByNumber",
@@ -49,8 +49,11 @@ export const sim =
     if (chain === undefined) {
       throw new Error("`chain` undefined");
     }
+    const _transport = transport({ chain });
 
-    const _request = transport({ chain }).request;
+    const _request = (body: any) => {
+      return _transport.request(body);
+    };
 
     const request = async (body: any) => {
       if (PONDER_RPC_METHODS.includes(body.method) === false) {
@@ -494,10 +497,10 @@ export const sim =
       return result;
     };
 
-    return custom({ request: (body) => FIFO_QUEUE.add(() => request(body)) })({
-      chain,
-      retryCount: 0,
-    });
+    return custom({
+      request: async (body) =>
+        IS_REALTIME ? request(body) : FIFO_QUEUE.add(() => request(body)),
+    })({ chain, retryCount: 0 });
   };
 
 export type RpcBlockHeader = Omit<RpcBlock, "transactions"> & {

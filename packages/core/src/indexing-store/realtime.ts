@@ -2,6 +2,7 @@ import type { QB } from "@/database/queryBuilder.js";
 import type { Common } from "@/internal/common.js";
 import {
   DbConnectionError,
+  NonRetryableUserError,
   RawSqlError,
   RecordNotFoundError,
   RetryableError,
@@ -10,14 +11,19 @@ import {
 import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
-import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
+import {
+  type QueryWithTypings,
+  type Table,
+  getTableName,
+  isTable,
+} from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
 import {
   type IndexingStore,
   checkOnchainTable,
   validateUpdateSet,
 } from "./index.js";
-import { getCacheKey, getWhereCondition } from "./utils.js";
+import { getCacheKey, getPrimaryKeyCache, getWhereCondition } from "./utils.js";
 
 export const createRealtimeIndexingStore = ({
   common,
@@ -29,12 +35,34 @@ export const createRealtimeIndexingStore = ({
   indexingErrorHandler: IndexingErrorHandler;
 }): IndexingStore => {
   let qb: QB = undefined!;
+  let isProcessingEvents = true;
 
-  const errorHandler = (fn: (...args: any[]) => Promise<any>) => {
+  const tables = Object.values(schema).filter(isTable);
+  const primaryKeyCache = getPrimaryKeyCache(tables);
+
+  const storeMethodWrapper = (fn: (...args: any[]) => Promise<any>) => {
     return async (...args: any[]) => {
       try {
-        return await fn(...args);
+        if (isProcessingEvents === false) {
+          throw new NonRetryableUserError(
+            "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
+          );
+        }
+        const result = await fn(...args);
+        // @ts-expect-error typescript bug lol
+        if (isProcessingEvents === false) {
+          throw new NonRetryableUserError(
+            "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
+          );
+        }
+        return result;
       } catch (error) {
+        if (isProcessingEvents === false) {
+          throw new NonRetryableUserError(
+            "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
+          );
+        }
+
         if (error instanceof RetryableError) {
           indexingErrorHandler.setRetryableError(error);
         }
@@ -56,7 +84,7 @@ export const createRealtimeIndexingStore = ({
 
   return {
     // @ts-ignore
-    find: errorHandler(async (table: Table, key) => {
+    find: storeMethodWrapper(async (table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "find",
@@ -70,7 +98,7 @@ export const createRealtimeIndexingStore = ({
         values: (values: any) => {
           // @ts-ignore
           const inner = {
-            onConflictDoNothing: errorHandler(async () => {
+            onConflictDoNothing: storeMethodWrapper(async () => {
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -91,8 +119,8 @@ export const createRealtimeIndexingStore = ({
 
                 for (let i = 0; i < values.length; i++) {
                   if (
-                    getCacheKey(table, values[i]) ===
-                    getCacheKey(table, result[resultIndex]!)
+                    getCacheKey(table, values[i], primaryKeyCache) ===
+                    getCacheKey(table, result[resultIndex]!, primaryKeyCache)
                   ) {
                     rows.push(result[resultIndex++]!);
                   } else {
@@ -112,7 +140,7 @@ export const createRealtimeIndexingStore = ({
                   .then(parseResult),
               );
             }),
-            onConflictDoUpdate: errorHandler(async (valuesU: any) => {
+            onConflictDoUpdate: storeMethodWrapper(async (valuesU: any) => {
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -126,9 +154,8 @@ export const createRealtimeIndexingStore = ({
 
                   if (row) {
                     const set =
-                      typeof valuesU === "function"
-                        ? validateUpdateSet(table, valuesU(row), row)
-                        : validateUpdateSet(table, valuesU, row);
+                      typeof valuesU === "function" ? valuesU(row) : valuesU;
+                    validateUpdateSet(table, set, row, primaryKeyCache);
 
                     rows.push(
                       await qb.wrap((db) =>
@@ -158,9 +185,8 @@ export const createRealtimeIndexingStore = ({
 
                 if (row) {
                   const set =
-                    typeof valuesU === "function"
-                      ? validateUpdateSet(table, valuesU(row), row)
-                      : validateUpdateSet(table, valuesU, row);
+                    typeof valuesU === "function" ? valuesU(row) : valuesU;
+                  validateUpdateSet(table, set, row, primaryKeyCache);
 
                   return qb.wrap((db) =>
                     db
@@ -183,7 +209,7 @@ export const createRealtimeIndexingStore = ({
             }),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
             then: (onFulfilled, onRejected) =>
-              errorHandler(async () => {
+              storeMethodWrapper(async () => {
                 common.metrics.ponder_indexing_store_queries_total.inc({
                   table: getTableName(table),
                   method: "insert",
@@ -243,7 +269,7 @@ export const createRealtimeIndexingStore = ({
     // @ts-ignore
     update(table: Table, key) {
       return {
-        set: errorHandler(async (values: any) => {
+        set: storeMethodWrapper(async (values: any) => {
           common.metrics.ponder_indexing_store_queries_total.inc({
             table: getTableName(table),
             method: "update",
@@ -260,7 +286,9 @@ export const createRealtimeIndexingStore = ({
               throw error;
             }
 
-            const set = validateUpdateSet(table, values(row), row);
+            const set = values(row);
+            validateUpdateSet(table, set, row, primaryKeyCache);
+
             return qb.wrap((db) =>
               db
                 .update(table)
@@ -270,7 +298,8 @@ export const createRealtimeIndexingStore = ({
                 .then((res) => res[0]),
             );
           } else {
-            const set = validateUpdateSet(table, values, row!);
+            const set = values;
+            validateUpdateSet(table, set, row!, primaryKeyCache);
             return qb.wrap((db) =>
               db
                 .update(table)
@@ -284,7 +313,7 @@ export const createRealtimeIndexingStore = ({
       };
     },
     // @ts-ignore
-    delete: errorHandler(async (table: Table, key) => {
+    delete: storeMethodWrapper(async (table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "delete",
@@ -299,7 +328,7 @@ export const createRealtimeIndexingStore = ({
     }),
     // @ts-ignore
     sql: drizzle(
-      errorHandler(async (_sql, params, method, typings) => {
+      storeMethodWrapper(async (_sql, params, method, typings) => {
         const query: QueryWithTypings = { sql: _sql, params, typings };
 
         const endClock = startClock();
@@ -333,6 +362,9 @@ export const createRealtimeIndexingStore = ({
     ),
     set qb(_qb: QB) {
       qb = _qb;
+    },
+    set isProcessingEvents(_isProcessingEvents: boolean) {
+      isProcessingEvents = _isProcessingEvents;
     },
   };
 };

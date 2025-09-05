@@ -3,21 +3,29 @@ import type { QB } from "@/database/queryBuilder.js";
 import type { Common } from "@/internal/common.js";
 import {
   DbConnectionError,
+  NonRetryableUserError,
   RawSqlError,
   RecordNotFoundError,
   RetryableError,
+  UniqueConstraintError,
 } from "@/internal/errors.js";
 import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
-import { type QueryWithTypings, type Table, getTableName } from "drizzle-orm";
+import {
+  type QueryWithTypings,
+  type Table,
+  getTableName,
+  isTable,
+} from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
-import type { IndexingCache } from "./cache.js";
+import type { IndexingCache, Row } from "./cache.js";
 import {
   type IndexingStore,
   checkOnchainTable,
   validateUpdateSet,
 } from "./index.js";
+import { getPrimaryKeyCache } from "./utils.js";
 
 export const createHistoricalIndexingStore = ({
   common,
@@ -31,12 +39,34 @@ export const createHistoricalIndexingStore = ({
   indexingErrorHandler: IndexingErrorHandler;
 }): IndexingStore => {
   let qb: QB = undefined!;
+  let isProcessingEvents = true;
 
-  const errorHandler = (fn: (...args: any[]) => Promise<any>) => {
+  const tables = Object.values(schema).filter(isTable);
+  const primaryKeyCache = getPrimaryKeyCache(tables);
+
+  const storeMethodWrapper = (fn: (...args: any[]) => Promise<any>) => {
     return async (...args: any[]) => {
       try {
-        return await fn(...args);
+        if (isProcessingEvents === false) {
+          throw new NonRetryableUserError(
+            "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
+          );
+        }
+        const result = await fn(...args);
+        // @ts-expect-error typescript bug lol
+        if (isProcessingEvents === false) {
+          throw new NonRetryableUserError(
+            "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
+          );
+        }
+        return result;
       } catch (error) {
+        if (isProcessingEvents === false) {
+          throw new NonRetryableUserError(
+            "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
+          );
+        }
+
         if (error instanceof RetryableError) {
           indexingErrorHandler.setRetryableError(error);
         }
@@ -48,7 +78,7 @@ export const createHistoricalIndexingStore = ({
 
   return {
     // @ts-ignore
-    find: errorHandler((table: Table, key) => {
+    find: storeMethodWrapper((table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "find",
@@ -63,7 +93,7 @@ export const createHistoricalIndexingStore = ({
         values: (values: any) => {
           // @ts-ignore
           const inner = {
-            onConflictDoNothing: errorHandler(async () => {
+            onConflictDoNothing: storeMethodWrapper(async () => {
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -104,7 +134,7 @@ export const createHistoricalIndexingStore = ({
                 });
               }
             }),
-            onConflictDoUpdate: errorHandler(async (valuesU: any) => {
+            onConflictDoUpdate: storeMethodWrapper(async (valuesU: any) => {
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -121,13 +151,15 @@ export const createHistoricalIndexingStore = ({
 
                   if (row) {
                     if (typeof valuesU === "function") {
-                      const set = validateUpdateSet(table, valuesU(row), row);
+                      const set = valuesU(row);
+                      validateUpdateSet(table, set, row, primaryKeyCache);
                       for (const [key, value] of Object.entries(set)) {
                         if (value === undefined) continue;
                         row[key] = value;
                       }
                     } else {
-                      const set = validateUpdateSet(table, valuesU, row);
+                      const set = valuesU;
+                      validateUpdateSet(table, set, row, primaryKeyCache);
                       for (const [key, value] of Object.entries(set)) {
                         if (value === undefined) continue;
                         row[key] = value;
@@ -158,13 +190,15 @@ export const createHistoricalIndexingStore = ({
 
                 if (row) {
                   if (typeof valuesU === "function") {
-                    const set = validateUpdateSet(table, valuesU(row), row);
+                    const set = valuesU(row);
+                    validateUpdateSet(table, set, row, primaryKeyCache);
                     for (const [key, value] of Object.entries(set)) {
                       if (value === undefined) continue;
                       row[key] = value;
                     }
                   } else {
-                    const set = validateUpdateSet(table, valuesU, row);
+                    const set = valuesU;
+                    validateUpdateSet(table, set, row, primaryKeyCache);
                     for (const [key, value] of Object.entries(set)) {
                       if (value === undefined) continue;
                       row[key] = value;
@@ -188,7 +222,7 @@ export const createHistoricalIndexingStore = ({
             }),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
             then: (onFulfilled, onRejected) =>
-              errorHandler(async () => {
+              storeMethodWrapper(async () => {
                 common.metrics.ponder_indexing_store_queries_total.inc({
                   table: getTableName(table),
                   method: "insert",
@@ -198,29 +232,69 @@ export const createHistoricalIndexingStore = ({
                 if (Array.isArray(values)) {
                   const rows = [];
                   for (const value of values) {
-                    // Note: optimistic assumption that no conflict exists
-                    // because error is recovered at flush time
-
-                    rows.push(
-                      indexingCache.set({
+                    if (qb.$dialect === "pglite") {
+                      const row = await indexingCache.get({
                         table,
                         key: value,
-                        row: value,
-                        isUpdate: false,
-                      }),
-                    );
+                      });
+
+                      if (row) {
+                        throw new UniqueConstraintError(
+                          `Primary key conflict in table '${getTableName(table)}'`,
+                        );
+                      } else {
+                        rows.push(
+                          indexingCache.set({
+                            table,
+                            key: value,
+                            row: value,
+                            isUpdate: false,
+                          }),
+                        );
+                      }
+                    } else {
+                      // Note: optimistic assumption that no conflict exists
+                      // because error is recovered at flush time
+
+                      rows.push(
+                        indexingCache.set({
+                          table,
+                          key: value,
+                          row: value,
+                          isUpdate: false,
+                        }),
+                      );
+                    }
                   }
                   return Promise.resolve(rows).then(onFulfilled, onRejected);
                 } else {
-                  // Note: optimistic assumption that no conflict exists
-                  // because error is recovered at flush time
+                  let result: Row;
+                  if (qb.$dialect === "pglite") {
+                    const row = await indexingCache.get({ table, key: values });
 
-                  const result = indexingCache.set({
-                    table,
-                    key: values,
-                    row: values,
-                    isUpdate: false,
-                  });
+                    if (row) {
+                      throw new UniqueConstraintError(
+                        `Primary key conflict in table '${getTableName(table)}'`,
+                      );
+                    } else {
+                      result = indexingCache.set({
+                        table,
+                        key: values,
+                        row: values,
+                        isUpdate: false,
+                      });
+                    }
+                  } else {
+                    // Note: optimistic assumption that no conflict exists
+                    // because error is recovered at flush time
+
+                    result = indexingCache.set({
+                      table,
+                      key: values,
+                      row: values,
+                      isUpdate: false,
+                    });
+                  }
                   return Promise.resolve(result).then(onFulfilled, onRejected);
                 }
               })().then(onFulfilled, onRejected),
@@ -246,7 +320,7 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     update(table: Table, key) {
       return {
-        set: errorHandler(async (values: any) => {
+        set: storeMethodWrapper(async (values: any) => {
           common.metrics.ponder_indexing_store_queries_total.inc({
             table: getTableName(table),
             method: "update",
@@ -264,13 +338,15 @@ export const createHistoricalIndexingStore = ({
           }
 
           if (typeof values === "function") {
-            const set = validateUpdateSet(table, values(row), row);
+            const set = values(row);
+            validateUpdateSet(table, set, row, primaryKeyCache);
             for (const [key, value] of Object.entries(set)) {
               if (value === undefined) continue;
               row[key] = value;
             }
           } else {
-            const set = validateUpdateSet(table, values, row);
+            const set = values;
+            validateUpdateSet(table, set, row, primaryKeyCache);
             for (const [key, value] of Object.entries(set)) {
               if (value === undefined) continue;
               row[key] = value;
@@ -282,7 +358,7 @@ export const createHistoricalIndexingStore = ({
       };
     },
     // @ts-ignore
-    delete: errorHandler(async (table: Table, key) => {
+    delete: storeMethodWrapper(async (table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "delete",
@@ -292,7 +368,7 @@ export const createHistoricalIndexingStore = ({
     }),
     // @ts-ignore
     sql: drizzle(
-      errorHandler(async (_sql, params, method, typings) => {
+      storeMethodWrapper(async (_sql, params, method, typings) => {
         let isSelectOnly = false;
         try {
           await validateQuery(_sql, false);
@@ -346,6 +422,9 @@ export const createHistoricalIndexingStore = ({
     ),
     set qb(_qb: QB) {
       qb = _qb;
+    },
+    set isProcessingEvents(_isProcessingEvents: boolean) {
+      isProcessingEvents = _isProcessingEvents;
     },
   };
 };
