@@ -24,7 +24,11 @@ import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { checksumAddress, padHex, parseEther, toHex, zeroAddress } from "viem";
 import { encodeEventTopics } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
-import { type Context, createIndexing } from "./index.js";
+import {
+  type Context,
+  createColumnAccessProfile,
+  createIndexing,
+} from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
@@ -68,6 +72,7 @@ test("createIndexing()", async (context) => {
   });
 
   const eventCount = {};
+  const columnAccessProfile = createColumnAccessProfile();
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -86,6 +91,7 @@ test("createIndexing()", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessProfile,
   });
 
   expect(indexing).toBeDefined();
@@ -104,6 +110,7 @@ test("processSetupEvents() empty", async (context) => {
   });
 
   const eventCount = {};
+  const columnAccessProfile = createColumnAccessProfile();
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -122,6 +129,7 @@ test("processSetupEvents() empty", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessProfile,
   });
 
   await indexing.processSetupEvents({ db: indexingStore });
@@ -144,6 +152,7 @@ test("processSetupEvents()", async (context) => {
   };
 
   const eventCount = { "Erc20:setup": 0 };
+  const columnAccessProfile = createColumnAccessProfile();
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -162,6 +171,7 @@ test("processSetupEvents()", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessProfile,
   });
 
   await indexing.processSetupEvents({ db: indexingStore });
@@ -207,6 +217,7 @@ test("processEvent()", async (context) => {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
     "Pair:Swap": 0,
   };
+  const columnAccessProfile = createColumnAccessProfile();
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -225,6 +236,7 @@ test("processEvent()", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessProfile,
   });
 
   const topics = encodeEventTopics({
@@ -304,6 +316,7 @@ test("processEvents eventCount", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
+  const columnAccessProfile = createColumnAccessProfile();
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -322,6 +335,7 @@ test("processEvents eventCount", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessProfile,
   });
 
   const topics = encodeEventTopics({
@@ -377,6 +391,7 @@ test("executeSetup() context.client", async (context) => {
   };
 
   const eventCount = {};
+  const columnAccessProfile = createColumnAccessProfile();
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -395,6 +410,7 @@ test("executeSetup() context.client", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessProfile,
   });
 
   const getBalanceSpy = vi.spyOn(rpcs[0]!, "request");
@@ -428,6 +444,7 @@ test("executeSetup() context.db", async (context) => {
     },
   };
   const eventCount = { "Erc20:setup": 0 };
+  const columnAccessProfile = createColumnAccessProfile();
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -446,6 +463,7 @@ test("executeSetup() context.db", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessProfile,
   });
 
   const insertSpy = vi.spyOn(indexingStore, "insert");
@@ -474,6 +492,7 @@ test("executeSetup() metrics", async (context) => {
   });
 
   const eventCount = { "Erc20:setup": 0 };
+  const columnAccessProfile = createColumnAccessProfile();
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -494,6 +513,7 @@ test("executeSetup() metrics", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessProfile,
   });
 
   await indexing.processSetupEvents({ db: indexingStore });
@@ -519,6 +539,7 @@ test("executeSetup() error", async (context) => {
   };
 
   const eventCount = { "Erc20:setup": 0 };
+  const columnAccessProfile = createColumnAccessProfile();
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -537,6 +558,7 @@ test("executeSetup() error", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessProfile,
   });
 
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
@@ -569,6 +591,7 @@ test("processEvents() context.client", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
+  const columnAccessProfile = createColumnAccessProfile();
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -590,6 +613,7 @@ test("processEvents() context.client", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessProfile,
   });
 
   const getBalanceSpy = vi.spyOn(rpcs[0]!, "request");
@@ -648,6 +672,7 @@ test("processEvents() context.db", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
+  const columnAccessProfile = createColumnAccessProfile();
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -669,6 +694,7 @@ test("processEvents() context.db", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessProfile,
   });
 
   const insertSpy = vi.spyOn(indexingStore, "insert");
@@ -718,6 +744,7 @@ test("processEvents() metrics", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
+  const columnAccessProfile = createColumnAccessProfile();
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -739,6 +766,7 @@ test("processEvents() metrics", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessProfile,
   });
 
   const topics = encodeEventTopics({
@@ -791,6 +819,7 @@ test("processEvents() error", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
+  const columnAccessProfile = createColumnAccessProfile();
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -809,6 +838,7 @@ test("processEvents() error", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessProfile,
   });
 
   indexingFunctions[
@@ -871,6 +901,7 @@ test("processEvents() error with missing event object properties", async (contex
   };
 
   const eventCount = {};
+  const columnAccessProfile = createColumnAccessProfile();
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -889,6 +920,7 @@ test("processEvents() error with missing event object properties", async (contex
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessProfile,
   });
 
   const topics = encodeEventTopics({

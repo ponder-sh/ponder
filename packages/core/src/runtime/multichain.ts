@@ -17,7 +17,7 @@ import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createCachedViemClient } from "@/indexing/client.js";
-import { createIndexing } from "@/indexing/index.js";
+import { createColumnAccessProfile, createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import {
   InvalidEventAccessError,
@@ -79,7 +79,8 @@ export async function runMultichain({
 }) {
   runCodegen({ common });
 
-  const syncStore = createSyncStore({ common, database });
+  const columnAccessProfile = createColumnAccessProfile();
+  const syncStore = createSyncStore({ common, database, columnAccessProfile });
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
   const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
@@ -115,6 +116,7 @@ export async function runMultichain({
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessProfile,
   });
 
   const indexingCache = createIndexingCache({

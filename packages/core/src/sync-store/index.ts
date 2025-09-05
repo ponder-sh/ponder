@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import type { Database } from "@/database/index.js";
-import { columnAccessPattern } from "@/indexing/index.js";
+import type { ColumnAccessProfile } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
   BlockFilter,
@@ -147,7 +147,12 @@ export type SyncStore = {
 export const createSyncStore = ({
   common,
   database,
-}: { common: Common; database: Database }): SyncStore => ({
+  columnAccessProfile,
+}: {
+  common: Common;
+  database: Database;
+  columnAccessProfile: ColumnAccessProfile;
+}): SyncStore => ({
   insertIntervals: async ({ intervals, chainId }) => {
     if (intervals.length === 0) return;
 
@@ -577,20 +582,18 @@ export const createSyncStore = ({
         (f): f is TransferFilter => f.type === "transfer",
       );
 
-      const shouldQueryBlocks = columnAccessPattern.blockInclude.length > 0;
+      const shouldQueryBlocks = true;
       const shouldQueryLogs = logFilters.length > 0;
       const shouldQueryTraces =
-        columnAccessPattern.traceInclude.length > 0 &&
-        (traceFilters.length > 0 || transferFilters.length > 0);
+        traceFilters.length > 0 || transferFilters.length > 0;
       const shouldQueryTransactions =
-        columnAccessPattern.transactionInclude.length > 0 &&
-        (transactionFilters.length > 0 || shouldQueryLogs || shouldQueryTraces);
-      const shouldQueryTransactionReceipts =
-        columnAccessPattern.transactionReceiptInclude.length > 0 &&
-        filters.some(shouldGetTransactionReceipt);
+        transactionFilters.length > 0 || shouldQueryLogs || shouldQueryTraces;
+      const shouldQueryTransactionReceipts = filters.some(
+        shouldGetTransactionReceipt,
+      );
 
       const blockSelect: Record<string, any> = {};
-      for (const columnKey of columnAccessPattern.blockInclude) {
+      for (const columnKey of columnAccessProfile.blockInclude) {
         const columnName = columnKey.replace("block.", "");
         blockSelect[columnName] =
           PONDER_SYNC.blocks[columnName as keyof typeof PONDER_SYNC.blocks];
@@ -616,7 +619,7 @@ export const createSyncStore = ({
         .limit(limit);
 
       const transactionSelect: Record<string, any> = {};
-      for (const columnKey of columnAccessPattern.transactionInclude) {
+      for (const columnKey of columnAccessProfile.transactionInclude) {
         const columnName = columnKey.replace("transaction.", "");
         transactionSelect[columnName] =
           PONDER_SYNC.transactions[
@@ -649,7 +652,7 @@ export const createSyncStore = ({
         .limit(limit);
 
       const transactionReceiptSelect: Record<string, any> = {};
-      for (const columnKey of columnAccessPattern.transactionReceiptInclude) {
+      for (const columnKey of columnAccessProfile.transactionReceiptInclude) {
         const columnName = columnKey.replace("transactionReceipt.", "");
         transactionReceiptSelect[columnName] =
           PONDER_SYNC.transactionReceipts[
@@ -713,7 +716,7 @@ export const createSyncStore = ({
         .limit(limit);
 
       const traceSelect: Record<string, any> = {};
-      for (const columnKey of columnAccessPattern.traceInclude) {
+      for (const columnKey of columnAccessProfile.traceInclude) {
         const columnName = columnKey.replace("trace.", "");
         traceSelect[columnName] =
           PONDER_SYNC.traces[columnName as keyof typeof PONDER_SYNC.traces];

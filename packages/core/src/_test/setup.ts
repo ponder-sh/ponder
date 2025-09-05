@@ -2,6 +2,7 @@ import { buildSchema } from "@/build/schema.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
+import { createColumnAccessProfile } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import type { RetryableError } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
@@ -218,7 +219,12 @@ export async function setupDatabaseServices(
     throw err;
   });
 
-  const syncStore = createSyncStore({ common: context.common, database });
+  const columnAccessProfile = createColumnAccessProfile();
+  const syncStore = createSyncStore({
+    common: context.common,
+    database,
+    columnAccessProfile,
+  });
 
   const indexingErrorHandler: IndexingErrorHandler = {
     getRetryableError: () => {
