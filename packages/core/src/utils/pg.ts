@@ -51,12 +51,15 @@ export function createPool(config: PoolConfig, logger: Logger) {
     override connect(
       callback: (err: Error) => void | undefined,
     ): void | Promise<void> {
+      const idleTimeout =
+        (config as any).idleInTransactionSessionTimeout ?? 3600000;
+
       if (callback) {
         super.connect(() => {
           this.query(
             `
             SET synchronous_commit = off;
-            SET idle_in_transaction_session_timeout = 3600000;`,
+            SET idle_in_transaction_session_timeout = ${idleTimeout};`,
             callback,
           );
         });
@@ -64,7 +67,9 @@ export function createPool(config: PoolConfig, logger: Logger) {
         return super.connect().then(() =>
           this.query(`
             SET synchronous_commit = off;
-            SET idle_in_transaction_session_timeout = 3600000;`).then(() => {}),
+            SET idle_in_transaction_session_timeout = ${idleTimeout};`).then(
+            () => {},
+          ),
         );
       }
     }
@@ -120,6 +125,9 @@ export function createReadonlyPool(
     override connect(
       callback: (err: Error) => void | undefined,
     ): void | Promise<void> {
+      const idleTimeout =
+        (config as any).idleInTransactionSessionTimeout ?? 3600000;
+
       if (callback) {
         super.connect(() => {
           this.query(
@@ -127,7 +135,8 @@ export function createReadonlyPool(
           SET search_path = "${namespace}";
           SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
           SET work_mem = '512MB';
-          SET lock_timeout = '500ms';`,
+          SET lock_timeout = '500ms';
+          SET idle_in_transaction_session_timeout = ${idleTimeout};`,
             callback,
           );
         });
@@ -138,7 +147,8 @@ export function createReadonlyPool(
           SET search_path = "${namespace}";
           SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
           SET work_mem = '512MB';
-          SET lock_timeout = '500ms';`,
+          SET lock_timeout = '500ms';
+          SET idle_in_transaction_session_timeout = ${idleTimeout};`,
           ).then(() => {}),
         );
       }

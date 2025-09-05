@@ -64,7 +64,15 @@ export default createConfig({
 | **connectionString** |                      `string`                       | **Default: `DATABASE_URL` env var**. Postgres database connection string. |
 | **poolConfig**       | [`PoolConfig`](https://node-postgres.com/apis/pool) | **Default: `{ max: 30 }`**. Pool configuration passed to `node-postgres`. |
 
-```ts [ponder.config.ts] {4-10}
+##### poolConfig
+
+| field                                    |          type           |                                                                                       |
+| :--------------------------------------- | :---------------------: | :------------------------------------------------------------------------------------ |
+| **max**                                  |        `number`         | **Default: `30`**. Maximum number of clients in the pool.                            |
+| **ssl**                                  | `boolean \| SSLConfig`  | **Default: `false`**. Enable SSL, or provide a custom SSL configuration.             |
+| **idleInTransactionSessionTimeout**  |        `number`         | **Default: `3600000`**. Timeout for idle transactions in milliseconds (1 hour).     |
+
+```ts [ponder.config.ts] {4-11}
 import { createConfig } from "ponder";
 
 export default createConfig({
@@ -74,6 +82,7 @@ export default createConfig({
     poolConfig: {
       max: 100,
       ssl: true,
+      idleInTransactionSessionTimeout: 7200000, // 2 hours
     },
   },
   // ...
