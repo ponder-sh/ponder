@@ -219,7 +219,9 @@ export async function setupDatabaseServices(
     throw err;
   });
 
-  const columnAccessProfile = createColumnAccessProfile();
+  const columnAccessProfile = createColumnAccessProfile({
+    common: context.common,
+  });
   const syncStore = createSyncStore({
     common: context.common,
     database,
