@@ -70,6 +70,7 @@ export type ColumnAccessProfile = {
   traceInclude: typeof defaultTraceInclude;
   transactionInclude: typeof defaultTransactionInclude;
   transactionReceiptInclude: typeof defaultTransactionReceiptInclude;
+  defaultInclude: Set<string>;
   accessed: Set<string>;
   eventCount: number;
   resolved: boolean;
@@ -84,6 +85,13 @@ export const createColumnAccessProfile = (): ColumnAccessProfile => ({
   accessed: new Set(),
   eventCount: 0,
   resolved: false,
+  defaultInclude: new Set([
+    ...defaultLogInclude,
+    ...defaultBlockInclude,
+    ...defaultTraceInclude,
+    ...defaultTransactionInclude,
+    ...defaultTransactionReceiptInclude,
+  ]),
   resolve: function () {
     this.resolved = true;
     this.blockInclude = this.blockInclude.filter((key) =>
@@ -411,14 +419,6 @@ export const createIndexing = ({
   };
 };
 
-const defaultInclude = new Set(
-  ...defaultLogInclude,
-  ...defaultBlockInclude,
-  ...defaultTraceInclude,
-  ...defaultTransactionInclude,
-  ...defaultTransactionReceiptInclude,
-);
-
 const proxyHandler = ({
   type,
   profile,
@@ -432,7 +432,11 @@ const proxyHandler = ({
         const key = `${type}.${prop}`;
         profile.accessed.add(key);
 
-        if (prop in obj === false && defaultInclude.has(key)) {
+        if (
+          profile.resolved &&
+          prop in obj === false &&
+          profile.defaultInclude.has(key)
+        ) {
           profile.resolved = false;
           throw new InvalidEventAccessError(key);
         }

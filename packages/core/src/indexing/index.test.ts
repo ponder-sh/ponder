@@ -12,7 +12,10 @@ import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/config.js";
 import { onchainTable } from "@/drizzle/onchain.js";
 import { createCachedViemClient } from "@/indexing/client.js";
-import type { RetryableError } from "@/internal/errors.js";
+import {
+  InvalidEventAccessError,
+  type RetryableError,
+} from "@/internal/errors.js";
 import type {
   Event,
   IndexingErrorHandler,
@@ -947,6 +950,111 @@ test("processEvents() error with missing event object properties", async (contex
   await expect(() =>
     indexing.processEvents({ events, db: indexingStore }),
   ).rejects.toThrowError();
+});
+
+test("processEvents() column selection", async (context) => {
+  const { common } = context;
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
+  let count = 0;
+
+  const indexingFunctions = {
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+      async ({ event }: { event: any; context: Context }) => {
+        event.transaction.gas;
+        event.transaction.maxFeePerGas;
+        if (count++ === 1001) {
+          event.transaction.maxPriorityFeePerGas;
+        }
+      },
+  };
+
+  const eventCount = {
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
+  };
+  const columnAccessProfile = createColumnAccessProfile();
+
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { chains, rpcs },
+    syncStore,
+    eventCount,
+  });
+
+  const indexing = createIndexing({
+    common,
+    indexingBuild: {
+      sources,
+      chains,
+      indexingFunctions,
+    },
+    client: cachedViemClient,
+    eventCount,
+    indexingErrorHandler,
+    columnAccessProfile,
+  });
+
+  const topics = encodeEventTopics({
+    abi: erc20ABI,
+    eventName: "Transfer",
+    args: { from: zeroAddress, to: ALICE },
+  });
+
+  const data = padHex(toHex(parseEther("1")), { size: 32 });
+
+  let rawEvents = Array.from({ length: 1001 }).map(
+    () =>
+      ({
+        chainId: 1,
+        sourceIndex: 0,
+        checkpoint: ZERO_CHECKPOINT_STRING,
+        block: {} as RawEvent["block"],
+        transaction: { gas: 0n, maxFeePerGas: 0n } as RawEvent["transaction"],
+        log: { data, topics },
+      }) as RawEvent,
+  );
+
+  let events = decodeEvents(common, sources, rawEvents);
+  await indexing.processEvents({ db: indexingStore, events });
+
+  expect(columnAccessProfile.resolved).toBe(true);
+  expect(columnAccessProfile.eventCount).toBe(1001);
+  expect(columnAccessProfile.accessed.size).toBe(2);
+  expect(columnAccessProfile.accessed.has("transaction.gas")).toBe(true);
+  expect(columnAccessProfile.accessed.has("transaction.maxFeePerGas")).toBe(
+    true,
+  );
+  expect(columnAccessProfile.transactionInclude).toContain("transaction.gas");
+  expect(columnAccessProfile.transactionInclude).toContain(
+    "transaction.maxFeePerGas",
+  );
+
+  rawEvents = [
+    {
+      chainId: 1,
+      sourceIndex: 0,
+      checkpoint: ZERO_CHECKPOINT_STRING,
+      block: {} as RawEvent["block"],
+      transaction: {} as RawEvent["transaction"],
+      log: { data, topics },
+    } as RawEvent,
+  ];
+
+  events = decodeEvents(common, sources, rawEvents);
+
+  await expect(() =>
+    indexing.processEvents({ events, db: indexingStore }),
+  ).rejects.toThrowError(
+    new InvalidEventAccessError("transaction.maxPriorityFeePerGas"),
+  );
 });
 
 test("ponderActions getBalance()", async (context) => {
