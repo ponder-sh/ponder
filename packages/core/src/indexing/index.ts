@@ -77,7 +77,9 @@ export type ColumnAccessProfile = {
   resolve: () => void;
 };
 
-export const createColumnAccessProfile = (): ColumnAccessProfile => ({
+export const createColumnAccessProfile = ({
+  common,
+}: { common: Common }): ColumnAccessProfile => ({
   blockInclude: [...defaultBlockInclude],
   traceInclude: [...defaultTraceInclude],
   transactionInclude: [...defaultTransactionInclude],
@@ -94,18 +96,28 @@ export const createColumnAccessProfile = (): ColumnAccessProfile => ({
   ]),
   resolve: function () {
     this.resolved = true;
-    this.blockInclude = this.blockInclude.filter((key) =>
+    this.blockInclude = defaultBlockInclude.filter((key) =>
       this.accessed.has(key),
     );
-    this.traceInclude = this.traceInclude.filter((key) =>
+    this.traceInclude = defaultTraceInclude.filter((key) =>
       this.accessed.has(key),
     );
-    this.transactionInclude = this.transactionInclude.filter((key) =>
+    this.transactionInclude = defaultTransactionInclude.filter((key) =>
       this.accessed.has(key),
     );
-    this.transactionReceiptInclude = this.transactionReceiptInclude.filter(
+    this.transactionReceiptInclude = defaultTransactionReceiptInclude.filter(
       (key) => this.accessed.has(key),
     );
+
+    common.logger.info({
+      service: "indexing",
+      msg: `Column selection resolved: 
+        ${this.blockInclude.length}/${defaultBlockInclude.length} block columns, 
+        ${this.traceInclude.length}/${defaultTraceInclude.length} trace columns, 
+        ${this.transactionInclude.length}/${defaultTransactionInclude.length} transaction columns,
+        ${this.transactionReceiptInclude.length}/${defaultTransactionReceiptInclude.length} transactionReceipt columns.  
+      `,
+    });
   },
 });
 

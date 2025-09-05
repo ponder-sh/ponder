@@ -79,7 +79,7 @@ export async function runMultichain({
 }) {
   runCodegen({ common });
 
-  const columnAccessProfile = createColumnAccessProfile();
+  const columnAccessProfile = createColumnAccessProfile({ common });
   const syncStore = createSyncStore({ common, database, columnAccessProfile });
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
@@ -436,7 +436,7 @@ export async function runMultichain({
           if (error instanceof InvalidEventAccessError) {
             common.logger.warn({
               service: "app",
-              msg: "Refetching events due to restricted column selection",
+              msg: `Refetching events due to restricted column selection. Missing: '${error.key}' field.`,
             });
             events.events = await syncStore.refetchEventData({
               events: events.events,

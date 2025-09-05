@@ -402,6 +402,7 @@ export const defaultBlockInclude: `block.${keyof InternalBlock}`[] = [
   "block.hash",
   "block.logsBloom",
   "block.miner",
+  "block.mixHash",
   "block.nonce",
   "block.number",
   "block.parentHash",

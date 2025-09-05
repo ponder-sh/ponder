@@ -75,7 +75,7 @@ test("createIndexing()", async (context) => {
   });
 
   const eventCount = {};
-  const columnAccessProfile = createColumnAccessProfile();
+  const columnAccessProfile = createColumnAccessProfile({ common });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -113,7 +113,7 @@ test("processSetupEvents() empty", async (context) => {
   });
 
   const eventCount = {};
-  const columnAccessProfile = createColumnAccessProfile();
+  const columnAccessProfile = createColumnAccessProfile({ common });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -155,7 +155,7 @@ test("processSetupEvents()", async (context) => {
   };
 
   const eventCount = { "Erc20:setup": 0 };
-  const columnAccessProfile = createColumnAccessProfile();
+  const columnAccessProfile = createColumnAccessProfile({ common });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -220,7 +220,7 @@ test("processEvent()", async (context) => {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
     "Pair:Swap": 0,
   };
-  const columnAccessProfile = createColumnAccessProfile();
+  const columnAccessProfile = createColumnAccessProfile({ common });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -319,7 +319,7 @@ test("processEvents eventCount", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
-  const columnAccessProfile = createColumnAccessProfile();
+  const columnAccessProfile = createColumnAccessProfile({ common });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -394,7 +394,7 @@ test("executeSetup() context.client", async (context) => {
   };
 
   const eventCount = {};
-  const columnAccessProfile = createColumnAccessProfile();
+  const columnAccessProfile = createColumnAccessProfile({ common });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -447,7 +447,7 @@ test("executeSetup() context.db", async (context) => {
     },
   };
   const eventCount = { "Erc20:setup": 0 };
-  const columnAccessProfile = createColumnAccessProfile();
+  const columnAccessProfile = createColumnAccessProfile({ common });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -495,7 +495,7 @@ test("executeSetup() metrics", async (context) => {
   });
 
   const eventCount = { "Erc20:setup": 0 };
-  const columnAccessProfile = createColumnAccessProfile();
+  const columnAccessProfile = createColumnAccessProfile({ common });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -542,7 +542,7 @@ test("executeSetup() error", async (context) => {
   };
 
   const eventCount = { "Erc20:setup": 0 };
-  const columnAccessProfile = createColumnAccessProfile();
+  const columnAccessProfile = createColumnAccessProfile({ common });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -594,7 +594,7 @@ test("processEvents() context.client", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
-  const columnAccessProfile = createColumnAccessProfile();
+  const columnAccessProfile = createColumnAccessProfile({ common });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -675,7 +675,7 @@ test("processEvents() context.db", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
-  const columnAccessProfile = createColumnAccessProfile();
+  const columnAccessProfile = createColumnAccessProfile({ common });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -747,7 +747,7 @@ test("processEvents() metrics", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
-  const columnAccessProfile = createColumnAccessProfile();
+  const columnAccessProfile = createColumnAccessProfile({ common });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -822,7 +822,7 @@ test("processEvents() error", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
-  const columnAccessProfile = createColumnAccessProfile();
+  const columnAccessProfile = createColumnAccessProfile({ common });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -904,7 +904,7 @@ test("processEvents() error with missing event object properties", async (contex
   };
 
   const eventCount = {};
-  const columnAccessProfile = createColumnAccessProfile();
+  const columnAccessProfile = createColumnAccessProfile({ common });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -980,7 +980,7 @@ test("processEvents() column selection", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
-  const columnAccessProfile = createColumnAccessProfile();
+  const columnAccessProfile = createColumnAccessProfile({ common });
 
   const cachedViemClient = createCachedViemClient({
     common,

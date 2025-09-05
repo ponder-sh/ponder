@@ -849,9 +849,10 @@ export const createSyncStore = ({
             internalTransaction.maxPriorityFeePerGas = undefined;
           } else if (transaction.type === "0x1") {
             internalTransaction.type = "eip2930";
-            internalTransaction.accessList = JSON.parse(
-              transaction.accessList!,
-            );
+            internalTransaction.accessList =
+              transaction.accessList === undefined
+                ? undefined
+                : JSON.parse(transaction.accessList!);
             internalTransaction.maxFeePerGas = undefined;
             internalTransaction.maxPriorityFeePerGas = undefined;
           } else if (transaction.type === "0x2") {
@@ -963,7 +964,7 @@ export const createSyncStore = ({
             internalTrace.to = toLowerCase(trace.to) as Address;
           }
 
-          if (trace.output === null) {
+          if (trace.output === undefined || trace.output === null) {
             internalTrace.output = undefined;
           }
 
@@ -971,7 +972,7 @@ export const createSyncStore = ({
             internalTrace.error = undefined;
           }
 
-          if (trace.revertReason === null) {
+          if (trace.revertReason === undefined || trace.revertReason === null) {
             internalTrace.revertReason = undefined;
           }
 
@@ -979,7 +980,9 @@ export const createSyncStore = ({
           traceIndex++;
         }
 
-        block.miner = toLowerCase(block.miner);
+        if (block.miner) {
+          block.miner = toLowerCase(block.miner);
+        }
 
         blockData.push({
           block,
@@ -1234,9 +1237,10 @@ export const createSyncStore = ({
                 internalTransaction.maxPriorityFeePerGas = undefined;
               } else if (transaction.type === "0x1") {
                 internalTransaction.type = "eip2930";
-                internalTransaction.accessList = JSON.parse(
-                  transaction.accessList!,
-                );
+                internalTransaction.accessList =
+                  transaction.accessList === undefined
+                    ? undefined
+                    : JSON.parse(transaction.accessList!);
                 internalTransaction.maxFeePerGas = undefined;
                 internalTransaction.maxPriorityFeePerGas = undefined;
               } else if (transaction.type === "0x2") {
@@ -1306,7 +1310,7 @@ export const createSyncStore = ({
                 internalTrace.to = toLowerCase(trace.to) as Address;
               }
 
-              if (trace.output === null) {
+              if (trace.output === undefined || trace.output === null) {
                 internalTrace.output = undefined;
               }
 
@@ -1314,7 +1318,10 @@ export const createSyncStore = ({
                 internalTrace.error = undefined;
               }
 
-              if (trace.revertReason === null) {
+              if (
+                trace.revertReason === undefined ||
+                trace.revertReason === null
+              ) {
                 internalTrace.revertReason = undefined;
               }
 

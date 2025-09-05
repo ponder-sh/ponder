@@ -81,7 +81,7 @@ export async function runOmnichain({
 }) {
   runCodegen({ common });
 
-  const columnAccessProfile = createColumnAccessProfile();
+  const columnAccessProfile = createColumnAccessProfile({ common });
   const syncStore = createSyncStore({ common, database, columnAccessProfile });
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
