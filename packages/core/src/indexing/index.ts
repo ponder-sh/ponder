@@ -5,6 +5,7 @@ import type { Common } from "@/internal/common.js";
 import {
   BaseError,
   IndexingFunctionError,
+  InvalidEventAccessError,
   ShutdownError,
 } from "@/internal/errors.js";
 import type {
@@ -16,7 +17,14 @@ import type {
   Schema,
   SetupEvent,
 } from "@/internal/types.js";
-import { isAddressFactory } from "@/runtime/filter.js";
+import {
+  defaultBlockInclude,
+  defaultLogInclude,
+  defaultTraceInclude,
+  defaultTransactionInclude,
+  defaultTransactionReceiptInclude,
+  isAddressFactory,
+} from "@/runtime/filter.js";
 import type { Db } from "@/types/db.js";
 import type { Block, Log, Trace, Transaction } from "@/types/eth.js";
 import type { DeepPartial } from "@/types/utils.js";
@@ -57,12 +65,69 @@ export type Indexing = {
   }) => Promise<void>;
 };
 
+export type ColumnAccessProfile = {
+  blockInclude: typeof defaultBlockInclude;
+  traceInclude: typeof defaultTraceInclude;
+  transactionInclude: typeof defaultTransactionInclude;
+  transactionReceiptInclude: typeof defaultTransactionReceiptInclude;
+  defaultInclude: Set<string>;
+  accessed: Set<string>;
+  eventCount: number;
+  resolved: boolean;
+  resolve: () => void;
+};
+
+export const createColumnAccessProfile = ({
+  common,
+}: { common: Common }): ColumnAccessProfile => ({
+  blockInclude: [...defaultBlockInclude],
+  traceInclude: [...defaultTraceInclude],
+  transactionInclude: [...defaultTransactionInclude],
+  transactionReceiptInclude: [...defaultTransactionReceiptInclude],
+  accessed: new Set(),
+  eventCount: 0,
+  resolved: false,
+  defaultInclude: new Set([
+    ...defaultLogInclude,
+    ...defaultBlockInclude,
+    ...defaultTraceInclude,
+    ...defaultTransactionInclude,
+    ...defaultTransactionReceiptInclude,
+  ]),
+  resolve: function () {
+    this.resolved = true;
+    this.blockInclude = defaultBlockInclude.filter((key) =>
+      this.accessed.has(key),
+    );
+    this.traceInclude = defaultTraceInclude.filter((key) =>
+      this.accessed.has(key),
+    );
+    this.transactionInclude = defaultTransactionInclude.filter((key) =>
+      this.accessed.has(key),
+    );
+    this.transactionReceiptInclude = defaultTransactionReceiptInclude.filter(
+      (key) => this.accessed.has(key),
+    );
+
+    common.logger.info({
+      service: "indexing",
+      msg: `Column selection resolved: 
+        ${this.blockInclude.length}/${defaultBlockInclude.length} block columns, 
+        ${this.traceInclude.length}/${defaultTraceInclude.length} trace columns, 
+        ${this.transactionInclude.length}/${defaultTransactionInclude.length} transaction columns,
+        ${this.transactionReceiptInclude.length}/${defaultTransactionReceiptInclude.length} transactionReceipt columns.  
+      `,
+    });
+  },
+});
+
 export const createIndexing = ({
   common,
   indexingBuild: { sources, chains, indexingFunctions },
   client,
   eventCount,
   indexingErrorHandler,
+  columnAccessProfile,
 }: {
   common: Common;
   indexingBuild: Pick<
@@ -72,6 +137,7 @@ export const createIndexing = ({
   client: CachedViemClient;
   eventCount: { [eventName: string]: number };
   indexingErrorHandler: IndexingErrorHandler;
+  columnAccessProfile: ColumnAccessProfile;
 }): Indexing => {
   const context: Context = {
     chain: { name: undefined!, id: undefined! },
@@ -344,7 +410,7 @@ export const createIndexing = ({
           msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
         });
 
-        await executeEvent(event);
+        await executeEvent(toProxy({ event, profile: columnAccessProfile }));
 
         common.logger.trace({
           service: "indexing",
@@ -352,9 +418,133 @@ export const createIndexing = ({
         });
       }
 
+      if (
+        columnAccessProfile.resolved === false &&
+        columnAccessProfile.eventCount > 1000
+      ) {
+        columnAccessProfile.resolve();
+      }
+
       updateCompletedEvents();
     },
   };
+};
+
+const proxyHandler = ({
+  type,
+  profile,
+}: {
+  type: "log" | "block" | "trace" | "transaction" | "transactionReceipt";
+  profile: ColumnAccessProfile;
+}): ProxyHandler<any> => {
+  return {
+    get(obj, prop, receiver) {
+      if (typeof prop === "string") {
+        const key = `${type}.${prop}`;
+        profile.accessed.add(key);
+
+        if (
+          profile.resolved &&
+          prop in obj === false &&
+          profile.defaultInclude.has(key)
+        ) {
+          profile.resolved = false;
+          throw new InvalidEventAccessError(key);
+        }
+      }
+      return Reflect.get(obj, prop, receiver);
+    },
+  };
+};
+
+export const toProxy = ({
+  event,
+  profile,
+}: { event: Event; profile: ColumnAccessProfile }): Event => {
+  profile.eventCount++;
+  switch (event.type) {
+    case "block": {
+      event.event = {
+        ...event.event,
+        block: new Proxy(
+          event.event.block,
+          proxyHandler({ type: "block", profile }),
+        ),
+      };
+      break;
+    }
+    case "transaction": {
+      event.event = {
+        ...event.event,
+        block: new Proxy(
+          event.event.block,
+          proxyHandler({ type: "block", profile }),
+        ),
+        transaction: new Proxy(
+          event.event.transaction,
+          proxyHandler({ type: "transaction", profile }),
+        ),
+        transactionReceipt:
+          event.event.transactionReceipt === undefined
+            ? undefined
+            : new Proxy(
+                event.event.transactionReceipt,
+                proxyHandler({ type: "transactionReceipt", profile }),
+              ),
+      };
+      break;
+    }
+    case "log": {
+      event.event = {
+        ...event.event,
+        log: new Proxy(event.event.log, proxyHandler({ type: "log", profile })),
+        block: new Proxy(
+          event.event.block,
+          proxyHandler({ type: "block", profile }),
+        ),
+        transaction: new Proxy(
+          event.event.transaction,
+          proxyHandler({ type: "transaction", profile }),
+        ),
+        transactionReceipt:
+          event.event.transactionReceipt === undefined
+            ? undefined
+            : new Proxy(
+                event.event.transactionReceipt,
+                proxyHandler({ type: "transactionReceipt", profile }),
+              ),
+      };
+      break;
+    }
+    case "transfer":
+    case "trace": {
+      event.event = {
+        ...event.event,
+        trace: new Proxy(
+          event.event.trace,
+          proxyHandler({ type: "trace", profile }),
+        ),
+        block: new Proxy(
+          event.event.block,
+          proxyHandler({ type: "block", profile }),
+        ),
+        transaction: new Proxy(
+          event.event.transaction,
+          proxyHandler({ type: "transaction", profile }),
+        ),
+        transactionReceipt:
+          event.event.transactionReceipt === undefined
+            ? undefined
+            : new Proxy(
+                event.event.transactionReceipt,
+                proxyHandler({ type: "transactionReceipt", profile }),
+              ),
+      };
+      break;
+    }
+  }
+
+  return event;
 };
 
 export const toErrorMeta = (

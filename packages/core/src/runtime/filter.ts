@@ -338,30 +338,7 @@ export const isBlockFilterMatched = ({
   return (Number(block.number) - filter.offset) % filter.interval === 0;
 };
 
-export const defaultBlockFilterInclude: Exclude<
-  BlockFilter["include"],
-  undefined
-> = [
-  "block.baseFeePerGas",
-  "block.difficulty",
-  "block.extraData",
-  "block.gasLimit",
-  "block.gasUsed",
-  "block.hash",
-  "block.logsBloom",
-  "block.miner",
-  "block.nonce",
-  "block.number",
-  "block.parentHash",
-  "block.receiptsRoot",
-  "block.sha3Uncles",
-  "block.size",
-  "block.stateRoot",
-  "block.timestamp",
-  "block.transactionsRoot",
-];
-
-const defaultTransactionInclude: `transaction.${keyof InternalTransaction}`[] =
+export const defaultTransactionInclude: `transaction.${keyof InternalTransaction}`[] =
   [
     "transaction.from",
     "transaction.gas",
@@ -394,7 +371,7 @@ export const defaultTransactionReceiptInclude: `transactionReceipt.${keyof Inter
     "transactionReceipt.type",
   ];
 
-const defaultTraceInclude: `trace.${keyof InternalTrace}`[] = [
+export const defaultTraceInclude: `trace.${keyof InternalTrace}`[] = [
   "trace.traceIndex",
   "trace.type",
   "trace.from",
@@ -408,13 +385,43 @@ const defaultTraceInclude: `trace.${keyof InternalTrace}`[] = [
   "trace.value",
 ];
 
+export const defaultLogInclude: `log.${keyof InternalLog}`[] = [
+  "log.address",
+  "log.data",
+  "log.logIndex",
+  "log.removed",
+  "log.topics",
+];
+
+export const defaultBlockInclude: `block.${keyof InternalBlock}`[] = [
+  "block.baseFeePerGas",
+  "block.difficulty",
+  "block.extraData",
+  "block.gasLimit",
+  "block.gasUsed",
+  "block.hash",
+  "block.logsBloom",
+  "block.miner",
+  "block.mixHash",
+  "block.nonce",
+  "block.number",
+  "block.parentHash",
+  "block.receiptsRoot",
+  "block.sha3Uncles",
+  "block.size",
+  "block.stateRoot",
+  "block.timestamp",
+  "block.transactionsRoot",
+];
+
+export const defaultBlockFilterInclude: Exclude<
+  BlockFilter["include"],
+  undefined
+> = defaultBlockInclude;
+
 export const defaultLogFilterInclude: Exclude<LogFilter["include"], undefined> =
   [
-    "log.address",
-    "log.data",
-    "log.logIndex",
-    "log.removed",
-    "log.topics",
+    ...defaultLogInclude,
     ...defaultTransactionInclude,
     ...defaultBlockFilterInclude,
   ];
