@@ -11,8 +11,16 @@ export const getTableNames = (table: PgTable) => {
 
   return {
     reorg: sqlToReorgTableName(sql),
-    trigger: sqlToReorgTableName(sql),
-    triggerFn: `operation_reorg__${sql}()`,
+    trigger(chainId?: number) {
+      return chainId === undefined
+        ? sqlToReorgTableName(sql)
+        : `${sqlToReorgTableName(sql)}_${chainId}`;
+    },
+    triggerFn(chainId?: number) {
+      return chainId === undefined
+        ? `operation_reorg__${sql}()`
+        : `operation_reorg__${sql}_${chainId}()`;
+    },
   };
 };
 

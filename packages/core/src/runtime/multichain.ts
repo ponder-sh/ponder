@@ -23,7 +23,7 @@ import {
   NonRetryableUserError,
   type RetryableError,
 } from "@/internal/errors.js";
-import { getAppProgress } from "@/internal/metrics.js";
+import { type AppProgress, getAppProgress } from "@/internal/metrics.js";
 import type {
   Chain,
   CrashRecoveryCheckpoint,
@@ -366,7 +366,9 @@ export async function runMultichain({
 
           // underlying metrics collection is actually synchronous
           // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-          const { eta, progress } = await getAppProgress(common.metrics);
+          const { eta, progress } = (await getAppProgress(
+            common.metrics,
+          )) as AppProgress;
           if (eta === undefined || progress === undefined) {
             common.logger.info({
               service: "app",
@@ -555,7 +557,9 @@ export async function runMultichain({
                 });
 
                 await Promise.all(
-                  tables.map((table) => commitBlock(tx, { table, checkpoint })),
+                  tables.map((table) =>
+                    commitBlock(tx, { table, checkpoint, preBuild }),
+                  ),
                 );
 
                 common.metrics.ponder_indexing_timestamp.set(
