@@ -563,7 +563,7 @@ export async function runOmnichain({
             msg: `Partitioned events into ${perBlockEvents.length} blocks`,
           });
 
-          for (let { checkpoint, events } of perBlockEvents) {
+          for (const { checkpoint, events } of perBlockEvents) {
             await database.userQB.transaction(async (tx) => {
               const chain = indexingBuild.chains.find(
                 (chain) =>
@@ -602,14 +602,6 @@ export async function runOmnichain({
                     service: "app",
                     msg: `Retrying '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
                   });
-                }
-
-                if (error instanceof InvalidEventAccessError) {
-                  common.logger.warn({
-                    service: "app",
-                    msg: `Refetching '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)} due to restricted column selection`,
-                  });
-                  events = await syncStore.refetchEventData({ events });
                 }
 
                 throw error;
