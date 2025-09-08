@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { Common } from "@/internal/common.js";
 import { BaseError } from "@/internal/errors.js";
 import {
