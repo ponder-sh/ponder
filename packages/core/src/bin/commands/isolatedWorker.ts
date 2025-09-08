@@ -81,6 +81,8 @@ export async function isolatedWorker({
   // Note: build is guaranteed to be successful because the main thread
   // has already run the build.
 
+  globalThis.PONDER_NAMESPACE_BUILD = namespaceBuild;
+
   const configResult = await build.executeConfig();
   if (configResult.status === "error") {
     throw configResult.error;
@@ -117,8 +119,17 @@ export async function isolatedWorker({
     throw indexingBuildResult.error;
   }
   const chainCount = indexingBuildResult.result.chains.length;
+  const chainIndex = indexingBuildResult.result.chains.findIndex(
+    (c) => c.id === chainId,
+  );
   indexingBuildResult.result.chains = [
-    indexingBuildResult.result.chains.find((c) => c.id === chainId)!,
+    indexingBuildResult.result.chains[chainIndex]!,
+  ];
+  indexingBuildResult.result.rpcs = [
+    indexingBuildResult.result.rpcs[chainIndex]!,
+  ];
+  indexingBuildResult.result.finalizedBlocks = [
+    indexingBuildResult.result.finalizedBlocks[chainIndex]!,
   ];
 
   options.indexingCacheMaxBytes = Math.floor(

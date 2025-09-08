@@ -73,10 +73,7 @@ export async function isolatedController({
 
       if (namespaceBuild.viewsSchema !== undefined) {
         const tables = Object.values(schemaBuild.schema).filter(isTable);
-        await createViews(database.adminQB, {
-          tables,
-          namespaceBuild,
-        });
+        await createViews(database.adminQB, { tables, namespaceBuild });
 
         logger.info({
           service: "app",
