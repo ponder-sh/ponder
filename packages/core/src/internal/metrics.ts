@@ -1,5 +1,5 @@
 import { isMainThread, parentPort } from "node:worker_threads";
-import type { WorkerInfo } from "@/bin/utils/startIsolated.js";
+import type { WorkerInfo } from "@/bin/commands/isolatedController.js";
 import { truncate } from "@/utils/truncate.js";
 import prometheus from "prom-client";
 import type { Ordering } from "./types.js";

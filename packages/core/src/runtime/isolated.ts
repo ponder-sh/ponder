@@ -69,30 +69,6 @@ export async function runIsolated({
   chainId: number;
   onReady: () => void;
 }) {
-  // if (options.version) {
-  //   metrics.ponder_version_info.set(
-  //     {
-  //       version: options.version.version,
-  //       major: options.version.major,
-  //       minor: options.version.minor,
-  //       patch: options.version.patch,
-  //     },
-  //     1,
-  //   );
-  // }
-
-  // options.indexingCacheMaxBytes =
-  //   options.indexingCacheMaxBytes / indexingBuild.chains.length;
-
-  // metrics.ponder_settings_info.set(
-  //   {
-  //     ordering: preBuild.ordering,
-  //     database: preBuild.databaseConfig.kind,
-  //     command: cliOptions.command,
-  //   },
-  //   1,
-  // );
-
   const syncStore = createSyncStore({ common, database });
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);

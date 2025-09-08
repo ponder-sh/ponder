@@ -117,6 +117,9 @@ export async function isolatedWorker({
     throw indexingBuildResult.error;
   }
 
+  options.indexingCacheMaxBytes =
+    options.indexingCacheMaxBytes / indexingBuildResult.result.chains.length;
+
   const database = createDatabase({
     common,
     namespace: namespaceBuild,
