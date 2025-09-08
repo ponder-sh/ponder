@@ -116,9 +116,20 @@ export async function isolatedWorker({
   if (indexingBuildResult.status === "error") {
     throw indexingBuildResult.error;
   }
+  const chainCount = indexingBuildResult.result.chains.length;
+  indexingBuildResult.result.chains = [
+    indexingBuildResult.result.chains.find((c) => c.id === chainId)!,
+  ];
 
-  options.indexingCacheMaxBytes =
-    options.indexingCacheMaxBytes / indexingBuildResult.result.chains.length;
+  options.indexingCacheMaxBytes = Math.floor(
+    options.indexingCacheMaxBytes / chainCount,
+  );
+  options.rpcMaxConcurrency = Math.floor(
+    options.rpcMaxConcurrency / chainCount,
+  );
+  options.syncEventsQuerySize = Math.floor(
+    options.syncEventsQuerySize / chainCount,
+  );
 
   const database = createDatabase({
     common,
