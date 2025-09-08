@@ -388,7 +388,10 @@ export class MetricsService {
       registers: [this.registry],
     });
 
-    prometheus.collectDefaultMetrics({ register: this.registry });
+    prometheus.collectDefaultMetrics({
+      register: this.registry,
+      eventLoopMonitoringPrecision: 1,
+    });
   }
 
   /**
