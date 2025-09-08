@@ -419,14 +419,10 @@ export type SyncBlockHeader = Omit<SyncBlock, "transactions"> & {
   transactions: undefined;
 };
 
-export type PartialWithSelectedRequired<
-  T,
-  K extends keyof T,
-  _T extends T | undefined = undefined,
-> = {
+export type PartialWithSelectedRequired<T, K extends keyof T> = {
   [P in K]: T[P];
 } & {
-  [P in keyof Omit<T, K>]: T[P] | undefined;
+  [P in keyof Omit<T, K>]?: T[P];
 };
 
 export type InternalBlock = PartialWithSelectedRequired<
@@ -439,7 +435,7 @@ export type InternalLog = Log & {
 };
 export type InternalTransaction = PartialWithSelectedRequired<
   Transaction,
-  "transactionIndex" | "from" | "to" | "hash"
+  "transactionIndex" | "from" | "to" | "hash" | "type"
 > & {
   blockNumber: number;
 };

@@ -68,6 +68,74 @@ import {
 } from "./encode.js";
 import * as PONDER_SYNC from "./schema.js";
 
+type BlockColumnKeys = keyof typeof PONDER_SYNC.blocks.$inferSelect;
+type BlockSelect<
+  Required extends BlockColumnKeys =
+    | "timestamp"
+    | "number"
+    | "hash"
+    | "logsBloom"
+    | "parentHash",
+> = {
+  [P in Required]: (typeof PONDER_SYNC.blocks)[P];
+} & {
+  [P in Exclude<BlockColumnKeys, Required>]?: (typeof PONDER_SYNC.blocks)[P];
+};
+
+type TransactionColumnKeys = keyof typeof PONDER_SYNC.transactions.$inferSelect;
+type TransactionSelect<
+  Required extends TransactionColumnKeys =
+    | "transactionIndex"
+    | "from"
+    | "to"
+    | "hash"
+    | "type"
+    | "blockNumber",
+> = {
+  [P in Required]: (typeof PONDER_SYNC.transactions)[P];
+} & {
+  [P in Exclude<
+    TransactionColumnKeys,
+    Required
+  >]?: (typeof PONDER_SYNC.transactions)[P];
+};
+
+type TransactionReceiptColumnKeys =
+  keyof typeof PONDER_SYNC.transactionReceipts.$inferSelect;
+type TransactionReceiptSelect<
+  Required extends TransactionReceiptColumnKeys =
+    | "status"
+    | "from"
+    | "to"
+    | "blockNumber"
+    | "transactionIndex",
+> = {
+  [P in Required]: (typeof PONDER_SYNC.transactionReceipts)[P];
+} & {
+  [P in Exclude<
+    TransactionReceiptColumnKeys,
+    Required
+  >]?: (typeof PONDER_SYNC.transactionReceipts)[P];
+};
+
+type TraceColumnKeys = keyof typeof PONDER_SYNC.traces.$inferSelect;
+type TraceSelect<
+  Required extends TraceColumnKeys =
+    | "transactionIndex"
+    | "blockNumber"
+    | "from"
+    | "to"
+    | "input"
+    | "value"
+    | "type"
+    | "error"
+    | "traceIndex",
+> = {
+  [P in Required]: (typeof PONDER_SYNC.traces)[P];
+} & {
+  [P in Exclude<TraceColumnKeys, Required>]?: (typeof PONDER_SYNC.traces)[P];
+};
+
 export type SyncStore = {
   insertIntervals(args: {
     intervals: { filter: FilterWithoutBlocks; interval: Interval }[];
@@ -593,7 +661,7 @@ export const createSyncStore = ({
         shouldGetTransactionReceipt,
       );
 
-      const blockSelect: Record<string, any> = {
+      const blockSelect: BlockSelect = {
         timestamp: PONDER_SYNC.blocks.timestamp,
         number: PONDER_SYNC.blocks.number,
         hash: PONDER_SYNC.blocks.hash,
@@ -603,6 +671,7 @@ export const createSyncStore = ({
 
       for (const columnKey of columnAccessProfile.blockInclude) {
         const columnName = columnKey.replace("block.", "");
+        // @ts-ignore
         blockSelect[columnName] =
           PONDER_SYNC.blocks[columnName as keyof typeof PONDER_SYNC.blocks];
       }
@@ -620,16 +689,18 @@ export const createSyncStore = ({
         .orderBy(asc(PONDER_SYNC.blocks.number))
         .limit(limit);
 
-      const transactionSelect: Record<string, any> = {
+      const transactionSelect: TransactionSelect = {
         blockNumber: PONDER_SYNC.transactions.blockNumber,
         transactionIndex: PONDER_SYNC.transactions.transactionIndex,
         from: PONDER_SYNC.transactions.from,
         to: PONDER_SYNC.transactions.to,
         hash: PONDER_SYNC.transactions.hash,
+        type: PONDER_SYNC.transactions.type,
       };
 
       for (const columnKey of columnAccessProfile.transactionInclude) {
         const columnName = columnKey.replace("transaction.", "");
+        // @ts-ignore
         transactionSelect[columnName] =
           PONDER_SYNC.transactions[
             columnName as keyof typeof PONDER_SYNC.transactions
@@ -652,7 +723,7 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
-      const transactionReceiptSelect: Record<string, any> = {
+      const transactionReceiptSelect: TransactionReceiptSelect = {
         blockNumber: PONDER_SYNC.transactionReceipts.blockNumber,
         transactionIndex: PONDER_SYNC.transactionReceipts.transactionIndex,
         status: PONDER_SYNC.transactionReceipts.status,
@@ -664,6 +735,7 @@ export const createSyncStore = ({
 
       for (const columnKey of columnAccessProfile.transactionReceiptInclude) {
         const columnName = columnKey.replace("transactionReceipt.", "");
+        // @ts-ignore
         transactionReceiptSelect[columnName] =
           PONDER_SYNC.transactionReceipts[
             columnName as keyof typeof PONDER_SYNC.transactionReceipts
@@ -671,7 +743,7 @@ export const createSyncStore = ({
       }
 
       const transactionReceiptsQuery = database.syncQB.raw
-        .select(transactionReceiptSelect as any)
+        .select(transactionReceiptSelect)
         .from(PONDER_SYNC.transactionReceipts)
         .where(
           and(
@@ -713,7 +785,7 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
-      const traceSelect: Record<string, any> = {
+      const traceSelect: TraceSelect = {
         blockNumber: PONDER_SYNC.traces.blockNumber,
         from: PONDER_SYNC.traces.from,
         to: PONDER_SYNC.traces.to,
@@ -727,6 +799,7 @@ export const createSyncStore = ({
 
       for (const columnKey of columnAccessProfile.traceInclude) {
         const columnName = columnKey.replace("trace.", "");
+        // @ts-ignore
         traceSelect[columnName] =
           PONDER_SYNC.traces[columnName as keyof typeof PONDER_SYNC.traces];
       }
