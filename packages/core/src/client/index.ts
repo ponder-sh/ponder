@@ -5,6 +5,7 @@ import type { QueryWithTypings } from "drizzle-orm";
 import type { PgSession } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
+import type * as pg from "pg";
 import superjson from "superjson";
 import { validateQuery } from "./parse.js";
 
@@ -46,25 +47,48 @@ export const client = ({
       });
     });
   } else {
-    const pool = driver.admin;
+    (async () => {
+      let listen: pg.PoolClient | undefined;
 
-    const connectAndListen = async () => {
-      driver.listen = await pool.connect();
-
-      await driver.listen.query(`LISTEN "${channel}"`);
-
-      driver.listen.on("error", async () => {
-        driver.listen?.release();
-        await connectAndListen();
+      globalThis.PONDER_COMMON.shutdown.add(() => {
+        listen?.release();
       });
 
-      driver.listen.on("notification", () => {
-        statusResolver.resolve();
-        statusResolver = promiseWithResolvers();
-      });
-    };
+      while (true) {
+        // biome-ignore lint/suspicious/noAsyncPromiseExecutor: <explanation>
+        await new Promise<void>(async (resolve) => {
+          try {
+            listen = await driver.admin.connect();
+            await listen.query(`LISTEN "${channel}"`);
 
-    connectAndListen();
+            listen.on("notification", () => {
+              statusResolver.resolve();
+              statusResolver = promiseWithResolvers();
+            });
+
+            listen.on("error", async (error) => {
+              globalThis.PONDER_COMMON.logger.warn({
+                service: "client",
+                msg: "Received error on listen connection, retrying",
+                error,
+              });
+              listen?.release();
+              listen = undefined;
+              resolve();
+            });
+          } catch (error) {
+            globalThis.PONDER_COMMON.logger.warn({
+              service: "client",
+              msg: "Received error on listen connection, retrying",
+              error: error as Error,
+            });
+            listen?.release();
+            listen = undefined;
+            resolve();
+          }
+        });
+      }
+    })();
   }
 
   return createMiddleware(async (c, next) => {
@@ -87,7 +111,7 @@ export const client = ({
           return c.text((error as Error).message, 500);
         }
       } else {
-        const client = await driver.admin.connect();
+        const client = await driver.readonly.connect();
 
         try {
           await validateQuery(query.sql);
