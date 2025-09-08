@@ -1,8 +1,3 @@
-import { isMainThread, parentPort, workerData } from "node:worker_threads";
-import type { CliOptions } from "@/bin/ponder.js";
-import { createExit } from "@/bin/utils/exit.js";
-import { createBuild } from "@/build/index.js";
-import type { Config } from "@/config/index.js";
 import {
   commitBlock,
   createTriggers,
@@ -10,33 +5,24 @@ import {
   finalize,
   revert,
 } from "@/database/actions.js";
-import { createDatabase, getPonderCheckpointTable } from "@/database/index.js";
+import { type Database, getPonderCheckpointTable } from "@/database/index.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import { createIndexing } from "@/indexing/index.js";
+import type { Common } from "@/internal/common.js";
 import {
   NonRetryableUserError,
   type RetryableError,
 } from "@/internal/errors.js";
-import { createLogger } from "@/internal/logger.js";
-import {
-  type AppProgress,
-  MetricsService,
-  getAppProgress,
-} from "@/internal/metrics.js";
-import { buildOptions } from "@/internal/options.js";
-import { type Shutdown, createShutdown } from "@/internal/shutdown.js";
-import { createTelemetry } from "@/internal/telemetry.js";
+import { type AppProgress, getAppProgress } from "@/internal/metrics.js";
 import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
   IndexingErrorHandler,
   NamespaceBuild,
   PreBuild,
-  RawIndexingFunctions,
-  Schema,
   SchemaBuild,
   Seconds,
 } from "@/internal/types.js";
@@ -62,151 +48,50 @@ import {
 } from "./index.js";
 import { getRealtimeEventsIsolated } from "./realtime.js";
 
-const isWorker = isMainThread === false;
-let isKilled = false;
-
-if (isWorker && parentPort) {
-  const shutdown = createShutdown();
-  const metrics = new MetricsService();
-  metrics.addListeners();
-
-  parentPort.on("message", async (msg) => {
-    if (msg.type === "kill") {
-      if (isKilled) return;
-      isKilled = true;
-      await shutdown.kill();
-    }
-  });
-
-  try {
-    await runIsolated({
-      cliOptions: workerData.cliOptions,
-      crashRecoveryCheckpoint: workerData.crashRecoveryCheckpoint,
-      shutdown,
-      metrics,
-      chainId: workerData.chainId,
-      onReady: async () => {
-        parentPort!.postMessage({ type: "ready" });
-      },
-    });
-
-    parentPort!.postMessage({ type: "done" });
-  } catch (err) {
-    const error = err as Error;
-
-    parentPort!.postMessage({
-      type: "error",
-      error: {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-      },
-    });
-  }
-}
-
 export async function runIsolated({
-  cliOptions,
+  common,
+  preBuild,
+  namespaceBuild,
+  schemaBuild,
+  indexingBuild,
   crashRecoveryCheckpoint,
-  shutdown,
-  metrics,
+  database,
   chainId,
   onReady,
 }: {
-  cliOptions: CliOptions;
+  common: Common;
+  preBuild: PreBuild;
+  namespaceBuild: NamespaceBuild;
+  schemaBuild: SchemaBuild;
+  indexingBuild: IndexingBuild;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
-  shutdown: Shutdown;
-  metrics: MetricsService;
+  database: Database;
   chainId: number;
-  onReady: () => Promise<void>;
+  onReady: () => void;
 }) {
-  const options = buildOptions({ cliOptions });
+  // if (options.version) {
+  //   metrics.ponder_version_info.set(
+  //     {
+  //       version: options.version.version,
+  //       major: options.version.major,
+  //       minor: options.version.minor,
+  //       patch: options.version.patch,
+  //     },
+  //     1,
+  //   );
+  // }
 
-  const logger = createLogger({
-    level: options.logLevel,
-    mode: options.logFormat,
-  });
+  // options.indexingCacheMaxBytes =
+  //   options.indexingCacheMaxBytes / indexingBuild.chains.length;
 
-  const telemetry = createTelemetry({ options, logger, shutdown });
-  const common = { options, logger, metrics, telemetry, shutdown };
-  createExit({ common, options });
-
-  if (options.version) {
-    metrics.ponder_version_info.set(
-      {
-        version: options.version.version,
-        major: options.version.major,
-        minor: options.version.minor,
-        patch: options.version.patch,
-      },
-      1,
-    );
-  }
-
-  const { preBuild, namespaceBuild, schemaBuild, indexingBuild } =
-    await (async () => {
-      const build = await createBuild({ common, cliOptions });
-      const namespaceResult = build.namespaceCompile() as {
-        status: "success";
-        result: NamespaceBuild;
-      };
-      const configResult = (await build.executeConfig()) as {
-        status: "success";
-        result: { config: Config; contentHash: string };
-      };
-      const schemaResult = (await build.executeSchema()) as {
-        status: "success";
-        result: { schema: Schema; contentHash: string };
-      };
-      const preBuildResult = (await build.preCompile(configResult.result)) as {
-        status: "success";
-        result: PreBuild;
-      };
-      const preBuild = preBuildResult.result;
-      const schemaBuildResult = build.compileSchema({
-        ...schemaResult.result,
-        ordering: preBuild.ordering,
-      }) as { status: "success"; result: SchemaBuild };
-      const schemaBuild = schemaBuildResult.result;
-      const indexingResult = (await build.executeIndexingFunctions()) as {
-        status: "success";
-        result: {
-          indexingFunctions: RawIndexingFunctions;
-          contentHash: string;
-        };
-      };
-      const indexingBuildResult = (await build.compileIndexing({
-        configResult: configResult.result,
-        schemaResult: schemaResult.result,
-        indexingResult: indexingResult.result,
-      })) as { status: "success"; result: IndexingBuild };
-
-      return {
-        preBuild,
-        namespaceBuild: namespaceResult.result,
-        schemaBuild,
-        indexingBuild: indexingBuildResult.result,
-      };
-    })();
-
-  options.indexingCacheMaxBytes =
-    options.indexingCacheMaxBytes / indexingBuild.chains.length;
-
-  const database = createDatabase({
-    common,
-    namespace: namespaceBuild,
-    preBuild,
-    schemaBuild,
-  });
-
-  metrics.ponder_settings_info.set(
-    {
-      ordering: preBuild.ordering,
-      database: preBuild.databaseConfig.kind,
-      command: cliOptions.command,
-    },
-    1,
-  );
+  // metrics.ponder_settings_info.set(
+  //   {
+  //     ordering: preBuild.ordering,
+  //     database: preBuild.databaseConfig.kind,
+  //     command: cliOptions.command,
+  //   },
+  //   1,
+  // );
 
   const syncStore = createSyncStore({ common, database });
 

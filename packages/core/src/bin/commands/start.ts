@@ -20,7 +20,7 @@ import { runOmnichain } from "@/runtime/omnichain.js";
 import { createServer } from "@/server/index.js";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
-import { startIsolated } from "../utils/startIsolated.js";
+import { isolatedController } from "./isolatedController.js";
 
 export type PonderApp = {
   common: Common;
@@ -226,7 +226,16 @@ export async function start({
       runMultichain(app);
       break;
     case "isolated": {
-      startIsolated(app, cliOptions);
+      isolatedController({
+        cliOptions,
+        logger,
+        shutdown,
+        namespaceBuild: app.namespaceBuild,
+        schemaBuild: app.schemaBuild,
+        indexingBuild: app.indexingBuild,
+        crashRecoveryCheckpoint: app.crashRecoveryCheckpoint,
+        database: app.database,
+      });
       break;
     }
   }

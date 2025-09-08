@@ -19,8 +19,8 @@ import { createUi } from "@/ui/index.js";
 import { createQueue } from "@/utils/queue.js";
 import type { Result } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
-import { devIsolated } from "../utils/devIsolated.js";
 import { createExit } from "../utils/exit.js";
+import { isolatedController } from "./isolatedController.js";
 
 export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
@@ -345,18 +345,16 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
               });
               return;
             }
-            devIsolated(
-              {
-                common: { ...common, shutdown: indexingShutdown },
-                database,
-                preBuild,
-                namespaceBuild: { schema, viewsSchema: undefined },
-                schemaBuild,
-                indexingBuild: indexingBuildResult.result,
-                crashRecoveryCheckpoint,
-              },
+            isolatedController({
               cliOptions,
-            );
+              logger,
+              shutdown: indexingShutdown,
+              namespaceBuild: { schema, viewsSchema: undefined },
+              schemaBuild,
+              indexingBuild: indexingBuildResult.result,
+              crashRecoveryCheckpoint,
+              database,
+            });
 
             break;
           }
