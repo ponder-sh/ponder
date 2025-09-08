@@ -146,7 +146,6 @@ export async function isolatedWorker({
     indexingBuild: indexingBuildResult.result,
     crashRecoveryCheckpoint,
     database,
-    chainId,
     onReady: () => {
       parentPort!.postMessage({ type: "ready" });
     },

@@ -56,7 +56,6 @@ export async function runIsolated({
   indexingBuild,
   crashRecoveryCheckpoint,
   database,
-  chainId,
   onReady,
 }: {
   common: Common;
@@ -66,9 +65,10 @@ export async function runIsolated({
   indexingBuild: IndexingBuild;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   database: Database;
-  chainId: number;
   onReady: () => void;
 }) {
+  const chain = indexingBuild.chains[0]!;
+
   const syncStore = createSyncStore({ common, database });
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
@@ -118,15 +118,13 @@ export async function runIsolated({
     schemaBuild,
     indexingCache,
     indexingErrorHandler,
-    chainId,
+    chainId: chain.id,
   });
 
   const seconds: Seconds = {};
 
-  const chain = indexingBuild.chains.find((chain) => chain.id === chainId)!;
-
   const sources = indexingBuild.sources.filter(
-    ({ filter }) => filter.chainId === chainId,
+    ({ filter }) => filter.chainId === chain.id,
   );
 
   const cachedIntervals = await getCachedIntervals({
@@ -138,9 +136,8 @@ export async function runIsolated({
     common,
     sources,
     chain,
-    rpc: indexingBuild.rpcs[indexingBuild.chains.indexOf(chain)]!,
-    finalizedBlock:
-      indexingBuild.finalizedBlocks[indexingBuild.chains.indexOf(chain)]!,
+    rpc: indexingBuild.rpcs[0]!,
+    finalizedBlock: indexingBuild.finalizedBlocks[0]!,
     cachedIntervals,
   });
   const childAddresses = await getChildAddresses({
@@ -428,18 +425,18 @@ export async function runIsolated({
   common.metrics.ponder_indexing_timestamp.set(label, seconds[chain.name]!.end);
 
   const tables = Object.values(schemaBuild.schema).filter(isTable);
-  await createTriggers(database.adminQB, { tables, chainId });
+  await createTriggers(database.adminQB, { tables, chainId: chain.id });
 
   const endTimestamp = Math.round(Date.now() / 1000);
   common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
 
-  await onReady();
+  onReady();
 
   const realtimeIndexingStore = createRealtimeIndexingStore({
     common,
     schemaBuild,
     indexingErrorHandler,
-    chainId,
+    chainId: chain.id,
   });
 
   for await (const event of getRealtimeEventsIsolated({
@@ -522,7 +519,7 @@ export async function runIsolated({
         // in the `block` case.
 
         await database.userQB.transaction(async (tx) => {
-          await dropTriggers(tx, { tables, chainId });
+          await dropTriggers(tx, { tables, chainId: chain.id });
 
           const counts = await revert(tx, {
             checkpoint: event.checkpoint,
@@ -537,7 +534,7 @@ export async function runIsolated({
             });
           }
 
-          await createTriggers(tx, { tables, chainId });
+          await createTriggers(tx, { tables, chainId: chain.id });
         });
 
         break;
