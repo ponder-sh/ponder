@@ -32,6 +32,7 @@ import {
   shouldGetTransactionReceipt,
 } from "@/runtime/filter.js";
 import { encodeFragment, getFragments } from "@/runtime/fragments.js";
+import type { Trace, Transaction, TransactionReceipt } from "@/types/eth.js";
 import { dedupe } from "@/utils/dedupe.js";
 import type { Interval } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
@@ -592,18 +593,19 @@ export const createSyncStore = ({
         shouldGetTransactionReceipt,
       );
 
-      const blockSelect: Record<string, any> = {};
+      const blockSelect: Record<string, any> = {
+        timestamp: PONDER_SYNC.blocks.timestamp,
+        number: PONDER_SYNC.blocks.number,
+        hash: PONDER_SYNC.blocks.hash,
+        logsBloom: PONDER_SYNC.blocks.logsBloom,
+        parentHash: PONDER_SYNC.blocks.parentHash,
+      };
+
       for (const columnKey of columnAccessProfile.blockInclude) {
         const columnName = columnKey.replace("block.", "");
         blockSelect[columnName] =
           PONDER_SYNC.blocks[columnName as keyof typeof PONDER_SYNC.blocks];
       }
-
-      blockSelect.timestamp = PONDER_SYNC.blocks.timestamp;
-      blockSelect.number = PONDER_SYNC.blocks.number;
-      blockSelect.hash = PONDER_SYNC.blocks.hash;
-      blockSelect.logsBloom = PONDER_SYNC.blocks.logsBloom;
-      blockSelect.parentHash = PONDER_SYNC.blocks.parentHash;
 
       const blocksQuery = database.syncQB.raw
         .select(blockSelect)
@@ -618,7 +620,14 @@ export const createSyncStore = ({
         .orderBy(asc(PONDER_SYNC.blocks.number))
         .limit(limit);
 
-      const transactionSelect: Record<string, any> = {};
+      const transactionSelect: Record<string, any> = {
+        blockNumber: PONDER_SYNC.transactions.blockNumber,
+        transactionIndex: PONDER_SYNC.transactions.transactionIndex,
+        from: PONDER_SYNC.transactions.from,
+        to: PONDER_SYNC.transactions.to,
+        hash: PONDER_SYNC.transactions.hash,
+      };
+
       for (const columnKey of columnAccessProfile.transactionInclude) {
         const columnName = columnKey.replace("transaction.", "");
         transactionSelect[columnName] =
@@ -626,14 +635,6 @@ export const createSyncStore = ({
             columnName as keyof typeof PONDER_SYNC.transactions
           ];
       }
-
-      transactionSelect.blockNumber = PONDER_SYNC.transactions.blockNumber;
-      transactionSelect.transactionIndex =
-        PONDER_SYNC.transactions.transactionIndex;
-      transactionSelect.from = PONDER_SYNC.transactions.from;
-      transactionSelect.to = PONDER_SYNC.transactions.to;
-      transactionSelect.hash = PONDER_SYNC.transactions.hash;
-      transactionSelect.blockHash = PONDER_SYNC.transactions.blockHash;
 
       const transactionsQuery = database.syncQB.raw
         .select(transactionSelect)
@@ -651,7 +652,16 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
-      const transactionReceiptSelect: Record<string, any> = {};
+      const transactionReceiptSelect: Record<string, any> = {
+        blockNumber: PONDER_SYNC.transactionReceipts.blockNumber,
+        transactionIndex: PONDER_SYNC.transactionReceipts.transactionIndex,
+        status: PONDER_SYNC.transactionReceipts.status,
+        from: PONDER_SYNC.transactionReceipts.from,
+        to: PONDER_SYNC.transactionReceipts.to,
+        blockHash: PONDER_SYNC.transactionReceipts.blockHash,
+        transactionHash: PONDER_SYNC.transactionReceipts.transactionHash,
+      };
+
       for (const columnKey of columnAccessProfile.transactionReceiptInclude) {
         const columnName = columnKey.replace("transactionReceipt.", "");
         transactionReceiptSelect[columnName] =
@@ -659,18 +669,6 @@ export const createSyncStore = ({
             columnName as keyof typeof PONDER_SYNC.transactionReceipts
           ];
       }
-
-      transactionReceiptSelect.blockNumber =
-        PONDER_SYNC.transactionReceipts.blockNumber;
-      transactionReceiptSelect.transactionIndex =
-        PONDER_SYNC.transactionReceipts.transactionIndex;
-      transactionReceiptSelect.status = PONDER_SYNC.transactionReceipts.status;
-      transactionReceiptSelect.from = PONDER_SYNC.transactionReceipts.from;
-      transactionReceiptSelect.to = PONDER_SYNC.transactionReceipts.to;
-      transactionReceiptSelect.blockHash =
-        PONDER_SYNC.transactionReceipts.blockHash;
-      transactionReceiptSelect.transactionHash =
-        PONDER_SYNC.transactionReceipts.transactionHash;
 
       const transactionReceiptsQuery = database.syncQB.raw
         .select(transactionReceiptSelect as any)
@@ -715,22 +713,23 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
-      const traceSelect: Record<string, any> = {};
+      const traceSelect: Record<string, any> = {
+        blockNumber: PONDER_SYNC.traces.blockNumber,
+        from: PONDER_SYNC.traces.from,
+        to: PONDER_SYNC.traces.to,
+        input: PONDER_SYNC.traces.input,
+        value: PONDER_SYNC.traces.value,
+        type: PONDER_SYNC.traces.type,
+        error: PONDER_SYNC.traces.error,
+        traceIndex: PONDER_SYNC.traces.traceIndex,
+        transactionIndex: PONDER_SYNC.traces.transactionIndex,
+      };
+
       for (const columnKey of columnAccessProfile.traceInclude) {
         const columnName = columnKey.replace("trace.", "");
         traceSelect[columnName] =
           PONDER_SYNC.traces[columnName as keyof typeof PONDER_SYNC.traces];
       }
-
-      traceSelect.blockNumber = PONDER_SYNC.traces.blockNumber;
-      traceSelect.from = PONDER_SYNC.traces.from;
-      traceSelect.to = PONDER_SYNC.traces.to;
-      traceSelect.input = PONDER_SYNC.traces.input;
-      traceSelect.value = PONDER_SYNC.traces.value;
-      traceSelect.type = PONDER_SYNC.traces.type;
-      traceSelect.error = PONDER_SYNC.traces.error;
-      traceSelect.traceIndex = PONDER_SYNC.traces.traceIndex;
-      traceSelect.transactionIndex = PONDER_SYNC.traces.transactionIndex;
 
       const tracesQuery = database.syncQB.raw
         .select(traceSelect)
@@ -1347,7 +1346,9 @@ export const createSyncStore = ({
               transactionsRows[transactionIdx]!.hash
             )
               transactionIdx++;
-            event.event.transaction = transactionsRows[transactionIdx]!;
+            event.event.transaction = transactionsRows[
+              transactionIdx
+            ]! as Transaction;
 
             if (event.event.transactionReceipt !== undefined) {
               if (
@@ -1360,8 +1361,9 @@ export const createSyncStore = ({
                     .transactionIndex
               )
                 transactionReceiptIdx++;
-              event.event.transactionReceipt =
-                transactionReceiptsRows[transactionReceiptIdx]!;
+              event.event.transactionReceipt = transactionReceiptsRows[
+                transactionReceiptIdx
+              ]! as TransactionReceipt;
             }
           }
 
@@ -1372,7 +1374,7 @@ export const createSyncStore = ({
               event.event.trace.traceIndex !== tracesRows[traceIdx]!.traceIndex
             )
               traceIdx++;
-            event.event.trace = tracesRows[traceIdx]!;
+            event.event.trace = tracesRows[traceIdx]! as Trace;
           }
 
           event.event.block = blocksRows[blockIdx]!;

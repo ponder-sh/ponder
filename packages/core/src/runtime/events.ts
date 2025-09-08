@@ -17,6 +17,12 @@ import type {
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/internal/types.js";
+import type {
+  Block,
+  Trace,
+  Transaction,
+  TransactionReceipt,
+} from "@/types/eth.js";
 import {
   EVENT_TYPES,
   MAX_CHECKPOINT,
@@ -110,7 +116,7 @@ export const buildEvents = ({
                     eventIndex: BigInt(log.logIndex),
                   }),
                   log,
-                  block,
+                  block: block,
                   transaction: transactionCache.has(log.transactionIndex)
                     ? transactionCache.get(log.transactionIndex)!
                     : undefined,
@@ -400,9 +406,10 @@ export const decodeEvents = (
                   id: event.checkpoint,
                   args,
                   log: event.log!,
-                  block: event.block,
-                  transaction: event.transaction!,
-                  transactionReceipt: event.transactionReceipt,
+                  block: event.block as Block,
+                  transaction: event.transaction! as Transaction,
+                  transactionReceipt:
+                    event.transactionReceipt as TransactionReceipt,
                 },
               });
             } catch (err) {
@@ -453,10 +460,11 @@ export const decodeEvents = (
                   id: event.checkpoint,
                   args,
                   result,
-                  trace: event.trace!,
-                  block: event.block,
-                  transaction: event.transaction!,
-                  transactionReceipt: event.transactionReceipt,
+                  trace: event.trace! as Trace,
+                  block: event.block as Block,
+                  transaction: event.transaction! as Transaction,
+                  transactionReceipt:
+                    event.transactionReceipt as TransactionReceipt,
                 },
               });
             } catch (err) {
@@ -491,9 +499,10 @@ export const decodeEvents = (
 
               event: {
                 id: event.checkpoint,
-                block: event.block,
-                transaction: event.transaction!,
-                transactionReceipt: event.transactionReceipt,
+                block: event.block as Block,
+                transaction: event.transaction! as Transaction,
+                transactionReceipt:
+                  event.transactionReceipt as TransactionReceipt,
               },
             });
 
@@ -517,10 +526,11 @@ export const decodeEvents = (
                   to: event.trace!.to!,
                   value: event.trace!.value!,
                 },
-                block: event.block,
-                transaction: event.transaction!,
-                transactionReceipt: event.transactionReceipt,
-                trace: event.trace!,
+                block: event.block as Block,
+                transaction: event.transaction! as Transaction,
+                transactionReceipt:
+                  event.transactionReceipt as TransactionReceipt,
+                trace: event.trace! as Trace,
               },
             });
 
@@ -538,7 +548,7 @@ export const decodeEvents = (
           name: `${source.name}:block`,
           event: {
             id: event.checkpoint,
-            block: event.block,
+            block: event.block as Block,
           },
         });
         break;

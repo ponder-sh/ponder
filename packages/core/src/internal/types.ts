@@ -419,19 +419,41 @@ export type SyncBlockHeader = Omit<SyncBlock, "transactions"> & {
   transactions: undefined;
 };
 
-export type InternalBlock = Block;
+export type PartialWithSelectedRequired<
+  T,
+  K extends keyof T,
+  _T extends T | undefined = undefined,
+> = {
+  [P in K]: T[P];
+} & {
+  [P in keyof Omit<T, K>]: T[P] | undefined;
+};
+
+export type InternalBlock = PartialWithSelectedRequired<
+  Block,
+  "timestamp" | "number" | "hash" | "logsBloom" | "parentHash"
+>;
 export type InternalLog = Log & {
   blockNumber: number;
   transactionIndex: number;
 };
-export type InternalTransaction = Transaction & {
+export type InternalTransaction = PartialWithSelectedRequired<
+  Transaction,
+  "transactionIndex" | "from" | "to" | "hash"
+> & {
   blockNumber: number;
 };
-export type InternalTransactionReceipt = TransactionReceipt & {
+export type InternalTransactionReceipt = PartialWithSelectedRequired<
+  TransactionReceipt,
+  "status" | "from" | "to"
+> & {
   blockNumber: number;
   transactionIndex: number;
 };
-export type InternalTrace = Trace & {
+export type InternalTrace = PartialWithSelectedRequired<
+  Trace,
+  "from" | "to" | "input" | "value" | "type" | "error" | "traceIndex"
+> & {
   blockNumber: number;
   transactionIndex: number;
 };
@@ -442,11 +464,11 @@ export type RawEvent = {
   chainId: number;
   sourceIndex: number;
   checkpoint: string;
-  log?: Log;
-  block: Block;
-  transaction?: Transaction;
-  transactionReceipt?: TransactionReceipt;
-  trace?: Trace;
+  log?: InternalLog;
+  block: InternalBlock;
+  transaction?: InternalTransaction;
+  transactionReceipt?: InternalTransactionReceipt;
+  trace?: InternalTrace;
 };
 
 export type Event =
