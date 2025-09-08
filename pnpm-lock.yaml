@@ -534,7 +534,7 @@ importers:
     dependencies:
       forge-std:
         specifier: github:foundry-rs/forge-std
-        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/6bce1540c7a5d1c40eec032a1ae16f0e01f82b92
+        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/c2cf7017d27c1d20e74ace4dacb6c5ce4bbbe899
 
   examples/with-foundry/ponder:
     dependencies:
@@ -777,7 +777,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 0.41.0
-        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.2)
+        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.3)
       eventsource:
         specifier: ^3.0.5
         version: 3.0.5
@@ -841,7 +841,7 @@ importers:
         version: 16.4.5
       drizzle-orm:
         specifier: 0.41.0
-        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.11.3)
+        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.3)
       glob:
         specifier: ^10.3.10
         version: 10.4.5
@@ -858,8 +858,8 @@ importers:
         specifier: ^0.26.3
         version: 0.26.3
       pg:
-        specifier: ^8.11.3
-        version: 8.11.3
+        specifier: ^8.16.3
+        version: 8.16.3
       pg-connection-string:
         specifier: ^2.6.2
         version: 2.6.2
@@ -5357,8 +5357,8 @@ packages:
     resolution: {integrity: sha512-TMKDUnIte6bfb5nWv7V/caI169OHgvwjb7V4WkeUvbQQdjr5rWKqHFiKWb/fcOwB+CzBT+qbWjvj+DVwRskpIg==}
     engines: {node: '>=14'}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/6bce1540c7a5d1c40eec032a1ae16f0e01f82b92:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/6bce1540c7a5d1c40eec032a1ae16f0e01f82b92}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/c2cf7017d27c1d20e74ace4dacb6c5ce4bbbe899:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/c2cf7017d27c1d20e74ace4dacb6c5ce4bbbe899}
     version: 1.10.0
 
   format@0.2.2:
@@ -6804,6 +6804,9 @@ packages:
   pg-cloudflare@1.2.6:
     resolution: {integrity: sha512-uxmJAnmIgmYgnSFzgOf2cqGQBzwnRYcrEgXuFjJNEkpedEIPBSEzxY7ph4uA9k1mI+l/GR0HjPNS6FKNZe8SBQ==}
 
+  pg-cloudflare@1.2.7:
+    resolution: {integrity: sha512-YgCtzMH0ptvZJslLM1ffsY4EuGaU0cx4XSdXLRFae8bPP4dS5xL1tNB3k2o/N64cHJpwU7dxKli/nZ2lUa5fLg==}
+
   pg-connection-string@2.6.2:
     resolution: {integrity: sha512-ch6OwaeaPYcova4kKZ15sbJ2hKb/VP48ZD2gE7i1J+L4MspCtBMAx8nMgz7bksc7IojCIIWuEhHibSMFH8m8oA==}
 
@@ -6845,6 +6848,9 @@ packages:
   pg-protocol@1.10.2:
     resolution: {integrity: sha512-Ci7jy8PbaWxfsck2dwZdERcDG2A0MG8JoQILs+uZNjABFuBuItAZCWUNz8sXRDMoui24rJw7WlXqgpMdBSN/vQ==}
 
+  pg-protocol@1.10.3:
+    resolution: {integrity: sha512-6DIBgBQaTKDJyxnXaLiLR8wBpQQcGWuAESkRBX/t6OwA8YsqP+iVSiond2EDy6Y/dsGk8rh/jtax3js5NeV7JQ==}
+
   pg-protocol@1.6.0:
     resolution: {integrity: sha512-M+PDm637OY5WM307051+bsDia5Xej6d9IR4GwJse1qA1DIhiKlksvrneZOYQq42OM+spubpcNYEo2FcKQrDk+Q==}
 
@@ -6879,6 +6885,15 @@ packages:
 
   pg@8.16.2:
     resolution: {integrity: sha512-OtLWF0mKLmpxelOt9BqVq83QV6bTfsS0XLegIeAKqKjurRnRKie1Dc1iL89MugmSLhftxw6NNCyZhm1yQFLMEQ==}
+    engines: {node: '>= 16.0.0'}
+    peerDependencies:
+      pg-native: '>=3.0.1'
+    peerDependenciesMeta:
+      pg-native:
+        optional: true
+
+  pg@8.16.3:
+    resolution: {integrity: sha512-enxc1h0jA/aq5oSDMvqyW3q89ra6XIIDZgCX9vkMrnz5DFTw/Ny3Li2lFQ+pt3L6MCgm/5o2o8HW9hiJji+xvw==}
     engines: {node: '>= 16.0.0'}
     peerDependencies:
       pg-native: '>=3.0.1'
@@ -12028,6 +12043,16 @@ snapshots:
       kysely: 0.26.3
       pg: 8.16.2
 
+  drizzle-orm@0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.3):
+    optionalDependencies:
+      '@electric-sql/pglite': 0.2.13
+      '@opentelemetry/api': 1.7.0
+      '@types/pg': 8.10.9
+      bun-types: 1.2.14
+      gel: 2.0.2
+      kysely: 0.26.3
+      pg: 8.16.3
+
   dset@3.1.4: {}
 
   eastasianwidth@0.2.0: {}
@@ -12801,7 +12826,7 @@ snapshots:
       cross-spawn: 7.0.6
       signal-exit: 4.1.0
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/6bce1540c7a5d1c40eec032a1ae16f0e01f82b92: {}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/c2cf7017d27c1d20e74ace4dacb6c5ce4bbbe899: {}
 
   format@0.2.2: {}
 
@@ -14587,6 +14612,9 @@ snapshots:
   pg-cloudflare@1.2.6:
     optional: true
 
+  pg-cloudflare@1.2.7:
+    optional: true
+
   pg-connection-string@2.6.2: {}
 
   pg-connection-string@2.9.0: {}
@@ -14609,6 +14637,10 @@ snapshots:
     dependencies:
       pg: 8.16.2
 
+  pg-pool@3.10.1(pg@8.16.3):
+    dependencies:
+      pg: 8.16.3
+
   pg-pool@3.6.1(pg@8.11.3):
     dependencies:
       pg: 8.11.3
@@ -14616,6 +14648,8 @@ snapshots:
   pg-protocol@1.10.0: {}
 
   pg-protocol@1.10.2: {}
+
+  pg-protocol@1.10.3: {}
 
   pg-protocol@1.6.0: {}
 
@@ -14670,6 +14704,16 @@ snapshots:
       pgpass: 1.0.5
     optionalDependencies:
       pg-cloudflare: 1.2.6
+
+  pg@8.16.3:
+    dependencies:
+      pg-connection-string: 2.9.1
+      pg-pool: 3.10.1(pg@8.16.3)
+      pg-protocol: 1.10.3
+      pg-types: 2.2.0
+      pgpass: 1.0.5
+    optionalDependencies:
+      pg-cloudflare: 1.2.7
 
   pgpass@1.0.5:
     dependencies:
