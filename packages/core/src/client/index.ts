@@ -59,7 +59,6 @@ export const client = ({
         await new Promise<void>(async (resolve) => {
           try {
             listen = await driver.admin.connect();
-            await listen.query(`LISTEN "${channel}"`);
 
             listen.on("notification", () => {
               statusResolver.resolve();
@@ -76,6 +75,8 @@ export const client = ({
               listen = undefined;
               resolve();
             });
+
+            await listen.query(`LISTEN "${channel}"`);
           } catch (error) {
             globalThis.PONDER_COMMON.logger.warn({
               service: "client",
