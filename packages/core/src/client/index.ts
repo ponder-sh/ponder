@@ -1,6 +1,7 @@
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
+import { wait } from "@/utils/wait.js";
 import type { QueryWithTypings } from "drizzle-orm";
 import type { PgSession } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
@@ -69,11 +70,14 @@ export const client = ({
             listen.on("error", async (error) => {
               globalThis.PONDER_COMMON.logger.warn({
                 service: "client",
-                msg: "Received error on listen connection, retrying",
+                msg: "Received error on listen connection, retrying after 250ms",
                 error,
               });
               listen?.release();
               listen = undefined;
+
+              await wait(250);
+
               resolve();
             });
 
@@ -81,11 +85,14 @@ export const client = ({
           } catch (error) {
             globalThis.PONDER_COMMON.logger.warn({
               service: "client",
-              msg: "Received error on listen connection, retrying",
+              msg: "Received error on listen connection, retrying after 250ms",
               error: error as Error,
             });
             listen?.release();
             listen = undefined;
+
+            await wait(250);
+
             resolve();
           }
         });
