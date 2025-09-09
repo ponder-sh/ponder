@@ -14,7 +14,7 @@ import type { Drizzle } from "@/types/db.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import { PGlite } from "@electric-sql/pglite";
-import { type ExtractTablesWithRelations, is } from "drizzle-orm";
+import type { ExtractTablesWithRelations } from "drizzle-orm";
 import type {
   PgDatabase,
   PgQueryResultHKT,
