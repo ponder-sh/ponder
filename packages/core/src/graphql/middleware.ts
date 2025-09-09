@@ -5,7 +5,7 @@ import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
 import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
 import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
 import { type GraphQLSchema, printSchema } from "graphql";
-import { createYoga } from "graphql-yoga";
+import { type Plugin, createYoga } from "graphql-yoga";
 import { createMiddleware } from "hono/factory";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
@@ -33,10 +33,12 @@ export const graphql = (
     maxOperationTokens = 1000,
     maxOperationDepth = 100,
     maxOperationAliases = 30,
+    yogaPlugins,
   }: {
     maxOperationTokens?: number;
     maxOperationDepth?: number;
     maxOperationAliases?: number;
+    yogaPlugins?: Plugin[];
   } = {
     // Default limits are from Apollo:
     // https://www.apollographql.com/blog/prevent-graph-misuse-with-operation-size-and-complexity-limit
@@ -67,6 +69,7 @@ export const graphql = (
       maxTokensPlugin({ n: maxOperationTokens }),
       maxDepthPlugin({ n: maxOperationDepth, ignoreIntrospection: false }),
       maxAliasesPlugin({ n: maxOperationAliases, allowList: [] }),
+      ...(yogaPlugins ?? []),
     ],
   });
 
