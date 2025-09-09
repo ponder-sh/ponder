@@ -293,6 +293,7 @@ export const getCopyHelper = (qb: QB) => {
             table,
           )}"`
         : `"${getTableName(table)}"`;
+      console.log("start copy", getTableName(table));
       const copyStream = qb.$client.query(
         copy.from(`COPY ${target} FROM STDIN`),
       );
@@ -306,6 +307,7 @@ export const getCopyHelper = (qb: QB) => {
       }).catch((error) => {
         throw new CopyFlushError(error.message);
       });
+      console.log("end copy", getTableName(table));
     };
   }
 };
