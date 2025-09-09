@@ -68,7 +68,6 @@ export const createExit = ({
   if (options.command !== "dev") {
     process.on("uncaughtException", (error: Error) => {
       if (error instanceof ShutdownError) return;
-      console.log(JSON.stringify(error, null, 2));
       common.logger.error({
         service: "process",
         msg: "Caught uncaughtException event",

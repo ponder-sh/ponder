@@ -85,7 +85,7 @@ export function createPool(config: PoolConfig, logger: Logger) {
       (client?.connectionParameters?.application_name as string | undefined) ??
       "unknown";
 
-    logger.error({
+    logger.warn({
       service: "postgres",
       msg: `Pool error (application_name: ${applicationName}, pid: ${pid})`,
       error,
@@ -160,7 +160,7 @@ export function createReadonlyPool(
       (client?.connectionParameters?.application_name as string | undefined) ??
       "unknown";
 
-    logger.error({
+    logger.warn({
       service: "postgres",
       msg: `Pool error (application_name: ${applicationName}, pid: ${pid})`,
       error,
