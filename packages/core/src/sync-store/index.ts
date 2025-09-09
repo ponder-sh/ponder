@@ -669,11 +669,10 @@ export const createSyncStore = ({
         parentHash: PONDER_SYNC.blocks.parentHash,
       };
 
-      for (const columnKey of columnAccessProfile.blockInclude) {
-        const columnName = columnKey.replace("block.", "");
+      for (const column of columnAccessProfile.blockInclude) {
         // @ts-ignore
-        blockSelect[columnName] =
-          PONDER_SYNC.blocks[columnName as keyof typeof PONDER_SYNC.blocks];
+        blockSelect[column] =
+          PONDER_SYNC.blocks[column as keyof typeof PONDER_SYNC.blocks];
       }
 
       const blocksQuery = database.syncQB.raw
@@ -698,12 +697,11 @@ export const createSyncStore = ({
         type: PONDER_SYNC.transactions.type,
       };
 
-      for (const columnKey of columnAccessProfile.transactionInclude) {
-        const columnName = columnKey.replace("transaction.", "");
+      for (const column of columnAccessProfile.transactionInclude) {
         // @ts-ignore
-        transactionSelect[columnName] =
+        transactionSelect[column] =
           PONDER_SYNC.transactions[
-            columnName as keyof typeof PONDER_SYNC.transactions
+            column as keyof typeof PONDER_SYNC.transactions
           ];
       }
 
@@ -733,12 +731,11 @@ export const createSyncStore = ({
         transactionHash: PONDER_SYNC.transactionReceipts.transactionHash,
       };
 
-      for (const columnKey of columnAccessProfile.transactionReceiptInclude) {
-        const columnName = columnKey.replace("transactionReceipt.", "");
+      for (const column of columnAccessProfile.transactionReceiptInclude) {
         // @ts-ignore
-        transactionReceiptSelect[columnName] =
+        transactionReceiptSelect[column] =
           PONDER_SYNC.transactionReceipts[
-            columnName as keyof typeof PONDER_SYNC.transactionReceipts
+            column as keyof typeof PONDER_SYNC.transactionReceipts
           ];
       }
 
@@ -797,11 +794,10 @@ export const createSyncStore = ({
         transactionIndex: PONDER_SYNC.traces.transactionIndex,
       };
 
-      for (const columnKey of columnAccessProfile.traceInclude) {
-        const columnName = columnKey.replace("trace.", "");
+      for (const column of columnAccessProfile.traceInclude) {
         // @ts-ignore
-        traceSelect[columnName] =
-          PONDER_SYNC.traces[columnName as keyof typeof PONDER_SYNC.traces];
+        traceSelect[column] =
+          PONDER_SYNC.traces[column as keyof typeof PONDER_SYNC.traces];
       }
 
       const tracesQuery = database.syncQB.raw

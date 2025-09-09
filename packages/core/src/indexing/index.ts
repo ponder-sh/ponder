@@ -14,6 +14,10 @@ import type {
   Event,
   IndexingBuild,
   IndexingErrorHandler,
+  InternalBlock,
+  InternalTrace,
+  InternalTransaction,
+  InternalTransactionReceipt,
   Schema,
   SetupEvent,
 } from "@/internal/types.js";
@@ -66,13 +70,12 @@ export type Indexing = {
 };
 
 export type ColumnAccessProfile = {
-  blockInclude: typeof defaultBlockInclude;
-  traceInclude: typeof defaultTraceInclude;
-  transactionInclude: typeof defaultTransactionInclude;
-  transactionReceiptInclude: typeof defaultTransactionReceiptInclude;
+  blockInclude: (keyof InternalBlock)[];
+  traceInclude: (keyof InternalTrace)[];
+  transactionInclude: (keyof InternalTransaction)[];
+  transactionReceiptInclude: (keyof InternalTransactionReceipt)[];
   defaultInclude: Set<string>;
   accessed: Set<string>;
-  eventCount: number;
   resolved: boolean;
   resolve: () => void;
 };
@@ -85,7 +88,6 @@ export const createColumnAccessProfile = ({
   transactionInclude: [...defaultTransactionInclude],
   transactionReceiptInclude: [...defaultTransactionReceiptInclude],
   accessed: new Set(),
-  eventCount: 0,
   resolved: false,
   defaultInclude: new Set([
     ...defaultLogInclude,
@@ -420,7 +422,7 @@ export const createIndexing = ({
 
       if (
         columnAccessProfile.resolved === false &&
-        columnAccessProfile.eventCount > 1000
+        Object.values(eventCount).reduce((acc, cur) => acc + cur, 0) > 1_000
       ) {
         columnAccessProfile.resolve();
       }
@@ -443,11 +445,7 @@ const proxyHandler = ({
         const key = `${type}.${prop}`;
         profile.accessed.add(key);
 
-        if (
-          profile.resolved &&
-          prop in obj === false &&
-          profile.defaultInclude.has(key)
-        ) {
+        if (prop in obj === false && profile.defaultInclude.has(key)) {
           profile.resolved = false;
           throw new InvalidEventAccessError(key);
         }
@@ -461,7 +459,6 @@ export const toProxy = ({
   event,
   profile,
 }: { event: Event; profile: ColumnAccessProfile }): Event => {
-  profile.eventCount++;
   switch (event.type) {
     case "block": {
       event.event = {

@@ -1026,7 +1026,6 @@ test("processEvents() column selection", async (context) => {
   await indexing.processEvents({ db: indexingStore, events });
 
   expect(columnAccessProfile.resolved).toBe(true);
-  expect(columnAccessProfile.eventCount).toBe(1001);
   expect(columnAccessProfile.accessed.size).toBe(2);
   expect(columnAccessProfile.accessed.has("transaction.gas")).toBe(true);
   expect(columnAccessProfile.accessed.has("transaction.maxFeePerGas")).toBe(
