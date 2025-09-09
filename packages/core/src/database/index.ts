@@ -266,7 +266,7 @@ export const createDatabase = ({
           max: readonlyMax,
         },
         common.logger,
-        namespace.schema,
+        // namespace.schema,
       ),
       sync: createPool(
         {
