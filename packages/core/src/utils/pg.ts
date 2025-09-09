@@ -78,7 +78,7 @@ export function createPool(config: PoolConfig, logger: Logger) {
     ...config,
   });
 
-  function onError(error: Error) {
+  function onPoolError(error: Error) {
     const client = (error as any).client as any | undefined;
     const pid = (client?.processID as number | undefined) ?? "unknown";
     const applicationName =
@@ -95,6 +95,13 @@ export function createPool(config: PoolConfig, logger: Logger) {
     // if the underlying problem persists, the process will crash due to downstream effects.
   }
 
+  function onClientError(error: Error) {
+    logger.warn({ service: "postgres", msg: "Client error", error });
+
+    // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
+    // if the underlying problem persists, the process will crash due to downstream effects.
+  }
+
   function onNotice(notice: { message?: string; code?: string }) {
     logger.debug({
       service: "postgres",
@@ -102,9 +109,10 @@ export function createPool(config: PoolConfig, logger: Logger) {
     });
   }
 
-  pool.on("error", onError);
+  pool.on("error", onPoolError);
   pool.on("connect", (client) => {
     client.on("notice", onNotice);
+    client.on("error", onClientError);
   });
 
   return pool;
@@ -153,7 +161,7 @@ export function createReadonlyPool(
     ...config,
   });
 
-  function onError(error: Error) {
+  function onPoolError(error: Error) {
     const client = (error as any).client as any | undefined;
     const pid = (client?.processID as number | undefined) ?? "unknown";
     const applicationName =
@@ -170,6 +178,13 @@ export function createReadonlyPool(
     // if the underlying problem persists, the process will crash due to downstream effects.
   }
 
+  function onClientError(error: Error) {
+    logger.warn({ service: "postgres", msg: "Client error", error });
+
+    // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
+    // if the underlying problem persists, the process will crash due to downstream effects.
+  }
+
   function onNotice(notice: { message?: string; code?: string }) {
     logger.debug({
       service: "postgres",
@@ -177,9 +192,10 @@ export function createReadonlyPool(
     });
   }
 
-  pool.on("error", onError);
+  pool.on("error", onPoolError);
   pool.on("connect", (client) => {
     client.on("notice", onNotice);
+    client.on("error", onClientError);
   });
 
   return pool;

@@ -213,8 +213,6 @@ export const createQB = <
         // later. We want the error bubbled up out of the callback, so the transaction is properly rolled back.
         // 2. Outside callback (running entire transaction, user statements + control flow statements): Retry immediately.
 
-        console.log(error.message, isTransaction, isTransactionStatement);
-
         if (isTransaction) {
           if (error instanceof NonRetryableUserError) {
             throw error;
