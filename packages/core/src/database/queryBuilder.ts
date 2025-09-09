@@ -14,7 +14,7 @@ import type { Drizzle } from "@/types/db.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import { PGlite } from "@electric-sql/pglite";
-import type { ExtractTablesWithRelations } from "drizzle-orm";
+import { type ExtractTablesWithRelations, is } from "drizzle-orm";
 import type {
   PgDatabase,
   PgQueryResultHKT,
@@ -212,6 +212,8 @@ export const createQB = <
         // 1. Inside callback (running user statements or control flow statements): Throw error, retry
         // later. We want the error bubbled up out of the callback, so the transaction is properly rolled back.
         // 2. Outside callback (running entire transaction, user statements + control flow statements): Retry immediately.
+
+        console.log(error.message, isTransaction, isTransactionStatement);
 
         if (isTransaction) {
           if (error instanceof NonRetryableUserError) {

@@ -305,6 +305,7 @@ export const getCopyHelper = (qb: QB) => {
         copyStream.write(text);
         copyStream.end();
       }).catch((error) => {
+        console.log("caught flush error", error);
         throw new CopyFlushError(error.message);
       });
       console.log("end copy", getTableName(table));
