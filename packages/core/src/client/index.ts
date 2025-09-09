@@ -52,9 +52,10 @@ export const client = ({
 
       globalThis.PONDER_COMMON.shutdown.add(() => {
         listen?.release();
+        listen = undefined;
       });
 
-      while (true) {
+      while (globalThis.PONDER_COMMON.shutdown.isKilled === false) {
         // biome-ignore lint/suspicious/noAsyncPromiseExecutor: <explanation>
         await new Promise<void>(async (resolve) => {
           try {
