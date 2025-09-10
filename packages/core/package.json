@@ -1,6 +1,6 @@
 {
   "name": "ponder",
-  "version": "0.12.14",
+  "version": "0.12.22",
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
   "type": "module",
@@ -85,7 +85,8 @@
     "terminal-size": "^4.0.0",
     "vite": "5.0.7",
     "vite-node": "1.0.2",
-    "vite-tsconfig-paths": "4.3.1"
+    "vite-tsconfig-paths": "4.3.1",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@pgsql/types": "16.0.0",
@@ -96,6 +97,7 @@
     "@types/pg": "^8.10.9",
     "@types/pg-copy-streams": "^1.2.5",
     "@types/semver": "^7.5.8",
+    "@types/ws": "^8.18.1",
     "@viem/anvil": "^0.0.6",
     "@wagmi/cli": "^1.5.2",
     "chokidar": "^4.0.3",

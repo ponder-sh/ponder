@@ -788,6 +788,73 @@ test("$onUpdateFn", async (context) => {
   // update
 });
 
+test("basic columns", async (context) => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+      int2: p.smallint().notNull(),
+      int8n: p.int8({ mode: "number" }).notNull(),
+      int8b: p.int8({ mode: "bigint" }).notNull(),
+      boolean: p.boolean().notNull(),
+      text: p.text().notNull(),
+      varchar: p.varchar().notNull(),
+      char: p.char().notNull(),
+      numeric: p.numeric().notNull(),
+      real: p.real().notNull(),
+      doublePrecision: p.doublePrecision().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingErrorHandler,
+  });
+
+  indexingStore.qb = database.userQB;
+
+  await indexingStore.insert(schema.account).values({
+    address: zeroAddress,
+    balance: 20n,
+    int2: 20,
+    int8n: 20,
+    int8b: 20n,
+    boolean: true,
+    text: "20",
+    varchar: "20",
+    char: "2",
+    numeric: "20",
+    real: 20,
+    doublePrecision: 20,
+  });
+
+  const result = await indexingStore.find(schema.account, {
+    address: zeroAddress,
+  });
+
+  expect(result).toMatchInlineSnapshot(`
+      {
+        "address": "0x0000000000000000000000000000000000000000",
+        "balance": 20n,
+        "boolean": true,
+        "char": "2",
+        "doublePrecision": 20,
+        "int2": 20,
+        "int8b": 20n,
+        "int8n": 20,
+        "numeric": "20",
+        "real": 20,
+        "text": "20",
+        "varchar": "20",
+      }
+    `);
+});
+
 test("array", async (context) => {
   const schema = {
     account: onchainTable("account", (p) => ({

@@ -1,5 +1,54 @@
 # ponder
 
+## 0.12.22
+
+### Patch Changes
+
+- [#2027](https://github.com/ponder-sh/ponder/pull/2027) [`8a2533d`](https://github.com/ponder-sh/ponder/commit/8a2533dcbdb4bc6f3f2984e93be666d1dc36a715) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved database connection reliability. Better support for `Pool error`.
+
+## 0.12.21
+
+### Patch Changes
+
+- [#2006](https://github.com/ponder-sh/ponder/pull/2006) [`908b4b2`](https://github.com/ponder-sh/ponder/commit/908b4b2034174ff96900f98ad60141581fac9c49) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved websocket handling.
+
+## 0.12.20
+
+### Patch Changes
+
+- [#2009](https://github.com/ponder-sh/ponder/pull/2009) [`78fe92e`](https://github.com/ponder-sh/ponder/commit/78fe92eff8e4f8af54e7c4224e5af3da168134f0) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved historical indexing performance.
+
+## 0.12.19
+
+### Patch Changes
+
+- [#2016](https://github.com/ponder-sh/ponder/pull/2016) [`7372fd6`](https://github.com/ponder-sh/ponder/commit/7372fd6ac2d96298674b14fe369841cd14df54c3) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved `/status` accuracy when using `endBlock`.
+
+## 0.12.18
+
+### Patch Changes
+
+- Updated dependencies [[`5de9cc0`](https://github.com/ponder-sh/ponder/commit/5de9cc0de28711b3e1d1e36a7ae60c83eb7fed39)]:
+  - @ponder/utils@0.2.12
+
+## 0.12.17
+
+### Patch Changes
+
+- [#2007](https://github.com/ponder-sh/ponder/pull/2007) [`cfb5fb3`](https://github.com/ponder-sh/ponder/commit/cfb5fb303f29ddb13843000368f45fdf4a2937ec) Thanks [@kyscott18](https://github.com/kyscott18)! - Added several math functions to `@ponder/client` query allow list.
+
+## 0.12.16
+
+### Patch Changes
+
+- [#2004](https://github.com/ponder-sh/ponder/pull/2004) [`769d8a0`](https://github.com/ponder-sh/ponder/commit/769d8a0f1a0eb91e69c48cdecef079038ac85441) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for validating `@ponder/client` queries with window defintions. Fixed the error `WindowDef not supported`.
+
+## 0.12.15
+
+### Patch Changes
+
+- [#2001](https://github.com/ponder-sh/ponder/pull/2001) [`f432c8a`](https://github.com/ponder-sh/ponder/commit/f432c8a1524536a31cc7545bd7216fc8c50a4446) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved error logs when RPC responses are invalid.
+
 ## 0.12.14
 
 ### Patch Changes

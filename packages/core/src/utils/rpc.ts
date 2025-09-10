@@ -1,3 +1,4 @@
+import { RpcProviderError } from "@/internal/errors.js";
 import type {
   SyncBlock,
   SyncBlockHeader,
@@ -16,7 +17,9 @@ import {
   type Hex,
   type LogTopic,
   TransactionReceiptNotFoundError,
+  hexToNumber,
   numberToHex,
+  toHex,
   zeroAddress,
   zeroHash,
 } from "viem";
@@ -345,25 +348,52 @@ export const _debug_traceBlockByHash = (
 /**
  * Validate that the transactions are consistent with the block.
  */
-export const validateTransactionsAndBlock = (block: SyncBlock) => {
+export const validateTransactionsAndBlock = (
+  block: SyncBlock,
+  blockIdentifier: "number" | "hash",
+) => {
   const transactionIds = new Set<Hex>();
-  for (const transaction of block.transactions) {
+  for (const [index, transaction] of block.transactions.entries()) {
     if (block.hash !== transaction.blockHash) {
-      throw new Error(
-        `Detected inconsistent RPC responses. 'transaction.blockHash' ${transaction.blockHash} does not match 'block.hash' ${block.hash}`,
+      const error = new RpcProviderError(
+        `Inconsistent RPC response data. The transaction at index ${index} of the 'block.transactions' array has a 'transaction.blockHash' of ${transaction.blockHash}, but the block itself has a 'block.hash' of ${block.hash}.`,
       );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+      ];
+      error.stack = undefined;
+      throw error;
     }
 
     if (block.number !== transaction.blockNumber) {
-      throw new Error(
-        `Detected inconsistent RPC responses. 'transaction.blockNumber' ${transaction.blockNumber} does not match 'block.number' ${block.number}`,
+      const error = new RpcProviderError(
+        `Inconsistent RPC response data. The transaction at index ${index} of the 'block.transactions' array has a 'transaction.blockNumber' of ${transaction.blockNumber} (${hexToNumber(transaction.blockNumber)}), but the block itself has a 'block.number' of ${block.number} (${hexToNumber(block.number)}).`,
       );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+      ];
+      error.stack = undefined;
+      throw error;
     }
 
     if (transactionIds.has(transaction.transactionIndex)) {
-      throw new Error(
-        `Detected invalid eth_getBlock response. Duplicate transaction index ${transaction.transactionIndex} for block ${block.hash}.`,
+      const error = new RpcProviderError(
+        `Inconsistent RPC response data. The 'block.transactions' array contains two objects with a 'transactionIndex' of ${transaction.transactionIndex} (${hexToNumber(transaction.transactionIndex)}). The duplicate was found at array index ${index}.`,
       );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+      ];
+      error.stack = undefined;
+      throw error;
     } else {
       transactionIds.add(transaction.transactionIndex);
     }
@@ -376,11 +406,26 @@ export const validateTransactionsAndBlock = (block: SyncBlock) => {
  * @dev Allows `log.transactionHash` to be `zeroHash`.
  * @dev Allows `block.logsBloom` to be `zeroLogsBloom`.
  */
-export const validateLogsAndBlock = (logs: SyncLog[], block: SyncBlock) => {
+export const validateLogsAndBlock = (
+  logs: SyncLog[],
+  block: SyncBlock,
+  blockIdentifier: "number" | "hash",
+) => {
   if (block.logsBloom !== zeroLogsBloom && logs.length === 0) {
-    throw new Error(
-      "Detected invalid eth_getLogs response. `block.logsBloom` is not empty but zero logs were returned.",
+    const error = new RpcProviderError(
+      `Inconsistent RPC response data. The logs array has length 0, but the associated block has a non-empty 'block.logsBloom'.`,
     );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getBlockText(
+        blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+      ),
+      eth_getLogsText(
+        blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+      ),
+    ];
+    error.stack = undefined;
+    throw error;
   }
 
   const logIndexes = new Set<string>();
@@ -391,36 +436,99 @@ export const validateLogsAndBlock = (logs: SyncLog[], block: SyncBlock) => {
     ]),
   );
 
-  for (const log of logs) {
+  for (const [index, log] of logs.entries()) {
     if (block.hash !== log.blockHash) {
-      throw new Error(
-        `Detected inconsistent RPC responses. 'log.blockHash' ${log.blockHash} does not match 'block.hash' ${block.hash}`,
+      const error = new RpcProviderError(
+        `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) has a 'log.blockHash' of ${log.blockHash}, but the associated block has a 'block.hash' of ${block.hash}.`,
       );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+        eth_getLogsText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+      ];
+      error.stack = undefined;
+      throw error;
     }
 
     if (block.number !== log.blockNumber) {
-      throw new Error(
-        `Detected inconsistent RPC responses. 'log.blockNumber' ${log.blockNumber} does not match 'block.number' ${block.number}`,
+      const error = new RpcProviderError(
+        `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) has a 'log.blockNumber' of ${log.blockNumber} (${hexToNumber(log.blockNumber)}), but the associated block has a 'block.number' of ${block.number} (${hexToNumber(block.number)}).`,
       );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+        eth_getLogsText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+      ];
+      error.stack = undefined;
+      throw error;
     }
 
     if (log.transactionHash !== zeroHash) {
       const transaction = transactionByIndex.get(log.transactionIndex);
       if (transaction === undefined) {
-        throw new Error(
-          `Detected inconsistent RPC responses. 'log.transactionIndex' ${log.transactionIndex} not found in 'block.transactions' for block ${block.hash}`,
+        const error = new RpcProviderError(
+          `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) has a 'log.transactionIndex' of ${log.transactionIndex} (${hexToNumber(log.transactionIndex)}), but the associated 'block.transactions' array does not contain a transaction matching that 'transactionIndex'.`,
         );
+        error.meta = [
+          "Please report this error to the RPC operator.",
+          eth_getBlockText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
+          eth_getLogsText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
+        ];
+        error.stack = undefined;
+        throw error;
       } else if (transaction.hash !== log.transactionHash) {
-        throw new Error(
-          `Detected inconsistent RPC responses. 'log.transactionHash' ${log.transactionHash} does not match 'transaction.hash' ${transaction.hash} for block ${block.hash}`,
+        const error = new RpcProviderError(
+          `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) matches a transaction in the associated 'block.transactions' array by 'transactionIndex' ${log.transactionIndex} (${hexToNumber(log.transactionIndex)}), but the log has a 'log.transactionHash' of ${log.transactionHash} while the transaction has a 'transaction.hash' of ${transaction.hash}.`,
         );
+        error.meta = [
+          "Please report this error to the RPC operator.",
+          eth_getBlockText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
+          eth_getLogsText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
+        ];
+        error.stack = undefined;
+        throw error;
       }
     }
 
     if (logIndexes.has(log.logIndex)) {
-      throw new Error(
-        `Detected invalid eth_getLogs response. Duplicate log index ${log.logIndex} for block ${log.blockHash}.`,
+      const error = new RpcProviderError(
+        `Inconsistent RPC response data. The logs array contains two objects with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}). The duplicate was found at array index ${index}.`,
       );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+        eth_getLogsText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+      ];
+      error.stack = undefined;
+      throw error;
     } else {
       logIndexes.add(log.logIndex);
     }
@@ -433,31 +541,44 @@ export const validateLogsAndBlock = (logs: SyncLog[], block: SyncBlock) => {
 export const validateTracesAndBlock = (
   traces: SyncTrace[],
   block: SyncBlock,
+  blockIdentifier: "number" | "hash",
 ) => {
-  const traceIds = new Set<string>();
   const transactionHashes = new Set(block.transactions.map((t) => t.hash));
-  for (const trace of traces) {
+  for (const [index, trace] of traces.entries()) {
     if (transactionHashes.has(trace.transactionHash) === false) {
-      throw new Error(
-        `Detected inconsistent RPC responses. 'trace.transactionHash' ${trace.transactionHash} not found in 'block.transactions' ${block.hash}`,
+      const error = new RpcProviderError(
+        `Inconsistent RPC response data. The top-level trace at array index ${index} has a 'transactionHash' of ${trace.transactionHash}, but the associated 'block.transactions' array does not contain a transaction matching that hash.`,
       );
-    }
-
-    const id = `${trace.transactionHash}-${trace.trace.index}`;
-    if (traceIds.has(id)) {
-      throw new Error(
-        `Detected invalid debug_traceBlockByHash response. Duplicate trace index ${trace.trace.index} for transaction ${trace.transactionHash}.`,
-      );
-    } else {
-      traceIds.add(id);
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+        debug_traceBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+      ];
+      error.stack = undefined;
+      throw error;
     }
   }
 
   // Use the fact that any transaction produces a trace to validate.
   if (block.transactions.length !== 0 && traces.length === 0) {
-    throw new Error(
-      "Detected invalid debug_traceBlock response. `block.transactions` is not empty but zero traces were returned.",
+    const error = new RpcProviderError(
+      `Inconsistent RPC response data. The traces array has length 0, but the associated 'block.transactions' array has length ${block.transactions.length}.`,
     );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getBlockText(
+        blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+      ),
+      debug_traceBlockText(
+        blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+      ),
+    ];
+    error.stack = undefined;
+    throw error;
   }
 };
 
@@ -468,15 +589,27 @@ export const validateReceiptsAndBlock = (
   receipts: SyncTransactionReceipt[],
   block: SyncBlock,
   method: "eth_getBlockReceipts" | "eth_getTransactionReceipt",
+  blockIdentifier: "number" | "hash",
 ) => {
   const receiptIds = new Set<string>();
 
-  for (const receipt of receipts) {
+  for (const [index, receipt] of receipts.entries()) {
     const id = receipt.transactionHash;
     if (receiptIds.has(id)) {
-      throw new Error(
-        `Detected invalid eth_getBlockReceipts response. Duplicate receipt for transaction ${receipt.transactionHash}.`,
+      const error = new RpcProviderError(
+        `Inconsistent RPC response data. The receipts array contains two objects with a 'transactionHash' of ${receipt.transactionHash}. The duplicate was found at array index ${index}.`,
       );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+        method === "eth_getBlockReceipts"
+          ? eth_getBlockReceiptsText(block.hash)
+          : eth_getTransactionReceiptText(receipt.transactionHash),
+      ];
+      error.stack = undefined;
+      throw error;
     } else {
       receiptIds.add(id);
     }
@@ -489,28 +622,72 @@ export const validateReceiptsAndBlock = (
     ]),
   );
 
-  for (const receipt of receipts) {
+  for (const [index, receipt] of receipts.entries()) {
     if (block.hash !== receipt.blockHash) {
-      throw new Error(
-        `Detected inconsistent RPC responses. 'receipt.blockHash' ${receipt.blockHash} does not match 'block.hash' ${block.hash}`,
+      const error = new RpcProviderError(
+        `Inconsistent RPC response data. The receipt at array index ${index} has a 'receipt.blockHash' of ${receipt.blockHash}, but the associated block has a 'block.hash' of ${block.hash}.`,
       );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+        method === "eth_getBlockReceipts"
+          ? eth_getBlockReceiptsText(block.hash)
+          : eth_getTransactionReceiptText(receipt.transactionHash),
+      ];
+      error.stack = undefined;
+      throw error;
     }
 
     if (block.number !== receipt.blockNumber) {
-      throw new Error(
-        `Detected inconsistent RPC responses. 'receipt.blockNumber' ${receipt.blockNumber} does not match 'block.number' ${block.number}`,
+      const error = new RpcProviderError(
+        `Inconsistent RPC response data. The receipt at array index ${index} has a 'receipt.blockNumber' of ${receipt.blockNumber} (${hexToNumber(receipt.blockNumber)}), but the associated block has a 'block.number' of ${block.number} (${hexToNumber(block.number)}).`,
       );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+        method === "eth_getBlockReceipts"
+          ? eth_getBlockReceiptsText(block.hash)
+          : eth_getTransactionReceiptText(receipt.transactionHash),
+      ];
+      error.stack = undefined;
+      throw error;
     }
 
     const transaction = transactionByIndex.get(receipt.transactionIndex);
     if (transaction === undefined) {
-      throw new Error(
-        `Detected inconsistent RPC responses. 'receipt.transactionIndex' ${receipt.transactionIndex} not found in 'block.transactions' for block ${block.hash}`,
+      const error = new RpcProviderError(
+        `Inconsistent RPC response data. The receipt at array index ${index} has a 'receipt.transactionIndex' of ${receipt.transactionIndex} (${hexToNumber(receipt.transactionIndex)}), but the associated 'block.transactions' array does not contain a transaction matching that 'transactionIndex'.`,
       );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+        method === "eth_getBlockReceipts"
+          ? eth_getBlockReceiptsText(block.hash)
+          : eth_getTransactionReceiptText(receipt.transactionHash),
+      ];
+      error.stack = undefined;
+      throw error;
     } else if (transaction.hash !== receipt.transactionHash) {
-      throw new Error(
-        `Detected inconsistent RPC responses. 'receipt.transactionHash' ${receipt.transactionHash} does not match 'transaction.hash' ${transaction.hash} for block ${block.hash}`,
+      const error = new RpcProviderError(
+        `Inconsistent RPC response data. The receipt at array index ${index} matches a transaction in the associated 'block.transactions' array by 'transactionIndex' ${receipt.transactionIndex} (${hexToNumber(receipt.transactionIndex)}), but the receipt has a 'receipt.transactionHash' of ${receipt.transactionHash} while the transaction has a 'transaction.hash' of ${transaction.hash}.`,
       );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+        method === "eth_getBlockReceipts"
+          ? eth_getBlockReceiptsText(block.hash)
+          : eth_getTransactionReceiptText(receipt.transactionHash),
+      ];
+      error.stack = undefined;
+      throw error;
     }
   }
 
@@ -518,9 +695,18 @@ export const validateReceiptsAndBlock = (
     method === "eth_getBlockReceipts" &&
     block.transactions.length !== receipts.length
   ) {
-    throw new Error(
-      `Detected inconsistent RPC responses. 'block.transactions' length ${block.transactions.length} does not match 'receipts' length ${receipts.length} for block ${block.hash}`,
+    const error = new RpcProviderError(
+      `Inconsistent RPC response data. The receipts array has length ${receipts.length}, but the associated 'block.transactions' array has length ${block.transactions.length}.`,
     );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getBlockText(
+        blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+      ),
+      eth_getBlockReceiptsText(block.hash),
+    ];
+    error.stack = undefined;
+    throw error;
   }
 };
 
@@ -875,3 +1061,96 @@ export const standardizeTransactionReceipt = (
 
   return receipt;
 };
+
+function eth_getLogsText(numberOrHash: Hex | number): string {
+  if (typeof numberOrHash === "number") {
+    return `Logs request: ${JSON.stringify(
+      {
+        method: "eth_getLogs",
+        params: [
+          {
+            fromBlock: toHex(numberOrHash),
+            toBlock: toHex(numberOrHash),
+          },
+        ],
+      },
+      null,
+      2,
+    )}`;
+  }
+
+  return `Logs request: ${JSON.stringify(
+    {
+      method: "eth_getLogs",
+      params: [{ blockHash: numberOrHash }],
+    },
+    null,
+    2,
+  )}`;
+}
+
+function eth_getBlockText(numberOrHash: Hex | number): string {
+  if (typeof numberOrHash === "number") {
+    return `Block request: ${JSON.stringify(
+      {
+        method: "eth_getBlockByNumber",
+        params: [toHex(numberOrHash), true],
+      },
+      null,
+      2,
+    )}`;
+  }
+
+  return `Block request: ${JSON.stringify(
+    {
+      method: "eth_getBlockByHash",
+      params: [numberOrHash, true],
+    },
+    null,
+    2,
+  )}`;
+}
+
+function eth_getBlockReceiptsText(hash: Hex): string {
+  return `Receipts request: ${JSON.stringify(
+    {
+      method: "eth_getBlockReceipts",
+      params: [hash],
+    },
+    null,
+    2,
+  )}`;
+}
+
+function eth_getTransactionReceiptText(hash: Hex): string {
+  return `Receipt request: ${JSON.stringify(
+    {
+      method: "eth_getTransactionReceipt",
+      params: [hash],
+    },
+    null,
+    2,
+  )}`;
+}
+
+function debug_traceBlockText(numberOrHash: Hex | number): string {
+  if (typeof numberOrHash === "number") {
+    return `Traces request: ${JSON.stringify(
+      {
+        method: "debug_traceBlockByNumber",
+        params: [toHex(numberOrHash), { tracer: "callTracer" }],
+      },
+      null,
+      2,
+    )}`;
+  }
+
+  return `Traces request: ${JSON.stringify(
+    {
+      method: "debug_traceBlockByHash",
+      params: [numberOrHash, { tracer: "callTracer" }],
+    },
+    null,
+    2,
+  )}`;
+}

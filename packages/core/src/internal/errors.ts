@@ -179,3 +179,12 @@ export class IndexingFunctionError extends NonRetryableUserError {
     Object.setPrototypeOf(this, IndexingFunctionError.prototype);
   }
 }
+
+export class RpcProviderError extends BaseError {
+  override name = "RpcProviderError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, RpcProviderError.prototype);
+  }
+}

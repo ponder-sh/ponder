@@ -208,7 +208,7 @@ export const createQB = <
           firstError = error;
         }
 
-        // Two types of transaction enviroments
+        // Two types of transaction environments
         // 1. Inside callback (running user statements or control flow statements): Throw error, retry
         // later. We want the error bubbled up out of the callback, so the transaction is properly rolled back.
         // 2. Outside callback (running entire transaction, user statements + control flow statements): Retry immediately.
