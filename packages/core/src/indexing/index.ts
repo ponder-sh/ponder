@@ -23,7 +23,7 @@ import type {
 } from "@/internal/types.js";
 import {
   defaultBlockInclude,
-  defaultLogInclude,
+  defaultInclude,
   defaultTraceInclude,
   defaultTransactionInclude,
   defaultTransactionReceiptInclude,
@@ -74,54 +74,108 @@ export type ColumnAccessProfile = {
   traceInclude: (keyof InternalTrace)[];
   transactionInclude: (keyof InternalTransaction)[];
   transactionReceiptInclude: (keyof InternalTransactionReceipt)[];
-  defaultInclude: Set<string>;
   accessed: Set<string>;
   resolved: boolean;
-  resolve: () => void;
 };
 
-export const createColumnAccessProfile = ({
-  common,
-}: { common: Common }): ColumnAccessProfile => ({
-  blockInclude: [...defaultBlockInclude],
-  traceInclude: [...defaultTraceInclude],
-  transactionInclude: [...defaultTransactionInclude],
-  transactionReceiptInclude: [...defaultTransactionReceiptInclude],
-  accessed: new Set(),
-  resolved: false,
-  defaultInclude: new Set([
-    ...defaultLogInclude,
-    ...defaultBlockInclude,
-    ...defaultTraceInclude,
-    ...defaultTransactionInclude,
-    ...defaultTransactionReceiptInclude,
-  ]),
-  resolve: function () {
-    this.resolved = true;
-    this.blockInclude = defaultBlockInclude.filter((key) =>
-      this.accessed.has(key),
-    );
-    this.traceInclude = defaultTraceInclude.filter((key) =>
-      this.accessed.has(key),
-    );
-    this.transactionInclude = defaultTransactionInclude.filter((key) =>
-      this.accessed.has(key),
-    );
-    this.transactionReceiptInclude = defaultTransactionReceiptInclude.filter(
-      (key) => this.accessed.has(key),
-    );
+export type ColumnAccessPattern<
+  T extends "global" | "perIndexingFunction" = "global" | "perIndexingFunction",
+> = T extends "global"
+  ? {
+      type: "global";
+      profile: ColumnAccessProfile;
+      resolve: () => void;
+    }
+  : T extends "perIndexingFunction"
+    ? {
+        type: "perIndexingFunction";
+        profile: {
+          [eventName: string]: ColumnAccessProfile;
+        };
+        resolve: (eventName: string) => void;
+      }
+    :
+        | ColumnAccessPattern<"global">
+        | ColumnAccessPattern<"perIndexingFunction">;
 
-    common.logger.info({
-      service: "indexing",
-      msg: `Column selection resolved: 
-        ${this.blockInclude.length}/${defaultBlockInclude.length} block columns, 
-        ${this.traceInclude.length}/${defaultTraceInclude.length} trace columns, 
-        ${this.transactionInclude.length}/${defaultTransactionInclude.length} transaction columns,
-        ${this.transactionReceiptInclude.length}/${defaultTransactionReceiptInclude.length} transactionReceipt columns.  
-      `,
-    });
-  },
-});
+export const createColumnAccessPattern = ({
+  common,
+  type,
+}: {
+  common: Common;
+  type: "global" | "perIndexingFunction";
+}): ColumnAccessPattern => {
+  return type === "global"
+    ? {
+        type: "global",
+        profile: {
+          blockInclude: [...defaultBlockInclude],
+          traceInclude: [...defaultTraceInclude],
+          transactionInclude: [...defaultTransactionInclude],
+          transactionReceiptInclude: [...defaultTransactionReceiptInclude],
+          accessed: new Set(),
+          resolved: false,
+        },
+        resolve: function () {
+          const profile = this.profile;
+          profile.resolved = true;
+          profile.blockInclude = defaultBlockInclude.filter((column) =>
+            profile.accessed.has(`block.${column}`),
+          );
+          profile.traceInclude = defaultTraceInclude.filter((column) =>
+            profile.accessed.has(`trace.${column}`),
+          );
+          profile.transactionInclude = defaultTransactionInclude.filter(
+            (column) => profile.accessed.has(`transaction.${column}`),
+          );
+          profile.transactionReceiptInclude =
+            defaultTransactionReceiptInclude.filter((column) =>
+              profile.accessed.has(`transactionReceipt.${column}`),
+            );
+
+          common.logger.info({
+            service: "indexing",
+            msg: `Column selection resolved: 
+            ${profile.blockInclude.length}/${defaultBlockInclude.length} block columns, 
+            ${profile.traceInclude.length}/${defaultTraceInclude.length} trace columns, 
+            ${profile.transactionInclude.length}/${defaultTransactionInclude.length} transaction columns,
+            ${profile.transactionReceiptInclude.length}/${defaultTransactionReceiptInclude.length} transactionReceipt columns.  
+          `,
+          });
+        },
+      }
+    : {
+        type: "perIndexingFunction",
+        profile: {},
+        resolve: function (eventName: string) {
+          const profile = this.profile[eventName]!;
+          profile.resolved = true;
+          profile.blockInclude = defaultBlockInclude.filter((column) =>
+            profile.accessed.has(`block.${column}`),
+          );
+          profile.traceInclude = defaultTraceInclude.filter((column) =>
+            profile.accessed.has(`trace.${column}`),
+          );
+          profile.transactionInclude = defaultTransactionInclude.filter(
+            (column) => profile.accessed.has(`transaction.${column}`),
+          );
+          profile.transactionReceiptInclude =
+            defaultTransactionReceiptInclude.filter((column) =>
+              profile.accessed.has(`transactionReceipt.${column}`),
+            );
+
+          common.logger.info({
+            service: "indexing",
+            msg: `Column selection resolved: 
+            ${profile.blockInclude.length}/${defaultBlockInclude.length} block columns, 
+            ${profile.traceInclude.length}/${defaultTraceInclude.length} trace columns, 
+            ${profile.transactionInclude.length}/${defaultTransactionInclude.length} transaction columns,
+            ${profile.transactionReceiptInclude.length}/${defaultTransactionReceiptInclude.length} transactionReceipt columns.  
+          `,
+          });
+        },
+      };
+};
 
 export const createIndexing = ({
   common,
@@ -129,7 +183,7 @@ export const createIndexing = ({
   client,
   eventCount,
   indexingErrorHandler,
-  columnAccessProfile,
+  columnAccessPattern,
 }: {
   common: Common;
   indexingBuild: Pick<
@@ -139,7 +193,7 @@ export const createIndexing = ({
   client: CachedViemClient;
   eventCount: { [eventName: string]: number };
   indexingErrorHandler: IndexingErrorHandler;
-  columnAccessProfile: ColumnAccessProfile;
+  columnAccessPattern: ColumnAccessPattern;
 }): Indexing => {
   const context: Context = {
     chain: { name: undefined!, id: undefined! },
@@ -412,7 +466,7 @@ export const createIndexing = ({
           msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
         });
 
-        await executeEvent(toProxy({ event, profile: columnAccessProfile }));
+        await executeEvent(toProxy({ event, pattern: columnAccessPattern }));
 
         common.logger.trace({
           service: "indexing",
@@ -420,11 +474,25 @@ export const createIndexing = ({
         });
       }
 
-      if (
-        columnAccessProfile.resolved === false &&
-        Object.values(eventCount).reduce((acc, cur) => acc + cur, 0) > 1_000
-      ) {
-        columnAccessProfile.resolve();
+      switch (columnAccessPattern.type) {
+        case "global": {
+          if (
+            columnAccessPattern.profile.resolved === false &&
+            Object.values(eventCount).reduce((acc, cur) => acc + cur, 0) > 1_000
+          ) {
+            columnAccessPattern.resolve();
+          }
+          break;
+        }
+        case "perIndexingFunction": {
+          for (const [eventName, profile] of Object.entries(
+            columnAccessPattern.profile,
+          )) {
+            if (profile.resolved === false && eventCount[eventName]! > 1_000) {
+              columnAccessPattern.resolve(eventName);
+            }
+          }
+        }
       }
 
       updateCompletedEvents();
@@ -445,7 +513,8 @@ const proxyHandler = ({
         const key = `${type}.${prop}`;
         profile.accessed.add(key);
 
-        if (prop in obj === false && profile.defaultInclude.has(key)) {
+        // @ts-ignore
+        if (prop in obj === false && defaultInclude.has(key)) {
           profile.resolved = false;
           throw new InvalidEventAccessError(key);
         }
@@ -457,8 +526,25 @@ const proxyHandler = ({
 
 export const toProxy = ({
   event,
-  profile,
-}: { event: Event; profile: ColumnAccessProfile }): Event => {
+  pattern,
+}: { event: Event; pattern: ColumnAccessPattern }): Event => {
+  let profile: ColumnAccessProfile;
+  if (pattern.type === "global") {
+    profile = pattern.profile;
+  } else {
+    if (pattern.profile[event.name] === undefined) {
+      pattern.profile[event.name] = {
+        blockInclude: [...defaultBlockInclude],
+        traceInclude: [...defaultTraceInclude],
+        transactionInclude: [...defaultTransactionInclude],
+        transactionReceiptInclude: [...defaultTransactionReceiptInclude],
+        accessed: new Set(),
+        resolved: false,
+      };
+    }
+    profile = pattern.profile[event.name]!;
+  }
+
   switch (event.type) {
     case "block": {
       event.event = {

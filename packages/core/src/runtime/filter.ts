@@ -413,6 +413,32 @@ export const defaultBlockInclude: (keyof InternalBlock)[] = [
   "transactionsRoot",
 ];
 
+export const defaultInclude: Set<
+  | `block.${keyof InternalBlock}`
+  | `log.${keyof InternalLog}`
+  | `transaction.${keyof InternalTransaction}`
+  | `transactionReceipt.${keyof InternalTransactionReceipt}`
+  | `trace.${keyof InternalTrace}`
+> = new Set([
+  ...defaultBlockInclude.map(
+    (value) => `block.${value}` as `block.${keyof InternalBlock}`,
+  ),
+  ...defaultLogInclude.map(
+    (value) => `log.${value}` as `log.${keyof InternalLog}`,
+  ),
+  ...defaultTransactionInclude.map(
+    (value) =>
+      `transaction.${value}` as `transaction.${keyof InternalTransaction}`,
+  ),
+  ...defaultTransactionReceiptInclude.map(
+    (value) =>
+      `transactionReceipt.${value}` as `transactionReceipt.${keyof InternalTransactionReceipt}`,
+  ),
+  ...defaultTraceInclude.map(
+    (value) => `trace.${value}` as `trace.${keyof InternalTrace}`,
+  ),
+]);
+
 export const defaultBlockFilterInclude: Exclude<
   BlockFilter["include"],
   undefined

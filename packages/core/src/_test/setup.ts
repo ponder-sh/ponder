@@ -2,7 +2,10 @@ import { buildSchema } from "@/build/schema.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
-import { createColumnAccessProfile } from "@/indexing/index.js";
+import {
+  type ColumnAccessPattern,
+  createColumnAccessPattern,
+} from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import type { RetryableError } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
@@ -219,13 +222,14 @@ export async function setupDatabaseServices(
     throw err;
   });
 
-  const columnAccessProfile = createColumnAccessProfile({
+  const columnAccessPattern = createColumnAccessPattern({
     common: context.common,
-  });
+    type: "global",
+  }) as ColumnAccessPattern<"global">;
   const syncStore = createSyncStore({
     common: context.common,
     database,
-    columnAccessProfile,
+    columnAccessPattern,
   });
 
   const indexingErrorHandler: IndexingErrorHandler = {

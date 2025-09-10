@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import type { Database } from "@/database/index.js";
-import type { ColumnAccessProfile } from "@/indexing/index.js";
+import type { ColumnAccessPattern } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
   BlockFilter,
@@ -216,11 +216,11 @@ export type SyncStore = {
 export const createSyncStore = ({
   common,
   database,
-  columnAccessProfile,
+  columnAccessPattern,
 }: {
   common: Common;
   database: Database;
-  columnAccessProfile: ColumnAccessProfile;
+  columnAccessPattern: ColumnAccessPattern<"global">;
 }): SyncStore => ({
   insertIntervals: async ({ intervals, chainId }) => {
     if (intervals.length === 0) return;
@@ -669,7 +669,7 @@ export const createSyncStore = ({
         parentHash: PONDER_SYNC.blocks.parentHash,
       };
 
-      for (const column of columnAccessProfile.blockInclude) {
+      for (const column of columnAccessPattern.profile.blockInclude) {
         // @ts-ignore
         blockSelect[column] =
           PONDER_SYNC.blocks[column as keyof typeof PONDER_SYNC.blocks];
@@ -697,7 +697,7 @@ export const createSyncStore = ({
         type: PONDER_SYNC.transactions.type,
       };
 
-      for (const column of columnAccessProfile.transactionInclude) {
+      for (const column of columnAccessPattern.profile.transactionInclude) {
         // @ts-ignore
         transactionSelect[column] =
           PONDER_SYNC.transactions[
@@ -731,7 +731,8 @@ export const createSyncStore = ({
         transactionHash: PONDER_SYNC.transactionReceipts.transactionHash,
       };
 
-      for (const column of columnAccessProfile.transactionReceiptInclude) {
+      for (const column of columnAccessPattern.profile
+        .transactionReceiptInclude) {
         // @ts-ignore
         transactionReceiptSelect[column] =
           PONDER_SYNC.transactionReceipts[
@@ -794,7 +795,7 @@ export const createSyncStore = ({
         transactionIndex: PONDER_SYNC.traces.transactionIndex,
       };
 
-      for (const column of columnAccessProfile.traceInclude) {
+      for (const column of columnAccessPattern.profile.traceInclude) {
         // @ts-ignore
         traceSelect[column] =
           PONDER_SYNC.traces[column as keyof typeof PONDER_SYNC.traces];

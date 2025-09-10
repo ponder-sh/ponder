@@ -29,7 +29,7 @@ import { encodeEventTopics } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 import {
   type Context,
-  createColumnAccessProfile,
+  createColumnAccessPattern,
   createIndexing,
 } from "./index.js";
 
@@ -75,7 +75,10 @@ test("createIndexing()", async (context) => {
   });
 
   const eventCount = {};
-  const columnAccessProfile = createColumnAccessProfile({ common });
+  const columnAccessPattern = createColumnAccessPattern({
+    common,
+    type: "global",
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -94,7 +97,7 @@ test("createIndexing()", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
-    columnAccessProfile,
+    columnAccessPattern,
   });
 
   expect(indexing).toBeDefined();
@@ -113,7 +116,10 @@ test("processSetupEvents() empty", async (context) => {
   });
 
   const eventCount = {};
-  const columnAccessProfile = createColumnAccessProfile({ common });
+  const columnAccessPattern = createColumnAccessPattern({
+    common,
+    type: "global",
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -132,7 +138,7 @@ test("processSetupEvents() empty", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
-    columnAccessProfile,
+    columnAccessPattern,
   });
 
   await indexing.processSetupEvents({ db: indexingStore });
@@ -155,7 +161,10 @@ test("processSetupEvents()", async (context) => {
   };
 
   const eventCount = { "Erc20:setup": 0 };
-  const columnAccessProfile = createColumnAccessProfile({ common });
+  const columnAccessPattern = createColumnAccessPattern({
+    common,
+    type: "global",
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -174,7 +183,7 @@ test("processSetupEvents()", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
-    columnAccessProfile,
+    columnAccessPattern,
   });
 
   await indexing.processSetupEvents({ db: indexingStore });
@@ -220,7 +229,10 @@ test("processEvent()", async (context) => {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
     "Pair:Swap": 0,
   };
-  const columnAccessProfile = createColumnAccessProfile({ common });
+  const columnAccessPattern = createColumnAccessPattern({
+    common,
+    type: "global",
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -239,7 +251,7 @@ test("processEvent()", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
-    columnAccessProfile,
+    columnAccessPattern,
   });
 
   const topics = encodeEventTopics({
@@ -319,7 +331,10 @@ test("processEvents eventCount", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
-  const columnAccessProfile = createColumnAccessProfile({ common });
+  const columnAccessPattern = createColumnAccessPattern({
+    common,
+    type: "global",
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -338,7 +353,7 @@ test("processEvents eventCount", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
-    columnAccessProfile,
+    columnAccessPattern,
   });
 
   const topics = encodeEventTopics({
@@ -394,7 +409,10 @@ test("executeSetup() context.client", async (context) => {
   };
 
   const eventCount = {};
-  const columnAccessProfile = createColumnAccessProfile({ common });
+  const columnAccessPattern = createColumnAccessPattern({
+    common,
+    type: "global",
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -413,7 +431,7 @@ test("executeSetup() context.client", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
-    columnAccessProfile,
+    columnAccessPattern,
   });
 
   const getBalanceSpy = vi.spyOn(rpcs[0]!, "request");
@@ -447,7 +465,10 @@ test("executeSetup() context.db", async (context) => {
     },
   };
   const eventCount = { "Erc20:setup": 0 };
-  const columnAccessProfile = createColumnAccessProfile({ common });
+  const columnAccessPattern = createColumnAccessPattern({
+    common,
+    type: "global",
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -466,7 +487,7 @@ test("executeSetup() context.db", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
-    columnAccessProfile,
+    columnAccessPattern,
   });
 
   const insertSpy = vi.spyOn(indexingStore, "insert");
@@ -495,7 +516,10 @@ test("executeSetup() metrics", async (context) => {
   });
 
   const eventCount = { "Erc20:setup": 0 };
-  const columnAccessProfile = createColumnAccessProfile({ common });
+  const columnAccessPattern = createColumnAccessPattern({
+    common,
+    type: "global",
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -516,7 +540,7 @@ test("executeSetup() metrics", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
-    columnAccessProfile,
+    columnAccessPattern,
   });
 
   await indexing.processSetupEvents({ db: indexingStore });
@@ -542,7 +566,10 @@ test("executeSetup() error", async (context) => {
   };
 
   const eventCount = { "Erc20:setup": 0 };
-  const columnAccessProfile = createColumnAccessProfile({ common });
+  const columnAccessPattern = createColumnAccessPattern({
+    common,
+    type: "global",
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -561,7 +588,7 @@ test("executeSetup() error", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
-    columnAccessProfile,
+    columnAccessPattern,
   });
 
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
@@ -594,7 +621,10 @@ test("processEvents() context.client", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
-  const columnAccessProfile = createColumnAccessProfile({ common });
+  const columnAccessPattern = createColumnAccessPattern({
+    common,
+    type: "global",
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -616,7 +646,7 @@ test("processEvents() context.client", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
-    columnAccessProfile,
+    columnAccessPattern,
   });
 
   const getBalanceSpy = vi.spyOn(rpcs[0]!, "request");
@@ -675,7 +705,10 @@ test("processEvents() context.db", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
-  const columnAccessProfile = createColumnAccessProfile({ common });
+  const columnAccessPattern = createColumnAccessPattern({
+    common,
+    type: "global",
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -697,7 +730,7 @@ test("processEvents() context.db", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
-    columnAccessProfile,
+    columnAccessPattern,
   });
 
   const insertSpy = vi.spyOn(indexingStore, "insert");
@@ -747,7 +780,10 @@ test("processEvents() metrics", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
-  const columnAccessProfile = createColumnAccessProfile({ common });
+  const columnAccessPattern = createColumnAccessPattern({
+    common,
+    type: "global",
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -769,7 +805,7 @@ test("processEvents() metrics", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
-    columnAccessProfile,
+    columnAccessPattern,
   });
 
   const topics = encodeEventTopics({
@@ -822,7 +858,10 @@ test("processEvents() error", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
-  const columnAccessProfile = createColumnAccessProfile({ common });
+  const columnAccessPattern = createColumnAccessPattern({
+    common,
+    type: "global",
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -841,7 +880,7 @@ test("processEvents() error", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
-    columnAccessProfile,
+    columnAccessPattern,
   });
 
   indexingFunctions[
@@ -904,7 +943,10 @@ test("processEvents() error with missing event object properties", async (contex
   };
 
   const eventCount = {};
-  const columnAccessProfile = createColumnAccessProfile({ common });
+  const columnAccessPattern = createColumnAccessPattern({
+    common,
+    type: "global",
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -923,7 +965,7 @@ test("processEvents() error with missing event object properties", async (contex
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
-    columnAccessProfile,
+    columnAccessPattern,
   });
 
   const topics = encodeEventTopics({
@@ -980,7 +1022,10 @@ test("processEvents() column selection", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
-  const columnAccessProfile = createColumnAccessProfile({ common });
+  const columnAccessPattern = createColumnAccessPattern({
+    common,
+    type: "global",
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -999,7 +1044,7 @@ test("processEvents() column selection", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
-    columnAccessProfile,
+    columnAccessPattern,
   });
 
   const topics = encodeEventTopics({
@@ -1025,16 +1070,22 @@ test("processEvents() column selection", async (context) => {
   let events = decodeEvents(common, sources, rawEvents);
   await indexing.processEvents({ db: indexingStore, events });
 
-  expect(columnAccessProfile.resolved).toBe(true);
-  expect(columnAccessProfile.accessed.size).toBe(2);
-  expect(columnAccessProfile.accessed.has("transaction.gas")).toBe(true);
-  expect(columnAccessProfile.accessed.has("transaction.maxFeePerGas")).toBe(
-    true,
-  );
-  expect(columnAccessProfile.transactionInclude).toContain("transaction.gas");
-  expect(columnAccessProfile.transactionInclude).toContain(
-    "transaction.maxFeePerGas",
-  );
+  if (columnAccessPattern.type === "global") {
+    expect(columnAccessPattern.profile.resolved).toBe(true);
+    expect(columnAccessPattern.profile.accessed.size).toBe(2);
+    expect(columnAccessPattern.profile.accessed.has("transaction.gas")).toBe(
+      true,
+    );
+    expect(
+      columnAccessPattern.profile.accessed.has("transaction.maxFeePerGas"),
+    ).toBe(true);
+    expect(columnAccessPattern.profile.transactionInclude).toContain(
+      "transaction.gas",
+    );
+    expect(columnAccessPattern.profile.transactionInclude).toContain(
+      "transaction.maxFeePerGas",
+    );
+  }
 
   rawEvents = [
     {
