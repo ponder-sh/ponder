@@ -1,10 +1,12 @@
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
+import { wait } from "@/utils/wait.js";
 import type { QueryWithTypings } from "drizzle-orm";
 import type { PgSession } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
+import type * as pg from "pg";
 import superjson from "superjson";
 import { validateQuery } from "./parse.js";
 
@@ -31,6 +33,16 @@ import { validateQuery } from "./parse.js";
 export const client = ({
   db,
 }: { db: ReadonlyDrizzle<Schema>; schema: Schema }) => {
+  if (
+    globalThis.PONDER_COMMON === undefined ||
+    globalThis.PONDER_DATABASE === undefined ||
+    globalThis.PONDER_NAMESPACE_BUILD === undefined
+  ) {
+    throw new Error(
+      "client() middleware cannot be initialized outside of a Ponder project",
+    );
+  }
+
   // @ts-ignore
   const session: PgSession = db._.session;
   const driver = globalThis.PONDER_DATABASE.driver;
@@ -46,25 +58,61 @@ export const client = ({
       });
     });
   } else {
-    const pool = driver.admin;
+    (async () => {
+      let client: pg.PoolClient | undefined;
 
-    const connectAndListen = async () => {
-      driver.listen = await pool.connect();
-
-      await driver.listen.query(`LISTEN "${channel}"`);
-
-      driver.listen.on("error", async () => {
-        driver.listen?.release();
-        await connectAndListen();
+      globalThis.PONDER_COMMON.shutdown.add(() => {
+        client?.release();
+        client = undefined;
       });
 
-      driver.listen.on("notification", () => {
-        statusResolver.resolve();
-        statusResolver = promiseWithResolvers();
-      });
-    };
+      while (globalThis.PONDER_COMMON.shutdown.isKilled === false) {
+        // biome-ignore lint/suspicious/noAsyncPromiseExecutor: <explanation>
+        await new Promise<void>(async (resolve) => {
+          try {
+            client = await driver.admin.connect();
 
-    connectAndListen();
+            globalThis.PONDER_COMMON.logger.info({
+              service: "client",
+              msg: "Established listen connection for client middleware",
+            });
+
+            client.on("notification", () => {
+              statusResolver.resolve();
+              statusResolver = promiseWithResolvers();
+            });
+
+            client.on("error", async (error) => {
+              globalThis.PONDER_COMMON.logger.warn({
+                service: "client",
+                msg: "Received error on listen connection, retrying after 250ms",
+                error,
+              });
+              client?.release();
+              client = undefined;
+
+              await wait(250);
+
+              resolve();
+            });
+
+            await client.query(`LISTEN "${channel}"`);
+          } catch (error) {
+            globalThis.PONDER_COMMON.logger.warn({
+              service: "client",
+              msg: "Received error on listen connection, retrying after 250ms",
+              error: error as Error,
+            });
+            client?.release();
+            client = undefined;
+
+            await wait(250);
+
+            resolve();
+          }
+        });
+      }
+    })();
   }
 
   return createMiddleware(async (c, next) => {
@@ -87,7 +135,7 @@ export const client = ({
           return c.text((error as Error).message, 500);
         }
       } else {
-        const client = await driver.admin.connect();
+        const client = await driver.readonly.connect();
 
         try {
           await validateQuery(query.sql);

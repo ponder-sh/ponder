@@ -20,6 +20,7 @@ const queryToParams = (query: QueryWithTypings) =>
   new URLSearchParams({ sql: superjson.stringify(query) });
 
 test("client.db", async (context) => {
+  globalThis.PONDER_COMMON = context.common;
   globalThis.PONDER_NAMESPACE_BUILD = {
     schema: "public",
     viewsSchema: undefined,
@@ -63,6 +64,7 @@ test("client.db", async (context) => {
 });
 
 test("client.db error", async (context) => {
+  globalThis.PONDER_COMMON = context.common;
   const { database } = await setupDatabaseServices(context);
   globalThis.PONDER_DATABASE = database;
 
@@ -90,6 +92,7 @@ test("client.db error", async (context) => {
 });
 
 test("client.db search_path", async (context) => {
+  globalThis.PONDER_COMMON = context.common;
   globalThis.PONDER_NAMESPACE_BUILD = {
     schema: "Ponder",
     viewsSchema: undefined,
@@ -127,6 +130,7 @@ test("client.db search_path", async (context) => {
 });
 
 test("client.db readonly", async (context) => {
+  globalThis.PONDER_COMMON = context.common;
   globalThis.PONDER_NAMESPACE_BUILD = {
     schema: "public",
     viewsSchema: undefined,
@@ -158,6 +162,7 @@ test("client.db readonly", async (context) => {
 });
 
 test("client.db recursive", async (context) => {
+  globalThis.PONDER_COMMON = context.common;
   globalThis.PONDER_NAMESPACE_BUILD = {
     schema: "public",
     viewsSchema: undefined,
