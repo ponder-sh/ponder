@@ -1103,26 +1103,41 @@ export const createSyncStore = ({
 
     await Promise.all(
       chainIds.map(async (chainId) => {
-        const blocksToQuery: Set<bigint> = new Set();
-        const transactionsToQuery: Set<Hash> = new Set();
-        const transactionReceiptsToQuery: Set<Hash> = new Set();
-        const tracesToQuery: Set<[bigint, number]> = new Set();
+        const blocksToQuery: bigint[] = [];
+        const transactionsToQuery: Hash[] = [];
+        const transactionReceiptsToQuery: Hash[] = [];
+        const tracesToQuery: [bigint, number][] = [];
 
         for (const event of events) {
           if (event.chainId !== chainId) continue;
 
-          blocksToQuery.add(event.event.block.number);
+          if (blocksToQuery.at(-1) !== event.event.block.number) {
+            blocksToQuery.push(event.event.block.number);
+          }
+
           if (event.type !== "block") {
-            transactionsToQuery.add(event.event.transaction.hash);
-            event.event.transactionReceipt !== undefined &&
-              transactionReceiptsToQuery.add(event.event.transaction.hash);
+            if (transactionsToQuery.at(-1) !== event.event.transaction.hash) {
+              transactionsToQuery.push(event.event.transaction.hash);
+            }
+
+            if (
+              event.event.transactionReceipt !== undefined &&
+              transactionsToQuery.at(-1) !== event.event.transaction.hash
+            ) {
+              transactionReceiptsToQuery.push(event.event.transaction.hash);
+            }
           }
 
           if (event.type === "trace") {
-            tracesToQuery.add([
-              event.event.block.number,
-              event.event.trace.traceIndex,
-            ]);
+            if (
+              tracesToQuery.at(-1)![0] !== event.event.block.number ||
+              tracesToQuery.at(-1)![1] !== event.event.trace.traceIndex
+            ) {
+              tracesToQuery.push([
+                event.event.block.number,
+                event.event.trace.traceIndex,
+              ]);
+            }
           }
         }
 
@@ -1152,7 +1167,7 @@ export const createSyncStore = ({
           .where(
             and(
               eq(PONDER_SYNC.blocks.chainId, BigInt(chainId)),
-              inArray(PONDER_SYNC.blocks.number, Array.from(blocksToQuery)),
+              inArray(PONDER_SYNC.blocks.number, blocksToQuery),
             ),
           )
           .orderBy(asc(PONDER_SYNC.blocks.number));
@@ -1181,10 +1196,7 @@ export const createSyncStore = ({
           .where(
             and(
               eq(PONDER_SYNC.transactions.chainId, BigInt(chainId)),
-              inArray(
-                PONDER_SYNC.transactions.hash,
-                Array.from(transactionsToQuery),
-              ),
+              inArray(PONDER_SYNC.transactions.hash, transactionsToQuery),
             ),
           )
           .orderBy(
@@ -1214,7 +1226,7 @@ export const createSyncStore = ({
               eq(PONDER_SYNC.transactionReceipts.chainId, BigInt(chainId)),
               inArray(
                 PONDER_SYNC.transactionReceipts.transactionHash,
-                Array.from(transactionReceiptsToQuery),
+                transactionReceiptsToQuery,
               ),
             ),
           )
@@ -1245,7 +1257,7 @@ export const createSyncStore = ({
             and(
               eq(PONDER_SYNC.traces.chainId, BigInt(chainId)),
               or(
-                ...Array.from(tracesToQuery).map(([blockNumber, traceIndex]) =>
+                ...tracesToQuery.map(([blockNumber, traceIndex]) =>
                   and(
                     eq(PONDER_SYNC.traces.blockNumber, blockNumber),
                     eq(PONDER_SYNC.traces.traceIndex, traceIndex),
