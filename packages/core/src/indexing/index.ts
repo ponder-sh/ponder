@@ -514,7 +514,11 @@ const proxyHandler = ({
         profile.accessed.add(key);
 
         // @ts-ignore
-        if (prop in obj === false && defaultInclude.has(key)) {
+        if (
+          profile.resolved &&
+          prop in obj === false &&
+          defaultInclude.has(key)
+        ) {
           profile.resolved = false;
           throw new InvalidEventAccessError(key);
         }

@@ -1079,11 +1079,9 @@ test("processEvents() column selection", async (context) => {
     expect(
       columnAccessPattern.profile.accessed.has("transaction.maxFeePerGas"),
     ).toBe(true);
+    expect(columnAccessPattern.profile.transactionInclude).toContain("gas");
     expect(columnAccessPattern.profile.transactionInclude).toContain(
-      "transaction.gas",
-    );
-    expect(columnAccessPattern.profile.transactionInclude).toContain(
-      "transaction.maxFeePerGas",
+      "maxFeePerGas",
     );
   }
 
