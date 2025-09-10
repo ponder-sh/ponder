@@ -425,9 +425,31 @@ export type PartialWithSelectedRequired<T, K extends keyof T> = {
   [P in keyof Omit<T, K>]?: T[P];
 };
 
+export type RequiredBlockColumns =
+  | "timestamp"
+  | "number"
+  | "hash"
+  | "logsBloom"
+  | "parentHash";
+export type RequiredTransactionColumns =
+  | "transactionIndex"
+  | "from"
+  | "to"
+  | "hash"
+  | "type";
+export type RequiredTransactionReceiptColumns = "status" | "from" | "to";
+export type RequiredTraceColumns =
+  | "from"
+  | "to"
+  | "input"
+  | "value"
+  | "type"
+  | "error"
+  | "traceIndex";
+
 export type InternalBlock = PartialWithSelectedRequired<
   Block,
-  "timestamp" | "number" | "hash" | "logsBloom" | "parentHash"
+  RequiredBlockColumns
 >;
 export type InternalLog = Log & {
   blockNumber: number;
@@ -435,20 +457,20 @@ export type InternalLog = Log & {
 };
 export type InternalTransaction = PartialWithSelectedRequired<
   Transaction,
-  "transactionIndex" | "from" | "to" | "hash" | "type"
+  RequiredTransactionColumns
 > & {
   blockNumber: number;
 };
 export type InternalTransactionReceipt = PartialWithSelectedRequired<
   TransactionReceipt,
-  "status" | "from" | "to"
+  RequiredTransactionReceiptColumns
 > & {
   blockNumber: number;
   transactionIndex: number;
 };
 export type InternalTrace = PartialWithSelectedRequired<
   Trace,
-  "from" | "to" | "input" | "value" | "type" | "error" | "traceIndex"
+  RequiredTraceColumns
 > & {
   blockNumber: number;
   transactionIndex: number;

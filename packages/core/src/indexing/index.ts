@@ -513,10 +513,10 @@ const proxyHandler = ({
         const key = `${type}.${prop}`;
         profile.accessed.add(key);
 
-        // @ts-ignore
         if (
           profile.resolved &&
           prop in obj === false &&
+          // @ts-ignore
           defaultInclude.has(key)
         ) {
           profile.resolved = false;

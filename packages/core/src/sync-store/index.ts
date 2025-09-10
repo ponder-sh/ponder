@@ -17,6 +17,10 @@ import type {
   InternalTransactionReceipt,
   LightBlock,
   LogFilter,
+  RequiredBlockColumns,
+  RequiredTraceColumns,
+  RequiredTransactionColumns,
+  RequiredTransactionReceiptColumns,
   SyncBlock,
   SyncBlockHeader,
   SyncLog,
@@ -69,14 +73,7 @@ import {
 import * as PONDER_SYNC from "./schema.js";
 
 type BlockColumnKeys = keyof typeof PONDER_SYNC.blocks.$inferSelect;
-type BlockSelect<
-  Required extends BlockColumnKeys =
-    | "timestamp"
-    | "number"
-    | "hash"
-    | "logsBloom"
-    | "parentHash",
-> = {
+type BlockSelect<Required extends BlockColumnKeys = RequiredBlockColumns> = {
   [P in Required]: (typeof PONDER_SYNC.blocks)[P];
 } & {
   [P in Exclude<BlockColumnKeys, Required>]?: (typeof PONDER_SYNC.blocks)[P];
@@ -85,11 +82,7 @@ type BlockSelect<
 type TransactionColumnKeys = keyof typeof PONDER_SYNC.transactions.$inferSelect;
 type TransactionSelect<
   Required extends TransactionColumnKeys =
-    | "transactionIndex"
-    | "from"
-    | "to"
-    | "hash"
-    | "type"
+    | RequiredTransactionColumns
     | "blockNumber",
 > = {
   [P in Required]: (typeof PONDER_SYNC.transactions)[P];
@@ -104,9 +97,7 @@ type TransactionReceiptColumnKeys =
   keyof typeof PONDER_SYNC.transactionReceipts.$inferSelect;
 type TransactionReceiptSelect<
   Required extends TransactionReceiptColumnKeys =
-    | "status"
-    | "from"
-    | "to"
+    | RequiredTransactionReceiptColumns
     | "blockNumber"
     | "transactionIndex",
 > = {
@@ -121,15 +112,9 @@ type TransactionReceiptSelect<
 type TraceColumnKeys = keyof typeof PONDER_SYNC.traces.$inferSelect;
 type TraceSelect<
   Required extends TraceColumnKeys =
-    | "transactionIndex"
+    | RequiredTraceColumns
     | "blockNumber"
-    | "from"
-    | "to"
-    | "input"
-    | "value"
-    | "type"
-    | "error"
-    | "traceIndex",
+    | "transactionIndex",
 > = {
   [P in Required]: (typeof PONDER_SYNC.traces)[P];
 } & {
