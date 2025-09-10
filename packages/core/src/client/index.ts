@@ -33,6 +33,16 @@ import { validateQuery } from "./parse.js";
 export const client = ({
   db,
 }: { db: ReadonlyDrizzle<Schema>; schema: Schema }) => {
+  if (
+    globalThis.PONDER_COMMON === undefined ||
+    globalThis.PONDER_DATABASE === undefined ||
+    globalThis.PONDER_NAMESPACE_BUILD === undefined
+  ) {
+    throw new Error(
+      "client() middleware cannot be initialized outside of a Ponder project",
+    );
+  }
+
   // @ts-ignore
   const session: PgSession = db._.session;
   const driver = globalThis.PONDER_DATABASE.driver;
@@ -49,47 +59,52 @@ export const client = ({
     });
   } else {
     (async () => {
-      let listen: pg.PoolClient | undefined;
+      let client: pg.PoolClient | undefined;
 
       globalThis.PONDER_COMMON.shutdown.add(() => {
-        listen?.release();
-        listen = undefined;
+        client?.release();
+        client = undefined;
       });
 
       while (globalThis.PONDER_COMMON.shutdown.isKilled === false) {
         // biome-ignore lint/suspicious/noAsyncPromiseExecutor: <explanation>
         await new Promise<void>(async (resolve) => {
           try {
-            listen = await driver.admin.connect();
+            client = await driver.admin.connect();
 
-            listen.on("notification", () => {
+            globalThis.PONDER_COMMON.logger.info({
+              service: "client",
+              msg: "Established listen connection for client middleware",
+            });
+
+            client.on("notification", () => {
               statusResolver.resolve();
               statusResolver = promiseWithResolvers();
             });
 
-            listen.on("error", async (error) => {
+            client.on("error", async (error) => {
               globalThis.PONDER_COMMON.logger.warn({
                 service: "client",
                 msg: "Received error on listen connection, retrying after 250ms",
                 error,
               });
-              listen?.release();
-              listen = undefined;
+              client?.release();
+              client = undefined;
 
               await wait(250);
 
               resolve();
             });
 
-            await listen.query(`LISTEN "${channel}"`);
+            await client.query(`LISTEN "${channel}"`);
           } catch (error) {
             globalThis.PONDER_COMMON.logger.warn({
               service: "client",
               msg: "Received error on listen connection, retrying after 250ms",
               error: error as Error,
             });
-            listen?.release();
-            listen = undefined;
+            client?.release();
+            client = undefined;
 
             await wait(250);
 
