@@ -2,7 +2,7 @@
 
 Sometimes, indexing function _triggers_ (event logs, traces, etc.) do not contain all of the onchain data you need to build your application. It's often useful to call read-only contract functions, fetch transaction receipts, or simulate contract interactions.
 
-Ponder natively supports this pattern through a custom [Viem Client](https://viem.sh/docs/clients/intro.html) that includes performance & usability improvements specific to indexing.
+Ponder natively supports this pattern through a custom [Viem Client](https://viem.sh/docs/clients/intro) that includes performance & usability improvements specific to indexing.
 
 ## Basic example
 
@@ -62,7 +62,7 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
 
 ## Client
 
-The `context.client` object is a custom [Viem Client](https://viem.sh/docs/clients/intro.html) that caches RPC responses.
+The `context.client` object is a custom [Viem Client](https://viem.sh/docs/clients/intro) that caches RPC responses.
 
 ```ts [src/index.ts]
 import { ponder } from "ponder:registry";
@@ -108,12 +108,12 @@ The `context.client` object supports most Viem actions.
 
 | name                        | description                                                                                         | Viem docs                                                                                      |
 | :-------------------------- | :-------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------- |
-| readContract                | Returns the result of a read-only function on a contract.                                           | [readContract](https://viem.sh/docs/contract/readContract.html)                                |
-| multicall                   | Similar to readContract, but batches requests.                                                      | [multicall](https://viem.sh/docs/contract/multicall.html)                                      |
+| readContract                | Returns the result of a read-only function on a contract.                                           | [readContract](https://viem.sh/docs/contract/readContract)                                     |
+| multicall                   | Similar to readContract, but batches requests.                                                      | [multicall](https://viem.sh/docs/contract/multicall)                                           |
 | simulateContract            | Simulates & validates a contract interaction.                                                       | [simulateContract](https://viem.sh/docs/contract/simulateContract)                             |
-| getBalance                  | Returns the balance of an address in wei.                                                           | [getBalance](https://viem.sh/docs/actions/public/getBalance.html)                              |
+| getBalance                  | Returns the balance of an address in wei.                                                           | [getBalance](https://viem.sh/docs/actions/public/getBalance)                                   |
 | getBytecode                 | Returns the bytecode at an address.                                                                 | [getBytecode](https://viem.sh/docs/contract/getBytecode.html)                                  |
-| getStorageAt                | Returns the value from a storage slot at a given address.                                           | [getStorageAt](https://viem.sh/docs/contract/getStorageAt.html)                                |
+| getStorageAt                | Returns the value from a storage slot at a given address.                                           | [getStorageAt](https://viem.sh/docs/contract/getStorageAt)                                     |
 | getBlock                    | Returns information about a block at a block number, hash or tag.                                   | [getBlock](https://viem.sh/docs/actions/public/getBlock)                                       |
 | getTransactionCount         | Returns the number of transactions an account has broadcast / sent.                                 | [getTransactionCount](https://viem.sh/docs/actions/public/getTransactionCount)                 |
 | getBlockTransactionCount    | Returns the number of Transactions at a block number, hash or tag.                                  | [getBlockTransactionCount](https://viem.sh/docs/actions/public/getBlockTransactionCount)       |
