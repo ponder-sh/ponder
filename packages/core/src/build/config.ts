@@ -7,7 +7,6 @@ import type {
   Chain,
   ContractSource,
   IndexingFunctions,
-  InternalTransactionReceipt,
   LightBlock,
   RawIndexingFunctions,
   Source,
@@ -586,8 +585,7 @@ export async function buildConfigAndIndexingFunctions({
                     include: defaultLogFilterInclude.concat(
                       source.includeTransactionReceipts
                         ? defaultTransactionReceiptInclude.map(
-                            (value) =>
-                              `transactionReceipt.${value}` as `transactionReceipt.${keyof InternalTransactionReceipt}`,
+                            (value) => `transactionReceipt.${value}` as const,
                           )
                         : [],
                     ),
@@ -613,8 +611,7 @@ export async function buildConfigAndIndexingFunctions({
                     include: defaultTraceFilterInclude.concat(
                       source.includeTransactionReceipts
                         ? defaultTransactionReceiptInclude.map(
-                            (value) =>
-                              `transactionReceipt.${value}` as `transactionReceipt.${keyof InternalTransactionReceipt}`,
+                            (value) => `transactionReceipt.${value}` as const,
                           )
                         : [],
                     ),
@@ -665,8 +662,7 @@ export async function buildConfigAndIndexingFunctions({
                   include: defaultLogFilterInclude.concat(
                     source.includeTransactionReceipts
                       ? defaultTransactionReceiptInclude.map(
-                          (value) =>
-                            `transactionReceipt.${value}` as `transactionReceipt.${keyof InternalTransactionReceipt}`,
+                          (value) => `transactionReceipt.${value}` as const,
                         )
                       : [],
                   ),
@@ -696,8 +692,7 @@ export async function buildConfigAndIndexingFunctions({
                   include: defaultTraceFilterInclude.concat(
                     source.includeTransactionReceipts
                       ? defaultTransactionReceiptInclude.map(
-                          (value) =>
-                            `transactionReceipt.${value}` as `transactionReceipt.${keyof InternalTransactionReceipt}`,
+                          (value) => `transactionReceipt.${value}` as const,
                         )
                       : [],
                   ),
@@ -811,8 +806,7 @@ export async function buildConfigAndIndexingFunctions({
                   include: defaultTransferFilterInclude.concat(
                     source.includeTransactionReceipts
                       ? defaultTransactionReceiptInclude.map(
-                          (value) =>
-                            `transactionReceipt.${value}` as `transactionReceipt.${keyof InternalTransactionReceipt}`,
+                          (value) => `transactionReceipt.${value}` as const,
                         )
                       : [],
                   ),
@@ -833,8 +827,7 @@ export async function buildConfigAndIndexingFunctions({
                   include: defaultTransferFilterInclude.concat(
                     source.includeTransactionReceipts
                       ? defaultTransactionReceiptInclude.map(
-                          (value) =>
-                            `transactionReceipt.${value}` as `transactionReceipt.${keyof InternalTransactionReceipt}`,
+                          (value) => `transactionReceipt.${value}` as const,
                         )
                       : [],
                   ),
@@ -911,8 +904,7 @@ export async function buildConfigAndIndexingFunctions({
                 include: defaultTransferFilterInclude.concat(
                   source.includeTransactionReceipts
                     ? defaultTransactionReceiptInclude.map(
-                        (value) =>
-                          `transactionReceipt.${value}` as `transactionReceipt.${keyof InternalTransactionReceipt}`,
+                        (value) => `transactionReceipt.${value}` as const,
                       )
                     : [],
                 ),
@@ -933,8 +925,7 @@ export async function buildConfigAndIndexingFunctions({
                 include: defaultTransferFilterInclude.concat(
                   source.includeTransactionReceipts
                     ? defaultTransactionReceiptInclude.map(
-                        (value) =>
-                          `transactionReceipt.${value}` as `transactionReceipt.${keyof InternalTransactionReceipt}`,
+                        (value) => `transactionReceipt.${value}` as const,
                       )
                     : [],
                 ),

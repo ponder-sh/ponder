@@ -6,7 +6,6 @@ import type {
   InternalLog,
   InternalTrace,
   InternalTransaction,
-  InternalTransactionReceipt,
   LogFactory,
   LogFilter,
   SyncBlock,
@@ -18,6 +17,13 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import type {
+  Block,
+  Log,
+  Trace,
+  Transaction,
+  TransactionReceipt,
+} from "@/types/eth.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { type Address, hexToNumber } from "viem";
 
@@ -338,61 +344,7 @@ export const isBlockFilterMatched = ({
   return (Number(block.number) - filter.offset) % filter.interval === 0;
 };
 
-export const defaultTransactionInclude: (keyof InternalTransaction)[] = [
-  "from",
-  "gas",
-  "hash",
-  "input",
-  "nonce",
-  "r",
-  "s",
-  "to",
-  "transactionIndex",
-  "v",
-  "value",
-  "type",
-  "gasPrice",
-  "accessList",
-  "maxFeePerGas",
-  "maxPriorityFeePerGas",
-];
-
-export const defaultTransactionReceiptInclude: (keyof InternalTransactionReceipt)[] =
-  [
-    "contractAddress",
-    "cumulativeGasUsed",
-    "effectiveGasPrice",
-    "from",
-    "gasUsed",
-    "logsBloom",
-    "status",
-    "to",
-    "type",
-  ];
-
-export const defaultTraceInclude: (keyof InternalTrace)[] = [
-  "traceIndex",
-  "type",
-  "from",
-  "to",
-  "gas",
-  "gasUsed",
-  "input",
-  "output",
-  "error",
-  "revertReason",
-  "value",
-];
-
-export const defaultLogInclude: (keyof InternalLog)[] = [
-  "address",
-  "data",
-  "logIndex",
-  "removed",
-  "topics",
-];
-
-export const defaultBlockInclude: (keyof InternalBlock)[] = [
+export const defaultBlockInclude: (keyof Block)[] = [
   "baseFeePerGas",
   "difficulty",
   "extraData",
@@ -413,100 +365,102 @@ export const defaultBlockInclude: (keyof InternalBlock)[] = [
   "transactionsRoot",
 ];
 
+export const defaultTransactionInclude: (keyof Transaction)[] = [
+  "from",
+  "gas",
+  "hash",
+  "input",
+  "nonce",
+  "r",
+  "s",
+  "to",
+  "transactionIndex",
+  "v",
+  "value",
+  "type",
+  "gasPrice",
+  "accessList",
+  "maxFeePerGas",
+  "maxPriorityFeePerGas",
+];
+
+export const defaultTransactionReceiptInclude: (keyof TransactionReceipt)[] = [
+  "contractAddress",
+  "cumulativeGasUsed",
+  "effectiveGasPrice",
+  "from",
+  "gasUsed",
+  "logsBloom",
+  "status",
+  "to",
+  "type",
+];
+
+export const defaultTraceInclude: (keyof Trace)[] = [
+  "traceIndex",
+  "type",
+  "from",
+  "to",
+  "gas",
+  "gasUsed",
+  "input",
+  "output",
+  "error",
+  "revertReason",
+  "value",
+];
+
+export const defaultLogInclude: (keyof Log)[] = [
+  "address",
+  "data",
+  "logIndex",
+  "removed",
+  "topics",
+];
+
 export const defaultInclude: Set<
-  | `block.${keyof InternalBlock}`
-  | `log.${keyof InternalLog}`
-  | `transaction.${keyof InternalTransaction}`
-  | `transactionReceipt.${keyof InternalTransactionReceipt}`
-  | `trace.${keyof InternalTrace}`
+  | `block.${keyof Block}`
+  | `log.${keyof Log}`
+  | `transaction.${keyof Transaction}`
+  | `transactionReceipt.${keyof TransactionReceipt}`
+  | `trace.${keyof Trace}`
 > = new Set([
-  ...defaultBlockInclude.map(
-    (value) => `block.${value}` as `block.${keyof InternalBlock}`,
-  ),
-  ...defaultLogInclude.map(
-    (value) => `log.${value}` as `log.${keyof InternalLog}`,
-  ),
-  ...defaultTransactionInclude.map(
-    (value) =>
-      `transaction.${value}` as `transaction.${keyof InternalTransaction}`,
-  ),
+  ...defaultBlockInclude.map((value) => `block.${value}` as const),
+  ...defaultLogInclude.map((value) => `log.${value}` as const),
+  ...defaultTransactionInclude.map((value) => `transaction.${value}` as const),
   ...defaultTransactionReceiptInclude.map(
-    (value) =>
-      `transactionReceipt.${value}` as `transactionReceipt.${keyof InternalTransactionReceipt}`,
+    (value) => `transactionReceipt.${value}` as const,
   ),
-  ...defaultTraceInclude.map(
-    (value) => `trace.${value}` as `trace.${keyof InternalTrace}`,
-  ),
+  ...defaultTraceInclude.map((value) => `trace.${value}` as const),
 ]);
 
-export const defaultBlockFilterInclude: Exclude<
-  BlockFilter["include"],
-  undefined
-> = defaultBlockInclude.map(
-  (value) => `block.${value}` as `block.${keyof InternalBlock}`,
-);
+export const defaultBlockFilterInclude: BlockFilter["include"] =
+  defaultBlockInclude.map((value) => `block.${value}` as const);
 
-export const defaultLogFilterInclude: Exclude<LogFilter["include"], undefined> =
-  [
-    ...defaultLogInclude.map(
-      (value) => `log.${value}` as `log.${keyof InternalLog}`,
-    ),
-    ...defaultTransactionInclude.map(
-      (value) =>
-        `transaction.${value}` as `transaction.${keyof InternalTransaction}`,
-    ),
-    ...defaultBlockFilterInclude.map(
-      (value) => `block.${value}` as `block.${keyof InternalBlock}`,
-    ),
-  ];
+export const defaultLogFilterInclude: LogFilter["include"] = [
+  ...defaultLogInclude.map((value) => `log.${value}` as const),
+  ...defaultTransactionInclude.map((value) => `transaction.${value}` as const),
+  ...defaultBlockInclude.map((value) => `block.${value}` as const),
+];
 
-export const defaultTransactionFilterInclude: Exclude<
-  TransactionFilter["include"],
-  undefined
-> = [
-  ...defaultTransactionInclude.map(
-    (value) =>
-      `transaction.${value}` as `transaction.${keyof InternalTransaction}`,
-  ),
+export const defaultTransactionFilterInclude: TransactionFilter["include"] = [
+  ...defaultTransactionInclude.map((value) => `transaction.${value}` as const),
   ...defaultTransactionReceiptInclude.map(
-    (value) =>
-      `transactionReceipt.${value}` as `transactionReceipt.${keyof InternalTransactionReceipt}`,
+    (value) => `transactionReceipt.${value}` as const,
   ),
-  ...defaultBlockFilterInclude.map(
-    (value) => `block.${value}` as `block.${keyof InternalBlock}`,
-  ),
+  ...defaultBlockInclude.map((value) => `block.${value}` as const),
 ];
 
-export const defaultTraceFilterInclude: Exclude<
-  TraceFilter["include"],
-  undefined
-> = [
-  ...defaultBlockFilterInclude.map(
-    (value) => `block.${value}` as `block.${keyof InternalBlock}`,
-  ),
-  ...defaultTransactionInclude.map(
-    (value) =>
-      `transaction.${value}` as `transaction.${keyof InternalTransaction}`,
-  ),
-  ...defaultTraceInclude.map(
-    (value) => `trace.${value}` as `trace.${keyof InternalTrace}`,
-  ),
+export const defaultTraceFilterInclude: TraceFilter["include"] = [
+  ...defaultBlockInclude.map((value) => `block.${value}` as const),
+  ...defaultTransactionInclude.map((value) => `transaction.${value}` as const),
+  ...defaultTraceInclude.map((value) => `trace.${value}` as const),
 ];
 
-export const defaultTransferFilterInclude: Exclude<
-  TransferFilter["include"],
-  undefined
-> = [
-  ...defaultBlockFilterInclude.map(
-    (value) => `block.${value}` as `block.${keyof InternalBlock}`,
-  ),
-  ...defaultTransactionInclude.map(
-    (value) =>
-      `transaction.${value}` as `transaction.${keyof InternalTransaction}`,
-  ),
-  ...defaultTraceInclude.map(
-    (value) => `trace.${value}` as `trace.${keyof InternalTrace}`,
-  ),
+export const defaultTransferFilterInclude: TransferFilter["include"] = [
+  ...defaultBlockInclude.map((value) => `block.${value}` as const),
+  ...defaultTransactionInclude.map((value) => `transaction.${value}` as const),
+  ...defaultTraceInclude.map((value) => `trace.${value}` as const),
 ];
 
 export const shouldGetTransactionReceipt = (
@@ -516,9 +470,6 @@ export const shouldGetTransactionReceipt = (
   if (filter.type === "transaction") return true;
 
   if (filter.type === "block") return false;
-
-  // TODO(kyle) should include be a required property?
-  if (filter.include === undefined) return true;
 
   if (filter.include.some((prop) => prop.startsWith("transactionReceipt."))) {
     return true;

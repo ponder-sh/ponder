@@ -86,14 +86,12 @@ export type LogFilter<
   topic3: LogTopic;
   fromBlock: number | undefined;
   toBlock: number | undefined;
-  include:
-    | (
-        | `block.${keyof InternalBlock}`
-        | `transaction.${keyof InternalTransaction}`
-        | `transactionReceipt.${keyof InternalTransactionReceipt}`
-        | `log.${keyof InternalLog}`
-      )[]
-    | undefined;
+  include: (
+    | `block.${keyof Block}`
+    | `transaction.${keyof Transaction}`
+    | `transactionReceipt.${keyof TransactionReceipt}`
+    | `log.${keyof Log}`
+  )[];
 };
 
 export type BlockFilter = {
@@ -103,7 +101,7 @@ export type BlockFilter = {
   offset: number;
   fromBlock: number | undefined;
   toBlock: number | undefined;
-  include: `block.${keyof InternalBlock}`[] | undefined;
+  include: `block.${keyof InternalBlock}`[];
 };
 
 export type TransferFilter<
@@ -117,14 +115,12 @@ export type TransferFilter<
   includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
-  include:
-    | (
-        | `block.${keyof InternalBlock}`
-        | `transaction.${keyof InternalTransaction}`
-        | `transactionReceipt.${keyof InternalTransactionReceipt}`
-        | `trace.${keyof InternalTrace}`
-      )[]
-    | undefined;
+  include: (
+    | `block.${keyof InternalBlock}`
+    | `transaction.${keyof InternalTransaction}`
+    | `transactionReceipt.${keyof TransactionReceipt}`
+    | `trace.${keyof InternalTrace}`
+  )[];
 };
 
 export type TransactionFilter<
@@ -138,13 +134,11 @@ export type TransactionFilter<
   includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
-  include:
-    | (
-        | `block.${keyof InternalBlock}`
-        | `transaction.${keyof InternalTransaction}`
-        | `transactionReceipt.${keyof InternalTransactionReceipt}`
-      )[]
-    | undefined;
+  include: (
+    | `block.${keyof Block}`
+    | `transaction.${keyof InternalTransaction}`
+    | `transactionReceipt.${keyof InternalTransactionReceipt}`
+  )[];
 };
 
 export type TraceFilter<
@@ -160,14 +154,12 @@ export type TraceFilter<
   includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
-  include:
-    | (
-        | `block.${keyof InternalBlock}`
-        | `transaction.${keyof InternalTransaction}`
-        | `transactionReceipt.${keyof InternalTransactionReceipt}`
-        | `trace.${keyof InternalTrace}`
-      )[]
-    | undefined;
+  include: (
+    | `block.${keyof Block}`
+    | `transaction.${keyof Transaction}`
+    | `transactionReceipt.${keyof TransactionReceipt}`
+    | `trace.${keyof InternalTrace}`
+  )[];
 };
 
 export type FactoryId = string;

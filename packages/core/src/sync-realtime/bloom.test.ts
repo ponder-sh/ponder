@@ -43,7 +43,7 @@ test("isFilterInBloom returns false for out of range blocks", () => {
     topic3: null,
     fromBlock: 10,
     toBlock: 20,
-    include: undefined,
+    include: [],
   } satisfies LogFilter;
 
   expect(isFilterInBloom({ block, filter })).toBe(false);
@@ -67,7 +67,7 @@ test("isFilterInBloom returns false for missing topics", () => {
     topic3: null,
     fromBlock: undefined,
     toBlock: undefined,
-    include: undefined,
+    include: [],
   } satisfies LogFilter;
 
   expect(isFilterInBloom({ block, filter })).toBe(false);
@@ -90,7 +90,7 @@ test("isFilterInBloom returns true for undefined address", () => {
     topic3: null,
     fromBlock: undefined,
     toBlock: undefined,
-    include: undefined,
+    include: [],
   } satisfies LogFilter;
 
   expect(isFilterInBloom({ block, filter })).toBe(true);
@@ -123,7 +123,7 @@ test("isFilterInBloom returns true for factory with new child address", () => {
     topic3: null,
     fromBlock: undefined,
     toBlock: undefined,
-    include: undefined,
+    include: [],
   } satisfies LogFilter;
 
   expect(isFilterInBloom({ block, filter })).toBe(true);
@@ -157,7 +157,7 @@ test("isFilterInBloom returns true for factory without new child address", () =>
     topic3: null,
     fromBlock: undefined,
     toBlock: undefined,
-    include: undefined,
+    include: [],
   } satisfies LogFilter;
 
   expect(isFilterInBloom({ block, filter })).toBe(true);
@@ -180,7 +180,7 @@ test("isFilterInBloom returns true for array of addresses", () => {
     topic3: null,
     fromBlock: undefined,
     toBlock: undefined,
-    include: undefined,
+    include: [],
   } satisfies LogFilter;
 
   expect(isFilterInBloom({ block, filter })).toBe(true);
