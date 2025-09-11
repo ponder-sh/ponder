@@ -74,26 +74,6 @@ export type FilterAddress<
   factory extends Factory | undefined = Factory | undefined,
 > = factory extends Factory ? factory : Address | Address[] | undefined;
 
-export type LogFilter<
-  factory extends Factory | undefined = Factory | undefined,
-> = {
-  type: "log";
-  chainId: number;
-  address: FilterAddress<factory>;
-  topic0: LogTopic;
-  topic1: LogTopic;
-  topic2: LogTopic;
-  topic3: LogTopic;
-  fromBlock: number | undefined;
-  toBlock: number | undefined;
-  include: (
-    | `block.${keyof Block}`
-    | `transaction.${keyof Transaction}`
-    | `transactionReceipt.${keyof TransactionReceipt}`
-    | `log.${keyof Log}`
-  )[];
-};
-
 export type BlockFilter = {
   type: "block";
   chainId: number;
@@ -101,26 +81,7 @@ export type BlockFilter = {
   offset: number;
   fromBlock: number | undefined;
   toBlock: number | undefined;
-  include: `block.${keyof InternalBlock}`[];
-};
-
-export type TransferFilter<
-  fromFactory extends Factory | undefined = Factory | undefined,
-  toFactory extends Factory | undefined = Factory | undefined,
-> = {
-  type: "transfer";
-  chainId: number;
-  fromAddress: FilterAddress<fromFactory>;
-  toAddress: FilterAddress<toFactory>;
-  includeReverted: boolean;
-  fromBlock: number | undefined;
-  toBlock: number | undefined;
-  include: (
-    | `block.${keyof InternalBlock}`
-    | `transaction.${keyof InternalTransaction}`
-    | `transactionReceipt.${keyof TransactionReceipt}`
-    | `trace.${keyof InternalTrace}`
-  )[];
+  include: `block.${keyof Block}`[];
 };
 
 export type TransactionFilter<
@@ -136,8 +97,8 @@ export type TransactionFilter<
   toBlock: number | undefined;
   include: (
     | `block.${keyof Block}`
-    | `transaction.${keyof InternalTransaction}`
-    | `transactionReceipt.${keyof InternalTransactionReceipt}`
+    | `transaction.${keyof Transaction}`
+    | `transactionReceipt.${keyof TransactionReceipt}`
   )[];
 };
 
@@ -158,7 +119,46 @@ export type TraceFilter<
     | `block.${keyof Block}`
     | `transaction.${keyof Transaction}`
     | `transactionReceipt.${keyof TransactionReceipt}`
-    | `trace.${keyof InternalTrace}`
+    | `trace.${keyof Trace}`
+  )[];
+};
+
+export type LogFilter<
+  factory extends Factory | undefined = Factory | undefined,
+> = {
+  type: "log";
+  chainId: number;
+  address: FilterAddress<factory>;
+  topic0: LogTopic;
+  topic1: LogTopic;
+  topic2: LogTopic;
+  topic3: LogTopic;
+  fromBlock: number | undefined;
+  toBlock: number | undefined;
+  include: (
+    | `block.${keyof Block}`
+    | `transaction.${keyof Transaction}`
+    | `transactionReceipt.${keyof TransactionReceipt}`
+    | `log.${keyof Log}`
+  )[];
+};
+
+export type TransferFilter<
+  fromFactory extends Factory | undefined = Factory | undefined,
+  toFactory extends Factory | undefined = Factory | undefined,
+> = {
+  type: "transfer";
+  chainId: number;
+  fromAddress: FilterAddress<fromFactory>;
+  toAddress: FilterAddress<toFactory>;
+  includeReverted: boolean;
+  fromBlock: number | undefined;
+  toBlock: number | undefined;
+  include: (
+    | `block.${keyof Block}`
+    | `transaction.${keyof Transaction}`
+    | `transactionReceipt.${keyof TransactionReceipt}`
+    | `trace.${keyof Trace}`
   )[];
 };
 

@@ -463,6 +463,65 @@ export const defaultTransferFilterInclude: TransferFilter["include"] = [
   ...defaultTraceInclude.map((value) => `trace.${value}` as const),
 ];
 
+export const unionFilterIncludeBlock = (filters: Filter[]): (keyof Block)[] => {
+  const includeBlock = new Set<keyof Block>();
+  for (const filter of filters) {
+    for (const include of filter.include) {
+      const [data, column] = include.split(".") as [string, keyof Block];
+      if (data === "block") {
+        includeBlock.add(column);
+      }
+    }
+  }
+  return Array.from(includeBlock);
+};
+
+export const unionFilterIncludeTransaction = (
+  filters: Filter[],
+): (keyof Transaction)[] => {
+  const includeTransaction = new Set<keyof Transaction>();
+  for (const filter of filters) {
+    for (const include of filter.include) {
+      const [data, column] = include.split(".") as [string, keyof Transaction];
+      if (data === "transaction") {
+        includeTransaction.add(column);
+      }
+    }
+  }
+  return Array.from(includeTransaction);
+};
+
+export const unionFilterIncludeTransactionReceipt = (
+  filters: Filter[],
+): (keyof TransactionReceipt)[] => {
+  const includeTransactionReceipt = new Set<keyof TransactionReceipt>();
+  for (const filter of filters) {
+    for (const include of filter.include) {
+      const [data, column] = include.split(".") as [
+        string,
+        keyof TransactionReceipt,
+      ];
+      if (data === "transactionReceipt") {
+        includeTransactionReceipt.add(column);
+      }
+    }
+  }
+  return Array.from(includeTransactionReceipt);
+};
+
+export const unionFilterIncludeTrace = (filters: Filter[]): (keyof Trace)[] => {
+  const includeTrace = new Set<keyof Trace>();
+  for (const filter of filters) {
+    for (const include of filter.include) {
+      const [data, column] = include.split(".") as [string, keyof Trace];
+      if (data === "trace") {
+        includeTrace.add(column);
+      }
+    }
+  }
+  return Array.from(includeTrace);
+};
+
 export const shouldGetTransactionReceipt = (
   filter: Pick<Filter, "include" | "type">,
 ): boolean => {
