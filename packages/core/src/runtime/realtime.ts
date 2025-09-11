@@ -143,26 +143,24 @@ export async function* getRealtimeEventsOmnichain(params: {
         const events = buildEvents({
           sources,
           chainId: chain.id,
-          blockData: {
-            block: syncBlockToInternal({ block: event.block }),
-            logs: event.logs.map((log) => syncLogToInternal({ log })),
-            transactions: event.transactions.map((transaction) =>
-              syncTransactionToInternal({ transaction }),
-            ),
-            transactionReceipts: event.transactionReceipts.map(
-              (transactionReceipt) =>
-                syncTransactionReceiptToInternal({ transactionReceipt }),
-            ),
-            traces: event.traces.map((trace) =>
-              syncTraceToInternal({
-                trace,
-                block: event.block,
-                transaction: event.transactions.find(
-                  (t) => t.hash === trace.transactionHash,
-                )!,
-              }),
-            ),
-          },
+          blocks: [syncBlockToInternal({ block: event.block })],
+          logs: event.logs.map((log) => syncLogToInternal({ log })),
+          transactions: event.transactions.map((transaction) =>
+            syncTransactionToInternal({ transaction }),
+          ),
+          transactionReceipts: event.transactionReceipts.map(
+            (transactionReceipt) =>
+              syncTransactionReceiptToInternal({ transactionReceipt }),
+          ),
+          traces: event.traces.map((trace) =>
+            syncTraceToInternal({
+              trace,
+              block: event.block,
+              transaction: event.transactions.find(
+                (t) => t.hash === trace.transactionHash,
+              )!,
+            }),
+          ),
           childAddresses,
         });
 
@@ -397,26 +395,24 @@ export async function* getRealtimeEventsMultichain(params: {
         const events = buildEvents({
           sources,
           chainId: chain.id,
-          blockData: {
-            block: syncBlockToInternal({ block: event.block }),
-            logs: event.logs.map((log) => syncLogToInternal({ log })),
-            transactions: event.transactions.map((transaction) =>
-              syncTransactionToInternal({ transaction }),
-            ),
-            transactionReceipts: event.transactionReceipts.map(
-              (transactionReceipt) =>
-                syncTransactionReceiptToInternal({ transactionReceipt }),
-            ),
-            traces: event.traces.map((trace) =>
-              syncTraceToInternal({
-                trace,
-                block: event.block,
-                transaction: event.transactions.find(
-                  (t) => t.hash === trace.transactionHash,
-                )!,
-              }),
-            ),
-          },
+          blocks: [syncBlockToInternal({ block: event.block })],
+          logs: event.logs.map((log) => syncLogToInternal({ log })),
+          transactions: event.transactions.map((transaction) =>
+            syncTransactionToInternal({ transaction }),
+          ),
+          transactionReceipts: event.transactionReceipts.map(
+            (transactionReceipt) =>
+              syncTransactionReceiptToInternal({ transactionReceipt }),
+          ),
+          traces: event.traces.map((trace) =>
+            syncTraceToInternal({
+              trace,
+              block: event.block,
+              transaction: event.transactions.find(
+                (t) => t.hash === trace.transactionHash,
+              )!,
+            }),
+          ),
           childAddresses,
         });
 

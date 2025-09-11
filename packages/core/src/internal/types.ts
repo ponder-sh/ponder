@@ -478,10 +478,10 @@ export type LogEvent = {
   event: {
     id: string;
     args: { [key: string]: unknown } | readonly unknown[] | undefined;
-    log: Log;
     block: Block;
     transaction: Transaction;
     transactionReceipt?: TransactionReceipt;
+    log: Log;
   };
 };
 
@@ -545,9 +545,9 @@ export type TraceEvent = {
     id: string;
     args: { [key: string]: unknown } | readonly unknown[] | undefined;
     result: { [key: string]: unknown } | readonly unknown[] | undefined;
-    trace: Trace;
     block: Block;
     transaction: Transaction;
     transactionReceipt?: TransactionReceipt;
+    trace: Trace;
   };
 };
