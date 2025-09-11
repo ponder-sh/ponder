@@ -282,6 +282,13 @@ export async function runOmnichain({
 
   let pendingEvents: Event[] = [];
 
+  // Create indexes early if configured to do so
+  if (common.options.databaseCreateIndexesEarly) {
+    await createIndexes(database.adminQB, {
+      statements: schemaBuild.statements,
+    });
+  }
+
   // Run historical indexing until complete.
   for await (const result of recordAsyncGenerator(
     getHistoricalEventsOmnichain({
@@ -503,7 +510,13 @@ export async function runOmnichain({
 
   const tables = Object.values(schemaBuild.schema).filter(isTable);
 
-  await createIndexes(database.adminQB, { statements: schemaBuild.statements });
+  // Create indexes after historical sync if not created early
+  if (!common.options.databaseCreateIndexesEarly) {
+    await createIndexes(database.adminQB, {
+      statements: schemaBuild.statements,
+    });
+  }
+
   await createTriggers(database.adminQB, { tables });
   if (namespaceBuild.viewsSchema !== undefined) {
     await createViews(database.adminQB, { tables, namespaceBuild });
