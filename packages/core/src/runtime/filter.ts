@@ -418,22 +418,6 @@ export const defaultLogInclude: (keyof Log)[] = [
   "topics",
 ];
 
-export const defaultInclude: Set<
-  | `block.${keyof Block}`
-  | `log.${keyof Log}`
-  | `transaction.${keyof Transaction}`
-  | `transactionReceipt.${keyof TransactionReceipt}`
-  | `trace.${keyof Trace}`
-> = new Set([
-  ...defaultBlockInclude.map((value) => `block.${value}` as const),
-  ...defaultLogInclude.map((value) => `log.${value}` as const),
-  ...defaultTransactionInclude.map((value) => `transaction.${value}` as const),
-  ...defaultTransactionReceiptInclude.map(
-    (value) => `transactionReceipt.${value}` as const,
-  ),
-  ...defaultTraceInclude.map((value) => `trace.${value}` as const),
-]);
-
 export const defaultBlockFilterInclude: BlockFilter["include"] =
   defaultBlockInclude.map((value) => `block.${value}` as const);
 
