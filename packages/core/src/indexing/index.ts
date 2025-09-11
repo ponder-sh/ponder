@@ -377,10 +377,14 @@ export const createIndexing = ({
         throw new ShutdownError();
       }
 
+      const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
+
+      if (error instanceof InvalidEventAccessError) {
+        throw error;
+      }
+
       addStackTrace(error, common.options);
       addErrorMeta(error, toErrorMeta(event));
-
-      const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
 
       common.logger.error({
         service: "indexing",
