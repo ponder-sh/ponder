@@ -37,6 +37,7 @@ import {
   decodeCheckpoint,
   encodeCheckpoint,
 } from "@/utils/checkpoint.js";
+import { dedupe } from "@/utils/dedupe.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import type { Abi, Address } from "viem";
@@ -406,6 +407,10 @@ export const createIndexing = ({
     }
   };
 
+  const proxyController = createProxyController({
+    pattern: columnAccessPattern,
+  });
+
   return {
     async processSetupEvents({ db }) {
       context.db = db;
@@ -450,6 +455,8 @@ export const createIndexing = ({
     async processEvents({ events, db, cache }) {
       context.db = db;
       for (let i = 0; i < events.length; i++) {
+        proxyController.reset();
+
         const event = events[i]!;
 
         client.event = event;
@@ -466,7 +473,7 @@ export const createIndexing = ({
           msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
         });
 
-        await executeEvent(toProxy({ event, pattern: columnAccessPattern }));
+        await executeEvent(proxyController.toProxy({ event }));
 
         common.logger.trace({
           service: "indexing",
@@ -500,21 +507,195 @@ export const createIndexing = ({
   };
 };
 
-const proxyHandler = ({
-  type,
-  profile,
+const createProxyController = ({
+  pattern,
 }: {
-  type: "log" | "block" | "trace" | "transaction" | "transactionReceipt";
-  profile: ColumnAccessProfile;
-}): ProxyHandler<any> => {
+  pattern: ColumnAccessPattern;
+}): {
+  reset: () => void;
+  toProxy: ({ event }: { event: Event }) => Event;
+} => {
+  const blockProxyHandler = createProxyHandler({ type: "block", pattern });
+  const transactionProxyHandler = createProxyHandler({
+    type: "transaction",
+    pattern,
+  });
+  const transactionReceiptProxyHandler = createProxyHandler({
+    type: "transactionReceipt",
+    pattern,
+  });
+  const traceProxyHandler = createProxyHandler({ type: "trace", pattern });
+
   return {
-    get(obj, prop, receiver) {
+    reset() {
+      blockProxyHandler.reset();
+      transactionProxyHandler.reset();
+      transactionReceiptProxyHandler.reset();
+      traceProxyHandler.reset();
+    },
+    toProxy({ event }) {
+      switch (event.type) {
+        case "block": {
+          event.event = {
+            ...event.event,
+            block: new Proxy(
+              event.event.block,
+              blockProxyHandler.handler(event),
+            ),
+          };
+          break;
+        }
+        case "transaction": {
+          event.event = {
+            ...event.event,
+            block: new Proxy(
+              event.event.block,
+              blockProxyHandler.handler(event),
+            ),
+            transaction: new Proxy(
+              event.event.transaction,
+              transactionProxyHandler.handler(event),
+            ),
+            transactionReceipt:
+              event.event.transactionReceipt === undefined
+                ? undefined
+                : new Proxy(
+                    event.event.transactionReceipt,
+                    transactionReceiptProxyHandler.handler(event),
+                  ),
+          };
+          break;
+        }
+        case "log": {
+          event.event = {
+            ...event.event,
+            block: new Proxy(
+              event.event.block,
+              blockProxyHandler.handler(event),
+            ),
+            transaction: new Proxy(
+              event.event.transaction,
+              transactionProxyHandler.handler(event),
+            ),
+            transactionReceipt:
+              event.event.transactionReceipt === undefined
+                ? undefined
+                : new Proxy(
+                    event.event.transactionReceipt,
+                    transactionReceiptProxyHandler.handler(event),
+                  ),
+          };
+          break;
+        }
+        case "transfer":
+        case "trace": {
+          event.event = {
+            ...event.event,
+            trace: new Proxy(
+              event.event.trace,
+              traceProxyHandler.handler(event),
+            ),
+            block: new Proxy(
+              event.event.block,
+              blockProxyHandler.handler(event),
+            ),
+            transaction: new Proxy(
+              event.event.transaction,
+              transactionProxyHandler.handler(event),
+            ),
+            transactionReceipt:
+              event.event.transactionReceipt === undefined
+                ? undefined
+                : new Proxy(
+                    event.event.transactionReceipt,
+                    transactionReceiptProxyHandler.handler(event),
+                  ),
+          };
+          break;
+        }
+      }
+
+      return event;
+    },
+  };
+};
+
+const createProxyHandler = ({
+  type,
+  pattern,
+}: {
+  type: "block" | "trace" | "transaction" | "transactionReceipt";
+  pattern: ColumnAccessPattern;
+}): {
+  reset: () => void;
+  handler(event: Event): ProxyHandler<any>;
+} => {
+  let deletedProperties: string[] = [];
+  let setProperties: string[] = [];
+  let profile: ColumnAccessProfile | undefined = undefined;
+
+  const handler: ProxyHandler<any> = {
+    deleteProperty(target, prop) {
       if (typeof prop === "string") {
+        if (deletedProperties.includes(prop)) {
+          return true;
+        }
+
+        deletedProperties.push(prop);
+      }
+
+      return Reflect.deleteProperty(target, prop);
+    },
+    has(target, prop) {
+      if (typeof prop === "string") {
+        const key = `${type}.${prop}`;
+        // @ts-ignore
+        if (defaultInclude.has(key)) {
+          return true;
+        }
+      }
+
+      return Reflect.has(target, prop);
+    },
+    ownKeys(target) {
+      switch (type) {
+        case "block": {
+          return dedupe([...Reflect.ownKeys(target), ...defaultBlockInclude]);
+        }
+        case "transaction": {
+          return dedupe([
+            ...Reflect.ownKeys(target),
+            ...defaultTransactionInclude,
+          ]);
+        }
+        case "transactionReceipt": {
+          return dedupe([
+            ...Reflect.ownKeys(target),
+            ...defaultTransactionReceiptInclude,
+          ]);
+        }
+        case "trace": {
+          return dedupe([...Reflect.ownKeys(target), ...defaultTraceInclude]);
+        }
+      }
+    },
+    set(target, prop, newValue, receiver) {
+      if (typeof prop === "string") {
+        if (setProperties.includes(prop) === false) {
+          setProperties.push(prop);
+        }
+      }
+
+      return Reflect.set(target, prop, newValue, receiver);
+    },
+    get(obj, prop, receiver) {
+      if (typeof prop === "string" && profile !== undefined) {
         const key = `${type}.${prop}`;
         profile.accessed.add(key);
 
         if (
           profile.resolved &&
+          setProperties.includes(key) === false &&
           prop in obj === false &&
           // @ts-ignore
           defaultInclude.has(key)
@@ -526,112 +707,32 @@ const proxyHandler = ({
       return Reflect.get(obj, prop, receiver);
     },
   };
-};
 
-export const toProxy = ({
-  event,
-  pattern,
-}: { event: Event; pattern: ColumnAccessPattern }): Event => {
-  let profile: ColumnAccessProfile;
-  if (pattern.type === "global") {
-    profile = pattern.profile;
-  } else {
-    if (pattern.profile[event.name] === undefined) {
-      pattern.profile[event.name] = {
-        blockInclude: [...defaultBlockInclude],
-        traceInclude: [...defaultTraceInclude],
-        transactionInclude: [...defaultTransactionInclude],
-        transactionReceiptInclude: [...defaultTransactionReceiptInclude],
-        accessed: new Set(),
-        resolved: false,
-      };
-    }
-    profile = pattern.profile[event.name]!;
-  }
+  return {
+    reset() {
+      deletedProperties = [];
+      setProperties = [];
+    },
+    handler(event) {
+      if (pattern.type === "global") {
+        profile = pattern.profile;
+      } else {
+        if (pattern.profile[event.name] === undefined) {
+          pattern.profile[event.name] = {
+            blockInclude: [...defaultBlockInclude],
+            traceInclude: [...defaultTraceInclude],
+            transactionInclude: [...defaultTransactionInclude],
+            transactionReceiptInclude: [...defaultTransactionReceiptInclude],
+            accessed: new Set(),
+            resolved: false,
+          };
+        }
+        profile = pattern.profile[event.name]!;
+      }
 
-  switch (event.type) {
-    case "block": {
-      event.event = {
-        ...event.event,
-        block: new Proxy(
-          event.event.block,
-          proxyHandler({ type: "block", profile }),
-        ),
-      };
-      break;
-    }
-    case "transaction": {
-      event.event = {
-        ...event.event,
-        block: new Proxy(
-          event.event.block,
-          proxyHandler({ type: "block", profile }),
-        ),
-        transaction: new Proxy(
-          event.event.transaction,
-          proxyHandler({ type: "transaction", profile }),
-        ),
-        transactionReceipt:
-          event.event.transactionReceipt === undefined
-            ? undefined
-            : new Proxy(
-                event.event.transactionReceipt,
-                proxyHandler({ type: "transactionReceipt", profile }),
-              ),
-      };
-      break;
-    }
-    case "log": {
-      event.event = {
-        ...event.event,
-        log: new Proxy(event.event.log, proxyHandler({ type: "log", profile })),
-        block: new Proxy(
-          event.event.block,
-          proxyHandler({ type: "block", profile }),
-        ),
-        transaction: new Proxy(
-          event.event.transaction,
-          proxyHandler({ type: "transaction", profile }),
-        ),
-        transactionReceipt:
-          event.event.transactionReceipt === undefined
-            ? undefined
-            : new Proxy(
-                event.event.transactionReceipt,
-                proxyHandler({ type: "transactionReceipt", profile }),
-              ),
-      };
-      break;
-    }
-    case "transfer":
-    case "trace": {
-      event.event = {
-        ...event.event,
-        trace: new Proxy(
-          event.event.trace,
-          proxyHandler({ type: "trace", profile }),
-        ),
-        block: new Proxy(
-          event.event.block,
-          proxyHandler({ type: "block", profile }),
-        ),
-        transaction: new Proxy(
-          event.event.transaction,
-          proxyHandler({ type: "transaction", profile }),
-        ),
-        transactionReceipt:
-          event.event.transactionReceipt === undefined
-            ? undefined
-            : new Proxy(
-                event.event.transactionReceipt,
-                proxyHandler({ type: "transactionReceipt", profile }),
-              ),
-      };
-      break;
-    }
-  }
-
-  return event;
+      return handler;
+    },
+  };
 };
 
 export const toErrorMeta = (
