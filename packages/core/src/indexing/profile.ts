@@ -60,7 +60,10 @@ export const recordProfilePattern = ({
 
   switch (event.type) {
     case "block": {
-      if (eq(event.event.block.miner, args.address)) {
+      if (
+        event.event.block.miner &&
+        eq(event.event.block.miner, args.address)
+      ) {
         resultAddress = { type: "derived", value: ["block", "miner"] };
         break;
       }
@@ -69,7 +72,10 @@ export const recordProfilePattern = ({
     }
 
     case "transaction": {
-      if (eq(event.event.block.miner, args.address)) {
+      if (
+        event.event.block.miner &&
+        eq(event.event.block.miner, args.address)
+      ) {
         resultAddress = { type: "derived", value: ["block", "miner"] };
         break;
       }
@@ -129,7 +135,10 @@ export const recordProfilePattern = ({
         break;
       }
 
-      if (eq(event.event.block.miner, args.address)) {
+      if (
+        event.event.block.miner &&
+        eq(event.event.block.miner, args.address)
+      ) {
         resultAddress = { type: "derived", value: ["block", "miner"] };
         break;
       }
@@ -212,7 +221,10 @@ export const recordProfilePattern = ({
         break;
       }
 
-      if (eq(event.event.block.miner, args.address)) {
+      if (
+        event.event.block.miner &&
+        eq(event.event.block.miner, args.address)
+      ) {
         resultAddress = { type: "derived", value: ["block", "miner"] };
         break;
       }
@@ -265,7 +277,10 @@ export const recordProfilePattern = ({
         break;
       }
 
-      if (eq(event.event.block.miner, args.address)) {
+      if (
+        event.event.block.miner &&
+        eq(event.event.block.miner, args.address)
+      ) {
         resultAddress = { type: "derived", value: ["block", "miner"] };
         break;
       }
@@ -342,7 +357,7 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.block.miner, arg)) {
+        if (event.event.block.miner && eq(event.event.block.miner, arg)) {
           resultArgs.push({ type: "derived", value: ["block", "miner"] });
           continue;
         }
@@ -366,7 +381,7 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.block.miner, arg)) {
+        if (event.event.block.miner && eq(event.event.block.miner, arg)) {
           resultArgs.push({ type: "derived", value: ["block", "miner"] });
           continue;
         }
@@ -456,7 +471,7 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.block.miner, arg)) {
+        if (event.event.block.miner && eq(event.event.block.miner, arg)) {
           resultArgs.push({ type: "derived", value: ["block", "miner"] });
           continue;
         }
@@ -564,7 +579,7 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.block.miner, arg)) {
+        if (event.event.block.miner && eq(event.event.block.miner, arg)) {
           resultArgs.push({ type: "derived", value: ["block", "miner"] });
           continue;
         }
@@ -642,7 +657,7 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.block.miner, arg)) {
+        if (event.event.block.miner && eq(event.event.block.miner, arg)) {
           resultArgs.push({ type: "derived", value: ["block", "miner"] });
           continue;
         }

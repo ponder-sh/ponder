@@ -20,6 +20,10 @@ import type {
   InternalTransactionReceipt,
   Schema,
   SetupEvent,
+  UserBlock,
+  UserLog,
+  UserTrace,
+  UserTransaction,
 } from "@/internal/types.js";
 import {
   defaultBlockInclude,
@@ -30,7 +34,6 @@ import {
   isAddressFactory,
 } from "@/runtime/filter.js";
 import type { Db } from "@/types/db.js";
-import type { Block, Log, Trace, Transaction } from "@/types/eth.js";
 import type { DeepPartial } from "@/types/utils.js";
 import {
   ZERO_CHECKPOINT,
@@ -814,27 +817,27 @@ export const addErrorMeta = (error: unknown, meta: string | undefined) => {
   }
 };
 
-const blockText = (block?: DeepPartial<Block>) =>
+const blockText = (block?: DeepPartial<UserBlock>) =>
   `Block:\n${prettyPrint({
     hash: block?.hash,
     number: block?.number,
     timestamp: block?.timestamp,
   })}`;
 
-const transactionText = (transaction?: DeepPartial<Transaction>) =>
+const transactionText = (transaction?: DeepPartial<UserTransaction>) =>
   `Transaction:\n${prettyPrint({
     hash: transaction?.hash,
     from: transaction?.from,
     to: transaction?.to,
   })}`;
 
-const logText = (log?: DeepPartial<Log>) =>
+const logText = (log?: DeepPartial<UserLog>) =>
   `Log:\n${prettyPrint({
     index: log?.logIndex,
     address: log?.address,
   })}`;
 
-const traceText = (trace?: DeepPartial<Trace>) =>
+const traceText = (trace?: DeepPartial<UserTrace>) =>
   `Trace:\n${prettyPrint({
     traceIndex: trace?.traceIndex,
     from: trace?.from,

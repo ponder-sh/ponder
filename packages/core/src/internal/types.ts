@@ -8,7 +8,7 @@ import type {
   TransactionReceipt,
   Transfer,
 } from "@/types/eth.js";
-import type { Prettify } from "@/types/utils.js";
+import type { PartialExcept, Prettify } from "@/types/utils.js";
 import type { AbiEvents, AbiFunctions } from "@/utils/abi.js";
 import type { Trace as DebugTrace } from "@/utils/debug.js";
 import type { PGliteOptions } from "@/utils/pglite.js";
@@ -402,35 +402,23 @@ export type Seconds = {
 // Blockchain data
 
 export type SyncBlock = Prettify<RpcBlock<Exclude<BlockTag, "pending">, true>>;
-export type SyncLog = ViemLog<Hex, Hex, false>;
+export type SyncBlockHeader = Omit<SyncBlock, "transactions"> & {
+  transactions: undefined;
+};
 export type SyncTransaction = RpcTransaction<false>;
 export type SyncTransactionReceipt = RpcTransactionReceipt;
 export type SyncTrace = {
   trace: DebugTrace["result"] & { index: number; subcalls: number };
   transactionHash: DebugTrace["txHash"];
 };
+export type SyncLog = ViemLog<Hex, Hex, false>;
 
 export type LightBlock = Pick<
   SyncBlock,
   "hash" | "parentHash" | "number" | "timestamp"
 >;
 
-export type SyncBlockHeader = Omit<SyncBlock, "transactions"> & {
-  transactions: undefined;
-};
-
-export type PartialWithSelectedRequired<T, K extends keyof T> = {
-  [P in K]: T[P];
-} & {
-  [P in keyof Omit<T, K>]?: T[P];
-};
-
-export type RequiredBlockColumns =
-  | "timestamp"
-  | "number"
-  | "hash"
-  | "logsBloom"
-  | "parentHash";
+export type RequiredBlockColumns = "timestamp" | "number" | "hash";
 export type RequiredTransactionColumns =
   | "transactionIndex"
   | "from"
@@ -442,39 +430,64 @@ export type RequiredTraceColumns =
   | "from"
   | "to"
   | "input"
+  | "output"
   | "value"
   | "type"
   | "error"
   | "traceIndex";
+export type RequiredLogColumns = keyof Log;
 
-export type InternalBlock = PartialWithSelectedRequired<
-  Block,
-  RequiredBlockColumns
->;
-export type InternalLog = Log & {
-  blockNumber: number;
-  transactionIndex: number;
-};
-export type InternalTransaction = PartialWithSelectedRequired<
+export type RequiredInternalBlockColumns = RequiredBlockColumns;
+export type RequiredInternalTransactionColumns =
+  | RequiredTransactionColumns
+  | "blockNumber";
+export type RequiredInternalTransactionReceiptColumns =
+  | RequiredTransactionReceiptColumns
+  | "blockNumber"
+  | "transactionIndex";
+export type RequiredInternalTraceColumns =
+  | RequiredTraceColumns
+  | "blockNumber"
+  | "transactionIndex";
+export type RequiredInternalLogColumns =
+  | RequiredLogColumns
+  | "blockNumber"
+  | "transactionIndex";
+
+export type InternalBlock = PartialExcept<Block, RequiredBlockColumns>;
+export type InternalTransaction = PartialExcept<
   Transaction,
   RequiredTransactionColumns
 > & {
   blockNumber: number;
 };
-export type InternalTransactionReceipt = PartialWithSelectedRequired<
+export type InternalTransactionReceipt = PartialExcept<
   TransactionReceipt,
   RequiredTransactionReceiptColumns
 > & {
   blockNumber: number;
   transactionIndex: number;
 };
-export type InternalTrace = PartialWithSelectedRequired<
-  Trace,
-  RequiredTraceColumns
-> & {
+export type InternalTrace = PartialExcept<Trace, RequiredTraceColumns> & {
   blockNumber: number;
   transactionIndex: number;
 };
+export type InternalLog = Log & {
+  blockNumber: number;
+  transactionIndex: number;
+};
+
+export type UserBlock = PartialExcept<Block, RequiredBlockColumns>;
+export type UserTransaction = PartialExcept<
+  Transaction,
+  RequiredTransactionColumns
+>;
+export type UserTransactionReceipt = PartialExcept<
+  TransactionReceipt,
+  RequiredTransactionReceiptColumns
+>;
+export type UserTrace = PartialExcept<Trace, RequiredTraceColumns>;
+export type UserLog = Log;
 
 // Events
 
@@ -482,19 +495,19 @@ export type RawEvent = {
   chainId: number;
   sourceIndex: number;
   checkpoint: string;
-  log?: InternalLog;
-  block: InternalBlock;
-  transaction?: InternalTransaction;
-  transactionReceipt?: InternalTransactionReceipt;
-  trace?: InternalTrace;
+  log?: UserLog;
+  block: UserBlock;
+  transaction?: UserTransaction;
+  transactionReceipt?: UserTransactionReceipt;
+  trace?: UserTrace;
 };
 
 export type Event =
-  | LogEvent
   | BlockEvent
   | TransactionEvent
-  | TransferEvent
-  | TraceEvent;
+  | TraceEvent
+  | LogEvent
+  | TransferEvent;
 
 export type SetupEvent = {
   type: "setup";
@@ -507,24 +520,6 @@ export type SetupEvent = {
   block: bigint;
 };
 
-export type LogEvent = {
-  type: "log";
-  chainId: number;
-  checkpoint: string;
-
-  /** `${source.name}:${safeName}` */
-  name: string;
-
-  event: {
-    id: string;
-    args: { [key: string]: unknown } | readonly unknown[] | undefined;
-    log: Log;
-    block: Block;
-    transaction: Transaction;
-    transactionReceipt?: TransactionReceipt;
-  };
-};
-
 export type BlockEvent = {
   type: "block";
   chainId: number;
@@ -535,7 +530,7 @@ export type BlockEvent = {
 
   event: {
     id: string;
-    block: Block;
+    block: UserBlock;
   };
 };
 
@@ -549,27 +544,9 @@ export type TransactionEvent = {
 
   event: {
     id: string;
-    block: Block;
-    transaction: Transaction;
-    transactionReceipt?: TransactionReceipt;
-  };
-};
-
-export type TransferEvent = {
-  type: "transfer";
-  chainId: number;
-  checkpoint: string;
-
-  /** `${source.name}:transfer:from` | `${source.name}:transfer:to` */
-  name: string;
-
-  event: {
-    id: string;
-    transfer: Transfer;
-    block: Block;
-    transaction: Transaction;
-    transactionReceipt?: TransactionReceipt;
-    trace: Trace;
+    block: UserBlock;
+    transaction: UserTransaction;
+    transactionReceipt?: UserTransactionReceipt;
   };
 };
 
@@ -585,9 +562,45 @@ export type TraceEvent = {
     id: string;
     args: { [key: string]: unknown } | readonly unknown[] | undefined;
     result: { [key: string]: unknown } | readonly unknown[] | undefined;
-    trace: Trace;
-    block: Block;
-    transaction: Transaction;
-    transactionReceipt?: TransactionReceipt;
+    block: UserBlock;
+    transaction: UserTransaction;
+    transactionReceipt?: UserTransactionReceipt;
+    trace: UserTrace;
+  };
+};
+
+export type LogEvent = {
+  type: "log";
+  chainId: number;
+  checkpoint: string;
+
+  /** `${source.name}:${safeName}` */
+  name: string;
+
+  event: {
+    id: string;
+    args: { [key: string]: unknown } | readonly unknown[] | undefined;
+    block: UserBlock;
+    transaction: UserTransaction;
+    transactionReceipt?: UserTransactionReceipt;
+    log: UserLog;
+  };
+};
+
+export type TransferEvent = {
+  type: "transfer";
+  chainId: number;
+  checkpoint: string;
+
+  /** `${source.name}:transfer:from` | `${source.name}:transfer:to` */
+  name: string;
+
+  event: {
+    id: string;
+    transfer: Transfer;
+    block: UserBlock;
+    transaction: UserTransaction;
+    transactionReceipt?: UserTransactionReceipt;
+    trace: UserTrace;
   };
 };

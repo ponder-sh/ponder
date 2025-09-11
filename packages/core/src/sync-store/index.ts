@@ -773,6 +773,7 @@ export const createSyncStore = ({
         from: PONDER_SYNC.traces.from,
         to: PONDER_SYNC.traces.to,
         input: PONDER_SYNC.traces.input,
+        output: PONDER_SYNC.traces.output,
         value: PONDER_SYNC.traces.value,
         type: PONDER_SYNC.traces.type,
         error: PONDER_SYNC.traces.error,

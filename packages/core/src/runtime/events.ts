@@ -116,7 +116,7 @@ export const buildEvents = ({
                     eventIndex: BigInt(log.logIndex),
                   }),
                   log,
-                  block: block,
+                  block,
                   transaction: transactionCache.has(log.transactionIndex)
                     ? transactionCache.get(log.transactionIndex)!
                     : undefined,
