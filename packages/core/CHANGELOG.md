@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.22
+
+### Patch Changes
+
+- [#2027](https://github.com/ponder-sh/ponder/pull/2027) [`8a2533d`](https://github.com/ponder-sh/ponder/commit/8a2533dcbdb4bc6f3f2984e93be666d1dc36a715) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved database connection reliability. Better support for `Pool error`.
+
 ## 0.12.21
 
 ### Patch Changes

@@ -271,10 +271,9 @@ export const createIndexing = ({
   };
 
   // metric label for "ponder_indexing_function_duration"
-  const metricLabel: { event: string } = { event: "" };
   const executeEvent = async (event: Event): Promise<void> => {
     const indexingFunction = indexingFunctions[event.name];
-    metricLabel.event = event.name;
+    const metricLabel: { event: string } = { event: event.name };
 
     try {
       context.chain.id = event.chainId;

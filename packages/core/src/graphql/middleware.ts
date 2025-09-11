@@ -45,6 +45,12 @@ export const graphql = (
     maxOperationAliases: 30,
   },
 ) => {
+  if (globalThis.PONDER_DATABASE === undefined) {
+    throw new Error(
+      "graphql() middleware cannot be initialized outside of a Ponder project",
+    );
+  }
+
   const graphqlSchema = buildGraphQLSchema({ schema });
 
   generateSchema({ graphqlSchema }).catch(() => {});
