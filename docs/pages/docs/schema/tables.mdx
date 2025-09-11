@@ -205,8 +205,15 @@ export const dogsRelations = relations(dogs, ({ one }) => ({
 The `index(){:ts}` function supports specifying multiple columns, ordering, and custom index types like GIN and GIST. Read more in the [Drizzle](https://orm.drizzle.team/docs/indexes-constraints#indexes) and [PostgreSQL](https://www.postgresql.org/docs/current/indexes.html) documention.
 
 :::info
-  To improve performance, the indexing engine creates database indexes _after_ historical
+  By default, the indexing engine creates database indexes _after_ historical
   indexing is complete, just before the app becomes healthy.
+  
+  To create indexes _before_ historical indexing (which can improve query performance during sync for large datasets), 
+  set the `PONDER_DATABASE_CREATE_INDEXES_EARLY` environment variable.
+  
+  ```js filename=".env.local"
+  PONDER_DATABASE_CREATE_INDEXES_EARLY=true
+  ```
 :::
 
 ## Best practices
