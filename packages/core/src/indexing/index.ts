@@ -196,9 +196,7 @@ export const createIndexing = ({
 
   const updateCompletedEvents = () => {
     for (const event of Object.keys(eventCount)) {
-      const metricLabel = {
-        event,
-      };
+      const metricLabel = { event };
       common.metrics.ponder_indexing_completed_events.set(
         metricLabel,
         eventCount[event]!,
@@ -350,6 +348,7 @@ export const createIndexing = ({
   const traceProxy = createEventProxy<Trace>(columnAccessPattern, "trace");
   // Note: There is no `log` proxy because all log columns are required.
 
+  // Note: Filters and indexing functions have a many-to-many relationship.
   const perFilterEventNames = new Map<Filter, string[]>();
   for (const eventName of Object.keys(indexingFunctions)) {
     let sourceName: string;
@@ -359,12 +358,13 @@ export const createIndexing = ({
       [sourceName] = eventName.split(".") as [string];
     }
 
-    const source = sources.find((s) => s.name === sourceName)!;
-
-    if (perFilterEventNames.has(source.filter) === false) {
-      perFilterEventNames.set(source.filter, []);
+    const _sources = sources.filter((s) => s.name === sourceName);
+    for (const source of _sources) {
+      if (perFilterEventNames.has(source.filter) === false) {
+        perFilterEventNames.set(source.filter, []);
+      }
+      perFilterEventNames.get(source.filter)!.push(eventName);
     }
-    perFilterEventNames.get(source.filter)!.push(eventName);
   }
 
   return {
