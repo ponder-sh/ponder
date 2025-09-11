@@ -89,6 +89,11 @@ const startCommand = new Command("start")
   .description("Start the production server")
   .option("--schema <SCHEMA>", "Database schema", String)
   .option("--views-schema <SCHEMA>", "Views database schema", String)
+  .option(
+    "--indexes-early",
+    "Create database indexes before historical backfill",
+    Boolean,
+  )
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option(
     "-H, --hostname <HOSTNAME>",
@@ -126,6 +131,11 @@ const createViewsCommand = new Command("create-views")
   .description("Create database views")
   .option("--schema <SCHEMA>", "Source database schema", String)
   .option("--views-schema <SCHEMA>", "Target database schema", String)
+  .option(
+    "--indexes-early",
+    "Create database indexes before historical backfill",
+    Boolean,
+  )
   .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {

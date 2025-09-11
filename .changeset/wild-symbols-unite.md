@@ -2,4 +2,4 @@
 "ponder": patch
 ---
 
-add PONDER_DATABASE_CREATE_INDEXES_EARLY option
+Added `DATABASE_INDEXES_EARLY` environment variable and `--indexes-early` CLI flag for creating database indexes immediately rather than after the completion of the historical backfill.

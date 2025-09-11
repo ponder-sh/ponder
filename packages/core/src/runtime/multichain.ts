@@ -277,8 +277,7 @@ export async function runMultichain({
     });
   }
 
-  // Create indexes early if configured to do so
-  if (common.options.databaseCreateIndexesEarly) {
+  if (common.options.databaseIndexesEarly) {
     await createIndexes(database.adminQB, {
       statements: schemaBuild.statements,
     });
@@ -492,8 +491,7 @@ export async function runMultichain({
 
   const tables = Object.values(schemaBuild.schema).filter(isTable);
 
-  // Create indexes after historical sync if not created early
-  if (!common.options.databaseCreateIndexesEarly) {
+  if (common.options.databaseIndexesEarly === false) {
     await createIndexes(database.adminQB, {
       statements: schemaBuild.statements,
     });
