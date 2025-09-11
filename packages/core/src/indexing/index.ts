@@ -455,8 +455,6 @@ export const createIndexing = ({
     async processEvents({ events, db, cache }) {
       context.db = db;
       for (let i = 0; i < events.length; i++) {
-        proxyController.reset();
-
         const event = events[i]!;
 
         client.event = event;
@@ -473,7 +471,11 @@ export const createIndexing = ({
           msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
         });
 
-        await executeEvent(proxyController.toProxy({ event }));
+        try {
+          await executeEvent(proxyController.toProxy({ event }));
+        } finally {
+          proxyController.reset();
+        }
 
         common.logger.trace({
           service: "indexing",
