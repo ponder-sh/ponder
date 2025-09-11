@@ -104,8 +104,9 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     // Half of the max query parameters for PGlite
     databaseMaxQueryParameters: 16_000,
     // Create indexes before historical sync for better query performance (default: false for backwards compatibility)
-    databaseCreateIndexesEarly:
-      process.env.PONDER_DATABASE_CREATE_INDEXES_EARLY === "true",
+    databaseCreateIndexesEarly: Boolean(
+      process.env.PONDER_DATABASE_CREATE_INDEXES_EARLY,
+    ),
 
     factoryAddressCountThreshold: 1_000,
 
