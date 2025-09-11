@@ -24,6 +24,7 @@ import type {
 } from "@/internal/types.js";
 import {
   defaultBlockInclude,
+  defaultLogInclude,
   defaultTraceInclude,
   defaultTransactionInclude,
   defaultTransactionReceiptInclude,
@@ -509,6 +510,9 @@ export const createIndexing = ({
         });
       }
 
+      let isEveryFilterResolvedBefore = true;
+      let isEveryFilterResolvedAfter = true;
+
       for (const source of sources) {
         const eventNames = perFilterEventNames.get(source.filter)!;
 
@@ -519,7 +523,10 @@ export const createIndexing = ({
         ) {
           continue;
         }
+        isEveryFilterResolvedBefore = false;
+
         if (eventNames.some((eventName) => eventCount[eventName]! < 100)) {
+          isEveryFilterResolvedAfter = false;
           continue;
         }
 
@@ -548,6 +555,38 @@ export const createIndexing = ({
 
         // @ts-expect-error
         source.filter.include = dedupe(filterInclude);
+      }
+
+      if (isEveryFilterResolvedBefore === false && isEveryFilterResolvedAfter) {
+        const blockInclude = new Set<keyof Block>();
+        const transactionInclude = new Set<keyof Transaction>();
+        const transactionReceiptInclude = new Set<keyof TransactionReceipt>();
+        const traceInclude = new Set<keyof Trace>();
+
+        for (const [_, columnAccessProfile] of columnAccessPattern) {
+          for (const blockAccess of columnAccessProfile.block) {
+            blockInclude.add(blockAccess);
+          }
+          for (const transactionAccess of columnAccessProfile.transaction) {
+            transactionInclude.add(transactionAccess);
+          }
+          for (const transactionReceiptAccess of columnAccessProfile.transactionReceipt) {
+            transactionReceiptInclude.add(transactionReceiptAccess);
+          }
+          for (const traceAccess of columnAccessProfile.trace) {
+            traceInclude.add(traceAccess);
+          }
+        }
+
+        common.logger.info({
+          service: "indexing",
+          msg: `Resolved column selection:
+  ${blockInclude.size}/${defaultBlockInclude.length} block columns
+  ${transactionInclude.size}/${defaultTransactionInclude.length} transaction columns
+  ${transactionReceiptInclude.size}/${defaultTransactionReceiptInclude.length} transaction receipt columns
+  ${traceInclude.size}/${defaultTraceInclude.length} trace columns
+  ${defaultLogInclude.length}/${defaultLogInclude.length} log columns`,
+        });
       }
 
       updateCompletedEvents();
