@@ -15,6 +15,10 @@ import type {
   InternalTransactionReceipt,
   LightBlock,
   LogFilter,
+  RequiredInternalBlockColumns,
+  RequiredInternalTraceColumns,
+  RequiredInternalTransactionColumns,
+  RequiredInternalTransactionReceiptColumns,
   SyncBlock,
   SyncBlockHeader,
   SyncLog,
@@ -27,7 +31,10 @@ import type {
 } from "@/internal/types.js";
 import {
   isAddressFactory,
-  shouldGetTransactionReceipt,
+  unionFilterIncludeBlock,
+  unionFilterIncludeTrace,
+  unionFilterIncludeTransaction,
+  unionFilterIncludeTransactionReceipt,
 } from "@/runtime/filter.js";
 import { encodeFragment, getFragments } from "@/runtime/fragments.js";
 import type { Interval } from "@/utils/interval.js";
@@ -136,7 +143,10 @@ export type SyncStore = {
 export const createSyncStore = ({
   common,
   database,
-}: { common: Common; database: Database }): SyncStore => ({
+}: {
+  common: Common;
+  database: Database;
+}): SyncStore => ({
   insertIntervals: async ({ intervals, chainId }) => {
     if (intervals.length === 0) return;
 
@@ -573,31 +583,56 @@ export const createSyncStore = ({
       const shouldQueryTransactions =
         transactionFilters.length > 0 || shouldQueryLogs || shouldQueryTraces;
       const shouldQueryTransactionReceipts = filters.some(
-        shouldGetTransactionReceipt,
+        (filter) => filter.hasTransactionReceipt,
       );
 
+      type BlockSelect = {
+        [P in RequiredInternalBlockColumns]: (typeof PONDER_SYNC.blocks)[P];
+      } & {
+        [P in Exclude<
+          keyof typeof PONDER_SYNC.blocks.$inferSelect,
+          RequiredInternalBlockColumns
+        >]?: (typeof PONDER_SYNC.blocks)[P];
+      };
+      type TransactionSelect = {
+        [P in RequiredInternalTransactionColumns]: (typeof PONDER_SYNC.transactions)[P];
+      } & {
+        [P in Exclude<
+          keyof typeof PONDER_SYNC.transactions.$inferSelect,
+          RequiredInternalTransactionColumns
+        >]?: (typeof PONDER_SYNC.transactions)[P];
+      };
+      type TransactionReceiptSelect = {
+        [P in RequiredInternalTransactionReceiptColumns]: (typeof PONDER_SYNC.transactionReceipts)[P];
+      } & {
+        [P in Exclude<
+          keyof typeof PONDER_SYNC.transactionReceipts.$inferSelect,
+          RequiredInternalTransactionReceiptColumns
+        >]?: (typeof PONDER_SYNC.transactionReceipts)[P];
+      };
+      type TraceSelect = {
+        [P in RequiredInternalTraceColumns]: (typeof PONDER_SYNC.traces)[P];
+      } & {
+        [P in Exclude<
+          keyof typeof PONDER_SYNC.traces.$inferSelect,
+          RequiredInternalTraceColumns
+        >]?: (typeof PONDER_SYNC.traces)[P];
+      };
+      // Note: `LogSelect` doesn't exist because all log columns are required.
+
+      const blockSelect: BlockSelect = {
+        number: PONDER_SYNC.blocks.number,
+        hash: PONDER_SYNC.blocks.hash,
+        timestamp: PONDER_SYNC.blocks.timestamp,
+      };
+
+      for (const column of unionFilterIncludeBlock(filters)) {
+        // @ts-ignore
+        blockSelect[column] = PONDER_SYNC.blocks[column];
+      }
+
       const blocksQuery = database.syncQB.raw
-        .select({
-          number: PONDER_SYNC.blocks.number,
-          timestamp: PONDER_SYNC.blocks.timestamp,
-          hash: PONDER_SYNC.blocks.hash,
-          parentHash: PONDER_SYNC.blocks.parentHash,
-          logsBloom: PONDER_SYNC.blocks.logsBloom,
-          miner: PONDER_SYNC.blocks.miner,
-          gasUsed: PONDER_SYNC.blocks.gasUsed,
-          gasLimit: PONDER_SYNC.blocks.gasLimit,
-          baseFeePerGas: PONDER_SYNC.blocks.baseFeePerGas,
-          nonce: PONDER_SYNC.blocks.nonce,
-          mixHash: PONDER_SYNC.blocks.mixHash,
-          stateRoot: PONDER_SYNC.blocks.stateRoot,
-          receiptsRoot: PONDER_SYNC.blocks.receiptsRoot,
-          transactionsRoot: PONDER_SYNC.blocks.transactionsRoot,
-          sha3Uncles: PONDER_SYNC.blocks.sha3Uncles,
-          size: PONDER_SYNC.blocks.size,
-          difficulty: PONDER_SYNC.blocks.difficulty,
-          totalDifficulty: PONDER_SYNC.blocks.totalDifficulty,
-          extraData: PONDER_SYNC.blocks.extraData,
-        })
+        .select(blockSelect)
         .from(PONDER_SYNC.blocks)
         .where(
           and(
@@ -609,26 +644,22 @@ export const createSyncStore = ({
         .orderBy(asc(PONDER_SYNC.blocks.number))
         .limit(limit);
 
+      const transactionSelect: TransactionSelect = {
+        blockNumber: PONDER_SYNC.transactions.blockNumber,
+        transactionIndex: PONDER_SYNC.transactions.transactionIndex,
+        from: PONDER_SYNC.transactions.from,
+        to: PONDER_SYNC.transactions.to,
+        hash: PONDER_SYNC.transactions.hash,
+        type: PONDER_SYNC.transactions.type,
+      };
+
+      for (const column of unionFilterIncludeTransaction(filters)) {
+        // @ts-ignore
+        transactionSelect[column] = PONDER_SYNC.transactions[column];
+      }
+
       const transactionsQuery = database.syncQB.raw
-        .select({
-          blockNumber: PONDER_SYNC.transactions.blockNumber,
-          transactionIndex: PONDER_SYNC.transactions.transactionIndex,
-          hash: PONDER_SYNC.transactions.hash,
-          from: PONDER_SYNC.transactions.from,
-          to: PONDER_SYNC.transactions.to,
-          input: PONDER_SYNC.transactions.input,
-          value: PONDER_SYNC.transactions.value,
-          nonce: PONDER_SYNC.transactions.nonce,
-          r: PONDER_SYNC.transactions.r,
-          s: PONDER_SYNC.transactions.s,
-          v: PONDER_SYNC.transactions.v,
-          type: PONDER_SYNC.transactions.type,
-          gas: PONDER_SYNC.transactions.gas,
-          gasPrice: PONDER_SYNC.transactions.gasPrice,
-          maxFeePerGas: PONDER_SYNC.transactions.maxFeePerGas,
-          maxPriorityFeePerGas: PONDER_SYNC.transactions.maxPriorityFeePerGas,
-          accessList: PONDER_SYNC.transactions.accessList,
-        })
+        .select(transactionSelect)
         .from(PONDER_SYNC.transactions)
         .where(
           and(
@@ -643,20 +674,22 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
+      const transactionReceiptSelect: TransactionReceiptSelect = {
+        blockNumber: PONDER_SYNC.transactionReceipts.blockNumber,
+        transactionIndex: PONDER_SYNC.transactionReceipts.transactionIndex,
+        status: PONDER_SYNC.transactionReceipts.status,
+        from: PONDER_SYNC.transactionReceipts.from,
+        to: PONDER_SYNC.transactionReceipts.to,
+      };
+
+      for (const column of unionFilterIncludeTransactionReceipt(filters)) {
+        // @ts-ignore
+        transactionReceiptSelect[column] =
+          PONDER_SYNC.transactionReceipts[column];
+      }
+
       const transactionReceiptsQuery = database.syncQB.raw
-        .select({
-          blockNumber: PONDER_SYNC.transactionReceipts.blockNumber,
-          transactionIndex: PONDER_SYNC.transactionReceipts.transactionIndex,
-          from: PONDER_SYNC.transactionReceipts.from,
-          to: PONDER_SYNC.transactionReceipts.to,
-          contractAddress: PONDER_SYNC.transactionReceipts.contractAddress,
-          logsBloom: PONDER_SYNC.transactionReceipts.logsBloom,
-          gasUsed: PONDER_SYNC.transactionReceipts.gasUsed,
-          cumulativeGasUsed: PONDER_SYNC.transactionReceipts.cumulativeGasUsed,
-          effectiveGasPrice: PONDER_SYNC.transactionReceipts.effectiveGasPrice,
-          status: PONDER_SYNC.transactionReceipts.status,
-          type: PONDER_SYNC.transactionReceipts.type,
-        })
+        .select(transactionReceiptSelect)
         .from(PONDER_SYNC.transactionReceipts)
         .where(
           and(
@@ -668,6 +701,44 @@ export const createSyncStore = ({
         .orderBy(
           asc(PONDER_SYNC.transactionReceipts.blockNumber),
           asc(PONDER_SYNC.transactionReceipts.transactionIndex),
+        )
+        .limit(limit);
+
+      const traceSelect: TraceSelect = {
+        blockNumber: PONDER_SYNC.traces.blockNumber,
+        transactionIndex: PONDER_SYNC.traces.transactionIndex,
+        from: PONDER_SYNC.traces.from,
+        to: PONDER_SYNC.traces.to,
+        input: PONDER_SYNC.traces.input,
+        output: PONDER_SYNC.traces.output,
+        value: PONDER_SYNC.traces.value,
+        type: PONDER_SYNC.traces.type,
+        error: PONDER_SYNC.traces.error,
+        traceIndex: PONDER_SYNC.traces.traceIndex,
+      };
+
+      for (const column of unionFilterIncludeTrace(filters)) {
+        // @ts-ignore
+        traceSelect[column] = PONDER_SYNC.traces[column];
+      }
+
+      const tracesQuery = database.syncQB.raw
+        .select(traceSelect)
+        .from(PONDER_SYNC.traces)
+        .where(
+          and(
+            eq(PONDER_SYNC.traces.chainId, BigInt(chainId)),
+            gte(PONDER_SYNC.traces.blockNumber, BigInt(fromBlock)),
+            lte(PONDER_SYNC.traces.blockNumber, BigInt(toBlock)),
+            or(
+              ...traceFilters.map((filter) => traceFilter(filter)),
+              ...transferFilters.map((filter) => transferFilter(filter)),
+            ),
+          ),
+        )
+        .orderBy(
+          asc(PONDER_SYNC.traces.blockNumber),
+          asc(PONDER_SYNC.traces.traceIndex),
         )
         .limit(limit);
 
@@ -695,41 +766,6 @@ export const createSyncStore = ({
         .orderBy(
           asc(PONDER_SYNC.logs.blockNumber),
           asc(PONDER_SYNC.logs.logIndex),
-        )
-        .limit(limit);
-
-      const tracesQuery = database.syncQB.raw
-        .select({
-          blockNumber: PONDER_SYNC.traces.blockNumber,
-          transactionIndex: PONDER_SYNC.traces.transactionIndex,
-          traceIndex: PONDER_SYNC.traces.traceIndex,
-          from: PONDER_SYNC.traces.from,
-          to: PONDER_SYNC.traces.to,
-          input: PONDER_SYNC.traces.input,
-          output: PONDER_SYNC.traces.output,
-          value: PONDER_SYNC.traces.value,
-          type: PONDER_SYNC.traces.type,
-          gas: PONDER_SYNC.traces.gas,
-          gasUsed: PONDER_SYNC.traces.gasUsed,
-          error: PONDER_SYNC.traces.error,
-          revertReason: PONDER_SYNC.traces.revertReason,
-          subcalls: PONDER_SYNC.traces.subcalls,
-        })
-        .from(PONDER_SYNC.traces)
-        .where(
-          and(
-            eq(PONDER_SYNC.traces.chainId, BigInt(chainId)),
-            gte(PONDER_SYNC.traces.blockNumber, BigInt(fromBlock)),
-            lte(PONDER_SYNC.traces.blockNumber, BigInt(toBlock)),
-            or(
-              ...traceFilters.map((filter) => traceFilter(filter)),
-              ...transferFilters.map((filter) => transferFilter(filter)),
-            ),
-          ),
-        )
-        .orderBy(
-          asc(PONDER_SYNC.traces.blockNumber),
-          asc(PONDER_SYNC.traces.traceIndex),
         )
         .limit(limit);
 
@@ -818,9 +854,9 @@ export const createSyncStore = ({
             transaction as unknown as InternalTransaction;
 
           internalTransaction.blockNumber = Number(transaction.blockNumber);
-          internalTransaction.from = toLowerCase(transaction.from);
+          internalTransaction.from = toLowerCase(transaction.from) as Address;
           if (transaction.to !== null) {
-            internalTransaction.to = toLowerCase(transaction.to);
+            internalTransaction.to = toLowerCase(transaction.to) as Address;
           }
 
           if (transaction.type === "0x0") {
@@ -830,9 +866,10 @@ export const createSyncStore = ({
             internalTransaction.maxPriorityFeePerGas = undefined;
           } else if (transaction.type === "0x1") {
             internalTransaction.type = "eip2930";
-            internalTransaction.accessList = JSON.parse(
-              transaction.accessList!,
-            );
+            internalTransaction.accessList =
+              transaction.accessList === undefined
+                ? undefined
+                : JSON.parse(transaction.accessList!);
             internalTransaction.maxFeePerGas = undefined;
             internalTransaction.maxPriorityFeePerGas = undefined;
           } else if (transaction.type === "0x2") {
@@ -863,16 +900,21 @@ export const createSyncStore = ({
           internalTransactionReceipt.blockNumber = Number(
             transactionReceipt.blockNumber,
           );
-          if (transactionReceipt.contractAddress !== null) {
+          if (
+            transactionReceipt.contractAddress !== undefined &&
+            transactionReceipt.contractAddress !== null
+          ) {
             internalTransactionReceipt.contractAddress = toLowerCase(
               transactionReceipt.contractAddress,
-            );
+            ) as Address;
           }
           internalTransactionReceipt.from = toLowerCase(
             transactionReceipt.from,
-          );
+          ) as Address;
           if (transactionReceipt.to !== null) {
-            internalTransactionReceipt.to = toLowerCase(transactionReceipt.to);
+            internalTransactionReceipt.to = toLowerCase(
+              transactionReceipt.to,
+            ) as Address;
           }
           internalTransactionReceipt.status =
             transactionReceipt.status === "0x1"
@@ -934,12 +976,12 @@ export const createSyncStore = ({
 
           internalTrace.blockNumber = Number(trace.blockNumber);
 
-          internalTrace.from = toLowerCase(trace.from);
+          internalTrace.from = toLowerCase(trace.from) as Address;
           if (trace.to !== null) {
-            internalTrace.to = toLowerCase(trace.to);
+            internalTrace.to = toLowerCase(trace.to) as Address;
           }
 
-          if (trace.output === null) {
+          if (trace.output === undefined || trace.output === null) {
             internalTrace.output = undefined;
           }
 
@@ -947,7 +989,7 @@ export const createSyncStore = ({
             internalTrace.error = undefined;
           }
 
-          if (trace.revertReason === null) {
+          if (trace.revertReason === undefined || trace.revertReason === null) {
             internalTrace.revertReason = undefined;
           }
 
@@ -955,7 +997,9 @@ export const createSyncStore = ({
           traceIndex++;
         }
 
-        block.miner = toLowerCase(block.miner);
+        if (block.miner) {
+          block.miner = toLowerCase(block.miner);
+        }
 
         blockData.push({
           block,
@@ -963,6 +1007,12 @@ export const createSyncStore = ({
           transactions,
           traces,
           transactionReceipts,
+        } as {
+          block: InternalBlock;
+          logs: InternalLog[];
+          transactions: InternalTransaction[];
+          transactionReceipts: InternalTransactionReceipt[];
+          traces: InternalTrace[];
         });
       }
 

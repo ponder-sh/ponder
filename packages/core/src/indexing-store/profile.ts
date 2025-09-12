@@ -103,7 +103,7 @@ const matchEventParameters = (
         };
       }
 
-      if (eq(event.event.block.miner, value)) {
+      if (event.event.block.miner && eq(event.event.block.miner, value)) {
         return { type: "derived", value: ["block", "miner"] };
       }
 
@@ -147,7 +147,7 @@ const matchEventParameters = (
         };
       }
 
-      if (eq(event.event.block.miner, value)) {
+      if (event.event.block.miner && eq(event.event.block.miner, value)) {
         return { type: "derived", value: ["block", "miner"] };
       }
 
@@ -241,7 +241,7 @@ const matchEventParameters = (
         };
       }
 
-      if (eq(event.event.block.miner, value)) {
+      if (event.event.block.miner && eq(event.event.block.miner, value)) {
         return { type: "derived", value: ["block", "miner"] };
       }
 
@@ -351,7 +351,7 @@ const matchEventParameters = (
         };
       }
 
-      if (eq(event.event.block.miner, value)) {
+      if (event.event.block.miner && eq(event.event.block.miner, value)) {
         return { type: "derived", value: ["block", "miner"] };
       }
 
@@ -437,7 +437,7 @@ const matchEventParameters = (
         };
       }
 
-      if (eq(event.event.block.miner, value)) {
+      if (event.event.block.miner && eq(event.event.block.miner, value)) {
         return { type: "derived", value: ["block", "miner"] };
       }
 

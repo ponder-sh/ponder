@@ -28,7 +28,6 @@ import {
   isTransactionFilterMatched,
   isTransferFilterMatched,
 } from "@/runtime/filter.js";
-import { shouldGetTransactionReceipt } from "@/runtime/filter.js";
 import { recoverFilter } from "@/runtime/fragments.js";
 import type { CachedIntervals } from "@/runtime/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
@@ -530,7 +529,7 @@ export const createHistoricalSync = (
       transactionsCache.add(hash);
     }
 
-    if (shouldGetTransactionReceipt(filter)) {
+    if (filter.hasTransactionReceipt) {
       const transactionReceipts = await Promise.all(
         blocks.map((block) => {
           const blockTransactionHashes = new Set<Hash>();
@@ -746,7 +745,7 @@ export const createHistoricalSync = (
       chainId: args.chain.id,
     });
 
-    if (shouldGetTransactionReceipt(filter)) {
+    if (filter.hasTransactionReceipt) {
       const transactionReceipts = await Promise.all(
         Array.from(requiredBlocks).map((block) => {
           const blockTransactionHashes = new Set(

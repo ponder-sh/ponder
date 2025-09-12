@@ -17,9 +17,10 @@ import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createCachedViemClient } from "@/indexing/client.js";
-import { createIndexing } from "@/indexing/index.js";
+import { createColumnAccessPattern, createIndexing } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import {
+  InvalidEventAccessError,
   NonRetryableUserError,
   type RetryableError,
 } from "@/internal/errors.js";
@@ -50,7 +51,10 @@ import { recordAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
 import { eq, getTableName, isTable, sql } from "drizzle-orm";
-import { getHistoricalEventsOmnichain } from "./historical.js";
+import {
+  getHistoricalEventsOmnichain,
+  refetchHistoricalEvents,
+} from "./historical.js";
 import {
   type CachedIntervals,
   type ChildAddresses,
@@ -80,6 +84,9 @@ export async function runOmnichain({
 }) {
   runCodegen({ common });
 
+  const columnAccessPattern = createColumnAccessPattern({
+    indexingBuild,
+  });
   const syncStore = createSyncStore({ common, database });
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
@@ -116,6 +123,7 @@ export async function runOmnichain({
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessPattern,
   });
 
   const indexingCache = createIndexingCache({
@@ -449,7 +457,19 @@ export async function runOmnichain({
           indexingCache.invalidate();
           indexingCache.clear();
 
-          if (error instanceof NonRetryableUserError === false) {
+          if (error instanceof InvalidEventAccessError) {
+            common.logger.warn({
+              service: "app",
+              msg: "Refetching events due to restricted column selection",
+            });
+            result.events = await refetchHistoricalEvents({
+              common,
+              indexingBuild,
+              perChainSync,
+              syncStore,
+              events: result.events,
+            });
+          } else if (error instanceof NonRetryableUserError === false) {
             common.logger.warn({
               service: "app",
               msg: "Retrying event batch",
