@@ -246,6 +246,7 @@ export const createDatabase = ({
         {
           ...preBuild.databaseConfig.poolConfig,
           application_name: `${namespace.schema}_internal`,
+          connectionTimeoutMillis: 5_000,
           max: internalMax,
           statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
         },
@@ -255,6 +256,7 @@ export const createDatabase = ({
         {
           ...preBuild.databaseConfig.poolConfig,
           application_name: `${namespace.schema}_user`,
+          connectionTimeoutMillis: 5_000,
           max: userMax,
         },
         common.logger,
@@ -263,6 +265,7 @@ export const createDatabase = ({
         {
           ...preBuild.databaseConfig.poolConfig,
           application_name: `${namespace.schema}_readonly`,
+          connectionTimeoutMillis: 5_000,
           max: readonlyMax,
         },
         common.logger,
@@ -272,6 +275,7 @@ export const createDatabase = ({
         {
           ...preBuild.databaseConfig.poolConfig,
           application_name: "ponder_sync",
+          connectionTimeoutMillis: 5_000,
           max: syncMax,
         },
         common.logger,
