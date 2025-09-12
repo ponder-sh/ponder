@@ -51,7 +51,10 @@ import { recordAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
 import { eq, getTableName, isTable, sql } from "drizzle-orm";
-import { getHistoricalEventsOmnichain } from "./historical.js";
+import {
+  getHistoricalEventsOmnichain,
+  refetchHistoricalEvents,
+} from "./historical.js";
 import {
   type CachedIntervals,
   type ChildAddresses,
@@ -467,7 +470,11 @@ export async function runOmnichain({
               service: "app",
               msg: "Refetching events due to restricted column selection",
             });
-            result.events = await syncStore.refetchEventData({
+            result.events = await refetchHistoricalEvents({
+              common,
+              indexingBuild,
+              perChainSync,
+              syncStore,
               events: result.events,
             });
           }

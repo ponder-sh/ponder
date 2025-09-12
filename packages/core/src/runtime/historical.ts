@@ -494,6 +494,98 @@ export async function* getHistoricalEventsMultichain(params: {
   }
 }
 
+export async function refetchHistoricalEvents(params: {
+  common: Common;
+  indexingBuild: Pick<IndexingBuild, "sources" | "chains" | "rpcs">;
+  perChainSync: Map<Chain, { childAddresses: ChildAddresses }>;
+  events: Event[];
+  syncStore: SyncStore;
+}): Promise<Event[]> {
+  const events: Event[] = new Array(params.events.length);
+
+  for (const chain of PONDER_INDEXING_BUILD.chains) {
+    const { childAddresses } = params.perChainSync.get(chain)!;
+
+    // Note: All filters are refetched, no matter if they are resolved or not.
+    const sources = params.indexingBuild.sources.filter(
+      ({ filter }) => filter.chainId === chain.id,
+    );
+
+    const chainEvents = params.events.filter(
+      (event) => event.chainId === chain.id,
+    );
+
+    if (chainEvents.length === 0) continue;
+
+    const from = chainEvents[0]!.checkpoint;
+    const to = chainEvents[chainEvents.length - 1]!.checkpoint;
+
+    const fromBlock = Number(decodeCheckpoint(from).blockNumber);
+    const toBlock = Number(decodeCheckpoint(to).blockNumber);
+    const cursor = fromBlock;
+
+    while (cursor <= toBlock) {
+      const { blockData, cursor: queryCursor } =
+        await params.syncStore.getEventBlockData({
+          filters: sources.map(({ filter }) => filter),
+          fromBlock: cursor,
+          toBlock,
+          chainId: chain.id,
+          limit: Math.round(
+            params.common.options.syncEventsQuerySize /
+              params.indexingBuild.chains.length,
+          ),
+        });
+
+      let endClock = startClock();
+      const rawEvents = blockData.flatMap((bd) =>
+        buildEvents({
+          sources,
+          blockData: bd,
+          childAddresses,
+          chainId: chain.id,
+        }),
+      );
+      params.common.metrics.ponder_historical_extract_duration.inc(
+        { step: "build" },
+        endClock(),
+      );
+
+      params.common.logger.debug({
+        service: "sync",
+        msg: `Extracted ${rawEvents.length} '${chain.name}' events for block range [${cursor}, ${queryCursor}]`,
+      });
+
+      await new Promise(setImmediate);
+
+      endClock = startClock();
+      const refetchedEvents = decodeEvents(params.common, sources, rawEvents);
+      params.common.logger.debug({
+        service: "app",
+        msg: `Decoded ${refetchedEvents.length} '${chain.name}' events`,
+      });
+      params.common.metrics.ponder_historical_extract_duration.inc(
+        { step: "decode" },
+        endClock(),
+      );
+
+      let i = 0;
+      let j = 0;
+
+      while (i < params.events.length && j < refetchedEvents.length) {
+        if (params.events[i]?.chainId === chain.id) {
+          events[i] = refetchedEvents[j]!;
+          i++;
+          j++;
+        } else {
+          i++;
+        }
+      }
+    }
+  }
+  return events;
+}
+
 export async function* getLocalEventGenerator(params: {
   common: Common;
   chain: Chain;

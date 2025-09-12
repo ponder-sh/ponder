@@ -3,7 +3,6 @@ import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
   BlockFilter,
-  Event,
   Factory,
   Filter,
   FilterWithoutBlocks,
@@ -32,15 +31,12 @@ import type {
 } from "@/internal/types.js";
 import {
   isAddressFactory,
-  shouldGetTransactionReceipt,
   unionFilterIncludeBlock,
   unionFilterIncludeTrace,
   unionFilterIncludeTransaction,
   unionFilterIncludeTransactionReceipt,
 } from "@/runtime/filter.js";
 import { encodeFragment, getFragments } from "@/runtime/fragments.js";
-import type { Trace, Transaction, TransactionReceipt } from "@/types/eth.js";
-import { dedupe } from "@/utils/dedupe.js";
 import type { Interval } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
@@ -60,12 +56,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { type PgColumn, unionAll } from "drizzle-orm/pg-core";
-import {
-  type Address,
-  type EIP1193Parameters,
-  type Hash,
-  hexToNumber,
-} from "viem";
+import { type Address, type EIP1193Parameters, hexToNumber } from "viem";
 import {
   encodeBlock,
   encodeLog,
@@ -130,9 +121,6 @@ export type SyncStore = {
     }[];
     cursor: number;
   }>;
-  refetchEventData(args: {
-    events: Event[];
-  }): Promise<Event[]>;
   insertRpcRequestResults(args: {
     requests: {
       request: EIP1193Parameters;
@@ -595,7 +583,7 @@ export const createSyncStore = ({
       const shouldQueryTransactions =
         transactionFilters.length > 0 || shouldQueryLogs || shouldQueryTraces;
       const shouldQueryTransactionReceipts = filters.some(
-        shouldGetTransactionReceipt,
+        (filter) => filter.hasTransactionReceipt,
       );
 
       type BlockSelect = {
@@ -1072,359 +1060,6 @@ export const createSyncStore = ({
     };
 
     return fn();
-  },
-  refetchEventData: async ({ events }) => {
-    const chainIds = dedupe(events.map((event) => event.chainId));
-
-    await Promise.all(
-      chainIds.map(async (chainId) => {
-        const blocksToQuery: bigint[] = [];
-        const transactionsToQuery: Hash[] = [];
-        const transactionReceiptsToQuery: Hash[] = [];
-        const tracesToQuery: [bigint, number][] = [];
-
-        for (const event of events) {
-          if (event.chainId !== chainId) continue;
-
-          if (blocksToQuery.at(-1) !== event.event.block.number) {
-            blocksToQuery.push(event.event.block.number);
-          }
-
-          if (event.type !== "block") {
-            if (transactionsToQuery.at(-1) !== event.event.transaction.hash) {
-              transactionsToQuery.push(event.event.transaction.hash);
-            }
-
-            if (
-              event.event.transactionReceipt !== undefined &&
-              transactionsToQuery.at(-1) !== event.event.transaction.hash
-            ) {
-              transactionReceiptsToQuery.push(event.event.transaction.hash);
-            }
-          }
-
-          if (event.type === "trace") {
-            if (
-              tracesToQuery.at(-1)![0] !== event.event.block.number ||
-              tracesToQuery.at(-1)![1] !== event.event.trace.traceIndex
-            ) {
-              tracesToQuery.push([
-                event.event.block.number,
-                event.event.trace.traceIndex,
-              ]);
-            }
-          }
-        }
-
-        const blocksQuery = database.syncQB.raw
-          .select({
-            number: PONDER_SYNC.blocks.number,
-            timestamp: PONDER_SYNC.blocks.timestamp,
-            hash: PONDER_SYNC.blocks.hash,
-            parentHash: PONDER_SYNC.blocks.parentHash,
-            logsBloom: PONDER_SYNC.blocks.logsBloom,
-            miner: PONDER_SYNC.blocks.miner,
-            gasUsed: PONDER_SYNC.blocks.gasUsed,
-            gasLimit: PONDER_SYNC.blocks.gasLimit,
-            baseFeePerGas: PONDER_SYNC.blocks.baseFeePerGas,
-            nonce: PONDER_SYNC.blocks.nonce,
-            mixHash: PONDER_SYNC.blocks.mixHash,
-            stateRoot: PONDER_SYNC.blocks.stateRoot,
-            receiptsRoot: PONDER_SYNC.blocks.receiptsRoot,
-            transactionsRoot: PONDER_SYNC.blocks.transactionsRoot,
-            sha3Uncles: PONDER_SYNC.blocks.sha3Uncles,
-            size: PONDER_SYNC.blocks.size,
-            difficulty: PONDER_SYNC.blocks.difficulty,
-            totalDifficulty: PONDER_SYNC.blocks.totalDifficulty,
-            extraData: PONDER_SYNC.blocks.extraData,
-          })
-          .from(PONDER_SYNC.blocks)
-          .where(
-            and(
-              eq(PONDER_SYNC.blocks.chainId, BigInt(chainId)),
-              inArray(PONDER_SYNC.blocks.number, blocksToQuery),
-            ),
-          )
-          .orderBy(asc(PONDER_SYNC.blocks.number));
-
-        const transactionsQuery = database.syncQB.raw
-          .select({
-            blockNumber: PONDER_SYNC.transactions.blockNumber,
-            transactionIndex: PONDER_SYNC.transactions.transactionIndex,
-            hash: PONDER_SYNC.transactions.hash,
-            from: PONDER_SYNC.transactions.from,
-            to: PONDER_SYNC.transactions.to,
-            input: PONDER_SYNC.transactions.input,
-            value: PONDER_SYNC.transactions.value,
-            nonce: PONDER_SYNC.transactions.nonce,
-            r: PONDER_SYNC.transactions.r,
-            s: PONDER_SYNC.transactions.s,
-            v: PONDER_SYNC.transactions.v,
-            type: PONDER_SYNC.transactions.type,
-            gas: PONDER_SYNC.transactions.gas,
-            gasPrice: PONDER_SYNC.transactions.gasPrice,
-            maxFeePerGas: PONDER_SYNC.transactions.maxFeePerGas,
-            maxPriorityFeePerGas: PONDER_SYNC.transactions.maxPriorityFeePerGas,
-            accessList: PONDER_SYNC.transactions.accessList,
-          })
-          .from(PONDER_SYNC.transactions)
-          .where(
-            and(
-              eq(PONDER_SYNC.transactions.chainId, BigInt(chainId)),
-              inArray(PONDER_SYNC.transactions.hash, transactionsToQuery),
-            ),
-          )
-          .orderBy(
-            asc(PONDER_SYNC.transactions.blockNumber),
-            asc(PONDER_SYNC.transactions.transactionIndex),
-          );
-
-        const transactionReceiptsQuery = database.syncQB.raw
-          .select({
-            blockNumber: PONDER_SYNC.transactionReceipts.blockNumber,
-            transactionIndex: PONDER_SYNC.transactionReceipts.transactionIndex,
-            from: PONDER_SYNC.transactionReceipts.from,
-            to: PONDER_SYNC.transactionReceipts.to,
-            contractAddress: PONDER_SYNC.transactionReceipts.contractAddress,
-            logsBloom: PONDER_SYNC.transactionReceipts.logsBloom,
-            gasUsed: PONDER_SYNC.transactionReceipts.gasUsed,
-            cumulativeGasUsed:
-              PONDER_SYNC.transactionReceipts.cumulativeGasUsed,
-            effectiveGasPrice:
-              PONDER_SYNC.transactionReceipts.effectiveGasPrice,
-            status: PONDER_SYNC.transactionReceipts.status,
-            type: PONDER_SYNC.transactionReceipts.type,
-          })
-          .from(PONDER_SYNC.transactionReceipts)
-          .where(
-            and(
-              eq(PONDER_SYNC.transactionReceipts.chainId, BigInt(chainId)),
-              inArray(
-                PONDER_SYNC.transactionReceipts.transactionHash,
-                transactionReceiptsToQuery,
-              ),
-            ),
-          )
-          .orderBy(
-            asc(PONDER_SYNC.transactionReceipts.blockNumber),
-            asc(PONDER_SYNC.transactionReceipts.transactionIndex),
-          );
-
-        const tracesQuery = database.syncQB.raw
-          .select({
-            blockNumber: PONDER_SYNC.traces.blockNumber,
-            transactionIndex: PONDER_SYNC.traces.transactionIndex,
-            traceIndex: PONDER_SYNC.traces.traceIndex,
-            from: PONDER_SYNC.traces.from,
-            to: PONDER_SYNC.traces.to,
-            input: PONDER_SYNC.traces.input,
-            output: PONDER_SYNC.traces.output,
-            value: PONDER_SYNC.traces.value,
-            type: PONDER_SYNC.traces.type,
-            gas: PONDER_SYNC.traces.gas,
-            gasUsed: PONDER_SYNC.traces.gasUsed,
-            error: PONDER_SYNC.traces.error,
-            revertReason: PONDER_SYNC.traces.revertReason,
-            subcalls: PONDER_SYNC.traces.subcalls,
-          })
-          .from(PONDER_SYNC.traces)
-          .where(
-            and(
-              eq(PONDER_SYNC.traces.chainId, BigInt(chainId)),
-              or(
-                ...tracesToQuery.map(([blockNumber, traceIndex]) =>
-                  and(
-                    eq(PONDER_SYNC.traces.blockNumber, blockNumber),
-                    eq(PONDER_SYNC.traces.traceIndex, traceIndex),
-                  ),
-                ),
-              ),
-            ),
-          )
-          .orderBy(
-            asc(PONDER_SYNC.traces.blockNumber),
-            asc(PONDER_SYNC.traces.traceIndex),
-          );
-
-        const [
-          blocksRows,
-          transactionsRows,
-          transactionReceiptsRows,
-          tracesRows,
-        ] = await Promise.all([
-          blocksQuery.then((blocks) =>
-            blocks.map((block) => {
-              block.miner = toLowerCase(block.miner);
-              return block;
-            }),
-          ),
-          transactionsQuery.then((transactions) =>
-            transactions.map((transaction) => {
-              const internalTransaction =
-                transaction as unknown as InternalTransaction;
-
-              internalTransaction.blockNumber = Number(transaction.blockNumber);
-              internalTransaction.from = toLowerCase(
-                transaction.from,
-              ) as Address;
-              if (transaction.to !== null) {
-                internalTransaction.to = toLowerCase(transaction.to) as Address;
-              }
-
-              if (transaction.type === "0x0") {
-                internalTransaction.type = "legacy";
-                internalTransaction.accessList = undefined;
-                internalTransaction.maxFeePerGas = undefined;
-                internalTransaction.maxPriorityFeePerGas = undefined;
-              } else if (transaction.type === "0x1") {
-                internalTransaction.type = "eip2930";
-                internalTransaction.accessList =
-                  transaction.accessList === undefined
-                    ? undefined
-                    : JSON.parse(transaction.accessList!);
-                internalTransaction.maxFeePerGas = undefined;
-                internalTransaction.maxPriorityFeePerGas = undefined;
-              } else if (transaction.type === "0x2") {
-                internalTransaction.type = "eip1559";
-                internalTransaction.gasPrice = undefined;
-                internalTransaction.accessList = undefined;
-              } else if (transaction.type === "0x7e") {
-                internalTransaction.type = "deposit";
-                internalTransaction.gasPrice = undefined;
-                internalTransaction.accessList = undefined;
-              }
-
-              return internalTransaction;
-            }),
-          ),
-          transactionReceiptsQuery.then((transactionReceipts) =>
-            transactionReceipts.map((transactionReceipt) => {
-              const internalTransactionReceipt =
-                transactionReceipt as unknown as InternalTransactionReceipt;
-
-              internalTransactionReceipt.blockNumber = Number(
-                transactionReceipt.blockNumber,
-              );
-              if (
-                transactionReceipt.contractAddress !== undefined &&
-                transactionReceipt.contractAddress !== null
-              ) {
-                internalTransactionReceipt.contractAddress = toLowerCase(
-                  transactionReceipt.contractAddress,
-                ) as Address;
-              }
-              internalTransactionReceipt.from = toLowerCase(
-                transactionReceipt.from,
-              ) as Address;
-              if (transactionReceipt.to !== null) {
-                internalTransactionReceipt.to = toLowerCase(
-                  transactionReceipt.to,
-                ) as Address;
-              }
-              internalTransactionReceipt.status =
-                transactionReceipt.status === "0x1"
-                  ? "success"
-                  : transactionReceipt.status === "0x0"
-                    ? "reverted"
-                    : (transactionReceipt.status as InternalTransactionReceipt["status"]);
-              internalTransactionReceipt.type =
-                transactionReceipt.type === "0x0"
-                  ? "legacy"
-                  : transactionReceipt.type === "0x1"
-                    ? "eip2930"
-                    : transactionReceipt.type === "0x2"
-                      ? "eip1559"
-                      : transactionReceipt.type === "0x7e"
-                        ? "deposit"
-                        : transactionReceipt.type;
-              return internalTransactionReceipt;
-            }),
-          ),
-          tracesQuery.then((traces) =>
-            traces.map((trace) => {
-              const internalTrace = trace as unknown as InternalTrace;
-
-              internalTrace.blockNumber = Number(trace.blockNumber);
-
-              internalTrace.from = toLowerCase(trace.from) as Address;
-              if (trace.to !== null) {
-                internalTrace.to = toLowerCase(trace.to) as Address;
-              }
-
-              if (trace.output === undefined || trace.output === null) {
-                internalTrace.output = undefined;
-              }
-
-              if (trace.error === null) {
-                internalTrace.error = undefined;
-              }
-
-              if (
-                trace.revertReason === undefined ||
-                trace.revertReason === null
-              ) {
-                internalTrace.revertReason = undefined;
-              }
-
-              return internalTrace;
-            }),
-          ),
-        ]);
-
-        let blockIdx = 0;
-        let transactionIdx = 0;
-        let transactionReceiptIdx = 0;
-        let traceIdx = 0;
-
-        // NOTE: It is invariant that events are chronologically sorted.
-        for (const event of events) {
-          if (event.chainId !== chainId) continue;
-          if (event.event.block.number !== blocksRows[blockIdx]!.number)
-            blockIdx++;
-
-          if (event.type !== "block") {
-            if (
-              event.event.transaction.hash !==
-              transactionsRows[transactionIdx]!.hash
-            )
-              transactionIdx++;
-            event.event.transaction = transactionsRows[
-              transactionIdx
-            ]! as Transaction;
-
-            if (event.event.transactionReceipt !== undefined) {
-              if (
-                event.event.block.number !==
-                  BigInt(
-                    transactionReceiptsRows[transactionReceiptIdx]!.blockNumber,
-                  ) ||
-                event.event.transaction.transactionIndex !==
-                  transactionReceiptsRows[transactionReceiptIdx]!
-                    .transactionIndex
-              )
-                transactionReceiptIdx++;
-              event.event.transactionReceipt = transactionReceiptsRows[
-                transactionReceiptIdx
-              ]! as TransactionReceipt;
-            }
-          }
-
-          if (event.type === "trace") {
-            if (
-              event.event.block.number !==
-                BigInt(tracesRows[traceIdx]!.blockNumber) ||
-              event.event.trace.traceIndex !== tracesRows[traceIdx]!.traceIndex
-            )
-              traceIdx++;
-            event.event.trace = tracesRows[traceIdx]! as Trace;
-          }
-
-          event.event.block = blocksRows[blockIdx]!;
-        }
-      }),
-    );
-
-    return events;
   },
   insertRpcRequestResults: async ({ requests, chainId }) => {
     if (requests.length === 0) return;

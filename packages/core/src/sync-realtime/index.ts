@@ -30,7 +30,6 @@ import {
   isTraceFilterMatched,
   isTransactionFilterMatched,
   isTransferFilterMatched,
-  shouldGetTransactionReceipt,
 } from "@/runtime/filter.js";
 import type { SyncProgress } from "@/runtime/index.js";
 import { createLock } from "@/utils/mutex.js";
@@ -388,7 +387,7 @@ export const createRealtimeSync = (
           isMatched = true;
           if (log.transactionHash !== zeroHash) {
             requiredTransactions.add(log.transactionHash);
-            if (shouldGetTransactionReceipt(filter)) {
+            if (filter.hasTransactionReceipt) {
               requiredTransactionReceipts.add(log.transactionHash);
 
               // skip to next log
@@ -414,7 +413,7 @@ export const createRealtimeSync = (
         ) {
           requiredTransactions.add(trace.transactionHash);
           isMatched = true;
-          if (shouldGetTransactionReceipt(filter)) {
+          if (filter.hasTransactionReceipt) {
             requiredTransactionReceipts.add(trace.transactionHash);
             // skip to next trace
             break;
@@ -432,7 +431,7 @@ export const createRealtimeSync = (
         ) {
           requiredTransactions.add(trace.transactionHash);
           isMatched = true;
-          if (shouldGetTransactionReceipt(filter)) {
+          if (filter.hasTransactionReceipt) {
             requiredTransactionReceipts.add(trace.transactionHash);
             // skip to next trace
             break;

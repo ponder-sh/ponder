@@ -49,7 +49,7 @@ import {
   isTransactionFilterMatched,
   isTransferFilterMatched,
 } from "./filter.js";
-import { isAddressFactory, shouldGetTransactionReceipt } from "./filter.js";
+import { isAddressFactory } from "./filter.js";
 
 /**
  * Create `RawEvent`s from raw data types
@@ -122,7 +122,7 @@ export const buildEvents = ({
                     : undefined,
                   transactionReceipt:
                     transactionReceiptCache.has(log.transactionIndex) &&
-                    shouldGetTransactionReceipt(filter)
+                    filter.hasTransactionReceipt
                       ? transactionReceiptCache.get(log.transactionIndex)!
                       : undefined,
                   trace: undefined,
@@ -182,7 +182,7 @@ export const buildEvents = ({
                   trace,
                   block,
                   transaction,
-                  transactionReceipt: shouldGetTransactionReceipt(filter)
+                  transactionReceipt: filter.hasTransactionReceipt
                     ? transactionReceipt
                     : undefined,
                 });
@@ -295,7 +295,7 @@ export const buildEvents = ({
                   trace,
                   block,
                   transaction,
-                  transactionReceipt: shouldGetTransactionReceipt(filter)
+                  transactionReceipt: filter.hasTransactionReceipt
                     ? transactionReceipt
                     : undefined,
                 });

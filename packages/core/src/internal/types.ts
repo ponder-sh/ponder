@@ -81,6 +81,7 @@ export type BlockFilter = {
   offset: number;
   fromBlock: number | undefined;
   toBlock: number | undefined;
+  hasTransactionReceipt: false;
   include: `block.${keyof Block}`[];
 };
 
@@ -95,6 +96,7 @@ export type TransactionFilter<
   includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
+  hasTransactionReceipt: true;
   include: (
     | `block.${keyof Block}`
     | `transaction.${keyof Transaction}`
@@ -115,6 +117,7 @@ export type TraceFilter<
   includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
+  hasTransactionReceipt: boolean;
   include: (
     | `block.${keyof Block}`
     | `transaction.${keyof Transaction}`
@@ -135,6 +138,7 @@ export type LogFilter<
   topic3: LogTopic;
   fromBlock: number | undefined;
   toBlock: number | undefined;
+  hasTransactionReceipt: boolean;
   include: (
     | `block.${keyof Block}`
     | `transaction.${keyof Transaction}`
@@ -154,6 +158,7 @@ export type TransferFilter<
   includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
+  hasTransactionReceipt: boolean;
   include: (
     | `block.${keyof Block}`
     | `transaction.${keyof Transaction}`

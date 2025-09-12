@@ -49,7 +49,10 @@ import { recordAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
 import { eq, getTableName, isTable, sql } from "drizzle-orm";
-import { getHistoricalEventsMultichain } from "./historical.js";
+import {
+  getHistoricalEventsMultichain,
+  refetchHistoricalEvents,
+} from "./historical.js";
 import {
   type CachedIntervals,
   type ChildAddresses,
@@ -449,7 +452,11 @@ export async function runMultichain({
               service: "app",
               msg: `Refetching events due to restricted column selection. Missing: '${error.key}' field.`,
             });
-            events.events = await syncStore.refetchEventData({
+            events.events = await refetchHistoricalEvents({
+              common,
+              indexingBuild,
+              perChainSync,
+              syncStore,
               events: events.events,
             });
           }

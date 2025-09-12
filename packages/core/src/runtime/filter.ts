@@ -505,18 +505,3 @@ export const unionFilterIncludeTrace = (filters: Filter[]): (keyof Trace)[] => {
   }
   return Array.from(includeTrace);
 };
-
-export const shouldGetTransactionReceipt = (
-  filter: Pick<Filter, "include" | "type">,
-): boolean => {
-  // transactions must request receipts for "reverted" information
-  if (filter.type === "transaction") return true;
-
-  if (filter.type === "block") return false;
-
-  if (filter.include.some((prop) => prop.startsWith("transactionReceipt."))) {
-    return true;
-  }
-
-  return false;
-};

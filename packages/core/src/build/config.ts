@@ -582,6 +582,8 @@ export async function buildConfigAndIndexingFunctions({
                     topic3: topics.topic3,
                     fromBlock,
                     toBlock,
+                    hasTransactionReceipt:
+                      source.includeTransactionReceipts ?? false,
                     include: defaultLogFilterInclude.concat(
                       source.includeTransactionReceipts
                         ? defaultTransactionReceiptInclude.map(
@@ -608,6 +610,8 @@ export async function buildConfigAndIndexingFunctions({
                     includeReverted: false,
                     fromBlock,
                     toBlock,
+                    hasTransactionReceipt:
+                      source.includeTransactionReceipts ?? false,
                     include: defaultTraceFilterInclude.concat(
                       source.includeTransactionReceipts
                         ? defaultTransactionReceiptInclude.map(
@@ -659,6 +663,8 @@ export async function buildConfigAndIndexingFunctions({
                   topic3: topics.topic3,
                   fromBlock,
                   toBlock,
+                  hasTransactionReceipt:
+                    source.includeTransactionReceipts ?? false,
                   include: defaultLogFilterInclude.concat(
                     source.includeTransactionReceipts
                       ? defaultTransactionReceiptInclude.map(
@@ -689,6 +695,8 @@ export async function buildConfigAndIndexingFunctions({
                   includeReverted: false,
                   fromBlock,
                   toBlock,
+                  hasTransactionReceipt:
+                    source.includeTransactionReceipts ?? false,
                   include: defaultTraceFilterInclude.concat(
                     source.includeTransactionReceipts
                       ? defaultTransactionReceiptInclude.map(
@@ -773,6 +781,7 @@ export async function buildConfigAndIndexingFunctions({
                   includeReverted: false,
                   fromBlock,
                   toBlock,
+                  hasTransactionReceipt: true,
                   include: defaultTransactionFilterInclude,
                 },
               } satisfies AccountSource,
@@ -788,6 +797,7 @@ export async function buildConfigAndIndexingFunctions({
                   includeReverted: false,
                   fromBlock,
                   toBlock,
+                  hasTransactionReceipt: true,
                   include: defaultTransactionFilterInclude,
                 },
               } satisfies AccountSource,
@@ -803,6 +813,8 @@ export async function buildConfigAndIndexingFunctions({
                   includeReverted: false,
                   fromBlock,
                   toBlock,
+                  hasTransactionReceipt:
+                    source.includeTransactionReceipts ?? false,
                   include: defaultTransferFilterInclude.concat(
                     source.includeTransactionReceipts
                       ? defaultTransactionReceiptInclude.map(
@@ -824,6 +836,8 @@ export async function buildConfigAndIndexingFunctions({
                   includeReverted: false,
                   fromBlock,
                   toBlock,
+                  hasTransactionReceipt:
+                    source.includeTransactionReceipts ?? false,
                   include: defaultTransferFilterInclude.concat(
                     source.includeTransactionReceipts
                       ? defaultTransactionReceiptInclude.map(
@@ -871,6 +885,7 @@ export async function buildConfigAndIndexingFunctions({
                 includeReverted: false,
                 fromBlock,
                 toBlock,
+                hasTransactionReceipt: true,
                 include: defaultTransactionFilterInclude,
               },
             } satisfies AccountSource,
@@ -886,6 +901,7 @@ export async function buildConfigAndIndexingFunctions({
                 includeReverted: false,
                 fromBlock,
                 toBlock,
+                hasTransactionReceipt: true,
                 include: defaultTransactionFilterInclude,
               },
             } satisfies AccountSource,
@@ -901,6 +917,8 @@ export async function buildConfigAndIndexingFunctions({
                 includeReverted: false,
                 fromBlock,
                 toBlock,
+                hasTransactionReceipt:
+                  source.includeTransactionReceipts ?? false,
                 include: defaultTransferFilterInclude.concat(
                   source.includeTransactionReceipts
                     ? defaultTransactionReceiptInclude.map(
@@ -922,6 +940,8 @@ export async function buildConfigAndIndexingFunctions({
                 includeReverted: false,
                 fromBlock,
                 toBlock,
+                hasTransactionReceipt:
+                  source.includeTransactionReceipts ?? false,
                 include: defaultTransferFilterInclude.concat(
                   source.includeTransactionReceipts
                     ? defaultTransactionReceiptInclude.map(
@@ -986,6 +1006,7 @@ export async function buildConfigAndIndexingFunctions({
             offset: (fromBlock ?? 0) % interval,
             fromBlock,
             toBlock,
+            hasTransactionReceipt: false,
             include: defaultBlockFilterInclude,
           },
         } satisfies BlockSource;

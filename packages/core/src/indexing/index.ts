@@ -23,11 +23,16 @@ import type {
   UserTransaction,
 } from "@/internal/types.js";
 import {
+  defaultBlockFilterInclude,
   defaultBlockInclude,
+  defaultLogFilterInclude,
   defaultLogInclude,
+  defaultTraceFilterInclude,
   defaultTraceInclude,
+  defaultTransactionFilterInclude,
   defaultTransactionInclude,
   defaultTransactionReceiptInclude,
+  defaultTransferFilterInclude,
   isAddressFactory,
 } from "@/runtime/filter.js";
 import type { Db } from "@/types/db.js";
@@ -336,20 +341,81 @@ export const createIndexing = ({
     }
   };
 
-  const blockProxy = createEventProxy<Block>(columnAccessPattern, "block");
+  const resetFilterInclude = (eventName: string) => {
+    const filters = perEventFilters.get(eventName)!;
+    let include: Filter["include"];
+
+    // Note: It's an invariant that all filters have the same type.
+    switch (filters[0]!.type) {
+      case "block": {
+        include = defaultBlockFilterInclude;
+        break;
+      }
+      case "transaction": {
+        include = defaultTransactionFilterInclude;
+        break;
+      }
+      case "trace": {
+        include = defaultTraceFilterInclude.concat(
+          filters[0]!.hasTransactionReceipt
+            ? defaultTransactionReceiptInclude.map(
+                (value) => `transactionReceipt.${value}` as const,
+              )
+            : [],
+        );
+        break;
+      }
+      case "log": {
+        include = defaultLogFilterInclude.concat(
+          filters[0]!.hasTransactionReceipt
+            ? defaultTransactionReceiptInclude.map(
+                (value) => `transactionReceipt.${value}` as const,
+              )
+            : [],
+        );
+        break;
+      }
+      case "transfer": {
+        include = defaultTransferFilterInclude.concat(
+          filters[0]!.hasTransactionReceipt
+            ? defaultTransactionReceiptInclude.map(
+                (value) => `transactionReceipt.${value}` as const,
+              )
+            : [],
+        );
+        break;
+      }
+    }
+    for (const filter of filters) {
+      filter.include = include;
+    }
+  };
+
+  const blockProxy = createEventProxy<Block>(
+    columnAccessPattern,
+    "block",
+    resetFilterInclude,
+  );
   const transactionProxy = createEventProxy<Transaction>(
     columnAccessPattern,
     "transaction",
+    resetFilterInclude,
   );
   const transactionReceiptProxy = createEventProxy<TransactionReceipt>(
     columnAccessPattern,
     "transactionReceipt",
+    resetFilterInclude,
   );
-  const traceProxy = createEventProxy<Trace>(columnAccessPattern, "trace");
+  const traceProxy = createEventProxy<Trace>(
+    columnAccessPattern,
+    "trace",
+    resetFilterInclude,
+  );
   // Note: There is no `log` proxy because all log columns are required.
 
   // Note: Filters and indexing functions have a many-to-many relationship.
   const perFilterEventNames = new Map<Filter, string[]>();
+  const perEventFilters = new Map<string, Filter[]>();
   for (const eventName of Object.keys(indexingFunctions)) {
     let sourceName: string;
     if (eventName.includes(":")) {
@@ -365,6 +431,10 @@ export const createIndexing = ({
       }
       perFilterEventNames.get(source.filter)!.push(eventName);
     }
+    perEventFilters.set(
+      eventName,
+      _sources.map((s) => s.filter),
+    );
   }
 
   return {
@@ -427,31 +497,35 @@ export const createIndexing = ({
           msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
         });
 
-        // TODO(kyle) don't mutate the event object
+        // Note: Create a new event object instead of mutuating the original one because
+        // the event object could be reused across multiple indexing functions.
+        const proxyEvent: typeof event.event = { ...event.event };
 
         switch (event.type) {
           case "block": {
             blockProxy.eventName = event.name;
             blockProxy.underlying = event.event.block as Block;
-            event.event.block = blockProxy.proxy;
+            proxyEvent.block = blockProxy.proxy;
 
             break;
           }
           case "transaction": {
             blockProxy.eventName = event.name;
             blockProxy.underlying = event.event.block as Block;
-            event.event.block = blockProxy.proxy;
+            proxyEvent.block = blockProxy.proxy;
 
             transactionProxy.eventName = event.name;
             transactionProxy.underlying = event.event
               .transaction as Transaction;
-            event.event.transaction = transactionProxy.proxy;
+            // @ts-expect-error
+            proxyEvent.transaction = transactionProxy.proxy;
 
             if (event.event.transactionReceipt !== undefined) {
               transactionReceiptProxy.eventName = event.name;
               transactionReceiptProxy.underlying = event.event
                 .transactionReceipt as TransactionReceipt;
-              event.event.transactionReceipt = transactionReceiptProxy.proxy;
+              // @ts-expect-error
+              proxyEvent.transactionReceipt = transactionReceiptProxy.proxy;
             }
 
             break;
@@ -460,46 +534,53 @@ export const createIndexing = ({
           case "transfer": {
             blockProxy.eventName = event.name;
             blockProxy.underlying = event.event.block as Block;
-            event.event.block = blockProxy.proxy;
+            proxyEvent.block = blockProxy.proxy;
 
             transactionProxy.eventName = event.name;
             transactionProxy.underlying = event.event
               .transaction as Transaction;
-            event.event.transaction = transactionProxy.proxy;
+            // @ts-expect-error
+            proxyEvent.transaction = transactionProxy.proxy;
 
             if (event.event.transactionReceipt !== undefined) {
               transactionReceiptProxy.eventName = event.name;
               transactionReceiptProxy.underlying = event.event
                 .transactionReceipt as TransactionReceipt;
-              event.event.transactionReceipt = transactionReceiptProxy.proxy;
+              // @ts-expect-error
+              proxyEvent.transactionReceipt = transactionReceiptProxy.proxy;
             }
 
             traceProxy.eventName = event.name;
             traceProxy.underlying = event.event.trace as Trace;
-            event.event.trace = traceProxy.proxy;
+            // @ts-expect-error
+            proxyEvent.trace = traceProxy.proxy;
 
             break;
           }
           case "log": {
             blockProxy.eventName = event.name;
             blockProxy.underlying = event.event.block as Block;
-            event.event.block = blockProxy.proxy;
+            proxyEvent.block = blockProxy.proxy;
 
             transactionProxy.eventName = event.name;
             transactionProxy.underlying = event.event
               .transaction as Transaction;
-            event.event.transaction = transactionProxy.proxy;
+            // @ts-expect-error
+            proxyEvent.transaction = transactionProxy.proxy;
 
             if (event.event.transactionReceipt !== undefined) {
               transactionReceiptProxy.eventName = event.name;
               transactionReceiptProxy.underlying = event.event
                 .transactionReceipt as TransactionReceipt;
-              event.event.transactionReceipt = transactionReceiptProxy.proxy;
+              // @ts-expect-error
+              proxyEvent.transactionReceipt = transactionReceiptProxy.proxy;
             }
 
             break;
           }
         }
+
+        event.event = proxyEvent;
 
         await executeEvent(event);
 
@@ -598,6 +679,7 @@ export const createEventProxy = <
 >(
   columnAccessPattern: ColumnAccessPattern,
   type: "block" | "trace" | "transaction" | "transactionReceipt",
+  resetFilterInclude: (eventName: string) => void,
 ): { proxy: T; underlying: T; eventName: string } => {
   let underlying: T = undefined!;
   let eventName: string = undefined!;
@@ -638,6 +720,8 @@ export const createEventProxy = <
         columnAccessPattern.get(eventName)![type].add(prop);
 
         if (isInvalidAccess) {
+          profile.resolved = false;
+          resetFilterInclude(eventName);
           // @ts-expect-error
           throw new InvalidEventAccessError(`${type}.${prop}`);
         }
@@ -665,6 +749,8 @@ export const createEventProxy = <
         columnAccessPattern.get(eventName)![type].add(prop);
 
         if (isInvalidAccess) {
+          profile.resolved = false;
+          resetFilterInclude(eventName);
           // @ts-expect-error
           throw new InvalidEventAccessError(`${type}.${prop}`);
         }
@@ -685,6 +771,8 @@ export const createEventProxy = <
         columnAccessPattern.get(eventName)![type].add(prop);
 
         if (isInvalidAccess) {
+          profile.resolved = false;
+          resetFilterInclude(eventName);
           // @ts-expect-error
           throw new InvalidEventAccessError(`${type}.${prop}`);
         }
