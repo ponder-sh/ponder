@@ -8,6 +8,11 @@ import type {
   InternalTransaction,
   LogFactory,
   LogFilter,
+  RequiredBlockColumns,
+  RequiredLogColumns,
+  RequiredTraceColumns,
+  RequiredTransactionColumns,
+  RequiredTransactionReceiptColumns,
   SyncBlock,
   SyncBlockHeader,
   SyncLog,
@@ -354,6 +359,7 @@ export const defaultBlockInclude: (keyof Block)[] = [
   "logsBloom",
   "miner",
   "mixHash",
+  "totalDifficulty",
   "nonce",
   "number",
   "parentHash",
@@ -363,6 +369,12 @@ export const defaultBlockInclude: (keyof Block)[] = [
   "stateRoot",
   "timestamp",
   "transactionsRoot",
+];
+
+export const requiredBlockInclude: RequiredBlockColumns[] = [
+  "timestamp",
+  "number",
+  "hash",
 ];
 
 export const defaultTransactionInclude: (keyof Transaction)[] = [
@@ -384,6 +396,14 @@ export const defaultTransactionInclude: (keyof Transaction)[] = [
   "maxPriorityFeePerGas",
 ];
 
+export const requiredTransactionInclude: RequiredTransactionColumns[] = [
+  "transactionIndex",
+  "from",
+  "to",
+  "hash",
+  "type",
+];
+
 export const defaultTransactionReceiptInclude: (keyof TransactionReceipt)[] = [
   "contractAddress",
   "cumulativeGasUsed",
@@ -395,6 +415,9 @@ export const defaultTransactionReceiptInclude: (keyof TransactionReceipt)[] = [
   "to",
   "type",
 ];
+
+export const requiredTransactionReceiptInclude: RequiredTransactionReceiptColumns[] =
+  ["status", "from", "to"];
 
 export const defaultTraceInclude: (keyof Trace)[] = [
   "traceIndex",
@@ -408,6 +431,18 @@ export const defaultTraceInclude: (keyof Trace)[] = [
   "error",
   "revertReason",
   "value",
+  "subcalls",
+];
+
+export const requiredTraceInclude: RequiredTraceColumns[] = [
+  "traceIndex",
+  "type",
+  "from",
+  "to",
+  "input",
+  "output",
+  "error",
+  "value",
 ];
 
 export const defaultLogInclude: (keyof Log)[] = [
@@ -418,13 +453,24 @@ export const defaultLogInclude: (keyof Log)[] = [
   "topics",
 ];
 
+export const requiredLogInclude: RequiredLogColumns[] = defaultLogInclude;
+
 export const defaultBlockFilterInclude: BlockFilter["include"] =
   defaultBlockInclude.map((value) => `block.${value}` as const);
+
+export const requiredBlockFilterInclude: BlockFilter["include"] =
+  requiredBlockInclude.map((value) => `block.${value}` as const);
 
 export const defaultLogFilterInclude: LogFilter["include"] = [
   ...defaultLogInclude.map((value) => `log.${value}` as const),
   ...defaultTransactionInclude.map((value) => `transaction.${value}` as const),
   ...defaultBlockInclude.map((value) => `block.${value}` as const),
+];
+
+export const requiredLogFilterInclude: LogFilter["include"] = [
+  ...requiredLogInclude.map((value) => `log.${value}` as const),
+  ...requiredTransactionInclude.map((value) => `transaction.${value}` as const),
+  ...requiredBlockInclude.map((value) => `block.${value}` as const),
 ];
 
 export const defaultTransactionFilterInclude: TransactionFilter["include"] = [
@@ -435,16 +481,36 @@ export const defaultTransactionFilterInclude: TransactionFilter["include"] = [
   ...defaultBlockInclude.map((value) => `block.${value}` as const),
 ];
 
+export const requiredTransactionFilterInclude: TransactionFilter["include"] = [
+  ...requiredTransactionInclude.map((value) => `transaction.${value}` as const),
+  ...requiredTransactionReceiptInclude.map(
+    (value) => `transactionReceipt.${value}` as const,
+  ),
+  ...requiredBlockInclude.map((value) => `block.${value}` as const),
+];
+
 export const defaultTraceFilterInclude: TraceFilter["include"] = [
   ...defaultBlockInclude.map((value) => `block.${value}` as const),
   ...defaultTransactionInclude.map((value) => `transaction.${value}` as const),
   ...defaultTraceInclude.map((value) => `trace.${value}` as const),
 ];
 
+export const requiredTraceFilterInclude: TraceFilter["include"] = [
+  ...requiredBlockInclude.map((value) => `block.${value}` as const),
+  ...requiredTransactionInclude.map((value) => `transaction.${value}` as const),
+  ...requiredTraceInclude.map((value) => `trace.${value}` as const),
+];
+
 export const defaultTransferFilterInclude: TransferFilter["include"] = [
   ...defaultBlockInclude.map((value) => `block.${value}` as const),
   ...defaultTransactionInclude.map((value) => `transaction.${value}` as const),
   ...defaultTraceInclude.map((value) => `trace.${value}` as const),
+];
+
+export const requiredTransferFilterInclude: TransferFilter["include"] = [
+  ...requiredBlockInclude.map((value) => `block.${value}` as const),
+  ...requiredTransactionInclude.map((value) => `transaction.${value}` as const),
+  ...requiredTraceInclude.map((value) => `trace.${value}` as const),
 ];
 
 export const unionFilterIncludeBlock = (filters: Filter[]): (keyof Block)[] => {

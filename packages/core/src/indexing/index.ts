@@ -34,6 +34,12 @@ import {
   defaultTransactionReceiptInclude,
   defaultTransferFilterInclude,
   isAddressFactory,
+  requiredBlockFilterInclude,
+  requiredLogFilterInclude,
+  requiredTraceFilterInclude,
+  requiredTransactionFilterInclude,
+  requiredTransactionReceiptInclude,
+  requiredTransferFilterInclude,
 } from "@/runtime/filter.js";
 import type { Db } from "@/types/db.js";
 import type {
@@ -630,6 +636,45 @@ export const createIndexing = ({
           for (const column of columnAccessProfile.trace) {
             // @ts-expect-error
             filterInclude.push(`trace.${column}` as const);
+          }
+        }
+
+        switch (source.filter.type) {
+          case "block": {
+            filterInclude.push(...requiredBlockFilterInclude);
+            break;
+          }
+          case "transaction": {
+            // @ts-expect-error
+            filterInclude.push(...requiredTransactionFilterInclude);
+            break;
+          }
+          case "trace": {
+            // @ts-expect-error
+            filterInclude.push(...requiredTraceFilterInclude);
+            if (source.filter.hasTransactionReceipt) {
+              // @ts-expect-error
+              filterInclude.push(...requiredTransactionReceiptInclude);
+            }
+            break;
+          }
+          case "log": {
+            // @ts-expect-error
+            filterInclude.push(...requiredLogFilterInclude);
+            if (source.filter.hasTransactionReceipt) {
+              // @ts-expect-error
+              filterInclude.push(...requiredTransactionReceiptInclude);
+            }
+            break;
+          }
+          case "transfer": {
+            // @ts-expect-error
+            filterInclude.push(...requiredTransferFilterInclude);
+            if (source.filter.hasTransactionReceipt) {
+              // @ts-expect-error
+              filterInclude.push(...requiredTransactionReceiptInclude);
+            }
+            break;
           }
         }
 
