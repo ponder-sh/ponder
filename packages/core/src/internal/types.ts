@@ -35,7 +35,12 @@ import type { RetryableError } from "./errors.js";
 export type DatabaseConfig =
   | { kind: "pglite"; options: PGliteOptions }
   | { kind: "pglite_test"; instance: PGlite }
-  | { kind: "postgres"; poolConfig: Prettify<PoolConfig & { max: number }> };
+  | {
+      kind: "postgres";
+      poolConfig: Prettify<
+        PoolConfig & { max: number; idleInTransactionSessionTimeout?: number }
+      >;
+    };
 
 // Indexing
 
