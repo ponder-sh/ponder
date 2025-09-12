@@ -6,8 +6,6 @@ import {
   revert,
 } from "@/database/actions.js";
 import { type Database, getPonderCheckpointTable } from "@/database/index.js";
-import { createIndexingCache } from "@/indexing-store/cache.js";
-import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import { createIndexing } from "@/indexing/index.js";
@@ -16,7 +14,6 @@ import {
   NonRetryableUserError,
   type RetryableError,
 } from "@/internal/errors.js";
-import { type AppProgress, getAppProgress } from "@/internal/metrics.js";
 import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
@@ -33,14 +30,9 @@ import {
   decodeCheckpoint,
   min,
 } from "@/utils/checkpoint.js";
-import { chunk } from "@/utils/chunk.js";
-import { formatEta, formatPercentage } from "@/utils/format.js";
-import { recordAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
-import { startClock } from "@/utils/timer.js";
-import { eq, getTableName, isTable, sql } from "drizzle-orm";
+import { eq, getTableName, isTable } from "drizzle-orm";
 import { splitEvents } from "./events.js";
-import { getHistoricalEventsIsolated } from "./historical.js";
 import {
   getCachedIntervals,
   getChildAddresses,
@@ -106,20 +98,20 @@ export async function runIsolated({
     indexingErrorHandler,
   });
 
-  const indexingCache = createIndexingCache({
-    common,
-    schemaBuild,
-    crashRecoveryCheckpoint,
-    eventCount,
-  });
+  // const indexingCache = createIndexingCache({
+  //   common,
+  //   schemaBuild,
+  //   crashRecoveryCheckpoint,
+  //   eventCount,
+  // });
 
-  const historicalIndexingStore = createHistoricalIndexingStore({
-    common,
-    schemaBuild,
-    indexingCache,
-    indexingErrorHandler,
-    chainId: chain.id,
-  });
+  // const historicalIndexingStore = createHistoricalIndexingStore({
+  //   common,
+  //   schemaBuild,
+  //   indexingCache,
+  //   indexingErrorHandler,
+  //   chainId: chain.id,
+  // });
 
   const seconds: Seconds = {};
 
@@ -199,216 +191,216 @@ export async function runIsolated({
   common.metrics.start_timestamp = Date.now();
 
   // If the initial checkpoint is zero, we need to run setup events.
-  if (crashRecoveryCheckpoint === undefined) {
-    await database.userQB.transaction(async (tx) => {
-      historicalIndexingStore.qb = tx;
-      historicalIndexingStore.isProcessingEvents = true;
+  // if (crashRecoveryCheckpoint === undefined) {
+  //   await database.userQB.transaction(async (tx) => {
+  //     historicalIndexingStore.qb = tx;
+  //     historicalIndexingStore.isProcessingEvents = true;
 
-      indexingCache.qb = tx;
+  //     indexingCache.qb = tx;
 
-      await indexing.processSetupEvents({
-        db: historicalIndexingStore,
-        chain,
-      });
+  //     await indexing.processSetupEvents({
+  //       db: historicalIndexingStore,
+  //       chain,
+  //     });
 
-      historicalIndexingStore.isProcessingEvents = false;
+  //     historicalIndexingStore.isProcessingEvents = false;
 
-      await indexingCache.flush();
+  //     await indexingCache.flush();
 
-      await tx.wrap({ label: "update_checkpoints" }, (tx) =>
-        tx
-          .insert(PONDER_CHECKPOINT)
-          .values({
-            chainName: chain.name,
-            chainId: chain.id,
-            latestCheckpoint: syncProgress.getCheckpoint({ tag: "start" }),
-            finalizedCheckpoint: syncProgress.getCheckpoint({ tag: "start" }),
-            safeCheckpoint: syncProgress.getCheckpoint({ tag: "start" }),
-          })
-          .onConflictDoUpdate({
-            target: PONDER_CHECKPOINT.chainName,
-            set: {
-              safeCheckpoint: sql`excluded.safe_checkpoint`,
-              finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
-              latestCheckpoint: sql`excluded.latest_checkpoint`,
-            },
-          }),
-      );
-    });
-  }
+  //     await tx.wrap({ label: "update_checkpoints" }, (tx) =>
+  //       tx
+  //         .insert(PONDER_CHECKPOINT)
+  //         .values({
+  //           chainName: chain.name,
+  //           chainId: chain.id,
+  //           latestCheckpoint: syncProgress.getCheckpoint({ tag: "start" }),
+  //           finalizedCheckpoint: syncProgress.getCheckpoint({ tag: "start" }),
+  //           safeCheckpoint: syncProgress.getCheckpoint({ tag: "start" }),
+  //         })
+  //         .onConflictDoUpdate({
+  //           target: PONDER_CHECKPOINT.chainName,
+  //           set: {
+  //             safeCheckpoint: sql`excluded.safe_checkpoint`,
+  //             finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
+  //             latestCheckpoint: sql`excluded.latest_checkpoint`,
+  //           },
+  //         }),
+  //     );
+  //   });
+  // }
 
   // Run historical indexing until complete.
-  for await (const events of recordAsyncGenerator(
-    getHistoricalEventsIsolated({
-      common,
-      indexingBuild,
-      crashRecoveryCheckpoint,
-      syncProgress,
-      chain,
-      childAddresses,
-      cachedIntervals,
-      syncStore,
-    }),
-    (params) => {
-      common.metrics.ponder_historical_concurrency_group_duration.inc(
-        { group: "extract" },
-        params.await,
-      );
-      common.metrics.ponder_historical_concurrency_group_duration.inc(
-        { group: "transform" },
-        params.yield,
-      );
-    },
-  )) {
-    let endClock = startClock();
+  // for await (const events of recordAsyncGenerator(
+  //   getHistoricalEventsIsolated({
+  //     common,
+  //     indexingBuild,
+  //     crashRecoveryCheckpoint,
+  //     syncProgress,
+  //     chain,
+  //     childAddresses,
+  //     cachedIntervals,
+  //     syncStore,
+  //   }),
+  //   (params) => {
+  //     common.metrics.ponder_historical_concurrency_group_duration.inc(
+  //       { group: "extract" },
+  //       params.await,
+  //     );
+  //     common.metrics.ponder_historical_concurrency_group_duration.inc(
+  //       { group: "transform" },
+  //       params.yield,
+  //     );
+  //   },
+  // )) {
+  //   let endClock = startClock();
 
-    indexingCache.qb = database.userQB;
-    await Promise.all([
-      indexingCache.prefetch({ events: events.events }),
-      cachedViemClient.prefetch({ events: events.events }),
-    ]);
-    common.metrics.ponder_historical_transform_duration.inc(
-      { step: "prefetch" },
-      endClock(),
-    );
-    if (events.events.length > 0) {
-      endClock = startClock();
-      await database.userQB.transaction(async (tx) => {
-        try {
-          historicalIndexingStore.qb = tx;
-          historicalIndexingStore.isProcessingEvents = true;
-          indexingCache.qb = tx;
+  //   indexingCache.qb = database.userQB;
+  //   await Promise.all([
+  //     indexingCache.prefetch({ events: events.events }),
+  //     cachedViemClient.prefetch({ events: events.events }),
+  //   ]);
+  //   common.metrics.ponder_historical_transform_duration.inc(
+  //     { step: "prefetch" },
+  //     endClock(),
+  //   );
+  //   if (events.events.length > 0) {
+  //     endClock = startClock();
+  //     await database.userQB.transaction(async (tx) => {
+  //       try {
+  //         historicalIndexingStore.qb = tx;
+  //         historicalIndexingStore.isProcessingEvents = true;
+  //         indexingCache.qb = tx;
 
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "begin" },
-            endClock(),
-          );
+  //         common.metrics.ponder_historical_transform_duration.inc(
+  //           { step: "begin" },
+  //           endClock(),
+  //         );
 
-          endClock = startClock();
+  //         endClock = startClock();
 
-          const eventChunks = chunk(events.events, 93);
-          for (const eventChunk of eventChunks) {
-            await indexing.processEvents({
-              events: eventChunk,
-              db: historicalIndexingStore,
-              cache: indexingCache,
-            });
+  //         const eventChunks = chunk(events.events, 93);
+  //         for (const eventChunk of eventChunks) {
+  //           await indexing.processEvents({
+  //             events: eventChunk,
+  //             db: historicalIndexingStore,
+  //             cache: indexingCache,
+  //           });
 
-            const checkpoint = decodeCheckpoint(
-              eventChunk[eventChunk.length - 1]!.checkpoint,
-            );
+  //           const checkpoint = decodeCheckpoint(
+  //             eventChunk[eventChunk.length - 1]!.checkpoint,
+  //           );
 
-            common.metrics.ponder_historical_completed_indexing_seconds.set(
-              { chain: chain.name },
-              Math.max(
-                Number(checkpoint.blockTimestamp) -
-                  Math.max(
-                    seconds[chain.name]!.cached,
-                    seconds[chain.name]!.start,
-                  ),
-                0,
-              ),
-            );
-            common.metrics.ponder_indexing_timestamp.set(
-              { chain: chain.name },
-              Number(checkpoint.blockTimestamp),
-            );
+  //           common.metrics.ponder_historical_completed_indexing_seconds.set(
+  //             { chain: chain.name },
+  //             Math.max(
+  //               Number(checkpoint.blockTimestamp) -
+  //                 Math.max(
+  //                   seconds[chain.name]!.cached,
+  //                   seconds[chain.name]!.start,
+  //                 ),
+  //               0,
+  //             ),
+  //           );
+  //           common.metrics.ponder_indexing_timestamp.set(
+  //             { chain: chain.name },
+  //             Number(checkpoint.blockTimestamp),
+  //           );
 
-            // Note: allows for terminal and logs to be updated
-            if (preBuild.databaseConfig.kind === "pglite") {
-              await new Promise(setImmediate);
-            }
-          }
+  //           // Note: allows for terminal and logs to be updated
+  //           if (preBuild.databaseConfig.kind === "pglite") {
+  //             await new Promise(setImmediate);
+  //           }
+  //         }
 
-          historicalIndexingStore.isProcessingEvents = false;
+  //         historicalIndexingStore.isProcessingEvents = false;
 
-          await new Promise(setImmediate);
+  //         await new Promise(setImmediate);
 
-          // underlying metrics collection is actually synchronous
-          // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-          const { eta, progress } = (await getAppProgress(
-            common.metrics,
-          )) as AppProgress;
-          if (eta === undefined || progress === undefined) {
-            common.logger.info({
-              service: "app",
-              msg: `Indexed ${events.events.length} '${chain.name}' events`,
-            });
-          } else {
-            common.logger.info({
-              service: "app",
-              msg: `Indexed ${events.events.length} '${chain.name}' events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
-            });
-          }
+  //         // underlying metrics collection is actually synchronous
+  //         // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
+  //         const { eta, progress } = (await getAppProgress(
+  //           common.metrics,
+  //         )) as AppProgress;
+  //         if (eta === undefined || progress === undefined) {
+  //           common.logger.info({
+  //             service: "app",
+  //             msg: `Indexed ${events.events.length} '${chain.name}' events`,
+  //           });
+  //         } else {
+  //           common.logger.info({
+  //             service: "app",
+  //             msg: `Indexed ${events.events.length} '${chain.name}' events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
+  //           });
+  //         }
 
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "index" },
-            endClock(),
-          );
+  //         common.metrics.ponder_historical_transform_duration.inc(
+  //           { step: "index" },
+  //           endClock(),
+  //         );
 
-          endClock = startClock();
-          // Note: at this point, the next events can be preloaded, as long as the are not indexed until
-          // the "flush" + "finalize" is complete.
+  //         endClock = startClock();
+  //         // Note: at this point, the next events can be preloaded, as long as the are not indexed until
+  //         // the "flush" + "finalize" is complete.
 
-          await indexingCache.flush();
+  //         await indexingCache.flush();
 
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "load" },
-            endClock(),
-          );
-          endClock = startClock();
+  //         common.metrics.ponder_historical_transform_duration.inc(
+  //           { step: "load" },
+  //           endClock(),
+  //         );
+  //         endClock = startClock();
 
-          await tx.wrap({ label: "update_checkpoints" }, (tx) =>
-            tx
-              .insert(PONDER_CHECKPOINT)
-              .values({
-                chainName: chain.name,
-                chainId: chain.id,
-                latestCheckpoint: events.checkpoint,
-                finalizedCheckpoint: events.checkpoint,
-                safeCheckpoint: events.checkpoint,
-              })
-              .onConflictDoUpdate({
-                target: PONDER_CHECKPOINT.chainName,
-                set: {
-                  safeCheckpoint: sql`excluded.safe_checkpoint`,
-                  finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
-                  latestCheckpoint: sql`excluded.latest_checkpoint`,
-                },
-              }),
-          );
+  //         await tx.wrap({ label: "update_checkpoints" }, (tx) =>
+  //           tx
+  //             .insert(PONDER_CHECKPOINT)
+  //             .values({
+  //               chainName: chain.name,
+  //               chainId: chain.id,
+  //               latestCheckpoint: events.checkpoint,
+  //               finalizedCheckpoint: events.checkpoint,
+  //               safeCheckpoint: events.checkpoint,
+  //             })
+  //             .onConflictDoUpdate({
+  //               target: PONDER_CHECKPOINT.chainName,
+  //               set: {
+  //                 safeCheckpoint: sql`excluded.safe_checkpoint`,
+  //                 finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
+  //                 latestCheckpoint: sql`excluded.latest_checkpoint`,
+  //               },
+  //             }),
+  //         );
 
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "finalize" },
-            endClock(),
-          );
-          endClock = startClock();
-        } catch (error) {
-          indexingCache.invalidate();
-          indexingCache.clear();
+  //         common.metrics.ponder_historical_transform_duration.inc(
+  //           { step: "finalize" },
+  //           endClock(),
+  //         );
+  //         endClock = startClock();
+  //       } catch (error) {
+  //         indexingCache.invalidate();
+  //         indexingCache.clear();
 
-          if (error instanceof NonRetryableUserError === false) {
-            common.logger.warn({
-              service: "app",
-              msg: "Retrying event batch",
-            });
-          }
+  //         if (error instanceof NonRetryableUserError === false) {
+  //           common.logger.warn({
+  //             service: "app",
+  //             msg: "Retrying event batch",
+  //           });
+  //         }
 
-          throw error;
-        }
-      });
+  //         throw error;
+  //       }
+  //     });
 
-      cachedViemClient.clear();
-      common.metrics.ponder_historical_transform_duration.inc(
-        { step: "commit" },
-        endClock(),
-      );
+  //     cachedViemClient.clear();
+  //     common.metrics.ponder_historical_transform_duration.inc(
+  //       { step: "commit" },
+  //       endClock(),
+  //     );
 
-      await new Promise(setImmediate);
-    }
-  }
+  //     await new Promise(setImmediate);
+  //   }
+  // }
 
-  indexingCache.clear();
+  // indexingCache.clear();
 
   // Manually update metrics to fix a UI bug that occurs when the end
   // checkpoint is between the last processed event and the finalized
