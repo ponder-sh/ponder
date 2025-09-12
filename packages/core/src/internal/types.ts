@@ -330,8 +330,10 @@ export type PreBuild = {
   /** Database type and configuration */
   databaseConfig: DatabaseConfig;
   /** Ordering of events */
-  ordering: "omnichain" | "multichain";
+  ordering: Ordering;
 };
+
+export type Ordering = "omnichain" | "multichain" | "isolated";
 
 export type SchemaBuild = {
   schema: Schema;
@@ -380,6 +382,7 @@ export type CrashRecoveryCheckpoint =
 export type Status = {
   [chainName: string]: {
     id: number;
+    state?: "historical" | "realtime" | "complete" | "failed";
     block: { number: number; timestamp: number };
   };
 };
