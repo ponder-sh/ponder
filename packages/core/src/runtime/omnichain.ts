@@ -457,14 +457,6 @@ export async function runOmnichain({
           indexingCache.invalidate();
           indexingCache.clear();
 
-          if (error instanceof NonRetryableUserError === false) {
-            common.logger.warn({
-              service: "app",
-              msg: "Retrying event batch",
-              error: error as Error,
-            });
-          }
-
           if (error instanceof InvalidEventAccessError) {
             common.logger.warn({
               service: "app",
@@ -476,6 +468,12 @@ export async function runOmnichain({
               perChainSync,
               syncStore,
               events: result.events,
+            });
+          } else if (error instanceof NonRetryableUserError === false) {
+            common.logger.warn({
+              service: "app",
+              msg: "Retrying event batch",
+              error: error as Error,
             });
           }
 

@@ -522,8 +522,9 @@ export async function refetchHistoricalEvents(params: {
 
     const fromBlock = Number(decodeCheckpoint(from).blockNumber);
     const toBlock = Number(decodeCheckpoint(to).blockNumber);
-    const cursor = fromBlock;
+    let cursor = fromBlock;
 
+    let eventIndex = 0;
     while (cursor <= toBlock) {
       const { blockData, cursor: queryCursor } =
         await params.syncStore.getEventBlockData({
@@ -570,17 +571,18 @@ export async function refetchHistoricalEvents(params: {
       );
 
       let i = 0;
-      let j = 0;
 
-      while (i < params.events.length && j < refetchedEvents.length) {
-        if (params.events[i]?.chainId === chain.id) {
-          events[i] = refetchedEvents[j]!;
+      while (eventIndex < params.events.length && i < refetchedEvents.length) {
+        if (params.events[eventIndex]?.chainId === chain.id) {
+          events[eventIndex] = refetchedEvents[i]!;
+          eventIndex++;
           i++;
-          j++;
         } else {
-          i++;
+          eventIndex++;
         }
       }
+
+      cursor = queryCursor + 1;
     }
   }
   return events;
