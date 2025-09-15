@@ -1,4 +1,4 @@
-import type { Database } from "@/database/index.js";
+import { type Database, getPonderMetaTable } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
   CrashRecoveryCheckpoint,
@@ -12,7 +12,7 @@ import { sql } from "drizzle-orm";
 export async function runMultichain({
   common,
   // preBuild,
-  // namespaceBuild,
+  namespaceBuild,
   // schemaBuild,
   // indexingBuild,
   // crashRecoveryCheckpoint,
@@ -31,7 +31,7 @@ export async function runMultichain({
   // const syncStore = createSyncStore({ common, database });
 
   // const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
-  // const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
+  const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
 
   // const eventCount: { [eventName: string]: number } = {};
   // for (const eventName of Object.keys(indexingBuild.indexingFunctions)) {
