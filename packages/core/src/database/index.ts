@@ -1,5 +1,5 @@
 import { isMainThread } from "node:worker_threads";
-import { getReorgTableName } from "@/drizzle/index.js";
+import { getPartitionName, getReorgTableName } from "@/drizzle/index.js";
 import {
   SHARED_OPERATION_ID_SEQUENCE,
   sqlToReorgTableName,
@@ -476,7 +476,7 @@ export const createDatabase = ({
               for (const chain of indexingBuild.chains) {
                 await tx.wrap((tx) =>
                   tx.execute(
-                    `CREATE TABLE "${schemaName}"."${tableName}_${chain.id}" PARTITION OF "${schemaName}"."${tableName}" FOR VALUES IN (${chain.id});`,
+                    `CREATE TABLE "${schemaName}"."${getPartitionName(tableName, chain.id)}" PARTITION OF "${schemaName}"."${tableName}" FOR VALUES IN (${chain.id});`,
                   ),
                 );
               }
