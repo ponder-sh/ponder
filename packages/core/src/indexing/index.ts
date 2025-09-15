@@ -761,10 +761,9 @@ export const createEventProxy = <
         }
 
         const profile = columnAccessPattern.get(eventName)!;
+        const isInvalidAccess = prop in underlying === false;
         // @ts-expect-error
-        const isInvalidAccess = profile[type].has(prop) === false;
-        // @ts-expect-error
-        columnAccessPattern.get(eventName)![type].add(prop);
+        profile[type].add(prop);
 
         if (isInvalidAccess) {
           profile.resolved = false;
@@ -791,10 +790,9 @@ export const createEventProxy = <
         }
 
         const profile = columnAccessPattern.get(eventName)!;
+        const isInvalidAccess = prop in underlying === false;
         // @ts-expect-error
-        const isInvalidAccess = profile[type].has(prop) === false;
-        // @ts-expect-error
-        columnAccessPattern.get(eventName)![type].add(prop);
+        profile[type].add(prop);
 
         if (isInvalidAccess) {
           profile.resolved = false;
@@ -814,10 +812,9 @@ export const createEventProxy = <
         }
 
         const profile = columnAccessPattern.get(eventName)!;
+        const isInvalidAccess = prop in underlying === false;
         // @ts-expect-error
-        const isInvalidAccess = profile[type].has(prop) === false;
-        // @ts-expect-error
-        columnAccessPattern.get(eventName)![type].add(prop);
+        profile[type].add(prop);
 
         if (isInvalidAccess) {
           profile.resolved = false;

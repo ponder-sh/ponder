@@ -68,16 +68,16 @@ test("createIndexing()", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-  });
+  const { sources, chains, rpcs, indexingFunctions } =
+    await buildConfigAndIndexingFunctions({
+      common,
+      config,
+      rawIndexingFunctions,
+    });
 
   const eventCount = {};
   const columnAccessPattern = createColumnAccessPattern({
-    common,
-    type: "global",
+    indexingBuild: { indexingFunctions },
   });
 
   const cachedViemClient = createCachedViemClient({
@@ -109,16 +109,16 @@ test("processSetupEvents() empty", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-  });
+  const { sources, chains, rpcs, indexingFunctions } =
+    await buildConfigAndIndexingFunctions({
+      common,
+      config,
+      rawIndexingFunctions,
+    });
 
   const eventCount = {};
   const columnAccessPattern = createColumnAccessPattern({
-    common,
-    type: "global",
+    indexingBuild: { indexingFunctions },
   });
 
   const cachedViemClient = createCachedViemClient({
@@ -162,8 +162,7 @@ test("processSetupEvents()", async (context) => {
 
   const eventCount = { "Erc20:setup": 0 };
   const columnAccessPattern = createColumnAccessPattern({
-    common,
-    type: "global",
+    indexingBuild: { indexingFunctions },
   });
 
   const cachedViemClient = createCachedViemClient({
@@ -230,8 +229,7 @@ test("processEvent()", async (context) => {
     "Pair:Swap": 0,
   };
   const columnAccessPattern = createColumnAccessPattern({
-    common,
-    type: "global",
+    indexingBuild: { indexingFunctions },
   });
 
   const cachedViemClient = createCachedViemClient({
@@ -332,8 +330,7 @@ test("processEvents eventCount", async (context) => {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
   const columnAccessPattern = createColumnAccessPattern({
-    common,
-    type: "global",
+    indexingBuild: { indexingFunctions },
   });
 
   const cachedViemClient = createCachedViemClient({
@@ -410,8 +407,7 @@ test("executeSetup() context.client", async (context) => {
 
   const eventCount = {};
   const columnAccessPattern = createColumnAccessPattern({
-    common,
-    type: "global",
+    indexingBuild: { indexingFunctions },
   });
 
   const cachedViemClient = createCachedViemClient({
@@ -466,8 +462,7 @@ test("executeSetup() context.db", async (context) => {
   };
   const eventCount = { "Erc20:setup": 0 };
   const columnAccessPattern = createColumnAccessPattern({
-    common,
-    type: "global",
+    indexingBuild: { indexingFunctions },
   });
 
   const cachedViemClient = createCachedViemClient({
@@ -515,10 +510,13 @@ test("executeSetup() metrics", async (context) => {
     rawIndexingFunctions,
   });
 
+  const indexingFunctions = {
+    "Erc20:setup": vi.fn(),
+  };
+
   const eventCount = { "Erc20:setup": 0 };
   const columnAccessPattern = createColumnAccessPattern({
-    common,
-    type: "global",
+    indexingBuild: { indexingFunctions },
   });
 
   const cachedViemClient = createCachedViemClient({
@@ -531,9 +529,7 @@ test("executeSetup() metrics", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      indexingFunctions: {
-        "Erc20:setup": vi.fn(),
-      },
+      indexingFunctions,
       sources,
       chains,
     },
@@ -567,8 +563,7 @@ test("executeSetup() error", async (context) => {
 
   const eventCount = { "Erc20:setup": 0 };
   const columnAccessPattern = createColumnAccessPattern({
-    common,
-    type: "global",
+    indexingBuild: { indexingFunctions },
   });
 
   const cachedViemClient = createCachedViemClient({
@@ -613,17 +608,19 @@ test("processEvents() context.client", async (context) => {
   });
 
   const clientCall = async ({ context }: { context: Context }) => {
-    await context.client.getBalance({
-      address: BOB,
-    });
+    await context.client.getBalance({ address: BOB });
+  };
+
+  const indexingFunctions = {
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+      clientCall,
   };
 
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
   const columnAccessPattern = createColumnAccessPattern({
-    common,
-    type: "global",
+    indexingBuild: { indexingFunctions },
   });
 
   const cachedViemClient = createCachedViemClient({
@@ -636,10 +633,7 @@ test("processEvents() context.client", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      indexingFunctions: {
-        "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-          clientCall,
-      },
+      indexingFunctions,
       sources,
       chains,
     },
@@ -666,7 +660,7 @@ test("processEvents() context.client", async (context) => {
     chainId: 1,
     sourceIndex: 0,
     checkpoint: ZERO_CHECKPOINT_STRING,
-    block: {} as RawEvent["block"],
+    block: { number: 0n } as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: { data, topics },
   } as RawEvent;
@@ -677,7 +671,7 @@ test("processEvents() context.client", async (context) => {
   expect(getBalanceSpy).toHaveBeenCalledTimes(1);
   expect(getBalanceSpy).toHaveBeenCalledWith({
     method: "eth_getBalance",
-    params: ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "latest"],
+    params: ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "0x0"],
   });
 });
 
@@ -702,12 +696,16 @@ test("processEvents() context.db", async (context) => {
     });
   };
 
+  const indexingFunctions = {
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+      dbCall,
+  };
+
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
   const columnAccessPattern = createColumnAccessPattern({
-    common,
-    type: "global",
+    indexingBuild: { indexingFunctions },
   });
 
   const cachedViemClient = createCachedViemClient({
@@ -720,10 +718,7 @@ test("processEvents() context.db", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      indexingFunctions: {
-        "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-          dbCall,
-      },
+      indexingFunctions,
       sources,
       chains,
     },
@@ -777,12 +772,16 @@ test("processEvents() metrics", async (context) => {
     rawIndexingFunctions,
   });
 
+  const indexingFunctions = {
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+      vi.fn(),
+  };
+
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
   const columnAccessPattern = createColumnAccessPattern({
-    common,
-    type: "global",
+    indexingBuild: { indexingFunctions },
   });
 
   const cachedViemClient = createCachedViemClient({
@@ -795,10 +794,7 @@ test("processEvents() metrics", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      indexingFunctions: {
-        "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-          vi.fn(),
-      },
+      indexingFunctions,
       sources,
       chains,
     },
@@ -859,8 +855,7 @@ test("processEvents() error", async (context) => {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
   const columnAccessPattern = createColumnAccessPattern({
-    common,
-    type: "global",
+    indexingBuild: { indexingFunctions },
   });
 
   const cachedViemClient = createCachedViemClient({
@@ -944,8 +939,7 @@ test("processEvents() error with missing event object properties", async (contex
 
   const eventCount = {};
   const columnAccessPattern = createColumnAccessPattern({
-    common,
-    type: "global",
+    indexingBuild: { indexingFunctions },
   });
 
   const cachedViemClient = createCachedViemClient({
@@ -1023,8 +1017,7 @@ test("processEvents() column selection", async (context) => {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
   const columnAccessPattern = createColumnAccessPattern({
-    common,
-    type: "global",
+    indexingBuild: { indexingFunctions },
   });
 
   const cachedViemClient = createCachedViemClient({
@@ -1070,20 +1063,25 @@ test("processEvents() column selection", async (context) => {
   let events = decodeEvents(common, sources, rawEvents);
   await indexing.processEvents({ db: indexingStore, events });
 
-  if (columnAccessPattern.type === "global") {
-    expect(columnAccessPattern.profile.resolved).toBe(true);
-    expect(columnAccessPattern.profile.accessed.size).toBe(2);
-    expect(columnAccessPattern.profile.accessed.has("transaction.gas")).toBe(
-      true,
-    );
-    expect(
-      columnAccessPattern.profile.accessed.has("transaction.maxFeePerGas"),
-    ).toBe(true);
-    expect(columnAccessPattern.profile.transactionInclude).toContain("gas");
-    expect(columnAccessPattern.profile.transactionInclude).toContain(
-      "maxFeePerGas",
-    );
-  }
+  expect(sources[0]!.filter.include).toMatchInlineSnapshot(`
+    [
+      "transaction.gas",
+      "transaction.maxFeePerGas",
+      "log.address",
+      "log.data",
+      "log.logIndex",
+      "log.removed",
+      "log.topics",
+      "transaction.transactionIndex",
+      "transaction.from",
+      "transaction.to",
+      "transaction.hash",
+      "transaction.type",
+      "block.timestamp",
+      "block.number",
+      "block.hash",
+    ]
+  `);
 
   rawEvents = [
     {
