@@ -476,7 +476,7 @@ export const createDatabase = ({
               for (const chain of indexingBuild.chains) {
                 await tx.wrap((tx) =>
                   tx.execute(
-                    `CREATE TABLE "${schemaName}"."${tableName}_${chain.id}" PARTITION OF ${schemaName}."${tableName}" FOR VALUES IN (${chain.id});`,
+                    `CREATE TABLE "${schemaName}"."${tableName}_${chain.id}" PARTITION OF "${schemaName}"."${tableName}" FOR VALUES IN (${chain.id});`,
                   ),
                 );
               }
