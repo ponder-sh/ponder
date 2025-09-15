@@ -750,8 +750,6 @@ export const createEventProxy = <
     defaultInclude = new Set(defaultTransactionReceiptInclude);
   }
 
-  // TODO(kyle) `resolved` = true doesn't necessarily mean column selection has been applied to the event.
-
   const proxy = new Proxy<T>(
     // @ts-expect-error
     {},
