@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.23
+
+### Patch Changes
+
+- [#2038](https://github.com/ponder-sh/ponder/pull/2038) [`3ce5922`](https://github.com/ponder-sh/ponder/commit/3ce5922029643b07710bce13ac57815002d15908) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that would cause an app with an empty `ponder.schema.ts` to crash with the error `syntax error at or near ")"`.
+
 ## 0.12.22
 
 ### Patch Changes
