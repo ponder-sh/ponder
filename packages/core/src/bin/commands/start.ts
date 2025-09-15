@@ -82,7 +82,11 @@ export async function start({
     );
   }
 
-  const build = await createBuild({ common, cliOptions });
+  const buildShutdown = createShutdown();
+  let build = await createBuild({
+    common: { ...common, shutdown: buildShutdown },
+    cliOptions,
+  });
 
   // biome-ignore lint/style/useConst: <explanation>
   let database: Database | undefined;
@@ -187,6 +191,8 @@ export async function start({
     1,
   );
 
+  await buildShutdown.kill();
+
   let app: PonderApp = {
     common,
     preBuild,
@@ -197,6 +203,9 @@ export async function start({
     crashRecoveryCheckpoint,
     database,
   };
+
+  //@ts-expect-error
+  build = undefined;
 
   if (onBuild) {
     app = await onBuild(app);
