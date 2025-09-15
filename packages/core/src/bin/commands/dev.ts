@@ -60,13 +60,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const shutdown = createShutdown();
   const telemetry = createTelemetry({ options, logger, shutdown });
 
-  const common = {
-    options,
-    logger,
-    metrics,
-    telemetry,
-    shutdown,
-  };
+  const common = { options, logger, metrics, telemetry, shutdown };
 
   if (options.version) {
     common.metrics.ponder_version_info.set(
@@ -80,10 +74,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     );
   }
 
-  const build = await createBuild({
-    common,
-    cliOptions,
-  });
+  const build = await createBuild({ common, cliOptions });
 
   shutdown.add(async () => {
     await indexingShutdown.kill();
@@ -151,11 +142,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
         const apiBuild = buildResult.result;
 
-        createServer({
-          common: common,
-          database: database!,
-          apiBuild,
-        });
+        createServer({ common, database: database!, apiBuild });
 
         return;
       }
@@ -346,9 +333,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
               return;
             }
             isolatedController({
-              cliOptions,
-              logger,
-              shutdown: indexingShutdown,
+              common: { ...common, shutdown: indexingShutdown },
               namespaceBuild: { schema, viewsSchema: undefined },
               schemaBuild,
               indexingBuild: indexingBuildResult.result,

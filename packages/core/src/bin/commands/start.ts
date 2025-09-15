@@ -227,9 +227,7 @@ export async function start({
       break;
     case "isolated": {
       isolatedController({
-        cliOptions,
-        logger,
-        shutdown,
+        common,
         namespaceBuild: app.namespaceBuild,
         schemaBuild: app.schemaBuild,
         indexingBuild: app.indexingBuild,

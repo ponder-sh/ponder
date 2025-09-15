@@ -3,8 +3,8 @@ import url from "node:url";
 import { Worker } from "node:worker_threads";
 import { createIndexes, createViews } from "@/database/actions.js";
 import { type Database, getPonderMetaTable } from "@/database/index.js";
-import type { Logger } from "@/internal/logger.js";
-import type { Shutdown } from "@/internal/shutdown.js";
+import type { Common } from "@/internal/common.js";
+import { AggregateMetricsService } from "@/internal/metrics.js";
 import type {
   Chain,
   CrashRecoveryCheckpoint,
@@ -17,7 +17,6 @@ import {
   promiseWithResolvers,
 } from "@/utils/promiseWithResolvers.js";
 import { isTable, sql } from "drizzle-orm";
-import type { CliOptions } from "../ponder.js";
 import type { isolatedWorker } from "./isolatedWorker.js";
 
 const __filename = url.fileURLToPath(import.meta.url);
@@ -38,18 +37,14 @@ export interface WorkerInfo {
 export const perChainWorkerInfo = new Map<number, WorkerInfo>();
 
 export async function isolatedController({
-  cliOptions,
-  logger,
-  shutdown,
+  common,
   namespaceBuild,
   schemaBuild,
   indexingBuild,
   crashRecoveryCheckpoint,
   database,
 }: {
-  cliOptions: CliOptions;
-  logger: Logger;
-  shutdown: Shutdown;
+  common: Common;
   namespaceBuild: NamespaceBuild;
   schemaBuild: SchemaBuild;
   indexingBuild: IndexingBuild;
@@ -75,7 +70,7 @@ export async function isolatedController({
         const tables = Object.values(schemaBuild.schema).filter(isTable);
         await createViews(database.adminQB, { tables, namespaceBuild });
 
-        logger.info({
+        common.logger.info({
           service: "app",
           msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
         });
@@ -87,7 +82,7 @@ export async function isolatedController({
           .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` }),
       );
 
-      logger.info({
+      common.logger.info({
         service: "server",
         msg: "Started returning 200 responses from /ready endpoint",
       });
@@ -117,7 +112,7 @@ export async function isolatedController({
       chain,
       worker: new Worker(workerPath, {
         workerData: {
-          cliOptions,
+          options: common.options,
           chainId: chain.id,
           namespaceBuild,
           crashRecoveryCheckpoint,
@@ -131,7 +126,7 @@ export async function isolatedController({
         case "ready": {
           workerInfo.state = "realtime";
           callback();
-          logger.info({
+          common.logger.info({
             service: "app",
             msg: `Completed '${chain.name}' historical indexing.`,
           });
@@ -140,7 +135,7 @@ export async function isolatedController({
         case "done": {
           workerInfo.state = "complete";
           callback();
-          logger.info({
+          common.logger.info({
             service: "app",
             msg: `Completed '${chain.name}' indexing.`,
           });
@@ -151,7 +146,7 @@ export async function isolatedController({
           const prevState = workerInfo.state;
           workerInfo.state = "failed";
           callback();
-          logger.error({
+          common.logger.error({
             service: "app",
             msg: `Failed '${chain.name}' ${prevState} indexing.`,
             error: message.error,
@@ -169,7 +164,7 @@ export async function isolatedController({
         const error = new Error(
           `Failed '${chain.name}' ${prevState} indexing with exit code ${code}.`,
         );
-        logger.error({
+        common.logger.error({
           service: "app",
           msg: error.message,
         });
@@ -190,11 +185,11 @@ export async function isolatedController({
     perChainWorkerInfo.set(chain.id, setupWorker(chain));
   }
 
-  // TODO(kyle) metrics
-  // common.metrics.toAggregate(appState);
-  // common.metrics.addListeners();
+  common.metrics = new AggregateMetricsService(
+    Array.from(perChainWorkerInfo.values()).map(({ worker }) => worker),
+  );
 
-  shutdown.add(async () => {
+  common.shutdown.add(async () => {
     for (const { pwr } of perChainWorkerInfo.values()) {
       pwr.resolve();
     }

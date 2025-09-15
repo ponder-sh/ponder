@@ -1,5 +1,8 @@
-import { isMainThread, parentPort } from "node:worker_threads";
-import type { WorkerInfo } from "@/bin/commands/isolatedController.js";
+import { type Worker, parentPort } from "node:worker_threads";
+import {
+  type PromiseWithResolvers,
+  promiseWithResolvers,
+} from "@/utils/promiseWithResolvers.js";
 import { truncate } from "@/utils/truncate.js";
 import prometheus from "prom-client";
 import type { Ordering } from "./types.js";
@@ -22,18 +25,8 @@ const httpRequestSizeBytes = [
 const GET_METRICS_REQ = "prom-client:getMetricsReq";
 const GET_METRICS_RES = "prom-client:getMetricsRes";
 
-let requestCtr = 0;
-let latestRequestTimestamp: number | undefined = undefined;
-
 export class MetricsService {
-  #type: "aggregate" | "individual";
-  #app?: {
-    [chainName: string]: WorkerInfo;
-  };
-  #requests?: Map<number, any>;
-
   registry: prometheus.Registry;
-  aggregatedRegistry: prometheus.Registry;
   start_timestamp: number;
   progressMetadata: {
     [chain: string]: {
@@ -121,9 +114,7 @@ export class MetricsService {
   ponder_postgres_pool_connections: prometheus.Gauge<"pool" | "kind"> = null!;
 
   constructor() {
-    this.#type = "individual";
     this.registry = new prometheus.Registry();
-    this.aggregatedRegistry = new prometheus.Registry();
     this.start_timestamp = Date.now();
     this.progressMetadata = {
       general: {
@@ -452,91 +443,15 @@ export class MetricsService {
     prometheus.collectDefaultMetrics({ register: this.registry });
   }
 
-  get type() {
-    return this.#type;
-  }
-
-  get app() {
-    return this.#app;
-  }
-
-  async toAggregate(app: {
-    [chainName: string]: WorkerInfo;
-  }) {
-    this.#type = "aggregate";
-    this.#app = app;
-    this.#requests = new Map();
-  }
-
   /**
    * Get string representation for all metrics.
    * @returns Metrics encoded using Prometheus v0.0.4 format.
    */
-  async getMetrics(): Promise<string> {
-    if (this.#type === "individual") {
-      return await this.registry.metrics();
-    } else {
-      if (
-        latestRequestTimestamp !== undefined &&
-        Date.now() - latestRequestTimestamp < 1500
-      ) {
-        return await this.aggregatedRegistry.metrics();
-      }
-
-      const requestId = requestCtr++;
-      latestRequestTimestamp = Date.now();
-
-      return new Promise((resolve, reject) => {
-        let settled = false;
-
-        const done = (
-          err: Error | undefined,
-          result: string | undefined = undefined,
-        ) => {
-          if (settled) return;
-          settled = true;
-
-          this.#requests!.delete(requestId);
-
-          if (err !== undefined) {
-            reject(err);
-          } else {
-            resolve(result as string);
-          }
-        };
-
-        const request = {
-          responses: [],
-          pending: 0,
-          done,
-          errorTimeout: setTimeout(() => {
-            const err = new Error("Operation timed out.");
-            request.done(err);
-          }, 1000),
-        };
-
-        this.#requests!.set(requestId, request);
-        const message = {
-          type: GET_METRICS_REQ,
-          requestId,
-        };
-
-        for (const { worker, state } of Object.values(this.#app!)) {
-          if (state === "failed") continue;
-          worker.postMessage(message);
-          request.pending++;
-        }
-
-        if (request.pending === 0) {
-          clearTimeout(request.errorTimeout);
-          done(undefined, "");
-        }
-      });
-    }
+  getMetrics(): Promise<string> {
+    return this.registry.metrics();
   }
 
   resetIndexingMetrics() {
-    this.aggregatedRegistry = new prometheus.Registry();
     this.start_timestamp = Date.now();
     this.rps = {};
     this.progressMetadata = {
@@ -588,59 +503,108 @@ export class MetricsService {
     // or stop using metrics for the TUI error message.
     this.ponder_indexing_has_error.reset();
   }
+}
 
-  addListeners() {
-    if (this.#type === "individual") {
-      if (isMainThread === false && parentPort !== null) {
-        parentPort!.on("message", (message) => {
-          if (message.type === GET_METRICS_REQ) {
-            this.registry
-              .getMetricsAsJSON()
-              .then((metrics) => {
-                parentPort!.postMessage({
-                  type: GET_METRICS_RES,
-                  requestId: message.requestId,
-                  metrics,
-                });
-              })
-              .catch((error) => {
-                parentPort!.postMessage({
-                  type: GET_METRICS_RES,
-                  requestId: message.requestId,
-                  error: error.message,
-                });
-              });
+// type MetricsAggregationRequest
+// type MetricsAggregationResponse
+
+export class AggregateMetricsService extends MetricsService {
+  workers: Worker[];
+  requests: Map<
+    number,
+    {
+      responses: string[];
+      pending: number;
+      pwr: PromiseWithResolvers<void>;
+    }
+  >;
+  requestId: number;
+
+  constructor(workers: Worker[]) {
+    super();
+
+    this.workers = workers;
+    this.requests = new Map();
+    this.requestId = 0;
+
+    for (const worker of workers) {
+      worker.on("message", (message) => {
+        // TODO(kyle) message type
+        if (message.type === GET_METRICS_RES) {
+          const request = this.requests.get(message.requestId);
+
+          if (request === undefined) return;
+
+          if (message.error) {
+            request.pwr.reject(new Error(message.error));
+            return;
           }
-        });
-      }
-    } else {
-      if (isMainThread) {
-        for (const appPerChain of Object.values(this.#app!)) {
-          appPerChain.worker.on("message", async (message) => {
-            if (message.type === GET_METRICS_RES) {
-              const request = this.#requests!.get(message.requestId);
 
-              if (request === undefined) return;
-
-              if (message.error) {
-                request.done(new Error(message.error));
-                return;
-              }
-
-              request.responses.push(message.metrics);
-              request.pending--;
-              if (request.pending === 0) {
-                clearTimeout(request.errorTimeout);
-                request.responses.push(await this.registry.getMetricsAsJSON());
-                this.aggregatedRegistry =
-                  prometheus.AggregatorRegistry.aggregate(request.responses);
-                const promString = this.aggregatedRegistry.metrics();
-                request.done(undefined, promString);
-              }
-            }
-          });
+          request.responses.push(message.metrics);
+          request.pending--;
+          if (request.pending === 0) {
+            request.pwr.resolve();
+          }
         }
-      }
+      });
+    }
+
+    setInterval(() => {
+      this.aggregateMetrics();
+    }, 1_000);
+  }
+
+  async aggregateMetrics() {
+    const requestId = this.requestId++;
+    const pwr = promiseWithResolvers<void>();
+
+    this.requests.set(requestId, {
+      responses: [],
+      pending: this.workers.length,
+      pwr,
+    });
+
+    for (const worker of this.workers) {
+      worker.postMessage({ type: GET_METRICS_REQ, requestId });
+    }
+
+    await pwr.promise;
+
+    const request = this.requests.get(requestId)!;
+    this.requests.delete(requestId);
+
+    // TODO(kyle) include main thread metrics in the aggregation
+    this.registry = prometheus.AggregatorRegistry.aggregate(request.responses);
+  }
+
+  // TODO(kyle) reset
+}
+
+export class IsolatedMetricsService extends MetricsService {
+  constructor() {
+    super();
+
+    if (parentPort) {
+      parentPort.on("message", (message) => {
+        if (message.type === GET_METRICS_REQ) {
+          this.registry
+            .getMetricsAsJSON()
+            .then((metrics) => {
+              parentPort!.postMessage({
+                type: GET_METRICS_RES,
+                requestId: message.requestId,
+                metrics,
+              });
+            })
+            .catch((error) => {
+              parentPort!.postMessage({
+                type: GET_METRICS_RES,
+                requestId: message.requestId,
+                error: error.message,
+              });
+            });
+        }
+      });
     }
   }
 }
@@ -662,13 +626,7 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
     rps: number;
   }[]
 > {
-  const aggregatedMetrics =
-    metrics.type === "individual"
-      ? await metrics.registry.getMetricsAsJSON()
-      : await metrics
-          .getMetrics()
-          .catch(() => {})
-          .then(() => metrics.aggregatedRegistry.getMetricsAsJSON());
+  const aggregatedMetrics = await metrics.registry.getMetricsAsJSON();
 
   const syncDurationMetric = aggregatedMetrics.find(
     (metric) => metric.name === "ponder_historical_duration",
@@ -775,13 +733,7 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
 }
 
 export async function getIndexingProgress(metrics: MetricsService) {
-  const aggregatedMetrics =
-    metrics.type === "individual"
-      ? await metrics.registry.getMetricsAsJSON()
-      : await metrics
-          .getMetrics()
-          .catch(() => {})
-          .then(() => metrics.aggregatedRegistry.getMetricsAsJSON());
+  const aggregatedMetrics = await metrics.registry.getMetricsAsJSON();
 
   const hasErrorMetric = aggregatedMetrics.find(
     (metric) => metric.name === "ponder_indexing_has_error",
@@ -845,13 +797,7 @@ export type AppProgress = {
 export async function getAppProgress(
   metrics: MetricsService,
 ): Promise<AppProgress | AppProgress[]> {
-  const aggregatedMetrics =
-    metrics.type === "individual"
-      ? await metrics.registry.getMetricsAsJSON()
-      : await metrics
-          .getMetrics()
-          .catch(() => {})
-          .then(() => metrics.aggregatedRegistry.getMetricsAsJSON());
+  const aggregatedMetrics = await metrics.registry.getMetricsAsJSON();
 
   const totalSecondsMetric = aggregatedMetrics.find(
     (metric) => metric.name === "ponder_historical_total_indexing_seconds",
@@ -965,6 +911,7 @@ export async function getAppProgress(
     // @ts-ignore
     // biome-ignore lint/suspicious/noFallthroughSwitchClause: Isolated for worker threads should behave as omnichain.
     case "isolated": {
+      // @ts-ignore
       if (metrics.type === "aggregate") {
         const perChainAppProgress: Awaited<ReturnType<typeof getAppProgress>> =
           [];

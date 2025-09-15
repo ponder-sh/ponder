@@ -108,13 +108,8 @@ export async function createServer({
       );
       const status: Status = {};
       for (const { chainName, chainId, latestCheckpoint } of checkpoints) {
-        const state =
-          common.metrics.app === undefined
-            ? undefined
-            : common.metrics.app[chainName]?.state;
         status[chainName] = {
           id: chainId,
-          state,
           block: {
             number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
             timestamp: Number(

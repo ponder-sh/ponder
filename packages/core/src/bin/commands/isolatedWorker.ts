@@ -1,9 +1,9 @@
 import { isMainThread, parentPort, workerData } from "node:worker_threads";
 import { createBuild } from "@/build/index.js";
 import { createDatabase } from "@/database/index.js";
+import type { Common } from "@/internal/common.js";
 import { createLogger } from "@/internal/logger.js";
-import { MetricsService } from "@/internal/metrics.js";
-import { buildOptions } from "@/internal/options.js";
+import { IsolatedMetricsService } from "@/internal/metrics.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { createTelemetry } from "@/internal/telemetry.js";
 import type {
@@ -11,12 +11,11 @@ import type {
   NamespaceBuild,
 } from "@/internal/types.js";
 import { runIsolated } from "@/runtime/isolated.js";
-import type { CliOptions } from "../ponder.js";
 
 if (isMainThread === false && parentPort) {
   try {
     await isolatedWorker({
-      cliOptions: workerData.cliOptions,
+      options: workerData.options,
       chainId: workerData.chainId,
       namespaceBuild: workerData.namespaceBuild,
       crashRecoveryCheckpoint: workerData.crashRecoveryCheckpoint,
@@ -38,18 +37,16 @@ if (isMainThread === false && parentPort) {
 }
 
 export async function isolatedWorker({
-  cliOptions,
+  options,
   chainId,
   namespaceBuild,
   crashRecoveryCheckpoint,
 }: {
-  cliOptions: CliOptions;
+  options: Common["options"];
   chainId: number;
   namespaceBuild: NamespaceBuild;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
 }) {
-  const options = buildOptions({ cliOptions });
-
   // Note: telemetry is disabled because the main thread will report telemetry
   options.telemetryDisabled = true;
 
@@ -58,11 +55,10 @@ export async function isolatedWorker({
     mode: options.logFormat,
   });
 
-  const metrics = new MetricsService();
+  const metrics = new IsolatedMetricsService();
   const shutdown = createShutdown();
   const telemetry = createTelemetry({ options, logger, shutdown });
   const common = { options, logger, metrics, telemetry, shutdown };
-  metrics.addListeners();
 
   let isKilled = false;
   parentPort!.on("message", async (msg) => {
