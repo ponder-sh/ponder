@@ -12,11 +12,13 @@ app.get("/count", async (c) => {
   const result = await db.select({ count: count() }).from(schema.transferEvent);
 
   if (result.length === 0) return c.text("0");
-  return c.text(String(result[0]!.count));
+  return c.text(String(result[0]?.count ?? 0));
 });
 
 app.get("/count/:address", async (c) => {
-  const account = getAddress(c.req.param("address"));
+  const addressParam = c.req.param("address");
+  if (!addressParam) return c.text("Invalid address", 400);
+  const account = getAddress(addressParam);
 
   const result = await db
     .select({ count: count() })
@@ -29,7 +31,7 @@ app.get("/count/:address", async (c) => {
     );
 
   if (result.length === 0) return c.text("0");
-  return c.text(String(result[0]!.count));
+  return c.text(String(result[0]?.count ?? 0));
 });
 
 app.get("/whale-transfers", async (c) => {
