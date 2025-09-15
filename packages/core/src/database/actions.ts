@@ -1,5 +1,10 @@
-import { getPrimaryKeyColumns } from "@/drizzle/index.js";
-import { getTableNames } from "@/drizzle/index.js";
+import {
+  getPartitionName,
+  getPrimaryKeyColumns,
+  getReorgTableName,
+  getTriggerFnName,
+  getTriggerName,
+} from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import type {
   NamespaceBuild,
@@ -42,17 +47,17 @@ export const createTriggers = async (
         await tx.wrap({ label: "create_trigger" }, (tx) =>
           tx.execute(
             `
-  CREATE OR REPLACE FUNCTION "${schema}".${getTableNames(table).triggerFn(chainId)}
+  CREATE OR REPLACE FUNCTION "${schema}".${getTriggerFnName(table, chainId)}
   RETURNS TRIGGER AS $$
   BEGIN
   IF TG_OP = 'INSERT' THEN
-  INSERT INTO "${schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+  INSERT INTO "${schema}"."${getReorgTableName(table)}" (${columnNames.join(",")}, operation, checkpoint)
   VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${MAX_CHECKPOINT_STRING}');
   ELSIF TG_OP = 'UPDATE' THEN
-  INSERT INTO "${schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+  INSERT INTO "${schema}"."${getReorgTableName(table)}" (${columnNames.join(",")}, operation, checkpoint)
   VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${MAX_CHECKPOINT_STRING}');
   ELSIF TG_OP = 'DELETE' THEN
-  INSERT INTO "${schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+  INSERT INTO "${schema}"."${getReorgTableName(table)}" (${columnNames.join(",")}, operation, checkpoint)
   VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${MAX_CHECKPOINT_STRING}');
   END IF;
   RETURN NULL;
@@ -63,17 +68,9 @@ export const createTriggers = async (
 
         await tx.wrap({ label: "create_trigger" }, async (tx) => {
           await tx.execute(`
-CREATE OR REPLACE TRIGGER "${getTableNames(table).trigger(chainId)}"
-AFTER INSERT OR UPDATE ON "${schema}"."${getTableName(table)}"
-FOR EACH ROW ${chainId === undefined ? "" : `WHEN (NEW.chain_id = ${chainId})`}
-EXECUTE FUNCTION "${schema}".${getTableNames(table).triggerFn(chainId)};
-`);
-
-          await tx.execute(`
-CREATE OR REPLACE TRIGGER "_${getTableNames(table).trigger(chainId)}"
-AFTER DELETE ON "${schema}"."${getTableName(table)}"
-FOR EACH ROW ${chainId === undefined ? "" : `WHEN (OLD.chain_id = ${chainId})`}
-EXECUTE FUNCTION "${schema}".${getTableNames(table).triggerFn(chainId)};
+CREATE OR REPLACE TRIGGER "${getTriggerName(table, chainId)}"
+AFTER INSERT OR UPDATE OR DELETE ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"
+FOR EACH ROW EXECUTE FUNCTION "${schema}".${getTriggerFnName(table, chainId)};
 `);
         });
       }),
@@ -92,11 +89,7 @@ export const dropTriggers = async (
 
         await tx.wrap({ label: "drop_trigger" }, async (tx) => {
           await tx.execute(
-            `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger(chainId)}" ON "${schema}"."${getTableName(table)}"`,
-          );
-
-          await tx.execute(
-            `DROP TRIGGER IF EXISTS "_${getTableNames(table).trigger(chainId)}" ON "${schema}"."${getTableName(table)}"`,
+            `DROP TRIGGER IF EXISTS "${getTriggerName(table, chainId)}" ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"`,
           );
         });
       }),
@@ -207,7 +200,7 @@ SELECT MIN(operation_id) AS operation_id FROM (
 ${tables
   .map(
     (table) => `
-SELECT MIN(operation_id) AS operation_id FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(getReorgTable(table))}"
+SELECT MIN(operation_id) AS operation_id FROM "${getTableConfig(table).schema ?? "public"}"."${getReorgTableName(table)}"
 WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
 AND checkpoint > '${checkpoint}'`,
   )
@@ -224,7 +217,7 @@ AND checkpoint > '${checkpoint}'`,
         const result = await tx.wrap((tx) =>
           tx.execute(`
 WITH reverted1 AS (
-  DELETE FROM "${schema}"."${getTableName(getReorgTable(table))}"
+  DELETE FROM "${schema}"."${getReorgTableName(table)}"
   WHERE ${minOperationId!} IS NOT NULL AND operation_id >= ${minOperationId!}
   RETURNING * 
 ), reverted2 AS (
@@ -251,7 +244,7 @@ WITH reverted1 AS (
         const result = await tx.wrap((tx) =>
           tx.execute(`
 WITH reverted1 AS (
-  DELETE FROM "${schema}"."${getTableName(getReorgTable(table))}"
+  DELETE FROM "${schema}"."${getReorgTableName(table)}"
   WHERE checkpoint > '${checkpoint}' RETURNING * 
 ), reverted2 AS (
   SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1
@@ -277,7 +270,7 @@ WITH reverted1 AS (
         const result = await tx.wrap((tx) =>
           tx.execute(`
 WITH reverted1 AS (
-  DELETE FROM "${schema}"."${getTableName(getReorgTable(table))}"
+  DELETE FROM "${schema}"."${getReorgTableName(table)}"
   WHERE checkpoint > '${checkpoint}' AND SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)} RETURNING * 
 ), reverted2 AS (
   SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1
@@ -351,7 +344,7 @@ SELECT MIN(operation_id) AS operation_id FROM (
 ${tables
   .map(
     (table) => `
-SELECT MIN(operation_id) AS operation_id FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(getReorgTable(table))}"
+SELECT MIN(operation_id) AS operation_id FROM "${getTableConfig(table).schema ?? "public"}"."${getReorgTableName(table)}"
 WHERE checkpoint > (
   SELECT finalized_checkpoint 
   FROM "${getTableConfig(PONDER_CHECKPOINT).schema ?? "public"}"."${getTableName(PONDER_CHECKPOINT)}" 
@@ -371,7 +364,7 @@ WHERE checkpoint > (
       .map(
         (table, index) => `
     deleted_${index} AS (
-      DELETE FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(getReorgTable(table))}"
+      DELETE FROM "${getTableConfig(table).schema ?? "public"}"."${getReorgTableName(table)}"
       WHERE ${minOperationId} IS NULL OR operation_id < ${minOperationId}
       RETURNING *
     )`,
@@ -409,7 +402,7 @@ WHERE checkpoint > (
           .wrap((tx) =>
             tx.execute(`
 WITH deleted AS (
-  DELETE FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(getReorgTable(table))}"
+  DELETE FROM "${getTableConfig(table).schema ?? "public"}"."${getReorgTableName(table)}"
   WHERE checkpoint <= '${checkpoint}'
   RETURNING *
 ) SELECT COUNT(*) AS deleted_count FROM deleted;`),
@@ -434,7 +427,7 @@ WITH deleted AS (
           .wrap((tx) =>
             tx.execute(`
 WITH deleted AS (
-  DELETE FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(getReorgTable(table))}"
+  DELETE FROM "${getTableConfig(table).schema ?? "public"}"."${getReorgTableName(table)}"
   WHERE checkpoint <= '${checkpoint}' AND SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
   RETURNING *
 ) SELECT COUNT(*) AS deleted_count FROM deleted;`),
@@ -464,7 +457,7 @@ export const commitBlock = async (
     const schema = getTableConfig(table).schema ?? "public";
     await qb.wrap({ label: "commit_block" }, (db) =>
       db.execute(`
-UPDATE "${schema}"."${getTableName(getReorgTable(table))}"
+UPDATE "${schema}"."${getReorgTableName(table)}"
 SET checkpoint = '${checkpoint}'
 WHERE chain_id = ${chainId} AND checkpoint = '${MAX_CHECKPOINT_STRING}'; 
 `),
@@ -487,7 +480,7 @@ export const crashRecovery = async (qb: QB, { table }: { table: PgTable }) => {
   await qb.wrap((db) =>
     db.execute(`
 WITH reverted1 AS (
-  DELETE FROM "${schema}"."${getTableName(getReorgTable(table))}"
+  DELETE FROM "${schema}"."${getReorgTableName(table)}"
   RETURNING *
 ), reverted2 AS (
   SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1

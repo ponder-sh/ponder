@@ -111,6 +111,7 @@ export async function runIsolated({
     schemaBuild,
     crashRecoveryCheckpoint,
     eventCount,
+    chainId: chain.id,
   });
 
   const historicalIndexingStore = createHistoricalIndexingStore({
