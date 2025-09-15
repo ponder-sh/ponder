@@ -17,7 +17,7 @@ import type {
 } from "@/internal/types.js";
 import { runMultichain } from "@/runtime/multichain.js";
 import { runOmnichain } from "@/runtime/omnichain.js";
-import { createServer } from "@/server/index.js";
+// import { createServer } from "@/server/index.js";
 import { mergeResults } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
@@ -216,7 +216,7 @@ export async function start({
   } else {
     runMultichain(app);
   }
-  createServer(app);
+  // createServer(app);
 
   return shutdown.kill;
 }
