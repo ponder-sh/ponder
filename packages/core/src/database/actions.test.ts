@@ -24,6 +24,8 @@ import {
   commitBlock,
   createIndexes,
   createTriggers,
+  createViews,
+  dropTriggers,
   finalize,
   revert,
 } from "./actions.js";
@@ -334,6 +336,29 @@ test("revert() with composite primary key", async (context) => {
 
   expect(rows).toHaveLength(1);
   expect(rows[0]).toStrictEqual({ a: 1, b: 1, c: null });
+});
+
+test("empty schema", async (context) => {
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema: {} },
+  });
+  await createTriggers(database.userQB, { tables: [] });
+  await dropTriggers(database.userQB, { tables: [] });
+  await createViews(database.userQB, {
+    tables: [],
+    namespaceBuild: { schema: "public", viewsSchema: undefined },
+  });
+  await revert(database.userQB, {
+    tables: [],
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    preBuild: { ordering: "multichain" },
+  });
+  await finalize(database.userQB, {
+    tables: [],
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    preBuild: { ordering: "multichain" },
+    namespaceBuild: { schema: "public", viewsSchema: undefined },
+  });
 });
 
 async function getUserIndexNames(

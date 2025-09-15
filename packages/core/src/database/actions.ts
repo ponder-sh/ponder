@@ -185,6 +185,8 @@ export const revert = async (
     preBuild: Pick<PreBuild, "ordering">;
   },
 ): Promise<number[]> => {
+  if (tables.length === 0) return [];
+
   return qb.transaction({ label: "revert" }, async (tx) => {
     const counts: number[] = [];
     if (preBuild.ordering === "multichain") {
@@ -279,6 +281,15 @@ export const finalize = async (
   },
 ): Promise<number> => {
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
+
+  if (tables.length === 0) {
+    await qb.wrap((db) =>
+      db
+        .update(PONDER_CHECKPOINT)
+        .set({ finalizedCheckpoint: checkpoint, safeCheckpoint: checkpoint }),
+    );
+    return 0;
+  }
 
   // NOTE: It is invariant that PONDER_CHECKPOINT has a value for each chain.
 
