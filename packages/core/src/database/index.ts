@@ -33,7 +33,7 @@ import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
 import { pgSchema, pgTable } from "drizzle-orm/pg-core";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
-import type { Pool, PoolClient } from "pg";
+import type { Pool } from "pg";
 import prometheus from "prom-client";
 import { hexToBigInt } from "viem";
 import { crashRecovery } from "./actions.js";
@@ -103,7 +103,6 @@ type PostgresDriver = {
   sync: Pool;
   user: Pool;
   readonly: Pool;
-  listen: PoolClient | undefined;
 };
 
 export const getPonderMetaTable = (schema?: string) => {
@@ -281,7 +280,6 @@ export const createDatabase = ({
         },
         common.logger,
       ),
-      listen: undefined,
     };
 
     syncQB = createQB(
@@ -325,8 +323,6 @@ export const createDatabase = ({
       }
 
       const d = driver as PostgresDriver;
-
-      d.listen?.release();
 
       await Promise.all([
         d.admin.end(),

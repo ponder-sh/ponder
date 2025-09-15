@@ -78,18 +78,25 @@ export function createPool(config: PoolConfig, logger: Logger) {
     ...config,
   });
 
-  function onError(error: Error) {
+  function onPoolError(error: Error) {
     const client = (error as any).client as any | undefined;
     const pid = (client?.processID as number | undefined) ?? "unknown";
     const applicationName =
       (client?.connectionParameters?.application_name as string | undefined) ??
       "unknown";
 
-    logger.error({
+    logger.warn({
       service: "postgres",
-      msg: `Pool error (application_name: ${applicationName}, pid: ${pid})`,
+      msg: `Postgres pool error (application_name: ${applicationName}, pid: ${pid})`,
       error,
     });
+
+    // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
+    // if the underlying problem persists, the process will crash due to downstream effects.
+  }
+
+  function onClientError(error: Error) {
+    logger.warn({ service: "postgres", msg: "Postgres client error", error });
 
     // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
     // if the underlying problem persists, the process will crash due to downstream effects.
@@ -98,13 +105,14 @@ export function createPool(config: PoolConfig, logger: Logger) {
   function onNotice(notice: { message?: string; code?: string }) {
     logger.debug({
       service: "postgres",
-      msg: `notice: ${notice.message} (code: ${notice.code})`,
+      msg: `Postgres notice: ${notice.message} (code: ${notice.code})`,
     });
   }
 
-  pool.on("error", onError);
+  pool.on("error", onPoolError);
   pool.on("connect", (client) => {
     client.on("notice", onNotice);
+    client.on("error", onClientError);
   });
 
   return pool;
@@ -153,18 +161,25 @@ export function createReadonlyPool(
     ...config,
   });
 
-  function onError(error: Error) {
+  function onPoolError(error: Error) {
     const client = (error as any).client as any | undefined;
     const pid = (client?.processID as number | undefined) ?? "unknown";
     const applicationName =
       (client?.connectionParameters?.application_name as string | undefined) ??
       "unknown";
 
-    logger.error({
+    logger.warn({
       service: "postgres",
-      msg: `Pool error (application_name: ${applicationName}, pid: ${pid})`,
+      msg: `Postgres pool error (application_name: ${applicationName}, pid: ${pid})`,
       error,
     });
+
+    // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
+    // if the underlying problem persists, the process will crash due to downstream effects.
+  }
+
+  function onClientError(error: Error) {
+    logger.warn({ service: "postgres", msg: "Postgres client error", error });
 
     // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
     // if the underlying problem persists, the process will crash due to downstream effects.
@@ -173,13 +188,14 @@ export function createReadonlyPool(
   function onNotice(notice: { message?: string; code?: string }) {
     logger.debug({
       service: "postgres",
-      msg: `notice: ${notice.message} (code: ${notice.code})`,
+      msg: `Postgres notice: ${notice.message} (code: ${notice.code})`,
     });
   }
 
-  pool.on("error", onError);
+  pool.on("error", onPoolError);
   pool.on("connect", (client) => {
     client.on("notice", onNotice);
+    client.on("error", onClientError);
   });
 
   return pool;

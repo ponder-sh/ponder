@@ -1,5 +1,23 @@
 # ponder
 
+## 0.12.23
+
+### Patch Changes
+
+- [#2038](https://github.com/ponder-sh/ponder/pull/2038) [`3ce5922`](https://github.com/ponder-sh/ponder/commit/3ce5922029643b07710bce13ac57815002d15908) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that would cause an app with an empty `ponder.schema.ts` to crash with the error `syntax error at or near ")"`.
+
+## 0.12.22
+
+### Patch Changes
+
+- [#2027](https://github.com/ponder-sh/ponder/pull/2027) [`8a2533d`](https://github.com/ponder-sh/ponder/commit/8a2533dcbdb4bc6f3f2984e93be666d1dc36a715) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved database connection reliability. Better support for `Pool error`.
+
+## 0.12.21
+
+### Patch Changes
+
+- [#2006](https://github.com/ponder-sh/ponder/pull/2006) [`908b4b2`](https://github.com/ponder-sh/ponder/commit/908b4b2034174ff96900f98ad60141581fac9c49) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved websocket handling.
+
 ## 0.12.20
 
 ### Patch Changes

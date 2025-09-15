@@ -437,6 +437,7 @@ export async function runMultichain({
             common.logger.warn({
               service: "app",
               msg: "Retrying event batch",
+              error: error as Error,
             });
           }
 
