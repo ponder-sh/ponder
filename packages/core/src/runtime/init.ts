@@ -1,13 +1,14 @@
 import type { Common } from "@/internal/common.js";
 import type {
   Chain,
+  Event,
   IndexingBuild,
   LightBlock,
   Source,
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
-import { getLocalEventGenerator } from "./historical.js";
+import { getLocalEventGenerator, refetchLocalEvents } from "./historical.js";
 import {
   type CachedIntervals,
   type ChildAddresses,
@@ -34,6 +35,17 @@ export async function initEventGenerator(params: {
   isCatchup: boolean;
 }) {
   return getLocalEventGenerator(params);
+}
+
+export async function initRefectEvents(params: {
+  common: Common;
+  chain: Chain;
+  childAddresses: ChildAddresses;
+  sources: Source[];
+  events: Event[];
+  syncStore: SyncStore;
+}) {
+  return refetchLocalEvents(params);
 }
 
 export function initSyncProgress(params: {

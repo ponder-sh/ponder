@@ -36,7 +36,7 @@ import { startClock } from "@/utils/timer.js";
 import { zipperMany } from "@/utils/zipper.js";
 import { hexToNumber } from "viem";
 import type { CachedIntervals, ChildAddresses, SyncProgress } from "./index.js";
-import { initEventGenerator } from "./init.js";
+import { initEventGenerator, initRefectEvents } from "./init.js";
 import { getOmnichainCheckpoint } from "./omnichain.js";
 
 export async function* getHistoricalEventsOmnichain(params: {
@@ -496,7 +496,7 @@ export async function* getHistoricalEventsMultichain(params: {
 
 export async function refetchHistoricalEvents(params: {
   common: Common;
-  indexingBuild: Pick<IndexingBuild, "sources" | "chains" | "rpcs">;
+  indexingBuild: Pick<IndexingBuild, "sources" | "chains">;
   perChainSync: Map<Chain, { childAddresses: ChildAddresses }>;
   events: Event[];
   syncStore: SyncStore;
@@ -517,75 +517,104 @@ export async function refetchHistoricalEvents(params: {
 
     if (chainEvents.length === 0) continue;
 
-    const from = chainEvents[0]!.checkpoint;
-    const to = chainEvents[chainEvents.length - 1]!.checkpoint;
+    const refetchedEvents = await initRefectEvents({
+      common: params.common,
+      chain,
+      childAddresses,
+      sources,
+      events: chainEvents,
+      syncStore: params.syncStore,
+    });
 
-    const fromBlock = Number(decodeCheckpoint(from).blockNumber);
-    const toBlock = Number(decodeCheckpoint(to).blockNumber);
-    let cursor = fromBlock;
+    let i = 0;
+    let j = 0;
 
-    let eventIndex = 0;
-    while (cursor <= toBlock) {
-      const { blockData, cursor: queryCursor } =
-        await params.syncStore.getEventBlockData({
-          filters: sources.map(({ filter }) => filter),
-          fromBlock: cursor,
-          toBlock,
-          chainId: chain.id,
-          limit: Math.round(
-            params.common.options.syncEventsQuerySize /
-              params.indexingBuild.chains.length,
-          ),
-        });
-
-      let endClock = startClock();
-      const rawEvents = blockData.flatMap((bd) =>
-        buildEvents({
-          sources,
-          blockData: bd,
-          childAddresses,
-          chainId: chain.id,
-        }),
-      );
-      params.common.metrics.ponder_historical_extract_duration.inc(
-        { step: "build" },
-        endClock(),
-      );
-
-      params.common.logger.debug({
-        service: "sync",
-        msg: `Extracted ${rawEvents.length} '${chain.name}' events for block range [${cursor}, ${queryCursor}]`,
-      });
-
-      await new Promise(setImmediate);
-
-      endClock = startClock();
-      const refetchedEvents = decodeEvents(params.common, sources, rawEvents);
-      params.common.logger.debug({
-        service: "app",
-        msg: `Decoded ${refetchedEvents.length} '${chain.name}' events`,
-      });
-      params.common.metrics.ponder_historical_extract_duration.inc(
-        { step: "decode" },
-        endClock(),
-      );
-
-      let i = 0;
-
-      while (eventIndex < params.events.length && i < refetchedEvents.length) {
-        if (params.events[eventIndex]?.chainId === chain.id) {
-          events[eventIndex] = refetchedEvents[i]!;
-          eventIndex++;
-          i++;
-        } else {
-          eventIndex++;
-        }
+    while (i < params.events.length && j < refetchedEvents.length) {
+      if (params.events[i]?.chainId === chain.id) {
+        events[i] = refetchedEvents[j]!;
+        i++;
+        j++;
+      } else {
+        i++;
       }
-
-      cursor = queryCursor + 1;
     }
   }
+
   return events;
+}
+
+export async function refetchLocalEvents(params: {
+  common: Common;
+  chain: Chain;
+  childAddresses: ChildAddresses;
+  sources: Source[];
+  events: Event[];
+  syncStore: SyncStore;
+}): Promise<Event[]> {
+  const from = params.events[0]!.checkpoint;
+  const to = params.events[params.events.length - 1]!.checkpoint;
+
+  const fromBlock = Number(decodeCheckpoint(from).blockNumber);
+  const toBlock = Number(decodeCheckpoint(to).blockNumber);
+  let cursor = fromBlock;
+
+  let events: Event[] | undefined;
+  while (cursor <= toBlock) {
+    const { blockData, cursor: queryCursor } =
+      await params.syncStore.getEventBlockData({
+        filters: params.sources.map(({ filter }) => filter),
+        fromBlock: cursor,
+        toBlock,
+        chainId: params.chain.id,
+        limit: Math.round(params.common.options.syncEventsQuerySize),
+      });
+
+    let endClock = startClock();
+    const rawEvents = blockData.flatMap((bd) =>
+      buildEvents({
+        sources: params.sources,
+        blockData: bd,
+        childAddresses: params.childAddresses,
+        chainId: params.chain.id,
+      }),
+    );
+    params.common.metrics.ponder_historical_extract_duration.inc(
+      { step: "build" },
+      endClock(),
+    );
+
+    params.common.logger.debug({
+      service: "sync",
+      msg: `Extracted ${rawEvents.length} '${params.chain.name}' events for block range [${cursor}, ${queryCursor}]`,
+    });
+
+    await new Promise(setImmediate);
+
+    endClock = startClock();
+    const refetchedEvents = decodeEvents(
+      params.common,
+      params.sources,
+      rawEvents,
+    );
+    params.common.logger.debug({
+      service: "app",
+      msg: `Decoded ${refetchedEvents.length} '${params.chain.name}' events`,
+    });
+    params.common.metrics.ponder_historical_extract_duration.inc(
+      { step: "decode" },
+      endClock(),
+    );
+
+    if (events === undefined) {
+      events = refetchedEvents;
+    } else {
+      events.push(...refetchedEvents);
+    }
+
+    cursor = queryCursor + 1;
+  }
+
+  return events!;
 }
 
 export async function* getLocalEventGenerator(params: {
