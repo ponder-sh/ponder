@@ -763,9 +763,8 @@ export const createEventProxy = <
         }
 
         const profile = columnAccessPattern.get(eventName)!;
-        const isInvalidAccess =
-          // @ts-expect-error
-          profile.resolved === true && profile[type].has(prop) === false;
+        // @ts-expect-error
+        const isInvalidAccess = profile[type].has(prop) === false;
         // @ts-expect-error
         columnAccessPattern.get(eventName)![type].add(prop);
 
@@ -794,9 +793,8 @@ export const createEventProxy = <
         }
 
         const profile = columnAccessPattern.get(eventName)!;
-        const isInvalidAccess =
-          // @ts-expect-error
-          profile.resolved === true && profile[type].has(prop) === false;
+        // @ts-expect-error
+        const isInvalidAccess = profile[type].has(prop) === false;
         // @ts-expect-error
         columnAccessPattern.get(eventName)![type].add(prop);
 
@@ -818,9 +816,8 @@ export const createEventProxy = <
         }
 
         const profile = columnAccessPattern.get(eventName)!;
-        const isInvalidAccess =
-          // @ts-expect-error
-          profile.resolved === true && profile[type].has(prop) === false;
+        // @ts-expect-error
+        const isInvalidAccess = profile[type].has(prop) === false;
         // @ts-expect-error
         columnAccessPattern.get(eventName)![type].add(prop);
 
