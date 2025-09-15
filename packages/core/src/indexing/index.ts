@@ -400,21 +400,25 @@ export const createIndexing = ({
   const blockProxy = createEventProxy<Block>(
     columnAccessPattern,
     "block",
+    indexingErrorHandler,
     resetFilterInclude,
   );
   const transactionProxy = createEventProxy<Transaction>(
     columnAccessPattern,
     "transaction",
+    indexingErrorHandler,
     resetFilterInclude,
   );
   const transactionReceiptProxy = createEventProxy<TransactionReceipt>(
     columnAccessPattern,
     "transactionReceipt",
+    indexingErrorHandler,
     resetFilterInclude,
   );
   const traceProxy = createEventProxy<Trace>(
     columnAccessPattern,
     "trace",
+    indexingErrorHandler,
     resetFilterInclude,
   );
   // Note: There is no `log` proxy because all log columns are required.
@@ -724,6 +728,7 @@ export const createEventProxy = <
 >(
   columnAccessPattern: ColumnAccessPattern,
   type: "block" | "trace" | "transaction" | "transactionReceipt",
+  indexingErrorHandler: IndexingErrorHandler,
   resetFilterInclude: (eventName: string) => void,
 ): { proxy: T; underlying: T; eventName: string } => {
   let underlying: T = undefined!;
@@ -768,7 +773,9 @@ export const createEventProxy = <
           profile.resolved = false;
           resetFilterInclude(eventName);
           // @ts-expect-error
-          throw new InvalidEventAccessError(`${type}.${prop}`);
+          const error = new InvalidEventAccessError(`${type}.${prop}`);
+          indexingErrorHandler.setRetryableError(error);
+          throw error;
         }
 
         return Reflect.deleteProperty(underlying, prop);
@@ -797,7 +804,9 @@ export const createEventProxy = <
           profile.resolved = false;
           resetFilterInclude(eventName);
           // @ts-expect-error
-          throw new InvalidEventAccessError(`${type}.${prop}`);
+          const error = new InvalidEventAccessError(`${type}.${prop}`);
+          indexingErrorHandler.setRetryableError(error);
+          throw error;
         }
 
         return Reflect.set(underlying, prop, value);
@@ -819,7 +828,9 @@ export const createEventProxy = <
           profile.resolved = false;
           resetFilterInclude(eventName);
           // @ts-expect-error
-          throw new InvalidEventAccessError(`${type}.${prop}`);
+          const error = new InvalidEventAccessError(`${type}.${prop}`);
+          indexingErrorHandler.setRetryableError(error);
+          throw error;
         }
 
         return Reflect.get(underlying, prop, receiver);
