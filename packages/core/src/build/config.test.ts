@@ -4,6 +4,7 @@ import { factory } from "@/config/address.js";
 import { createConfig } from "@/config/index.js";
 import type { LogFactory, LogFilter, TraceFilter } from "@/internal/types.js";
 import { shouldGetTransactionReceipt } from "@/runtime/filter.js";
+import { hyperliquidEvm } from "@/utils/chains.js";
 import {
   type Address,
   parseAbiItem,
@@ -863,4 +864,29 @@ test("buildConfigAndIndexingFunctions() returns chain, rpc, and finalized block"
   expect(chains[0]!.name).toBe("mainnet");
   expect(chains[0]!.id).toBe(1);
   expect(finalizedBlocks[0]!.number).toBe("0x0");
+});
+
+test("buildConfigAndIndexingFunctions() hyperliquid evm", async (context) => {
+  const config = createConfig({
+    chains: {
+      hyperliquid: { id: 999, rpc: `http://127.0.0.1:8545/${poolId}` },
+    },
+    blocks: {
+      b: {
+        chain: "hyperliquid",
+      },
+    },
+  });
+
+  const { chains } = await buildConfigAndIndexingFunctions({
+    common: context.common,
+    config,
+    rawIndexingFunctions: [{ name: "b:block", fn: () => {} }],
+  });
+
+  expect(chains).toHaveLength(1);
+
+  expect(chains[0]!.name).toBe("hyperliquid");
+  expect(chains[0]!.id).toBe(999);
+  expect(chains[0]!.viemChain).toBe(hyperliquidEvm);
 });
