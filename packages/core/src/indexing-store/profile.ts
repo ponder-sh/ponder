@@ -28,11 +28,13 @@ export const recordProfilePattern = (
   hints: ProfilePattern[],
   cache: Map<Table, [string, Column][]>,
 ): ProfilePattern | undefined => {
+  globalThis.DISABLE_EVENT_PROXY = true;
   for (const hint of hints) {
     if (
       getCacheKey(table, key, cache) ===
       getCacheKey(table, recoverProfilePattern(hint, event), cache)
     ) {
+      globalThis.DISABLE_EVENT_PROXY = false;
       return hint;
     }
   }
@@ -45,11 +47,15 @@ export const recordProfilePattern = (
 
     const pattern = matchEventParameters(event, value);
 
-    if (pattern === undefined) return undefined;
+    if (pattern === undefined) {
+      globalThis.DISABLE_EVENT_PROXY = false;
+      return undefined;
+    }
 
     result[js] = pattern;
   }
 
+  globalThis.DISABLE_EVENT_PROXY = false;
   return result;
 };
 

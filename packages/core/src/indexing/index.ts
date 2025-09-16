@@ -61,6 +61,10 @@ import type { Abi, Address } from "viem";
 import { addStackTrace } from "./addStackTrace.js";
 import type { ReadonlyClient } from "./client.js";
 
+declare global {
+  var DISABLE_EVENT_PROXY: boolean;
+}
+
 export type Context = {
   chain: { id: number; name: string };
   client: ReadonlyClient;
@@ -756,7 +760,7 @@ export const createEventProxy = <
     {
       deleteProperty(_, prop) {
         // @ts-expect-error
-        if (defaultInclude.has(prop) === false) {
+        if (defaultInclude.has(prop) === false || DISABLE_EVENT_PROXY) {
           return Reflect.deleteProperty(underlying, prop);
         }
 
@@ -785,7 +789,7 @@ export const createEventProxy = <
       },
       set(_, prop, value) {
         // @ts-expect-error
-        if (defaultInclude.has(prop) === false) {
+        if (defaultInclude.has(prop) === false || DISABLE_EVENT_PROXY) {
           return Reflect.set(underlying, prop, value);
         }
 
@@ -807,7 +811,7 @@ export const createEventProxy = <
       },
       get(_, prop, receiver) {
         // @ts-expect-error
-        if (defaultInclude.has(prop) === false) {
+        if (defaultInclude.has(prop) === false || DISABLE_EVENT_PROXY) {
           return Reflect.get(underlying, prop, receiver);
         }
 
