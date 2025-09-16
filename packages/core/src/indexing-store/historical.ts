@@ -3,10 +3,10 @@ import type { QB } from "@/database/queryBuilder.js";
 import type { Common } from "@/internal/common.js";
 import {
   DbConnectionError,
-  NonRetryableUserError,
+  // NonRetryableUserError,
   RawSqlError,
   RecordNotFoundError,
-  RetryableError,
+  // RetryableError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
 import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
@@ -31,7 +31,7 @@ export const createHistoricalIndexingStore = ({
   common,
   schemaBuild: { schema },
   indexingCache,
-  indexingErrorHandler,
+  // indexingErrorHandler,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
@@ -39,53 +39,53 @@ export const createHistoricalIndexingStore = ({
   indexingErrorHandler: IndexingErrorHandler;
 }): IndexingStore => {
   let qb: QB = undefined!;
-  let isProcessingEvents = true;
+  // let isProcessingEvents = true;
 
   const tables = Object.values(schema).filter(isTable);
   const primaryKeyCache = getPrimaryKeyCache(tables);
 
-  const storeMethodWrapper = (fn: (...args: any[]) => Promise<any>) => {
-    return async (...args: any[]) => {
-      try {
-        if (isProcessingEvents === false) {
-          throw new NonRetryableUserError(
-            "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
-          );
-        }
-        const result = await fn(...args);
-        // @ts-expect-error typescript bug lol
-        if (isProcessingEvents === false) {
-          throw new NonRetryableUserError(
-            "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
-          );
-        }
-        return result;
-      } catch (error) {
-        if (isProcessingEvents === false) {
-          throw new NonRetryableUserError(
-            "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
-          );
-        }
+  // const  = (fn: (...args: any[]) => Promise<any>) => {
+  //   return async (...args: any[]) => {
+  //     try {
+  //       if (isProcessingEvents === false) {
+  //         throw new NonRetryableUserError(
+  //           "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
+  //         );
+  //       }
+  //       const result = await fn(...args);
+  //       // @ts-expect-error typescript bug lol
+  //       if (isProcessingEvents === false) {
+  //         throw new NonRetryableUserError(
+  //           "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
+  //         );
+  //       }
+  //       return result;
+  //     } catch (error) {
+  //       if (isProcessingEvents === false) {
+  //         throw new NonRetryableUserError(
+  //           "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
+  //         );
+  //       }
 
-        if (error instanceof RetryableError) {
-          indexingErrorHandler.setRetryableError(error);
-        }
+  //       if (error instanceof RetryableError) {
+  //         indexingErrorHandler.setRetryableError(error);
+  //       }
 
-        throw error;
-      }
-    };
-  };
+  //       throw error;
+  //     }
+  //   };
+  // };
 
   return {
     // @ts-ignore
-    find: storeMethodWrapper((table: Table, key) => {
+    find: (table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "find",
       });
       checkOnchainTable(table, "find");
       return indexingCache.get({ table, key });
-    }),
+    },
 
     // @ts-ignore
     insert(table: Table) {
@@ -93,7 +93,7 @@ export const createHistoricalIndexingStore = ({
         values: (values: any) => {
           // @ts-ignore
           const inner = {
-            onConflictDoNothing: storeMethodWrapper(async () => {
+            onConflictDoNothing: async () => {
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -133,8 +133,8 @@ export const createHistoricalIndexingStore = ({
                   isUpdate: false,
                 });
               }
-            }),
-            onConflictDoUpdate: storeMethodWrapper(async (valuesU: any) => {
+            },
+            onConflictDoUpdate: async (valuesU: any) => {
               common.metrics.ponder_indexing_store_queries_total.inc({
                 table: getTableName(table),
                 method: "insert",
@@ -219,10 +219,10 @@ export const createHistoricalIndexingStore = ({
                   isUpdate: false,
                 });
               }
-            }),
+            },
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
             then: (onFulfilled, onRejected) =>
-              storeMethodWrapper(async () => {
+              (async () => {
                 common.metrics.ponder_indexing_store_queries_total.inc({
                   table: getTableName(table),
                   method: "insert",
@@ -320,7 +320,7 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     update(table: Table, key) {
       return {
-        set: storeMethodWrapper(async (values: any) => {
+        set: async (values: any) => {
           common.metrics.ponder_indexing_store_queries_total.inc({
             table: getTableName(table),
             method: "update",
@@ -354,21 +354,21 @@ export const createHistoricalIndexingStore = ({
           }
 
           return indexingCache.set({ table, key, row, isUpdate: true });
-        }),
+        },
       };
     },
     // @ts-ignore
-    delete: storeMethodWrapper(async (table: Table, key) => {
+    delete: async (table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "delete",
       });
       checkOnchainTable(table, "delete");
       return indexingCache.delete({ table, key });
-    }),
+    },
     // @ts-ignore
     sql: drizzle(
-      storeMethodWrapper(async (_sql, params, method, typings) => {
+      async (_sql, params, method, typings) => {
         let isSelectOnly = false;
         try {
           await validateQuery(_sql, false);
@@ -417,7 +417,7 @@ export const createHistoricalIndexingStore = ({
             endClock(),
           );
         }
-      }),
+      },
       { schema, casing: "snake_case" },
     ),
     set qb(_qb: QB) {
