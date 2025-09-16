@@ -35,6 +35,7 @@ import {
 } from "@/utils/checkpoint.js";
 import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
+import { recordAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
 import { eq, getTableName, isTable, sql } from "drizzle-orm";
@@ -238,16 +239,28 @@ export async function runIsolated({
   }
 
   // Run historical indexing until complete.
-  for await (const events of getHistoricalEventsIsolated({
-    common,
-    indexingBuild,
-    crashRecoveryCheckpoint,
-    syncProgress,
-    chain,
-    childAddresses,
-    cachedIntervals,
-    syncStore,
-  })) {
+  for await (const events of recordAsyncGenerator(
+    getHistoricalEventsIsolated({
+      common,
+      indexingBuild,
+      crashRecoveryCheckpoint,
+      syncProgress,
+      chain,
+      childAddresses,
+      cachedIntervals,
+      syncStore,
+    }),
+    (params) => {
+      common.metrics.ponder_historical_concurrency_group_duration.inc(
+        { group: "extract" },
+        params.await,
+      );
+      common.metrics.ponder_historical_concurrency_group_duration.inc(
+        { group: "transform" },
+        params.yield,
+      );
+    },
+  )) {
     let endClock = startClock();
 
     indexingCache.qb = database.userQB;
