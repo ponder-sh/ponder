@@ -3,6 +3,7 @@ import { defineChain } from "viem/utils";
 
 export const chains = _chains as unknown as Record<string, _chains.Chain>;
 
+// Note: wanchain testnet uses the same id as hyperliquid evm
 export const hyperliquidEvm = defineChain({
   id: 999,
   name: "Hyperliquid EVM",
