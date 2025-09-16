@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.24
+
+### Patch Changes
+
+- [#2040](https://github.com/ponder-sh/ponder/pull/2040) [`f926397`](https://github.com/ponder-sh/ponder/commit/f926397d6b13ea8c9623f4bcf41db77b0c5b0081) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed Hyperliquid EVM `context.client.multicall` requests causing the error `Chain "Wanchain Testnet" does not support contract "multicall3"`.
+
 ## 0.12.23
 
 ### Patch Changes
