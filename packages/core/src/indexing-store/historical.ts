@@ -221,41 +221,27 @@ export const createHistoricalIndexingStore = ({
               }
             },
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
-            then: (onFulfilled, onRejected) =>
-              (async () => {
-                common.metrics.ponder_indexing_store_queries_total.inc({
-                  table: getTableName(table),
-                  method: "insert",
-                });
-                checkOnchainTable(table, "insert");
+            then: async (onFulfilled, onRejected) => {
+              common.metrics.ponder_indexing_store_queries_total.inc({
+                table: getTableName(table),
+                method: "insert",
+              });
+              checkOnchainTable(table, "insert");
 
-                if (Array.isArray(values)) {
-                  const rows = [];
-                  for (const value of values) {
-                    if (qb.$dialect === "pglite") {
-                      const row = await indexingCache.get({
-                        table,
-                        key: value,
-                      });
+              if (Array.isArray(values)) {
+                const rows = [];
+                for (const value of values) {
+                  if (qb.$dialect === "pglite") {
+                    const row = await indexingCache.get({
+                      table,
+                      key: value,
+                    });
 
-                      if (row) {
-                        throw new UniqueConstraintError(
-                          `Primary key conflict in table '${getTableName(table)}'`,
-                        );
-                      } else {
-                        rows.push(
-                          indexingCache.set({
-                            table,
-                            key: value,
-                            row: value,
-                            isUpdate: false,
-                          }),
-                        );
-                      }
+                    if (row) {
+                      throw new UniqueConstraintError(
+                        `Primary key conflict in table '${getTableName(table)}'`,
+                      );
                     } else {
-                      // Note: optimistic assumption that no conflict exists
-                      // because error is recovered at flush time
-
                       rows.push(
                         indexingCache.set({
                           table,
@@ -265,29 +251,31 @@ export const createHistoricalIndexingStore = ({
                         }),
                       );
                     }
-                  }
-                  return Promise.resolve(rows).then(onFulfilled, onRejected);
-                } else {
-                  let result: Row;
-                  if (qb.$dialect === "pglite") {
-                    const row = await indexingCache.get({ table, key: values });
-
-                    if (row) {
-                      throw new UniqueConstraintError(
-                        `Primary key conflict in table '${getTableName(table)}'`,
-                      );
-                    } else {
-                      result = indexingCache.set({
-                        table,
-                        key: values,
-                        row: values,
-                        isUpdate: false,
-                      });
-                    }
                   } else {
                     // Note: optimistic assumption that no conflict exists
                     // because error is recovered at flush time
 
+                    rows.push(
+                      indexingCache.set({
+                        table,
+                        key: value,
+                        row: value,
+                        isUpdate: false,
+                      }),
+                    );
+                  }
+                }
+                return Promise.resolve(rows).then(onFulfilled, onRejected);
+              } else {
+                let result: Row;
+                if (qb.$dialect === "pglite") {
+                  const row = await indexingCache.get({ table, key: values });
+
+                  if (row) {
+                    throw new UniqueConstraintError(
+                      `Primary key conflict in table '${getTableName(table)}'`,
+                    );
+                  } else {
                     result = indexingCache.set({
                       table,
                       key: values,
@@ -295,9 +283,20 @@ export const createHistoricalIndexingStore = ({
                       isUpdate: false,
                     });
                   }
-                  return Promise.resolve(result).then(onFulfilled, onRejected);
+                } else {
+                  // Note: optimistic assumption that no conflict exists
+                  // because error is recovered at flush time
+
+                  result = indexingCache.set({
+                    table,
+                    key: values,
+                    row: values,
+                    isUpdate: false,
+                  });
                 }
-              })().then(onFulfilled, onRejected),
+                return Promise.resolve(result).then(onFulfilled, onRejected);
+              }
+            },
             catch: (onRejected) => inner.then(undefined, onRejected),
             finally: (onFinally) =>
               inner.then(
@@ -424,7 +423,7 @@ export const createHistoricalIndexingStore = ({
       qb = _qb;
     },
     set isProcessingEvents(_isProcessingEvents: boolean) {
-      isProcessingEvents = _isProcessingEvents;
+      // isProcessingEvents = _isProcessingEvents;
     },
   };
 };
