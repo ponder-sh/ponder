@@ -15,7 +15,7 @@ import type {
   Event,
   SchemaBuild,
 } from "@/internal/types.js";
-import { dedupe } from "@/utils/dedupe.js";
+// import { dedupe } from "@/utils/dedupe.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import {
@@ -23,12 +23,12 @@ import {
   getTableColumns,
   getTableName,
   isTable,
-  or,
+  // or,
   sql,
 } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import copy from "pg-copy-streams";
-import { recoverProfilePattern } from "./profile.js";
+// import { recoverProfilePattern } from "./profile.js";
 import {
   getCacheKey,
   getPrimaryKeyCache,
@@ -83,8 +83,8 @@ export type IndexingCache = {
   qb: QB;
 };
 
-const SAMPLING_RATE = 10;
-const PREDICTION_THRESHOLD = 0.25;
+// const SAMPLING_RATE = 10;
+// const PREDICTION_THRESHOLD = 0.25;
 const LOW_BATCH_THRESHOLD = 20;
 
 /**
@@ -114,7 +114,7 @@ type CacheKey = string;
  * @example
  * "Erc20.mint()"
  */
-type EventName = string;
+// type EventName = string;
 /**
  * Recorded database access pattern.
  *
@@ -147,7 +147,7 @@ export type ProfilePattern = {
  *   "spender": ["log", "address"],
  * }"
  */
-type ProfileKey = string;
+// type ProfileKey = string;
 /**
  * Cache of database rows.
  */
@@ -187,10 +187,10 @@ type Buffer = Map<
 /**
  * Metadata about database access patterns for each event.
  */
-type Profile = Map<
-  EventName,
-  Map<Table, Map<ProfileKey, { pattern: ProfilePattern; count: number }>>
->;
+// type Profile = Map<
+//   EventName,
+//   Map<Table, Map<ProfileKey, { pattern: ProfilePattern; count: number }>>
+// >;
 
 const getBytes = (value: unknown) => {
   let size = 0;
@@ -331,7 +331,7 @@ export const createIndexingCache = ({
   common,
   schemaBuild: { schema },
   crashRecoveryCheckpoint,
-  eventCount,
+  // eventCount,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
@@ -345,7 +345,7 @@ export const createIndexingCache = ({
   const insertBuffer: Buffer = new Map();
   const updateBuffer: Buffer = new Map();
   /** Profiling data about access patterns for each event. */
-  const profile: Profile = new Map();
+  // const profile: Profile = new Map();
 
   let isFlushRetry = false;
 
@@ -364,6 +364,11 @@ export const createIndexingCache = ({
     insertBuffer.set(table, new Map());
     updateBuffer.set(table, new Map());
   }
+
+  common.logger.info({
+    service: "indexing",
+    msg: `Using ${Math.ceil(common.options.indexingCacheMaxBytes / 1_024 / 1_024)} mb indexing cache`,
+  });
 
   return {
     has({ table, key }) {
@@ -950,7 +955,7 @@ export const createIndexingCache = ({
 
       isFlushRetry = false;
     },
-    async prefetch({ events }) {
+    async prefetch() {
       let totalBytes = 0;
       for (const table of tables) {
         totalBytes += cache.get(table)!.bytes;
@@ -995,24 +1000,24 @@ export const createIndexingCache = ({
         prediction.set(table, new Map());
       }
 
-      for (const event of events) {
-        if (profile.has(event.name)) {
-          for (const table of tables) {
-            if (cache.get(table)!.isCacheComplete) continue;
-            for (const [, { count, pattern }] of profile
-              .get(event.name)!
-              .get(table)!) {
-              // Expected value of times the prediction will be used.
-              const ev = (count * SAMPLING_RATE) / eventCount[event.name]!;
-              if (ev > PREDICTION_THRESHOLD) {
-                const row = recoverProfilePattern(pattern, event);
-                const key = getCacheKey(table, row, primaryKeyCache);
-                prediction.get(table)!.set(key, row);
-              }
-            }
-          }
-        }
-      }
+      // for (const event of events) {
+      //   if (profile.has(event.name)) {
+      //     for (const table of tables) {
+      //       if (cache.get(table)!.isCacheComplete) continue;
+      //       for (const [, { count, pattern }] of profile
+      //         .get(event.name)!
+      //         .get(table)!) {
+      //         // Expected value of times the prediction will be used.
+      //         const ev = (count * SAMPLING_RATE) / eventCount[event.name]!;
+      //         if (ev > PREDICTION_THRESHOLD) {
+      //           const row = recoverProfilePattern(pattern, event);
+      //           const key = getCacheKey(table, row, primaryKeyCache);
+      //           prediction.get(table)!.set(key, row);
+      //         }
+      //       }
+      //     }
+      //   }
+      // }
 
       for (const [table, tableCache] of cache) {
         if (cache.get(table)!.isCacheComplete) continue;
@@ -1033,69 +1038,69 @@ export const createIndexingCache = ({
         cache.get(table)!.prefetched.clear();
       }
 
-      for (const [table, tablePredictions] of prediction) {
-        common.metrics.ponder_indexing_cache_requests_total.inc(
-          {
-            table: getTableName(table),
-            type: "prefetch",
-          },
-          tablePredictions.size,
-        );
-      }
+      // for (const [table, tablePredictions] of prediction) {
+      //   common.metrics.ponder_indexing_cache_requests_total.inc(
+      //     {
+      //       table: getTableName(table),
+      //       type: "prefetch",
+      //     },
+      //     tablePredictions.size,
+      //   );
+      // }
 
-      await Promise.all(
-        Array.from(prediction.entries())
-          .filter(([, tablePredictions]) => tablePredictions.size > 0)
-          .map(async ([table, tablePredictions]) => {
-            for (const [key] of tablePredictions) {
-              cache.get(table)!.prefetched.add(key);
-            }
+      // await Promise.all(
+      //   Array.from(prediction.entries())
+      //     .filter(([, tablePredictions]) => tablePredictions.size > 0)
+      //     .map(async ([table, tablePredictions]) => {
+      //       for (const [key] of tablePredictions) {
+      //         cache.get(table)!.prefetched.add(key);
+      //       }
 
-            const conditions = dedupe(
-              Array.from(tablePredictions),
-              ([key]) => key,
-            ).map(([, prediction]) => getWhereCondition(table, prediction));
+      //       const conditions = dedupe(
+      //         Array.from(tablePredictions),
+      //         ([key]) => key,
+      //       ).map(([, prediction]) => getWhereCondition(table, prediction));
 
-            if (conditions.length === 0) return;
-            const endClock = startClock();
+      //       if (conditions.length === 0) return;
+      //       const endClock = startClock();
 
-            await qb
-              .wrap((db) =>
-                db
-                  .select()
-                  .from(table)
-                  .where(or(...conditions)),
-              )
-              .then((results) => {
-                common.logger.debug({
-                  service: "indexing",
-                  msg: `Pre-queried ${results.length} '${getTableName(table)}' rows`,
-                });
-                const resultsPerKey = new Map<CacheKey, Row>();
-                for (const result of results) {
-                  const ck = getCacheKey(table, result, primaryKeyCache);
-                  resultsPerKey.set(ck, result);
-                }
+      //       await qb
+      //         .wrap((db) =>
+      //           db
+      //             .select()
+      //             .from(table)
+      //             .where(or(...conditions)),
+      //         )
+      //         .then((results) => {
+      //           common.logger.debug({
+      //             service: "indexing",
+      //             msg: `Pre-queried ${results.length} '${getTableName(table)}' rows`,
+      //           });
+      //           const resultsPerKey = new Map<CacheKey, Row>();
+      //           for (const result of results) {
+      //             const ck = getCacheKey(table, result, primaryKeyCache);
+      //             resultsPerKey.set(ck, result);
+      //           }
 
-                const tableCache = cache.get(table)!;
-                for (const key of tablePredictions.keys()) {
-                  if (resultsPerKey.has(key)) {
-                    tableCache.cache.set(key, resultsPerKey.get(key)!);
-                  } else {
-                    tableCache.cache.set(key, null);
-                  }
-                }
-              });
+      //           const tableCache = cache.get(table)!;
+      //           for (const key of tablePredictions.keys()) {
+      //             if (resultsPerKey.has(key)) {
+      //               tableCache.cache.set(key, resultsPerKey.get(key)!);
+      //             } else {
+      //               tableCache.cache.set(key, null);
+      //             }
+      //           }
+      //         });
 
-            common.metrics.ponder_indexing_cache_query_duration.observe(
-              {
-                table: getTableName(table),
-                method: "load",
-              },
-              endClock(),
-            );
-          }),
-      );
+      //       common.metrics.ponder_indexing_cache_query_duration.observe(
+      //         {
+      //           table: getTableName(table),
+      //           method: "load",
+      //         },
+      //         endClock(),
+      //       );
+      //     }),
+      // );
     },
     invalidate() {
       for (const tableCache of cache.values()) {
