@@ -47,6 +47,11 @@ export async function start({
     mode: options.logFormat,
   });
 
+  logger.info({
+    service: "process",
+    msg: `Using NODE_OPTIONS: ${process.env.NODE_OPTIONS}`,
+  });
+
   const [major, minor, _patch] = process.versions.node
     .split(".")
     .map(Number) as [number, number, number];
