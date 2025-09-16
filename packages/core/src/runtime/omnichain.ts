@@ -460,7 +460,7 @@ export async function runOmnichain({
           if (error instanceof InvalidEventAccessError) {
             common.logger.warn({
               service: "app",
-              msg: "Refetching events due to restricted column selection",
+              msg: `Retrying event batch due to unexpected event property access. Missing: '${error.key}' field.`,
             });
             result.events = await refetchHistoricalEvents({
               common,

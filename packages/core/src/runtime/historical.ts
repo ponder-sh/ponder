@@ -36,7 +36,7 @@ import { startClock } from "@/utils/timer.js";
 import { zipperMany } from "@/utils/zipper.js";
 import { hexToNumber } from "viem";
 import type { CachedIntervals, ChildAddresses, SyncProgress } from "./index.js";
-import { initEventGenerator, initRefectEvents } from "./init.js";
+import { initEventGenerator, initRefetchEvents } from "./init.js";
 import { getOmnichainCheckpoint } from "./omnichain.js";
 
 export async function* getHistoricalEventsOmnichain(params: {
@@ -517,7 +517,7 @@ export async function refetchHistoricalEvents(params: {
 
     if (chainEvents.length === 0) continue;
 
-    const refetchedEvents = await initRefectEvents({
+    const refetchedEvents = await initRefetchEvents({
       common: params.common,
       chain,
       childAddresses,

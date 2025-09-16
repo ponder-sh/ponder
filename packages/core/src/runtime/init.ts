@@ -37,7 +37,7 @@ export async function initEventGenerator(params: {
   return getLocalEventGenerator(params);
 }
 
-export async function initRefectEvents(params: {
+export async function initRefetchEvents(params: {
   common: Common;
   chain: Chain;
   childAddresses: ChildAddresses;

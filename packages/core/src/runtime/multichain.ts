@@ -442,7 +442,7 @@ export async function runMultichain({
           if (error instanceof InvalidEventAccessError) {
             common.logger.warn({
               service: "app",
-              msg: `Refetching events due to restricted column selection. Missing: '${error.key}' field.`,
+              msg: `Retrying event batch due to unexpected event property access. Missing: '${error.key}' field.`,
             });
             events.events = await refetchHistoricalEvents({
               common,
