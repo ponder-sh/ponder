@@ -69,7 +69,7 @@ const MULTICALL_SELECTOR = toFunctionSelector(
 const SAMPLING_RATE = 10;
 const DB_PREDICTION_THRESHOLD = 0.2;
 const RPC_PREDICTION_THRESHOLD = 0.8;
-const MAX_CONSTANT_PATTERN_COUNT = 10;
+// const MAX_CONSTANT_PATTERN_COUNT = 10;
 
 /**
  * RPC responses that are not cached. These are valid responses
