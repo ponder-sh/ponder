@@ -1,5 +1,5 @@
 import type { Common } from "@/internal/common.js";
-import type { Chain, IndexingBuild, SetupEvent } from "@/internal/types.js";
+import type { Chain, IndexingBuild } from "@/internal/types.js";
 import type { Event } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
@@ -15,7 +15,6 @@ import {
   type Client,
   type ContractFunctionArgs,
   type ContractFunctionName,
-  type ContractFunctionParameters,
   type EIP1193Parameters,
   type GetBlockReturnType,
   type GetTransactionConfirmationsParameters,
@@ -52,11 +51,7 @@ import {
   toFunctionSelector,
   toHex,
 } from "viem";
-import {
-  getProfilePatternKey,
-  recordProfilePattern,
-  recoverProfilePattern,
-} from "./profile.js";
+import { recoverProfilePattern } from "./profile.js";
 
 export type CachedViemClient = {
   getClient: (chain: Chain) => ReadonlyClient;
@@ -64,7 +59,7 @@ export type CachedViemClient = {
     events: Event[];
   }) => Promise<void>;
   clear: () => void;
-  event: Event | SetupEvent | undefined;
+  // event: Event | SetupEvent | undefined;
 };
 
 const MULTICALL_SELECTOR = toFunctionSelector(
@@ -384,7 +379,7 @@ type Profile = Map<
  *
  * @dev Used to determine which {@link ProfilePattern} should be evicted.
  */
-type ProfileConstantLRU = Map<EventName, Set<ProfileKey>>;
+// type ProfileConstantLRU = Map<EventName, Set<ProfileKey>>;
 /**
  * Cache of RPC responses.
  */
@@ -429,10 +424,10 @@ export const createCachedViemClient = ({
   syncStore: SyncStore;
   eventCount: { [eventName: string]: number };
 }): CachedViemClient => {
-  let event: Event | SetupEvent = undefined!;
+  // let event: Event | SetupEvent = undefined!;
   const cache: Cache = new Map();
   const profile: Profile = new Map();
-  const profileConstantLRU: ProfileConstantLRU = new Map();
+  // const profileConstantLRU: ProfileConstantLRU = new Map();
 
   for (const chain of indexingBuild.chains) {
     cache.set(chain.id, new Map());
@@ -448,42 +443,42 @@ export const createCachedViemClient = ({
     const actions = {} as PonderActions;
     const _publicActions = publicActions(client);
 
-    const addProfilePattern = ({
-      pattern,
-      hasConstant,
-    }: { pattern: ProfilePattern; hasConstant: boolean }) => {
-      const profilePatternKey = getProfilePatternKey(pattern);
+    // const addProfilePattern = ({
+    //   pattern,
+    //   hasConstant,
+    // }: { pattern: ProfilePattern; hasConstant: boolean }) => {
+    //   const profilePatternKey = getProfilePatternKey(pattern);
 
-      if (profile.get(event.name)!.has(profilePatternKey)) {
-        profile.get(event.name)!.get(profilePatternKey)!.count++;
+    //   if (profile.get(event.name)!.has(profilePatternKey)) {
+    //     profile.get(event.name)!.get(profilePatternKey)!.count++;
 
-        if (hasConstant) {
-          profileConstantLRU.get(event.name)!.delete(profilePatternKey);
-          profileConstantLRU.get(event.name)!.add(profilePatternKey);
-        }
-      } else {
-        profile
-          .get(event.name)!
-          .set(profilePatternKey, { pattern, hasConstant, count: 1 });
+    //     if (hasConstant) {
+    //       profileConstantLRU.get(event.name)!.delete(profilePatternKey);
+    //       profileConstantLRU.get(event.name)!.add(profilePatternKey);
+    //     }
+    //   } else {
+    //     profile
+    //       .get(event.name)!
+    //       .set(profilePatternKey, { pattern, hasConstant, count: 1 });
 
-        if (hasConstant) {
-          profileConstantLRU.get(event.name)!.add(profilePatternKey);
-          if (
-            profileConstantLRU.get(event.name)!.size >
-            MAX_CONSTANT_PATTERN_COUNT
-          ) {
-            const firstKey = profileConstantLRU
-              .get(event.name)!
-              .keys()
-              .next().value;
-            if (firstKey) {
-              profile.get(event.name)!.delete(firstKey);
-              profileConstantLRU.get(event.name)!.delete(firstKey);
-            }
-          }
-        }
-      }
-    };
+    //     if (hasConstant) {
+    //       profileConstantLRU.get(event.name)!.add(profilePatternKey);
+    //       if (
+    //         profileConstantLRU.get(event.name)!.size >
+    //         MAX_CONSTANT_PATTERN_COUNT
+    //       ) {
+    //         const firstKey = profileConstantLRU
+    //           .get(event.name)!
+    //           .keys()
+    //           .next().value;
+    //         if (firstKey) {
+    //           profile.get(event.name)!.delete(firstKey);
+    //           profileConstantLRU.get(event.name)!.delete(firstKey);
+    //         }
+    //       }
+    //     }
+    //   }
+    // };
 
     const getPonderAction = <
       action extends (typeof blockDependentActions)[number],
@@ -497,57 +492,57 @@ export const createCachedViemClient = ({
       }: Parameters<PonderActions[action]>[0]) => {
         // Note: prediction only possible when block number is managed by Ponder.
 
-        if (
-          event.type !== "setup" &&
-          userBlockNumber === undefined &&
-          eventCount[event.name]! % SAMPLING_RATE === 1
-        ) {
-          if (profile.has(event.name) === false) {
-            profile.set(event.name, new Map());
-            profileConstantLRU.set(event.name, new Set());
-          }
+        // if (
+        //   event.type !== "setup" &&
+        //   userBlockNumber === undefined &&
+        //   eventCount[event.name]! % SAMPLING_RATE === 1
+        // ) {
+        //   if (profile.has(event.name) === false) {
+        //     profile.set(event.name, new Map());
+        //     profileConstantLRU.set(event.name, new Set());
+        //   }
 
-          // profile "readContract" and "multicall" actions
-          if (action === "readContract") {
-            const recordPatternResult = recordProfilePattern({
-              event: event,
-              args: { ...args, cache } as Parameters<
-                PonderActions["readContract"]
-              >[0],
-              hints: Array.from(profile.get(event.name)!.values()),
-            });
-            if (recordPatternResult) {
-              addProfilePattern(recordPatternResult);
-            }
-          } else if (action === "multicall") {
-            const contracts = (
-              { ...args, cache } as Parameters<PonderActions["multicall"]>[0]
-            ).contracts as ContractFunctionParameters[];
+        //   // profile "readContract" and "multicall" actions
+        //   if (action === "readContract") {
+        //     const recordPatternResult = recordProfilePattern({
+        //       event: event,
+        //       args: { ...args, cache } as Parameters<
+        //         PonderActions["readContract"]
+        //       >[0],
+        //       hints: Array.from(profile.get(event.name)!.values()),
+        //     });
+        //     if (recordPatternResult) {
+        //       addProfilePattern(recordPatternResult);
+        //     }
+        //   } else if (action === "multicall") {
+        //     const contracts = (
+        //       { ...args, cache } as Parameters<PonderActions["multicall"]>[0]
+        //     ).contracts as ContractFunctionParameters[];
 
-            if (contracts.length < 10) {
-              for (const contract of contracts) {
-                const recordPatternResult = recordProfilePattern({
-                  event: event,
-                  args: contract,
-                  hints: Array.from(profile.get(event.name)!.values()),
-                });
-                if (recordPatternResult) {
-                  addProfilePattern(recordPatternResult);
-                }
-              }
-            }
-          }
-        }
+        //     if (contracts.length < 10) {
+        //       for (const contract of contracts) {
+        //         const recordPatternResult = recordProfilePattern({
+        //           event: event,
+        //           args: contract,
+        //           hints: Array.from(profile.get(event.name)!.values()),
+        //         });
+        //         if (recordPatternResult) {
+        //           addProfilePattern(recordPatternResult);
+        //         }
+        //       }
+        //     }
+        //   }
+        // }
 
-        const blockNumber =
-          event.type === "setup" ? event.block : event.event.block.number;
+        // const blockNumber =
+        //   event.type === "setup" ? event.block : event.event.block.number;
 
         // @ts-expect-error
         return _publicActions[action]({
           ...args,
           ...(cache === "immutable"
             ? { blockTag: "latest" }
-            : { blockNumber: userBlockNumber ?? blockNumber }),
+            : { blockNumber: userBlockNumber }),
         } as Parameters<ReturnType<typeof publicActions>[action]>[0]);
       };
     };
@@ -756,9 +751,9 @@ export const createCachedViemClient = ({
         cache.get(chain.id)!.clear();
       }
     },
-    set event(_event: Event | SetupEvent) {
-      event = _event;
-    },
+    // set event(_event: Event | SetupEvent) {
+    //   event = _event;
+    // },
   };
 };
 

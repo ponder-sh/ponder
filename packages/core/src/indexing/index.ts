@@ -1,4 +1,4 @@
-import type { IndexingCache } from "@/indexing-store/cache.js";
+// import type { IndexingCache } from "@/indexing-store/cache.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
 import type { CachedViemClient } from "@/indexing/client.js";
 import type { Common } from "@/internal/common.js";
@@ -53,7 +53,7 @@ export type Indexing = {
   processEvents: (params: {
     events: Event[];
     db: IndexingStore;
-    cache?: IndexingCache;
+    // cache?: IndexingCache;
   }) => Promise<void>;
 };
 
@@ -315,7 +315,7 @@ export const createIndexing = ({
             block: BigInt(source.filter.fromBlock ?? 0),
           } satisfies SetupEvent;
 
-          client.event = event;
+          // client.event = event;
           context.client = clientByChainId[chain.id]!;
 
           eventCount[eventName]!++;
@@ -324,17 +324,17 @@ export const createIndexing = ({
         }
       }
     },
-    async processEvents({ events, db, cache }) {
+    async processEvents({ events, db }) {
       context.db = db;
       for (let i = 0; i < events.length; i++) {
         const event = events[i]!;
 
-        client.event = event;
+        // client.event = event;
         context.client = clientByChainId[event.chainId]!;
 
-        if (cache) {
-          cache.event = event;
-        }
+        // if (cache) {
+        //   cache.event = event;
+        // }
 
         eventCount[event.name]!++;
 

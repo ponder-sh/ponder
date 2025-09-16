@@ -1,7 +1,7 @@
 import type { QB } from "@/database/queryBuilder.js";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
-import { addErrorMeta, toErrorMeta } from "@/indexing/index.js";
+import { addErrorMeta } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import {
   CopyFlushError,
@@ -26,11 +26,7 @@ import {
 } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import copy from "pg-copy-streams";
-import {
-  getProfilePatternKey,
-  recordProfilePattern,
-  recoverProfilePattern,
-} from "./profile.js";
+import { recoverProfilePattern } from "./profile.js";
 import {
   getCacheKey,
   getPrimaryKeyCache,
@@ -81,7 +77,7 @@ export type IndexingCache = {
    * Deletes all entries from the cache.
    */
   clear: () => void;
-  event: Event | undefined;
+  // event: Event | undefined;
   qb: QB;
 };
 
@@ -182,7 +178,7 @@ type Buffer = Map<
     CacheKey,
     {
       row: Row;
-      metadata: { event: Event | undefined };
+      // metadata: { event: Event | undefined };
     }
   >
 >;
@@ -348,7 +344,7 @@ export const createIndexingCache = ({
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   eventCount: { [eventName: string]: number };
 }): IndexingCache => {
-  let event: Event | undefined;
+  // let event: Event | undefined;
   let qb: QB = undefined!;
 
   const cache: Cache = new Map();
@@ -387,35 +383,35 @@ export const createIndexingCache = ({
       );
     },
     async get({ table, key }) {
-      if (event && eventCount[event.name]! % SAMPLING_RATE === 1) {
-        if (profile.has(event.name) === false) {
-          profile.set(event.name, new Map());
-          for (const table of tables) {
-            profile.get(event.name)!.set(table, new Map());
-          }
-        }
+      // if (event && eventCount[event.name]! % SAMPLING_RATE === 1) {
+      //   if (profile.has(event.name) === false) {
+      //     profile.set(event.name, new Map());
+      //     for (const table of tables) {
+      //       profile.get(event.name)!.set(table, new Map());
+      //     }
+      //   }
 
-        const pattern = recordProfilePattern(
-          event,
-          table,
-          key,
-          Array.from(profile.get(event.name)!.get(table)!.values()).map(
-            ({ pattern }) => pattern,
-          ),
-          primaryKeyCache,
-        );
-        if (pattern) {
-          const key = getProfilePatternKey(pattern);
-          if (profile.get(event.name)!.get(table)!.has(key)) {
-            profile.get(event.name)!.get(table)!.get(key)!.count++;
-          } else {
-            profile
-              .get(event.name)!
-              .get(table)!
-              .set(key, { pattern, count: 1 });
-          }
-        }
-      }
+      //   const pattern = recordProfilePattern(
+      //     event,
+      //     table,
+      //     key,
+      //     Array.from(profile.get(event.name)!.get(table)!.values()).map(
+      //       ({ pattern }) => pattern,
+      //     ),
+      //     primaryKeyCache,
+      //   );
+      //   if (pattern) {
+      //     const key = getProfilePatternKey(pattern);
+      //     if (profile.get(event.name)!.get(table)!.has(key)) {
+      //       profile.get(event.name)!.get(table)!.get(key)!.count++;
+      //     } else {
+      //       profile
+      //         .get(event.name)!
+      //         .get(table)!
+      //         .set(key, { pattern, count: 1 });
+      //     }
+      //   }
+      // }
 
       const ck = getCacheKey(table, key, primaryKeyCache);
       // Note: order is important, it is an invariant that update entries
@@ -497,12 +493,12 @@ export const createIndexingCache = ({
       if (isUpdate) {
         updateBuffer.get(table)!.set(ck, {
           row: structuredClone(row),
-          metadata: { event },
+          // metadata: { event },
         });
       } else {
         insertBuffer.get(table)!.set(ck, {
           row: structuredClone(row),
-          metadata: { event },
+          // metadata: { event },
         });
       }
 
@@ -585,21 +581,21 @@ export const createIndexingCache = ({
                   `db.insert arguments:\n${prettyPrint(result.value.row)}`,
                 );
 
-                if (result.value.metadata.event) {
-                  addErrorMeta(error, toErrorMeta(result.value.metadata.event));
+                // if (result.value.metadata.event) {
+                //   addErrorMeta(error, toErrorMeta(result.value.metadata.event));
 
-                  common.logger.warn({
-                    service: "indexing",
-                    msg: `Error inserting into '${getTableName(table)}' in '${result.value.metadata.event.name}'`,
-                    error,
-                  });
-                } else {
-                  common.logger.warn({
-                    service: "indexing",
-                    msg: `Error inserting into '${getTableName(table)}'`,
-                    error,
-                  });
-                }
+                //   common.logger.warn({
+                //     service: "indexing",
+                //     msg: `Error inserting into '${getTableName(table)}' in '${result.value.metadata.event.name}'`,
+                //     error,
+                //   });
+                // } else {
+                common.logger.warn({
+                  service: "indexing",
+                  msg: `Error inserting into '${getTableName(table)}'`,
+                  error,
+                });
+                // }
 
                 // @ts-ignore remove meta from error
                 error.meta = undefined;
@@ -715,21 +711,21 @@ export const createIndexingCache = ({
                   `db.update arguments:\n${prettyPrint(result.value.row)}`,
                 );
 
-                if (result.value.metadata.event) {
-                  addErrorMeta(error, toErrorMeta(result.value.metadata.event));
+                // if (result.value.metadata.event) {
+                //   addErrorMeta(error, toErrorMeta(result.value.metadata.event));
 
-                  common.logger.warn({
-                    service: "indexing",
-                    msg: `Error updating '${getTableName(table)}' in '${result.value.metadata.event.name}'`,
-                    error,
-                  });
-                } else {
-                  common.logger.warn({
-                    service: "indexing",
-                    msg: `Error updating '${getTableName(table)}'`,
-                    error,
-                  });
-                }
+                //   common.logger.warn({
+                //     service: "indexing",
+                //     msg: `Error updating '${getTableName(table)}' in '${result.value.metadata.event.name}'`,
+                //     error,
+                //   });
+                // } else {
+                common.logger.warn({
+                  service: "indexing",
+                  msg: `Error updating '${getTableName(table)}'`,
+                  error,
+                });
+                // }
 
                 // @ts-ignore remove meta from error
                 error.meta = undefined;
@@ -1126,9 +1122,9 @@ export const createIndexingCache = ({
         tableBuffer.clear();
       }
     },
-    set event(_event: Event | undefined) {
-      event = _event;
-    },
+    // set event(_event: Event | undefined) {
+    //   event = _event;
+    // },
     set qb(_qb: QB) {
       qb = _qb;
     },

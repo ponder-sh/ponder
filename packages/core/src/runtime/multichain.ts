@@ -328,7 +328,7 @@ export async function runMultichain({
             await indexing.processEvents({
               events: eventChunk,
               db: historicalIndexingStore,
-              cache: indexingCache,
+              // cache: indexingCache,
             });
 
             const checkpoint = decodeCheckpoint(
