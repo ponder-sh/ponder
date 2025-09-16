@@ -1,3 +1,5 @@
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import type { QB } from "@/database/queryBuilder.js";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
@@ -293,15 +295,7 @@ export const getCopyHelper = (qb: QB) => {
         copy.from(`COPY ${target} FROM STDIN`),
       );
 
-      await new Promise((resolve, reject) => {
-        copyStream.on("finish", resolve);
-        copyStream.on("error", reject);
-
-        copyStream.write(text);
-        copyStream.end();
-      }).catch((error) => {
-        throw new CopyFlushError(error.message);
-      });
+      await pipeline(Readable.from(text), copyStream);
     };
   }
 };
