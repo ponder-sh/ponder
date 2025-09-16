@@ -112,7 +112,7 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
       process.env.PONDER_CACHE_BYTES !== undefined
         ? Number(process.env.PONDER_CACHE_BYTES)
         : Math.ceil(
-            v8.getHeapStatistics().heap_size_limit / 1_024 / 1_024 / 5 / 64,
+            v8.getHeapStatistics().heap_size_limit / 1_024 / 1_024 / 10 / 64,
           ) *
           64 *
           1_024 *
