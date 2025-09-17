@@ -1,4 +1,5 @@
 import path from "node:path";
+import v8 from "node:v8";
 import { createBuild } from "@/build/index.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
@@ -50,6 +51,11 @@ export async function start({
   logger.info({
     service: "process",
     msg: `Using NODE_OPTIONS: ${process.env.NODE_OPTIONS}`,
+  });
+
+  logger.info({
+    service: "process",
+    msg: `Heap statistics: ${v8.getHeapStatistics()}`,
   });
 
   const [major, minor, _patch] = process.versions.node
