@@ -325,42 +325,42 @@ export async function runMultichain({
 
           endClock = startClock();
 
-          const eventChunks = chunk(events.events, 93);
-          for (const eventChunk of eventChunks) {
-            await indexing.processEvents({
-              events: eventChunk,
-              db: historicalIndexingStore,
-              // cache: indexingCache,
-            });
+          // const eventChunks = chunk(events.events, 93);
+          // for (const eventChunk of eventChunks) {
+          await indexing.processEvents({
+            events: events.events,
+            db: historicalIndexingStore,
+            // cache: indexingCache,
+          });
 
-            const checkpoint = decodeCheckpoint(
-              eventChunk[eventChunk.length - 1]!.checkpoint,
-            );
+          const checkpoint = decodeCheckpoint(
+            events.events[events.events.length - 1]!.checkpoint,
+          );
 
-            const chain = indexingBuild.chains.find(
-              (chain) => chain.id === Number(checkpoint.chainId),
-            )!;
-            common.metrics.ponder_historical_completed_indexing_seconds.set(
-              { chain: chain.name },
-              Math.max(
-                Number(checkpoint.blockTimestamp) -
-                  Math.max(
-                    seconds[chain.name]!.cached,
-                    seconds[chain.name]!.start,
-                  ),
-                0,
-              ),
-            );
-            common.metrics.ponder_indexing_timestamp.set(
-              { chain: chain.name },
-              Number(checkpoint.blockTimestamp),
-            );
+          const chain = indexingBuild.chains.find(
+            (chain) => chain.id === Number(checkpoint.chainId),
+          )!;
+          common.metrics.ponder_historical_completed_indexing_seconds.set(
+            { chain: chain.name },
+            Math.max(
+              Number(checkpoint.blockTimestamp) -
+                Math.max(
+                  seconds[chain.name]!.cached,
+                  seconds[chain.name]!.start,
+                ),
+              0,
+            ),
+          );
+          common.metrics.ponder_indexing_timestamp.set(
+            { chain: chain.name },
+            Number(checkpoint.blockTimestamp),
+          );
 
-            // Note: allows for terminal and logs to be updated
-            if (preBuild.databaseConfig.kind === "pglite") {
-              await new Promise(setImmediate);
-            }
+          // Note: allows for terminal and logs to be updated
+          if (preBuild.databaseConfig.kind === "pglite") {
+            await new Promise(setImmediate);
           }
+          // }
 
           historicalIndexingStore.isProcessingEvents = false;
 
@@ -398,31 +398,31 @@ export async function runMultichain({
           );
           endClock = startClock();
 
-          if (events.checkpoints.length > 0) {
-            await tx.wrap({ label: "update_checkpoints" }, (tx) =>
-              tx
-                .insert(PONDER_CHECKPOINT)
-                .values(
-                  events.checkpoints.map(({ chainId, checkpoint }) => ({
-                    chainName: indexingBuild.chains.find(
-                      (chain) => chain.id === chainId,
-                    )!.name,
-                    chainId,
-                    latestCheckpoint: checkpoint,
-                    finalizedCheckpoint: checkpoint,
-                    safeCheckpoint: checkpoint,
-                  })),
-                )
-                .onConflictDoUpdate({
-                  target: PONDER_CHECKPOINT.chainName,
-                  set: {
-                    safeCheckpoint: sql`excluded.safe_checkpoint`,
-                    finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
-                    latestCheckpoint: sql`excluded.latest_checkpoint`,
-                  },
-                }),
-            );
-          }
+          // if (events.checkpoints.length > 0) {
+          //   await tx.wrap({ label: "update_checkpoints" }, (tx) =>
+          //     tx
+          //       .insert(PONDER_CHECKPOINT)
+          //       .values(
+          //         events.checkpoints.map(({ chainId, checkpoint }) => ({
+          //           chainName: indexingBuild.chains.find(
+          //             (chain) => chain.id === chainId,
+          //           )!.name,
+          //           chainId,
+          //           latestCheckpoint: checkpoint,
+          //           finalizedCheckpoint: checkpoint,
+          //           safeCheckpoint: checkpoint,
+          //         })),
+          //       )
+          //       .onConflictDoUpdate({
+          //         target: PONDER_CHECKPOINT.chainName,
+          //         set: {
+          //           safeCheckpoint: sql`excluded.safe_checkpoint`,
+          //           finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
+          //           latestCheckpoint: sql`excluded.latest_checkpoint`,
+          //         },
+          //       }),
+          //   );
+          // }
 
           common.metrics.ponder_historical_transform_duration.inc(
             { step: "finalize" },
