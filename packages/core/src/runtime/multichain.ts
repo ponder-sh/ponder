@@ -304,7 +304,7 @@ export async function runMultichain({
     indexingCache.qb = database.userQB;
     await Promise.all([
       indexingCache.prefetch({ events: events.events }),
-      cachedViemClient.prefetch({ events: events.events }),
+      // cachedViemClient.prefetch({ events: events.events }),
     ]);
     common.metrics.ponder_historical_transform_duration.inc(
       { step: "prefetch" },
@@ -450,6 +450,8 @@ export async function runMultichain({
         { step: "commit" },
         endClock(),
       );
+
+      events.events.length = 0;
 
       await new Promise(setImmediate);
     }
