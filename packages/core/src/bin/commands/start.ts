@@ -55,7 +55,7 @@ export async function start({
 
   logger.info({
     service: "process",
-    msg: `Heap statistics: ${v8.getHeapStatistics()}`,
+    msg: `Heap statistics: ${JSON.stringify(v8.getHeapStatistics())}`,
   });
 
   const [major, minor, _patch] = process.versions.node
