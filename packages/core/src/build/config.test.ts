@@ -3,6 +3,7 @@ import { poolId } from "@/_test/utils.js";
 import { factory } from "@/config/address.js";
 import { createConfig } from "@/config/index.js";
 import type { LogFactory, LogFilter, TraceFilter } from "@/internal/types.js";
+import { hyperliquidEvm } from "@/utils/chains.js";
 import {
   type Address,
   parseAbiItem,
@@ -836,6 +837,38 @@ test("buildConfigAndIndexingFunctions() validates factory interval", async (cont
   );
 });
 
+test("buildConfigAndIndexingFunctions() validates start and end block", async (context) => {
+  const config = createConfig({
+    chains: {
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+    },
+    contracts: {
+      a: {
+        chain: { mainnet: {} },
+        abi: [event0, event1],
+        // @ts-expect-error
+        startBlock: "16370000",
+        // @ts-expect-error
+        endBlock: "16370100",
+      },
+    },
+  });
+
+  const result = await safeBuildConfigAndIndexingFunctions({
+    common: context.common,
+    // @ts-expect-error
+    config,
+    rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+  });
+
+  expect(result).toMatchInlineSnapshot(`
+    {
+      "error": [BuildError: Validation failed: Invalid start block for 'a'. Got 16370000 typeof string, expected an integer.],
+      "status": "error",
+    }
+  `);
+});
+
 test("buildConfigAndIndexingFunctions() returns chain, rpc, and finalized block", async (context) => {
   const config = createConfig({
     chains: {
@@ -862,4 +895,29 @@ test("buildConfigAndIndexingFunctions() returns chain, rpc, and finalized block"
   expect(chains[0]!.name).toBe("mainnet");
   expect(chains[0]!.id).toBe(1);
   expect(finalizedBlocks[0]!.number).toBe("0x0");
+});
+
+test("buildConfigAndIndexingFunctions() hyperliquid evm", async (context) => {
+  const config = createConfig({
+    chains: {
+      hyperliquid: { id: 999, rpc: `http://127.0.0.1:8545/${poolId}` },
+    },
+    blocks: {
+      b: {
+        chain: "hyperliquid",
+      },
+    },
+  });
+
+  const { chains } = await buildConfigAndIndexingFunctions({
+    common: context.common,
+    config,
+    rawIndexingFunctions: [{ name: "b:block", fn: () => {} }],
+  });
+
+  expect(chains).toHaveLength(1);
+
+  expect(chains[0]!.name).toBe("hyperliquid");
+  expect(chains[0]!.id).toBe(999);
+  expect(chains[0]!.viemChain).toBe(hyperliquidEvm);
 });

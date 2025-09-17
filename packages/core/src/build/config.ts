@@ -22,7 +22,7 @@ import {
   defaultTransferFilterInclude,
 } from "@/runtime/filter.js";
 import { buildAbiEvents, buildAbiFunctions, buildTopics } from "@/utils/abi.js";
-import { chains as viemChains } from "@/utils/chains.js";
+import { hyperliquidEvm, chains as viemChains } from "@/utils/chains.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { getFinalityBlockCount } from "@/utils/finality.js";
 import { toLowerCase } from "@/utils/lowercase.js";
@@ -114,14 +114,18 @@ export async function buildConfigAndIndexingFunctions({
         return blockPromise;
       }
     }
+
     return blockNumberOrTag;
   };
 
   const chains: Chain[] = Object.entries(config.chains).map(
     ([chainName, chain]) => {
-      const matchedChain = Object.values(viemChains).find((c) =>
+      let matchedChain = Object.values(viemChains).find((c) =>
         "id" in c ? c.id === chain.id : false,
       );
+      if (chain.id === 999) {
+        matchedChain = hyperliquidEvm;
+      }
 
       if (chain.rpc === undefined || chain.rpc === "") {
         if (matchedChain === undefined) {
@@ -356,6 +360,18 @@ export async function buildConfigAndIndexingFunctions({
     ) {
       throw new Error(
         `Validation failed: Start block for '${source.name}' is after end block (${startBlock} > ${endBlock}).`,
+      );
+    }
+
+    if (startBlock !== undefined && Number.isInteger(startBlock) === false) {
+      throw new Error(
+        `Validation failed: Invalid start block for '${source.name}'. Got ${startBlock} typeof ${typeof startBlock}, expected an integer.`,
+      );
+    }
+
+    if (endBlock !== undefined && Number.isInteger(endBlock) === false) {
+      throw new Error(
+        `Validation failed: Invalid end block for '${source.name}'. Got ${endBlock} typeof ${typeof endBlock}, expected an integer.`,
       );
     }
 
@@ -1080,9 +1096,12 @@ export function buildConfig({
 
   const chains: Chain[] = Object.entries(config.chains).map(
     ([chainName, chain]) => {
-      const matchedChain = Object.values(viemChains).find((c) =>
+      let matchedChain = Object.values(viemChains).find((c) =>
         "id" in c ? c.id === chain.id : false,
       );
+      if (chain.id === 999) {
+        matchedChain = hyperliquidEvm;
+      }
 
       if (chain.rpc === undefined || chain.rpc === "") {
         if (matchedChain === undefined) {

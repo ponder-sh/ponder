@@ -1,5 +1,23 @@
 # ponder
 
+## 0.12.25
+
+### Patch Changes
+
+- [#2043](https://github.com/ponder-sh/ponder/pull/2043) [`641e868`](https://github.com/ponder-sh/ponder/commit/641e8688458de09bfd405bd795c3a82f34ed790c) Thanks [@kyscott18](https://github.com/kyscott18)! - Added validation that `startBlock` and `endBlock` values are `number` types in `ponder.config.ts`.
+
+## 0.12.24
+
+### Patch Changes
+
+- [#2040](https://github.com/ponder-sh/ponder/pull/2040) [`f926397`](https://github.com/ponder-sh/ponder/commit/f926397d6b13ea8c9623f4bcf41db77b0c5b0081) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed Hyperliquid EVM `context.client.multicall` requests causing the error `Chain "Wanchain Testnet" does not support contract "multicall3"`.
+
+## 0.12.23
+
+### Patch Changes
+
+- [#2038](https://github.com/ponder-sh/ponder/pull/2038) [`3ce5922`](https://github.com/ponder-sh/ponder/commit/3ce5922029643b07710bce13ac57815002d15908) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that would cause an app with an empty `ponder.schema.ts` to crash with the error `syntax error at or near ")"`.
+
 ## 0.12.22
 
 ### Patch Changes
