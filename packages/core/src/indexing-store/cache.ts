@@ -983,7 +983,7 @@ export const createIndexingCache = ({
           // Note: spillover is not cleared because it is an invariant
           // it is empty
 
-          if (totalBytes < common.options.indexingCacheMaxBytes) break;
+          // if (totalBytes < common.options.indexingCacheMaxBytes) break;
         }
       }
 
