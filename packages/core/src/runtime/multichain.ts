@@ -1,3 +1,4 @@
+import v8 from "node:v8";
 import { runCodegen } from "@/bin/utils/codegen.js";
 import {
   commitBlock,
@@ -47,6 +48,7 @@ import { formatEta, formatPercentage } from "@/utils/format.js";
 import { recordAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
+import { wait } from "@/utils/wait.js";
 import { eq, getTableName, isTable, sql } from "drizzle-orm";
 import { getHistoricalEventsMultichain } from "./historical.js";
 import {
@@ -453,7 +455,15 @@ export async function runMultichain({
     }
   }
 
+  await wait(1000);
+
+  console.log(JSON.stringify(v8.getHeapStatistics()));
+
   indexingCache.clear();
+
+  await wait(1000);
+
+  console.log(JSON.stringify(v8.getHeapStatistics()));
 
   // Manually update metrics to fix a UI bug that occurs when the end
   // checkpoint is between the last processed event and the finalized
