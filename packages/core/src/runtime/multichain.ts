@@ -457,13 +457,16 @@ export async function runMultichain({
 
   await wait(1000);
 
-  console.log(JSON.stringify(v8.getHeapStatistics()));
+  console.log("memory after indexing", JSON.stringify(v8.getHeapStatistics()));
 
   indexingCache.clear();
 
   await wait(1000);
 
-  console.log(JSON.stringify(v8.getHeapStatistics()));
+  console.log(
+    "memory after clearing cache",
+    JSON.stringify(v8.getHeapStatistics()),
+  );
 
   // Manually update metrics to fix a UI bug that occurs when the end
   // checkpoint is between the last processed event and the finalized
