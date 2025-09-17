@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.25
+
+### Patch Changes
+
+- [#2043](https://github.com/ponder-sh/ponder/pull/2043) [`641e868`](https://github.com/ponder-sh/ponder/commit/641e8688458de09bfd405bd795c3a82f34ed790c) Thanks [@kyscott18](https://github.com/kyscott18)! - Added validation that `startBlock` and `endBlock` values are `number` types in `ponder.config.ts`.
+
 ## 0.12.24
 
 ### Patch Changes
