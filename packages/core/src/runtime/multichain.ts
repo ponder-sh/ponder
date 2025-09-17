@@ -43,7 +43,7 @@ import {
   decodeCheckpoint,
   min,
 } from "@/utils/checkpoint.js";
-import { chunk } from "@/utils/chunk.js";
+// import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { recordAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
