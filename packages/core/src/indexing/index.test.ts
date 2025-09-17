@@ -11,6 +11,7 @@ import { deployErc20, deployMulticall, mintErc20 } from "@/_test/simulate.js";
 import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/config.js";
 import { onchainTable } from "@/drizzle/onchain.js";
+import type { IndexingCache } from "@/indexing-store/cache.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import {
   InvalidEventAccessError,
@@ -273,7 +274,7 @@ test("processEvent()", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  await indexing.processEvents({ db: indexingStore, events });
+  await indexing.processRealtimeEvents({ db: indexingStore, events });
 
   expect(
     indexingFunctions[
@@ -371,7 +372,7 @@ test("processEvents eventCount", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  await indexing.processEvents({ db: indexingStore, events });
+  await indexing.processRealtimeEvents({ db: indexingStore, events });
 
   const metrics = await common.metrics.ponder_indexing_completed_events.get();
 
@@ -666,7 +667,7 @@ test("processEvents() context.client", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  await indexing.processEvents({ db: indexingStore, events });
+  await indexing.processRealtimeEvents({ db: indexingStore, events });
 
   expect(getBalanceSpy).toHaveBeenCalledTimes(1);
   expect(getBalanceSpy).toHaveBeenCalledWith({
@@ -751,7 +752,7 @@ test("processEvents() context.db", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  await indexing.processEvents({ db: indexingStore, events });
+  await indexing.processRealtimeEvents({ db: indexingStore, events });
 
   expect(insertSpy).toHaveBeenCalledTimes(1);
 
@@ -825,7 +826,7 @@ test("processEvents() metrics", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  await indexing.processEvents({
+  await indexing.processRealtimeEvents({
     events,
     db: indexingStore,
   });
@@ -904,7 +905,7 @@ test("processEvents() error", async (context) => {
 
   const events = decodeEvents(common, sources, [rawEvent]);
   await expect(() =>
-    indexing.processEvents({ db: indexingStore, events }),
+    indexing.processRealtimeEvents({ db: indexingStore, events }),
   ).rejects.toThrowError();
 
   expect(
@@ -984,7 +985,7 @@ test("processEvents() error with missing event object properties", async (contex
 
   const events = decodeEvents(common, sources, [rawEvent]);
   await expect(() =>
-    indexing.processEvents({ events, db: indexingStore }),
+    indexing.processRealtimeEvents({ events, db: indexingStore }),
   ).rejects.toThrowError();
 });
 
@@ -1061,7 +1062,11 @@ test("processEvents() column selection", async (context) => {
   );
 
   let events = decodeEvents(common, sources, rawEvents);
-  await indexing.processEvents({ db: indexingStore, events });
+  await indexing.processHistoricalEvents({
+    db: indexingStore,
+    events,
+    cache: {} as IndexingCache,
+  });
 
   expect(sources[0]!.filter.include).toMatchInlineSnapshot(`
     [
@@ -1097,7 +1102,11 @@ test("processEvents() column selection", async (context) => {
   events = decodeEvents(common, sources, rawEvents);
 
   await expect(() =>
-    indexing.processEvents({ events, db: indexingStore }),
+    indexing.processHistoricalEvents({
+      events,
+      db: indexingStore,
+      cache: {} as IndexingCache,
+    }),
   ).rejects.toThrowError(
     new InvalidEventAccessError("transaction.maxPriorityFeePerGas"),
   );

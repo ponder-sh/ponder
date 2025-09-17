@@ -84,10 +84,14 @@ export type Indexing = {
   processSetupEvents: (params: {
     db: IndexingStore;
   }) => Promise<void>;
-  processEvents: (params: {
+  processHistoricalEvents: (params: {
     events: Event[];
     db: IndexingStore;
-    cache?: IndexingCache;
+    cache: IndexingCache;
+  }) => Promise<void>;
+  processRealtimeEvents: (params: {
+    events: Event[];
+    db: IndexingStore;
   }) => Promise<void>;
 };
 
@@ -492,17 +496,14 @@ export const createIndexing = ({
         }
       }
     },
-    async processEvents({ events, db, cache }) {
+    async processHistoricalEvents({ events, db, cache }) {
       context.db = db;
       for (let i = 0; i < events.length; i++) {
         const event = events[i]!;
 
         client.event = event;
         context.client = clientByChainId[event.chainId]!;
-
-        if (cache) {
-          cache.event = event;
-        }
+        cache.event = event;
 
         eventCount[event.name]!++;
 
@@ -594,9 +595,8 @@ export const createIndexing = ({
           }
         }
 
-        event.event = proxyEvent;
-
-        await executeEvent(event);
+        // @ts-expect-error
+        await executeEvent({ ...event, event: proxyEvent });
 
         common.logger.trace({
           service: "indexing",
@@ -719,6 +719,31 @@ export const createIndexing = ({
             transactionReceipt: transactionReceiptInclude.size,
             trace: traceInclude.size,
           })}`,
+        });
+      }
+
+      updateCompletedEvents();
+    },
+    async processRealtimeEvents({ events, db }) {
+      context.db = db;
+      for (let i = 0; i < events.length; i++) {
+        const event = events[i]!;
+
+        client.event = event;
+        context.client = clientByChainId[event.chainId]!;
+
+        eventCount[event.name]!++;
+
+        common.logger.trace({
+          service: "indexing",
+          msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
+        });
+
+        await executeEvent(event);
+
+        common.logger.trace({
+          service: "indexing",
+          msg: `Completed indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
         });
       }
 
@@ -857,49 +882,62 @@ export const createEventProxy = <
 export const toErrorMeta = (
   event: DeepPartial<Event> | DeepPartial<SetupEvent>,
 ) => {
+  globalThis.DISABLE_EVENT_PROXY = true;
   switch (event?.type) {
     case "setup": {
-      return `Block:\n${prettyPrint({
+      const meta = `Block:\n${prettyPrint({
         number: event?.block,
       })}`;
+      globalThis.DISABLE_EVENT_PROXY = false;
+      return meta;
     }
 
     case "log": {
-      return [
+      const meta = [
         `Event arguments:\n${prettyPrint(Array.isArray(event.event?.args) ? undefined : event.event?.args)}`,
         logText(event?.event?.log),
         transactionText(event?.event?.transaction),
         blockText(event?.event?.block),
       ].join("\n");
+      globalThis.DISABLE_EVENT_PROXY = false;
+      return meta;
     }
 
     case "trace": {
-      return [
+      const meta = [
         `Call trace arguments:\n${prettyPrint(Array.isArray(event.event?.args) ? undefined : event.event?.args)}`,
         traceText(event?.event?.trace),
         transactionText(event?.event?.transaction),
         blockText(event?.event?.block),
       ].join("\n");
+      globalThis.DISABLE_EVENT_PROXY = false;
+      return meta;
     }
 
     case "transfer": {
-      return [
+      const meta = [
         `Transfer arguments:\n${prettyPrint(event?.event?.transfer)}`,
         traceText(event?.event?.trace),
         transactionText(event?.event?.transaction),
         blockText(event?.event?.block),
       ].join("\n");
+      globalThis.DISABLE_EVENT_PROXY = false;
+      return meta;
     }
 
     case "block": {
-      return blockText(event?.event?.block);
+      const meta = blockText(event?.event?.block);
+      globalThis.DISABLE_EVENT_PROXY = false;
+      return meta;
     }
 
     case "transaction": {
-      return [
+      const meta = [
         transactionText(event?.event?.transaction),
         blockText(event?.event?.block),
       ].join("\n");
+      globalThis.DISABLE_EVENT_PROXY = false;
+      return meta;
     }
 
     default: {

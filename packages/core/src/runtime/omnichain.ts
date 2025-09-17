@@ -343,7 +343,7 @@ export async function runOmnichain({
 
           const eventChunks = chunk(result.events, 93);
           for (const eventChunk of eventChunks) {
-            await indexing.processEvents({
+            await indexing.processHistoricalEvents({
               events: eventChunk,
               db: historicalIndexingStore,
               cache: indexingCache,
@@ -582,7 +582,7 @@ export async function runOmnichain({
                 realtimeIndexingStore.qb = tx;
                 realtimeIndexingStore.isProcessingEvents = true;
 
-                await indexing.processEvents({
+                await indexing.processRealtimeEvents({
                   events,
                   db: realtimeIndexingStore,
                 });

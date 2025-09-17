@@ -333,7 +333,7 @@ export async function runMultichain({
 
           const eventChunks = chunk(events.events, 93);
           for (const eventChunk of eventChunks) {
-            await indexing.processEvents({
+            await indexing.processHistoricalEvents({
               events: eventChunk,
               db: historicalIndexingStore,
               cache: indexingCache,
@@ -563,7 +563,7 @@ export async function runMultichain({
                 realtimeIndexingStore.qb = tx;
                 realtimeIndexingStore.isProcessingEvents = true;
 
-                await indexing.processEvents({
+                await indexing.processRealtimeEvents({
                   events,
                   db: realtimeIndexingStore,
                 });
