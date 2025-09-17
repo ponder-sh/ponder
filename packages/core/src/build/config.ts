@@ -114,6 +114,7 @@ export async function buildConfigAndIndexingFunctions({
         return blockPromise;
       }
     }
+
     return blockNumberOrTag;
   };
 
@@ -359,6 +360,18 @@ export async function buildConfigAndIndexingFunctions({
     ) {
       throw new Error(
         `Validation failed: Start block for '${source.name}' is after end block (${startBlock} > ${endBlock}).`,
+      );
+    }
+
+    if (startBlock !== undefined && Number.isInteger(startBlock) === false) {
+      throw new Error(
+        `Validation failed: Invalid start block for '${source.name}'. Got ${startBlock} typeof ${typeof startBlock}, expected an integer.`,
+      );
+    }
+
+    if (endBlock !== undefined && Number.isInteger(endBlock) === false) {
+      throw new Error(
+        `Validation failed: Invalid end block for '${source.name}'. Got ${endBlock} typeof ${typeof endBlock}, expected an integer.`,
       );
     }
 
