@@ -26,7 +26,6 @@ import {
   defaultBlockFilterInclude,
   defaultBlockInclude,
   defaultLogFilterInclude,
-  defaultLogInclude,
   defaultTraceFilterInclude,
   defaultTraceInclude,
   defaultTransactionFilterInclude,
@@ -713,12 +712,12 @@ export const createIndexing = ({
 
         common.logger.info({
           service: "indexing",
-          msg: `Resolved column selection:
-  ${blockInclude.size}/${defaultBlockInclude.length} block columns
-  ${transactionInclude.size}/${defaultTransactionInclude.length} transaction columns
-  ${transactionReceiptInclude.size}/${defaultTransactionReceiptInclude.length} transaction receipt columns
-  ${traceInclude.size}/${defaultTraceInclude.length} trace columns
-  ${defaultLogInclude.length}/${defaultLogInclude.length} log columns`,
+          msg: `Resolved event property access:\n${prettyPrint({
+            block: blockInclude.size,
+            transaction: transactionInclude.size,
+            transactionReceipt: transactionReceiptInclude.size,
+            trace: traceInclude.size,
+          })}`,
         });
       }
 
