@@ -520,7 +520,7 @@ export const createIndexingCache = ({
       return inInsertBuffer || inUpdateBuffer || inDb;
     },
     async flush({ tableNames } = {}) {
-      const copy = getCopyHelper(qb);
+      // const copy = getCopyHelper(qb);
 
       // Note `isFlushRetry` is true when the previous flush failed. When `isFlushRetry` is false, this
       // function takes an optimized fast path, with support for small batch sizes. PGlite always takes
@@ -547,25 +547,26 @@ export const createIndexingCache = ({
             await qb.wrap((db) => db.execute("SAVEPOINT flush"));
 
             try {
-              const text = getCopyText(
-                table,
-                insertValues.map(({ row }) => row),
-              );
+              // const text = getCopyText(
+              //   table,
+              //   insertValues.map(({ row }) => row),
+              // );
 
               await new Promise(setImmediate);
 
-              await copy(table, text);
+              // await copy(table, text);
             } catch (_error) {
               let error = _error as Error;
               const result = await recoverBatchError(
                 insertValues,
+                // @ts-ignore
                 async (values) => {
                   await qb.wrap((db) => db.execute("ROLLBACK to flush"));
-                  const text = getCopyText(
-                    table,
-                    values.map(({ row }) => row),
-                  );
-                  await copy(table, text);
+                  // const text = getCopyText(
+                  //   table,
+                  //   values.map(({ row }) => row),
+                  // );
+                  // await copy(table, text);
 
                   await qb.wrap((db) => db.execute("SAVEPOINT flush"));
                 },
@@ -677,25 +678,26 @@ export const createIndexingCache = ({
             await qb.wrap((db) => db.execute("SAVEPOINT flush"));
 
             try {
-              const text = getCopyText(
-                table,
-                updateValues.map(({ row }) => row),
-              );
+              // const text = getCopyText(
+              //   table,
+              //   updateValues.map(({ row }) => row),
+              // );
 
               await new Promise(setImmediate);
 
-              await copy(table, text, false);
+              // await copy(table, text, false);
             } catch (_error) {
               let error = _error as Error;
               const result = await recoverBatchError(
                 updateValues,
+                // @ts-ignore
                 async (values) => {
                   await qb.wrap((db) => db.execute("ROLLBACK to flush"));
-                  const text = getCopyText(
-                    table,
-                    values.map(({ row }) => row),
-                  );
-                  await copy(table, text, false);
+                  // const text = getCopyText(
+                  //   table,
+                  //   values.map(({ row }) => row),
+                  // );
+                  // await copy(table, text, false);
 
                   await qb.wrap((db) => db.execute("SAVEPOINT flush"));
                 },
@@ -800,14 +802,14 @@ export const createIndexingCache = ({
               const endClock = startClock();
 
               if (insertValues.length > LOW_BATCH_THRESHOLD) {
-                const text = getCopyText(
-                  table,
-                  insertValues.map(({ row }) => row),
-                );
+                // const text = getCopyText(
+                //   table,
+                //   insertValues.map(({ row }) => row),
+                // );
 
                 await new Promise(setImmediate);
 
-                await copy(table, text);
+                // await copy(table, text);
               } else {
                 await qb.wrap((db) =>
                   db.insert(table).values(insertValues.map(({ row }) => row)),
@@ -880,14 +882,14 @@ export const createIndexingCache = ({
 
                 await qb.wrap((db) => db.execute(createTempTableQuery));
 
-                const text = getCopyText(
-                  table,
-                  updateValues.map(({ row }) => row),
-                );
+                // const text = getCopyText(
+                //   table,
+                //   updateValues.map(({ row }) => row),
+                // );
 
                 await new Promise(setImmediate);
 
-                await copy(table, text, false);
+                // await copy(table, text, false);
 
                 await qb.wrap((db) => db.execute(updateQuery));
 

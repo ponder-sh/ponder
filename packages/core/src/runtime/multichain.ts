@@ -312,138 +312,135 @@ export async function runMultichain({
     );
     if (events.events.length > 0) {
       endClock = startClock();
-      await database.userQB.transaction(async (tx) => {
-        try {
-          historicalIndexingStore.qb = tx;
-          historicalIndexingStore.isProcessingEvents = true;
-          indexingCache.qb = tx;
+      // await database.userQB.transaction(async (tx) => {
+      try {
+        // historicalIndexingStore.qb = tx;
+        historicalIndexingStore.isProcessingEvents = true;
+        // indexingCache.qb = tx;
 
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "begin" },
-            endClock(),
-          );
+        common.metrics.ponder_historical_transform_duration.inc(
+          { step: "begin" },
+          endClock(),
+        );
 
-          endClock = startClock();
+        endClock = startClock();
 
-          // const eventChunks = chunk(events.events, 93);
-          // for (const eventChunk of eventChunks) {
-          await indexing.processEvents({
-            events: events.events,
-            db: historicalIndexingStore,
-            // cache: indexingCache,
-          });
+        // const eventChunks = chunk(events.events, 93);
+        // for (const eventChunk of eventChunks) {
+        await indexing.processEvents({
+          events: events.events,
+          db: historicalIndexingStore,
+          // cache: indexingCache,
+        });
 
-          const checkpoint = decodeCheckpoint(
-            events.events[events.events.length - 1]!.checkpoint,
-          );
+        const checkpoint = decodeCheckpoint(
+          events.events[events.events.length - 1]!.checkpoint,
+        );
 
-          const chain = indexingBuild.chains.find(
-            (chain) => chain.id === Number(checkpoint.chainId),
-          )!;
-          common.metrics.ponder_historical_completed_indexing_seconds.set(
-            { chain: chain.name },
-            Math.max(
-              Number(checkpoint.blockTimestamp) -
-                Math.max(
-                  seconds[chain.name]!.cached,
-                  seconds[chain.name]!.start,
-                ),
-              0,
-            ),
-          );
-          common.metrics.ponder_indexing_timestamp.set(
-            { chain: chain.name },
-            Number(checkpoint.blockTimestamp),
-          );
+        const chain = indexingBuild.chains.find(
+          (chain) => chain.id === Number(checkpoint.chainId),
+        )!;
+        common.metrics.ponder_historical_completed_indexing_seconds.set(
+          { chain: chain.name },
+          Math.max(
+            Number(checkpoint.blockTimestamp) -
+              Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
+            0,
+          ),
+        );
+        common.metrics.ponder_indexing_timestamp.set(
+          { chain: chain.name },
+          Number(checkpoint.blockTimestamp),
+        );
 
-          // Note: allows for terminal and logs to be updated
-          if (preBuild.databaseConfig.kind === "pglite") {
-            await new Promise(setImmediate);
-          }
-          // }
-
-          historicalIndexingStore.isProcessingEvents = false;
-
+        // Note: allows for terminal and logs to be updated
+        if (preBuild.databaseConfig.kind === "pglite") {
           await new Promise(setImmediate);
-
-          // underlying metrics collection is actually synchronous
-          // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-          const { eta, progress } = await getAppProgress(common.metrics);
-          if (eta === undefined || progress === undefined) {
-            common.logger.info({
-              service: "app",
-              msg: `Indexed ${events.events.length} events`,
-            });
-          } else {
-            common.logger.info({
-              service: "app",
-              msg: `Indexed ${events.events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
-            });
-          }
-
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "index" },
-            endClock(),
-          );
-
-          endClock = startClock();
-          // Note: at this point, the next events can be preloaded, as long as the are not indexed until
-          // the "flush" + "finalize" is complete.
-
-          await indexingCache.flush();
-
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "load" },
-            endClock(),
-          );
-          endClock = startClock();
-
-          // if (events.checkpoints.length > 0) {
-          //   await tx.wrap({ label: "update_checkpoints" }, (tx) =>
-          //     tx
-          //       .insert(PONDER_CHECKPOINT)
-          //       .values(
-          //         events.checkpoints.map(({ chainId, checkpoint }) => ({
-          //           chainName: indexingBuild.chains.find(
-          //             (chain) => chain.id === chainId,
-          //           )!.name,
-          //           chainId,
-          //           latestCheckpoint: checkpoint,
-          //           finalizedCheckpoint: checkpoint,
-          //           safeCheckpoint: checkpoint,
-          //         })),
-          //       )
-          //       .onConflictDoUpdate({
-          //         target: PONDER_CHECKPOINT.chainName,
-          //         set: {
-          //           safeCheckpoint: sql`excluded.safe_checkpoint`,
-          //           finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
-          //           latestCheckpoint: sql`excluded.latest_checkpoint`,
-          //         },
-          //       }),
-          //   );
-          // }
-
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "finalize" },
-            endClock(),
-          );
-          endClock = startClock();
-        } catch (error) {
-          indexingCache.invalidate();
-          indexingCache.clear();
-
-          if (error instanceof NonRetryableUserError === false) {
-            common.logger.warn({
-              service: "app",
-              msg: "Retrying event batch",
-              error: error as Error,
-            });
-          }
-
-          throw error;
         }
-      });
+        // }
+
+        historicalIndexingStore.isProcessingEvents = false;
+
+        await new Promise(setImmediate);
+
+        // underlying metrics collection is actually synchronous
+        // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
+        const { eta, progress } = await getAppProgress(common.metrics);
+        if (eta === undefined || progress === undefined) {
+          common.logger.info({
+            service: "app",
+            msg: `Indexed ${events.events.length} events`,
+          });
+        } else {
+          common.logger.info({
+            service: "app",
+            msg: `Indexed ${events.events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
+          });
+        }
+
+        common.metrics.ponder_historical_transform_duration.inc(
+          { step: "index" },
+          endClock(),
+        );
+
+        endClock = startClock();
+        // Note: at this point, the next events can be preloaded, as long as the are not indexed until
+        // the "flush" + "finalize" is complete.
+
+        await indexingCache.flush();
+
+        common.metrics.ponder_historical_transform_duration.inc(
+          { step: "load" },
+          endClock(),
+        );
+        endClock = startClock();
+
+        // if (events.checkpoints.length > 0) {
+        //   await tx.wrap({ label: "update_checkpoints" }, (tx) =>
+        //     tx
+        //       .insert(PONDER_CHECKPOINT)
+        //       .values(
+        //         events.checkpoints.map(({ chainId, checkpoint }) => ({
+        //           chainName: indexingBuild.chains.find(
+        //             (chain) => chain.id === chainId,
+        //           )!.name,
+        //           chainId,
+        //           latestCheckpoint: checkpoint,
+        //           finalizedCheckpoint: checkpoint,
+        //           safeCheckpoint: checkpoint,
+        //         })),
+        //       )
+        //       .onConflictDoUpdate({
+        //         target: PONDER_CHECKPOINT.chainName,
+        //         set: {
+        //           safeCheckpoint: sql`excluded.safe_checkpoint`,
+        //           finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
+        //           latestCheckpoint: sql`excluded.latest_checkpoint`,
+        //         },
+        //       }),
+        //   );
+        // }
+
+        common.metrics.ponder_historical_transform_duration.inc(
+          { step: "finalize" },
+          endClock(),
+        );
+        endClock = startClock();
+      } catch (error) {
+        indexingCache.invalidate();
+        indexingCache.clear();
+
+        if (error instanceof NonRetryableUserError === false) {
+          common.logger.warn({
+            service: "app",
+            msg: "Retrying event batch",
+            error: error as Error,
+          });
+        }
+
+        throw error;
+      }
+      // });
 
       cachedViemClient.clear();
       common.metrics.ponder_historical_transform_duration.inc(
