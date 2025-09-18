@@ -73,9 +73,18 @@ export function buildPre({
         msg: `Using Postgres database '${getDatabaseName(connectionString)}' (${source})`,
       });
 
+      if (
+        config.database.poolConfig?.max &&
+        config.database.poolConfig?.max < 4
+      ) {
+        throw new Error(
+          `Postgres pool max must be at least 4. Received ${config.database.poolConfig?.max}.`,
+        );
+      }
+
       const poolConfig = {
         connectionString,
-        max: config.database.poolConfig?.max ?? 30,
+        max: config.database.poolConfig?.max ?? 8,
         ssl: config.database.poolConfig?.ssl ?? false,
       };
 
