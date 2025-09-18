@@ -1,5 +1,11 @@
 # ponder
 
+## 0.12.26
+
+### Patch Changes
+
+- [#2045](https://github.com/ponder-sh/ponder/pull/2045) [`9a3a581`](https://github.com/ponder-sh/ponder/commit/9a3a58177f130d88b567088b9fa0959bf1d2b7b3) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved `/status` accuracy when `ordering: "omnichain"`.
+
 ## 0.12.25
 
 ### Patch Changes
