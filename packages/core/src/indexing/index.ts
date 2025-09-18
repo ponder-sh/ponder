@@ -401,6 +401,7 @@ export const createIndexing = ({
       }
     }
     for (const filter of filters) {
+      isFilterResolved.set(filter, false);
       filter.include = include;
     }
   };
@@ -434,6 +435,7 @@ export const createIndexing = ({
   // Note: Filters and indexing functions have a many-to-many relationship.
   const perFilterEventNames = new Map<Filter, string[]>();
   const perEventFilters = new Map<string, Filter[]>();
+  const isFilterResolved = new Map<Filter, boolean>();
   for (const eventName of Object.keys(indexingFunctions)) {
     let sourceName: string;
     if (eventName.includes(":")) {
@@ -453,6 +455,9 @@ export const createIndexing = ({
       eventName,
       _sources.map((s) => s.filter),
     );
+  }
+  for (const source of sources) {
+    isFilterResolved.set(source.filter, false);
   }
 
   return {
@@ -610,19 +615,15 @@ export const createIndexing = ({
       for (const source of sources) {
         const eventNames = perFilterEventNames.get(source.filter)!;
 
-        if (
-          eventNames.every(
-            (eventName) => columnAccessPattern.get(eventName)!.resolved,
-          )
-        ) {
-          continue;
-        }
+        if (isFilterResolved.get(source.filter)) continue;
+
         isEveryFilterResolvedBefore = false;
 
         if (eventNames.some((eventName) => eventCount[eventName]! < 100)) {
           isEveryFilterResolvedAfter = false;
           continue;
         }
+        isFilterResolved.set(source.filter, true);
 
         const filterInclude: Filter["include"] = [];
 
