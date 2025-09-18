@@ -117,6 +117,9 @@ export async function isolatedController({
           namespaceBuild,
           crashRecoveryCheckpoint,
         } satisfies Parameters<typeof isolatedWorker>[0],
+        resourceLimits: {
+          maxOldGenerationSizeMb: 1024,
+        },
       }),
       pwr,
     };
