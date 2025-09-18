@@ -578,7 +578,7 @@ export async function refetchLocalEvents(params: {
         fromBlock: cursor,
         toBlock,
         chainId: params.chain.id,
-        limit: Math.round(params.common.options.syncEventsQuerySize),
+        limit: params.events.length,
       });
 
     const endClock = startClock();
