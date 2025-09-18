@@ -871,7 +871,8 @@ export async function* mergeAsyncGeneratorsWithEventOrder(
           eventArrays.push({
             events: left,
             chainId: event.chainId,
-            checkpoint: event.checkpoint,
+            checkpoint:
+              right.length > 0 ? event.checkpoint : result.value.checkpoint,
           });
         }
 

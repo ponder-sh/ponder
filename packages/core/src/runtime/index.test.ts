@@ -321,15 +321,15 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
 
   p4.resolve({
     events: [
-      { checkpoint: "08", chainId: 1 },
-      { checkpoint: "11", chainId: 1 },
+      { checkpoint: "08", chainId: 2 },
+      { checkpoint: "11", chainId: 2 },
     ] as Event[],
     checkpoint: "20",
   });
   p2.resolve({
     events: [
-      { checkpoint: "08", chainId: 2 },
-      { checkpoint: "13", chainId: 2 },
+      { checkpoint: "08", chainId: 1 },
+      { checkpoint: "13", chainId: 1 },
     ] as Event[],
     checkpoint: "20",
   });
@@ -346,7 +346,7 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
           },
           {
             "chainId": 2,
-            "checkpoint": "05",
+            "checkpoint": "06",
           },
         ],
         "events": [
@@ -368,10 +368,10 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
         "checkpoints": [
           {
             "chainId": 1,
-            "checkpoint": "07",
+            "checkpoint": "10",
           },
           {
-            "chainId": 1,
+            "chainId": 2,
             "checkpoint": "08",
           },
         ],
@@ -381,7 +381,7 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
             "checkpoint": "07",
           },
           {
-            "chainId": 1,
+            "chainId": 2,
             "checkpoint": "08",
           },
         ],
@@ -389,25 +389,25 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
       {
         "checkpoints": [
           {
-            "chainId": 2,
-            "checkpoint": "13",
+            "chainId": 1,
+            "checkpoint": "20",
           },
           {
-            "chainId": 1,
-            "checkpoint": "11",
+            "chainId": 2,
+            "checkpoint": "20",
           },
         ],
         "events": [
           {
-            "chainId": 2,
+            "chainId": 1,
             "checkpoint": "08",
           },
           {
-            "chainId": 1,
+            "chainId": 2,
             "checkpoint": "11",
           },
           {
-            "chainId": 2,
+            "chainId": 1,
             "checkpoint": "13",
           },
         ],
