@@ -346,7 +346,7 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
           },
           {
             "chainId": 2,
-            "checkpoint": "05",
+            "checkpoint": "06",
           },
         ],
         "events": [
@@ -368,7 +368,7 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
         "checkpoints": [
           {
             "chainId": 1,
-            "checkpoint": "07",
+            "checkpoint": "10",
           },
           {
             "chainId": 1,
@@ -390,11 +390,11 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
         "checkpoints": [
           {
             "chainId": 2,
-            "checkpoint": "13",
+            "checkpoint": "20",
           },
           {
             "chainId": 1,
-            "checkpoint": "11",
+            "checkpoint": "20",
           },
         ],
         "events": [
