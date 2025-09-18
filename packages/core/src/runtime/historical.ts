@@ -4,6 +4,7 @@ import type {
   CrashRecoveryCheckpoint,
   Event,
   IndexingBuild,
+  RawEvent,
   Source,
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
@@ -517,7 +518,7 @@ export async function refetchHistoricalEvents(params: {
 
     if (chainEvents.length === 0) continue;
 
-    const refetchedEvents = await initRefetchEvents({
+    const rawEvents = await initRefetchEvents({
       common: params.common,
       chain,
       childAddresses,
@@ -525,6 +526,17 @@ export async function refetchHistoricalEvents(params: {
       events: chainEvents,
       syncStore: params.syncStore,
     });
+
+    const endClock = startClock();
+    const refetchedEvents = decodeEvents(params.common, sources, rawEvents);
+    params.common.logger.debug({
+      service: "app",
+      msg: `Decoded ${refetchedEvents.length} '${chain.name}' events`,
+    });
+    params.common.metrics.ponder_historical_extract_duration.inc(
+      { step: "decode" },
+      endClock(),
+    );
 
     let i = 0;
     let j = 0;
@@ -550,7 +562,7 @@ export async function refetchLocalEvents(params: {
   sources: Source[];
   events: Event[];
   syncStore: SyncStore;
-}): Promise<Event[]> {
+}): Promise<RawEvent[]> {
   const from = params.events[0]!.checkpoint;
   const to = params.events[params.events.length - 1]!.checkpoint;
 
@@ -558,7 +570,7 @@ export async function refetchLocalEvents(params: {
   const toBlock = Number(decodeCheckpoint(to).blockNumber);
   let cursor = fromBlock;
 
-  let events: Event[] | undefined;
+  let events: RawEvent[] | undefined;
   while (cursor <= toBlock) {
     const { blockData, cursor: queryCursor } =
       await params.syncStore.getEventBlockData({
@@ -569,7 +581,7 @@ export async function refetchLocalEvents(params: {
         limit: Math.round(params.common.options.syncEventsQuerySize),
       });
 
-    let endClock = startClock();
+    const endClock = startClock();
     const rawEvents = blockData.flatMap((bd) =>
       buildEvents({
         sources: params.sources,
@@ -590,25 +602,10 @@ export async function refetchLocalEvents(params: {
 
     await new Promise(setImmediate);
 
-    endClock = startClock();
-    const refetchedEvents = decodeEvents(
-      params.common,
-      params.sources,
-      rawEvents,
-    );
-    params.common.logger.debug({
-      service: "app",
-      msg: `Decoded ${refetchedEvents.length} '${params.chain.name}' events`,
-    });
-    params.common.metrics.ponder_historical_extract_duration.inc(
-      { step: "decode" },
-      endClock(),
-    );
-
     if (events === undefined) {
-      events = refetchedEvents;
+      events = rawEvents;
     } else {
-      events.push(...refetchedEvents);
+      events.push(...rawEvents);
     }
 
     cursor = queryCursor + 1;
