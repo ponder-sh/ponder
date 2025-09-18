@@ -1,4 +1,7 @@
 import crypto from "node:crypto";
+import { zeroLogsBloom } from "@ponder/sync-realtime/bloom.js";
+import { promiseWithResolvers } from "@ponder/utils/promiseWithResolvers.js";
+import { createQueue } from "@ponder/utils/queue.js";
 import { and, eq } from "drizzle-orm";
 import seedrandom from "seedrandom";
 import {
@@ -11,9 +14,6 @@ import {
   hexToNumber,
   toHex,
 } from "viem";
-import { zeroLogsBloom } from "../../packages/core/src/sync-realtime/bloom.js";
-import { promiseWithResolvers } from "../../packages/core/src/utils/promiseWithResolvers.js";
-import { createQueue } from "../../packages/core/src/utils/queue.js";
 import * as RPC_SCHEMA from "../schema.js";
 import { APP, DB, IS_REALTIME, SEED, SIM_PARAMS, restart } from "./index.js";
 
