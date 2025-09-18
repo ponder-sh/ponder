@@ -593,9 +593,9 @@ export const realtimeBlockEngine = async (
 
     const random = seedrandom(SEED + chainId + nextBlock.number);
 
-    if (random() < (SIM_PARAMS.REALTIME_SHUTDOWN_RATE ?? 0)) {
-      await restart();
-    }
+    // if (random() < (SIM_PARAMS.REALTIME_SHUTDOWN_RATE ?? 0)) {
+    //   await restart();
+    // }
 
     if (random() < SIM_PARAMS.REALTIME_FAST_FORWARD_RATE) {
       return simulate(chainId);

@@ -112,10 +112,10 @@ export const SIM_PARAMS = {
   ),
   REALTIME_DELAY_RATE: pick([0, 0.4, 0.8], "realtime-delay-rate"),
   UNFINALIZED_BLOCKS: pick([0, 0, 100, 100, 1000, 1100], "unfinalized-blocks"),
-  REALTIME_SHUTDOWN_RATE:
-    APP_ID === "super-assessment"
-      ? undefined
-      : pick([0, 0.001, 0.002], "realtime-shutdown-rate"),
+  // REALTIME_SHUTDOWN_RATE:
+  //   APP_ID === "super-assessment"
+  //     ? undefined
+  //     : pick([0, 0.001, 0.002], "realtime-shutdown-rate"),
   ORDERING: pick(["multichain", "omnichain"], "ordering"),
   REALTIME_BLOCK_HAS_TRANSACTIONS: pick(
     [true, false],
