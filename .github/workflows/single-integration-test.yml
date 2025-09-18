@@ -23,9 +23,6 @@ jobs:
       - uses: ./.github/actions/setup
       - uses: oven-sh/setup-bun@v2
 
-      - run: pnpm build
-      - run: pnpm install
-
       - name: Test ${{ github.event.inputs.app }}
         run: |
           cd integration-test
@@ -36,14 +33,7 @@ jobs:
           PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
           PONDER_RPC_URL_10: ${{ secrets.PONDER_RPC_URL_10 }}
           PONDER_RPC_URL_130: ${{ secrets.PONDER_RPC_URL_130 }}
-          PONDER_RPC_URL_137: ${{ secrets.PONDER_RPC_URL_137 }}
-          PONDER_RPC_URL_480: ${{ secrets.PONDER_RPC_URL_480 }}
           PONDER_RPC_URL_8453: ${{ secrets.PONDER_RPC_URL_8453 }}
-          PONDER_RPC_URL_42161: ${{ secrets.PONDER_RPC_URL_42161 }}
-          PONDER_RPC_URL_81457: ${{ secrets.PONDER_RPC_URL_81457 }}
-          PONDER_RPC_URL_84532: ${{ secrets.PONDER_RPC_URL_84532 }}
-          PONDER_RPC_URL_11155111: ${{ secrets.PONDER_RPC_URL_11155111 }}
-          PONDER_RPC_URL_11155420: ${{ secrets.PONDER_RPC_URL_11155420 }}
           PGDATABASE: railway
           PGSSLMODE: disable
           PONDER_LOG_LEVEL: debug

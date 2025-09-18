@@ -1,7 +1,7 @@
+import { start } from "@ponder/bin/commands/start.js";
 import { Command } from "commander";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { start } from "../../packages/core/src/bin/commands/start.js";
 
 let db = drizzle(process.env.DATABASE_URL!, { casing: "snake_case" });
 

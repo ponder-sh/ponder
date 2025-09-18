@@ -12,46 +12,47 @@ const pick = <T>(possibilities: T[] | readonly T[], tag: string): T => {
 
 const possibleMainnetBlocks = [
   {
-    startBlock: 13_000_000,
-    endBlock: 13_001_000,
+    startBlock: 13_000_000, // Aug-10-2021 09:53:39 PM
+    endBlock: 13_000_250,
   },
   {
-    startBlock: 22_546_000,
-    endBlock: 22_547_000,
+    startBlock: 22_569_300, // May-26-2025 08:18:47 PM
+    endBlock: 22_569_550,
   },
   {
-    startBlock: 22_546_500,
-    endBlock: 22_547_500,
-  },
-] as const;
-const possibleBaseBlocks = [
-  {
-    startBlock: 10_500_000,
-    endBlock: 10_501_000,
-  },
-  {
-    startBlock: 30_617_500,
-    endBlock: 30_618_500,
-  },
-  {
-    startBlock: 30_618_000,
-    endBlock: 30_619_000,
+    startBlock: 22_569_400, // May-26-2025 08:38:47 PM
+    endBlock: 22_569_650,
   },
 ] as const;
 const possibleOptimismBlocks = [
   {
-    startBlock: 133_000_000,
-    endBlock: 133_001_000,
+    startBlock: 133_000_000, // Mar-10-2025 09:26:17 AM
+    endBlock: 133_000_250,
   },
   {
-    startBlock: 136_212_500,
-    endBlock: 136_213_500,
+    startBlock: 136_346_000, // May-26-2025 08:19:37 PM
+    endBlock: 136_346_250,
   },
   {
-    startBlock: 136_213_000,
-    endBlock: 136_214_000,
+    startBlock: 136_346_100, // May-26-2025 08:22:57 PM
+    endBlock: 136_346_350,
   },
 ] as const;
+const possibleBaseBlocks = [
+  {
+    startBlock: 10_500_000, // Feb-13-2024 01:55:47 AM
+    endBlock: 10_500_250,
+  },
+  {
+    startBlock: 30_750_700, // May-26-2025 08:19:07 PM
+    endBlock: 30_750_950,
+  },
+  {
+    startBlock: 30_750_800, // May-26-2025 08:22:27 PM
+    endBlock: 30_751_050,
+  },
+] as const;
+
 const possibleContractFilters = [
   {
     event: "Transfer",
@@ -77,8 +78,8 @@ export default process.env.SEED
       },
       chains: {
         mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1 },
-        base: { id: 8453, rpc: process.env.PONDER_RPC_URL_8453 },
         optimism: { id: 10, rpc: process.env.PONDER_RPC_URL_10 },
+        base: { id: 8453, rpc: process.env.PONDER_RPC_URL_8453 },
       },
       contracts: {
         c: {

@@ -1,6 +1,6 @@
+import * as PONDER_SYNC from "@ponder/sync-store/schema.js";
 import { and, eq, getTableName } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
-import * as PONDER_SYNC from "../../packages/core/src/sync-store/schema.js";
 
 type JoinableTable =
   | typeof PONDER_SYNC.blocks
