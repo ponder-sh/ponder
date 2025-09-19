@@ -34,13 +34,18 @@ export const recordProfilePattern = ({
   args: Parameters<PonderActions["readContract"]>[0];
   hints: { pattern: ProfilePattern; hasConstant: boolean }[];
 }): { pattern: ProfilePattern; hasConstant: boolean } | undefined => {
+  globalThis.DISABLE_EVENT_PROXY = true;
+
   for (const hint of hints) {
     const request = recoverProfilePattern(hint.pattern, event);
     if (
       request.functionName === args.functionName &&
       request.address === args.address
     ) {
-      if (request.args === undefined && args.args === undefined) return hint;
+      if (request.args === undefined && args.args === undefined) {
+        globalThis.DISABLE_EVENT_PROXY = false;
+        return hint;
+      }
       if (request.args === undefined || args.args === undefined) continue;
       for (let i = 0; i < request.args.length; i++) {
         if (eq(request.args[i] as any, args.args[i]) === false) continue;
@@ -49,6 +54,7 @@ export const recordProfilePattern = ({
         continue;
       }
 
+      globalThis.DISABLE_EVENT_PROXY = false;
       return hint;
     }
   }
@@ -60,7 +66,10 @@ export const recordProfilePattern = ({
 
   switch (event.type) {
     case "block": {
-      if (eq(event.event.block.miner, args.address)) {
+      if (
+        event.event.block.miner &&
+        eq(event.event.block.miner, args.address)
+      ) {
         resultAddress = { type: "derived", value: ["block", "miner"] };
         break;
       }
@@ -69,7 +78,10 @@ export const recordProfilePattern = ({
     }
 
     case "transaction": {
-      if (eq(event.event.block.miner, args.address)) {
+      if (
+        event.event.block.miner &&
+        eq(event.event.block.miner, args.address)
+      ) {
         resultAddress = { type: "derived", value: ["block", "miner"] };
         break;
       }
@@ -129,7 +141,10 @@ export const recordProfilePattern = ({
         break;
       }
 
-      if (eq(event.event.block.miner, args.address)) {
+      if (
+        event.event.block.miner &&
+        eq(event.event.block.miner, args.address)
+      ) {
         resultAddress = { type: "derived", value: ["block", "miner"] };
         break;
       }
@@ -212,7 +227,10 @@ export const recordProfilePattern = ({
         break;
       }
 
-      if (eq(event.event.block.miner, args.address)) {
+      if (
+        event.event.block.miner &&
+        eq(event.event.block.miner, args.address)
+      ) {
         resultAddress = { type: "derived", value: ["block", "miner"] };
         break;
       }
@@ -265,7 +283,10 @@ export const recordProfilePattern = ({
         break;
       }
 
-      if (eq(event.event.block.miner, args.address)) {
+      if (
+        event.event.block.miner &&
+        eq(event.event.block.miner, args.address)
+      ) {
         resultAddress = { type: "derived", value: ["block", "miner"] };
         break;
       }
@@ -304,6 +325,7 @@ export const recordProfilePattern = ({
   }
 
   if (args.args === undefined || args.args.length === 0) {
+    globalThis.DISABLE_EVENT_PROXY = false;
     return {
       pattern: {
         address: resultAddress,
@@ -322,6 +344,7 @@ export const recordProfilePattern = ({
 
   for (const arg of args.args) {
     if (typeof arg === "object") {
+      globalThis.DISABLE_EVENT_PROXY = false;
       return undefined;
     }
 
@@ -342,7 +365,7 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.block.miner, arg)) {
+        if (event.event.block.miner && eq(event.event.block.miner, arg)) {
           resultArgs.push({ type: "derived", value: ["block", "miner"] });
           continue;
         }
@@ -366,7 +389,7 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.block.miner, arg)) {
+        if (event.event.block.miner && eq(event.event.block.miner, arg)) {
           resultArgs.push({ type: "derived", value: ["block", "miner"] });
           continue;
         }
@@ -456,7 +479,7 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.block.miner, arg)) {
+        if (event.event.block.miner && eq(event.event.block.miner, arg)) {
           resultArgs.push({ type: "derived", value: ["block", "miner"] });
           continue;
         }
@@ -564,7 +587,7 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.block.miner, arg)) {
+        if (event.event.block.miner && eq(event.event.block.miner, arg)) {
           resultArgs.push({ type: "derived", value: ["block", "miner"] });
           continue;
         }
@@ -642,7 +665,7 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.block.miner, arg)) {
+        if (event.event.block.miner && eq(event.event.block.miner, arg)) {
           resultArgs.push({ type: "derived", value: ["block", "miner"] });
           continue;
         }
@@ -689,6 +712,7 @@ export const recordProfilePattern = ({
     hasConstant = true;
   }
 
+  globalThis.DISABLE_EVENT_PROXY = false;
   return {
     pattern: {
       address: resultAddress!,

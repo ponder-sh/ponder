@@ -13,6 +13,7 @@ test("getFragments() block filter", () => {
     chainId: 1,
     interval: 100,
     offset: 5,
+    hasTransactionReceipt: false,
     include: [],
   });
 
@@ -40,6 +41,7 @@ test("getFragments() transaction filter", () => {
     fromAddress: "0xa",
     toAddress: "0xb",
     includeReverted: false,
+    hasTransactionReceipt: true,
     include: [],
   });
 
@@ -72,6 +74,7 @@ test("getFragments() log filter", () => {
     topic1: null,
     topic2: "0xe",
     topic3: null,
+    hasTransactionReceipt: false,
     include: [],
   });
 
@@ -210,7 +213,8 @@ test("getFragments() log filter with transaction receipts", () => {
     topic1: null,
     topic2: null,
     topic3: null,
-    include: ["transactionReceipt.status"],
+    hasTransactionReceipt: true,
+    include: [],
   });
 
   expect(fragments).toMatchInlineSnapshot(`
@@ -243,6 +247,7 @@ test("getFragments() trace filter", () => {
     includeReverted: false,
     functionSelector: "0xb",
     callType: "CALL",
+    hasTransactionReceipt: false,
     include: [],
   });
 
@@ -279,6 +284,7 @@ test("getFragments() transfer filter", () => {
     fromAddress: "0xa",
     toAddress: undefined,
     includeReverted: false,
+    hasTransactionReceipt: false,
     include: [],
   });
 
@@ -321,6 +327,7 @@ test("getFragments() factory with topic", () => {
       fromBlock: undefined,
       toBlock: undefined,
     },
+    hasTransactionReceipt: false,
     include: [],
   });
 
@@ -368,6 +375,7 @@ test("getFragments() factory with offset", () => {
       fromBlock: undefined,
       toBlock: undefined,
     },
+    hasTransactionReceipt: false,
     include: [],
   });
 
@@ -415,6 +423,7 @@ test("getFragments() multiple factories", () => {
       fromBlock: undefined,
       toBlock: undefined,
     },
+    hasTransactionReceipt: false,
     include: [],
   });
 
@@ -470,6 +479,7 @@ test("decodeFragment()", () => {
     chainId: 1,
     interval: 100,
     offset: 5,
+    hasTransactionReceipt: false,
     include: [],
   });
 
@@ -485,6 +495,7 @@ test("decodeFragment()", () => {
     topic1: null,
     topic2: "0xe",
     topic3: null,
+    hasTransactionReceipt: false,
     include: [],
   });
 
@@ -509,6 +520,7 @@ test("decodeFragment()", () => {
     includeReverted: false,
     functionSelector: "0xd",
     callType: "CALL",
+    hasTransactionReceipt: false,
     include: [],
   });
 
@@ -522,7 +534,8 @@ test("decodeFragment()", () => {
     fromAddress: "0xa",
     toAddress: undefined,
     includeReverted: false,
-    include: ["transactionReceipt.status"],
+    hasTransactionReceipt: true,
+    include: [],
   });
 
   expect(
@@ -536,6 +549,7 @@ test("recoverFilter() block filter", () => {
     chainId: 1,
     interval: 100,
     offset: 5,
+    hasTransactionReceipt: false,
     include: [],
   } satisfies FilterWithoutBlocks;
 
@@ -556,6 +570,7 @@ test("recoverFilter() transaction filter", () => {
     fromAddress: "0xa",
     toAddress: "0xb",
     includeReverted: false,
+    hasTransactionReceipt: true,
     include: [],
   } satisfies FilterWithoutBlocks;
 
@@ -578,6 +593,7 @@ test("recoverFilter() log filter", () => {
     topic1: null,
     topic2: "0xe",
     topic3: null,
+    hasTransactionReceipt: false,
     include: [],
   } satisfies FilterWithoutBlocks;
 
@@ -600,6 +616,7 @@ test("recoverFilter() trace filter", () => {
     includeReverted: false,
     functionSelector: "0xb",
     callType: "CALL",
+    hasTransactionReceipt: false,
     include: [],
   } satisfies FilterWithoutBlocks;
 
@@ -620,6 +637,7 @@ test("recoverFilter() transfer filter", () => {
     fromAddress: "0xa",
     toAddress: undefined,
     includeReverted: false,
+    hasTransactionReceipt: false,
     include: [],
   } satisfies FilterWithoutBlocks;
 
@@ -651,6 +669,7 @@ test("recoverFilter() factory", () => {
       fromBlock: undefined,
       toBlock: undefined,
     },
+    hasTransactionReceipt: false,
     include: [],
   } satisfies FilterWithoutBlocks;
 
@@ -682,6 +701,7 @@ test("recoverFilter() multiple factories", () => {
       fromBlock: undefined,
       toBlock: undefined,
     },
+    hasTransactionReceipt: false,
     include: [],
   } satisfies FilterWithoutBlocks;
 

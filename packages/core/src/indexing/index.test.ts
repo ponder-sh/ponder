@@ -11,8 +11,12 @@ import { deployErc20, deployMulticall, mintErc20 } from "@/_test/simulate.js";
 import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/config.js";
 import { onchainTable } from "@/drizzle/onchain.js";
+import type { IndexingCache } from "@/indexing-store/cache.js";
 import { createCachedViemClient } from "@/indexing/client.js";
-import type { RetryableError } from "@/internal/errors.js";
+import {
+  InvalidEventAccessError,
+  type RetryableError,
+} from "@/internal/errors.js";
 import type {
   Event,
   IndexingErrorHandler,
@@ -24,7 +28,11 @@ import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { checksumAddress, padHex, parseEther, toHex, zeroAddress } from "viem";
 import { encodeEventTopics } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
-import { type Context, createIndexing } from "./index.js";
+import {
+  type Context,
+  createColumnAccessPattern,
+  createIndexing,
+} from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
@@ -61,13 +69,17 @@ test("createIndexing()", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-  });
+  const { sources, chains, rpcs, indexingFunctions } =
+    await buildConfigAndIndexingFunctions({
+      common,
+      config,
+      rawIndexingFunctions,
+    });
 
   const eventCount = {};
+  const columnAccessPattern = createColumnAccessPattern({
+    indexingBuild: { indexingFunctions },
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -86,6 +98,7 @@ test("createIndexing()", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessPattern,
   });
 
   expect(indexing).toBeDefined();
@@ -97,13 +110,17 @@ test("processSetupEvents() empty", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-  });
+  const { sources, chains, rpcs, indexingFunctions } =
+    await buildConfigAndIndexingFunctions({
+      common,
+      config,
+      rawIndexingFunctions,
+    });
 
   const eventCount = {};
+  const columnAccessPattern = createColumnAccessPattern({
+    indexingBuild: { indexingFunctions },
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -122,6 +139,7 @@ test("processSetupEvents() empty", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessPattern,
   });
 
   await indexing.processSetupEvents({ db: indexingStore });
@@ -144,6 +162,9 @@ test("processSetupEvents()", async (context) => {
   };
 
   const eventCount = { "Erc20:setup": 0 };
+  const columnAccessPattern = createColumnAccessPattern({
+    indexingBuild: { indexingFunctions },
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -162,6 +183,7 @@ test("processSetupEvents()", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessPattern,
   });
 
   await indexing.processSetupEvents({ db: indexingStore });
@@ -207,6 +229,9 @@ test("processEvent()", async (context) => {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
     "Pair:Swap": 0,
   };
+  const columnAccessPattern = createColumnAccessPattern({
+    indexingBuild: { indexingFunctions },
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -225,6 +250,7 @@ test("processEvent()", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessPattern,
   });
 
   const topics = encodeEventTopics({
@@ -248,7 +274,7 @@ test("processEvent()", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  await indexing.processEvents({ db: indexingStore, events });
+  await indexing.processRealtimeEvents({ db: indexingStore, events });
 
   expect(
     indexingFunctions[
@@ -304,6 +330,9 @@ test("processEvents eventCount", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
+  const columnAccessPattern = createColumnAccessPattern({
+    indexingBuild: { indexingFunctions },
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -322,6 +351,7 @@ test("processEvents eventCount", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessPattern,
   });
 
   const topics = encodeEventTopics({
@@ -342,7 +372,7 @@ test("processEvents eventCount", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  await indexing.processEvents({ db: indexingStore, events });
+  await indexing.processRealtimeEvents({ db: indexingStore, events });
 
   const metrics = await common.metrics.ponder_indexing_completed_events.get();
 
@@ -377,6 +407,9 @@ test("executeSetup() context.client", async (context) => {
   };
 
   const eventCount = {};
+  const columnAccessPattern = createColumnAccessPattern({
+    indexingBuild: { indexingFunctions },
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -395,6 +428,7 @@ test("executeSetup() context.client", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessPattern,
   });
 
   const getBalanceSpy = vi.spyOn(rpcs[0]!, "request");
@@ -428,6 +462,9 @@ test("executeSetup() context.db", async (context) => {
     },
   };
   const eventCount = { "Erc20:setup": 0 };
+  const columnAccessPattern = createColumnAccessPattern({
+    indexingBuild: { indexingFunctions },
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -446,6 +483,7 @@ test("executeSetup() context.db", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessPattern,
   });
 
   const insertSpy = vi.spyOn(indexingStore, "insert");
@@ -473,7 +511,14 @@ test("executeSetup() metrics", async (context) => {
     rawIndexingFunctions,
   });
 
+  const indexingFunctions = {
+    "Erc20:setup": vi.fn(),
+  };
+
   const eventCount = { "Erc20:setup": 0 };
+  const columnAccessPattern = createColumnAccessPattern({
+    indexingBuild: { indexingFunctions },
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -485,15 +530,14 @@ test("executeSetup() metrics", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      indexingFunctions: {
-        "Erc20:setup": vi.fn(),
-      },
+      indexingFunctions,
       sources,
       chains,
     },
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessPattern,
   });
 
   await indexing.processSetupEvents({ db: indexingStore });
@@ -519,6 +563,9 @@ test("executeSetup() error", async (context) => {
   };
 
   const eventCount = { "Erc20:setup": 0 };
+  const columnAccessPattern = createColumnAccessPattern({
+    indexingBuild: { indexingFunctions },
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -537,6 +584,7 @@ test("executeSetup() error", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessPattern,
   });
 
   indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
@@ -561,14 +609,20 @@ test("processEvents() context.client", async (context) => {
   });
 
   const clientCall = async ({ context }: { context: Context }) => {
-    await context.client.getBalance({
-      address: BOB,
-    });
+    await context.client.getBalance({ address: BOB });
+  };
+
+  const indexingFunctions = {
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+      clientCall,
   };
 
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
+  const columnAccessPattern = createColumnAccessPattern({
+    indexingBuild: { indexingFunctions },
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -580,16 +634,14 @@ test("processEvents() context.client", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      indexingFunctions: {
-        "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-          clientCall,
-      },
+      indexingFunctions,
       sources,
       chains,
     },
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessPattern,
   });
 
   const getBalanceSpy = vi.spyOn(rpcs[0]!, "request");
@@ -609,18 +661,18 @@ test("processEvents() context.client", async (context) => {
     chainId: 1,
     sourceIndex: 0,
     checkpoint: ZERO_CHECKPOINT_STRING,
-    block: {} as RawEvent["block"],
+    block: { number: 0n } as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
     log: { data, topics },
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  await indexing.processEvents({ db: indexingStore, events });
+  await indexing.processRealtimeEvents({ db: indexingStore, events });
 
   expect(getBalanceSpy).toHaveBeenCalledTimes(1);
   expect(getBalanceSpy).toHaveBeenCalledWith({
     method: "eth_getBalance",
-    params: ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "latest"],
+    params: ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "0x0"],
   });
 });
 
@@ -645,9 +697,17 @@ test("processEvents() context.db", async (context) => {
     });
   };
 
+  const indexingFunctions = {
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+      dbCall,
+  };
+
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
+  const columnAccessPattern = createColumnAccessPattern({
+    indexingBuild: { indexingFunctions },
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -659,16 +719,14 @@ test("processEvents() context.db", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      indexingFunctions: {
-        "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-          dbCall,
-      },
+      indexingFunctions,
       sources,
       chains,
     },
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessPattern,
   });
 
   const insertSpy = vi.spyOn(indexingStore, "insert");
@@ -694,7 +752,7 @@ test("processEvents() context.db", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  await indexing.processEvents({ db: indexingStore, events });
+  await indexing.processRealtimeEvents({ db: indexingStore, events });
 
   expect(insertSpy).toHaveBeenCalledTimes(1);
 
@@ -715,9 +773,17 @@ test("processEvents() metrics", async (context) => {
     rawIndexingFunctions,
   });
 
+  const indexingFunctions = {
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+      vi.fn(),
+  };
+
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
+  const columnAccessPattern = createColumnAccessPattern({
+    indexingBuild: { indexingFunctions },
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -729,16 +795,14 @@ test("processEvents() metrics", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      indexingFunctions: {
-        "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-          vi.fn(),
-      },
+      indexingFunctions,
       sources,
       chains,
     },
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessPattern,
   });
 
   const topics = encodeEventTopics({
@@ -762,7 +826,7 @@ test("processEvents() metrics", async (context) => {
   } as RawEvent;
 
   const events = decodeEvents(common, sources, [rawEvent]);
-  await indexing.processEvents({
+  await indexing.processRealtimeEvents({
     events,
     db: indexingStore,
   });
@@ -791,6 +855,9 @@ test("processEvents() error", async (context) => {
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
   };
+  const columnAccessPattern = createColumnAccessPattern({
+    indexingBuild: { indexingFunctions },
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -809,6 +876,7 @@ test("processEvents() error", async (context) => {
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessPattern,
   });
 
   indexingFunctions[
@@ -837,7 +905,7 @@ test("processEvents() error", async (context) => {
 
   const events = decodeEvents(common, sources, [rawEvent]);
   await expect(() =>
-    indexing.processEvents({ db: indexingStore, events }),
+    indexing.processRealtimeEvents({ db: indexingStore, events }),
   ).rejects.toThrowError();
 
   expect(
@@ -871,6 +939,9 @@ test("processEvents() error with missing event object properties", async (contex
   };
 
   const eventCount = {};
+  const columnAccessPattern = createColumnAccessPattern({
+    indexingBuild: { indexingFunctions },
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -889,6 +960,7 @@ test("processEvents() error with missing event object properties", async (contex
     client: cachedViemClient,
     eventCount,
     indexingErrorHandler,
+    columnAccessPattern,
   });
 
   const topics = encodeEventTopics({
@@ -913,8 +985,131 @@ test("processEvents() error with missing event object properties", async (contex
 
   const events = decodeEvents(common, sources, [rawEvent]);
   await expect(() =>
-    indexing.processEvents({ events, db: indexingStore }),
+    indexing.processRealtimeEvents({ events, db: indexingStore }),
   ).rejects.toThrowError();
+});
+
+test("processEvents() column selection", async (context) => {
+  const { common } = context;
+  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
+  let count = 0;
+
+  const indexingFunctions = {
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+      async ({ event }: { event: any; context: Context }) => {
+        event.transaction.gas;
+        event.transaction.maxFeePerGas;
+        if (count++ === 1001) {
+          event.transaction.maxPriorityFeePerGas;
+        }
+      },
+  };
+
+  const eventCount = {
+    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
+  };
+  const columnAccessPattern = createColumnAccessPattern({
+    indexingBuild: { indexingFunctions },
+  });
+
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { chains, rpcs },
+    syncStore,
+    eventCount,
+  });
+
+  const indexing = createIndexing({
+    common,
+    indexingBuild: {
+      sources,
+      chains,
+      indexingFunctions,
+    },
+    client: cachedViemClient,
+    eventCount,
+    indexingErrorHandler,
+    columnAccessPattern,
+  });
+
+  const topics = encodeEventTopics({
+    abi: erc20ABI,
+    eventName: "Transfer",
+    args: { from: zeroAddress, to: ALICE },
+  });
+
+  const data = padHex(toHex(parseEther("1")), { size: 32 });
+
+  let rawEvents = Array.from({ length: 1001 }).map(
+    () =>
+      ({
+        chainId: 1,
+        sourceIndex: 0,
+        checkpoint: ZERO_CHECKPOINT_STRING,
+        block: {} as RawEvent["block"],
+        transaction: { gas: 0n, maxFeePerGas: 0n } as RawEvent["transaction"],
+        log: { data, topics },
+      }) as RawEvent,
+  );
+
+  let events = decodeEvents(common, sources, rawEvents);
+  await indexing.processHistoricalEvents({
+    db: indexingStore,
+    events,
+    cache: {} as IndexingCache,
+  });
+
+  expect(sources[0]!.filter.include).toMatchInlineSnapshot(`
+    [
+      "transaction.gas",
+      "transaction.maxFeePerGas",
+      "log.address",
+      "log.data",
+      "log.logIndex",
+      "log.removed",
+      "log.topics",
+      "transaction.transactionIndex",
+      "transaction.from",
+      "transaction.to",
+      "transaction.hash",
+      "transaction.type",
+      "block.timestamp",
+      "block.number",
+      "block.hash",
+    ]
+  `);
+
+  rawEvents = [
+    {
+      chainId: 1,
+      sourceIndex: 0,
+      checkpoint: ZERO_CHECKPOINT_STRING,
+      block: {} as RawEvent["block"],
+      transaction: {} as RawEvent["transaction"],
+      log: { data, topics },
+    } as RawEvent,
+  ];
+
+  events = decodeEvents(common, sources, rawEvents);
+
+  await expect(() =>
+    indexing.processHistoricalEvents({
+      events,
+      db: indexingStore,
+      cache: {} as IndexingCache,
+    }),
+  ).rejects.toThrowError(
+    new InvalidEventAccessError("transaction.maxPriorityFeePerGas"),
+  );
 });
 
 test("ponderActions getBalance()", async (context) => {

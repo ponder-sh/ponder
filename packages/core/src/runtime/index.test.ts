@@ -129,6 +129,7 @@ test("getCachedBlock() no cached intervals", async () => {
     offset: 0,
     fromBlock: 0,
     toBlock: 100,
+    hasTransactionReceipt: false,
     include: [],
   } satisfies BlockFilter;
 
@@ -153,6 +154,7 @@ test("getCachedBlock() with cache", async () => {
     offset: 0,
     fromBlock: 0,
     toBlock: 100,
+    hasTransactionReceipt: false,
     include: [],
   } satisfies BlockFilter;
 
@@ -202,6 +204,7 @@ test("getCachedBlock() with incomplete cache", async () => {
     offset: 0,
     fromBlock: 0,
     toBlock: 100,
+    hasTransactionReceipt: false,
     include: [],
   } satisfies BlockFilter;
 
@@ -227,6 +230,7 @@ test("getCachedBlock() with multiple filters", async () => {
       offset: 0,
       fromBlock: 0,
       toBlock: 100,
+      hasTransactionReceipt: false,
       include: [],
     },
     {
@@ -236,6 +240,7 @@ test("getCachedBlock() with multiple filters", async () => {
       offset: 1,
       fromBlock: 50,
       toBlock: 150,
+      hasTransactionReceipt: false,
       include: [],
     },
   ] satisfies BlockFilter[];

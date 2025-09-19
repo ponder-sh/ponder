@@ -41,9 +41,10 @@ test("isFilterInBloom returns false for out of range blocks", () => {
     topic1: null,
     topic2: null,
     topic3: null,
+    hasTransactionReceipt: false,
     fromBlock: 10,
     toBlock: 20,
-    include: undefined,
+    include: [],
   } satisfies LogFilter;
 
   expect(isFilterInBloom({ block, filter })).toBe(false);
@@ -65,9 +66,10 @@ test("isFilterInBloom returns false for missing topics", () => {
     topic1: null,
     topic2: null,
     topic3: null,
+    hasTransactionReceipt: false,
     fromBlock: undefined,
     toBlock: undefined,
-    include: undefined,
+    include: [],
   } satisfies LogFilter;
 
   expect(isFilterInBloom({ block, filter })).toBe(false);
@@ -88,9 +90,10 @@ test("isFilterInBloom returns true for undefined address", () => {
     topic1: null,
     topic2: null,
     topic3: null,
+    hasTransactionReceipt: false,
     fromBlock: undefined,
     toBlock: undefined,
-    include: undefined,
+    include: [],
   } satisfies LogFilter;
 
   expect(isFilterInBloom({ block, filter })).toBe(true);
@@ -121,9 +124,10 @@ test("isFilterInBloom returns true for factory with new child address", () => {
     topic1: null,
     topic2: null,
     topic3: null,
+    hasTransactionReceipt: false,
     fromBlock: undefined,
     toBlock: undefined,
-    include: undefined,
+    include: [],
   } satisfies LogFilter;
 
   expect(isFilterInBloom({ block, filter })).toBe(true);
@@ -155,9 +159,10 @@ test("isFilterInBloom returns true for factory without new child address", () =>
     topic1: null,
     topic2: null,
     topic3: null,
+    hasTransactionReceipt: false,
     fromBlock: undefined,
     toBlock: undefined,
-    include: undefined,
+    include: [],
   } satisfies LogFilter;
 
   expect(isFilterInBloom({ block, filter })).toBe(true);
@@ -178,9 +183,10 @@ test("isFilterInBloom returns true for array of addresses", () => {
     topic1: null,
     topic2: null,
     topic3: null,
+    hasTransactionReceipt: false,
     fromBlock: undefined,
     toBlock: undefined,
-    include: undefined,
+    include: [],
   } satisfies LogFilter;
 
   expect(isFilterInBloom({ block, filter })).toBe(true);

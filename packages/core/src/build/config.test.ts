@@ -3,7 +3,6 @@ import { poolId } from "@/_test/utils.js";
 import { factory } from "@/config/address.js";
 import { createConfig } from "@/config/index.js";
 import type { LogFactory, LogFilter, TraceFilter } from "@/internal/types.js";
-import { shouldGetTransactionReceipt } from "@/runtime/filter.js";
 import { hyperliquidEvm } from "@/utils/chains.js";
 import {
   type Address,
@@ -591,8 +590,8 @@ test("buildConfigAndIndexingFunctions() includeTransactionReceipts", async (cont
     rawIndexingFunctions: [{ name: "a:Event0", fn: () => {} }],
   });
 
-  expect(shouldGetTransactionReceipt(sources[0]!.filter)).toBe(true);
-  expect(shouldGetTransactionReceipt(sources[1]!.filter)).toBe(false);
+  expect(sources[0]!.filter.hasTransactionReceipt).toBe(true);
+  expect(sources[1]!.filter.hasTransactionReceipt).toBe(false);
 });
 
 test("buildConfigAndIndexingFunctions() includeCallTraces", async (context) => {
@@ -629,7 +628,7 @@ test("buildConfigAndIndexingFunctions() includeCallTraces", async (context) => {
   expect((sources[0]!.filter as TraceFilter).functionSelector).toMatchObject([
     toFunctionSelector(func0),
   ]);
-  expect(shouldGetTransactionReceipt(sources[0]!.filter)).toBe(false);
+  expect(sources[0]!.filter.hasTransactionReceipt).toBe(false);
 });
 
 test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (context) => {
@@ -670,7 +669,7 @@ test("buildConfigAndIndexingFunctions() includeCallTraces with factory", async (
   expect((sources[0]!.filter as TraceFilter).functionSelector).toMatchObject([
     toFunctionSelector(func0),
   ]);
-  expect(shouldGetTransactionReceipt(sources[0]!.filter)).toBe(false);
+  expect(sources[0]!.filter.hasTransactionReceipt).toBe(false);
 });
 
 test("buildConfigAndIndexingFunctions() coerces NaN endBlock to undefined", async (context) => {

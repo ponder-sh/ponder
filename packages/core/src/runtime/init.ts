@@ -2,12 +2,12 @@ import type { Common } from "@/internal/common.js";
 import type {
   Chain,
   IndexingBuild,
-  LightBlock,
+  RawEvent,
   Source,
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
-import { getLocalEventGenerator } from "./historical.js";
+import { getLocalEventGenerator, refetchLocalEvents } from "./historical.js";
 import {
   type CachedIntervals,
   type ChildAddresses,
@@ -36,13 +36,14 @@ export async function initEventGenerator(params: {
   return getLocalEventGenerator(params);
 }
 
-export function initSyncProgress(params: {
-  common: Common;
-  sources: Source[];
-  chain: Chain;
-  rpc: Rpc;
-  finalizedBlock: LightBlock;
-  cachedIntervals: CachedIntervals;
-}) {
+export async function initRefetchEvents(
+  params: Parameters<typeof refetchLocalEvents>[0],
+): Promise<RawEvent[]> {
+  return refetchLocalEvents(params);
+}
+
+export async function initSyncProgress(
+  params: Parameters<typeof getLocalSyncProgress>[0],
+): Promise<SyncProgress> {
   return getLocalSyncProgress(params);
 }

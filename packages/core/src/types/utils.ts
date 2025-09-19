@@ -28,6 +28,19 @@ export type DeepPartial<T> = {
 };
 
 /**
+ * @description Creates a partial type with the selected keys required.
+ *
+ * @example
+ * type t = PartialExcept<{ a: string, b: boolean }, "a">
+ * //   ^? t: { a: string, b?: boolean }
+ */
+export type PartialExcept<T, K extends keyof T> = {
+  [P in K]: T[P];
+} & {
+  [P in keyof Omit<T, K>]?: T[P];
+};
+
+/**
  * @description Marks a property of an object as optional.
  */
 export type MakeOptional<T, K extends keyof T> = Omit<T, K> &

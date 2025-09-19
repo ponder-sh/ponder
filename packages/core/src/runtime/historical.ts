@@ -4,6 +4,7 @@ import type {
   CrashRecoveryCheckpoint,
   Event,
   IndexingBuild,
+  RawEvent,
   Source,
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
@@ -36,7 +37,7 @@ import { startClock } from "@/utils/timer.js";
 import { zipperMany } from "@/utils/zipper.js";
 import { hexToNumber } from "viem";
 import type { CachedIntervals, ChildAddresses, SyncProgress } from "./index.js";
-import { initEventGenerator } from "./init.js";
+import { initEventGenerator, initRefetchEvents } from "./init.js";
 import { getOmnichainCheckpoint } from "./omnichain.js";
 
 export async function* getHistoricalEventsOmnichain(params: {
@@ -492,6 +493,125 @@ export async function* getHistoricalEventsMultichain(params: {
 
     isCatchup = true;
   }
+}
+
+export async function refetchHistoricalEvents(params: {
+  common: Common;
+  indexingBuild: Pick<IndexingBuild, "sources" | "chains">;
+  perChainSync: Map<Chain, { childAddresses: ChildAddresses }>;
+  events: Event[];
+  syncStore: SyncStore;
+}): Promise<Event[]> {
+  const events: Event[] = new Array(params.events.length);
+
+  for (const chain of PONDER_INDEXING_BUILD.chains) {
+    const { childAddresses } = params.perChainSync.get(chain)!;
+
+    // Note: All filters are refetched, no matter if they are resolved or not.
+    const sources = params.indexingBuild.sources.filter(
+      ({ filter }) => filter.chainId === chain.id,
+    );
+
+    const chainEvents = params.events.filter(
+      (event) => event.chainId === chain.id,
+    );
+
+    if (chainEvents.length === 0) continue;
+
+    const rawEvents = await initRefetchEvents({
+      common: params.common,
+      chain,
+      childAddresses,
+      sources,
+      events: chainEvents,
+      syncStore: params.syncStore,
+    });
+
+    const endClock = startClock();
+    const refetchedEvents = decodeEvents(params.common, sources, rawEvents);
+    params.common.logger.debug({
+      service: "app",
+      msg: `Decoded ${refetchedEvents.length} '${chain.name}' events`,
+    });
+    params.common.metrics.ponder_historical_extract_duration.inc(
+      { step: "decode" },
+      endClock(),
+    );
+
+    let i = 0;
+    let j = 0;
+
+    while (i < params.events.length && j < refetchedEvents.length) {
+      if (params.events[i]?.chainId === chain.id) {
+        events[i] = refetchedEvents[j]!;
+        i++;
+        j++;
+      } else {
+        i++;
+      }
+    }
+  }
+
+  return events;
+}
+
+export async function refetchLocalEvents(params: {
+  common: Common;
+  chain: Chain;
+  childAddresses: ChildAddresses;
+  sources: Source[];
+  events: Event[];
+  syncStore: SyncStore;
+}): Promise<RawEvent[]> {
+  const from = params.events[0]!.checkpoint;
+  const to = params.events[params.events.length - 1]!.checkpoint;
+
+  const fromBlock = Number(decodeCheckpoint(from).blockNumber);
+  const toBlock = Number(decodeCheckpoint(to).blockNumber);
+  let cursor = fromBlock;
+
+  let events: RawEvent[] | undefined;
+  while (cursor <= toBlock) {
+    const { blockData, cursor: queryCursor } =
+      await params.syncStore.getEventBlockData({
+        filters: params.sources.map(({ filter }) => filter),
+        fromBlock: cursor,
+        toBlock,
+        chainId: params.chain.id,
+        limit: params.events.length,
+      });
+
+    const endClock = startClock();
+    const rawEvents = blockData.flatMap((bd) =>
+      buildEvents({
+        sources: params.sources,
+        blockData: bd,
+        childAddresses: params.childAddresses,
+        chainId: params.chain.id,
+      }),
+    );
+    params.common.metrics.ponder_historical_extract_duration.inc(
+      { step: "build" },
+      endClock(),
+    );
+
+    params.common.logger.debug({
+      service: "sync",
+      msg: `Extracted ${rawEvents.length} '${params.chain.name}' events for block range [${cursor}, ${queryCursor}]`,
+    });
+
+    await new Promise(setImmediate);
+
+    if (events === undefined) {
+      events = rawEvents;
+    } else {
+      events.push(...rawEvents);
+    }
+
+    cursor = queryCursor + 1;
+  }
+
+  return events!;
 }
 
 export async function* getLocalEventGenerator(params: {

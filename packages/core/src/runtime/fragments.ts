@@ -14,7 +14,7 @@ import type {
 } from "@/internal/types.js";
 import { dedupe } from "@/utils/dedupe.js";
 import type { Address, Hex } from "viem";
-import { isAddressFactory, shouldGetTransactionReceipt } from "./filter.js";
+import { isAddressFactory } from "./filter.js";
 
 export const isFragmentAddressFactory = (
   fragmentAddress: FragmentAddress,
@@ -155,7 +155,6 @@ export const getTraceFilterFragments = ({
   const fragments: FragmentReturnType = [];
   const fromAddressFragments = getAddressFragments(fromAddress);
   const toAddressFragments = getAddressFragments(toAddress);
-  const includeTransactionReceipts = shouldGetTransactionReceipt(filter);
 
   for (const fromAddressFragment of fromAddressFragments) {
     for (const toAddressFragment of toAddressFragments) {
@@ -168,7 +167,7 @@ export const getTraceFilterFragments = ({
           fromAddress: fromAddressFragment.fragment,
           toAddress: toAddressFragment.fragment,
           functionSelector: fragmentFunctionSelector ?? null,
-          includeTransactionReceipts,
+          includeTransactionReceipts: filter.hasTransactionReceipt,
         } satisfies Fragment;
 
         const adjacentIds: FragmentId[] = [];
@@ -178,7 +177,7 @@ export const getTraceFilterFragments = ({
             for (const adjacentFunctionSelector of fragmentFunctionSelector
               ? [fragmentFunctionSelector, null]
               : [null]) {
-              for (const adjacentTxr of includeTransactionReceipts
+              for (const adjacentTxr of filter.hasTransactionReceipt
                 ? [1]
                 : [0, 1]) {
                 adjacentIds.push(
@@ -208,7 +207,6 @@ export const getLogFilterFragments = ({
 }: Omit<LogFilter, "fromBlock" | "toBlock">): FragmentReturnType => {
   const fragments: FragmentReturnType = [];
   const addressFragments = getAddressFragments(address);
-  const includeTransactionReceipts = shouldGetTransactionReceipt(filter);
 
   for (const addressFragment of addressFragments) {
     for (const fragmentTopic0 of Array.isArray(topic0) ? topic0 : [topic0]) {
@@ -227,7 +225,7 @@ export const getLogFilterFragments = ({
               topic1: fragmentTopic1 ?? null,
               topic2: fragmentTopic2 ?? null,
               topic3: fragmentTopic3 ?? null,
-              includeTransactionReceipts,
+              includeTransactionReceipts: filter.hasTransactionReceipt,
             } satisfies Fragment;
 
             const adjacentIds: FragmentId[] = [];
@@ -245,7 +243,7 @@ export const getLogFilterFragments = ({
                     for (const adjacentTopic3 of fragmentTopic3
                       ? [fragmentTopic3, null]
                       : [null]) {
-                      for (const adjacentTxr of includeTransactionReceipts
+                      for (const adjacentTxr of filter.hasTransactionReceipt
                         ? [1]
                         : [0, 1]) {
                         adjacentIds.push(
@@ -279,7 +277,6 @@ export const getTransferFilterFragments = ({
   const fragments: FragmentReturnType = [];
   const fromAddressFragments = getAddressFragments(fromAddress);
   const toAddressFragments = getAddressFragments(toAddress);
-  const includeTransactionReceipts = shouldGetTransactionReceipt(filter);
 
   for (const fromAddressFragment of fromAddressFragments) {
     for (const toAddressFragment of toAddressFragments) {
@@ -288,14 +285,16 @@ export const getTransferFilterFragments = ({
         chainId,
         fromAddress: fromAddressFragment.fragment,
         toAddress: toAddressFragment.fragment,
-        includeTransactionReceipts,
+        includeTransactionReceipts: filter.hasTransactionReceipt,
       } satisfies Fragment;
 
       const adjacentIds: FragmentId[] = [];
 
       for (const fromAddressAdjacentId of fromAddressFragment.adjacentIds) {
         for (const toAddressAdjacentId of toAddressFragment.adjacentIds) {
-          for (const adjacentTxr of includeTransactionReceipts ? [1] : [0, 1]) {
+          for (const adjacentTxr of filter.hasTransactionReceipt
+            ? [1]
+            : [0, 1]) {
             adjacentIds.push(
               `transfer_${chainId}_${fromAddressAdjacentId}_${toAddressAdjacentId}_${adjacentTxr as 0 | 1}`,
             );
