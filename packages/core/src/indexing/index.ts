@@ -101,6 +101,7 @@ export type ColumnAccessProfile = {
   transaction: Set<keyof Transaction>;
   transactionReceipt: Set<keyof TransactionReceipt>;
   resolved: boolean;
+  count: number;
 };
 
 export type ColumnAccessPattern = Map<string, ColumnAccessProfile>;
@@ -119,6 +120,7 @@ export const createColumnAccessPattern = ({
       transaction: new Set(),
       transactionReceipt: new Set(),
       resolved: false,
+      count: 0,
     });
   }
 
@@ -404,6 +406,7 @@ export const createIndexing = ({
       isFilterResolved.set(filter, false);
       filter.include = include;
     }
+    columnAccessPattern.get(eventName)!.count = 0;
   };
 
   const blockProxy = createEventProxy<Block>(
@@ -456,6 +459,7 @@ export const createIndexing = ({
       _sources.map((s) => s.filter),
     );
   }
+
   for (const source of sources) {
     isFilterResolved.set(source.filter, false);
   }
@@ -509,8 +513,6 @@ export const createIndexing = ({
         client.event = event;
         context.client = clientByChainId[event.chainId]!;
         cache.event = event;
-
-        eventCount[event.name]!++;
 
         common.logger.trace({
           service: "indexing",
@@ -603,6 +605,9 @@ export const createIndexing = ({
         // @ts-expect-error
         await executeEvent({ ...event, event: proxyEvent });
 
+        eventCount[event.name]!++;
+        columnAccessPattern.get(event.name)!.count++;
+
         common.logger.trace({
           service: "indexing",
           msg: `Completed indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
@@ -619,7 +624,11 @@ export const createIndexing = ({
 
         isEveryFilterResolvedBefore = false;
 
-        if (eventNames.some((eventName) => eventCount[eventName]! < 100)) {
+        if (
+          eventNames.some(
+            (eventName) => columnAccessPattern.get(eventName)!.count < 100,
+          )
+        ) {
           isEveryFilterResolvedAfter = false;
           continue;
         }
