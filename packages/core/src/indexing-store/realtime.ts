@@ -21,6 +21,7 @@ import { drizzle } from "drizzle-orm/pg-proxy";
 import {
   type IndexingStore,
   checkOnchainTable,
+  checkTableAccess,
   validateUpdateSet,
 } from "./index.js";
 import { getCacheKey, getPrimaryKeyCache, getWhereCondition } from "./utils.js";
@@ -29,10 +30,12 @@ export const createRealtimeIndexingStore = ({
   common,
   schemaBuild: { schema },
   indexingErrorHandler,
+  chainId,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   indexingErrorHandler: IndexingErrorHandler;
+  chainId?: number;
 }): IndexingStore => {
   let qb: QB = undefined!;
   let isProcessingEvents = true;
@@ -90,6 +93,7 @@ export const createRealtimeIndexingStore = ({
         method: "find",
       });
       checkOnchainTable(table, "find");
+      checkTableAccess(table, "find", key, chainId);
       return find(table, key);
     }),
     // @ts-ignore
@@ -131,6 +135,16 @@ export const createRealtimeIndexingStore = ({
                 return rows;
               };
 
+              if (chainId !== undefined) {
+                if (Array.isArray(values)) {
+                  for (const value of values) {
+                    checkTableAccess(table, "insert", value, chainId);
+                  }
+                } else {
+                  checkTableAccess(table, "insert", values, chainId);
+                }
+              }
+
               return qb.wrap((db) =>
                 db
                   .insert(table)
@@ -150,6 +164,7 @@ export const createRealtimeIndexingStore = ({
               if (Array.isArray(values)) {
                 const rows = [];
                 for (const value of values) {
+                  checkTableAccess(table, "insert", value, chainId);
                   const row = await find(table, value);
 
                   if (row) {
@@ -181,6 +196,7 @@ export const createRealtimeIndexingStore = ({
                 }
                 return rows;
               } else {
+                checkTableAccess(table, "insert", values, chainId);
                 const row = await find(table, values);
 
                 if (row) {
@@ -215,6 +231,15 @@ export const createRealtimeIndexingStore = ({
                   method: "insert",
                 });
                 checkOnchainTable(table, "insert");
+                if (chainId !== undefined) {
+                  if (Array.isArray(values)) {
+                    for (const value of values) {
+                      checkTableAccess(table, "insert", value, chainId);
+                    }
+                  } else {
+                    checkTableAccess(table, "insert", values, chainId);
+                  }
+                }
 
                 // Note: `onConflictDoNothing` is used to ensure the transaction will only fail
                 // for connection issues. This is a workaround to avoid the transaction being aborted.
@@ -247,8 +272,9 @@ export const createRealtimeIndexingStore = ({
                     .then(parseResult),
                 );
               })().then(onFulfilled, onRejected),
-            catch: (onRejected) => inner.then(undefined, onRejected),
-            finally: (onFinally) =>
+            catch: (onRejected): Promise<any> =>
+              inner.then(undefined, onRejected),
+            finally: (onFinally): Promise<any> =>
               inner.then(
                 (value: any) => {
                   onFinally?.();
@@ -275,6 +301,7 @@ export const createRealtimeIndexingStore = ({
             method: "update",
           });
           checkOnchainTable(table, "update");
+          checkTableAccess(table, "update", key, chainId);
 
           const row = await find(table, key);
           if (typeof values === "function") {
@@ -319,6 +346,7 @@ export const createRealtimeIndexingStore = ({
         method: "delete",
       });
       checkOnchainTable(table, "delete");
+      checkTableAccess(table, "delete", key, chainId);
 
       const deleted = await qb.wrap((db) =>
         db.delete(table).where(getWhereCondition(table, key)).returning(),

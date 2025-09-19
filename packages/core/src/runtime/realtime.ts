@@ -269,6 +269,7 @@ export async function* getRealtimeEventsOmnichain(params: {
         yield { type: "finalize", chain, checkpoint: to };
         break;
       }
+
       case "reorg": {
         const isReorgedEvent = (_event: Event) => {
           if (
@@ -537,6 +538,127 @@ export async function* getRealtimeEventsMultichain(params: {
   }
 }
 
+export async function* getRealtimeEventsIsolated(params: {
+  common: Common;
+  indexingBuild: Pick<
+    IndexingBuild,
+    "sources" | "chains" | "rpcs" | "finalizedBlocks"
+  >;
+  syncStore: SyncStore;
+  chain: Chain;
+  syncProgress: SyncProgress;
+  childAddresses: ChildAddresses;
+  unfinalizedBlocks: Omit<
+    Extract<RealtimeSyncEvent, { type: "block" }>,
+    "type"
+  >[];
+}): AsyncGenerator<RealtimeEvent> {
+  const { chain, syncProgress, childAddresses, unfinalizedBlocks } = params;
+
+  if (syncProgress.isEnd()) {
+    params.common.metrics.ponder_sync_is_complete.set({ chain: chain.name }, 1);
+    return;
+  }
+
+  const rpc =
+    params.indexingBuild.rpcs[params.indexingBuild.chains.indexOf(chain)]!;
+  const sources = params.indexingBuild.sources.filter(
+    ({ filter }) => filter.chainId === chain.id,
+  );
+
+  params.common.metrics.ponder_sync_is_realtime.set({ chain: chain.name }, 1);
+
+  const eventGenerator = getRealtimeEventGenerator({
+    common: params.common,
+    chain,
+    rpc,
+    sources,
+    syncProgress,
+    childAddresses,
+    syncStore: params.syncStore,
+  });
+
+  for await (const { event } of eventGenerator) {
+    await handleRealtimeSyncEvent(event, {
+      common: params.common,
+      chain,
+      sources,
+      syncProgress,
+      unfinalizedBlocks,
+      syncStore: params.syncStore,
+    });
+
+    switch (event.type) {
+      case "block": {
+        const rawEvents = buildEvents({
+          sources,
+          chainId: chain.id,
+          blockData: {
+            block: syncBlockToInternal({ block: event.block }),
+            logs: event.logs.map((log) => syncLogToInternal({ log })),
+            transactions: event.transactions.map((transaction) =>
+              syncTransactionToInternal({ transaction }),
+            ),
+            transactionReceipts: event.transactionReceipts.map(
+              (transactionReceipt) =>
+                syncTransactionReceiptToInternal({ transactionReceipt }),
+            ),
+            traces: event.traces.map((trace) =>
+              syncTraceToInternal({
+                trace,
+                block: event.block,
+                transaction: event.transactions.find(
+                  (t) => t.hash === trace.transactionHash,
+                )!,
+              }),
+            ),
+          },
+          childAddresses,
+        });
+
+        params.common.logger.debug({
+          service: "sync",
+          msg: `Extracted ${rawEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
+        });
+
+        const events = decodeEvents(params.common, sources, rawEvents);
+        params.common.logger.debug({
+          service: "sync",
+          msg: `Decoded ${events.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
+        });
+
+        const checkpoint = syncProgress.getCheckpoint({ tag: "current" });
+
+        params.common.logger.debug({
+          service: "sync",
+          msg: `Sequenced ${events.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
+        });
+
+        yield {
+          type: "block",
+          events,
+          chain,
+          checkpoint,
+          blockCallback: event.blockCallback,
+        };
+        break;
+      }
+      case "finalize": {
+        const checkpoint = syncProgress.getCheckpoint({ tag: "finalized" });
+
+        yield { type: "finalize", chain, checkpoint };
+        break;
+      }
+
+      case "reorg": {
+        const checkpoint = syncProgress.getCheckpoint({ tag: "current" });
+
+        yield { type: "reorg", chain, checkpoint };
+        break;
+      }
+    }
+  }
+}
 export async function* getRealtimeEventGenerator(params: {
   common: Common;
   chain: Chain;

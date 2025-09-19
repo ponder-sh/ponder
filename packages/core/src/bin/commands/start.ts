@@ -18,9 +18,9 @@ import type {
 import { runMultichain } from "@/runtime/multichain.js";
 import { runOmnichain } from "@/runtime/omnichain.js";
 import { createServer } from "@/server/index.js";
-import { mergeResults } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
+import { isolatedController } from "./isolatedController.js";
 
 export type PonderApp = {
   common: Common;
@@ -84,9 +84,6 @@ export async function start({
 
   const build = await createBuild({ common, cliOptions });
 
-  // biome-ignore lint/style/useConst: <explanation>
-  let database: Database | undefined;
-
   const namespaceResult = build.namespaceCompile();
   if (namespaceResult.status === "error") {
     await exit({ reason: "Failed to initialize namespace", code: 1 });
@@ -105,17 +102,23 @@ export async function start({
     return;
   }
 
-  const buildResult1 = mergeResults([
-    await build.preCompile(configResult.result),
-    build.compileSchema(schemaResult.result),
-  ]);
-
-  if (buildResult1.status === "error") {
+  const preBuildResult = await build.preCompile(configResult.result);
+  if (preBuildResult.status === "error") {
     await exit({ reason: "Failed intial build", code: 1 });
     return;
   }
 
-  const [preBuild, schemaBuild] = buildResult1.result;
+  const preBuild = preBuildResult.result;
+
+  const schemaBuildResult = build.compileSchema({
+    ...schemaResult.result,
+    ordering: preBuild.ordering,
+  });
+  if (schemaBuildResult.status === "error") {
+    await exit({ reason: "Failed intial build", code: 1 });
+    return;
+  }
+  const schemaBuild = schemaBuildResult.result;
 
   const indexingResult = await build.executeIndexingFunctions();
   if (indexingResult.status === "error") {
@@ -134,16 +137,27 @@ export async function start({
     return;
   }
 
-  database = createDatabase({
+  if (
+    preBuild.databaseConfig.kind !== "postgres" &&
+    preBuild.ordering === "isolated"
+  ) {
+    await exit({
+      reason:
+        "Failed initial build. PGLite database is not supported in 'isolated' mode.",
+      code: 1,
+    });
+    return;
+  }
+
+  const database = createDatabase({
     common,
     namespace: namespaceResult.result,
     preBuild,
     schemaBuild,
   });
   const crashRecoveryCheckpoint = await database.migrate({
-    buildId: indexingBuildResult.result.buildId,
-    chains: indexingBuildResult.result.chains,
-    finalizedBlocks: indexingBuildResult.result.finalizedBlocks,
+    indexingBuild: indexingBuildResult.result,
+    preBuild,
   });
 
   await database.migrateSync();
@@ -202,10 +216,24 @@ export async function start({
     app = await onBuild(app);
   }
 
-  if (preBuild.ordering === "omnichain") {
-    runOmnichain(app);
-  } else {
-    runMultichain(app);
+  switch (preBuild.ordering) {
+    case "omnichain":
+      runOmnichain(app);
+      break;
+    case "multichain":
+      runMultichain(app);
+      break;
+    case "isolated": {
+      isolatedController({
+        common,
+        namespaceBuild: app.namespaceBuild,
+        schemaBuild: app.schemaBuild,
+        indexingBuild: app.indexingBuild,
+        crashRecoveryCheckpoint: app.crashRecoveryCheckpoint,
+        database: app.database,
+      });
+      break;
+    }
   }
   createServer(app);
 

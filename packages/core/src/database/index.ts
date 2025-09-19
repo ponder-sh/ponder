@@ -1,7 +1,7 @@
-import { getTableNames } from "@/drizzle/index.js";
+import { isMainThread } from "node:worker_threads";
+import { getPartitionName, getReorgTableName } from "@/drizzle/index.js";
 import {
   SHARED_OPERATION_ID_SEQUENCE,
-  getReorgTable,
   sqlToReorgTableName,
 } from "@/drizzle/kit/index.js";
 import type { Common } from "@/internal/common.js";
@@ -34,7 +34,7 @@ import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
 import type { Pool } from "pg";
 import prometheus from "prom-client";
 import { hexToBigInt } from "viem";
-import { crashRecovery } from "./actions.js";
+import { crashRecovery, dropTriggers } from "./actions.js";
 import { type QB, createQB, parseDbError } from "./queryBuilder.js";
 
 export type Database = {
@@ -51,13 +51,15 @@ export type Database = {
    * @returns The crash recovery checkpoint for each chain if there is a cache hit, else undefined.
    */
   migrate({
-    buildId,
-    chains,
-    finalizedBlocks,
-  }: Pick<
-    IndexingBuild,
-    "buildId" | "chains" | "finalizedBlocks"
-  >): Promise<CrashRecoveryCheckpoint>;
+    indexingBuild,
+    preBuild,
+  }: {
+    indexingBuild: Pick<
+      IndexingBuild,
+      "buildId" | "chains" | "finalizedBlocks"
+    >;
+    preBuild: Pick<PreBuild, "ordering">;
+  }): Promise<CrashRecoveryCheckpoint>;
 };
 
 export const SCHEMATA = pgSchema("information_schema").table(
@@ -165,16 +167,18 @@ export const createDatabase = ({
 
   const dialect = preBuild.databaseConfig.kind;
 
-  if (namespace.viewsSchema) {
-    common.logger.info({
-      service: "database",
-      msg: `Using database schema '${namespace.schema}' and views schema '${namespace.viewsSchema}'`,
-    });
-  } else {
-    common.logger.info({
-      service: "database",
-      msg: `Using database schema '${namespace.schema}'`,
-    });
+  if (isMainThread) {
+    if (namespace.viewsSchema) {
+      common.logger.info({
+        service: "database",
+        msg: `Using database schema '${namespace.schema}' and views schema '${namespace.viewsSchema}'`,
+      });
+    } else {
+      common.logger.info({
+        service: "database",
+        msg: `Using database schema '${namespace.schema}'`,
+      });
+    }
   }
 
   if (dialect === "pglite" || dialect === "pglite_test") {
@@ -452,26 +456,50 @@ export const createDatabase = ({
         }
       }
     },
-    async migrate({ buildId, chains, finalizedBlocks }) {
+    async migrate({ indexingBuild, preBuild }) {
       const createTables = async (tx: QB) => {
         for (let i = 0; i < schemaBuild.statements.tables.sql.length; i++) {
-          await tx
-            .wrap((tx) => tx.execute(schemaBuild.statements.tables.sql[i]!))
-            .catch((_error) => {
-              const error = _error as Error;
-              if (!error.message.includes("already exists")) throw error;
-              const e = new MigrationError(
-                `Unable to create table '${namespace.schema}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+          try {
+            const schemaName = schemaBuild.statements.tables.json[i]!.schema;
+            const tableName = schemaBuild.statements.tables.json[i]!.tableName;
+            if (
+              preBuild.ordering === "isolated" &&
+              tableName.startsWith("_reorg__") === false
+            ) {
+              const sql = schemaBuild.statements.tables.sql[i]!;
+              await tx.wrap((tx) =>
+                tx.execute(
+                  `${sql.slice(0, sql.length - 2)} PARTITION BY LIST (chain_id);`,
+                ),
               );
-              e.stack = undefined;
-              throw e;
-            });
+
+              for (const chain of indexingBuild.chains) {
+                await tx.wrap((tx) =>
+                  tx.execute(
+                    `CREATE TABLE "${schemaName}"."${getPartitionName(tableName, chain.id)}" PARTITION OF "${schemaName}"."${tableName}" FOR VALUES IN (${chain.id});`,
+                  ),
+                );
+              }
+            } else {
+              await tx.wrap((tx) =>
+                tx.execute(schemaBuild.statements.tables.sql[i]!),
+              );
+            }
+          } catch (_error) {
+            const error = _error as Error;
+            if (!error.message.includes("already exists")) throw error;
+            const e = new MigrationError(
+              `Unable to create table '${namespace.schema}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+            );
+            e.stack = undefined;
+            throw e;
+          }
         }
 
         for (const table of tables) {
           await tx.wrap((tx) =>
             tx.execute(
-              `CREATE INDEX IF NOT EXISTS "${getTableName(table)}_checkpoint_index" ON "${namespace.schema}"."${getTableName(getReorgTable(table))}" ("checkpoint")`,
+              `CREATE INDEX IF NOT EXISTS "${getTableName(table)}_checkpoint_index" ON "${namespace.schema}"."${getReorgTableName(table)}" ("checkpoint")`,
             ),
           );
         }
@@ -580,7 +608,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
 
           const metadata = {
             version: VERSION,
-            build_id: buildId,
+            build_id: indexingBuild.buildId,
             table_names: tables.map(getTableName),
             is_dev: common.options.command === "dev" ? 1 : 0,
             is_locked: 1,
@@ -670,7 +698,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
           if (
             process.env.PONDER_EXPERIMENTAL_DB !== "platform" &&
             (common.options.command === "dev" ||
-              previousApp.build_id !== buildId)
+              previousApp.build_id !== indexingBuild.buildId)
           ) {
             const error = new MigrationError(
               `Schema '${namespace.schema}' was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/database#database-schema`,
@@ -691,7 +719,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
 
           common.logger.info({
             service: "database",
-            msg: `Detected crash recovery for build '${buildId}' in schema '${namespace.schema}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
+            msg: `Detected crash recovery for build '${indexingBuild.buildId}' in schema '${namespace.schema}' last active ${formatEta(Date.now() - previousApp.heartbeat_at)} ago`,
           });
 
           const checkpoints = await tx.wrap((tx) =>
@@ -712,7 +740,9 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
 
           for (const { chainId, finalizedCheckpoint } of checkpoints) {
             const finalizedBlock =
-              finalizedBlocks[chains.findIndex((c) => c.id === chainId)]!;
+              indexingBuild.finalizedBlocks[
+                indexingBuild.chains.findIndex((c) => c.id === chainId)
+              ]!;
             if (
               hexToBigInt(finalizedBlock.timestamp) <
               decodeCheckpoint(finalizedCheckpoint).blockTimestamp
@@ -735,14 +765,12 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             return { status: "success", crashRecoveryCheckpoint } as const;
           }
 
-          // Remove triggers
-
-          for (const table of tables) {
-            await tx.wrap((tx) =>
-              tx.execute(
-                `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
-              ),
-            );
+          if (preBuild.ordering === "isolated") {
+            for (const { chainId } of checkpoints) {
+              await dropTriggers(tx, { tables, chainId });
+            }
+          } else {
+            await dropTriggers(tx, { tables });
           }
 
           // Remove indexes
@@ -808,7 +836,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
 
           common.logger.trace({
             service: "database",
-            msg: `Updated heartbeat timestamp to ${heartbeat} (build_id=${buildId})`,
+            msg: `Updated heartbeat timestamp to ${heartbeat} (build_id=${indexingBuild.buildId})`,
           });
         } catch (err) {
           const error = err as Error;
