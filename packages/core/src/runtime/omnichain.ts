@@ -92,7 +92,7 @@ export async function runOmnichain({
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
   const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
 
-  const eventCount: { [eventName: string]: number } = {};
+  let eventCount: { [eventName: string]: number } = {};
   for (const eventName of Object.keys(indexingBuild.indexingFunctions)) {
     eventCount[eventName] = 0;
   }
@@ -329,6 +329,8 @@ export async function runOmnichain({
     if (result.events.length > 0) {
       endClock = startClock();
       await database.userQB.transaction(async (tx) => {
+        const initialEventCount = structuredClone(eventCount);
+
         try {
           historicalIndexingStore.qb = tx;
           historicalIndexingStore.isProcessingEvents = true;
@@ -454,6 +456,7 @@ export async function runOmnichain({
           );
           endClock = startClock();
         } catch (error) {
+          eventCount = initialEventCount;
           indexingCache.invalidate();
           indexingCache.clear();
 
