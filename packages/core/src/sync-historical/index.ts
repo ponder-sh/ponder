@@ -204,8 +204,10 @@ export const createHistoricalSync = (
       // many addresses
       // Note: it is assumed that `address` is deduplicated
       addressBatches = [];
-      for (let i = 0; i < address.length; i += 50) {
-        addressBatches.push(address.slice(i, i + 50));
+
+      // Note: Hyperliquid EVM nanoreth has a limit of 10 addresses per request
+      for (let i = 0; i < address.length; i += 10) {
+        addressBatches.push(address.slice(i, i + 10));
       }
     }
 

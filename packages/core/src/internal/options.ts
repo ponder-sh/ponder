@@ -103,7 +103,7 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     // Half of the max query parameters for PGlite
     databaseMaxQueryParameters: 16_000,
 
-    factoryAddressCountThreshold: 1_000,
+    factoryAddressCountThreshold: 500,
 
     rpcMaxConcurrency: 256,
 
