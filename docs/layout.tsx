@@ -105,7 +105,7 @@ const versions = [
     key: "latest",
     label: "Latest Version",
     activeLabel: "Latest Version",
-    patch: pkg.version,
+    patch: `${pkg.version}, 0.12.26`,
     prefix: "/docs",
     home: "/get-started",
     isLatest: true,

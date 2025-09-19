@@ -1,5 +1,18 @@
 # Migration guide [Upgrade to a new version of Ponder]
 
+## 0.13
+
+### Breaking changes
+
+None.
+
+
+### New features
+
+#### Performance
+
+Ponder now queries less data from the database when reindexing against a full RPC cache. This can eliminate a significant amount of unnecessary work for apps with a large number of events where the indexing logic only accesses a few properties on the `event` object.
+
 ## 0.12
 
 ### Breaking changes
