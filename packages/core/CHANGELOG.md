@@ -1,5 +1,11 @@
 # ponder
 
+## 1.0.0
+
+### Minor Changes
+
+- [#2021](https://github.com/ponder-sh/ponder/pull/2021) [`758a00b`](https://github.com/ponder-sh/ponder/commit/758a00b29cd4599ab9f0fd6bdd3e82639b279626) Thanks [@khaidarkairbek](https://github.com/khaidarkairbek)! - Improved historical indexing performance by only populating `event` object with accessed properties.
+
 ## 0.12.26
 
 ### Patch Changes
