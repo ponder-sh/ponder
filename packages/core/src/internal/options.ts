@@ -30,6 +30,7 @@ export type Options = {
   databaseHeartbeatInterval: number;
   databaseHeartbeatTimeout: number;
   databaseMaxQueryParameters: number;
+  databaseIndexesEarly: boolean;
 
   factoryAddressCountThreshold: number;
 
@@ -102,6 +103,10 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     databaseHeartbeatTimeout: 25 * 1000,
     // Half of the max query parameters for PGlite
     databaseMaxQueryParameters: 16_000,
+    // Create indexes before historical sync for better query performance (default: false for backwards compatibility)
+    databaseIndexesEarly: Boolean(
+      cliOptions.indexesEarly ?? process.env.DATABASE_INDEXES_EARLY,
+    ),
 
     factoryAddressCountThreshold: 1_000,
 
