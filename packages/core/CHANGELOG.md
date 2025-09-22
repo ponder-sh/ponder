@@ -1,5 +1,11 @@
 # ponder
 
+## 0.13.1
+
+### Patch Changes
+
+- [#2049](https://github.com/ponder-sh/ponder/pull/2049) [`c136ec3`](https://github.com/ponder-sh/ponder/commit/c136ec310199630b1a7c779fdf330f026a6c1ab2) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in `v0.12.22` that would cause the error `Cannot use a pool after calling end on the pool` after a hot reload in the dev server.
+
 ## 0.13.0
 
 ### Minor Changes
