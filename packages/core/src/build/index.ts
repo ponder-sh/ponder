@@ -144,7 +144,7 @@ export const createBuild = async ({
     plugins: [viteTsconfigPathsPlugin(), vitePluginPonder(common.options)],
   });
 
-  // common.buildShutdown.add(() => viteDevServer.close());
+  common.buildShutdown.add(() => viteDevServer.close());
 
   // This is Vite boilerplate (initializes the Rollup container).
   await viteDevServer.pluginContainer.buildStart({});
