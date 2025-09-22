@@ -67,6 +67,8 @@ export type Client<schema extends Schema = Schema> = {
   };
   /** Get the status of all chains. */
   getStatus: () => Promise<Status>;
+  /** Check if the server is ready. */
+  isReady: () => Promise<boolean>;
 };
 
 const getUrl = (
@@ -170,6 +172,11 @@ export const createClient = <schema extends Schema>(
       const response = await fetch(`${new URL(baseUrl).origin}/status`);
 
       return response.json();
+    },
+    isReady: async () => {
+      const response = await fetch(`${new URL(baseUrl).origin}/ready`);
+
+      return response.status === 200;
     },
   };
 
