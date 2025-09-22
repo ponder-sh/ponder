@@ -14,6 +14,8 @@ export const createShutdown = (): Shutdown => {
       callbacks.push(callback);
     },
     kill: async () => {
+      if (abortController.signal.aborted) return;
+
       abortController.abort();
       await Promise.all(callbacks.map((callback) => callback()));
     },
