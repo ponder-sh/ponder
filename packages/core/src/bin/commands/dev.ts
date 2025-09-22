@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
 import { type Database, createDatabase } from "@/database/index.js";
+import type { Common } from "@/internal/common.js";
 import { NonRetryableUserError, ShutdownError } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
@@ -54,11 +55,17 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   const metrics = new MetricsService();
-  let indexingShutdown = createShutdown();
-  let apiShutdown = createShutdown();
-  const shutdown = createShutdown();
-  const telemetry = createTelemetry({ options, logger, shutdown });
-  const common = { options, logger, metrics, telemetry };
+  const common = {
+    options,
+    logger,
+    metrics,
+    shutdown: createShutdown(),
+    apiShutdown: createShutdown(),
+    buildShutdown: createShutdown(),
+  } as Common;
+
+  const telemetry = createTelemetry(common);
+  common.telemetry = telemetry;
 
   if (options.version) {
     metrics.ponder_version_info.set(
@@ -72,21 +79,13 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     );
   }
 
-  const build = await createBuild({
-    common: { ...common, shutdown },
-    cliOptions,
-  });
-
-  shutdown.add(async () => {
-    await indexingShutdown.kill();
-    await apiShutdown.kill();
-  });
+  const build = await createBuild({ common, cliOptions });
 
   if (cliOptions.disableUi !== true) {
-    createUi({ common: { ...common, shutdown } });
+    createUi({ common });
   }
 
-  const exit = createExit({ common: { ...common, shutdown }, options });
+  const exit = createExit({ common, options });
 
   let isInitialBuild = true;
 
@@ -95,11 +94,13 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     concurrency: 1,
     worker: async (result: Result<never> & { kind: "indexing" | "api" }) => {
       if (result.kind === "indexing") {
-        await indexingShutdown.kill();
-        indexingShutdown = createShutdown();
+        await Promise.all([common.shutdown.kill(), common.apiShutdown.kill()]);
+        common.shutdown = createShutdown();
+        common.apiShutdown = createShutdown();
+      } else {
+        await common.apiShutdown.kill();
+        common.apiShutdown = createShutdown();
       }
-      await apiShutdown.kill();
-      apiShutdown = createShutdown();
 
       if (result.status === "error") {
         // This handles indexing function build failures on hot reload.
@@ -173,7 +174,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         indexingBuild = indexingBuildResult.result;
 
         database = createDatabase({
-          common: { ...common, shutdown: indexingShutdown },
+          common,
           namespace: { schema, viewsSchema: undefined },
           preBuild,
           schemaBuild,
@@ -238,15 +239,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           1,
         );
 
-        createServer({
-          common: { ...common, shutdown: apiShutdown },
-          database,
-          apiBuild: apiBuildResult.result,
-        });
+        createServer({ common, database, apiBuild: apiBuildResult.result });
 
         if (preBuild.ordering === "omnichain") {
           runOmnichain({
-            common: { ...common, shutdown: indexingShutdown },
+            common,
             database,
             preBuild,
             namespaceBuild: { schema, viewsSchema: undefined },
@@ -256,7 +253,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           });
         } else {
           runMultichain({
-            common: { ...common, shutdown: indexingShutdown },
+            common,
             database,
             preBuild,
             namespaceBuild: { schema, viewsSchema: undefined },
@@ -295,11 +292,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
         const apiBuild = buildResult.result;
 
-        createServer({
-          common: { ...common, shutdown: apiShutdown },
-          database: database!,
-          apiBuild,
-        });
+        createServer({ common, database: database!, apiBuild });
       }
     },
   });
@@ -362,5 +355,10 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   buildQueue.add({ status: "success", kind: "indexing" });
 
-  return shutdown.kill;
+  return () =>
+    Promise.all([
+      common.shutdown.kill(),
+      common.apiShutdown.kill(),
+      common.buildShutdown.kill(),
+    ]);
 }

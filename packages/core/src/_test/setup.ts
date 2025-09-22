@@ -48,7 +48,15 @@ export function setupCommon(context: TestContext) {
   const metrics = new MetricsService();
   const shutdown = createShutdown();
   const telemetry = createTelemetry({ options, logger, shutdown });
-  context.common = { options, logger, metrics, telemetry, shutdown };
+  context.common = {
+    options,
+    logger,
+    metrics,
+    telemetry,
+    shutdown,
+    apiShutdown: shutdown,
+    buildShutdown: shutdown,
+  };
 }
 
 export function setupCleanup(context: TestContext) {

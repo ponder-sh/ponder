@@ -40,7 +40,15 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const metrics = new MetricsService();
   const shutdown = createShutdown();
   const telemetry = createTelemetry({ options, logger, shutdown });
-  const common = { options, logger, metrics, telemetry, shutdown };
+  const common = {
+    options,
+    logger,
+    metrics,
+    telemetry,
+    shutdown,
+    buildShutdown: shutdown,
+    apiShutdown: shutdown,
+  };
 
   if (options.version) {
     metrics.ponder_version_info.set(
