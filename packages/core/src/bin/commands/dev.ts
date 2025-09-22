@@ -55,16 +55,13 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   const metrics = new MetricsService();
-  const indexingShutdown = createShutdown();
-  const apiShutdown = createShutdown();
-  const buildShutdown = createShutdown();
   const common = {
     options,
     logger,
     metrics,
-    shutdown: indexingShutdown,
-    apiShutdown,
-    buildShutdown,
+    shutdown: createShutdown(),
+    apiShutdown: createShutdown(),
+    buildShutdown: createShutdown(),
   } as Common;
 
   const telemetry = createTelemetry(common);
