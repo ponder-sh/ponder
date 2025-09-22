@@ -61,12 +61,12 @@ export const client = ({
     (async () => {
       let client: pg.PoolClient | undefined;
 
-      globalThis.PONDER_COMMON.shutdown.add(() => {
+      globalThis.PONDER_COMMON.apiShutdown.add(() => {
         client?.release();
         client = undefined;
       });
 
-      while (globalThis.PONDER_COMMON.shutdown.isKilled === false) {
+      while (globalThis.PONDER_COMMON.apiShutdown.isKilled === false) {
         // biome-ignore lint/suspicious/noAsyncPromiseExecutor: <explanation>
         await new Promise<void>(async (resolve) => {
           try {

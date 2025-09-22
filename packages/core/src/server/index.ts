@@ -161,7 +161,7 @@ export async function createServer({
     gracefulTerminationTimeout: 1000,
   });
 
-  common.shutdown.add(() => terminator.terminate());
+  common.apiShutdown.add(() => terminator.terminate());
 
   return { hono };
 }

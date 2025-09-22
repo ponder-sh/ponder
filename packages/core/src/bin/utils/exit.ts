@@ -11,7 +11,10 @@ export const createExit = ({
   common,
   options,
 }: {
-  common: Pick<Common, "logger" | "telemetry" | "shutdown">;
+  common: Pick<
+    Common,
+    "logger" | "telemetry" | "shutdown" | "buildShutdown" | "apiShutdown"
+  >;
   options: Options;
 }) => {
   let isShuttingDown = false;
@@ -41,7 +44,11 @@ export const createExit = ({
       properties: { duration_seconds: process.uptime() },
     });
 
-    await common.shutdown.kill();
+    await Promise.all([
+      common.shutdown.kill(),
+      common.apiShutdown.kill(),
+      common.buildShutdown.kill(),
+    ]);
     clearTimeout(timeout);
 
     if (process.stdin.isTTY) {

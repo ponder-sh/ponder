@@ -39,7 +39,15 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
   const metrics = new MetricsService();
   const shutdown = createShutdown();
   const telemetry = createTelemetry({ options, logger, shutdown });
-  const common = { options, logger, metrics, telemetry, shutdown };
+  const common = {
+    options,
+    logger,
+    metrics,
+    telemetry,
+    shutdown,
+    buildShutdown: shutdown,
+    apiShutdown: shutdown,
+  };
 
   const build = await createBuild({ common, cliOptions });
 

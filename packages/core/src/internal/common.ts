@@ -10,4 +10,6 @@ export type Common = {
   metrics: MetricsService;
   telemetry: Telemetry;
   shutdown: Shutdown;
+  apiShutdown: Shutdown;
+  buildShutdown: Shutdown;
 };
