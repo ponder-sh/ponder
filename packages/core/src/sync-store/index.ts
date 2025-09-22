@@ -56,7 +56,13 @@ import {
   sql,
 } from "drizzle-orm";
 import { type PgColumn, unionAll } from "drizzle-orm/pg-core";
-import { type Address, type EIP1193Parameters, hexToNumber } from "viem";
+import {
+  type Address,
+  type EIP1193Parameters,
+  type Hex,
+  hexToNumber,
+  isHex,
+} from "viem";
 import {
   encodeBlock,
   encodeLog,
@@ -1089,6 +1095,52 @@ export const createSyncStore = ({
   getRpcRequestResults: async ({ requests, chainId }) => {
     if (requests.length === 0) return [];
 
+    // Sort by requests that can use a block number
+    // Find min and max block number, handle "latest"
+    // Use block number range to query
+
+    const blockNumberRequests: (EIP1193Parameters & { blockNumber: number })[] =
+      [];
+    const nonBlockNumberRequests: EIP1193Parameters[] = [];
+    for (const request of requests) {
+      let blockNumber: Hex | "latest" | undefined = undefined;
+
+      switch (request.method) {
+        case "eth_getBlockByNumber":
+        case "eth_getBlockTransactionCountByNumber":
+        case "eth_getTransactionByBlockNumberAndIndex":
+        case "eth_getUncleByBlockNumberAndIndex":
+        case "debug_traceBlockByNumber":
+          // @ts-expect-error
+          [blockNumber] = request.params;
+          break;
+        case "eth_getBalance":
+        case "eth_call":
+        case "eth_getCode":
+        case "eth_estimateGas":
+        case "eth_feeHistory":
+        case "eth_getTransactionCount":
+          // @ts-expect-error
+          [, blockNumber] = request.params;
+          break;
+
+        case "eth_getProof":
+        case "eth_getStorageAt":
+          // @ts-expect-error
+          [, , blockNumber] = request.params;
+          break;
+      }
+
+      if (isHex(blockNumber)) {
+        blockNumberRequests.push({
+          ...request,
+          blockNumber: hexToNumber(blockNumber),
+        });
+      } else {
+        nonBlockNumberRequests.push(request);
+      }
+    }
+
     const requestHashes = requests.map((request) =>
       crypto
         .createHash("md5")
@@ -1096,29 +1148,72 @@ export const createSyncStore = ({
         .digest("hex"),
     );
 
-    const result = await database.syncQB.wrap(
-      { label: "select_rpc_requests" },
-      (db) =>
-        db
-          .select({
-            request_hash: PONDER_SYNC.rpcRequestResults.requestHash,
-            result: PONDER_SYNC.rpcRequestResults.result,
-          })
-          .from(PONDER_SYNC.rpcRequestResults)
-          .where(
-            and(
-              eq(PONDER_SYNC.rpcRequestResults.chainId, BigInt(chainId)),
-              inArray(PONDER_SYNC.rpcRequestResults.requestHash, requestHashes),
+    if (nonBlockNumberRequests.length > 0) {
+      const result = await database.syncQB.wrap(
+        { label: "select_rpc_requests" },
+        (db) =>
+          db
+            .select({
+              request_hash: PONDER_SYNC.rpcRequestResults.requestHash,
+              result: PONDER_SYNC.rpcRequestResults.result,
+            })
+            .from(PONDER_SYNC.rpcRequestResults)
+            .where(
+              and(
+                eq(PONDER_SYNC.rpcRequestResults.chainId, BigInt(chainId)),
+                inArray(
+                  PONDER_SYNC.rpcRequestResults.requestHash,
+                  requestHashes,
+                ),
+              ),
             ),
-          ),
-    );
+      );
 
-    const results = new Map<string, string | undefined>();
-    for (const row of result) {
-      results.set(row.request_hash, row.result);
+      const results = new Map<string, string | undefined>();
+      for (const row of result) {
+        results.set(row.request_hash, row.result);
+      }
+
+      return requestHashes.map((requestHash) => results.get(requestHash));
+    } else {
+      const minBlockNumber = Math.min(
+        ...blockNumberRequests.map((request) => request.blockNumber),
+      );
+      const maxBlockNumber = Math.max(
+        ...blockNumberRequests.map((request) => request.blockNumber),
+      );
+
+      const result = await database.syncQB.wrap(
+        { label: "select_rpc_requests" },
+        (db) =>
+          db
+            .select({
+              request_hash: PONDER_SYNC.rpcRequestResults.requestHash,
+              result: PONDER_SYNC.rpcRequestResults.result,
+            })
+            .from(PONDER_SYNC.rpcRequestResults)
+            .where(
+              and(
+                eq(PONDER_SYNC.rpcRequestResults.chainId, BigInt(chainId)),
+                gte(
+                  PONDER_SYNC.rpcRequestResults.blockNumber,
+                  BigInt(minBlockNumber),
+                ),
+                lte(
+                  PONDER_SYNC.rpcRequestResults.blockNumber,
+                  BigInt(maxBlockNumber),
+                ),
+              ),
+            ),
+      );
+
+      const results = new Map<string, string | undefined>();
+      for (const row of result) {
+        results.set(row.request_hash, row.result);
+      }
+
+      return requestHashes.map((requestHash) => results.get(requestHash));
     }
-
-    return requestHashes.map((requestHash) => results.get(requestHash));
   },
   pruneRpcRequestResults: async ({ blocks, chainId }) => {
     if (blocks.length === 0) return;
