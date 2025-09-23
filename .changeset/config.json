@@ -11,6 +11,9 @@
       "@ponder/react"
     ]
   ],
+  "snapshot": {
+    "useCalculatedVersion": true
+  },
   "ignore": [
     "ponder-docs",
     "ponder-examples-feature-accounts",

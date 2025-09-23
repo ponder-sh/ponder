@@ -9,6 +9,9 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Clone repository
         uses: actions/checkout@v4.1.0
