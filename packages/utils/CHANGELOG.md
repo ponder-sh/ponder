@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.2.13
+
+### Patch Changes
+
+- [#2054](https://github.com/ponder-sh/ponder/pull/2054) [`3176395`](https://github.com/ponder-sh/ponder/commit/3176395493a702b34e42ec5fe16895afb7cef8ae) Thanks [@kyscott18](https://github.com/kyscott18)! - Added Altitude to eth_getLogs retry helper.
+
 ## 0.2.12
 
 ### Patch Changes
