@@ -213,7 +213,7 @@ export const getLogsRetryHelper = ({
     }
   }
 
-  // llamarpc, ankr
+  // llamarpc, ankr, altitude
   match = sError.match(/query exceeds max results/);
   if (match !== null) {
     const ranges = chunk({
@@ -561,6 +561,25 @@ export const getLogsRetryHelper = ({
         ranges,
         isSuggestedRange: true,
       };
+    }
+  }
+
+  // valtitude
+  match = sError.match(/allowed block range threshold exceeded/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range:
+        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
+        2n,
+    });
+
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        ranges,
+        shouldRetry: true,
+        isSuggestedRange: false,
+      } as const;
     }
   }
 
