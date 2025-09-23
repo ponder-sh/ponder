@@ -992,31 +992,7 @@ export const cachedTransport =
           blockDependentMethods.has(method) ||
           nonBlockDependentMethods.has(method)
         ) {
-          let blockNumber: Hex | "latest" | undefined = undefined;
-
-          switch (method) {
-            case "eth_getBlockByNumber":
-            case "eth_getBlockTransactionCountByNumber":
-            case "eth_getTransactionByBlockNumberAndIndex":
-            case "eth_getUncleByBlockNumberAndIndex":
-            case "debug_traceBlockByNumber":
-              [blockNumber] = params;
-              break;
-            case "eth_getBalance":
-            case "eth_call":
-            case "eth_getCode":
-            case "eth_estimateGas":
-            case "eth_feeHistory":
-            case "eth_getTransactionCount":
-              [, blockNumber] = params;
-              break;
-
-            case "eth_getProof":
-            case "eth_getStorageAt":
-              [, , blockNumber] = params;
-              break;
-          }
-
+          const blockNumber = extractBlockNumberParam(body);
           const encodedBlockNumber =
             blockNumber === undefined
               ? undefined
@@ -1114,3 +1090,35 @@ export const cachedTransport =
         }
       },
     })({ chain: viemChain, retryCount: 0 });
+
+export const extractBlockNumberParam = (request: EIP1193Parameters) => {
+  let blockNumber: Hex | "latest" | undefined = undefined;
+
+  switch (request.method) {
+    case "eth_getBlockByNumber":
+    case "eth_getBlockTransactionCountByNumber":
+    case "eth_getTransactionByBlockNumberAndIndex":
+    case "eth_getUncleByBlockNumberAndIndex":
+    case "debug_traceBlockByNumber":
+      // @ts-expect-error
+      [blockNumber] = request.params;
+      break;
+    case "eth_getBalance":
+    case "eth_call":
+    case "eth_getCode":
+    case "eth_estimateGas":
+    case "eth_feeHistory":
+    case "eth_getTransactionCount":
+      // @ts-expect-error
+      [, blockNumber] = request.params;
+      break;
+
+    case "eth_getProof":
+    case "eth_getStorageAt":
+      // @ts-expect-error
+      [, , blockNumber] = request.params;
+      break;
+  }
+
+  return blockNumber;
+};
