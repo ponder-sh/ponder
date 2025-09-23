@@ -46,7 +46,6 @@ import {
   validateTracesAndBlock,
   validateTransactionsAndBlock,
 } from "@/utils/rpc.js";
-import { wait } from "@/utils/wait.js";
 import { type Address, type Hash, hexToNumber, zeroHash } from "viem";
 import { isFilterInBloom, isInBloom, zeroLogsBloom } from "./bloom.js";
 
@@ -118,7 +117,6 @@ export const createRealtimeSync = (
    */
   let unfinalizedBlocks: LightBlock[] = [];
   let fetchAndReconcileLatestBlockErrorCount = 0;
-  let reconcileBlockErrorCount = 0;
 
   const factories: Factory[] = [];
   const logFilters: LogFilter[] = [];
@@ -777,16 +775,8 @@ export const createRealtimeSync = (
    * 4) Block is exactly one block ahead of the last processed,
    *    handle this new block (happy path).
    *
-   * @dev This mutex only runs one at a time, every block is
-   * processed serially.
-   *
-   * @returns
-   * - `rejected` for case 1 and 2.
-   * - `reorg` for case 2 with a promise that resolves once the reorg is applied.
-   * - `pending` for case 3 with a promise that resolves once the block is
-   *   settled as `rejected`, `accepted`, or `reorg`.
-   * - `accepted` for case 4 with promises for the "block" and "finalize" events
-   *   that resolve when each event is applied.
+   * @dev `blockCallback` is guaranteed to be called exactly once or an error is thrown.
+   * @dev It is an invariant that the correct events are generated or an error is thrown.
    */
   const reconcileBlock = async function* (
     blockWithEventData: BlockWithEventData,
@@ -806,222 +796,178 @@ export const createRealtimeSync = (
       return;
     }
 
-    try {
-      // Quickly check for a reorg by comparing block numbers. If the block
-      // number has not increased, a reorg must have occurred.
-      if (hexToNumber(latestBlock.number) >= hexToNumber(block.number)) {
-        const reorgEvent = await reconcileReorg(block);
-
-        blockCallback?.(false);
-        yield reorgEvent;
-        return;
-      }
-
-      // Blocks are missing. They should be fetched and enqueued.
-      if (hexToNumber(latestBlock.number) + 1 < hexToNumber(block.number)) {
-        // Retrieve missing blocks, but only fetch a certain amount.
-        const missingBlockRange = range(
-          hexToNumber(latestBlock.number) + 1,
-          Math.min(
-            hexToNumber(block.number),
-            hexToNumber(latestBlock.number) + MAX_QUEUED_BLOCKS,
-          ),
-        );
-
-        const pendingBlocks = await Promise.all(
-          missingBlockRange.map((blockNumber) =>
-            _eth_getBlockByNumber(args.rpc, { blockNumber }).then((block) =>
-              fetchBlockEventData(block),
-            ),
-          ),
-        );
-
-        args.common.logger.info({
-          service: "realtime",
-          msg: `Fetched ${missingBlockRange.length} missing '${
-            args.chain.name
-          }' blocks [${hexToNumber(latestBlock.number) + 1}, ${Math.min(
-            hexToNumber(block.number),
-            hexToNumber(latestBlock.number) + MAX_QUEUED_BLOCKS,
-          )}]`,
-        });
-
-        for (const pendingBlock of pendingBlocks) {
-          yield* reconcileBlock(pendingBlock);
-        }
-
-        if (
-          hexToNumber(block.number) - hexToNumber(latestBlock.number) >
-          MAX_QUEUED_BLOCKS
-        ) {
-          blockCallback?.(false);
-        } else {
-          yield* reconcileBlock(blockWithEventData, blockCallback);
-        }
-        return;
-      }
-
-      // Check if a reorg occurred by validating the chain of block hashes.
-      if (block.parentHash !== latestBlock.hash) {
-        const reorgEvent = await reconcileReorg(block);
-
-        blockCallback?.(false);
-        yield reorgEvent;
-        return;
-      }
-
-      // New block is exactly one block ahead of the local chain.
-      // Attempt to ingest it.
-
-      const blockWithFilteredEventData =
-        filterBlockEventData(blockWithEventData);
-
-      if (
-        blockWithFilteredEventData.logs.length > 0 ||
-        blockWithFilteredEventData.traces.length > 0 ||
-        blockWithFilteredEventData.transactions.length > 0
-      ) {
-        const _text: string[] = [];
-
-        if (blockWithFilteredEventData.logs.length === 1) {
-          _text.push("1 log");
-        } else if (blockWithFilteredEventData.logs.length > 1) {
-          _text.push(`${blockWithFilteredEventData.logs.length} logs`);
-        }
-
-        if (blockWithFilteredEventData.traces.length === 1) {
-          _text.push("1 trace");
-        } else if (blockWithFilteredEventData.traces.length > 1) {
-          _text.push(`${blockWithFilteredEventData.traces.length} traces`);
-        }
-
-        if (blockWithFilteredEventData.transactions.length === 1) {
-          _text.push("1 transaction");
-        } else if (blockWithFilteredEventData.transactions.length > 1) {
-          _text.push(
-            `${blockWithFilteredEventData.transactions.length} transactions`,
-          );
-        }
-
-        const text = _text.filter((t) => t !== undefined).join(" and ");
-        args.common.logger.info({
-          service: "realtime",
-          msg: `Synced ${text} from '${args.chain.name}' block ${hexToNumber(block.number)}`,
-        });
-      } else {
-        args.common.logger.info({
-          service: "realtime",
-          msg: `Synced block ${hexToNumber(block.number)} from '${args.chain.name}' `,
-        });
-      }
-
-      unfinalizedBlocks.push({
-        hash: block.hash,
-        parentHash: block.parentHash,
-        number: block.number,
-        timestamp: block.timestamp,
-      });
-
-      // Make sure `transactions` can be garbage collected
-      blockWithEventData.block.transactions =
-        blockWithFilteredEventData.block.transactions;
-
-      yield {
-        type: "block",
-        hasMatchedFilter: blockWithFilteredEventData.matchedFilters.size > 0,
-        block: blockWithFilteredEventData.block,
-        logs: blockWithFilteredEventData.logs,
-        transactions: blockWithFilteredEventData.transactions,
-        transactionReceipts: blockWithFilteredEventData.transactionReceipts,
-        traces: blockWithFilteredEventData.traces,
-        childAddresses: blockWithFilteredEventData.childAddresses,
-        blockCallback,
-      };
-
-      // Determine if a new range has become finalized by evaluating if the
-      // latest block number is 2 * finalityBlockCount >= finalized block number.
-      // Essentially, there is a range the width of finalityBlockCount that is entirely
-      // finalized.
-
-      const blockMovesFinality =
-        hexToNumber(block.number) >=
-        hexToNumber(finalizedBlock.number) + 2 * args.chain.finalityBlockCount;
-      if (blockMovesFinality) {
-        const pendingFinalizedBlock = unfinalizedBlocks.find(
-          (lb) =>
-            hexToNumber(lb.number) ===
-            hexToNumber(block.number) - args.chain.finalityBlockCount,
-        )!;
-
-        args.common.logger.debug({
-          service: "realtime",
-          msg: `Finalized ${hexToNumber(pendingFinalizedBlock.number) - hexToNumber(finalizedBlock.number) + 1} '${
-            args.chain.name
-          }' blocks [${hexToNumber(finalizedBlock.number) + 1}, ${hexToNumber(pendingFinalizedBlock.number)}]`,
-        });
-
-        const finalizedBlocks = unfinalizedBlocks.filter(
-          (lb) =>
-            hexToNumber(lb.number) <= hexToNumber(pendingFinalizedBlock.number),
-        );
-
-        unfinalizedBlocks = unfinalizedBlocks.filter(
-          (lb) =>
-            hexToNumber(lb.number) > hexToNumber(pendingFinalizedBlock.number),
-        );
-
-        for (const block of finalizedBlocks) {
-          childAddressesPerBlock.delete(hexToNumber(block.number));
-        }
-
-        finalizedBlock = pendingFinalizedBlock;
-
-        yield {
-          type: "finalize",
-          block: pendingFinalizedBlock,
-        };
-      }
-
-      // Reset the error state after successfully completing the happy path.
-      reconcileBlockErrorCount = 0;
-    } catch (_error) {
-      const error = _error as Error;
-
-      if (args.common.shutdown.isKilled) {
-        throw new ShutdownError();
-      }
-
-      args.common.logger.warn({
-        service: "realtime",
-        msg: `Failed to process '${args.chain.name}' block ${hexToNumber(block.number)}`,
-        error,
-      });
-
-      const duration = ERROR_TIMEOUT[reconcileBlockErrorCount]!;
-
-      args.common.logger.warn({
-        service: "realtime",
-        msg: `Retrying '${args.chain.name}' sync after ${duration} ${
-          duration === 1 ? "second" : "seconds"
-        }.`,
-      });
-
-      await wait(duration * 1_000);
+    // Quickly check for a reorg by comparing block numbers. If the block
+    // number has not increased, a reorg must have occurred.
+    if (hexToNumber(latestBlock.number) >= hexToNumber(block.number)) {
+      const reorgEvent = await reconcileReorg(block);
 
       blockCallback?.(false);
+      yield reorgEvent;
+      return;
+    }
 
-      reconcileBlockErrorCount += 1;
+    // Blocks are missing. They should be fetched and enqueued.
+    if (hexToNumber(latestBlock.number) + 1 < hexToNumber(block.number)) {
+      // Retrieve missing blocks, but only fetch a certain amount.
+      const missingBlockRange = range(
+        hexToNumber(latestBlock.number) + 1,
+        Math.min(
+          hexToNumber(block.number),
+          hexToNumber(latestBlock.number) + MAX_QUEUED_BLOCKS,
+        ),
+      );
 
-      // After a certain number of attempts, emit a fatal error.
-      if (reconcileBlockErrorCount === ERROR_TIMEOUT.length) {
-        args.common.logger.error({
-          service: "realtime",
-          msg: `Fatal error: Unable to process '${args.chain.name}' block ${hexToNumber(block.number)} after ${ERROR_TIMEOUT.length} attempts.`,
-          error,
-        });
+      const pendingBlocks = await Promise.all(
+        missingBlockRange.map((blockNumber) =>
+          _eth_getBlockByNumber(args.rpc, { blockNumber }).then((block) =>
+            fetchBlockEventData(block),
+          ),
+        ),
+      );
 
-        throw error;
+      args.common.logger.info({
+        service: "realtime",
+        msg: `Fetched ${missingBlockRange.length} missing '${
+          args.chain.name
+        }' blocks [${hexToNumber(latestBlock.number) + 1}, ${Math.min(
+          hexToNumber(block.number),
+          hexToNumber(latestBlock.number) + MAX_QUEUED_BLOCKS,
+        )}]`,
+      });
+
+      for (const pendingBlock of pendingBlocks) {
+        yield* reconcileBlock(pendingBlock);
       }
+
+      if (
+        hexToNumber(block.number) - hexToNumber(latestBlock.number) >
+        MAX_QUEUED_BLOCKS
+      ) {
+        blockCallback?.(false);
+      } else {
+        yield* reconcileBlock(blockWithEventData, blockCallback);
+      }
+      return;
+    }
+
+    // Check if a reorg occurred by validating the chain of block hashes.
+    if (block.parentHash !== latestBlock.hash) {
+      const reorgEvent = await reconcileReorg(block);
+
+      blockCallback?.(false);
+      yield reorgEvent;
+      return;
+    }
+
+    // New block is exactly one block ahead of the local chain.
+    // Attempt to ingest it.
+
+    const blockWithFilteredEventData = filterBlockEventData(blockWithEventData);
+
+    if (
+      blockWithFilteredEventData.logs.length > 0 ||
+      blockWithFilteredEventData.traces.length > 0 ||
+      blockWithFilteredEventData.transactions.length > 0
+    ) {
+      const _text: string[] = [];
+
+      if (blockWithFilteredEventData.logs.length === 1) {
+        _text.push("1 log");
+      } else if (blockWithFilteredEventData.logs.length > 1) {
+        _text.push(`${blockWithFilteredEventData.logs.length} logs`);
+      }
+
+      if (blockWithFilteredEventData.traces.length === 1) {
+        _text.push("1 trace");
+      } else if (blockWithFilteredEventData.traces.length > 1) {
+        _text.push(`${blockWithFilteredEventData.traces.length} traces`);
+      }
+
+      if (blockWithFilteredEventData.transactions.length === 1) {
+        _text.push("1 transaction");
+      } else if (blockWithFilteredEventData.transactions.length > 1) {
+        _text.push(
+          `${blockWithFilteredEventData.transactions.length} transactions`,
+        );
+      }
+
+      const text = _text.filter((t) => t !== undefined).join(" and ");
+      args.common.logger.info({
+        service: "realtime",
+        msg: `Synced ${text} from '${args.chain.name}' block ${hexToNumber(block.number)}`,
+      });
+    } else {
+      args.common.logger.info({
+        service: "realtime",
+        msg: `Synced block ${hexToNumber(block.number)} from '${args.chain.name}' `,
+      });
+    }
+
+    unfinalizedBlocks.push({
+      hash: block.hash,
+      parentHash: block.parentHash,
+      number: block.number,
+      timestamp: block.timestamp,
+    });
+
+    // Make sure `transactions` can be garbage collected
+    blockWithEventData.block.transactions =
+      blockWithFilteredEventData.block.transactions;
+
+    yield {
+      type: "block",
+      hasMatchedFilter: blockWithFilteredEventData.matchedFilters.size > 0,
+      block: blockWithFilteredEventData.block,
+      logs: blockWithFilteredEventData.logs,
+      transactions: blockWithFilteredEventData.transactions,
+      transactionReceipts: blockWithFilteredEventData.transactionReceipts,
+      traces: blockWithFilteredEventData.traces,
+      childAddresses: blockWithFilteredEventData.childAddresses,
+      blockCallback,
+    };
+
+    // Determine if a new range has become finalized by evaluating if the
+    // latest block number is 2 * finalityBlockCount >= finalized block number.
+    // Essentially, there is a range the width of finalityBlockCount that is entirely
+    // finalized.
+
+    const blockMovesFinality =
+      hexToNumber(block.number) >=
+      hexToNumber(finalizedBlock.number) + 2 * args.chain.finalityBlockCount;
+    if (blockMovesFinality) {
+      const pendingFinalizedBlock = unfinalizedBlocks.find(
+        (lb) =>
+          hexToNumber(lb.number) ===
+          hexToNumber(block.number) - args.chain.finalityBlockCount,
+      )!;
+
+      args.common.logger.debug({
+        service: "realtime",
+        msg: `Finalized ${hexToNumber(pendingFinalizedBlock.number) - hexToNumber(finalizedBlock.number) + 1} '${
+          args.chain.name
+        }' blocks [${hexToNumber(finalizedBlock.number) + 1}, ${hexToNumber(pendingFinalizedBlock.number)}]`,
+      });
+
+      const finalizedBlocks = unfinalizedBlocks.filter(
+        (lb) =>
+          hexToNumber(lb.number) <= hexToNumber(pendingFinalizedBlock.number),
+      );
+
+      unfinalizedBlocks = unfinalizedBlocks.filter(
+        (lb) =>
+          hexToNumber(lb.number) > hexToNumber(pendingFinalizedBlock.number),
+      );
+
+      for (const block of finalizedBlocks) {
+        childAddressesPerBlock.delete(hexToNumber(block.number));
+      }
+
+      finalizedBlock = pendingFinalizedBlock;
+
+      yield {
+        type: "finalize",
+        block: pendingFinalizedBlock,
+      };
     }
   };
 
@@ -1032,7 +978,7 @@ export const createRealtimeSync = (
 
     args.common.logger.warn({
       service: "realtime",
-      msg: `Failed to fetch latest '${args.chain.name}' block`,
+      msg: `Failed to fetch and reconcile '${args.chain.name}' block`,
       error,
     });
 
@@ -1078,15 +1024,17 @@ export const createRealtimeSync = (
 
         const blockWithEventData = await fetchBlockEventData(block);
 
-        fetchAndReconcileLatestBlockErrorCount = 0;
-
         // Note: `reconcileBlock` must be called serially.
 
         await realtimeSyncLock.lock();
 
-        yield* reconcileBlock(blockWithEventData, blockCallback);
+        try {
+          yield* reconcileBlock(blockWithEventData, blockCallback);
+        } finally {
+          realtimeSyncLock.unlock();
+        }
 
-        realtimeSyncLock.unlock();
+        fetchAndReconcileLatestBlockErrorCount = 0;
       } catch (_error) {
         blockCallback?.(false);
         onError(_error as Error);
