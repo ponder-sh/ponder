@@ -91,7 +91,7 @@ type CreateRealtimeSyncParameters = {
   childAddresses: Map<FactoryId, Map<Address, number>>;
 };
 
-const MAX_LATEST_BLOCK_ATTEMPT_MS = 10 * 60 * 1000; // 3 minutes
+const MAX_LATEST_BLOCK_ATTEMPT_MS = 10 * 60 * 1000; // 10 minutes
 
 const ERROR_TIMEOUT = [
   1, 2, 5, 10, 30, 60, 60, 60, 60, 60, 60, 60, 60, 60,
