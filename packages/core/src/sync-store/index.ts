@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import type { Database } from "@/database/index.js";
+import { extractBlockNumberParam } from "@/indexing/client.js";
 import type { Common } from "@/internal/common.js";
 import type {
   BlockFilter,
@@ -56,7 +57,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { type PgColumn, unionAll } from "drizzle-orm/pg-core";
-import { type Address, type EIP1193Parameters, hexToNumber } from "viem";
+import { type Address, type EIP1193Parameters, hexToNumber, isHex } from "viem";
 import {
   encodeBlock,
   encodeLog,
@@ -1089,12 +1090,98 @@ export const createSyncStore = ({
   getRpcRequestResults: async ({ requests, chainId }) => {
     if (requests.length === 0) return [];
 
-    const requestHashes = requests.map((request) =>
-      crypto
+    // Optimized fast path for high number of `requests` using a range of block numbers
+    // rather than querying each request individually.
+
+    const blockNumbersByRequest: (number | undefined)[] = new Array(
+      requests.length,
+    );
+    const requestHashes: string[] = new Array(requests.length);
+
+    for (let i = 0; i < requests.length; i++) {
+      const request = requests[i]!;
+      const blockNumber = extractBlockNumberParam(request);
+
+      // Note: "latest" is not considered a block number
+      if (isHex(blockNumber)) {
+        blockNumbersByRequest[i] = hexToNumber(blockNumber);
+      } else {
+        blockNumbersByRequest[i] = undefined;
+      }
+
+      const requestHash = crypto
         .createHash("md5")
         .update(toLowerCase(JSON.stringify(orderObject(request))))
-        .digest("hex"),
+        .digest("hex");
+
+      requestHashes[i] = requestHash;
+    }
+
+    const blockNumbers = blockNumbersByRequest.filter(
+      (blockNumber): blockNumber is number => blockNumber !== undefined,
     );
+
+    if (blockNumbers.length > 100) {
+      const minBlockNumber = Math.min(...blockNumbers);
+      const maxBlockNumber = Math.max(...blockNumbers);
+
+      const nonBlockRequestHashes = requestHashes.filter(
+        (_, i) => blockNumbersByRequest[i] === undefined,
+      );
+
+      const result = await Promise.all([
+        database.syncQB.wrap({ label: "select_rpc_requests" }, (db) =>
+          db
+            .select({
+              request_hash: PONDER_SYNC.rpcRequestResults.requestHash,
+              result: PONDER_SYNC.rpcRequestResults.result,
+            })
+            .from(PONDER_SYNC.rpcRequestResults)
+            .where(
+              and(
+                eq(PONDER_SYNC.rpcRequestResults.chainId, BigInt(chainId)),
+                gte(
+                  PONDER_SYNC.rpcRequestResults.blockNumber,
+                  BigInt(minBlockNumber),
+                ),
+                lte(
+                  PONDER_SYNC.rpcRequestResults.blockNumber,
+                  BigInt(maxBlockNumber),
+                ),
+              ),
+            ),
+        ),
+        nonBlockRequestHashes.length === 0
+          ? []
+          : database.syncQB.wrap({ label: "select_rpc_requests" }, (db) =>
+              db
+                .select({
+                  request_hash: PONDER_SYNC.rpcRequestResults.requestHash,
+                  result: PONDER_SYNC.rpcRequestResults.result,
+                })
+                .from(PONDER_SYNC.rpcRequestResults)
+                .where(
+                  and(
+                    eq(PONDER_SYNC.rpcRequestResults.chainId, BigInt(chainId)),
+                    inArray(
+                      PONDER_SYNC.rpcRequestResults.requestHash,
+                      nonBlockRequestHashes,
+                    ),
+                  ),
+                ),
+            ),
+      ]);
+
+      const results = new Map<string, string | undefined>();
+      for (const row of result[0]!) {
+        results.set(row.request_hash, row.result);
+      }
+      for (const row of result[1]!) {
+        results.set(row.request_hash, row.result);
+      }
+
+      return requestHashes.map((requestHash) => results.get(requestHash));
+    }
 
     const result = await database.syncQB.wrap(
       { label: "select_rpc_requests" },
