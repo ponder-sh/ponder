@@ -1,5 +1,11 @@
 # ponder
 
+## 0.13.4
+
+### Patch Changes
+
+- [#2062](https://github.com/ponder-sh/ponder/pull/2062) [`376ead4`](https://github.com/ponder-sh/ponder/commit/376ead4fbf94d69852efc765a1d9cbfeef32900c) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression introduced in `v0.13.1` that caused the terminal ui not to print.
+
 ## 0.13.3
 
 ### Patch Changes
