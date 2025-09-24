@@ -31,7 +31,7 @@ export function createUi({ common }: { common: Common }) {
     refresh();
   }, 32);
 
-  common.shutdown.add(() => {
+  common.buildShutdown.add(() => {
     clearInterval(stateUpdateInterval);
     clearInterval(refreshInterval);
     shutdown();
