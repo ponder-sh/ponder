@@ -1093,36 +1093,40 @@ export const createSyncStore = ({
     // Optimized fast path for high number of `requests` using a range of block numbers
     // rather than querying each request individually.
 
-    const blockNumberRequests: (EIP1193Parameters & { blockNumber: number })[] =
-      [];
-    const nonBlockNumberRequests: EIP1193Parameters[] = [];
-    for (const request of requests) {
+    const blockNumbersByRequest: (number | undefined)[] = new Array(
+      requests.length,
+    );
+    const requestHashes: string[] = new Array(requests.length);
+
+    for (let i = 0; i < requests.length; i++) {
+      const request = requests[i]!;
       const blockNumber = extractBlockNumberParam(request);
 
-      // Note: "latest" is sorted into `nonBlockNumberRequests`
+      // Note: "latest" is not considered a block number
       if (isHex(blockNumber)) {
-        blockNumberRequests.push({
-          ...request,
-          blockNumber: hexToNumber(blockNumber),
-        });
+        blockNumbersByRequest[i] = hexToNumber(blockNumber);
       } else {
-        nonBlockNumberRequests.push(request);
+        blockNumbersByRequest[i] = undefined;
       }
-    }
 
-    const requestHashes = requests.map((request) =>
-      crypto
+      const requestHash = crypto
         .createHash("md5")
         .update(toLowerCase(JSON.stringify(orderObject(request))))
-        .digest("hex"),
+        .digest("hex");
+
+      requestHashes[i] = requestHash;
+    }
+
+    const blockNumbers = blockNumbersByRequest.filter(
+      (blockNumber): blockNumber is number => blockNumber !== undefined,
     );
 
-    if (blockNumberRequests.length > 100) {
-      const minBlockNumber = Math.min(
-        ...blockNumberRequests.map((request) => request.blockNumber),
-      );
-      const maxBlockNumber = Math.max(
-        ...blockNumberRequests.map((request) => request.blockNumber),
+    if (blockNumbers.length > 100) {
+      const minBlockNumber = Math.min(...blockNumbers);
+      const maxBlockNumber = Math.max(...blockNumbers);
+
+      const nonBlockRequestHashes = requestHashes.filter(
+        (_, i) => blockNumbersByRequest[i] === undefined,
       );
 
       const result = await Promise.all([
@@ -1147,7 +1151,7 @@ export const createSyncStore = ({
               ),
             ),
         ),
-        nonBlockNumberRequests.length === 0
+        nonBlockRequestHashes.length === 0
           ? []
           : database.syncQB.wrap({ label: "select_rpc_requests" }, (db) =>
               db
@@ -1161,14 +1165,7 @@ export const createSyncStore = ({
                     eq(PONDER_SYNC.rpcRequestResults.chainId, BigInt(chainId)),
                     inArray(
                       PONDER_SYNC.rpcRequestResults.requestHash,
-                      nonBlockNumberRequests.map((request) =>
-                        crypto
-                          .createHash("md5")
-                          .update(
-                            toLowerCase(JSON.stringify(orderObject(request))),
-                          )
-                          .digest("hex"),
-                      ),
+                      nonBlockRequestHashes,
                     ),
                   ),
                 ),
