@@ -493,6 +493,11 @@ export async function buildConfigAndIndexingFunctions({
             topic3: LogTopic;
           }[] = [];
 
+          // Extract condition functions from filters
+          const conditionFunctions: {
+            [eventName: string]: (args: any) => boolean | Promise<boolean>;
+          } = {};
+
           if (source.filter !== undefined) {
             const eventFilters = Array.isArray(source.filter)
               ? source.filter
@@ -510,6 +515,11 @@ export async function buildConfigAndIndexingFunctions({
                     .map((n) => `'${n}'`)
                     .join(", ")}].`,
                 );
+              }
+
+              // Extract condition function if present
+              if (filter.condition) {
+                conditionFunctions[filter.event] = filter.condition;
               }
             }
 
@@ -560,6 +570,10 @@ export async function buildConfigAndIndexingFunctions({
             abiFunctions,
             name: source.name,
             chain,
+            conditionFunctions:
+              Object.keys(conditionFunctions).length > 0
+                ? conditionFunctions
+                : undefined,
           } as const;
 
           const resolvedAddress = source?.address;

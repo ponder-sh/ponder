@@ -171,7 +171,11 @@ export async function* getRealtimeEventsOmnichain(params: {
           msg: `Extracted ${events.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
         });
 
-        const decodedEvents = decodeEvents(params.common, sources, events);
+        const decodedEvents = await decodeEvents(
+          params.common,
+          sources,
+          events,
+        );
         params.common.logger.debug({
           service: "sync",
           msg: `Decoded ${decodedEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
@@ -425,7 +429,11 @@ export async function* getRealtimeEventsMultichain(params: {
           msg: `Extracted ${events.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
         });
 
-        const decodedEvents = decodeEvents(params.common, sources, events);
+        const decodedEvents = await decodeEvents(
+          params.common,
+          sources,
+          events,
+        );
         params.common.logger.debug({
           service: "sync",
           msg: `Decoded ${decodedEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,

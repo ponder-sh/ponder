@@ -185,7 +185,7 @@ export async function* getHistoricalEventsOmnichain(params: {
 
         for await (let { events: rawEvents, checkpoint } of eventGenerator) {
           const endClock = startClock();
-          let events = decodeEvents(params.common, sources, rawEvents);
+          let events = await decodeEvents(params.common, sources, rawEvents);
           params.common.logger.debug({
             service: "app",
             msg: `Decoded ${events.length} '${chain.name}' events`,
@@ -400,7 +400,7 @@ export async function* getHistoricalEventsMultichain(params: {
 
         for await (const { events: rawEvents, checkpoint } of eventGenerator) {
           const endClock = startClock();
-          let events = decodeEvents(params.common, sources, rawEvents);
+          let events = await decodeEvents(params.common, sources, rawEvents);
           params.common.logger.debug({
             service: "app",
             msg: `Decoded ${events.length} '${chain.name}' events`,
@@ -528,7 +528,11 @@ export async function refetchHistoricalEvents(params: {
     });
 
     const endClock = startClock();
-    const refetchedEvents = decodeEvents(params.common, sources, rawEvents);
+    const refetchedEvents = await decodeEvents(
+      params.common,
+      sources,
+      rawEvents,
+    );
     params.common.logger.debug({
       service: "app",
       msg: `Decoded ${refetchedEvents.length} '${chain.name}' events`,

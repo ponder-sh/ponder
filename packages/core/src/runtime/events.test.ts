@@ -130,7 +130,9 @@ test("decodeEvents() log", async (context) => {
     log: { data, topics },
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [LogEvent];
+  const events = (await decodeEvents(common, sources, [rawEvent])) as [
+    LogEvent,
+  ];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.args).toMatchObject({
@@ -174,7 +176,9 @@ test("decodeEvents() log error", async (context) => {
     },
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [LogEvent];
+  const events = (await decodeEvents(common, sources, [rawEvent])) as [
+    LogEvent,
+  ];
 
   expect(events).toHaveLength(0);
 });
@@ -202,7 +206,9 @@ test("decodeEvents() block", async (context) => {
     log: undefined,
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [BlockEvent];
+  const events = (await decodeEvents(common, sources, [rawEvent])) as [
+    BlockEvent,
+  ];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.block).toMatchObject({
@@ -247,7 +253,9 @@ test("decodeEvents() transfer", async (context) => {
     },
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [TransferEvent];
+  const events = (await decodeEvents(common, sources, [rawEvent])) as [
+    TransferEvent,
+  ];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.transfer).toMatchObject({
@@ -282,7 +290,9 @@ test("decodeEvents() transaction", async (context) => {
     trace: undefined,
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [TransferEvent];
+  const events = (await decodeEvents(common, sources, [rawEvent])) as [
+    TransferEvent,
+  ];
 
   expect(events).toHaveLength(1);
 
@@ -333,7 +343,9 @@ test("decodeEvents() trace", async (context) => {
     },
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [TraceEvent];
+  const events = (await decodeEvents(common, sources, [rawEvent])) as [
+    TraceEvent,
+  ];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.args).toStrictEqual([BOB, parseEther("1")]);
@@ -381,7 +393,9 @@ test("decodeEvents() trace error", async (context) => {
     },
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [TraceEvent];
+  const events = (await decodeEvents(common, sources, [rawEvent])) as [
+    TraceEvent,
+  ];
 
   expect(events).toHaveLength(0);
 });

@@ -364,11 +364,11 @@ export const splitEvents = (
   return result;
 };
 
-export const decodeEvents = (
+export const decodeEvents = async (
   common: Common,
   sources: Source[],
   rawEvents: RawEvent[],
-): Event[] => {
+): Promise<Event[]> => {
   const events: Event[] = [];
 
   for (const event of rawEvents) {
@@ -394,6 +394,16 @@ export const decodeEvents = (
                 data: event.log!.data,
                 topics: event.log!.topics,
               });
+
+              // Check condition function if present
+              const conditionFunction = source.conditionFunctions?.[safeName];
+              if (conditionFunction) {
+                const allowed = await conditionFunction(args);
+                if (!allowed) {
+                  // Skip this event if condition function returns false
+                  continue;
+                }
+              }
 
               events.push({
                 type: "log",
@@ -447,6 +457,14 @@ export const decodeEvents = (
                 data: event.trace!.output!,
                 functionName,
               });
+
+              // Check condition function if present (for trace events, use function name)
+              const conditionFunction =
+                source.conditionFunctions?.[functionName];
+              if (conditionFunction && !(await conditionFunction(args))) {
+                // Skip this event if condition function returns false
+                break;
+              }
 
               events.push({
                 type: "trace",

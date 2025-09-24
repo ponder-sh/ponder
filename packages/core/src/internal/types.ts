@@ -284,6 +284,9 @@ export type ContractMetadata = {
   abiFunctions: AbiFunctions;
   name: string;
   chain: Chain;
+  conditionFunctions?: {
+    [eventName: string]: (args: any) => boolean | Promise<boolean>;
+  };
 };
 export type AccountMetadata = {
   type: "account";

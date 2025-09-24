@@ -12,6 +12,23 @@ type FilterArgs<abi extends Abi, event extends string> = GetEventArgs<
   ParseAbiEvent<abi, event>
 >;
 
+// 获取事件的所有参数（包括非索引参数），用于condition函数
+type EventArgs<abi extends Abi, event extends string> = GetEventArgs<
+  abi,
+  string,
+  {
+    EnableUnion: false;
+    IndexedOnly: false;
+    Required: false;
+  },
+  ParseAbiEvent<abi, event>
+>;
+
+// condition函数类型定义
+type ConditionFunction<abi extends Abi, event extends string> = (
+  args: EventArgs<abi, event>,
+) => boolean | Promise<boolean>;
+
 export type GetEventFilter<
   abi extends Abi,
   ///
@@ -21,13 +38,15 @@ export type GetEventFilter<
     | (safeEventNames extends safeEventNames
         ? {
             event: safeEventNames;
-            args: FilterArgs<abi, safeEventNames>;
+            args?: FilterArgs<abi, safeEventNames>;
+            condition?: ConditionFunction<abi, safeEventNames>;
           }
         : never)
     | (safeEventNames extends safeEventNames
         ? {
             event: safeEventNames;
-            args: FilterArgs<abi, safeEventNames>;
+            args?: FilterArgs<abi, safeEventNames>;
+            condition?: ConditionFunction<abi, safeEventNames>;
           }
         : never)[];
 };

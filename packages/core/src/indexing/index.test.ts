@@ -273,7 +273,7 @@ test("processEvent()", async (context) => {
     log: { data, topics },
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]);
+  const events = await decodeEvents(common, sources, [rawEvent]);
   await indexing.processRealtimeEvents({ db: indexingStore, events });
 
   expect(
@@ -371,7 +371,7 @@ test("processEvents eventCount", async (context) => {
     log: { data, topics },
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]);
+  const events = await decodeEvents(common, sources, [rawEvent]);
   await indexing.processRealtimeEvents({ db: indexingStore, events });
 
   const metrics = await common.metrics.ponder_indexing_completed_events.get();
@@ -666,7 +666,7 @@ test("processEvents() context.client", async (context) => {
     log: { data, topics },
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]);
+  const events = await decodeEvents(common, sources, [rawEvent]);
   await indexing.processRealtimeEvents({ db: indexingStore, events });
 
   expect(getBalanceSpy).toHaveBeenCalledTimes(1);
@@ -751,7 +751,7 @@ test("processEvents() context.db", async (context) => {
     log: { data, topics },
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]);
+  const events = await decodeEvents(common, sources, [rawEvent]);
   await indexing.processRealtimeEvents({ db: indexingStore, events });
 
   expect(insertSpy).toHaveBeenCalledTimes(1);
@@ -825,7 +825,7 @@ test("processEvents() metrics", async (context) => {
     log: { data, topics },
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]);
+  const events = await decodeEvents(common, sources, [rawEvent]);
   await indexing.processRealtimeEvents({
     events,
     db: indexingStore,
@@ -903,7 +903,7 @@ test("processEvents() error", async (context) => {
     log: { data, topics },
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]);
+  const events = await decodeEvents(common, sources, [rawEvent]);
   await expect(() =>
     indexing.processRealtimeEvents({ db: indexingStore, events }),
   ).rejects.toThrowError();
@@ -983,7 +983,7 @@ test("processEvents() error with missing event object properties", async (contex
     log: { data, topics },
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]);
+  const events = await decodeEvents(common, sources, [rawEvent]);
   await expect(() =>
     indexing.processRealtimeEvents({ events, db: indexingStore }),
   ).rejects.toThrowError();
@@ -1061,7 +1061,7 @@ test("processEvents() column selection", async (context) => {
       }) as RawEvent,
   );
 
-  let events = decodeEvents(common, sources, rawEvents);
+  let events = await decodeEvents(common, sources, rawEvents);
   await indexing.processHistoricalEvents({
     db: indexingStore,
     events,
@@ -1099,7 +1099,7 @@ test("processEvents() column selection", async (context) => {
     } as RawEvent,
   ];
 
-  events = decodeEvents(common, sources, rawEvents);
+  events = await decodeEvents(common, sources, rawEvents);
 
   await expect(() =>
     indexing.processHistoricalEvents({
