@@ -1,5 +1,11 @@
 # ponder
 
+## 0.13.3
+
+### Patch Changes
+
+- [#2051](https://github.com/ponder-sh/ponder/pull/2051) [`76b21a1`](https://github.com/ponder-sh/ponder/commit/76b21a103e1da659533c800effb3b1dfbc533d54) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved historical backfill performance for apps with many `context.client` requests.
+
 ## 0.13.2
 
 ### Patch Changes
