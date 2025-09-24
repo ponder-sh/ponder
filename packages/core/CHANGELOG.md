@@ -1,5 +1,11 @@
 # ponder
 
+## 0.13.5
+
+### Patch Changes
+
+- [`54e56d2`](https://github.com/ponder-sh/ponder/commit/54e56d2f4ad24ef7e4e3b81882884e514b19bf60) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved realtime sync error handling.
+
 ## 0.13.4
 
 ### Patch Changes
