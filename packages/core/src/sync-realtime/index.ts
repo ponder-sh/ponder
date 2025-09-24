@@ -91,7 +91,7 @@ type CreateRealtimeSyncParameters = {
   childAddresses: Map<FactoryId, Map<Address, number>>;
 };
 
-const MAX_LATEST_BLOCK_ATTEMPT_MS = 3 * 60 * 1000; // 3 minutes
+const MAX_LATEST_BLOCK_ATTEMPT_MS = 10 * 60 * 1000; // 3 minutes
 
 const ERROR_TIMEOUT = [
   1, 2, 5, 10, 30, 60, 60, 60, 60, 60, 60, 60, 60, 60,
@@ -984,10 +984,11 @@ export const createRealtimeSync = (
 
     fetchAndReconcileLatestBlockErrorCount += 1;
 
-    // After a certain number of attempts, emit a fatal error.
+    // Number of retries is max(10, `MAX_LATEST_BLOCK_ATTEMPT_MS` / `args.chain.pollingInterval`)
     if (
+      fetchAndReconcileLatestBlockErrorCount >= 10 &&
       fetchAndReconcileLatestBlockErrorCount * args.chain.pollingInterval >
-      MAX_LATEST_BLOCK_ATTEMPT_MS
+        MAX_LATEST_BLOCK_ATTEMPT_MS
     ) {
       args.common.logger.error({
         service: "realtime",
