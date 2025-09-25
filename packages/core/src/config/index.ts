@@ -61,6 +61,8 @@ type DatabaseConfig =
         max?: number;
         /** Enable SSL, or provide a custom SSL configuration. Default: `undefined`. */
         ssl?: boolean | Prettify<ConnectionOptions>;
+        /** Timeout for idle transactions in milliseconds. Default: `3600000` (1 hour). */
+        idleInTransactionSessionTimeout?: number;
       };
     };
 

@@ -155,6 +155,7 @@ test("buildPre() database with postgres uses pool config", async () => {
     kind: "postgres",
     poolConfig: {
       connectionString: "postgres://username@localhost:5432/database",
+      idleInTransactionSessionTimeout: 3600000,
       max: 100,
       ssl: {
         ca: "ca",
