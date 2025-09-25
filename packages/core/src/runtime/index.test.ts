@@ -274,6 +274,21 @@ test("getCachedBlock() with multiple filters", async () => {
   });
 
   expect(cachedBlock).toBe(24);
+
+  cachedIntervals = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >([
+    [filters[0]!, [{ fragment: {} as Fragment, intervals: [[0, 60]] }]],
+    [filters[1]!, []],
+  ]);
+
+  cachedBlock = getCachedBlock({
+    filters,
+    cachedIntervals,
+  });
+
+  expect(cachedBlock).toBe(49);
 });
 
 test("mergeAsyncGeneratorsWithEventOrder()", async () => {
