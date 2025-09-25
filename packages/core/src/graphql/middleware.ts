@@ -78,7 +78,7 @@ export const graphql = (
 
   return createMiddleware(async (c) => {
     if (c.req.method === "GET") {
-      return c.html(graphiQLHtml(c.req.path));
+      return c.html(graphiQLHtml);
     }
 
     const response = await yoga.handle(c.req.raw);
