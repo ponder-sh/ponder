@@ -1,5 +1,11 @@
 # ponder
 
+## 0.13.6
+
+### Patch Changes
+
+- [#2066](https://github.com/ponder-sh/ponder/pull/2066) [`a2ca732`](https://github.com/ponder-sh/ponder/commit/a2ca732fbf36de4cab16622dc28ccfc1206378ba) Thanks [@typedarray](https://github.com/typedarray)! - Fixed an issue where the GraphiQL interface would fail to fetch the schema. This often happened when using a reverse proxy.
+
 ## 0.13.5
 
 ### Patch Changes
