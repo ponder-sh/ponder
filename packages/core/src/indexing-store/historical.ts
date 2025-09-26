@@ -10,7 +10,7 @@ import {
   UniqueConstraintError,
 } from "@/internal/errors.js";
 import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
-import { copyOnWrite } from "@/utils/cow.js";
+import { copy, copyOnWrite } from "@/utils/copy.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import {
@@ -104,7 +104,7 @@ export const createHistoricalIndexingStore = ({
               });
               checkOnchainTable(table, "insert");
 
-              const ponderValues = structuredClone(userValues);
+              const ponderValues = copy(userValues);
 
               if (Array.isArray(ponderValues)) {
                 const ponderRows = [];
@@ -169,7 +169,7 @@ export const createHistoricalIndexingStore = ({
                       if (typeof userUpdateValues === "function") {
                         const userRowUpdate = copyOnWrite(ponderRowUpdate);
                         const userSet = userUpdateValues(userRowUpdate);
-                        const ponderSet = structuredClone(userSet);
+                        const ponderSet = copy(userSet);
                         validateUpdateSet(
                           table,
                           ponderSet,
@@ -182,7 +182,7 @@ export const createHistoricalIndexingStore = ({
                         }
                       } else {
                         const userSet = userUpdateValues;
-                        const ponderSet = structuredClone(userSet);
+                        const ponderSet = copy(userSet);
                         validateUpdateSet(
                           table,
                           ponderSet,
@@ -203,7 +203,7 @@ export const createHistoricalIndexingStore = ({
                         }),
                       );
                     } else {
-                      const ponderValue = structuredClone(value);
+                      const ponderValue = copy(value);
                       ponderRows.push(
                         indexingCache.set({
                           table,
@@ -228,7 +228,7 @@ export const createHistoricalIndexingStore = ({
                     if (typeof userUpdateValues === "function") {
                       const userRowUpdate = copyOnWrite(ponderRowUpdate);
                       const userSet = userUpdateValues(userRowUpdate);
-                      const ponderSet = structuredClone(userSet);
+                      const ponderSet = copy(userSet);
                       validateUpdateSet(
                         table,
                         ponderSet,
@@ -241,7 +241,7 @@ export const createHistoricalIndexingStore = ({
                       }
                     } else {
                       const userSet = userUpdateValues;
-                      const ponderSet = structuredClone(userSet);
+                      const ponderSet = copy(userSet);
                       validateUpdateSet(
                         table,
                         ponderSet,
@@ -263,7 +263,7 @@ export const createHistoricalIndexingStore = ({
                     return userRow;
                   }
 
-                  const ponderValues = structuredClone(userValues);
+                  const ponderValues = copy(userValues);
 
                   const ponderRowInsert = indexingCache.set({
                     table,
@@ -285,7 +285,7 @@ export const createHistoricalIndexingStore = ({
                   method: "insert",
                 });
                 checkOnchainTable(table, "insert");
-                const ponderValues = structuredClone(userValues);
+                const ponderValues = copy(userValues);
 
                 if (Array.isArray(ponderValues)) {
                   const ponderRows = [];
@@ -408,7 +408,7 @@ export const createHistoricalIndexingStore = ({
           if (typeof userValues === "function") {
             const userRow = copyOnWrite(ponderRowUpdate);
             const userSet = userValues(userRow);
-            const ponderSet = structuredClone(userSet);
+            const ponderSet = copy(userSet);
             validateUpdateSet(
               table,
               ponderSet,
@@ -421,7 +421,7 @@ export const createHistoricalIndexingStore = ({
             }
           } else {
             const userSet = userValues;
-            const ponderSet = structuredClone(userSet);
+            const ponderSet = copy(userSet);
             validateUpdateSet(
               table,
               ponderSet,

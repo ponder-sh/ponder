@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { copyOnWrite } from "./cow.js";
+import { copy, copyOnWrite } from "./copy.js";
 
 test("copyOnWrite", () => {
   const obj = { a: 1, b: 2 };
@@ -51,4 +51,29 @@ test("copyOnWrite nested array", () => {
   const copiedObj = copyOnWrite(obj);
 
   copiedObj.a.push(1);
+
+  expect(obj.a).toEqual([]);
+  expect(copiedObj.a).toEqual([1]);
+});
+
+test("copy", () => {
+  const obj = { a: 1, b: 2 };
+  const copiedObj = copyOnWrite(obj);
+  const copiedObj2 = copy(copiedObj);
+
+  expect(copiedObj.a).toBe(1);
+  expect(copiedObj.b).toBe(2);
+
+  expect(copiedObj2.a).toBe(1);
+  expect(copiedObj2.b).toBe(2);
+
+  copiedObj.a = 3;
+
+  expect(obj.a).toBe(1);
+  expect(obj.b).toBe(2);
+
+  expect(copiedObj.a).toBe(3);
+  expect(copiedObj.b).toBe(2);
+
+  copy([copiedObj]);
 });

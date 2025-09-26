@@ -1,3 +1,5 @@
+export const COPY_ON_WRITE = Symbol.for("ponder:copyOnWrite");
+
 export const copyOnWrite = <T extends object>(obj: T): T => {
   const isArray = Array.isArray(obj);
   let copiedObject: T | undefined;
@@ -5,6 +7,9 @@ export const copyOnWrite = <T extends object>(obj: T): T => {
 
   return new Proxy<T>(obj, {
     get(target, prop, receiver) {
+      if (prop === COPY_ON_WRITE) {
+        return target;
+      }
       const result = Reflect.get(copiedObject ?? target, prop, receiver);
 
       if (
@@ -61,4 +66,29 @@ export const copyOnWrite = <T extends object>(obj: T): T => {
       return Reflect.getOwnPropertyDescriptor(copiedObject ?? target, prop);
     },
   });
+};
+
+export const copy = <T>(obj: T): T => {
+  if (obj === null || typeof obj !== "object") {
+    return obj;
+  }
+
+  // @ts-expect-error
+  const proxy = obj[COPY_ON_WRITE];
+  if (proxy === undefined) {
+    if (Array.isArray(obj)) {
+      // @ts-expect-error
+      return obj.map((element) => copy(element));
+    }
+
+    const result = {} as T;
+    for (const [key, value] of Object.entries(obj)) {
+      // @ts-expect-error
+      result[key] = copy(value);
+    }
+
+    return result;
+  }
+
+  return proxy;
 };
