@@ -65,6 +65,9 @@ declare global {
 }
 globalThis.DISABLE_EVENT_PROXY = false;
 
+const EVENT_LOOP_UPDATE_INTERVAL = 25;
+const METRICS_UPDATE_INTERVAL = 100;
+
 export type Context = {
   chain: { id: number; name: string };
   client: ReadonlyClient;
@@ -88,6 +91,7 @@ export type Indexing = {
     events: Event[];
     db: IndexingStore;
     cache: IndexingCache;
+    updateIndexingSeconds: (event: Event, chain: Chain) => void;
   }) => Promise<void>;
   processRealtimeEvents: (params: {
     events: Event[];
@@ -505,7 +509,15 @@ export const createIndexing = ({
         }
       }
     },
-    async processHistoricalEvents({ events, db, cache }) {
+    async processHistoricalEvents({
+      events,
+      db,
+      cache,
+      updateIndexingSeconds,
+    }) {
+      let lastEventLoopUpdate = performance.now();
+      let lastMetricsUpdate = performance.now();
+
       context.db = db;
       for (let i = 0; i < events.length; i++) {
         const event = events[i]!;
@@ -612,6 +624,19 @@ export const createIndexing = ({
           service: "indexing",
           msg: `Completed indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
         });
+
+        const now = performance.now();
+
+        if (now - lastEventLoopUpdate > EVENT_LOOP_UPDATE_INTERVAL) {
+          lastEventLoopUpdate = now;
+          await new Promise(setImmediate);
+        }
+
+        if (now - lastMetricsUpdate > METRICS_UPDATE_INTERVAL) {
+          lastMetricsUpdate = now;
+          updateCompletedEvents();
+          updateIndexingSeconds(event, chainById[event.chainId]!);
+        }
       }
 
       let isEveryFilterResolvedBefore = true;
@@ -732,7 +757,12 @@ export const createIndexing = ({
         });
       }
 
+      await new Promise(setImmediate);
       updateCompletedEvents();
+      updateIndexingSeconds(
+        events[events.length - 1]!,
+        chainById[events[events.length - 1]!.chainId]!,
+      );
     },
     async processRealtimeEvents({ events, db }) {
       context.db = db;
