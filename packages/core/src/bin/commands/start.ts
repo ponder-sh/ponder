@@ -103,13 +103,13 @@ export async function start({
 
   const configResult = await build.executeConfig();
   if (configResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed initial build", code: 1 });
     return;
   }
 
   const schemaResult = await build.executeSchema();
   if (schemaResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed initial build", code: 1 });
     return;
   }
 
@@ -119,7 +119,7 @@ export async function start({
   ]);
 
   if (buildResult1.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed initial build", code: 1 });
     return;
   }
 
@@ -127,7 +127,7 @@ export async function start({
 
   const indexingResult = await build.executeIndexingFunctions();
   if (indexingResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed initial build", code: 1 });
     return;
   }
 
@@ -138,7 +138,7 @@ export async function start({
   });
 
   if (indexingBuildResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed initial build", code: 1 });
     return;
   }
 
@@ -161,7 +161,7 @@ export async function start({
     database,
   });
   if (apiResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed initial build", code: 1 });
     return;
   }
 
@@ -170,7 +170,7 @@ export async function start({
   });
 
   if (apiBuildResult.status === "error") {
-    await exit({ reason: "Failed intial build", code: 1 });
+    await exit({ reason: "Failed initial build", code: 1 });
     return;
   }
 
