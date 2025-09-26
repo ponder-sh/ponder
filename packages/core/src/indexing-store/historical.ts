@@ -10,6 +10,7 @@ import {
   UniqueConstraintError,
 } from "@/internal/errors.js";
 import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
+import { copyOnWrite } from "@/utils/cow.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import {
@@ -123,7 +124,9 @@ export const createHistoricalIndexingStore = ({
                     );
                   }
                 }
-                const userRows = structuredClone(ponderRows);
+                const userRows = ponderRows.map((row) =>
+                  row === null ? row : copyOnWrite(row),
+                );
                 return userRows;
               } else {
                 const row = await indexingCache.get({
@@ -142,7 +145,7 @@ export const createHistoricalIndexingStore = ({
                   isUpdate: false,
                 });
 
-                const userRow = structuredClone(ponderRow);
+                const userRow = copyOnWrite(ponderRow);
                 return userRow;
               }
             }),
@@ -164,7 +167,7 @@ export const createHistoricalIndexingStore = ({
 
                     if (ponderRowUpdate) {
                       if (typeof userUpdateValues === "function") {
-                        const userRowUpdate = structuredClone(ponderRowUpdate);
+                        const userRowUpdate = copyOnWrite(ponderRowUpdate);
                         const userSet = userUpdateValues(userRowUpdate);
                         const ponderSet = structuredClone(userSet);
                         validateUpdateSet(
@@ -211,7 +214,9 @@ export const createHistoricalIndexingStore = ({
                       );
                     }
                   }
-                  const userRows = structuredClone(ponderRows);
+                  const userRows = ponderRows.map((row) =>
+                    row === null ? row : copyOnWrite(row),
+                  );
                   return userRows;
                 } else {
                   const ponderRowUpdate = await indexingCache.get({
@@ -221,7 +226,7 @@ export const createHistoricalIndexingStore = ({
 
                   if (ponderRowUpdate) {
                     if (typeof userUpdateValues === "function") {
-                      const userRowUpdate = structuredClone(ponderRowUpdate);
+                      const userRowUpdate = copyOnWrite(ponderRowUpdate);
                       const userSet = userUpdateValues(userRowUpdate);
                       const ponderSet = structuredClone(userSet);
                       validateUpdateSet(
@@ -254,7 +259,7 @@ export const createHistoricalIndexingStore = ({
                       row: ponderRowUpdate,
                       isUpdate: true,
                     });
-                    const userRow = structuredClone(ponderRow);
+                    const userRow = copyOnWrite(ponderRow);
                     return userRow;
                   }
 
@@ -267,7 +272,7 @@ export const createHistoricalIndexingStore = ({
                     isUpdate: false,
                   });
 
-                  const userRow = structuredClone(ponderRowInsert);
+                  const userRow = copyOnWrite(ponderRowInsert);
                   return userRow;
                 }
               },
@@ -319,7 +324,9 @@ export const createHistoricalIndexingStore = ({
                       );
                     }
                   }
-                  const userRows = structuredClone(ponderRows);
+                  const userRows = ponderRows.map((row) =>
+                    row === null ? row : copyOnWrite(row),
+                  );
                   return Promise.resolve(userRows).then(
                     onFulfilled,
                     onRejected,
@@ -355,7 +362,7 @@ export const createHistoricalIndexingStore = ({
                       isUpdate: false,
                     });
                   }
-                  const userRow = structuredClone(ponderRow);
+                  const userRow = copyOnWrite(ponderRow);
                   return Promise.resolve(userRow).then(onFulfilled, onRejected);
                 }
               })().then(onFulfilled, onRejected),
@@ -399,7 +406,7 @@ export const createHistoricalIndexingStore = ({
           }
 
           if (typeof userValues === "function") {
-            const userRow = structuredClone(ponderRowUpdate);
+            const userRow = copyOnWrite(ponderRowUpdate);
             const userSet = userValues(userRow);
             const ponderSet = structuredClone(userSet);
             validateUpdateSet(
@@ -433,7 +440,7 @@ export const createHistoricalIndexingStore = ({
             row: ponderRowUpdate,
             isUpdate: true,
           });
-          const userRow = structuredClone(ponderRow);
+          const userRow = copyOnWrite(ponderRow);
           return userRow;
         }),
       };
