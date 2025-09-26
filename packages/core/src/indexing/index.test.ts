@@ -1066,6 +1066,7 @@ test("processEvents() column selection", async (context) => {
     db: indexingStore,
     events,
     cache: {} as IndexingCache,
+    updateIndexingSeconds: vi.fn(),
   });
 
   expect(sources[0]!.filter.include).toMatchInlineSnapshot(`
@@ -1106,6 +1107,7 @@ test("processEvents() column selection", async (context) => {
       events,
       db: indexingStore,
       cache: {} as IndexingCache,
+      updateIndexingSeconds: vi.fn(),
     }),
   ).rejects.toThrowError(
     new InvalidEventAccessError("transaction.maxPriorityFeePerGas"),

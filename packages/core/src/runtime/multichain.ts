@@ -43,7 +43,6 @@ import {
   decodeCheckpoint,
   min,
 } from "@/utils/checkpoint.js";
-import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { recordAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
@@ -333,46 +332,49 @@ export async function runMultichain({
 
           endClock = startClock();
 
-          const eventChunks = chunk(events.events, 93);
-          for (const eventChunk of eventChunks) {
-            await indexing.processHistoricalEvents({
-              events: eventChunk,
-              db: historicalIndexingStore,
-              cache: indexingCache,
-            });
+          await indexing.processHistoricalEvents({
+            events: events.events,
+            db: historicalIndexingStore,
+            cache: indexingCache,
+            updateIndexingSeconds(event, chain) {
+              const checkpoint = decodeCheckpoint(event!.checkpoint);
 
-            const checkpoint = decodeCheckpoint(
-              eventChunk[eventChunk.length - 1]!.checkpoint,
-            );
-
-            const chain = indexingBuild.chains.find(
-              (chain) => chain.id === Number(checkpoint.chainId),
-            )!;
-            common.metrics.ponder_historical_completed_indexing_seconds.set(
-              { chain: chain.name },
-              Math.max(
-                Number(checkpoint.blockTimestamp) -
-                  Math.max(
-                    seconds[chain.name]!.cached,
-                    seconds[chain.name]!.start,
-                  ),
-                0,
-              ),
-            );
-            common.metrics.ponder_indexing_timestamp.set(
-              { chain: chain.name },
-              Number(checkpoint.blockTimestamp),
-            );
-
-            // Note: allows for terminal and logs to be updated
-            if (preBuild.databaseConfig.kind === "pglite") {
-              await new Promise(setImmediate);
-            }
-          }
+              common.metrics.ponder_historical_completed_indexing_seconds.set(
+                { chain: chain.name },
+                Math.max(
+                  Number(checkpoint.blockTimestamp) -
+                    Math.max(
+                      seconds[chain.name]!.cached,
+                      seconds[chain.name]!.start,
+                    ),
+                  0,
+                ),
+              );
+              common.metrics.ponder_indexing_timestamp.set(
+                { chain: chain.name },
+                Number(checkpoint.blockTimestamp),
+              );
+            },
+          });
 
           historicalIndexingStore.isProcessingEvents = false;
 
-          await new Promise(setImmediate);
+          common.metrics.ponder_historical_transform_duration.inc(
+            { step: "index" },
+            endClock(),
+          );
+
+          endClock = startClock();
+
+          // Note: at this point, the next events can be preloaded, as long as the are not indexed until
+          // the "flush" + "finalize" is complete.
+
+          await indexingCache.flush();
+
+          common.metrics.ponder_historical_transform_duration.inc(
+            { step: "load" },
+            endClock(),
+          );
 
           // underlying metrics collection is actually synchronous
           // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
@@ -389,21 +391,6 @@ export async function runMultichain({
             });
           }
 
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "index" },
-            endClock(),
-          );
-
-          endClock = startClock();
-          // Note: at this point, the next events can be preloaded, as long as the are not indexed until
-          // the "flush" + "finalize" is complete.
-
-          await indexingCache.flush();
-
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "load" },
-            endClock(),
-          );
           endClock = startClock();
 
           if (events.checkpoints.length > 0) {

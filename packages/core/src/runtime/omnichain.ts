@@ -45,7 +45,6 @@ import {
   max,
   min,
 } from "@/utils/checkpoint.js";
-import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { recordAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
@@ -343,54 +342,59 @@ export async function runOmnichain({
 
           endClock = startClock();
 
-          const eventChunks = chunk(result.events, 93);
-          for (const eventChunk of eventChunks) {
-            await indexing.processHistoricalEvents({
-              events: eventChunk,
-              db: historicalIndexingStore,
-              cache: indexingCache,
-            });
-
-            const checkpoint = decodeCheckpoint(
-              eventChunk[eventChunk.length - 1]!.checkpoint,
-            );
-
-            for (const chain of indexingBuild.chains) {
-              common.metrics.ponder_historical_completed_indexing_seconds.set(
-                { chain: chain.name },
-                Math.min(
-                  Math.max(
-                    Number(checkpoint.blockTimestamp) -
-                      Math.max(
-                        seconds[chain.name]!.cached,
-                        seconds[chain.name]!.start,
-                      ),
-                    0,
+          await indexing.processHistoricalEvents({
+            events: result.events,
+            db: historicalIndexingStore,
+            cache: indexingCache,
+            updateIndexingSeconds(event) {
+              const checkpoint = decodeCheckpoint(event.checkpoint);
+              for (const chain of indexingBuild.chains) {
+                common.metrics.ponder_historical_completed_indexing_seconds.set(
+                  { chain: chain.name },
+                  Math.min(
+                    Math.max(
+                      Number(checkpoint.blockTimestamp) -
+                        Math.max(
+                          seconds[chain.name]!.cached,
+                          seconds[chain.name]!.start,
+                        ),
+                      0,
+                    ),
+                    Math.max(
+                      seconds[chain.name]!.end - seconds[chain.name]!.start,
+                      0,
+                    ),
                   ),
+                );
+                common.metrics.ponder_indexing_timestamp.set(
+                  { chain: chain.name },
                   Math.max(
-                    seconds[chain.name]!.end - seconds[chain.name]!.start,
-                    0,
+                    Number(checkpoint.blockTimestamp),
+                    seconds[chain.name]!.end,
                   ),
-                ),
-              );
-              common.metrics.ponder_indexing_timestamp.set(
-                { chain: chain.name },
-                Math.max(
-                  Number(checkpoint.blockTimestamp),
-                  seconds[chain.name]!.end,
-                ),
-              );
-            }
-
-            // Note: allows for terminal and logs to be updated
-            if (preBuild.databaseConfig.kind === "pglite") {
-              await new Promise(setImmediate);
-            }
-          }
+                );
+              }
+            },
+          });
 
           historicalIndexingStore.isProcessingEvents = false;
 
-          await new Promise(setImmediate);
+          common.metrics.ponder_historical_transform_duration.inc(
+            { step: "index" },
+            endClock(),
+          );
+
+          endClock = startClock();
+
+          // Note: at this point, the next events can be preloaded, as long as the are not indexed until
+          // the "flush" + "finalize" is complete.
+
+          await indexingCache.flush();
+
+          common.metrics.ponder_historical_transform_duration.inc(
+            { step: "load" },
+            endClock(),
+          );
 
           // underlying metrics collection is actually synchronous
           // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
@@ -407,21 +411,6 @@ export async function runOmnichain({
             });
           }
 
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "index" },
-            endClock(),
-          );
-
-          endClock = startClock();
-          // Note: at this point, the next events can be preloaded, as long as the are not indexed until
-          // the "flush" + "finalize" is complete.
-
-          await indexingCache.flush();
-
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "load" },
-            endClock(),
-          );
           endClock = startClock();
 
           if (result.checkpoints.length > 0) {
