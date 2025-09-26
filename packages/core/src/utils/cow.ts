@@ -1,4 +1,5 @@
 export const copyOnWrite = <T extends object>(obj: T): T => {
+  const isArray = Array.isArray(obj);
   let copiedObject: T | undefined;
   const nestedProperties: (string | symbol)[] = [];
 
@@ -12,7 +13,9 @@ export const copyOnWrite = <T extends object>(obj: T): T => {
         nestedProperties.includes(prop) === false
       ) {
         if (copiedObject === undefined) {
-          copiedObject = { ...target };
+          // @ts-expect-error
+          if (isArray) copiedObject = [...target];
+          else copiedObject = { ...target };
         }
         nestedProperties.push(prop);
 
@@ -26,21 +29,27 @@ export const copyOnWrite = <T extends object>(obj: T): T => {
     },
     set(target, prop, newValue, receiver) {
       if (copiedObject === undefined) {
-        copiedObject = { ...target };
+        // @ts-expect-error
+        if (isArray) copiedObject = [...target];
+        else copiedObject = { ...target };
       }
-      return Reflect.set(copiedObject, prop, newValue, receiver);
+      return Reflect.set(copiedObject!, prop, newValue, receiver);
     },
     deleteProperty(target, prop) {
       if (copiedObject === undefined) {
-        copiedObject = { ...target };
+        // @ts-expect-error
+        if (isArray) copiedObject = [...target];
+        else copiedObject = { ...target };
       }
-      return Reflect.deleteProperty(copiedObject, prop);
+      return Reflect.deleteProperty(copiedObject!, prop);
     },
     defineProperty(target, prop, descriptor) {
       if (copiedObject === undefined) {
-        copiedObject = { ...target };
+        // @ts-expect-error
+        if (isArray) copiedObject = [...target];
+        else copiedObject = { ...target };
       }
-      return Reflect.defineProperty(copiedObject, prop, descriptor);
+      return Reflect.defineProperty(copiedObject!, prop, descriptor);
     },
     ownKeys(target) {
       return Reflect.ownKeys(copiedObject ?? target);

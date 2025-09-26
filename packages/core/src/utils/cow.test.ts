@@ -45,3 +45,10 @@ test("copyOnWrite nested", () => {
 
   expect(copiedObj.a.c).toBe(2);
 });
+
+test("copyOnWrite nested array", () => {
+  const obj = { a: [] as number[] };
+  const copiedObj = copyOnWrite(obj);
+
+  copiedObj.a.push(1);
+});
