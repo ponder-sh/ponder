@@ -155,7 +155,7 @@ SELECT * FROM my_project.accounts;
 
 #### Removed `event.log.id`
 
-The `event.log.id` and `event.trace.id` properties were removed. Replace each occurence with the new `event.id` property (described below), or update the table definition to use a compound primary key that better represents the business logic / domain.
+The `event.log.id` and `event.trace.id` properties were removed. Replace each occurrence  with the new `event.id` property (described below), or update the table definition to use a compound primary key that better represents the business logic / domain.
 
 ```ts [src/index.ts]
 import { ponder } from "ponder:registry";
@@ -952,7 +952,7 @@ This change did NOT bust the sync cache; the tables were actually moved. This pr
 
 #### Replaced `p.bytes()` with `p.hex()`
 
-Removed `p.bytes()` in favor of a new `p.hex()` primitive column type. `p.hex()` is suitable for Ethereum addresses and other hex-encoded data, including EVM `bytes` types. `p.hex()` values are stored as `bytea` (Postgres) or `blob` (SQLite). To migrate, replace each occurence of `p.bytes()` in `ponder.schema.ts` with `p.hex()`, and ensure that any values you pass into hex columns are valid hexadecimal strings. The GraphQL API returns `p.hex()` values as hexadecimal strings, and allows sorting/filtering on `p.hex()` columns using the numeric comparison operators (`gt`, `gte`, `le`, `lte`).
+Removed `p.bytes()` in favor of a new `p.hex()` primitive column type. `p.hex()` is suitable for Ethereum addresses and other hex-encoded data, including EVM `bytes` types. `p.hex()` values are stored as `bytea` (Postgres) or `blob` (SQLite). To migrate, replace each occurrence  of `p.bytes()` in `ponder.schema.ts` with `p.hex()`, and ensure that any values you pass into hex columns are valid hexadecimal strings. The GraphQL API returns `p.hex()` values as hexadecimal strings, and allows sorting/filtering on `p.hex()` columns using the numeric comparison operators (`gt`, `gte`, `le`, `lte`).
 
 ### New features
 
