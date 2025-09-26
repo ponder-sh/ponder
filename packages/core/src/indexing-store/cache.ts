@@ -208,13 +208,17 @@ const getBytes = (value: unknown) => {
   } else if (value === null || value === undefined) {
     size += 8;
   } else if (Array.isArray(value)) {
+    size += 24; // NodeJs object overhead (3 * 8 bytes)
+
     for (const e of value) {
-      size += getBytes(e);
+      // value + 8 bytes for the key
+      size += getBytes(e) + 8;
     }
   } else {
     size += 24; // NodeJs object overhead (3 * 8 bytes)
     for (const col of Object.values(value)) {
-      size += getBytes(col) + 8; // value + 8 bytes for the key
+      // value + 8 bytes for the key
+      size += getBytes(col) + 8;
     }
   }
 
