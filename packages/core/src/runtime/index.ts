@@ -269,32 +269,24 @@ export const getCachedBlock = ({
       ),
     );
 
-    if (completedIntervals.length === 0) return undefined;
+    if (completedIntervals.length === 0) {
+      // Use `fromBlock` - 1 as completed block if no intervals are complete.
+      if ((filter.fromBlock ?? 0) === 0) return undefined;
+      return filter.fromBlock! - 1;
+    }
 
     const earliestCompletedInterval = completedIntervals[0]!;
     if (earliestCompletedInterval[0] !== (filter.fromBlock ?? 0)) {
-      return undefined;
+      // Use `fromBlock` - 1 as completed block if the earliest
+      // completed interval does not start at `fromBlock`.
+      if ((filter.fromBlock ?? 0) === 0) return undefined;
+      return filter.fromBlock! - 1;
     }
     return earliestCompletedInterval[1];
   });
 
-  const minCompletedBlock = Math.min(
-    ...(latestCompletedBlocks.filter(
-      (block) => block !== undefined,
-    ) as number[]),
-  );
-
-  //  Filter i has known progress if a completed interval is found or if
-  // `_latestCompletedBlocks[i]` is undefined but `filters[i].fromBlock`
-  // is > `_minCompletedBlock`.
-
-  if (
-    latestCompletedBlocks.every(
-      (block, i) =>
-        block !== undefined || (filters[i]!.fromBlock ?? 0) > minCompletedBlock,
-    )
-  ) {
-    return minCompletedBlock;
+  if (latestCompletedBlocks.every((block) => block !== undefined)) {
+    return Math.min(...(latestCompletedBlocks as number[]));
   }
 
   return undefined;
