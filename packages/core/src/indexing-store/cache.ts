@@ -208,12 +208,17 @@ const getBytes = (value: unknown) => {
   } else if (value === null || value === undefined) {
     size += 8;
   } else if (Array.isArray(value)) {
+    size += 24; // NodeJs object overhead (3 * 8 bytes)
+
     for (const e of value) {
-      size += getBytes(e);
+      // value + 8 bytes for the key
+      size += getBytes(e) + 8;
     }
   } else {
+    size += 24; // NodeJs object overhead (3 * 8 bytes)
     for (const col of Object.values(value)) {
-      size += getBytes(col);
+      // value + 8 bytes for the key
+      size += getBytes(col) + 8;
     }
   }
 
@@ -627,7 +632,7 @@ export const createIndexingCache = ({
             let bytes = 0;
             for (const [key, entry] of insertBuffer.get(table)!) {
               if (shouldRecordBytes && tableCache.cache.has(key) === false) {
-                bytes += getBytes(entry.row);
+                bytes += getBytes(entry.row) + getBytes(key);
               }
               tableCache.cache.set(key, entry.row);
             }
@@ -762,7 +767,7 @@ export const createIndexingCache = ({
             let bytes = 0;
             for (const [key, entry] of updateBuffer.get(table)!) {
               if (shouldRecordBytes && tableCache.cache.has(key) === false) {
-                bytes += getBytes(entry.row);
+                bytes += getBytes(entry.row) + getBytes(key);
               }
               tableCache.cache.set(key, entry.row);
             }
@@ -830,7 +835,7 @@ export const createIndexingCache = ({
               let bytes = 0;
               for (const [key, entry] of insertBuffer.get(table)!) {
                 if (shouldRecordBytes && tableCache.cache.has(key) === false) {
-                  bytes += getBytes(entry.row);
+                  bytes += getBytes(entry.row) + getBytes(key);
                 }
                 tableCache.cache.set(key, entry.row);
               }
@@ -932,7 +937,7 @@ export const createIndexingCache = ({
               let bytes = 0;
               for (const [key, entry] of updateBuffer.get(table)!) {
                 if (shouldRecordBytes && tableCache.cache.has(key) === false) {
-                  bytes += getBytes(entry.row);
+                  bytes += getBytes(entry.row) + getBytes(key);
                 }
                 tableCache.cache.set(key, entry.row);
               }
