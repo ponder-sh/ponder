@@ -1,5 +1,11 @@
 # ponder
 
+## 0.13.7
+
+### Patch Changes
+
+- [#2069](https://github.com/ponder-sh/ponder/pull/2069) [`e5b247e`](https://github.com/ponder-sh/ponder/commit/e5b247ee489e9bd8c463cadfd19832cd85bdabf2) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved accuracy of the historical sync rpc cache. Fixed an edge case that would cause many logs similar to `Synced 26 'arbitrum' blocks in range [100283003, 100283028]`.
+
 ## 0.13.6
 
 ### Patch Changes
