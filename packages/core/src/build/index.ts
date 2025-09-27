@@ -272,7 +272,7 @@ export const createBuild = async ({
         } catch (e) {
           common.logger.warn({
             service: "build",
-            msg: `Unable to read contents of file '${file}' while constructin build ID`,
+            msg: `Unable to read contents of file '${file}' while constructing build ID`,
           });
           hash.update(file);
         }
@@ -474,7 +474,7 @@ export const createBuild = async ({
       } as const;
     },
     compileIndexingConfig({ configResult }) {
-      // Validates and build the config
+      // Validates and builds the config
       const buildConfigResult = safeBuildConfig({
         common,
         config: configResult.config,
@@ -502,7 +502,7 @@ export const createBuild = async ({
       } as const;
     },
     async compileIndexing({ configResult, schemaResult, indexingResult }) {
-      // Validates and build the config
+      // Validates and builds the config
       const buildConfigAndIndexingFunctionsResult =
         await safeBuildConfigAndIndexingFunctions({
           common,
