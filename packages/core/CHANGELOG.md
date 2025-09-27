@@ -1,5 +1,13 @@
 # ponder
 
+## 0.13.8
+
+### Patch Changes
+
+- [#2073](https://github.com/ponder-sh/ponder/pull/2073) [`8a3bae0`](https://github.com/ponder-sh/ponder/commit/8a3bae03a3d8fb47f2590447361016eb5b59e54f) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved eventloop utilization.
+
+- [#2068](https://github.com/ponder-sh/ponder/pull/2068) [`b89fbf8`](https://github.com/ponder-sh/ponder/commit/b89fbf8386910a17c7cfad44d1f1484016832d44) Thanks [@goums](https://github.com/goums)! - Improve historical backfill memory usage.
+
 ## 0.13.7
 
 ### Patch Changes
