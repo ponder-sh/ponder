@@ -3,6 +3,7 @@
 [![CI status][ci-badge]][ci-url]
 [![Version][version-badge]][version-url]
 [![Telegram chat][tg-badge]][tg-url]
+[![Twitter][twitter-badge]][twitter-url]
 [![License][license-badge]][license-url]
 
 Ponder is an open-source framework for blockchain application backends.
@@ -184,3 +185,5 @@ Ponder is MIT-licensed open-source software.
 [license-url]: https://github.com/ponder-sh/ponder/blob/main/LICENSE
 [version-badge]: https://img.shields.io/npm/v/ponder
 [version-url]: https://github.com/ponder-sh/ponder/releases
+[twitter-badge]: https://img.shields.io/twitter/follow/ponder_sh
+[twitter-url]: https://x.com/ponder_sh
