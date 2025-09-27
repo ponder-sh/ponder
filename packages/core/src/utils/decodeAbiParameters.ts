@@ -1,8 +1,9 @@
-import type {
-  AbiParameter,
-  AbiParameterToPrimitiveType,
-  DecodeAbiParametersReturnType,
-  Hex,
+import {
+  type AbiParameter,
+  type AbiParameterToPrimitiveType,
+  type DecodeAbiParametersReturnType,
+  type Hex,
+  InvalidHexBooleanError,
 } from "viem";
 import {
   AbiDecodingDataSizeTooSmallError,
@@ -16,6 +17,8 @@ import {
 
 const TRUE_BOOL =
   "0x0000000000000000000000000000000000000000000000000000000000000001" as const;
+const FALSE_BOOL =
+  "0x0000000000000000000000000000000000000000000000000000000000000000" as const;
 const FIXED_ARRAY_REGEX = /^(.*)\[(\d+)\]$/;
 const DYNAMIC_ARRAY_REGEX = /^(.*)\[\]$/;
 
@@ -264,6 +267,11 @@ function _decodeAbiParameter(
   if (param.type === "bool") {
     const value = readWord(data);
     cursor.index += 64;
+
+    if (value !== TRUE_BOOL && value !== FALSE_BOOL) {
+      throw new InvalidHexBooleanError(value);
+    }
+
     return value === TRUE_BOOL;
   }
 
