@@ -1,3 +1,4 @@
+import { toBytes, zeroAddress } from "viem";
 import { expect, test } from "vitest";
 import { copy, copyOnWrite } from "./copy.js";
 
@@ -76,4 +77,15 @@ test("copy", () => {
   expect(copiedObj.b).toBe(2);
 
   copy([copiedObj]);
+});
+
+test("copy bytes", () => {
+  const obj = {
+    address: zeroAddress,
+    calldata: toBytes(zeroAddress),
+  };
+
+  const copiedObj = copy(obj);
+
+  expect(copiedObj.calldata).toBeInstanceOf(Uint8Array);
 });
