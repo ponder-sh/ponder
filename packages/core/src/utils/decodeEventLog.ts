@@ -32,9 +32,11 @@ export function decodeEventLog({
   const args: any = isUnnamed ? [] : {};
 
   // Decode topics (indexed args).
-  const indexedInputs = inputs.filter((x) => "indexed" in x && x.indexed);
+  const indexedInputs = inputs
+    .map((x, i) => [x, i] as const)
+    .filter(([x]) => "indexed" in x && x.indexed);
   for (let i = 0; i < indexedInputs.length; i++) {
-    const param = indexedInputs[i]!;
+    const [param, argIndex] = indexedInputs[i]!;
     const topic = topics[i + 1];
 
     if (topic === undefined) {
@@ -43,8 +45,7 @@ export function decodeEventLog({
         param: param as AbiParameter & { indexed: boolean },
       });
     }
-
-    args[isUnnamed ? i : param.name || i] = decodeTopic({
+    args[isUnnamed ? argIndex : param.name || argIndex] = decodeTopic({
       param,
       value: topic,
     });
@@ -61,8 +62,8 @@ export function decodeEventLog({
       });
       if (out) {
         if (isUnnamed) {
-          for (let i = 0; i < out.length; i++) {
-            args.push(out[i]);
+          for (let i = 0; i < inputs.length; i++) {
+            args[i] = args[i] ?? out.shift();
           }
         } else {
           for (let i = 0; i < nonIndexedInputs.length; i++) {
