@@ -1347,6 +1347,10 @@ let kill = await start({
   onBuild,
 });
 
+setInterval(() => {
+  console.log(APP_ID);
+}, 5_000);
+
 export const restart = async () => {
   if (RESTART_COUNT === 2) return;
   RESTART_COUNT += 1;
