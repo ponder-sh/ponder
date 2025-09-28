@@ -29,6 +29,9 @@ jobs:
       - uses: ./.github/actions/setup
       - uses: oven-sh/setup-bun@v2
 
+      - run: pnpm build
+      - run: pnpm install
+
       - name: Test ${{ matrix.app_id }} ${{ matrix.iteration }}
         run: |
           cd integration-test
