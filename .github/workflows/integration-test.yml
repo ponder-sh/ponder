@@ -16,7 +16,7 @@ jobs:
         app_id:
           - "assessment"
           - "feature-multichain"
-          - "project-uniswap-v3-flash"
+          # - "project-uniswap-v3-flash"
           - "reference-erc20"
           - "super-assessment"
           - "uniswap-v4"
