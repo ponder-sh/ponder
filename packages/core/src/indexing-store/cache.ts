@@ -11,6 +11,7 @@ import {
 import type {
   CrashRecoveryCheckpoint,
   Event,
+  PreBuild,
   SchemaBuild,
 } from "@/internal/types.js";
 import { dedupe } from "@/utils/dedupe.js";
@@ -89,6 +90,13 @@ const SAMPLING_RATE = 10;
 const PREDICTION_THRESHOLD = 0.25;
 const LOW_BATCH_THRESHOLD = 20;
 
+const ONE_YEAR = 31536000;
+const ONE_MONTH = 2592000;
+const ONE_WEEK = 604800;
+const ONE_DAY = 86400;
+const ONE_HOUR = 3600;
+const ONE_MINUTE = 60;
+
 /**
  * Database row.
  *
@@ -156,13 +164,27 @@ type ProfileKey = string;
 type Cache = Map<
   Table,
   {
-    cache: Map<CacheKey, Row | null>;
+    cache: Map<
+      CacheKey,
+      {
+        row: Row | null;
+        metadata?: {
+          insertChainId?: number;
+          insertBlockTimestamp?: number;
+        };
+      }
+    >;
     /** Cached keys that were prefetched. */
     prefetched: Set<CacheKey>;
     /** Cached keys that were not prefetched but were accessed anyway. */
     spillover: Set<CacheKey>;
     /** `true` if the cache completely mirrors the database. */
     isCacheComplete: boolean;
+    evictionPolicy: {
+      ttl?: number;
+      keepEvictedKeys?: boolean;
+    };
+    evictedKeys: Set<CacheKey>;
     /**
      * Estimated size of the cache in bytes.
      *
@@ -171,6 +193,17 @@ type Cache = Map<
     bytes: number;
     /** Number of times `get` missed the cached and read from the database. */
     diskReads: number;
+    /** Access patterns for the table. */
+    access: {
+      nbHits: number;
+      nbHitsNotExists: number;
+      maxHitAge: number;
+      cumulativeHitAge: bigint;
+      inserts: Map<
+        number,
+        { nbInserts: number; cumulativeInsertTimestamp: bigint }
+      >;
+    };
   }
 >;
 /**
@@ -223,6 +256,85 @@ const getBytes = (value: unknown) => {
   }
 
   return size;
+};
+
+const updateCacheAccessHit = (
+  cache: Cache,
+  table: Table,
+  event: Event,
+  insertBlockTimestamp: number | undefined,
+) => {
+  if (insertBlockTimestamp === undefined) {
+    insertBlockTimestamp = 0;
+  }
+  const hitAge = Number(event.event.block.timestamp) - insertBlockTimestamp;
+  const tableCacheAccess = cache.get(table)!.access;
+  tableCacheAccess.nbHits++;
+  tableCacheAccess.maxHitAge = Math.max(
+    tableCacheAccess.maxHitAge,
+    Number(hitAge),
+  );
+  tableCacheAccess.cumulativeHitAge += BigInt(hitAge);
+};
+
+const updateCacheAccessHitNotExists = (cache: Cache, table: Table) => {
+  cache.get(table)!.access.nbHitsNotExists++;
+};
+
+const updateCacheAccessInsert = (
+  cache: Cache,
+  table: Table,
+  insertChainId: number,
+  insertBlockTimestamp: number,
+) => {
+  const inserts = cache.get(table)!.access.inserts.get(insertChainId);
+  if (inserts) {
+    inserts.nbInserts++;
+    inserts.cumulativeInsertTimestamp += BigInt(insertBlockTimestamp);
+  } else {
+    cache.get(table)!.access.inserts.set(insertChainId, {
+      nbInserts: 1,
+      cumulativeInsertTimestamp: BigInt(insertBlockTimestamp),
+    });
+  }
+};
+
+const evictCache = (
+  table: Table,
+  cache: Cache,
+  nowByChainId: Map<number, number>,
+): number => {
+  if (!cache.get(table)!.isCacheComplete) return 0;
+  const evictionPolicy = cache.get(table)!.evictionPolicy;
+  if (evictionPolicy.ttl === undefined) return 0;
+
+  // Apply eviction policy
+  let evictedBytes = 0;
+  for (const [key, { row, metadata }] of cache.get(table)!.cache.entries()) {
+    if (metadata?.insertBlockTimestamp) {
+      const age =
+        nowByChainId.get(metadata.insertChainId!)! -
+        metadata.insertBlockTimestamp;
+      if (age > evictionPolicy.ttl!) {
+        // Subtract bytes when evicting cache entry
+        const bytes = getBytes(row);
+        cache.get(table)!.bytes -= bytes;
+        evictedBytes += bytes;
+        cache.get(table)!.cache.delete(key);
+        // Keep evicted keys, to allow non-existing hits detection
+        if (evictionPolicy.keepEvictedKeys) {
+          cache.get(table)!.evictedKeys.add(key);
+          cache.get(table)!.bytes += 40; // Set overhead
+        } else {
+          // Subtract key bytes
+          const keyBytes = getBytes(key);
+          cache.get(table)!.bytes -= keyBytes;
+          evictedBytes += keyBytes;
+        }
+      }
+    }
+  }
+  return evictedBytes;
 };
 
 const ESCAPE_REGEX = /([\\\b\f\n\r\t\v])/g;
@@ -344,11 +456,13 @@ export const recoverBatchError = async <T>(
 
 export const createIndexingCache = ({
   common,
+  preBuild: { ordering },
   schemaBuild: { schema },
   crashRecoveryCheckpoint,
   eventCount,
 }: {
   common: Common;
+  preBuild: Pick<PreBuild, "ordering">;
   schemaBuild: Pick<SchemaBuild, "schema">;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   eventCount: { [eventName: string]: number };
@@ -367,6 +481,11 @@ export const createIndexingCache = ({
   const tables = Object.values(schema).filter(isTable);
   const primaryKeyCache = getPrimaryKeyCache(tables);
 
+  /** Note: with 'multichain' ordering, we need to ensure cache access tracking & eviction is processed by chain
+   * as events are not chronologically ordered globally. */
+  const cacheAccessByChain = ordering === "multichain";
+  const lastBlockTimestampByChainId: Map<number, number> = new Map();
+
   for (const table of tables) {
     cache.set(table, {
       cache: new Map(),
@@ -375,6 +494,18 @@ export const createIndexingCache = ({
       isCacheComplete: crashRecoveryCheckpoint === undefined,
       bytes: 0,
       diskReads: 0,
+      evictionPolicy: {
+        ttl: undefined,
+        keepEvictedKeys: undefined,
+      },
+      evictedKeys: new Set(),
+      access: {
+        nbHits: 0,
+        nbHitsNotExists: 0,
+        maxHitAge: 0,
+        cumulativeHitAge: BigInt(0),
+        inserts: new Map(),
+      },
     });
     insertBuffer.set(table, new Map());
     updateBuffer.set(table, new Map());
@@ -422,6 +553,8 @@ export const createIndexingCache = ({
         }
       }
 
+      const shouldCollectCacheAccess = cache.get(table)!.isCacheComplete;
+
       const ck = getCacheKey(table, key, primaryKeyCache);
       // Note: order is important, it is an invariant that update entries
       // are prioritized over insert entries
@@ -433,7 +566,18 @@ export const createIndexingCache = ({
           table: getTableName(table),
           type: cache.get(table)!.isCacheComplete ? "complete" : "hit",
         });
-        return structuredClone(bufferEntry.row);
+
+        if (shouldCollectCacheAccess && event) {
+          // Get entity metadata from the cache (entity is always already in cache in case of update or insertOnConflict)
+          const cacheEntry = cache.get(table)!.cache.get(ck);
+          const insertTimestamp =
+            cacheEntry?.metadata?.insertBlockTimestamp ??
+            // Otherwise, for direct insert, we use the buffer metadata
+            Number(bufferEntry.metadata.event?.event?.block?.timestamp ?? 0);
+
+          updateCacheAccessHit(cache, table, event, insertTimestamp);
+        }
+        return bufferEntry.row;
       }
 
       const entry = cache.get(table)!.cache.get(ck);
@@ -450,17 +594,66 @@ export const createIndexingCache = ({
           table: getTableName(table),
           type: cache.get(table)!.isCacheComplete ? "complete" : "hit",
         });
-        return structuredClone(entry);
+
+        if (shouldCollectCacheAccess && event) {
+          updateCacheAccessHit(
+            cache,
+            table,
+            event,
+            entry?.metadata?.insertBlockTimestamp,
+          );
+        }
+
+        return entry.row;
       }
 
       cache.get(table)!.diskReads++;
 
       if (cache.get(table)!.isCacheComplete) {
-        common.metrics.ponder_indexing_cache_requests_total.inc({
-          table: getTableName(table),
-          type: "complete",
-        });
-        return null;
+        const evictionPolicy = cache.get(table)!.evictionPolicy;
+        if (evictionPolicy.ttl === undefined) {
+          common.metrics.ponder_indexing_cache_requests_total.inc({
+            table: getTableName(table),
+            type: "complete",
+          });
+
+          if (shouldCollectCacheAccess && event) {
+            updateCacheAccessHitNotExists(cache, table);
+          }
+
+          return null;
+        } else {
+          const evictedKeys = cache.get(table)!.evictedKeys;
+          // If the eviction policy is configured to keep evicted keys for this table
+          if (evictionPolicy.keepEvictedKeys) {
+            if (evictedKeys.has(ck)) {
+              // This key was evicted due to TTL, but the entity might still exist in DB
+              // Fall through to database query to check
+            } else {
+              // Key was never cached, so we can safely assume it doesn't exist
+              common.metrics.ponder_indexing_cache_requests_total.inc({
+                table: getTableName(table),
+                type: "complete",
+              });
+              if (shouldCollectCacheAccess && event) {
+                updateCacheAccessHitNotExists(cache, table);
+              }
+              return null;
+            }
+          } else {
+            // keepEvictedKeys is false, so we can't distinguish between evicted and non-existent
+            // Disable complete cache mode and fall back to database query
+            cache.get(table)!.isCacheComplete = false;
+            cache.get(table)!.bytes = 0;
+            cache.get(table)!.cache.clear();
+            cache.get(table)!.evictedKeys.clear();
+
+            common.logger.debug({
+              service: "indexing",
+              msg: `Evicting '${getTableName(table)}' cache after miss evicted hit`,
+            });
+          }
+        }
       }
 
       cache.get(table)!.spillover.add(ck);
@@ -478,7 +671,10 @@ export const createIndexingCache = ({
         )
         .then((res) => (res.length === 0 ? null : res[0]!))
         .then((row) => {
-          cache.get(table)!.cache.set(ck, structuredClone(row));
+          cache.get(table)!.cache.set(ck, {
+            row: structuredClone(row),
+            // Note: we don't need metadata because complete/evicted cache is disabled if we missed a hit
+          });
 
           // Note: the size is not recorded because it is not possible
           // to miss the cache when in the "full in-memory" mode
@@ -539,6 +735,8 @@ export const createIndexingCache = ({
       if (isFlushRetry && qb.$dialect === "postgres") {
         for (const table of cache.keys()) {
           const shouldRecordBytes = cache.get(table)!.isCacheComplete;
+          const shouldCollectCacheAccess = cache.get(table)!.isCacheComplete;
+
           if (
             tableNames !== undefined &&
             tableNames.has(getTableName(table)) === false
@@ -631,10 +829,32 @@ export const createIndexingCache = ({
 
             let bytes = 0;
             for (const [key, entry] of insertBuffer.get(table)!) {
-              if (shouldRecordBytes && tableCache.cache.has(key) === false) {
-                bytes += getBytes(entry.row) + getBytes(key);
+              if (tableCache.cache.has(key)) {
+                tableCache.cache.get(key)!.row = entry.row;
+              } else {
+                const insertBlockTimestamp = Number(
+                  entry.metadata.event?.event?.block?.timestamp ?? 0,
+                );
+                const insertChainId = entry.metadata.event?.chainId!;
+                tableCache.cache.set(key, {
+                  row: entry.row,
+                  metadata: {
+                    insertBlockTimestamp,
+                    insertChainId,
+                  },
+                });
+                if (shouldCollectCacheAccess) {
+                  updateCacheAccessInsert(
+                    cache,
+                    table,
+                    insertChainId,
+                    insertBlockTimestamp,
+                  );
+                }
+                if (shouldRecordBytes) {
+                  bytes += getBytes(entry.row) + getBytes(key);
+                }
               }
-              tableCache.cache.set(key, entry.row);
             }
             tableCache.bytes += bytes;
             insertBuffer.get(table)!.clear();
@@ -766,10 +986,29 @@ export const createIndexingCache = ({
 
             let bytes = 0;
             for (const [key, entry] of updateBuffer.get(table)!) {
-              if (shouldRecordBytes && tableCache.cache.has(key) === false) {
-                bytes += getBytes(entry.row) + getBytes(key);
+              if (tableCache.cache.has(key)) {
+                tableCache.cache.get(key)!.row = entry.row;
+              } else {
+                const insertBlockTimestamp = Number(
+                  entry.metadata.event?.event?.block?.timestamp ?? 0,
+                );
+                const insertChainId = entry.metadata.event?.chainId!;
+                tableCache.cache.set(key, {
+                  row: entry.row,
+                  metadata: { insertBlockTimestamp, insertChainId },
+                });
+                if (shouldCollectCacheAccess) {
+                  updateCacheAccessInsert(
+                    cache,
+                    table,
+                    insertChainId,
+                    insertBlockTimestamp,
+                  );
+                }
+                if (shouldRecordBytes) {
+                  bytes += getBytes(entry.row) + getBytes(key);
+                }
               }
-              tableCache.cache.set(key, entry.row);
             }
             tableCache.bytes += bytes;
             updateBuffer.get(table)!.clear();
@@ -794,6 +1033,7 @@ export const createIndexingCache = ({
         const results = await Promise.allSettled(
           Array.from(cache.keys()).map(async (table) => {
             const shouldRecordBytes = cache.get(table)!.isCacheComplete;
+            const shouldCollectCacheAccess = cache.get(table)!.isCacheComplete;
             if (
               tableNames !== undefined &&
               tableNames.has(getTableName(table)) === false
@@ -834,10 +1074,32 @@ export const createIndexingCache = ({
 
               let bytes = 0;
               for (const [key, entry] of insertBuffer.get(table)!) {
-                if (shouldRecordBytes && tableCache.cache.has(key) === false) {
-                  bytes += getBytes(entry.row) + getBytes(key);
+                if (tableCache.cache.has(key)) {
+                  tableCache.cache.get(key)!.row = entry.row;
+                } else {
+                  const insertBlockTimestamp = Number(
+                    entry.metadata.event?.event?.block?.timestamp ?? 0,
+                  );
+                  const insertChainId = entry.metadata.event?.chainId!;
+                  tableCache.cache.set(key, {
+                    row: entry.row,
+                    metadata: {
+                      insertBlockTimestamp,
+                      insertChainId,
+                    },
+                  });
+                  if (shouldCollectCacheAccess) {
+                    updateCacheAccessInsert(
+                      cache,
+                      table,
+                      insertChainId,
+                      insertBlockTimestamp,
+                    );
+                  }
+                  if (shouldRecordBytes) {
+                    bytes += getBytes(entry.row) + getBytes(key);
+                  }
                 }
-                tableCache.cache.set(key, entry.row);
               }
               tableCache.bytes += bytes;
               insertBuffer.get(table)!.clear();
@@ -936,10 +1198,29 @@ export const createIndexingCache = ({
 
               let bytes = 0;
               for (const [key, entry] of updateBuffer.get(table)!) {
-                if (shouldRecordBytes && tableCache.cache.has(key) === false) {
-                  bytes += getBytes(entry.row) + getBytes(key);
+                if (tableCache.cache.has(key)) {
+                  tableCache.cache.get(key)!.row = entry.row;
+                } else {
+                  const insertBlockTimestamp = Number(
+                    entry.metadata.event?.event?.block?.timestamp ?? 0,
+                  );
+                  const insertChainId = entry.metadata.event?.chainId!;
+                  tableCache.cache.set(key, {
+                    row: entry.row,
+                    metadata: { insertBlockTimestamp, insertChainId },
+                  });
+                  if (shouldCollectCacheAccess) {
+                    updateCacheAccessInsert(
+                      cache,
+                      table,
+                      insertChainId,
+                      insertBlockTimestamp,
+                    );
+                  }
+                  if (shouldRecordBytes) {
+                    bytes += getBytes(entry.row) + getBytes(key);
+                  }
                 }
-                tableCache.cache.set(key, entry.row);
               }
               tableCache.bytes += bytes;
               updateBuffer.get(table)!.clear();
@@ -966,34 +1247,164 @@ export const createIndexingCache = ({
       isFlushRetry = false;
     },
     async prefetch({ events }) {
+      const formatBytes = (bytes: number) => {
+        return `${(bytes / 1024 / 1024).toFixed(2)}mb`;
+      };
+      // Apply eviction policy before calculating total bytes
+      const nowByChainId: Map<number, number> = cacheAccessByChain
+        ? lastBlockTimestampByChainId
+        : new Map(
+            Array.from(lastBlockTimestampByChainId.keys()).map((chainId) => [
+              chainId,
+              Number(event!.event.block.timestamp),
+            ]),
+          );
+
+      for (const table of tables) {
+        const evictedBytes = evictCache(table, cache, nowByChainId);
+        console.log(
+          `table=${getTableName(table)} size=${cache.get(table)!.cache.size} cacheBytes=${formatBytes(cache.get(table)!.bytes)} evictedBytes=${formatBytes(evictedBytes)} ttl=${cache.get(table)!.evictionPolicy.ttl} keepEvictedKeys=${cache.get(table)!.evictionPolicy.keepEvictedKeys} evictedKeys=${cache.get(table)!.evictedKeys.size}`,
+        );
+      }
+
       let totalBytes = 0;
       for (const table of tables) {
         totalBytes += cache.get(table)!.bytes;
       }
+      const isCacheFull = totalBytes > common.options.indexingCacheMaxBytes;
+      if (isCacheFull) {
+        // Every time we reach the max cache size, we analyze the cache access patterns
+        // to adjust the cache eviction policies.
+        let evictedBytes = 0;
+        for (const table of tables) {
+          // Skip table if cache is not complete anymore
+          if (!cache.get(table)!.isCacheComplete) continue;
 
-      // If data from the cache needs to be evicted, start with the
-      // table with the least disk reads.
+          // Analyze table stats to determine if we can enable eviction policy
+          const evictionPolicy = cache.get(table)!.evictionPolicy;
+          let ttl: number | undefined;
+          let keepEvictedKeys: boolean | undefined;
 
-      if (totalBytes > common.options.indexingCacheMaxBytes) {
-        for (const table of tables.sort(
-          (a, b) => cache.get(a)!.diskReads - cache.get(b)!.diskReads,
-        )) {
-          if (cache.get(table)!.isCacheComplete === false) continue;
+          // Inserts age are measured chain by chain to ensure compatibility
+          // with "multichain" ordering, as events are not chronologically
+          // ordered globally.
+          let totalInserts = 0;
+          let totalItemsAge = 0;
 
-          common.logger.debug({
-            service: "indexing",
-            msg: `Evicting '${getTableName(table)}' rows from cache`,
-          });
+          for (const [chainId, inserts] of cache
+            .get(table)!
+            .access.inserts.entries()) {
+            const now = cacheAccessByChain
+              ? lastBlockTimestampByChainId.get(chainId)!
+              : Number(event!.event.block.timestamp);
+            const avgInsertTime =
+              inserts.nbInserts > 0
+                ? Number(inserts.cumulativeInsertTimestamp) / inserts.nbInserts
+                : 0;
+            const avgItemAge = now - avgInsertTime;
 
-          totalBytes -= cache.get(table)!.bytes;
+            console.log(
+              `${getTableName(table)} - InsertStats - chainId=${chainId} nbInserts=${inserts.nbInserts} cumulativeInsertTimestamp=${inserts.cumulativeInsertTimestamp} now=${now} avgItemAge=${avgItemAge}`,
+            );
+            totalInserts += inserts.nbInserts;
+            totalItemsAge += avgItemAge * inserts.nbInserts;
+          }
 
-          cache.get(table)!.bytes = 0;
-          cache.get(table)!.cache.clear();
-          cache.get(table)!.isCacheComplete = false;
-          // Note: spillover is not cleared because it is an invariant
-          // it is empty
+          const avgItemAge =
+            totalInserts > 0 ? totalItemsAge / totalInserts : 0;
+          const avgHitAge =
+            cache.get(table)!.access.nbHits > 0
+              ? cache.get(table)!.access.cumulativeHitAge /
+                BigInt(cache.get(table)!.access.nbHits)
+              : 0n;
+          const maxHitAge = cache.get(table)!.access.maxHitAge;
+          const hitsPerEntries = cache.get(table)!.access.nbHits / totalInserts;
+          const hitsNotExists = cache.get(table)!.access.nbHitsNotExists;
 
-          if (totalBytes < common.options.indexingCacheMaxBytes) break;
+          // Note: hitAgeRatio is the main metric to determine the table profile
+          // hitAgeRatio > 1 = items are accessed uniformly over a long time span (profile: dictionary, relational)
+          // hitAgeRatio < 1 = items are accessed only over a short time span (profile: event, aggregation)
+          const hitAgeRatio = maxHitAge / avgItemAge;
+
+          console.log(
+            `${getTableName(table)} - AccessStats - inserts: ${totalInserts} avgItemAge: ${avgItemAge} hits: ${cache.get(table)!.access.nbHits} avgHitAge: ${avgHitAge} maxHitAge: ${maxHitAge} hitAgeRatio: ${hitAgeRatio} hitsPerEntries: ${hitsPerEntries} hitsNotExists: ${hitsNotExists}`,
+          );
+
+          if (totalInserts < 1000) {
+            // TableProfile = Dictionary: *low number of items*, high access rate, long access time span
+          } else if (maxHitAge < ONE_MINUTE) {
+            // TableProfile = Events: high number of items, low access rate, *very short access time span*
+            ttl = Math.max(maxHitAge, ONE_MINUTE) * 1.5; // 1.5x maxHitAge, (min 1 minute)
+            keepEvictedKeys = hitsNotExists > 0; // Keep evicted keys to resolve onConflict/find=>null patterns
+          } else if (hitAgeRatio >= 1) {
+            // TableProfile = Relational: medium number of items, high access rate, *long access time span*
+          } else if (hitAgeRatio < 1) {
+            // TableProfile = Aggregation: medium number of items, high access rate, *delimited access time span*
+            keepEvictedKeys = hitsNotExists > 0; // Keep evicted keys to resolve onConflict/find=>null patterns
+
+            // Round cache eviction to the above logical time interval: hour, day, week, month, year
+            if (maxHitAge > ONE_YEAR || hitAgeRatio > 0.5) {
+              // Don't enable cache eviction if:
+              // - maxHitAge > ONE_YEAR: items are accessed over a too long time span
+              // - hitAgeRatio > 0.5: items are not old enough for reliable eviction ttl (it will be determined on next limit hit)
+              ttl = undefined;
+            } else if (maxHitAge > ONE_MONTH) {
+              ttl = ONE_YEAR;
+            } else if (maxHitAge > ONE_WEEK) {
+              ttl = ONE_MONTH;
+            } else if (maxHitAge > ONE_DAY) {
+              ttl = ONE_WEEK;
+            } else if (maxHitAge > ONE_HOUR) {
+              ttl = ONE_DAY;
+            } else if (maxHitAge > ONE_MINUTE) {
+              ttl = ONE_HOUR;
+            } else {
+              ttl = Math.max(maxHitAge, ONE_MINUTE) * 1.5; // 1.5x maxHitAge, (min 1 minute)
+            }
+          }
+
+          cache.get(table)!.evictionPolicy = {
+            ttl,
+            keepEvictedKeys,
+          };
+
+          if (ttl !== undefined && ttl !== evictionPolicy.ttl) {
+            common.logger.debug({
+              service: "indexing",
+              msg: `Updating eviction policy for '${getTableName(table)}' to ttl=${ttl} keepEvictedKeys=${keepEvictedKeys}`,
+            });
+            evictedBytes += evictCache(table, cache, nowByChainId);
+          }
+        }
+
+        console.log(
+          `Evicted ${evictedBytes} bytes from cache after applying new eviction policy`,
+        );
+        // If no data was evicted from eviction policy, we need to remove the least used table from the cache
+        if (evictedBytes === 0) {
+          // If data from the cache needs to be evicted, start with the
+          // table with the least disk reads.
+          for (const table of tables.sort(
+            (a, b) => cache.get(a)!.diskReads - cache.get(b)!.diskReads,
+          )) {
+            if (cache.get(table)!.isCacheComplete === false) continue;
+
+            common.logger.debug({
+              service: "indexing",
+              msg: `Evicting '${getTableName(table)}' table from cache`,
+            });
+
+            totalBytes -= cache.get(table)!.bytes;
+
+            cache.get(table)!.isCacheComplete = false;
+            cache.get(table)!.bytes = 0;
+            cache.get(table)!.cache.clear();
+            cache.get(table)!.evictedKeys.clear();
+            // Note: spillover is not cleared because it is an invariant
+            // it is empty
+
+            if (totalBytes < common.options.indexingCacheMaxBytes) break;
+          }
         }
       }
 
@@ -1095,9 +1506,15 @@ export const createIndexingCache = ({
                 const tableCache = cache.get(table)!;
                 for (const key of tablePredictions.keys()) {
                   if (resultsPerKey.has(key)) {
-                    tableCache.cache.set(key, resultsPerKey.get(key)!);
+                    tableCache.cache.set(key, {
+                      row: resultsPerKey.get(key)!,
+                      // Note: we don't set metadata, because table is not complete or using eviction policy anymore
+                    });
                   } else {
-                    tableCache.cache.set(key, null);
+                    tableCache.cache.set(key, {
+                      row: null,
+                      // Note: we don't set metadata, because table is not complete or using eviction policy anymore
+                    });
                   }
                 }
               });
@@ -1119,8 +1536,10 @@ export const createIndexingCache = ({
     },
     clear() {
       for (const tableCache of cache.values()) {
+        tableCache.bytes = 0;
         tableCache.cache.clear();
         tableCache.spillover.clear();
+        tableCache.evictedKeys.clear();
       }
 
       for (const tableBuffer of insertBuffer.values()) {
@@ -1133,6 +1552,12 @@ export const createIndexingCache = ({
     },
     set event(_event: Event | undefined) {
       event = _event;
+      if (_event?.chainId) {
+        lastBlockTimestampByChainId.set(
+          _event?.chainId,
+          Number(_event.event.block.timestamp),
+        );
+      }
     },
     set qb(_qb: QB) {
       qb = _qb;

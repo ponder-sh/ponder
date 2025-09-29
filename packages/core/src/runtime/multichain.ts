@@ -125,6 +125,7 @@ export async function runMultichain({
 
   const indexingCache = createIndexingCache({
     common,
+    preBuild,
     schemaBuild,
     crashRecoveryCheckpoint,
     eventCount,

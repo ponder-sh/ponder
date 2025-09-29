@@ -127,6 +127,7 @@ export async function runOmnichain({
 
   const indexingCache = createIndexingCache({
     common,
+    preBuild,
     schemaBuild,
     crashRecoveryCheckpoint,
     eventCount,

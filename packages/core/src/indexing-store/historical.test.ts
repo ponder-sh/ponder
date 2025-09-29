@@ -51,6 +51,7 @@ test("find", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -112,6 +113,7 @@ test("insert", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -269,6 +271,7 @@ test("update", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -365,6 +368,7 @@ test("update throw error when primary key is updated", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -440,6 +444,7 @@ test("delete", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -505,6 +510,7 @@ test("sql", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -584,6 +590,7 @@ test("sql followed by find", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -629,6 +636,7 @@ test("sql with error", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -674,6 +682,7 @@ test("onchain table", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -712,6 +721,7 @@ test("missing rows", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -752,6 +762,7 @@ test("unawaited promise", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -794,6 +805,7 @@ test("notNull", async (context) => {
 
   let indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -846,6 +858,7 @@ test("notNull", async (context) => {
 
     indexingCache = createIndexingCache({
       common: context.common,
+      preBuild: { ordering: "multichain" },
       schemaBuild: { schema },
       crashRecoveryCheckpoint: undefined,
       eventCount: {},
@@ -889,6 +902,7 @@ test("default", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -927,6 +941,7 @@ test("$default", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -968,6 +983,7 @@ test("$onUpdateFn", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -1022,6 +1038,7 @@ test("basic columns", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -1094,6 +1111,7 @@ test("array", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -1144,6 +1162,7 @@ test("text array", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -1200,6 +1219,7 @@ test("enum", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -1250,6 +1270,7 @@ test("json bigint", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -1289,6 +1310,7 @@ test("bytes", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -1337,6 +1359,7 @@ test("text with null bytes", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -1385,6 +1408,7 @@ test.skip("time", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -1433,6 +1457,7 @@ test("timestamp", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -1481,6 +1506,7 @@ test.skip("date", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -1529,6 +1555,7 @@ test.skip("interval", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -1577,6 +1604,7 @@ test("point", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
@@ -1625,6 +1653,7 @@ test("line", async (context) => {
 
   const indexingCache = createIndexingCache({
     common: context.common,
+    preBuild: { ordering: "multichain" },
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
     eventCount: {},
