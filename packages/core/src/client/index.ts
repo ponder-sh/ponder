@@ -138,16 +138,16 @@ export const client = ({
         try {
           await validateQuery(query.sql);
 
-          return await globalThis.PONDER_DATABASE.readonlyQB.raw.transaction(
-            async (tx) => {
-              const result = await tx._.session
-                .prepareQuery(query, undefined, undefined, false)
-                .execute();
-
-              return c.json(result as object);
-            },
-            { accessMode: "read only" },
-          );
+          const result =
+            await globalThis.PONDER_DATABASE.readonlyQB.raw.transaction(
+              (tx) => {
+                return tx._.session
+                  .prepareQuery(query, undefined, undefined, false)
+                  .execute();
+              },
+              { accessMode: "read only" },
+            );
+          return c.json(result as object);
         } catch (error) {
           (error as Error).stack = undefined;
           return c.text((error as Error).message, 500);
