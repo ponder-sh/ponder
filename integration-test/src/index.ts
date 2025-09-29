@@ -1,3 +1,4 @@
+import childProcess from "node:child_process";
 import crypto from "node:crypto";
 import { type PonderApp, start } from "@ponder/bin/commands/start.js";
 import { createQB } from "@ponder/database/queryBuilder.js";
@@ -13,8 +14,8 @@ import * as PONDER_SYNC from "@ponder/sync-store/schema.js";
 import { getChunks, intervalUnion } from "@ponder/utils/interval.js";
 import { promiseWithResolvers } from "@ponder/utils/promiseWithResolvers.js";
 import { _eth_getBlockByNumber } from "@ponder/utils/rpc.js";
-import { $ } from "bun";
 import { Command } from "commander";
+import dotenv from "dotenv";
 import {
   type SQL,
   Table,
@@ -46,6 +47,8 @@ import { metadata } from "../schema.js";
 import { dbSim } from "./db-sim.js";
 import { type RpcBlockHeader, realtimeBlockEngine, sim } from "./rpc-sim.js";
 import { getJoinConditions } from "./sql.js";
+
+dotenv.config({ path: ".env.local" });
 
 // Large apps that shouldn't be synced, use cached data instead
 const CACHED_APPS = ["the-compact", "basepaint"];
@@ -181,8 +184,11 @@ const getAddressCondition = <
 
 // 2. Write metadata
 
-const branch = await $`git rev-parse --abbrev-ref HEAD`.text();
-const commit = await $`git rev-parse HEAD`.text();
+const branchResult = childProcess.execSync("git rev-parse --abbrev-ref HEAD");
+const commitResult = childProcess.execSync("git rev-parse HEAD");
+
+const branch = branchResult.toString().trim();
+const commit = commitResult.toString().trim();
 
 await DB.insert(metadata).values({
   id: UUID,
@@ -243,7 +249,7 @@ const pwr = promiseWithResolvers<void>();
 const onBuild = async (app: PonderApp) => {
   APP = app;
 
-  app.preBuild.ordering = SIM_PARAMS.ORDERING;
+  app.preBuild.ordering = SIM_PARAMS.ORDERING as "multichain" | "omnichain";
   app.common.options.syncEventsQuerySize = 200;
 
   app.common.logger.warn({
@@ -1219,7 +1225,7 @@ const onBuild = async (app: PonderApp) => {
     const intervals = intervalUnion(
       app.indexingBuild.sources
         .filter(({ filter }) => filter.chainId === chain.id)
-        .map(({ filter }) => [filter.fromBlock, filter.toBlock]!),
+        .map(({ filter }) => [filter.fromBlock!, filter.toBlock!]),
     );
 
     const end = intervals[intervals.length - 1]![1];

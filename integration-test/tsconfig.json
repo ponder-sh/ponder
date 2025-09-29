@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
     "paths": {
-      "@ponder/*": ["../packages/core/src/*"]
+      "@ponder/*": ["../packages/core/src/*"],
+      "@/*": ["../packages/core/src/*"]
     },
     // Type checking
     "strict": true,
