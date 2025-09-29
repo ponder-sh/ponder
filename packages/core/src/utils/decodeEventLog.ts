@@ -39,7 +39,7 @@ export function decodeEventLog({
     const [param, argIndex] = indexedInputs[i]!;
     const topic = topics[i + 1];
 
-    if (topic === undefined) {
+    if (!topic) {
       throw new DecodeLogTopicsMismatch({
         abiItem,
         param: param as AbiParameter & { indexed: boolean },
