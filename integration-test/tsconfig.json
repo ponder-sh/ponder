@@ -1,5 +1,8 @@
 {
   "compilerOptions": {
+    "paths": {
+      "@ponder/*": ["../packages/core/src/*"]
+    },
     // Type checking
     "strict": true,
     "noUncheckedIndexedAccess": true,

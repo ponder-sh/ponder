@@ -1,4 +1,7 @@
 import crypto from "node:crypto";
+import { zeroLogsBloom } from "@ponder/sync-realtime/bloom.js";
+import { promiseWithResolvers } from "@ponder/utils/promiseWithResolvers.js";
+import { createQueue } from "@ponder/utils/queue.js";
 import { and, eq } from "drizzle-orm";
 import seedrandom from "seedrandom";
 import {
@@ -11,9 +14,6 @@ import {
   hexToNumber,
   toHex,
 } from "viem";
-import { zeroLogsBloom } from "../../packages/core/src/sync-realtime/bloom.js";
-import { promiseWithResolvers } from "../../packages/core/src/utils/promiseWithResolvers.js";
-import { createQueue } from "../../packages/core/src/utils/queue.js";
 import * as RPC_SCHEMA from "../schema.js";
 import { APP, DB, IS_REALTIME, SEED, SIM_PARAMS, restart } from "./index.js";
 
@@ -192,7 +192,44 @@ export const sim =
           break;
         }
         case "eth_getLogs": {
-          let logs: RpcLog[] = [];
+          const filterLogs = (logs: RpcLog[]) => {
+            if ("address" in body.params[0] && body.params[0].address) {
+              if (Array.isArray(body.params[0].address)) {
+                logs = logs.filter((log) =>
+                  (body.params[0].address as Address[]).some(
+                    (address) =>
+                      address.toLowerCase() === log.address.toLowerCase(),
+                  ),
+                );
+              } else {
+                logs = logs.filter(
+                  (log) =>
+                    body.params[0].address.toLowerCase() ===
+                    log.address.toLowerCase(),
+                );
+              }
+            }
+
+            if ("topics" in body.params[0] && body.params[0].topics) {
+              for (let i = 0; i < body.params[0].topics.length; i++) {
+                if (Array.isArray(body.params[0].topics[i])) {
+                  logs = logs.filter((log) =>
+                    (body.params[0].topics[i] as Hash[]).includes(
+                      log.topics[i]!,
+                    ),
+                  );
+                } else if (body.params[0].topics[i] !== null) {
+                  logs = logs.filter(
+                    (log) => body.params[0].topics[i] === log.topics[i]!,
+                  );
+                }
+              }
+            }
+
+            return logs;
+          };
+
+          const logs: RpcLog[] = [];
 
           if ("fromBlock" in body.params[0] && "toBlock" in body.params[0]) {
             for (
@@ -211,7 +248,7 @@ export const sim =
                 .then((logs) => logs[0]);
 
               if (_logs) {
-                logs.push(...(_logs.body as RpcLog[]));
+                logs.push(...filterLogs(_logs.body as RpcLog[]));
               } else {
                 const rpcLogs = await _request({
                   method: "eth_getLogs",
@@ -223,7 +260,7 @@ export const sim =
                   ],
                 });
                 // @ts-expect-error
-                logs.push(...rpcLogs);
+                logs.push(...filterLogs(rpcLogs));
                 await DB.insert(RPC_SCHEMA.logs)
                   .values({
                     chainId: chain!.id,
@@ -263,11 +300,11 @@ export const sim =
               .then((logs) => logs[0]);
 
             if (_logs) {
-              logs.push(...(_logs.body as RpcLog[]));
+              logs.push(...filterLogs(_logs.body as RpcLog[]));
             } else {
               const rpcLogs = await _request(body);
               // @ts-expect-error
-              logs.push(...rpcLogs);
+              logs.push(...filterLogs(rpcLogs));
               await DB.insert(RPC_SCHEMA.logs)
                 .values({
                   chainId: chain!.id,
@@ -278,37 +315,6 @@ export const sim =
             }
           } else {
             throw new Error("Invariant broken. Invalid eth_getLogs request.");
-          }
-
-          if ("address" in body.params[0] && body.params[0].address) {
-            if (Array.isArray(body.params[0].address)) {
-              logs = logs.filter((log) =>
-                (body.params[0].address as Address[]).some(
-                  (address) =>
-                    address.toLowerCase() === log.address.toLowerCase(),
-                ),
-              );
-            } else {
-              logs = logs.filter(
-                (log) =>
-                  body.params[0].address.toLowerCase() ===
-                  log.address.toLowerCase(),
-              );
-            }
-          }
-
-          if ("topics" in body.params[0] && body.params[0].topics) {
-            for (let i = 0; i < body.params[0].topics.length; i++) {
-              if (Array.isArray(body.params[0].topics[i])) {
-                logs = logs.filter((log) =>
-                  (body.params[0].topics[i] as Hash[]).includes(log.topics[i]!),
-                );
-              } else if (body.params[0].topics[i] !== null) {
-                logs = logs.filter(
-                  (log) => body.params[0].topics[i] === log.topics[i]!,
-                );
-              }
-            }
           }
 
           result = logs;
@@ -493,6 +499,8 @@ export const sim =
           throw new Error("backend response too large");
         }
       }
+
+      await new Promise(setImmediate);
 
       return result;
     };
