@@ -284,6 +284,12 @@ export async function runMultichain({
     });
   }
 
+  if (common.options.databaseIndexesEarly) {
+    await createIndexes(database.adminQB, {
+      statements: schemaBuild.statements,
+    });
+  }
+
   // Run historical indexing until complete.
   for await (const events of recordAsyncGenerator(
     getHistoricalEventsMultichain({
@@ -495,7 +501,12 @@ export async function runMultichain({
 
   const tables = Object.values(schemaBuild.schema).filter(isTable);
 
-  await createIndexes(database.adminQB, { statements: schemaBuild.statements });
+  if (common.options.databaseIndexesEarly === false) {
+    await createIndexes(database.adminQB, {
+      statements: schemaBuild.statements,
+    });
+  }
+
   await createTriggers(database.adminQB, { tables });
   if (namespaceBuild.viewsSchema !== undefined) {
     await createViews(database.adminQB, { tables, namespaceBuild });
