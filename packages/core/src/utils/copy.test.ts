@@ -89,3 +89,14 @@ test("copy bytes", () => {
 
   expect(copiedObj.calldata).toBeInstanceOf(Uint8Array);
 });
+
+test("copy timestamp", () => {
+  const obj = {
+    address: zeroAddress,
+    timestamp: new Date(1742925862000),
+  };
+
+  const copiedObj = copy(obj);
+
+  expect(copiedObj.timestamp).toBeInstanceOf(Date);
+});

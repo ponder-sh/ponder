@@ -1,5 +1,8 @@
 export const COPY_ON_WRITE = Symbol.for("ponder:copyOnWrite");
 
+/**
+ * Create a copy-on-write proxy for an object.
+ */
 export const copyOnWrite = <T extends object>(obj: T): T => {
   const isArray = Array.isArray(obj);
   let copiedObject: T | undefined;
@@ -68,26 +71,64 @@ export const copyOnWrite = <T extends object>(obj: T): T => {
   });
 };
 
+/**
+ * Create a deep copy of an object.
+ *
+ * @dev This function supports copying objects that
+ * have been created with `copyOnWrite`.
+ */
 export const copy = <T>(obj: T): T => {
   if (obj === null || typeof obj !== "object") {
     return obj;
   }
 
+  const hasProxy = (obj: any): boolean => {
+    if (obj === null || typeof obj !== "object") {
+      return false;
+    }
+
+    if (obj[COPY_ON_WRITE] !== undefined) {
+      return true;
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.some((element) => hasProxy(element));
+    }
+
+    for (const value of Object.values(obj)) {
+      if (hasProxy(value)) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
   // @ts-expect-error
   const proxy = obj[COPY_ON_WRITE];
   if (proxy === undefined) {
     if (Array.isArray(obj)) {
-      // @ts-expect-error
-      return obj.map((element) => copy(element));
+      if (hasProxy(obj)) {
+        // @ts-expect-error
+        return obj.map((element) => copy(element));
+      }
+
+      return [...obj] as T;
     }
 
-    const result = {} as T;
-    for (const [key, value] of Object.entries(obj)) {
-      // @ts-expect-error
-      result[key] = copy(value);
+    if (hasProxy(obj)) {
+      const result = {} as T;
+      for (const [key, value] of Object.entries(obj)) {
+        // @ts-expect-error
+        result[key] = copy(value);
+      }
+
+      return result;
     }
 
-    return result;
+    const copiedObject = Object.create(Object.getPrototypeOf(obj));
+    Object.assign(copiedObject, obj);
+    return copiedObject;
   }
 
   return proxy;
