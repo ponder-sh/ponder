@@ -61,16 +61,21 @@ export const client = ({
     (async () => {
       let client: pg.PoolClient | undefined;
 
-      globalThis.PONDER_COMMON.apiShutdown.add(() => {
-        client?.release();
-        client = undefined;
-      });
+      let hasRegisteredShutdown = false;
 
       while (globalThis.PONDER_COMMON.apiShutdown.isKilled === false) {
         // biome-ignore lint/suspicious/noAsyncPromiseExecutor: <explanation>
         await new Promise<void>(async (resolve) => {
           try {
             client = await driver.admin.connect();
+
+            if (hasRegisteredShutdown === false) {
+              globalThis.PONDER_COMMON.apiShutdown.add(() => {
+                client?.release();
+                client = undefined;
+              });
+              hasRegisteredShutdown = true;
+            }
 
             globalThis.PONDER_COMMON.logger.info({
               service: "client",
@@ -135,24 +140,22 @@ export const client = ({
           return c.text((error as Error).message, 500);
         }
       } else {
-        const client = await driver.readonly.connect();
-
         try {
           await validateQuery(query.sql);
-          await client.query("BEGIN READ ONLY");
-          const result = await session
-            .prepareQuery(query, undefined, undefined, false)
-            .execute();
+
+          const result =
+            await globalThis.PONDER_DATABASE.readonlyQB.raw.transaction(
+              (tx) => {
+                return tx._.session
+                  .prepareQuery(query, undefined, undefined, false)
+                  .execute();
+              },
+              { accessMode: "read only" },
+            );
           return c.json(result as object);
         } catch (error) {
           (error as Error).stack = undefined;
           return c.text((error as Error).message, 500);
-        } finally {
-          try {
-            await client.query("ROLLBACK");
-          } finally {
-            client.release();
-          }
         }
       }
     }

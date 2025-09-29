@@ -200,3 +200,42 @@ FROM infinite_cte;`,
   expect(response.status).toBe(500);
   expect(await response.text()).toContain("Recursive CTEs not supported");
 });
+
+test("client.db load", async (context) => {
+  globalThis.PONDER_COMMON = context.common;
+  globalThis.PONDER_NAMESPACE_BUILD = {
+    schema: "public",
+    viewsSchema: undefined,
+  };
+
+  const account = onchainTable("account", (p) => ({
+    address: p.hex().primaryKey(),
+    balance: p.bigint(),
+  }));
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema: { account } },
+  });
+
+  globalThis.PONDER_DATABASE = database;
+
+  const app = new Hono().use(
+    client({
+      db: database.readonlyQB.raw,
+      schema: { account },
+    }),
+  );
+
+  const query = {
+    sql: "SELECT * FROM account",
+    params: [],
+  };
+
+  const promises = new Array(250).map(async () => {
+    const response = await app.request(`/sql/db?${queryToParams(query)}`);
+    const result = await response.json();
+    return result;
+  });
+
+  await Promise.all(promises);
+});
