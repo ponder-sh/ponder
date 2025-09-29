@@ -8,7 +8,7 @@ on:
 jobs:
   integration-test:
     name: Integration Test
-    runs-on: default
+    runs-on: railway
     timeout-minutes: 60
     strategy:
       fail-fast: false
