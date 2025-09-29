@@ -199,7 +199,7 @@ export const createHistoricalIndexingStore = ({
                       ponderRows.push(
                         indexingCache.set({
                           table,
-                          key: value,
+                          key: ponderRowUpdate,
                           row: ponderRowUpdate,
                           isUpdate: true,
                         }),
@@ -257,7 +257,7 @@ export const createHistoricalIndexingStore = ({
                     }
                     const ponderRow = indexingCache.set({
                       table,
-                      key: userValues,
+                      key: ponderRowUpdate,
                       row: ponderRowUpdate,
                       isUpdate: true,
                     });
@@ -438,7 +438,7 @@ export const createHistoricalIndexingStore = ({
 
           const ponderRow = indexingCache.set({
             table,
-            key,
+            key: ponderRowUpdate,
             row: ponderRowUpdate,
             isUpdate: true,
           });
