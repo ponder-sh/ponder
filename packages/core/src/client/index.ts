@@ -135,24 +135,22 @@ export const client = ({
           return c.text((error as Error).message, 500);
         }
       } else {
-        const client = await driver.readonly.connect();
-
         try {
           await validateQuery(query.sql);
-          await client.query("BEGIN READ ONLY");
-          const result = await session
-            .prepareQuery(query, undefined, undefined, false)
-            .execute();
-          return c.json(result as object);
+
+          return await globalThis.PONDER_DATABASE.readonlyQB.raw.transaction(
+            async (tx) => {
+              const result = await tx._.session
+                .prepareQuery(query, undefined, undefined, false)
+                .execute();
+
+              return c.json(result as object);
+            },
+            { accessMode: "read only" },
+          );
         } catch (error) {
           (error as Error).stack = undefined;
           return c.text((error as Error).message, 500);
-        } finally {
-          try {
-            await client.query("ROLLBACK");
-          } finally {
-            client.release();
-          }
         }
       }
     }
