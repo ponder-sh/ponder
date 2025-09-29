@@ -82,13 +82,15 @@ export const createHistoricalIndexingStore = ({
 
   return {
     // @ts-ignore
-    find: storeMethodWrapper((table: Table, key) => {
+    find: storeMethodWrapper(async (table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "find",
       });
       checkOnchainTable(table, "find");
-      return indexingCache.get({ table, key });
+      const ponderRow = await indexingCache.get({ table, key });
+      const userRow = ponderRow === null ? null : copyOnWrite(ponderRow);
+      return userRow;
     }),
 
     // @ts-ignore

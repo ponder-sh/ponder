@@ -1,3 +1,6 @@
+/**
+ * Symbol used to mark objects that are copied on write.
+ */
 export const COPY_ON_WRITE = Symbol.for("ponder:copyOnWrite");
 
 /**
@@ -23,7 +26,10 @@ export const copyOnWrite = <T extends object>(obj: T): T => {
         if (copiedObject === undefined) {
           // @ts-expect-error
           if (isArray) copiedObject = [...target];
-          else copiedObject = { ...target };
+          else {
+            copiedObject = Object.create(Object.getPrototypeOf(target));
+            Object.assign(copiedObject!, target);
+          }
         }
         nestedProperties.push(prop);
 
@@ -39,7 +45,10 @@ export const copyOnWrite = <T extends object>(obj: T): T => {
       if (copiedObject === undefined) {
         // @ts-expect-error
         if (isArray) copiedObject = [...target];
-        else copiedObject = { ...target };
+        else {
+          copiedObject = Object.create(Object.getPrototypeOf(target));
+          Object.assign(copiedObject!, target);
+        }
       }
       return Reflect.set(copiedObject!, prop, newValue, receiver);
     },
@@ -47,7 +56,10 @@ export const copyOnWrite = <T extends object>(obj: T): T => {
       if (copiedObject === undefined) {
         // @ts-expect-error
         if (isArray) copiedObject = [...target];
-        else copiedObject = { ...target };
+        else {
+          copiedObject = Object.create(Object.getPrototypeOf(target));
+          Object.assign(copiedObject!, target);
+        }
       }
       return Reflect.deleteProperty(copiedObject!, prop);
     },
@@ -55,7 +67,10 @@ export const copyOnWrite = <T extends object>(obj: T): T => {
       if (copiedObject === undefined) {
         // @ts-expect-error
         if (isArray) copiedObject = [...target];
-        else copiedObject = { ...target };
+        else {
+          copiedObject = Object.create(Object.getPrototypeOf(target));
+          Object.assign(copiedObject!, target);
+        }
       }
       return Reflect.defineProperty(copiedObject!, prop, descriptor);
     },
