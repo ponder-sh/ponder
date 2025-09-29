@@ -15,13 +15,12 @@ on:
 jobs:
   integration-test:
     name: Single Integration Test
-    runs-on: default
+    runs-on: self-hosted
     timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/actions/setup
-      - uses: oven-sh/setup-bun@v2
 
       - run: pnpm build
       - run: pnpm install
@@ -30,7 +29,7 @@ jobs:
         run: |
           cd integration-test
           UUID=$(cat /proc/sys/kernel/random/uuid)
-          SEED=${{ github.event.inputs.seed }} pnpm test ${{ github.event.inputs.app }}
+          SEED=${{ github.event.inputs.seed }} pnpm test:node ${{ github.event.inputs.app }}
         env:
           DATABASE_URL: ${{ secrets.TEST_CONNECTION_STRING }}
           PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}

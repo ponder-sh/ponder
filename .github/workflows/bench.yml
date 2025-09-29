@@ -8,7 +8,7 @@ on:
 jobs:
   bench:
     name: Bench
-    runs-on: default
+    runs-on: self-hosted
     timeout-minutes: 10
     strategy:
       fail-fast: false
