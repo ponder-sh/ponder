@@ -103,6 +103,15 @@ type ChainConfig<chain> = {
   maxRequestsPerSecond?: number;
   /** Disable RPC request caching. Default: `false`. */
   disableCache?: boolean;
+  /**
+   * The number of blocks that must pass before a block is considered final.
+   * Default:
+   * - mainnet/testnet(1, 3, 4, 5, 42, 11155111): 65,
+   * - polygon(137, 80001): 200,
+   * - arbitrum(42161, 42170, 421611, 421613): 240,
+   * - other: 30.
+   */
+  finalityBlockCount?: number;
 };
 
 type ChainsConfig<chains> = {} extends chains

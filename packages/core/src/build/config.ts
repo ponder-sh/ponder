@@ -182,7 +182,9 @@ export async function buildConfigAndIndexingFunctions({
         rpc: chain.rpc,
         ws: chain.ws,
         pollingInterval: chain.pollingInterval ?? 1_000,
-        finalityBlockCount: getFinalityBlockCount({ chain: matchedChain }),
+        finalityBlockCount:
+          chain.finalityBlockCount ??
+          getFinalityBlockCount({ chain: matchedChain }),
         disableCache: chain.disableCache ?? false,
         viemChain: matchedChain,
       } satisfies Chain;
@@ -1158,7 +1160,9 @@ export function buildConfig({
         rpc: chain.rpc,
         ws: chain.ws,
         pollingInterval: chain.pollingInterval ?? 1_000,
-        finalityBlockCount: getFinalityBlockCount({ chain: matchedChain }),
+        finalityBlockCount:
+          chain.finalityBlockCount ??
+          getFinalityBlockCount({ chain: matchedChain }),
         disableCache: chain.disableCache ?? false,
         viemChain: matchedChain,
       } satisfies Chain;
