@@ -61,16 +61,21 @@ export const client = ({
     (async () => {
       let client: pg.PoolClient | undefined;
 
-      globalThis.PONDER_COMMON.apiShutdown.add(() => {
-        client?.release();
-        client = undefined;
-      });
+      let hasRegisteredShutdown = false;
 
       while (globalThis.PONDER_COMMON.apiShutdown.isKilled === false) {
         // biome-ignore lint/suspicious/noAsyncPromiseExecutor: <explanation>
         await new Promise<void>(async (resolve) => {
           try {
             client = await driver.admin.connect();
+
+            if (hasRegisteredShutdown === false) {
+              globalThis.PONDER_COMMON.apiShutdown.add(() => {
+                client?.release();
+                client = undefined;
+              });
+              hasRegisteredShutdown = true;
+            }
 
             globalThis.PONDER_COMMON.logger.info({
               service: "client",

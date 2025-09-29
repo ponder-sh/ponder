@@ -5,7 +5,6 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { bigint, hex, onchainTable } from "@/drizzle/onchain.js";
-import { wait } from "@/utils/wait.js";
 import type { QueryWithTypings } from "drizzle-orm";
 import { pgSchema } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
@@ -231,10 +230,6 @@ test("client.db load", async (context) => {
     sql: "SELECT * FROM account",
     params: [],
   };
-
-  // Note: This fixes a race condition where the listen shutdown
-  // gets called before the listen connection is established.
-  await wait(50);
 
   const promises = new Array(250).map(async () => {
     const response = await app.request(`/sql/db?${queryToParams(query)}`);
