@@ -1,8 +1,7 @@
 {
   "compilerOptions": {
     "paths": {
-      "@ponder/*": ["../packages/core/src/*"],
-      "ponder": ["../packages/core/src/index.ts"]
+      "@ponder/*": ["../packages/core/src/*"]
     },
     // Type checking
     "strict": true,
