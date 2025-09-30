@@ -467,7 +467,6 @@ export const createRpc = ({
       (async () => {
         while (true) {
           if (isUnsubscribed) return;
-          let isFetching = false;
 
           if (chain.ws === undefined || webSocketErrorCount >= RETRY_COUNT) {
             common.logger.debug({
@@ -476,10 +475,6 @@ export const createRpc = ({
             });
 
             interval = setInterval(async () => {
-              if (isFetching) return;
-
-              isFetching = true;
-
               try {
                 const block = await _eth_getBlockByNumber(rpc, {
                   blockTag: "latest",
@@ -488,8 +483,6 @@ export const createRpc = ({
                 await onBlock(block);
               } catch (error) {
                 onError(error as Error);
-              } finally {
-                isFetching = false;
               }
             }, chain.pollingInterval);
             common.shutdown.add(() => {
