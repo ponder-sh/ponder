@@ -8,7 +8,7 @@ export type Logger = ReturnType<typeof createLogger>;
 
 type Log = {
   // Pino properties
-  level: 60 | 50 | 40 | 30 | 20 | 10;
+  level: 50 | 40 | 30 | 20 | 10;
   time: number;
 
   service: string;
@@ -54,9 +54,6 @@ export function createLogger({
   );
 
   return {
-    fatal(options: Omit<Log, "level" | "time">) {
-      logger.fatal(options);
-    },
     error(options: Omit<Log, "level" | "time">) {
       logger.error(options);
     },
@@ -80,7 +77,6 @@ export function createNoopLogger(
   _args: { level?: LogLevel; mode?: LogMode } = {},
 ) {
   return {
-    fatal(_options: Omit<Log, "level" | "time">) {},
     error(_options: Omit<Log, "level" | "time">) {},
     warn(_options: Omit<Log, "level" | "time">) {},
     info(_options: Omit<Log, "level" | "time">) {},
@@ -91,7 +87,6 @@ export function createNoopLogger(
 }
 
 const levels = {
-  60: { label: "FATAL", colorLabel: pc.bgRed("FATAL") },
   50: { label: "ERROR", colorLabel: pc.red("ERROR") },
   40: { label: "WARN ", colorLabel: pc.yellow("WARN ") },
   30: { label: "INFO ", colorLabel: pc.green("INFO ") },

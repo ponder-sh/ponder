@@ -51,7 +51,7 @@ export async function start({
     .split(".")
     .map(Number) as [number, number, number];
   if (major < 18 || (major === 18 && minor < 14)) {
-    logger.fatal({
+    logger.error({
       service: "process",
       msg: `Invalid Node.js version. Expected >=18.14, detected ${major}.${minor}.`,
     });
