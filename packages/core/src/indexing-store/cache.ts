@@ -1247,9 +1247,6 @@ export const createIndexingCache = ({
       isFlushRetry = false;
     },
     async prefetch({ events }) {
-      const formatBytes = (bytes: number) => {
-        return `${(bytes / 1024 / 1024).toFixed(2)}mb`;
-      };
       // Apply eviction policy before calculating total bytes
       const nowByChainId: Map<number, number> = cacheAccessByChain
         ? lastBlockTimestampByChainId
@@ -1261,10 +1258,7 @@ export const createIndexingCache = ({
           );
 
       for (const table of tables) {
-        const evictedBytes = evictCache(table, cache, nowByChainId);
-        console.log(
-          `table=${getTableName(table)} size=${cache.get(table)!.cache.size} cacheBytes=${formatBytes(cache.get(table)!.bytes)} evictedBytes=${formatBytes(evictedBytes)} ttl=${cache.get(table)!.evictionPolicy.ttl} keepEvictedKeys=${cache.get(table)!.evictionPolicy.keepEvictedKeys} evictedKeys=${cache.get(table)!.evictedKeys.size}`,
-        );
+        evictCache(table, cache, nowByChainId);
       }
 
       let totalBytes = 0;
@@ -1303,22 +1297,16 @@ export const createIndexingCache = ({
                 : 0;
             const avgItemAge = now - avgInsertTime;
 
-            console.log(
-              `${getTableName(table)} - InsertStats - chainId=${chainId} nbInserts=${inserts.nbInserts} cumulativeInsertTimestamp=${inserts.cumulativeInsertTimestamp} now=${now} avgItemAge=${avgItemAge}`,
-            );
             totalInserts += inserts.nbInserts;
             totalItemsAge += avgItemAge * inserts.nbInserts;
           }
 
+          // Ignore eviction policy for small tables
+          if (totalInserts < 1000) continue;
+
           const avgItemAge =
             totalInserts > 0 ? totalItemsAge / totalInserts : 0;
-          const avgHitAge =
-            cache.get(table)!.access.nbHits > 0
-              ? cache.get(table)!.access.cumulativeHitAge /
-                BigInt(cache.get(table)!.access.nbHits)
-              : 0n;
           const maxHitAge = cache.get(table)!.access.maxHitAge;
-          const hitsPerEntries = cache.get(table)!.access.nbHits / totalInserts;
           const hitsNotExists = cache.get(table)!.access.nbHitsNotExists;
 
           // Note: hitAgeRatio is the main metric to determine the table profile
@@ -1326,22 +1314,7 @@ export const createIndexingCache = ({
           // hitAgeRatio < 1 = items are accessed only over a short time span (profile: event, aggregation)
           const hitAgeRatio = maxHitAge / avgItemAge;
 
-          console.log(
-            `${getTableName(table)} - AccessStats - inserts: ${totalInserts} avgItemAge: ${avgItemAge} hits: ${cache.get(table)!.access.nbHits} avgHitAge: ${avgHitAge} maxHitAge: ${maxHitAge} hitAgeRatio: ${hitAgeRatio} hitsPerEntries: ${hitsPerEntries} hitsNotExists: ${hitsNotExists}`,
-          );
-
-          if (totalInserts < 1000) {
-            // TableProfile = Dictionary: *low number of items*, high access rate, long access time span
-          } else if (maxHitAge < ONE_MINUTE) {
-            // TableProfile = Events: high number of items, low access rate, *very short access time span*
-            ttl = Math.max(maxHitAge, ONE_MINUTE) * 1.5; // 1.5x maxHitAge, (min 1 minute)
-            keepEvictedKeys = hitsNotExists > 0; // Keep evicted keys to resolve onConflict/find=>null patterns
-          } else if (hitAgeRatio >= 1) {
-            // TableProfile = Relational: medium number of items, high access rate, *long access time span*
-          } else if (hitAgeRatio < 1) {
-            // TableProfile = Aggregation: medium number of items, high access rate, *delimited access time span*
-            keepEvictedKeys = hitsNotExists > 0; // Keep evicted keys to resolve onConflict/find=>null patterns
-
+          if (hitAgeRatio < 1) {
             // Round cache eviction to the above logical time interval: hour, day, week, month, year
             if (maxHitAge > ONE_YEAR || hitAgeRatio > 0.5) {
               // Don't enable cache eviction if:
@@ -1359,27 +1332,28 @@ export const createIndexingCache = ({
             } else if (maxHitAge > ONE_MINUTE) {
               ttl = ONE_HOUR;
             } else {
-              ttl = Math.max(maxHitAge, ONE_MINUTE) * 1.5; // 1.5x maxHitAge, (min 1 minute)
+              ttl = Math.max(maxHitAge, ONE_MINUTE); // Ensure at least 1minute
             }
+
+            // Keep evicted keys to resolve onConflict/find=>null patterns
+            keepEvictedKeys = hitsNotExists > 0;
           }
 
-          cache.get(table)!.evictionPolicy = {
-            ttl,
-            keepEvictedKeys,
-          };
-
           if (ttl !== undefined && ttl !== evictionPolicy.ttl) {
+            cache.get(table)!.evictionPolicy = {
+              ttl,
+              keepEvictedKeys,
+            };
+
             common.logger.debug({
               service: "indexing",
-              msg: `Updating eviction policy for '${getTableName(table)}' to ttl=${ttl} keepEvictedKeys=${keepEvictedKeys}`,
+              msg: `Updating eviction policy for '${getTableName(table)}' (ttl=${ttl}, keepEvictedKeys=${keepEvictedKeys})`,
             });
+
             evictedBytes += evictCache(table, cache, nowByChainId);
           }
         }
 
-        console.log(
-          `Evicted ${evictedBytes} bytes from cache after applying new eviction policy`,
-        );
         // If no data was evicted from eviction policy, we need to remove the least used table from the cache
         if (evictedBytes === 0) {
           // If data from the cache needs to be evicted, start with the
