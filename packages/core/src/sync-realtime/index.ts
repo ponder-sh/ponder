@@ -96,7 +96,7 @@ const MAX_LATEST_BLOCK_ATTEMPT_MS = 10 * 60 * 1000; // 10 minutes
 const ERROR_TIMEOUT = [
   1, 2, 5, 10, 30, 60, 60, 60, 60, 60, 60, 60, 60, 60,
 ] as const;
-const MAX_QUEUED_BLOCKS = 25;
+const MAX_QUEUED_BLOCKS = 50;
 
 export const createRealtimeSync = (
   args: CreateRealtimeSyncParameters,
@@ -831,7 +831,7 @@ export const createRealtimeSync = (
 
       args.common.logger.info({
         service: "realtime",
-        msg: `Fetched ${missingBlockRange.length} missing '${
+        msg: `Fetched ${missingBlockRange.length + 1} missing '${
           args.chain.name
         }' blocks [${hexToNumber(latestBlock.number) + 1}, ${Math.min(
           hexToNumber(block.number),
