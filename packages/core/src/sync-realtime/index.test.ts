@@ -26,9 +26,9 @@ import {
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/config.js";
 import type { LogFactory, LogFilter } from "@/internal/types.js";
+import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
-import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import {
   encodeFunctionData,
   encodeFunctionResult,

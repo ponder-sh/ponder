@@ -14,10 +14,10 @@ import {
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/config.js";
 import type { BlockFilter, Event, Filter, Fragment } from "@/internal/types.js";
+import { _eth_getBlockByNumber, _eth_getLogs } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
 import type { Interval } from "@/utils/interval.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
-import { _eth_getBlockByNumber, _eth_getLogs } from "@/utils/rpc.js";
 import { parseEther } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import {

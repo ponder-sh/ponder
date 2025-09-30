@@ -27,8 +27,8 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import { _eth_getBlockByNumber, _eth_getLogs } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
-import { _eth_getBlockByNumber, _eth_getLogs } from "@/utils/rpc.js";
 import {
   type Address,
   encodeFunctionData,

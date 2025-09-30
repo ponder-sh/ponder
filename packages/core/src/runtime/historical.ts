@@ -7,6 +7,7 @@ import type {
   RawEvent,
   Source,
 } from "@/internal/types.js";
+import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
 import { buildEvents, decodeEvents } from "@/runtime/events.js";
 import { isAddressFactory } from "@/runtime/filter.js";
@@ -32,7 +33,6 @@ import {
   intervalUnion,
 } from "@/utils/interval.js";
 import { partition } from "@/utils/partition.js";
-import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { startClock } from "@/utils/timer.js";
 import { zipperMany } from "@/utils/zipper.js";
 import { hexToNumber } from "viem";

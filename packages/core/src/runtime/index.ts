@@ -8,6 +8,7 @@ import type {
   Source,
 } from "@/internal/types.js";
 import type { SyncBlock } from "@/internal/types.js";
+import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
 import { isAddressFactory } from "@/runtime/filter.js";
 import { getFragments } from "@/runtime/fragments.js";
@@ -23,7 +24,6 @@ import {
   intervalIntersectionMany,
   sortIntervals,
 } from "@/utils/interval.js";
-import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { type Address, hexToNumber, toHex } from "viem";
 
 export type SyncProgress = {

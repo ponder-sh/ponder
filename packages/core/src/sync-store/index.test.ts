@@ -30,12 +30,12 @@ import type {
 } from "@/internal/types.js";
 import { orderObject } from "@/utils/order.js";
 
-import { createRpc } from "@/rpc/index.js";
 import {
   _eth_getBlockByNumber,
   _eth_getLogs,
   _eth_getTransactionReceipt,
-} from "@/utils/rpc.js";
+} from "@/rpc/actions.js";
+import { createRpc } from "@/rpc/index.js";
 import { sql } from "drizzle-orm";
 import {
   encodeFunctionData,

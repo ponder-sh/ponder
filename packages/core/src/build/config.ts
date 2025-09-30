@@ -12,6 +12,7 @@ import type {
   Source,
   SyncBlock,
 } from "@/internal/types.js";
+import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import { type Rpc, createRpc } from "@/rpc/index.js";
 import {
   defaultBlockFilterInclude,
@@ -26,7 +27,6 @@ import { hyperliquidEvm, chains as viemChains } from "@/utils/chains.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { getFinalityBlockCount } from "@/utils/finality.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { BlockNotFoundError, type Hex, type LogTopic, hexToNumber } from "viem";
 import { buildLogFactory } from "./factory.js";
 

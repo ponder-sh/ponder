@@ -12,11 +12,11 @@ import {
 } from "@/_test/utils.js";
 import { buildConfigAndIndexingFunctions } from "@/build/config.js";
 import type { Chain } from "@/internal/types.js";
+import { _eth_getBlockByNumber, _eth_getLogs } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
 import { MAX_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
-import { _eth_getBlockByNumber, _eth_getLogs } from "@/utils/rpc.js";
 import { beforeEach, expect, test, vi } from "vitest";
 import {
   getHistoricalEventsMultichain,

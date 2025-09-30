@@ -19,6 +19,18 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import {
+  _debug_traceBlockByHash,
+  _eth_getBlockByHash,
+  _eth_getBlockByNumber,
+  _eth_getBlockReceipts,
+  _eth_getLogs,
+  _eth_getTransactionReceipt,
+  validateLogsAndBlock,
+  validateReceiptsAndBlock,
+  validateTracesAndBlock,
+  validateTransactionsAndBlock,
+} from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
 import {
   getChildAddress,
@@ -34,18 +46,6 @@ import {
 import type { SyncProgress } from "@/runtime/index.js";
 import { createLock } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
-import {
-  _debug_traceBlockByHash,
-  _eth_getBlockByHash,
-  _eth_getBlockByNumber,
-  _eth_getBlockReceipts,
-  _eth_getLogs,
-  _eth_getTransactionReceipt,
-  validateLogsAndBlock,
-  validateReceiptsAndBlock,
-  validateTracesAndBlock,
-  validateTransactionsAndBlock,
-} from "@/utils/rpc.js";
 import { type Address, type Hash, hexToNumber, zeroHash } from "viem";
 import { isFilterInBloom, isInBloom, zeroLogsBloom } from "./bloom.js";
 

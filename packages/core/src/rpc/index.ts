@@ -1,12 +1,12 @@
 import url from "node:url";
 import type { Common } from "@/internal/common.js";
 import type { Chain, SyncBlock, SyncBlockHeader } from "@/internal/types.js";
-import { createQueue } from "@/utils/queue.js";
 import {
   _eth_getBlockByHash,
   _eth_getBlockByNumber,
   standardizeBlock,
-} from "@/utils/rpc.js";
+} from "@/rpc/actions.js";
+import { createQueue } from "@/utils/queue.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import {

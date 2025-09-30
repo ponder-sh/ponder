@@ -18,6 +18,17 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import {
+  _debug_traceBlockByNumber,
+  _eth_getBlockByNumber,
+  _eth_getBlockReceipts,
+  _eth_getLogs,
+  _eth_getTransactionReceipt,
+  validateLogsAndBlock,
+  validateReceiptsAndBlock,
+  validateTracesAndBlock,
+  validateTransactionsAndBlock,
+} from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
 import {
   getChildAddress,
@@ -39,17 +50,6 @@ import {
   intervalRange,
   intervalUnion,
 } from "@/utils/interval.js";
-import {
-  _debug_traceBlockByNumber,
-  _eth_getBlockByNumber,
-  _eth_getBlockReceipts,
-  _eth_getLogs,
-  _eth_getTransactionReceipt,
-  validateLogsAndBlock,
-  validateReceiptsAndBlock,
-  validateTracesAndBlock,
-  validateTransactionsAndBlock,
-} from "@/utils/rpc.js";
 import { getLogsRetryHelper } from "@ponder/utils";
 import {
   type Address,
