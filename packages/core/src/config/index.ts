@@ -57,7 +57,7 @@ type DatabaseConfig =
       connectionString?: string;
       /** Postgres pool configuration passed to `node-postgres`. */
       poolConfig?: {
-        /** Maximum number of clients in the pool. Default: `30`. */
+        /** Maximum number of clients in the pool. Default: `8`. */
         max?: number;
         /** Enable SSL, or provide a custom SSL configuration. Default: `undefined`. */
         ssl?: boolean | Prettify<ConnectionOptions>;
