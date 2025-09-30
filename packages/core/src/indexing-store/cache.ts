@@ -577,7 +577,7 @@ export const createIndexingCache = ({
 
           updateCacheAccessHit(cache, table, event, insertTimestamp);
         }
-        return bufferEntry.row;
+        return structuredClone(bufferEntry.row);
       }
 
       const entry = cache.get(table)!.cache.get(ck);
@@ -604,7 +604,7 @@ export const createIndexingCache = ({
           );
         }
 
-        return entry.row;
+        return structuredClone(entry.row);
       }
 
       cache.get(table)!.diskReads++;
