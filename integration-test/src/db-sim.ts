@@ -18,7 +18,7 @@ export const dbSim = <
   const dialect = new PgDialect({ casing: "snake_case" });
   const queryCount = new Map<string, number>();
 
-  const simError = (sql: string): void => {
+  const simError = (sql: string, isTransaction: boolean): void => {
     let nonce: number;
 
     if (queryCount.has(sql)) {
@@ -29,7 +29,11 @@ export const dbSim = <
 
     queryCount.set(sql, nonce + 1);
 
-    if (seedrandom(SEED + sql + nonce)() < SIM_PARAMS.DB_ERROR_RATE) {
+    const DB_ERROR_RATE = isTransaction
+      ? SIM_PARAMS.DB_ERROR_RATE_TRANSACTION
+      : SIM_PARAMS.DB_ERROR_RATE;
+
+    if (seedrandom(SEED + sql + nonce)() < DB_ERROR_RATE) {
       if (
         sql !== "begin" &&
         sql !== "rollback" &&
@@ -48,7 +52,7 @@ export const dbSim = <
 
   const execute = db._.session.execute.bind(db._.session);
   db._.session.execute = async (...args) => {
-    simError(dialect.sqlToQuery(args[0]).sql);
+    simError(dialect.sqlToQuery(args[0]).sql, false);
     return execute(...args);
   };
 
@@ -57,7 +61,7 @@ export const dbSim = <
     const result = prepareQuery(...args);
     const execute = result.execute.bind(result);
     result.execute = async (..._args) => {
-      simError(args[0].sql);
+      simError(args[0].sql, false);
       return execute(..._args);
     };
     return result;
@@ -80,7 +84,7 @@ export const dbSim = <
 
     const execute = session.execute.bind(session);
     session.execute = async (...args) => {
-      simError(dialect.sqlToQuery(args[0]).sql);
+      simError(dialect.sqlToQuery(args[0]).sql, true);
       return execute(...args);
     };
 
@@ -89,7 +93,7 @@ export const dbSim = <
       const result = prepareQuery(...args);
       const execute = result.execute.bind(result);
       result.execute = async (..._args) => {
-        simError(args[0].sql);
+        simError(args[0].sql, true);
         return execute(..._args);
       };
       return result;
