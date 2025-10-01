@@ -11,11 +11,11 @@ type Log = {
   level: 50 | 40 | 30 | 20 | 10;
   time: number;
 
-  service: string;
   msg: string;
 
+  duration?: number;
   error?: Error;
-};
+} & Record<string, unknown>;
 
 export function createLogger({
   level,
@@ -42,7 +42,7 @@ export function createLogger({
           error.meta = Array.isArray(error.meta)
             ? error.meta.join("\n")
             : error.meta;
-          //@ts-ignore
+          // @ts-ignore
           error.type = undefined;
           return error;
         }),
@@ -69,7 +69,7 @@ export function createLogger({
     trace(options: Omit<Log, "level" | "time">) {
       logger.trace(options);
     },
-    flush: () => new Promise((resolve) => logger.flush(resolve)),
+    flush: () => new Promise(logger.flush),
   };
 }
 
@@ -107,15 +107,13 @@ const format = (log: Log) => {
   let prettyLog: string[];
   if (pc.isColorSupported) {
     const level = levelObject.colorLabel;
-    const service = log.service ? pc.cyan(log.service.padEnd(10, " ")) : "";
     const messageText = pc.reset(log.msg);
 
-    prettyLog = [`${pc.gray(time)} ${level} ${service} ${messageText}`];
+    prettyLog = [`${pc.gray(time)} ${level}${messageText}`];
   } else {
     const level = levelObject.label;
-    const service = log.service ? log.service.padEnd(10, " ") : "";
 
-    prettyLog = [`${time} ${level} ${service} ${log.msg}`];
+    prettyLog = [`${time} ${level} ${log.msg}`];
   }
 
   if (log.error) {
