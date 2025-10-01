@@ -27,14 +27,10 @@ export function createLogger({
 }: { level: LogLevel; mode?: LogMode }) {
   const stream: DestinationStream = {
     write(logString: string) {
-      if (mode === "json") {
-        console.log(logString.trimEnd());
-        return;
-      }
-
       const log = JSON.parse(logString) as Log;
       const prettyLog = format(log);
-      console.log(prettyLog);
+      process.stdout.write(prettyLog);
+      process.stdout.write("\n");
     },
   };
 
@@ -54,7 +50,7 @@ export function createLogger({
       // Removes "pid" and "hostname" properties from the log.
       base: undefined,
     },
-    stream,
+    mode === "pretty" ? stream : pino.destination({ sync: false }),
   );
 
   return {
