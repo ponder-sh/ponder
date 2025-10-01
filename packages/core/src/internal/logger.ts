@@ -5,7 +5,30 @@ import { type DestinationStream, type LevelWithSilent, pino } from "pino";
 
 export type LogMode = "pretty" | "json";
 export type LogLevel = Prettify<LevelWithSilent>;
-export type Logger = ReturnType<typeof createLogger>;
+export type Logger = {
+  error<T extends Omit<Log, "level" | "time">>(
+    options: T,
+    printKeys?: (keyof T)[],
+  ): void;
+  warn<T extends Omit<Log, "level" | "time">>(
+    options: T,
+    printKeys?: (keyof T)[],
+  ): void;
+  info<T extends Omit<Log, "level" | "time">>(
+    options: T,
+    printKeys?: (keyof T)[],
+  ): void;
+  debug<T extends Omit<Log, "level" | "time">>(
+    options: T,
+    printKeys?: (keyof T)[],
+  ): void;
+  trace<T extends Omit<Log, "level" | "time">>(
+    options: T,
+    printKeys?: (keyof T)[],
+  ): void;
+  child: (bindings: Record<string, unknown>) => Logger;
+  flush(): Promise<void>;
+};
 
 type Log = {
   // Pino properties
@@ -33,6 +56,64 @@ export function createLogger({
     },
   };
 
+  const _createLogger = (logger: pino.Logger): Logger => {
+    return {
+      error<T extends Omit<Log, "level" | "time">>(
+        options: T,
+        printKeys?: (keyof T)[],
+      ) {
+        if (mode === "pretty" && printKeys) {
+          // @ts-ignore
+          options[PRINT_KEYS] = printKeys;
+        }
+        logger.error(options);
+      },
+      warn<T extends Omit<Log, "level" | "time">>(
+        options: T,
+        printKeys?: (keyof T)[],
+      ) {
+        if (mode === "pretty" && printKeys) {
+          // @ts-ignore
+          options[PRINT_KEYS] = printKeys;
+        }
+        logger.warn(options);
+      },
+      info<T extends Omit<Log, "level" | "time">>(
+        options: T,
+        printKeys?: (keyof T)[],
+      ) {
+        if (mode === "pretty" && printKeys) {
+          // @ts-ignore
+          options[PRINT_KEYS] = printKeys;
+        }
+        logger.info(options);
+      },
+      debug<T extends Omit<Log, "level" | "time">>(
+        options: T,
+        printKeys?: (keyof T)[],
+      ) {
+        if (mode === "pretty" && printKeys) {
+          // @ts-ignore
+          options[PRINT_KEYS] = printKeys;
+        }
+        logger.debug(options);
+      },
+      trace<T extends Omit<Log, "level" | "time">>(
+        options: T,
+        printKeys?: (keyof T)[],
+      ) {
+        if (mode === "pretty" && printKeys) {
+          // @ts-ignore
+          options[PRINT_KEYS] = printKeys;
+        }
+        logger.trace(options);
+      },
+      child: (bindings) => _createLogger(logger.child(bindings)),
+      // @ts-expect-error
+      flush: () => new Promise<void>(logger.flush),
+    };
+  };
+
   const logger = pino(
     {
       level,
@@ -52,59 +133,7 @@ export function createLogger({
     mode === "pretty" ? stream : pino.destination({ sync: false }),
   );
 
-  return {
-    error<T extends Omit<Log, "level" | "time">>(
-      options: T,
-      printKeys?: (keyof T)[],
-    ) {
-      if (mode === "pretty" && printKeys) {
-        // @ts-ignore
-        options[PRINT_KEYS] = printKeys;
-      }
-      logger.error(options);
-    },
-    warn<T extends Omit<Log, "level" | "time">>(
-      options: T,
-      printKeys?: (keyof T)[],
-    ) {
-      if (mode === "pretty" && printKeys) {
-        // @ts-ignore
-        options[PRINT_KEYS] = printKeys;
-      }
-      logger.warn(options);
-    },
-    info<T extends Omit<Log, "level" | "time">>(
-      options: T,
-      printKeys?: (keyof T)[],
-    ) {
-      if (mode === "pretty" && printKeys) {
-        // @ts-ignore
-        options[PRINT_KEYS] = printKeys;
-      }
-      logger.info(options);
-    },
-    debug<T extends Omit<Log, "level" | "time">>(
-      options: T,
-      printKeys?: (keyof T)[],
-    ) {
-      if (mode === "pretty" && printKeys) {
-        // @ts-ignore
-        options[PRINT_KEYS] = printKeys;
-      }
-      logger.debug(options);
-    },
-    trace<T extends Omit<Log, "level" | "time">>(
-      options: T,
-      printKeys?: (keyof T)[],
-    ) {
-      if (mode === "pretty" && printKeys) {
-        // @ts-ignore
-        options[PRINT_KEYS] = printKeys;
-      }
-      logger.trace(options);
-    },
-    flush: () => new Promise(logger.flush),
-  };
+  return _createLogger(logger);
 }
 
 export function createNoopLogger(

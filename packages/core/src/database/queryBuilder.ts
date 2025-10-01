@@ -9,6 +9,7 @@ import {
   ShutdownError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
+import type { Logger } from "@/internal/logger.js";
 import type { Schema } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { startClock } from "@/utils/timer.js";
@@ -47,11 +48,13 @@ type TransactionQB<
   transaction<T>(
     transaction: (tx: QB<TSchema, TClient>) => Promise<T>,
     config?: PgTransactionConfig,
+    context?: { logger?: Logger },
   ): Promise<T>;
   transaction<T>(
     { label }: { label: string },
     transaction: (tx: QB<TSchema, TClient>) => Promise<T>,
     config?: PgTransactionConfig,
+    context?: { logger?: Logger },
   ): Promise<T>;
 };
 
@@ -69,10 +72,14 @@ export type QB<
   /**
    * Query with retries, logging, metrics, and error parsing.
    */
-  wrap<T>(query: (db: InnerQB<TSchema, TClient>) => T): T;
+  wrap<T>(
+    query: (db: InnerQB<TSchema, TClient>) => T,
+    context?: { logger?: Logger },
+  ): T;
   wrap<T>(
     { label }: { label: string },
     query: (db: InnerQB<TSchema, TClient>) => T,
+    context?: { logger?: Logger },
   ): T;
 } & (
     | { $dialect: "pglite"; $client: PGlite }
@@ -151,10 +158,12 @@ export const createQB = <
       label,
       isTransaction,
       isTransactionStatement,
+      logger,
     }: {
       label?: string;
       isTransaction: boolean;
       isTransactionStatement: boolean;
+      logger: Logger;
     },
   ): Promise<T> => {
     // First error thrown is often the most useful
@@ -166,9 +175,10 @@ export const createQB = <
       const id = crypto.randomUUID().slice(0, 8);
 
       if (label) {
-        common.logger.trace({
-          service: "database",
-          msg: `Started '${label}' database method (id=${id})`,
+        logger.trace({
+          msg: "Sent database query",
+          query: label,
+          query_id: id,
         });
       }
 
@@ -183,6 +193,15 @@ export const createQB = <
             { method: label },
             endClock(),
           );
+        }
+
+        if (label) {
+          logger.trace({
+            msg: "Completed successful database query",
+            query: label,
+            query_id: id,
+            duration: endClock(),
+          });
         }
 
         return result;
@@ -219,44 +238,48 @@ export const createQB = <
           }
         } else if (isTransactionStatement) {
           // Transaction statements are not immediately retried, so the transaction will be properly rolled back.
-          common.logger.warn({
-            service: "database",
-            msg: `Failed ${label ? `'${label}' ` : ""}database query (id=${id})`,
+          logger.warn({
+            msg: "Failed database query",
+            query: label,
+            query_id: id,
+            duration: endClock(),
             error,
           });
           throw error;
         } else if (error instanceof NonRetryableUserError) {
-          common.logger.warn({
-            service: "database",
-            msg: `Failed ${label ? `'${label}' ` : ""}database query (id=${id})`,
+          logger.warn({
+            msg: "Failed database query",
+            query: label,
+            query_id: id,
+            duration: endClock(),
             error,
           });
           throw error;
         }
 
         if (i === RETRY_COUNT) {
-          common.logger.warn({
-            service: "database",
-            msg: `Failed ${label ? `'${label}' ` : ""}database query after '${i + 1}' attempts (id=${id})`,
+          logger.warn({
+            msg: "Failed database query",
+            query: label,
+            query_id: id,
+            retry_count: i,
+            duration: endClock(),
             error,
           });
           throw firstError;
         }
 
         const duration = BASE_DURATION * 2 ** i;
-        common.logger.debug({
-          service: "database",
-          msg: `Failed ${label ? `'${label}' ` : ""}database query, retrying after ${duration} milliseconds (id=${id})`,
+        logger.debug({
+          msg: "Failed database query",
+          query: label,
+          query_id: id,
+          retry_count: i,
+          retry_delay: duration,
+          duration: endClock(),
           error,
         });
         await wait(duration);
-      } finally {
-        if (label) {
-          common.logger.trace({
-            service: "database",
-            msg: `Completed '${label}' database method in ${Math.round(endClock())}ms (id=${id})`,
-          });
-        }
       }
     }
 
@@ -269,7 +292,7 @@ export const createQB = <
     // @ts-ignore
     db.transaction = async (...args) => {
       if (typeof args[0] === "function") {
-        const [callback, config] = args as [
+        const [callback, config, transactionContext] = args as unknown as [
           (
             tx: PgTransaction<
               PgQueryResultHKT,
@@ -278,6 +301,7 @@ export const createQB = <
             >,
           ) => Promise<unknown>,
           PgTransactionConfig | undefined,
+          { logger?: Logger } | undefined,
         ];
 
         // Note: We want to retry errors from `callback` but include
@@ -299,16 +323,27 @@ export const createQB = <
               // @ts-ignore
               (tx as unknown as QB<TSchema, TClient>).wrap = (...args) => {
                 if (typeof args[0] === "function") {
-                  const [query] = args;
+                  const [query, context] = args as [
+                    (db: InnerQB<TSchema, TClient>) => unknown,
+                    { logger?: Logger } | undefined,
+                  ];
                   return retryLogMetricErrorWrap(
                     async () =>
                       query(tx as unknown as InnerQB<TSchema, TClient>),
-                    { isTransaction: false, isTransactionStatement: true },
+                    {
+                      isTransaction: false,
+                      isTransactionStatement: true,
+                      logger:
+                        context?.logger ??
+                        transactionContext?.logger ??
+                        common.logger,
+                    },
                   );
                 } else {
-                  const [{ label }, query] = args as [
+                  const [{ label }, query, context] = args as [
                     { label: string },
                     (db: InnerQB<TSchema, TClient>) => unknown,
+                    { logger?: Logger } | undefined,
                   ];
                   return retryLogMetricErrorWrap(
                     async () =>
@@ -317,6 +352,10 @@ export const createQB = <
                       label,
                       isTransaction: false,
                       isTransactionStatement: true,
+                      logger:
+                        context?.logger ??
+                        transactionContext?.logger ??
+                        common.logger,
                     },
                   );
                 }
@@ -325,20 +364,26 @@ export const createQB = <
               const result = await callback(tx);
               return result;
             }, config),
-          { isTransaction: true, isTransactionStatement: false },
+          {
+            isTransaction: true,
+            isTransactionStatement: false,
+            logger: transactionContext?.logger ?? common.logger,
+          },
         );
       } else {
-        const [{ label }, callback, config] = args as unknown as [
-          { label: string },
-          (
-            tx: PgTransaction<
-              PgQueryResultHKT,
-              TSchema,
-              ExtractTablesWithRelations<TSchema>
-            >,
-          ) => Promise<unknown>,
-          PgTransactionConfig | undefined,
-        ];
+        const [{ label }, callback, config, transactionContext] =
+          args as unknown as [
+            { label: string },
+            (
+              tx: PgTransaction<
+                PgQueryResultHKT,
+                TSchema,
+                ExtractTablesWithRelations<TSchema>
+              >,
+            ) => Promise<unknown>,
+            PgTransactionConfig | undefined,
+            { logger?: Logger } | undefined,
+          ];
 
         // Note: We want to retry errors from `callback` but include
         // the transaction control statements in `_transaction`.
@@ -359,20 +404,9 @@ export const createQB = <
               // @ts-ignore
               (tx as unknown as QB<TSchema, TClient>).wrap = (...args) => {
                 if (typeof args[0] === "function") {
-                  const [query] = args;
-                  return retryLogMetricErrorWrap(
-                    async () =>
-                      query(tx as unknown as InnerQB<TSchema, TClient>),
-                    {
-                      label,
-                      isTransaction: false,
-                      isTransactionStatement: true,
-                    },
-                  );
-                } else {
-                  const [{ label }, query] = args as [
-                    { label: string },
+                  const [query, context] = args as [
                     (db: InnerQB<TSchema, TClient>) => unknown,
+                    { logger?: Logger } | undefined,
                   ];
                   return retryLogMetricErrorWrap(
                     async () =>
@@ -381,6 +415,29 @@ export const createQB = <
                       label,
                       isTransaction: false,
                       isTransactionStatement: true,
+                      logger:
+                        context?.logger ??
+                        transactionContext?.logger ??
+                        common.logger,
+                    },
+                  );
+                } else {
+                  const [{ label }, query, context] = args as [
+                    { label: string },
+                    (db: InnerQB<TSchema, TClient>) => unknown,
+                    { logger?: Logger } | undefined,
+                  ];
+                  return retryLogMetricErrorWrap(
+                    async () =>
+                      query(tx as unknown as InnerQB<TSchema, TClient>),
+                    {
+                      label,
+                      isTransaction: false,
+                      isTransactionStatement: true,
+                      logger:
+                        context?.logger ??
+                        transactionContext?.logger ??
+                        common.logger,
                     },
                   );
                 }
@@ -389,7 +446,12 @@ export const createQB = <
               const result = await callback(tx);
               return result;
             }, config),
-          { label, isTransaction: true, isTransactionStatement: false },
+          {
+            label,
+            isTransaction: true,
+            isTransactionStatement: false,
+            logger: transactionContext?.logger ?? common.logger,
+          },
         );
       }
     };
@@ -401,7 +463,7 @@ export const createQB = <
     // @ts-ignore
     db.transaction = async (...args) => {
       if (typeof args[0] === "function") {
-        const [callback] = args as [
+        const [callback, context] = args as [
           (
             tx: PgTransaction<
               PgQueryResultHKT,
@@ -409,14 +471,16 @@ export const createQB = <
               ExtractTablesWithRelations<TSchema>
             >,
           ) => Promise<unknown>,
+          { logger?: Logger } | undefined,
         ];
 
         // @ts-expect-error
         return retryLogMetricErrorWrap(() => callback(db), {
           isTransactionStatement: true,
+          logger: context?.logger ?? common.logger,
         });
       } else {
-        const [{ label }, callback] = args as [
+        const [{ label }, callback, context] = args as [
           { label: string },
           (
             tx: PgTransaction<
@@ -425,12 +489,14 @@ export const createQB = <
               ExtractTablesWithRelations<TSchema>
             >,
           ) => Promise<unknown>,
+          { logger?: Logger } | undefined,
         ];
 
         // @ts-expect-error
         return retryLogMetricErrorWrap(() => callback(db), {
           label,
           isTransactionStatement: true,
+          logger: context?.logger ?? common.logger,
         });
       }
     };
@@ -442,20 +508,23 @@ export const createQB = <
   qb.$dialect = dialect;
   qb.$client = db.$client;
 
-  // @ts-expect-error
   qb.wrap = async (...args) => {
     if (typeof args[0] === "function") {
-      const [query] = args;
+      const [query, context] = args;
       // @ts-expect-error
       return retryLogMetricErrorWrap(() => query(qb), {
         isTransactionStatement: false,
+        // @ts-expect-error
+        logger: context?.logger ?? common.logger,
       });
     } else {
-      const [{ label }, query] = args;
+      const [{ label }, query, context] = args;
       // @ts-expect-error
       return retryLogMetricErrorWrap(() => query(qb), {
         isTransactionStatement: false,
         label,
+        // @ts-expect-error
+        logger: context?.logger ?? common.logger,
       });
     }
   };
