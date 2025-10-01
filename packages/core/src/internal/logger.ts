@@ -29,8 +29,7 @@ export function createLogger({
     write(logString: string) {
       const log = JSON.parse(logString) as Log;
       const prettyLog = format(log);
-      process.stdout.write(prettyLog);
-      process.stdout.write("\n");
+      console.log(prettyLog);
     },
   };
 

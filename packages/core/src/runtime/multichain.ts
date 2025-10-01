@@ -487,8 +487,8 @@ export async function runMultichain({
   common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
 
   common.logger.info({
-    service: "indexing",
-    msg: "Completed historical indexing",
+    msg: "Completed backfill",
+    duration: endTimestamp - startTimestamp,
   });
 
   const tables = Object.values(schemaBuild.schema).filter(isTable);
@@ -496,11 +496,14 @@ export async function runMultichain({
   await createIndexes(database.adminQB, { statements: schemaBuild.statements });
   await createTriggers(database.adminQB, { tables });
   if (namespaceBuild.viewsSchema !== undefined) {
+    const endClock = startClock();
     await createViews(database.adminQB, { tables, namespaceBuild });
 
     common.logger.info({
-      service: "app",
-      msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
+      msg: "Created views",
+      views_schema: namespaceBuild.viewsSchema,
+      view_count: tables.length,
+      duration: endClock(),
     });
   }
 
@@ -511,8 +514,7 @@ export async function runMultichain({
   );
 
   common.logger.info({
-    service: "server",
-    msg: "Started returning 200 responses from /ready endpoint",
+    msg: "Started returning 200 responses from '/ready' endpoint",
   });
 
   const realtimeIndexingStore = createRealtimeIndexingStore({
@@ -537,10 +539,14 @@ export async function runMultichain({
 
           const perBlockEvents = splitEvents(event.events);
 
-          // common.logger.debug({
-          //   service: "app",
-          //   msg: `Partitioned events into ${perBlockEvents.length} blocks`,
-          // });
+          if (perBlockEvents.length > 1) {
+            common.logger.debug({
+              msg: "Partitioned events into multiple blocks",
+              chain: event.chain.name,
+              block_count: perBlockEvents.length,
+              event_count: event.events.length,
+            });
+          }
 
           for (const { checkpoint, events } of perBlockEvents) {
             await database.userQB.transaction(async (tx) => {
@@ -553,9 +559,23 @@ export async function runMultichain({
                 realtimeIndexingStore.qb = tx;
                 realtimeIndexingStore.isProcessingEvents = true;
 
+                common.logger.trace({
+                  msg: "Processing block events",
+                  chain: chain.name,
+                  number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                  event_count: events.length,
+                });
+
                 await indexing.processRealtimeEvents({
                   events,
                   db: realtimeIndexingStore,
+                });
+
+                common.logger.trace({
+                  msg: "Processed block events",
+                  chain: chain.name,
+                  number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                  event_count: events.length,
                 });
 
                 realtimeIndexingStore.isProcessingEvents = false;
@@ -564,12 +584,13 @@ export async function runMultichain({
                   tables.map((table) => commitBlock(tx, { table, checkpoint })),
                 );
 
-                // common.logger.info({
-                //   msg: "Indexed block",
-                //   chain: chain.name,
-                //   number: Number(decodeCheckpoint(checkpoint).blockNumber),
-                //   event_count: events.length,
-                // });
+                common.logger.trace({
+                  msg: "Committed reorg data for block",
+                  chain: chain.name,
+                  number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                  event_count: events.length,
+                  checkpoint,
+                });
 
                 common.metrics.ponder_indexing_timestamp.set(
                   { chain: chain.name },

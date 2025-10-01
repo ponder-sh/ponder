@@ -27,7 +27,6 @@ import type { SyncStore } from "@/sync-store/index.js";
 import {
   ZERO_CHECKPOINT_STRING,
   blockToCheckpoint,
-  decodeCheckpoint,
   encodeCheckpoint,
   min,
 } from "@/utils/checkpoint.js";
@@ -166,21 +165,37 @@ export async function* getRealtimeEventsOmnichain(params: {
           childAddresses,
         });
 
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Extracted ${events.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
+        params.common.logger.trace({
+          msg: "Constructed events from block",
+          chain: chain.name,
+          number: hexToNumber(event.block.number),
+          hash: event.block.hash,
+          event_count: events.length,
         });
 
         const decodedEvents = decodeEvents(params.common, sources, events);
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Decoded ${decodedEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
+
+        params.common.logger.trace({
+          msg: "Decoded block events",
+          chain: chain.name,
+          number: hexToNumber(event.block.number),
+          hash: event.block.hash,
+          event_count: decodedEvents.length,
         });
 
         const checkpoint = getOmnichainCheckpoint({
           perChainSync: params.perChainSync,
           tag: "current",
         });
+
+        if (pendingEvents.length > 0) {
+          params.common.logger.trace({
+            msg: "Included pending events",
+            chain: chain.name,
+            event_count: pendingEvents.filter((e) => e.checkpoint < checkpoint)
+              .length,
+          });
+        }
 
         const readyEvents = pendingEvents
           .concat(decodedEvents)
@@ -190,11 +205,6 @@ export async function* getRealtimeEventsOmnichain(params: {
           .concat(decodedEvents)
           .filter((e) => e.checkpoint > checkpoint);
         executedEvents = executedEvents.concat(readyEvents);
-
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Sequenced ${readyEvents.length} events`,
-        });
 
         yield {
           type: "block",
@@ -215,30 +225,6 @@ export async function* getRealtimeEventsOmnichain(params: {
           perChainSync: params.perChainSync,
           tag: "finalized",
         });
-
-        if (
-          syncProgress.getCheckpoint({ tag: "finalized" }) >
-          getOmnichainCheckpoint({
-            perChainSync: params.perChainSync,
-            tag: "current",
-          })
-        ) {
-          const chainId = Number(
-            decodeCheckpoint(
-              getOmnichainCheckpoint({
-                perChainSync: params.perChainSync,
-                tag: "current",
-              }),
-            ).chainId,
-          );
-          const chain = params.indexingBuild.chains.find(
-            (chain) => chain.id === chainId,
-          )!;
-          params.common.logger.warn({
-            service: "sync",
-            msg: `'${chain.name}' is lagging behind other chains`,
-          });
-        }
 
         if (to <= from) continue;
 
@@ -261,9 +247,10 @@ export async function* getRealtimeEventsOmnichain(params: {
           executedEvents = executedEvents.slice(finalizeIndex);
         }
 
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Finalized ${finalizedEvents.length} executed events`,
+        params.common.logger.trace({
+          msg: "Finalized events",
+          chain: chain.name,
+          event_count: finalizedEvents.length,
         });
 
         yield { type: "finalize", chain, checkpoint: to };
@@ -295,9 +282,10 @@ export async function* getRealtimeEventsOmnichain(params: {
         );
         pendingEvents = pendingEvents.concat(reorgedEvents);
 
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Rescheduled ${reorgedEvents.length} reorged events`,
+        params.common.logger.trace({
+          msg: "Removed and rescheduled reorged events",
+          chain: chain.name,
+          event_count: reorgedEvents.length,
         });
 
         pendingEvents = pendingEvents.filter(
@@ -433,7 +421,7 @@ export async function* getRealtimeEventsMultichain(params: {
         const decodedEvents = decodeEvents(params.common, sources, events);
 
         params.common.logger.trace({
-          msg: "Decoded events",
+          msg: "Decoded block events",
           chain: chain.name,
           number: hexToNumber(event.block.number),
           hash: event.block.hash,
@@ -495,9 +483,10 @@ export async function* getRealtimeEventsMultichain(params: {
           executedEvents = executedEvents.slice(finalizeIndex);
         }
 
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Finalized ${finalizedEvents.length} executed events`,
+        params.common.logger.trace({
+          msg: "Finalized events",
+          chain: chain.name,
+          event_count: finalizedEvents.length,
         });
 
         yield { type: "finalize", chain, checkpoint };
@@ -533,9 +522,10 @@ export async function* getRealtimeEventsMultichain(params: {
         executedEvents = executedEvents.slice(0, reorgIndex);
         pendingEvents = pendingEvents.concat(reorgedEvents);
 
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Rescheduled ${reorgedEvents.length} reorged events`,
+        params.common.logger.trace({
+          msg: "Removed and rescheduled reorged events",
+          chain: chain.name,
+          event_count: reorgedEvents.length,
         });
 
         pendingEvents = pendingEvents.filter(
@@ -566,7 +556,7 @@ export async function* getRealtimeEventGenerator(params: {
   }
 
   params.common.logger.debug({
-    msg: "Initialized realtime indexing",
+    msg: "Started live indexing",
     chain: params.chain.name,
     finalized_block: hexToNumber(params.syncProgress.finalized.number),
     factory_address_count: childCount,
@@ -817,6 +807,12 @@ export async function handleRealtimeSyncEvent(
   }
 }
 
+/**
+ * Merges multiple async generators into a single async generator while preserving
+ * the order of "block" events.
+ *
+ * @dev "reorg" and "finalize" events are not ordered between chains.
+ */
 export async function* mergeAsyncGeneratorsWithRealtimeOrder(
   generators: AsyncGenerator<{ chain: Chain; event: RealtimeSyncEvent }>[],
 ): AsyncGenerator<{ chain: Chain; event: RealtimeSyncEvent }> {

@@ -92,10 +92,6 @@ type CreateRealtimeSyncParameters = {
 };
 
 const MAX_LATEST_BLOCK_ATTEMPT_MS = 10 * 60 * 1000; // 10 minutes
-
-const ERROR_TIMEOUT = [
-  1, 2, 5, 10, 30, 60, 60, 60, 60, 60, 60, 60, 60, 60,
-] as const;
 const MAX_QUEUED_BLOCKS = 25;
 
 export const createRealtimeSync = (
@@ -201,10 +197,8 @@ export const createRealtimeSync = (
     } catch (_error) {
       const error = _error as Error;
       args.common.logger.warn({
-        service: "realtime",
-        msg: `Caught eth_getBlockReceipts error on '${
-          args.chain.name
-        }', switching to eth_getTransactionReceipt method.`,
+        msg: "Caught 'eth_getBlockReceipts' error, switching to 'eth_getTransactionReceipt' method",
+        chain: args.chain.name,
         error,
       });
 
@@ -309,8 +303,11 @@ export const createRealtimeSync = (
 
         if (isInvalidLogsBloom) {
           args.common.logger.warn({
-            service: "realtime",
-            msg: `Detected inconsistent RPC responses. Log at index ${log.logIndex} is not in 'block.logsBloom' for block ${block.hash}.`,
+            msg: "Detected inconsistent RPC responses. Log not in 'block.logsBloom'",
+            chain: args.chain.name,
+            number: hexToNumber(block.number),
+            hash: block.hash,
+            logIndex: hexToNumber(log.logIndex),
           });
           break;
         }
@@ -319,8 +316,11 @@ export const createRealtimeSync = (
       for (const log of logs) {
         if (log.transactionHash === zeroHash) {
           args.common.logger.warn({
-            service: "realtime",
-            msg: `Detected '${args.chain.name}' log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some chains like ZKsync.`,
+            msg: "Detected log with empty transaction hash. This is expected for some chains like ZKsync.",
+            chain: args.chain.name,
+            number: hexToNumber(block.number),
+            hash: block.hash,
+            logIndex: hexToNumber(log.logIndex),
           });
         }
       }
@@ -484,6 +484,26 @@ export const createRealtimeSync = (
     const transactionReceipts = await syncTransactionReceipts(
       block,
       requiredTransactionReceipts,
+    );
+
+    let childAddressCount = 0;
+    for (const childAddresses of blockChildAddresses.values()) {
+      childAddressCount += childAddresses.size;
+    }
+
+    args.common.logger.debug(
+      {
+        msg: "Fetched block data",
+        chain: args.chain.name,
+        number: hexToNumber(block.number),
+        hash: block.hash,
+        transaction_count: transactions.length,
+        log_count: logs.length,
+        trace_count: traces.length,
+        receipt_count: transactionReceipts.length,
+        child_address_count: childAddressCount,
+      },
+      ["chain", "number", "hash"],
     );
 
     return {
@@ -818,6 +838,15 @@ export const createRealtimeSync = (
 
     // Blocks are missing. They should be fetched and enqueued.
     if (hexToNumber(latestBlock.number) + 1 < hexToNumber(block.number)) {
+      args.common.logger.trace({
+        msg: "Missing blocks from local chain",
+        chain: args.chain.name,
+        block_range: [
+          hexToNumber(latestBlock.number) + 1,
+          hexToNumber(block.number),
+        ].toString(),
+      });
+
       // Retrieve missing blocks, but only fetch a certain amount.
       const missingBlockRange = range(
         hexToNumber(latestBlock.number) + 1,
@@ -855,6 +884,13 @@ export const createRealtimeSync = (
         hexToNumber(block.number) - hexToNumber(latestBlock.number) >
         MAX_QUEUED_BLOCKS
       ) {
+        args.common.logger.trace({
+          msg: "Block too far ahead of local chain",
+          chain: args.chain.name,
+          number: hexToNumber(block.number),
+          hash: block.hash,
+        });
+
         blockCallback?.(false);
       } else {
         yield* reconcileBlock(blockWithEventData, blockCallback);
@@ -876,6 +912,11 @@ export const createRealtimeSync = (
 
     const blockWithFilteredEventData = filterBlockEventData(blockWithEventData);
 
+    let childAddressCount = 0;
+    for (const childAddresses of blockWithFilteredEventData.childAddresses.values()) {
+      childAddressCount += childAddresses.size;
+    }
+
     args.common.logger.debug(
       {
         msg: "Added block to local chain",
@@ -886,6 +927,7 @@ export const createRealtimeSync = (
         log_count: blockWithFilteredEventData.logs.length,
         trace_count: blockWithFilteredEventData.traces.length,
         receipt_count: blockWithFilteredEventData.transactionReceipts.length,
+        child_address_count: childAddressCount,
       },
       ["chain", "number", "hash"],
     );
@@ -960,16 +1002,28 @@ export const createRealtimeSync = (
     }
   };
 
-  const onError = (error: Error) => {
+  const onError = (error: Error, block?: SyncBlock | SyncBlockHeader) => {
     if (args.common.shutdown.isKilled) {
       throw new ShutdownError();
     }
 
-    args.common.logger.warn({
-      service: "realtime",
-      msg: `Failed to fetch and reconcile '${args.chain.name}' block`,
-      error,
-    });
+    if (block) {
+      args.common.logger.warn({
+        msg: "Failed to fetch latest block",
+        chain: args.chain.name,
+        number: hexToNumber(block.number),
+        hash: block.hash,
+        retry_count: fetchAndReconcileLatestBlockErrorCount,
+        error,
+      });
+    } else {
+      args.common.logger.warn({
+        msg: "Failed to fetch latest block",
+        chain: args.chain.name,
+        retry_count: fetchAndReconcileLatestBlockErrorCount,
+        error,
+      });
+    }
 
     fetchAndReconcileLatestBlockErrorCount += 1;
 
@@ -979,12 +1033,6 @@ export const createRealtimeSync = (
       fetchAndReconcileLatestBlockErrorCount * args.chain.pollingInterval >
         MAX_LATEST_BLOCK_ATTEMPT_MS
     ) {
-      args.common.logger.error({
-        service: "realtime",
-        msg: `Fatal error: Unable to fetch latest '${args.chain.name}' block after ${ERROR_TIMEOUT.length} attempts.`,
-        error,
-      });
-
       throw error;
     }
   };
@@ -1031,7 +1079,7 @@ export const createRealtimeSync = (
         fetchAndReconcileLatestBlockErrorCount = 0;
       } catch (_error) {
         blockCallback?.(false);
-        onError(_error as Error);
+        onError(_error as Error, block);
       }
     },
     onError,
