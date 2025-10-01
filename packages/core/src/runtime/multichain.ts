@@ -381,12 +381,10 @@ export async function runMultichain({
           const { eta, progress } = await getAppProgress(common.metrics);
           if (eta === undefined || progress === undefined) {
             common.logger.info({
-              service: "app",
               msg: `Indexed ${events.events.length} events`,
             });
           } else {
             common.logger.info({
-              service: "app",
               msg: `Indexed ${events.events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
             });
           }
@@ -531,16 +529,18 @@ export async function runMultichain({
   })) {
     switch (event.type) {
       case "block": {
+        const endClock = startClock();
+
         if (event.events.length > 0) {
           // Events must be run block-by-block, so that `database.commitBlock` can accurately
           // update the temporary `checkpoint` value set in the trigger.
 
           const perBlockEvents = splitEvents(event.events);
 
-          common.logger.debug({
-            service: "app",
-            msg: `Partitioned events into ${perBlockEvents.length} blocks`,
-          });
+          // common.logger.debug({
+          //   service: "app",
+          //   msg: `Partitioned events into ${perBlockEvents.length} blocks`,
+          // });
 
           for (const { checkpoint, events } of perBlockEvents) {
             await database.userQB.transaction(async (tx) => {
@@ -560,14 +560,16 @@ export async function runMultichain({
 
                 realtimeIndexingStore.isProcessingEvents = false;
 
-                common.logger.info({
-                  service: "app",
-                  msg: `Indexed ${events.length} '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
-                });
-
                 await Promise.all(
                   tables.map((table) => commitBlock(tx, { table, checkpoint })),
                 );
+
+                // common.logger.info({
+                //   msg: "Indexed block",
+                //   chain: chain.name,
+                //   number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                //   event_count: events.length,
+                // });
 
                 common.metrics.ponder_indexing_timestamp.set(
                   { chain: chain.name },
@@ -595,6 +597,14 @@ export async function runMultichain({
         );
 
         event.blockCallback?.(true);
+
+        common.logger.info({
+          msg: "Indexed block",
+          chain: event.chain.name,
+          number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
+          event_count: event.events.length,
+          duration: endClock(),
+        });
 
         break;
       }

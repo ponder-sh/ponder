@@ -35,17 +35,21 @@ export const _eth_getBlockByNumber = (
   }:
     | { blockNumber: Hex | number; blockTag?: never }
     | { blockNumber?: never; blockTag: "latest" },
+  context?: Parameters<Rpc["request"]>[1],
 ): Promise<SyncBlock> =>
   rpc
-    .request({
-      method: "eth_getBlockByNumber",
-      params: [
-        typeof blockNumber === "number"
-          ? numberToHex(blockNumber)
-          : (blockNumber ?? blockTag),
-        true,
-      ],
-    })
+    .request(
+      {
+        method: "eth_getBlockByNumber",
+        params: [
+          typeof blockNumber === "number"
+            ? numberToHex(blockNumber)
+            : (blockNumber ?? blockTag),
+          true,
+        ],
+      },
+      context,
+    )
     .then((_block) => {
       if (!_block)
         throw new BlockNotFoundError({
@@ -60,12 +64,16 @@ export const _eth_getBlockByNumber = (
 export const _eth_getBlockByHash = (
   rpc: Rpc,
   { hash }: { hash: Hex },
+  context?: Parameters<Rpc["request"]>[1],
 ): Promise<SyncBlock> =>
   rpc
-    .request({
-      method: "eth_getBlockByHash",
-      params: [hash, true],
-    })
+    .request(
+      {
+        method: "eth_getBlockByHash",
+        params: [hash, true],
+      },
+      context,
+    )
     .then((_block) => {
       if (!_block)
         throw new BlockNotFoundError({
@@ -87,24 +95,28 @@ export const _eth_getLogs = async (
     | { fromBlock: Hex | number; toBlock: Hex | number }
     | { blockHash: Hash }
   ),
+  context?: Parameters<Rpc["request"]>[1],
 ): Promise<SyncLog[]> => {
   if ("blockHash" in params) {
     return rpc
-      .request({
-        method: "eth_getLogs",
-        params: [
-          {
-            blockHash: params.blockHash,
+      .request(
+        {
+          method: "eth_getLogs",
+          params: [
+            {
+              blockHash: params.blockHash,
 
-            topics: params.topics,
-            address: params.address
-              ? Array.isArray(params.address)
-                ? params.address.map((a) => toLowerCase(a))
-                : toLowerCase(params.address)
-              : undefined,
-          },
-        ],
-      })
+              topics: params.topics,
+              address: params.address
+                ? Array.isArray(params.address)
+                  ? params.address.map((a) => toLowerCase(a))
+                  : toLowerCase(params.address)
+                : undefined,
+            },
+          ],
+        },
+        context,
+      )
       .then((l) => {
         if (l === null || l === undefined) {
           throw new Error("Received invalid empty eth_getLogs response.");
@@ -115,28 +127,31 @@ export const _eth_getLogs = async (
   }
 
   return rpc
-    .request({
-      method: "eth_getLogs",
-      params: [
-        {
-          fromBlock:
-            typeof params.fromBlock === "number"
-              ? numberToHex(params.fromBlock)
-              : params.fromBlock,
-          toBlock:
-            typeof params.toBlock === "number"
-              ? numberToHex(params.toBlock)
-              : params.toBlock,
+    .request(
+      {
+        method: "eth_getLogs",
+        params: [
+          {
+            fromBlock:
+              typeof params.fromBlock === "number"
+                ? numberToHex(params.fromBlock)
+                : params.fromBlock,
+            toBlock:
+              typeof params.toBlock === "number"
+                ? numberToHex(params.toBlock)
+                : params.toBlock,
 
-          topics: params.topics,
-          address: params.address
-            ? Array.isArray(params.address)
-              ? params.address.map((a) => toLowerCase(a))
-              : toLowerCase(params.address)
-            : undefined,
-        },
-      ],
-    })
+            topics: params.topics,
+            address: params.address
+              ? Array.isArray(params.address)
+                ? params.address.map((a) => toLowerCase(a))
+                : toLowerCase(params.address)
+              : undefined,
+          },
+        ],
+      },
+      context,
+    )
     .then((l) => {
       if (l === null || l === undefined) {
         throw new Error("Received invalid empty eth_getLogs response.");
@@ -152,12 +167,16 @@ export const _eth_getLogs = async (
 export const _eth_getTransactionReceipt = (
   rpc: Rpc,
   { hash }: { hash: Hex },
+  context?: Parameters<Rpc["request"]>[1],
 ): Promise<SyncTransactionReceipt> =>
   rpc
-    .request({
-      method: "eth_getTransactionReceipt",
-      params: [hash],
-    })
+    .request(
+      {
+        method: "eth_getTransactionReceipt",
+        params: [hash],
+      },
+      context,
+    )
     .then((receipt) => {
       if (!receipt)
         throw new TransactionReceiptNotFoundError({
@@ -172,12 +191,16 @@ export const _eth_getTransactionReceipt = (
 export const _eth_getBlockReceipts = (
   rpc: Rpc,
   { blockHash }: { blockHash: Hash },
+  context?: Parameters<Rpc["request"]>[1],
 ): Promise<SyncTransactionReceipt[]> =>
   rpc
-    .request({
-      method: "eth_getBlockReceipts",
-      params: [blockHash],
-    } as any)
+    .request(
+      {
+        method: "eth_getBlockReceipts",
+        params: [blockHash],
+      },
+      context,
+    )
     .then((receipts) => {
       if (receipts === null || receipts === undefined) {
         throw new Error(
@@ -185,9 +208,7 @@ export const _eth_getBlockReceipts = (
         );
       }
 
-      return (receipts as unknown as SyncTransactionReceipt[]).map(
-        standardizeTransactionReceipt,
-      );
+      return receipts.map(standardizeTransactionReceipt);
     });
 
 /**
@@ -200,17 +221,21 @@ export const _debug_traceBlockByNumber = (
   }: {
     blockNumber: Hex | number;
   },
+  context?: Parameters<Rpc["request"]>[1],
 ): Promise<SyncTrace[]> =>
   rpc
-    .request({
-      method: "debug_traceBlockByNumber",
-      params: [
-        typeof blockNumber === "number"
-          ? numberToHex(blockNumber)
-          : blockNumber,
-        { tracer: "callTracer" },
-      ],
-    })
+    .request(
+      {
+        method: "debug_traceBlockByNumber",
+        params: [
+          typeof blockNumber === "number"
+            ? numberToHex(blockNumber)
+            : blockNumber,
+          { tracer: "callTracer" },
+        ],
+      },
+      context,
+    )
     .then((traces) => {
       if (traces === null || traces === undefined) {
         throw new Error(
@@ -280,12 +305,16 @@ export const _debug_traceBlockByHash = (
   }: {
     hash: Hash;
   },
+  context?: Parameters<Rpc["request"]>[1],
 ): Promise<SyncTrace[]> =>
   rpc
-    .request({
-      method: "debug_traceBlockByHash",
-      params: [hash, { tracer: "callTracer" }],
-    })
+    .request(
+      {
+        method: "debug_traceBlockByHash",
+        params: [hash, { tracer: "callTracer" }],
+      },
+      context,
+    )
     .then((traces) => {
       if (traces === null || traces === undefined) {
         throw new Error(

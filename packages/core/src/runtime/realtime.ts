@@ -375,6 +375,8 @@ export async function* getRealtimeEventsMultichain(params: {
   /** Events that have not been executed. */
   let pendingEvents: Event[] = [];
 
+  // TODO(kyle) debug log for merge ??
+
   for await (const { chain, event } of mergeAsyncGenerators(eventGenerators)) {
     const { syncProgress, childAddresses, unfinalizedBlocks } =
       params.perChainSync.get(chain)!;
@@ -420,29 +422,39 @@ export async function* getRealtimeEventsMultichain(params: {
           childAddresses,
         });
 
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Extracted ${events.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
+        params.common.logger.trace({
+          msg: "Constructed events from block",
+          chain: chain.name,
+          number: hexToNumber(event.block.number),
+          hash: event.block.hash,
+          event_count: events.length,
         });
 
         const decodedEvents = decodeEvents(params.common, sources, events);
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Decoded ${decodedEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
+
+        params.common.logger.trace({
+          msg: "Decoded events",
+          chain: chain.name,
+          number: hexToNumber(event.block.number),
+          hash: event.block.hash,
+          event_count: decodedEvents.length,
         });
 
         const checkpoint = syncProgress.getCheckpoint({ tag: "current" });
+
+        if (pendingEvents.length > 0) {
+          params.common.logger.trace({
+            msg: "Included pending events",
+            chain: chain.name,
+            event_count: pendingEvents.length,
+          });
+        }
 
         const readyEvents = decodedEvents
           .concat(pendingEvents)
           .sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
         pendingEvents = [];
         executedEvents = executedEvents.concat(readyEvents);
-
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Sequenced ${readyEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
-        });
 
         yield {
           type: "block",
@@ -554,8 +566,10 @@ export async function* getRealtimeEventGenerator(params: {
   }
 
   params.common.logger.debug({
-    service: "sync",
-    msg: `Initialized '${params.chain.name}' realtime sync with ${childCount} factory child addresses`,
+    msg: "Initialized realtime indexing",
+    chain: params.chain.name,
+    finalized_block: hexToNumber(params.syncProgress.finalized.number),
+    factory_address_count: childCount,
   });
 
   const { callback, generator } = createCallbackGenerator<
@@ -603,8 +617,9 @@ export async function* getRealtimeEventGenerator(params: {
         1,
       );
       params.common.logger.info({
-        service: "sync",
-        msg: `Killing '${params.chain.name}' live indexing because the end block ${hexToNumber(params.syncProgress.end!.number)} has been finalized`,
+        msg: "Killed live indexing",
+        chain: params.chain.name,
+        end_block: hexToNumber(params.syncProgress.end!.number),
       });
       await params.rpc.unsubscribe();
       return;
@@ -630,10 +645,7 @@ export async function handleRealtimeSyncEvent(
     case "block": {
       params.syncProgress.current = event.block;
 
-      params.common.logger.debug({
-        service: "sync",
-        msg: `Updated '${params.chain.name}' current block to ${hexToNumber(event.block.number)}`,
-      });
+      // TODO(kyle) log
 
       params.common.metrics.ponder_sync_block.set(
         { chain: params.chain.name },
@@ -656,10 +668,7 @@ export async function handleRealtimeSyncEvent(
 
       params.syncProgress.finalized = event.block;
 
-      params.common.logger.debug({
-        service: "sync",
-        msg: `Updated '${params.chain.name}' finalized block to ${hexToNumber(event.block.number)}`,
-      });
+      // TODO(kyle) log
 
       // Remove all finalized data
 
@@ -776,10 +785,7 @@ export async function handleRealtimeSyncEvent(
     case "reorg": {
       params.syncProgress.current = event.block;
 
-      params.common.logger.debug({
-        service: "sync",
-        msg: `Updated '${params.chain.name}' current block to ${hexToNumber(event.block.number)}`,
-      });
+      // TODO(kyle) log
 
       params.common.metrics.ponder_sync_block.set(
         { chain: params.chain.name },

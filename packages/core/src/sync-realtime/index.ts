@@ -330,9 +330,11 @@ export const createRealtimeSync = (
       shouldRequestLogs === false &&
       args.sources.some((s) => s.filter.type === "log")
     ) {
-      args.common.logger.debug({
-        service: "realtime",
-        msg: `Skipped fetching '${args.chain.name}' logs for block ${hexToNumber(maybeBlockHeader.number)} due to bloom filter result`,
+      args.common.logger.trace({
+        msg: "Skipped fetching logs due to bloom filter result",
+        chain: args.chain.name,
+        number: hexToNumber(maybeBlockHeader.number),
+        hash: maybeBlockHeader.hash,
       });
     }
 
@@ -690,8 +692,10 @@ export const createRealtimeSync = (
     block: SyncBlock | SyncBlockHeader,
   ): Promise<Extract<RealtimeSyncEvent, { type: "reorg" }>> => {
     args.common.logger.warn({
-      service: "realtime",
-      msg: `Detected forked '${args.chain.name}' block at height ${hexToNumber(block.number)}`,
+      msg: "Detected reorg",
+      chain: args.chain.name,
+      number: hexToNumber(block.number),
+      hash: block.hash,
     });
 
     // Record blocks that have been removed from the local chain.
@@ -720,11 +724,15 @@ export const createRealtimeSync = (
         // to what it was before we started.
         unfinalizedBlocks = reorgedBlocks;
 
-        const msg = `Encountered unrecoverable '${args.chain.name}' reorg beyond finalized block ${hexToNumber(finalizedBlock.number)}`;
+        args.common.logger.warn({
+          msg: "Encountered unrecoverable reorg",
+          chain: args.chain.name,
+          finalized_block: hexToNumber(finalizedBlock.number),
+        });
 
-        args.common.logger.warn({ service: "realtime", msg });
-
-        throw new Error(msg);
+        throw new Error(
+          `Encountered unrecoverable '${args.chain.name}' reorg beyond finalized block ${hexToNumber(finalizedBlock.number)}`,
+        );
       } else {
         remoteBlock = await _eth_getBlockByHash(args.rpc, {
           hash: remoteBlock.parentHash,
@@ -737,10 +745,10 @@ export const createRealtimeSync = (
     const commonAncestor = getLatestUnfinalizedBlock();
 
     args.common.logger.warn({
-      service: "realtime",
-      msg: `Reconciled ${reorgedBlocks.length}-block '${
-        args.chain.name
-      }' reorg with common ancestor block ${hexToNumber(commonAncestor.number)}`,
+      msg: "Reconciled reorg",
+      chain: args.chain.name,
+      reorg_depth: reorgedBlocks.length,
+      common_ancestor_block: hexToNumber(commonAncestor.number),
     });
 
     // remove reorged blocks from `childAddresses`
@@ -788,8 +796,10 @@ export const createRealtimeSync = (
     // We already saw and handled this block. No-op.
     if (latestBlock.hash === block.hash) {
       args.common.logger.trace({
-        service: "realtime",
-        msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
+        msg: "Detected duplicate block",
+        chain: args.chain.name,
+        number: hexToNumber(block.number),
+        hash: block.hash,
       });
 
       blockCallback?.(false);
@@ -825,14 +835,16 @@ export const createRealtimeSync = (
         ),
       );
 
-      args.common.logger.info({
-        service: "realtime",
-        msg: `Fetched ${missingBlockRange.length} missing '${
-          args.chain.name
-        }' blocks [${hexToNumber(latestBlock.number) + 1}, ${Math.min(
-          hexToNumber(block.number),
-          hexToNumber(latestBlock.number) + MAX_QUEUED_BLOCKS,
-        )}]`,
+      args.common.logger.debug({
+        msg: "Fetched missing blocks",
+        chain: args.chain.name,
+        block_range: [
+          hexToNumber(latestBlock.number) + 1,
+          Math.min(
+            hexToNumber(block.number),
+            hexToNumber(latestBlock.number) + MAX_QUEUED_BLOCKS,
+          ),
+        ].toString(),
       });
 
       for (const pendingBlock of pendingBlocks) {
@@ -864,44 +876,19 @@ export const createRealtimeSync = (
 
     const blockWithFilteredEventData = filterBlockEventData(blockWithEventData);
 
-    if (
-      blockWithFilteredEventData.logs.length > 0 ||
-      blockWithFilteredEventData.traces.length > 0 ||
-      blockWithFilteredEventData.transactions.length > 0
-    ) {
-      const _text: string[] = [];
-
-      if (blockWithFilteredEventData.logs.length === 1) {
-        _text.push("1 log");
-      } else if (blockWithFilteredEventData.logs.length > 1) {
-        _text.push(`${blockWithFilteredEventData.logs.length} logs`);
-      }
-
-      if (blockWithFilteredEventData.traces.length === 1) {
-        _text.push("1 trace");
-      } else if (blockWithFilteredEventData.traces.length > 1) {
-        _text.push(`${blockWithFilteredEventData.traces.length} traces`);
-      }
-
-      if (blockWithFilteredEventData.transactions.length === 1) {
-        _text.push("1 transaction");
-      } else if (blockWithFilteredEventData.transactions.length > 1) {
-        _text.push(
-          `${blockWithFilteredEventData.transactions.length} transactions`,
-        );
-      }
-
-      const text = _text.filter((t) => t !== undefined).join(" and ");
-      args.common.logger.info({
-        service: "realtime",
-        msg: `Synced ${text} from '${args.chain.name}' block ${hexToNumber(block.number)}`,
-      });
-    } else {
-      args.common.logger.info({
-        service: "realtime",
-        msg: `Synced block ${hexToNumber(block.number)} from '${args.chain.name}' `,
-      });
-    }
+    args.common.logger.debug(
+      {
+        msg: "Added block to local chain",
+        chain: args.chain.name,
+        number: hexToNumber(block.number),
+        hash: block.hash,
+        transaction_count: blockWithFilteredEventData.transactions.length,
+        log_count: blockWithFilteredEventData.logs.length,
+        trace_count: blockWithFilteredEventData.traces.length,
+        receipt_count: blockWithFilteredEventData.transactionReceipts.length,
+      },
+      ["chain", "number", "hash"],
+    );
 
     unfinalizedBlocks.push({
       hash: block.hash,
@@ -942,10 +929,12 @@ export const createRealtimeSync = (
       )!;
 
       args.common.logger.debug({
-        service: "realtime",
-        msg: `Finalized ${hexToNumber(pendingFinalizedBlock.number) - hexToNumber(finalizedBlock.number) + 1} '${
-          args.chain.name
-        }' blocks [${hexToNumber(finalizedBlock.number) + 1}, ${hexToNumber(pendingFinalizedBlock.number)}]`,
+        msg: "Finalized block range",
+        chain: args.chain.name,
+        block_range: [
+          hexToNumber(finalizedBlock.number) + 1,
+          hexToNumber(pendingFinalizedBlock.number),
+        ].toString(),
       });
 
       const finalizedBlocks = unfinalizedBlocks.filter(
@@ -1006,8 +995,10 @@ export const createRealtimeSync = (
     async *sync(block, blockCallback) {
       try {
         args.common.logger.debug({
-          service: "realtime",
-          msg: `Received latest '${args.chain.name}' block ${hexToNumber(block.number)}`,
+          msg: "Received new head block",
+          chain: args.chain.name,
+          number: hexToNumber(block.number),
+          hash: block.hash,
         });
 
         const latestBlock = getLatestUnfinalizedBlock();
@@ -1015,8 +1006,10 @@ export const createRealtimeSync = (
         // We already saw and handled this block. No-op.
         if (latestBlock.hash === block.hash) {
           args.common.logger.trace({
-            service: "realtime",
-            msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
+            msg: "Detected duplicate block",
+            chain: args.chain.name,
+            number: hexToNumber(block.number),
+            hash: block.hash,
           });
           blockCallback?.(false);
 

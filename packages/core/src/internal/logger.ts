@@ -1,4 +1,5 @@
 import type { Prettify } from "@/types/utils.js";
+import { formatEta } from "@/utils/format.js";
 import pc from "picocolors";
 import { type DestinationStream, type LevelWithSilent, pino } from "pino";
 
@@ -16,6 +17,9 @@ type Log = {
   duration?: number;
   error?: Error;
 } & Record<string, unknown>;
+
+const PRINT_KEYS = "PRINT_KEYS";
+const INTERNAL_KEYS = ["level", "time", "msg", "duration", "error", PRINT_KEYS];
 
 export function createLogger({
   level,
@@ -54,19 +58,54 @@ export function createLogger({
   );
 
   return {
-    error(options: Omit<Log, "level" | "time">) {
+    error<T extends Omit<Log, "level" | "time">>(
+      options: T,
+      printKeys?: (keyof T)[],
+    ) {
+      if (mode === "pretty" && printKeys) {
+        // @ts-ignore
+        options[PRINT_KEYS] = printKeys;
+      }
       logger.error(options);
     },
-    warn(options: Omit<Log, "level" | "time">) {
+    warn<T extends Omit<Log, "level" | "time">>(
+      options: T,
+      printKeys?: (keyof T)[],
+    ) {
+      if (mode === "pretty" && printKeys) {
+        // @ts-ignore
+        options[PRINT_KEYS] = printKeys;
+      }
       logger.warn(options);
     },
-    info(options: Omit<Log, "level" | "time">) {
+    info<T extends Omit<Log, "level" | "time">>(
+      options: T,
+      printKeys?: (keyof T)[],
+    ) {
+      if (mode === "pretty" && printKeys) {
+        // @ts-ignore
+        options[PRINT_KEYS] = printKeys;
+      }
       logger.info(options);
     },
-    debug(options: Omit<Log, "level" | "time">) {
+    debug<T extends Omit<Log, "level" | "time">>(
+      options: T,
+      printKeys?: (keyof T)[],
+    ) {
+      if (mode === "pretty" && printKeys) {
+        // @ts-ignore
+        options[PRINT_KEYS] = printKeys;
+      }
       logger.debug(options);
     },
-    trace(options: Omit<Log, "level" | "time">) {
+    trace<T extends Omit<Log, "level" | "time">>(
+      options: T,
+      printKeys?: (keyof T)[],
+    ) {
+      if (mode === "pretty" && printKeys) {
+        // @ts-ignore
+        options[PRINT_KEYS] = printKeys;
+      }
       logger.trace(options);
     },
     flush: () => new Promise(logger.flush),
@@ -109,11 +148,47 @@ const format = (log: Log) => {
     const level = levelObject.colorLabel;
     const messageText = pc.reset(log.msg);
 
-    prettyLog = [`${pc.gray(time)} ${level}${messageText}`];
+    let keyText = "";
+    if (PRINT_KEYS in log) {
+      for (const key of log[PRINT_KEYS] as (keyof Log)[]) {
+        keyText += ` ${key}=${log[key]}`;
+      }
+    } else {
+      for (const key of Object.keys(log)) {
+        if (INTERNAL_KEYS.includes(key)) continue;
+        keyText += ` ${key}=${log[key]}`;
+      }
+    }
+
+    let durationText = "";
+    if (log.duration) {
+      durationText = ` ${pc.gray(`[${formatEta(log.duration)}]`)}`;
+    }
+
+    prettyLog = [
+      `${pc.gray(time)} ${level} ${messageText}${keyText}${durationText}`,
+    ];
   } else {
     const level = levelObject.label;
 
-    prettyLog = [`${time} ${level} ${log.msg}`];
+    let keyText = "";
+    if (PRINT_KEYS in log) {
+      keyText = (log[PRINT_KEYS] as (keyof Log)[])
+        .map((key) => ` ${key}=${log[key]}`)
+        .join("");
+    } else {
+      for (const key of Object.keys(log)) {
+        if (INTERNAL_KEYS.includes(key)) continue;
+        keyText += ` ${key}=${log[key]}`;
+      }
+    }
+
+    let durationText = "";
+    if (log.duration) {
+      durationText = ` [${formatEta(log.duration)}]`;
+    }
+
+    prettyLog = [`${time} ${level} ${log.msg}${keyText}${durationText}`];
   }
 
   if (log.error) {
