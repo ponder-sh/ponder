@@ -24,6 +24,7 @@ import {
   ParseRpcError,
   type PublicRpcSchema,
   type RpcError,
+  TimeoutError,
   // TimeoutError,
   isHex,
   webSocket,
@@ -50,18 +51,18 @@ export type Rpc = {
 const RETRY_COUNT = 9;
 const BASE_DURATION = 125;
 const INITIAL_REACTIVATION_DELAY = 100;
-// const MAX_REACTIVATION_DELAY = 5_000;
-// const BACKOFF_FACTOR = 1.5;
+const MAX_REACTIVATION_DELAY = 5_000;
+const BACKOFF_FACTOR = 1.5;
 const LATENCY_WINDOW_SIZE = 500;
 /** Hurdle rate for switching to a faster bucket. */
 const LATENCY_HURDLE_RATE = 0.1;
 /** Exploration rate. */
 const EPSILON = 0.1;
 const INITIAL_MAX_RPS = 20;
-// const MIN_RPS = 1;
+const MIN_RPS = 1;
 const MAX_RPS = 500;
-const RPS_INCREASE_FACTOR = 1.2;
-// const RPS_DECREASE_FACTOR = 0.7;
+const RPS_INCREASE_FACTOR = 1.05;
+const RPS_DECREASE_FACTOR = 0.95;
 const RPS_INCREASE_QUALIFIER = 0.8;
 const SUCCESS_WINDOW_SIZE = 100;
 
@@ -146,15 +147,15 @@ const getRPS = (bucket: Bucket) => {
 /**
  * Return `true` if the bucket is available to send a request.
  */
-// const isAvailable = (bucket: Bucket) => {
-//   if (bucket.isActive && getRPS(bucket) < bucket.rpsLimit) return true;
+const isAvailable = (bucket: Bucket) => {
+  if (bucket.isActive && getRPS(bucket) < bucket.rpsLimit) return true;
 
-//   if (bucket.isActive && bucket.isWarmingUp && bucket.activeConnections < 3) {
-//     return true;
-//   }
+  if (bucket.isActive && bucket.isWarmingUp && bucket.activeConnections < 3) {
+    return true;
+  }
 
-//   return false;
-// };
+  return false;
+};
 
 const increaseMaxRPS = (bucket: Bucket) => {
   if (
@@ -170,11 +171,11 @@ const increaseMaxRPS = (bucket: Bucket) => {
   }
 };
 
-// const decreaseMaxRPS = (bucket: Bucket) => {
-//   const newRPSLimit = Math.max(bucket.rpsLimit * RPS_DECREASE_FACTOR, MIN_RPS);
-//   bucket.rpsLimit = newRPSLimit;
-//   bucket.consecutiveSuccessfulRequests = 0;
-// };
+const decreaseMaxRPS = (bucket: Bucket) => {
+  const newRPSLimit = Math.max(bucket.rpsLimit * RPS_DECREASE_FACTOR, MIN_RPS);
+  bucket.rpsLimit = newRPSLimit;
+  bucket.consecutiveSuccessfulRequests = 0;
+};
 
 export const createRpc = ({
   common,
@@ -271,27 +272,27 @@ export const createRpc = ({
   /** Tracks all active bucket reactivation timeouts to cleanup during shutdown */
   const timeouts = new Set<NodeJS.Timeout>();
 
-  // const scheduleBucketActivation = (bucket: Bucket) => {
-  //   const timeoutId = setTimeout(() => {
-  //     bucket.isActive = true;
-  //     bucket.isWarmingUp = true;
-  //     timeouts.delete(timeoutId);
-  //     common.logger.debug({
-  //       service: "rpc",
-  //       msg: `RPC bucket ${bucket.index} reactivated for chain '${chain.name}' after ${Math.round(bucket.reactivationDelay)}ms`,
-  //     });
-  //   }, bucket.reactivationDelay);
+  const scheduleBucketActivation = (bucket: Bucket) => {
+    const timeoutId = setTimeout(() => {
+      bucket.isActive = true;
+      bucket.isWarmingUp = true;
+      timeouts.delete(timeoutId);
+      common.logger.debug({
+        service: "rpc",
+        msg: `RPC bucket ${bucket.index} reactivated for chain '${chain.name}' after ${Math.round(bucket.reactivationDelay)}ms`,
+      });
+    }, bucket.reactivationDelay);
 
-  //   common.logger.debug({
-  //     service: "rpc",
-  //     msg: `RPC bucket '${chain.name}' ${bucket.index} deactivated for chain '${chain.name}'. Reactivation scheduled in ${Math.round(bucket.reactivationDelay)}ms`,
-  //   });
+    common.logger.debug({
+      service: "rpc",
+      msg: `RPC bucket '${chain.name}' ${bucket.index} deactivated for chain '${chain.name}'. Reactivation scheduled in ${Math.round(bucket.reactivationDelay)}ms`,
+    });
 
-  //   timeouts.add(timeoutId);
-  // };
+    timeouts.add(timeoutId);
+  };
 
   const getBucket = async (): Promise<Bucket> => {
-    const availableBuckets = buckets;
+    const availableBuckets = buckets.filter(isAvailable);
 
     if (availableBuckets.length === 0) {
       await wait(10);
@@ -395,30 +396,35 @@ export const createRpc = ({
 
           addLatency(bucket, stopClock(), false);
 
-          // if (
-          //   // @ts-ignore
-          //   error.code === 429 ||
-          //   // @ts-ignore
-          //   error.status === 429 ||
-          //   error instanceof TimeoutError
-          // ) {
-          //   if (bucket.isActive) {
-          //     bucket.isActive = false;
-          //     bucket.isWarmingUp = false;
+          if (
+            // @ts-ignore
+            error.code === 429 ||
+            // @ts-ignore
+            error.status === 429 ||
+            error instanceof TimeoutError
+          ) {
+            if (bucket.isActive) {
+              bucket.isActive = false;
+              bucket.isWarmingUp = false;
 
-          //     decreaseMaxRPS(bucket);
+              decreaseMaxRPS(bucket);
 
-          //     scheduleBucketActivation(bucket);
+              common.logger.debug({
+                service: "rpc",
+                msg: `RPC bucket '${chain.name}' ${bucket.index} rps limit lowered to ${bucket.rpsLimit}`,
+              });
 
-          //     bucket.reactivationDelay =
-          //       error instanceof TimeoutError
-          //         ? INITIAL_REACTIVATION_DELAY
-          //         : Math.min(
-          //             bucket.reactivationDelay * BACKOFF_FACTOR,
-          //             MAX_REACTIVATION_DELAY,
-          //           );
-          //   }
-          // }
+              scheduleBucketActivation(bucket);
+
+              bucket.reactivationDelay =
+                error instanceof TimeoutError
+                  ? INITIAL_REACTIVATION_DELAY
+                  : Math.min(
+                      bucket.reactivationDelay * BACKOFF_FACTOR,
+                      MAX_REACTIVATION_DELAY,
+                    );
+            }
+          }
 
           if (shouldRetry(error) === false) {
             common.logger.warn({
