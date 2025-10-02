@@ -146,15 +146,15 @@ const getRPS = (bucket: Bucket) => {
 /**
  * Return `true` if the bucket is available to send a request.
  */
-const isAvailable = (bucket: Bucket) => {
-  if (bucket.isActive && getRPS(bucket) < bucket.rpsLimit) return true;
+// const isAvailable = (bucket: Bucket) => {
+//   if (bucket.isActive && getRPS(bucket) < bucket.rpsLimit) return true;
 
-  if (bucket.isActive && bucket.isWarmingUp && bucket.activeConnections < 3) {
-    return true;
-  }
+//   if (bucket.isActive && bucket.isWarmingUp && bucket.activeConnections < 3) {
+//     return true;
+//   }
 
-  return false;
-};
+//   return false;
+// };
 
 const increaseMaxRPS = (bucket: Bucket) => {
   if (
@@ -291,7 +291,7 @@ export const createRpc = ({
   // };
 
   const getBucket = async (): Promise<Bucket> => {
-    const availableBuckets = buckets.filter((b) => isAvailable(b));
+    const availableBuckets = buckets;
 
     if (availableBuckets.length === 0) {
       await wait(10);
