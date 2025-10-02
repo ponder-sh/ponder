@@ -144,12 +144,13 @@ export async function createServer({
         clearTimeout(timeout);
         common.metrics.ponder_http_server_port.set(apiBuild.port);
         common.logger.info({
-          service: "server",
-          msg: `Started listening on port ${apiBuild.port}`,
+          msg: "Created HTTP server",
+          port: apiBuild.port,
+          hostname: apiBuild.hostname,
         });
         common.logger.info({
-          service: "server",
-          msg: "Started returning 200 responses from /health endpoint",
+          msg: "Started returning 200 responses",
+          endpoint: "/health",
         });
         resolve(httpServer as http.Server);
       },

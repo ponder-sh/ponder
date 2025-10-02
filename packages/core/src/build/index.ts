@@ -117,21 +117,21 @@ export const createBuild = async ({
     clearScreen() {},
     hasErrorLogged: (error: Error) => viteLogger.loggedErrors.has(error),
     info: (msg: string) => {
-      common.logger.trace({ service: "build(vite)", msg });
+      common.logger.trace({ msg, action: "build" });
     },
     warn: (msg: string) => {
       viteLogger.hasWarned = true;
-      common.logger.trace({ service: "build(vite)", msg });
+      common.logger.trace({ msg, action: "build" });
     },
     warnOnce: (msg: string) => {
       if (viteLogger.warnedMessages.has(msg)) return;
       viteLogger.hasWarned = true;
-      common.logger.trace({ service: "build(vite)", msg });
+      common.logger.trace({ msg, action: "build" });
       viteLogger.warnedMessages.add(msg);
     },
     error: (msg: string) => {
       viteLogger.hasWarned = true;
-      common.logger.trace({ service: "build(vite)", msg });
+      common.logger.trace({ msg, action: "build" });
     },
   };
 
@@ -183,8 +183,8 @@ export const createBuild = async ({
 
       if (executeResult.status === "error") {
         common.logger.error({
-          service: "build",
-          msg: "Error while executing 'ponder.config.ts':",
+          msg: "Error while executing file",
+          file: "ponder.config.ts",
           error: executeResult.error,
         });
 
@@ -216,8 +216,8 @@ export const createBuild = async ({
 
       if (executeResult.status === "error") {
         common.logger.error({
-          service: "build",
-          msg: "Error while executing 'ponder.schema.ts':",
+          msg: "Error while executing file",
+          file: "ponder.schema.ts",
           error: executeResult.error,
         });
 
@@ -250,11 +250,8 @@ export const createBuild = async ({
       for (const executeResult of executeResults) {
         if (executeResult.status === "error") {
           common.logger.error({
-            service: "build",
-            msg: `Error while executing '${path.relative(
-              common.options.rootDir,
-              executeResult.file,
-            )}':`,
+            msg: "Error while executing file",
+            file: path.relative(common.options.rootDir, executeResult.file),
             error: executeResult.error,
           });
 
@@ -271,8 +268,8 @@ export const createBuild = async ({
           hash.update(contents);
         } catch (e) {
           common.logger.warn({
-            service: "build",
-            msg: `Unable to read contents of file '${file}' while constructing build ID`,
+            msg: "Unable to read file",
+            file,
           });
           hash.update(file);
         }
@@ -298,11 +295,6 @@ export const createBuild = async ({
           `API endpoint file not found. Create a file at ${common.options.apiFile}. Read more: https://ponder.sh/docs/api-reference/ponder/api-endpoints`,
         );
         error.stack = undefined;
-        common.logger.error({
-          service: "build",
-          msg: "Failed build",
-          error,
-        });
 
         return { status: "error", error };
       }
@@ -313,11 +305,8 @@ export const createBuild = async ({
 
       if (executeResult.status === "error") {
         common.logger.error({
-          service: "build",
-          msg: `Error while executing '${path.relative(
-            common.options.rootDir,
-            common.options.apiFile,
-          )}':`,
+          msg: "Error while executing file",
+          file: path.relative(common.options.rootDir, common.options.apiFile),
           error: executeResult.error,
         });
 
@@ -331,11 +320,6 @@ export const createBuild = async ({
           "API endpoint file does not export a Hono instance as the default export. Read more: https://ponder.sh/docs/api-reference/ponder/api-endpoints",
         );
         error.stack = undefined;
-        common.logger.error({
-          service: "build",
-          msg: "Failed build",
-          error,
-        });
 
         return { status: "error", error };
       }
@@ -354,11 +338,7 @@ export const createBuild = async ({
           "Database schema required. Specify with 'DATABASE_SCHEMA' env var or '--schema' CLI flag. Read more: https://ponder.sh/docs/database#database-schema",
         );
         error.stack = undefined;
-        common.logger.error({
-          service: "build",
-          msg: "Failed build",
-          error,
-        });
+
         return { status: "error", error } as const;
       }
 
@@ -379,12 +359,6 @@ export const createBuild = async ({
         options: common.options,
       });
       if (preBuild.status === "error") {
-        common.logger.error({
-          service: "build",
-          msg: "Failed build",
-          error: preBuild.error,
-        });
-
         return preBuild;
       }
 
@@ -400,11 +374,6 @@ export const createBuild = async ({
             `Failed to connect to PGlite database. Please check your database connection settings.\n\n${(e as any).message}`,
           );
           error.stack = undefined;
-          common.logger.error({
-            service: "build",
-            msg: "Failed build",
-            error,
-          });
           return { status: "error", error };
         } finally {
           await driver.close();
@@ -427,11 +396,6 @@ export const createBuild = async ({
             `Failed to connect to database. Please check your database connection settings.\n\n${(e as any).message}`,
           );
           error.stack = undefined;
-          common.logger.error({
-            service: "build",
-            msg: "Failed build",
-            error,
-          });
           return { status: "error", error };
         } finally {
           await pool.end();
@@ -439,7 +403,7 @@ export const createBuild = async ({
       }
 
       for (const log of preBuild.logs) {
-        common.logger[log.level]({ service: "build", msg: log.msg });
+        common.logger[log.level]({ msg: log.msg });
       }
 
       return {
@@ -456,12 +420,6 @@ export const createBuild = async ({
       });
 
       if (buildSchemaResult.status === "error") {
-        common.logger.error({
-          service: "build",
-          msg: "Error while building schema:",
-          error: buildSchemaResult.error,
-        });
-
         return buildSchemaResult;
       }
 
@@ -480,17 +438,11 @@ export const createBuild = async ({
         config: configResult.config,
       });
       if (buildConfigResult.status === "error") {
-        common.logger.error({
-          service: "build",
-          msg: "Failed build",
-          error: buildConfigResult.error,
-        });
-
         return buildConfigResult;
       }
 
       for (const log of buildConfigResult.logs) {
-        common.logger[log.level]({ service: "build", msg: log.msg });
+        common.logger[log.level]({ msg: log.msg });
       }
 
       return {
@@ -510,17 +462,11 @@ export const createBuild = async ({
           rawIndexingFunctions: indexingResult.indexingFunctions,
         });
       if (buildConfigAndIndexingFunctionsResult.status === "error") {
-        common.logger.error({
-          service: "build",
-          msg: "Failed build",
-          error: buildConfigAndIndexingFunctionsResult.error,
-        });
-
         return buildConfigAndIndexingFunctionsResult;
       }
 
       for (const log of buildConfigAndIndexingFunctionsResult.logs) {
-        common.logger[log.level]({ service: "build", msg: log.msg });
+        common.logger[log.level]({ msg: log.msg });
       }
 
       const buildId = createHash("sha256")
@@ -559,11 +505,6 @@ export const createBuild = async ({
               `Validation failed: API route "${route.path}" is reserved for internal use.`,
             );
             error.stack = undefined;
-            common.logger.error({
-              service: "build",
-              msg: "Failed build",
-              error,
-            });
             return { status: "error", error } as const;
           }
         }
@@ -648,7 +589,6 @@ export const createBuild = async ({
         }
 
         common.logger.info({
-          service: "build",
           msg: `Hot reload ${Array.from(invalidated)
             .map((f) => `'${path.relative(common.options.rootDir, f)}'`)
             .join(", ")}`,

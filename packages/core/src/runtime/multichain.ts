@@ -514,7 +514,8 @@ export async function runMultichain({
   );
 
   common.logger.info({
-    msg: "Started returning 200 responses from '/ready' endpoint",
+    msg: "Started returning 200 responses",
+    endpoint: "/ready",
   });
 
   const realtimeIndexingStore = createRealtimeIndexingStore({

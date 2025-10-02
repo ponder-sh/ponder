@@ -393,17 +393,13 @@ export const createRpc = ({
         const id = crypto.randomUUID().slice(0, 8);
 
         try {
-          logger.trace(
-            {
-              msg: "Sent JSON-RPC request",
-              chain: chain.name,
-              provider: bucket.hostname,
-              method: body.method,
-              params: body.params,
-              request_id: id,
-            },
-            ["chain", "method", "provider"],
-          );
+          logger.trace({
+            msg: "Sent JSON-RPC request",
+            chain: chain.name,
+            provider: bucket.hostname,
+            request: JSON.stringify(body),
+            request_id: id,
+          });
 
           addRequestTimestamp(bucket);
 
@@ -415,18 +411,14 @@ export const createRpc = ({
 
           const duration = endClock();
 
-          logger.trace(
-            {
-              msg: "Received successful JSON-RPC response",
-              chain: chain.name,
-              provider: bucket.hostname,
-              method: body.method,
-              params: body.params,
-              request_id: id,
-              duration,
-            },
-            ["chain", "method", "provider"],
-          );
+          logger.trace({
+            msg: "Received successful JSON-RPC response",
+            chain: chain.name,
+            provider: bucket.hostname,
+            request: JSON.stringify(body),
+            request_id: id,
+            duration,
+          });
 
           common.metrics.ponder_rpc_request_duration.observe(
             { method: body.method, chain: chain.name },
@@ -496,56 +488,44 @@ export const createRpc = ({
 
           if (shouldRetry(error) === false) {
             // TODO(kyle) nonretryable
-            logger.warn(
-              {
-                msg: "Failed JSON-RPC request",
-                chain: chain.name,
-                provider: bucket.hostname,
-                method: body.method,
-                params: body.params,
-                request_id: id,
-                duration: endClock(),
-                error,
-              },
-              ["chain", "method", "provider"],
-            );
+            logger.warn({
+              msg: "Failed JSON-RPC request",
+              chain: chain.name,
+              provider: bucket.hostname,
+              request: JSON.stringify(body),
+              request_id: id,
+              duration: endClock(),
+              error,
+            });
             throw error;
           }
 
           if (i === RETRY_COUNT) {
-            logger.warn(
-              {
-                msg: "Failed JSON-RPC request",
-                chain: chain.name,
-                provider: bucket.hostname,
-                method: body.method,
-                params: body.params,
-                request_id: id,
-                duration: endClock(),
-                retry_count: i + 1,
-                error,
-              },
-              ["chain", "method", "provider", "retry_count"],
-            );
+            logger.warn({
+              msg: "Failed JSON-RPC request",
+              chain: chain.name,
+              provider: bucket.hostname,
+              request: JSON.stringify(body),
+              request_id: id,
+              duration: endClock(),
+              retry_count: i + 1,
+              error,
+            });
             throw error;
           }
 
           const duration = BASE_DURATION * 2 ** i;
-          logger.warn(
-            {
-              msg: "Failed JSON-RPC request",
-              chain: chain.name,
-              provider: bucket.hostname,
-              method: body.method,
-              params: body.params,
-              request_id: id,
-              duration: endClock(),
-              retry_count: i + 1,
-              retry_delay: duration,
-              error,
-            },
-            ["chain", "method", "provider", "retry_count", "retry_delay"],
-          );
+          logger.warn({
+            msg: "Failed JSON-RPC request",
+            chain: chain.name,
+            provider: bucket.hostname,
+            request: JSON.stringify(body),
+            request_id: id,
+            duration: endClock(),
+            retry_count: i + 1,
+            retry_delay: duration,
+            error,
+          });
           await wait(duration);
         } finally {
           bucket.activeConnections--;
@@ -572,13 +552,10 @@ export const createRpc = ({
           let isFetching = false;
 
           if (chain.ws === undefined || webSocketErrorCount >= RETRY_COUNT) {
-            common.logger.debug(
-              {
-                msg: "Created JSON-RPC polling subscription",
-                chain: chain.name,
-              },
-              ["chain"],
-            );
+            common.logger.debug({
+              msg: "Created JSON-RPC polling subscription",
+              chain: chain.name,
+            });
 
             interval = setInterval(async () => {
               if (isFetching) return;
@@ -610,13 +587,10 @@ export const createRpc = ({
             // TODO(kyle) request_id, method, params
 
             ws.on("open", () => {
-              common.logger.debug(
-                {
-                  msg: "Created JSON-RPC websocket connection",
-                  chain: chain.name,
-                },
-                ["chain"],
-              );
+              common.logger.debug({
+                msg: "Created JSON-RPC websocket connection",
+                chain: chain.name,
+              });
 
               const subscriptionRequest = {
                 jsonrpc: "2.0",
@@ -638,19 +612,30 @@ export const createRpc = ({
                   common.logger.debug({
                     msg: "Received successful JSON-RPC websocket subscription data",
                     chain: chain.name,
-                    method: msg.method,
-                    subscription: msg.params.subscription,
                   });
                   webSocketErrorCount = 0;
 
                   onBlock(standardizeBlock(msg.params.result, true));
                 } else if (msg.result) {
-                  // TODO(kyle) log
+                  common.logger.debug({
+                    msg: "Created JSON-RPC websocket subscription",
+                    chain: chain.name,
+                    request: JSON.stringify({
+                      method: "eth_subscribe",
+                      params: ["newHeads"],
+                    }),
+                    subscription: msg.result,
+                  });
+
                   subscriptionId = msg.result;
                 } else if (msg.error) {
                   common.logger.warn({
                     msg: "Failed JSON-RPC websocket subscription",
                     chain: chain.name,
+                    request: JSON.stringify({
+                      method: "eth_subscribe",
+                      params: ["newHeads"],
+                    }),
                     retry_count: webSocketErrorCount + 1,
                     error: msg.error as Error,
                   });
@@ -671,6 +656,10 @@ export const createRpc = ({
                 common.logger.warn({
                   msg: "Failed JSON-RPC websocket subscription",
                   chain: chain.name,
+                  request: JSON.stringify({
+                    method: "eth_subscribe",
+                    params: ["newHeads"],
+                  }),
                   retry_count: webSocketErrorCount + 1,
                   error: error as Error,
                 });
@@ -687,6 +676,10 @@ export const createRpc = ({
               common.logger.warn({
                 msg: "Failed JSON-RPC websocket subscription",
                 chain: chain.name,
+                request: JSON.stringify({
+                  method: "eth_subscribe",
+                  params: ["newHeads"],
+                }),
                 retry_count: webSocketErrorCount + 1,
                 error: error as Error,
               });
@@ -736,13 +729,22 @@ export const createRpc = ({
       isUnsubscribed = true;
       if (ws) {
         if (subscriptionId) {
-          // TODO(kyle) log
           const unsubscribeRequest = {
             jsonrpc: "2.0",
             id: 1,
             method: "eth_unsubscribe",
             params: [subscriptionId],
           };
+
+          common.logger.debug({
+            msg: "Ended JSON-RPC websocket subscription",
+            chain: chain.name,
+            request: JSON.stringify({
+              method: "eth_unsubscribe",
+              params: [subscriptionId],
+            }),
+          });
+
           ws.send(JSON.stringify(unsubscribeRequest));
         }
         ws.close();

@@ -22,7 +22,7 @@ export const createExit = ({
   const exit = async ({
     reason,
     code,
-  }: { reason: string; code: 0 | 1 | 75 }) => {
+  }: { reason?: string; code: 0 | 1 | 75 }) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
     const timeout = setTimeout(async () => {
@@ -33,9 +33,12 @@ export const createExit = ({
       process.exit(code);
     }, SHUTDOWN_GRACE_PERIOD_MS);
 
-    if (reason !== undefined) {
+    if (reason === undefined) {
       common.logger[code === 0 ? "info" : "warn"]({
-        service: "process",
+        msg: "Starting shutdown sequence",
+      });
+    } else {
+      common.logger[code === 0 ? "info" : "warn"]({
         msg: `${reason}, starting shutdown sequence`,
       });
     }

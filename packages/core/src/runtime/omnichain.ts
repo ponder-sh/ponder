@@ -533,8 +533,8 @@ export async function runOmnichain({
   );
 
   common.logger.info({
-    service: "server",
-    msg: "Started returning 200 responses from /ready endpoint",
+    msg: "Started returning 200 responses",
+    endpoint: "/ready",
   });
 
   const realtimeIndexingStore = createRealtimeIndexingStore({

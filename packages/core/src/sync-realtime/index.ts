@@ -167,6 +167,7 @@ export const createRealtimeSync = (
   const syncTransactionReceipts = async (
     block: SyncBlock,
     transactionHashes: Set<Hash>,
+    context?: Parameters<Rpc["request"]>[1],
   ): Promise<SyncTransactionReceipt[]> => {
     if (transactionHashes.size === 0) {
       return [];
@@ -175,7 +176,7 @@ export const createRealtimeSync = (
     if (isBlockReceipts === false) {
       const transactionReceipts = await Promise.all(
         Array.from(transactionHashes).map(async (hash) =>
-          _eth_getTransactionReceipt(args.rpc, { hash }),
+          _eth_getTransactionReceipt(args.rpc, { hash }, context),
         ),
       );
 
@@ -191,9 +192,11 @@ export const createRealtimeSync = (
 
     let blockReceipts: SyncTransactionReceipt[];
     try {
-      blockReceipts = await _eth_getBlockReceipts(args.rpc, {
-        blockHash: block.hash,
-      });
+      blockReceipts = await _eth_getBlockReceipts(
+        args.rpc,
+        { blockHash: block.hash },
+        context,
+      );
     } catch (_error) {
       const error = _error as Error;
       args.common.logger.warn({
@@ -203,7 +206,7 @@ export const createRealtimeSync = (
       });
 
       isBlockReceipts = false;
-      return syncTransactionReceipts(block, transactionHashes);
+      return syncTransactionReceipts(block, transactionHashes, context);
     }
 
     validateReceiptsAndBlock(
@@ -236,6 +239,10 @@ export const createRealtimeSync = (
   const fetchBlockEventData = async (
     maybeBlockHeader: SyncBlock | SyncBlockHeader,
   ): Promise<BlockWithEventData> => {
+    const context = {
+      logger: args.common.logger.child({ action: "fetch block data" }),
+    };
+
     let block: SyncBlock | undefined;
 
     if (maybeBlockHeader.transactions !== undefined) {
@@ -257,11 +264,15 @@ export const createRealtimeSync = (
     if (shouldRequestLogs) {
       if (block === undefined) {
         [block, logs] = await Promise.all([
-          _eth_getBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
-          _eth_getLogs(args.rpc, { blockHash: maybeBlockHeader.hash }),
+          _eth_getBlockByHash(
+            args.rpc,
+            { hash: maybeBlockHeader.hash },
+            context,
+          ),
+          _eth_getLogs(args.rpc, { blockHash: maybeBlockHeader.hash }, context),
         ]);
       } else {
-        logs = await _eth_getLogs(args.rpc, { blockHash: block.hash });
+        logs = await _eth_getLogs(args.rpc, { blockHash: block.hash }, context);
       }
 
       validateLogsAndBlock(logs, block, "hash");
@@ -308,6 +319,7 @@ export const createRealtimeSync = (
             number: hexToNumber(block.number),
             hash: block.hash,
             logIndex: hexToNumber(log.logIndex),
+            action: "fetch block data",
           });
           break;
         }
@@ -321,6 +333,7 @@ export const createRealtimeSync = (
             number: hexToNumber(block.number),
             hash: block.hash,
             logIndex: hexToNumber(log.logIndex),
+            action: "fetch block data",
           });
         }
       }
@@ -335,6 +348,7 @@ export const createRealtimeSync = (
         chain: args.chain.name,
         number: hexToNumber(maybeBlockHeader.number),
         hash: maybeBlockHeader.hash,
+        action: "fetch block data",
       });
     }
 
@@ -349,11 +363,23 @@ export const createRealtimeSync = (
     if (shouldRequestTraces) {
       if (block === undefined) {
         [block, traces] = await Promise.all([
-          _eth_getBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
-          _debug_traceBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
+          _eth_getBlockByHash(
+            args.rpc,
+            { hash: maybeBlockHeader.hash },
+            context,
+          ),
+          _debug_traceBlockByHash(
+            args.rpc,
+            { hash: maybeBlockHeader.hash },
+            context,
+          ),
         ]);
       } else {
-        traces = await _debug_traceBlockByHash(args.rpc, { hash: block.hash });
+        traces = await _debug_traceBlockByHash(
+          args.rpc,
+          { hash: block.hash },
+          context,
+        );
       }
 
       validateTracesAndBlock(traces, block, "hash");
@@ -459,9 +485,11 @@ export const createRealtimeSync = (
     }
 
     if (block === undefined) {
-      block = await _eth_getBlockByHash(args.rpc, {
-        hash: maybeBlockHeader.hash,
-      });
+      block = await _eth_getBlockByHash(
+        args.rpc,
+        { hash: maybeBlockHeader.hash },
+        context,
+      );
     }
     validateTransactionsAndBlock(block, "hash");
 
@@ -484,6 +512,7 @@ export const createRealtimeSync = (
     const transactionReceipts = await syncTransactionReceipts(
       block,
       requiredTransactionReceipts,
+      context,
     );
 
     let childAddressCount = 0;
