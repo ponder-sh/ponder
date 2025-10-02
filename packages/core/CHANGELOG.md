@@ -1,5 +1,11 @@
 # ponder
 
+## 0.13.9
+
+### Patch Changes
+
+- [#2086](https://github.com/ponder-sh/ponder/pull/2086) [`ab5dbe1`](https://github.com/ponder-sh/ponder/commit/ab5dbe1bcb5d9d9955df3fc27112315b5d92e8ce) Thanks [@kyscott18](https://github.com/kyscott18)! - Increased Postgres statement timeout to 10 mintues.
+
 ## 0.13.8
 
 ### Patch Changes
