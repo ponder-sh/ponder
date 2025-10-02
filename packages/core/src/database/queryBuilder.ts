@@ -270,7 +270,7 @@ export const createQB = <
         }
 
         const duration = BASE_DURATION * 2 ** i;
-        logger.debug({
+        logger.warn({
           msg: "Failed database query",
           query: label,
           query_id: id,

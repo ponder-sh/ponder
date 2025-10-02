@@ -248,8 +248,7 @@ export async function* getRealtimeEventsOmnichain(params: {
         }
 
         params.common.logger.trace({
-          msg: "Finalized events",
-          chain: chain.name,
+          msg: "Removed finalized events",
           event_count: finalizedEvents.length,
         });
 
@@ -284,7 +283,6 @@ export async function* getRealtimeEventsOmnichain(params: {
 
         params.common.logger.trace({
           msg: "Removed and rescheduled reorged events",
-          chain: chain.name,
           event_count: reorgedEvents.length,
         });
 
@@ -362,8 +360,6 @@ export async function* getRealtimeEventsMultichain(params: {
   let executedEvents: Event[] = [];
   /** Events that have not been executed. */
   let pendingEvents: Event[] = [];
-
-  // TODO(kyle) debug log for merge ??
 
   for await (const { chain, event } of mergeAsyncGenerators(eventGenerators)) {
     const { syncProgress, childAddresses, unfinalizedBlocks } =
@@ -484,8 +480,7 @@ export async function* getRealtimeEventsMultichain(params: {
         }
 
         params.common.logger.trace({
-          msg: "Finalized events",
-          chain: chain.name,
+          msg: "Removed finalized events",
           event_count: finalizedEvents.length,
         });
 
@@ -524,7 +519,6 @@ export async function* getRealtimeEventsMultichain(params: {
 
         params.common.logger.trace({
           msg: "Removed and rescheduled reorged events",
-          chain: chain.name,
           event_count: reorgedEvents.length,
         });
 
@@ -555,7 +549,7 @@ export async function* getRealtimeEventGenerator(params: {
     childCount += factoryChildAddresses.size;
   }
 
-  params.common.logger.debug({
+  params.common.logger.info({
     msg: "Started live indexing",
     chain: params.chain.name,
     finalized_block: hexToNumber(params.syncProgress.finalized.number),
@@ -635,8 +629,6 @@ export async function handleRealtimeSyncEvent(
     case "block": {
       params.syncProgress.current = event.block;
 
-      // TODO(kyle) log
-
       params.common.metrics.ponder_sync_block.set(
         { chain: params.chain.name },
         hexToNumber(params.syncProgress.current!.number),
@@ -657,8 +649,6 @@ export async function handleRealtimeSyncEvent(
       ] satisfies Interval;
 
       params.syncProgress.finalized = event.block;
-
-      // TODO(kyle) log
 
       // Remove all finalized data
 
@@ -694,48 +684,70 @@ export async function handleRealtimeSyncEvent(
         }
       }
 
+      const context = {
+        logger: params.common.logger.child({ action: "finalize block range" }),
+      };
+
       await Promise.all([
-        params.syncStore.insertBlocks({
-          blocks: finalizedBlocks
-            .filter(({ hasMatchedFilter }) => hasMatchedFilter)
-            .map(({ block }) => block),
-          chainId: params.chain.id,
-        }),
-        params.syncStore.insertTransactions({
-          transactions: finalizedBlocks.flatMap(
-            ({ transactions }) => transactions,
-          ),
-          chainId: params.chain.id,
-        }),
-        params.syncStore.insertTransactionReceipts({
-          transactionReceipts: finalizedBlocks.flatMap(
-            ({ transactionReceipts }) => transactionReceipts,
-          ),
-          chainId: params.chain.id,
-        }),
-        params.syncStore.insertLogs({
-          logs: finalizedBlocks.flatMap(({ logs }) => logs),
-          chainId: params.chain.id,
-        }),
-        params.syncStore.insertTraces({
-          traces: finalizedBlocks.flatMap(({ traces, block, transactions }) =>
-            traces.map((trace) => ({
-              trace,
-              block: block as SyncBlock, // SyncBlock is expected for traces.length !== 0
-              transaction: transactions.find(
-                (t) => t.hash === trace.transactionHash,
-              )!,
-            })),
-          ),
-          chainId: params.chain.id,
-        }),
+        params.syncStore.insertBlocks(
+          {
+            blocks: finalizedBlocks
+              .filter(({ hasMatchedFilter }) => hasMatchedFilter)
+              .map(({ block }) => block),
+            chainId: params.chain.id,
+          },
+          context,
+        ),
+        params.syncStore.insertTransactions(
+          {
+            transactions: finalizedBlocks.flatMap(
+              ({ transactions }) => transactions,
+            ),
+            chainId: params.chain.id,
+          },
+          context,
+        ),
+        params.syncStore.insertTransactionReceipts(
+          {
+            transactionReceipts: finalizedBlocks.flatMap(
+              ({ transactionReceipts }) => transactionReceipts,
+            ),
+            chainId: params.chain.id,
+          },
+          context,
+        ),
+        params.syncStore.insertLogs(
+          {
+            logs: finalizedBlocks.flatMap(({ logs }) => logs),
+            chainId: params.chain.id,
+          },
+          context,
+        ),
+        params.syncStore.insertTraces(
+          {
+            traces: finalizedBlocks.flatMap(({ traces, block, transactions }) =>
+              traces.map((trace) => ({
+                trace,
+                block: block as SyncBlock, // SyncBlock is expected for traces.length !== 0
+                transaction: transactions.find(
+                  (t) => t.hash === trace.transactionHash,
+                )!,
+              })),
+            ),
+            chainId: params.chain.id,
+          },
+          context,
+        ),
         ...Array.from(childAddresses.entries()).map(
           ([factory, childAddresses]) =>
-            params.syncStore.insertChildAddresses({
-              factory,
-              childAddresses,
-              chainId: params.chain.id,
-            }),
+            params.syncStore.insertChildAddresses(
+              {
+                factory,
+                childAddresses,
+                chainId: params.chain.id,
+              },
+              context,
+            ),
         ),
       ]);
 
@@ -764,18 +776,19 @@ export async function handleRealtimeSyncEvent(
           }
         }
 
-        await params.syncStore.insertIntervals({
-          intervals: syncedIntervals,
-          chainId: params.chain.id,
-        });
+        await params.syncStore.insertIntervals(
+          {
+            intervals: syncedIntervals,
+            chainId: params.chain.id,
+          },
+          context,
+        );
       }
 
       break;
     }
     case "reorg": {
       params.syncProgress.current = event.block;
-
-      // TODO(kyle) log
 
       params.common.metrics.ponder_sync_block.set(
         { chain: params.chain.name },
@@ -797,10 +810,13 @@ export async function handleRealtimeSyncEvent(
         } else break;
       }
 
-      await params.syncStore.pruneRpcRequestResults({
-        chainId: params.chain.id,
-        blocks: event.reorgedBlocks,
-      });
+      await params.syncStore.pruneRpcRequestResults(
+        {
+          chainId: params.chain.id,
+          blocks: event.reorgedBlocks,
+        },
+        { logger: params.common.logger.child({ action: "reconcile reorg" }) },
+      );
 
       break;
     }

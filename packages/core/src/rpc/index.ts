@@ -609,7 +609,7 @@ export const createRpc = ({
                   msg.method === "eth_subscription" &&
                   msg.params.subscription === subscriptionId
                 ) {
-                  common.logger.debug({
+                  common.logger.trace({
                     msg: "Received successful JSON-RPC websocket subscription data",
                     chain: chain.name,
                   });
@@ -646,7 +646,7 @@ export const createRpc = ({
 
                   ws?.close();
                 } else {
-                  common.logger.debug({
+                  common.logger.warn({
                     msg: "Received unrecognized JSON-RPC websocket message",
                     chain: chain.name,
                     websocket_message: msg,

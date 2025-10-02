@@ -165,19 +165,6 @@ export const createDatabase = ({
 
   const dialect = preBuild.databaseConfig.kind;
 
-  if (namespace.viewsSchema) {
-    common.logger.info({
-      msg: "Configured database schemas",
-      schema: namespace.schema,
-      views_schema: namespace.viewsSchema,
-    });
-  } else {
-    common.logger.info({
-      msg: "Configured database schema",
-      schema: namespace.schema,
-    });
-  }
-
   if (dialect === "pglite" || dialect === "pglite_test") {
     driver = {
       dialect: "pglite",
@@ -636,7 +623,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             common.logger.info({
               msg: "Created database tables",
               table_count: tables.length,
-              tables: tables.map(getTableName).toString(),
+              tables: JSON.stringify(tables.map(getTableName)),
             });
 
             await tx.wrap(
@@ -654,7 +641,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             common.logger.warn({
               msg: "Dropping database tables",
               table_count: previousApp.table_names.length,
-              tables: previousApp.table_names.toString(),
+              tables: JSON.stringify(previousApp.table_names),
             });
 
             for (const table of previousApp.table_names) {
@@ -689,7 +676,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             common.logger.info({
               msg: "Created database tables",
               table_count: tables.length,
-              tables: tables.map(getTableName).toString(),
+              tables: JSON.stringify(tables.map(getTableName)),
             });
 
             await tx.wrap(
