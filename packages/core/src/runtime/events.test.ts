@@ -9,6 +9,7 @@ import {
 import { buildConfigAndIndexingFunctions } from "@/build/config.js";
 import type {
   BlockEvent,
+  ContractSource,
   Event,
   LogEvent,
   RawEvent,
@@ -338,6 +339,59 @@ test("decodeEvents() trace", async (context) => {
   expect(events).toHaveLength(1);
   expect(events[0].event.args).toStrictEqual([BOB, parseEther("1")]);
   expect(events[0].event.result).toBe(true);
+  expect(events[0].name).toBe("Erc20.transfer()");
+});
+
+test("decodeEvents() trace w/o output", async (context) => {
+  const { common } = context;
+
+  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+    address: zeroAddress,
+    includeCallTraces: true,
+  });
+  const { sources } = await buildConfigAndIndexingFunctions({
+    common,
+    config,
+    rawIndexingFunctions,
+  });
+
+  // Remove output from the trace abi
+  (sources[1] as ContractSource).abiFunctions.bySafeName[
+    "transfer()"
+  ]!.item.outputs = [];
+
+  const rawEvent = {
+    chainId: 1,
+    sourceIndex: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    block: {} as RawEvent["block"],
+    transaction: {} as RawEvent["transaction"],
+    log: undefined,
+    trace: {
+      type: "CALL",
+      from: ALICE,
+      to: BOB,
+      input: encodeFunctionData({
+        abi: erc20ABI,
+        functionName: "transfer",
+        args: [BOB, parseEther("1")],
+      }),
+      output: undefined,
+      gas: 0n,
+      gasUsed: 0n,
+      value: 0n,
+      traceIndex: 0,
+      subcalls: 0,
+      blockNumber: 0,
+      transactionIndex: 0,
+    },
+  } as RawEvent;
+
+  const events = decodeEvents(common, sources, [rawEvent]) as [TraceEvent];
+
+  expect(events).toHaveLength(1);
+  expect(events[0].event.args).toStrictEqual([BOB, parseEther("1")]);
+  expect(events[0].event.result).toBe(undefined);
   expect(events[0].name).toBe("Erc20.transfer()");
 });
 

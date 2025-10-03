@@ -444,7 +444,7 @@ export const decodeEvents = (
 
               const result = decodeFunctionResult({
                 abi: [item],
-                data: event.trace!.output!,
+                data: event.trace!.output ?? "0x",
                 functionName,
               });
 
