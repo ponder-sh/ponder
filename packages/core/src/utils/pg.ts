@@ -1,5 +1,6 @@
 import type { Logger } from "@/internal/logger.js";
 import pg, { type PoolConfig } from "pg";
+import parse from "pg-connection-string";
 import { prettyPrint } from "./print.js";
 
 // The default parser for numeric[] (1231) seems to parse values as Number
@@ -7,6 +8,20 @@ import { prettyPrint } from "./print.js";
 // which properly returns an array of strings.
 const bigIntArrayParser = pg.types.getTypeParser(1016);
 pg.types.setTypeParser(1231, bigIntArrayParser);
+
+export function getDatabaseName(connectionString: string) {
+  try {
+    const parsed = (parse as unknown as typeof parse.parse)(connectionString);
+    return `${parsed.host}:${parsed.port}/${parsed.database}`;
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+
+    throw new Error(
+      `Failed to parse database connection string: ${errorMessage}.`,
+    );
+  }
+}
 
 // Monkeypatch Pool.query to get more informative stack traces. I have no idea why this works.
 // https://stackoverflow.com/a/70601114

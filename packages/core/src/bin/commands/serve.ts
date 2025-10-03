@@ -1,4 +1,3 @@
-import path from "node:path";
 import { createBuild } from "@/build/index.js";
 import { SCHEMATA, createDatabase } from "@/database/index.js";
 import { createLogger } from "@/internal/logger.js";
@@ -7,7 +6,6 @@ import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
 import { createServer } from "@/server/index.js";
-import { mergeResults } from "@/utils/result.js";
 import { eq } from "drizzle-orm";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
@@ -25,17 +23,12 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     .map(Number) as [number, number, number];
   if (major < 18 || (major === 18 && minor < 14)) {
     logger.error({
-      service: "process",
-      msg: `Invalid Node.js version. Expected >=18.14, detected ${major}.${minor}.`,
+      msg: "Invalid Node.js version",
+      version: process.versions.node,
+      expected: "18.14",
     });
     process.exit(1);
   }
-
-  const configRelPath = path.relative(options.rootDir, options.configFile);
-  logger.debug({
-    service: "app",
-    msg: `Started using config file: ${configRelPath}`,
-  });
 
   const metrics = new MetricsService();
   const shutdown = createShutdown();
@@ -68,39 +61,67 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const namespaceResult = build.namespaceCompile();
 
   if (namespaceResult.status === "error") {
-    await exit({ reason: "Failed to initialize namespace", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "namespace",
+      error: namespaceResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
 
   const configResult = await build.executeConfig();
   if (configResult.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "config",
+      error: configResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
 
   const schemaResult = await build.executeSchema();
   if (schemaResult.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
-    return;
-  }
-
-  const buildResult1 = mergeResults([
-    await build.preCompile(configResult.result),
-    build.compileSchema(schemaResult.result),
-  ]);
-
-  if (buildResult1.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
-    return;
-  }
-
-  const [preBuild, schemaBuild] = buildResult1.result;
-
-  if (preBuild.databaseConfig.kind === "pglite") {
-    await exit({
-      reason: "The 'ponder serve' command does not support PGlite",
-      code: 1,
+    common.logger.error({
+      msg: "Build failed",
+      stage: "schema",
+      error: schemaResult.error,
     });
+    await exit({ code: 1 });
+    return;
+  }
+
+  const preCompileResult = await build.preCompile(configResult.result);
+
+  if (preCompileResult.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "pre-compile",
+      error: preCompileResult.error,
+    });
+    await exit({ code: 1 });
+    return;
+  }
+
+  if (preCompileResult.result.databaseConfig.kind === "pglite") {
+    common.logger.error({
+      msg: "The 'ponder serve' command does not support PGlite",
+    });
+
+    await exit({ code: 1 });
+    return;
+  }
+
+  const compileSchemaResult = build.compileSchema(schemaResult.result);
+
+  if (compileSchemaResult.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "schema",
+      error: compileSchemaResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
 
@@ -109,15 +130,20 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   });
 
   if (indexingBuildResult.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "indexing",
+      error: indexingBuildResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
 
   const database = createDatabase({
     common,
     namespace: namespaceResult.result,
-    preBuild,
-    schemaBuild,
+    preBuild: preCompileResult.result,
+    schemaBuild: compileSchemaResult.result,
   });
 
   const schemaExists = await database.adminQB
@@ -130,10 +156,11 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     .then((res) => res.length > 0);
 
   if (schemaExists === false) {
-    await exit({
-      reason: `Schema '${namespaceResult.result.schema}' does not exist.`,
-      code: 1,
+    common.logger.error({
+      msg: "Schema does not exist.",
+      schema: namespaceResult.result.schema,
     });
+    await exit({ code: 1 });
     return;
   }
 
@@ -142,40 +169,49 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     database,
   });
   if (apiResult.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "api",
+      error: apiResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
 
-  const buildResult2 = await build.compileApi({ apiResult: apiResult.result });
+  const apiBuildResult = await build.compileApi({
+    apiResult: apiResult.result,
+  });
 
-  if (buildResult2.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+  if (apiBuildResult.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "api",
+      error: apiBuildResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
-
-  const apiBuild = buildResult2.result;
 
   telemetry.record({
     name: "lifecycle:session_start",
     properties: {
       cli_command: "serve",
-      ...buildPayload({ preBuild, schemaBuild }),
+      ...buildPayload({
+        preBuild: preCompileResult.result,
+        schemaBuild: compileSchemaResult.result,
+      }),
     },
   });
 
   metrics.ponder_settings_info.set(
     {
-      database: preBuild.databaseConfig.kind,
+      database: preCompileResult.result.databaseConfig.kind,
       command: cliOptions.command,
     },
     1,
   );
 
-  createServer({
-    common,
-    database,
-    apiBuild,
-  });
+  createServer({ common, database, apiBuild: apiBuildResult.result });
 
   return shutdown.kill;
 }

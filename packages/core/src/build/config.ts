@@ -73,9 +73,15 @@ export async function buildConfigAndIndexingFunctions({
   finalizedBlocks: LightBlock[];
   sources: Source[];
   indexingFunctions: IndexingFunctions;
-  logs: { level: "warn" | "info" | "debug"; msg: string }[];
+  logs: ({ level: "warn" | "info" | "debug"; msg: string } & Record<
+    string,
+    unknown
+  >)[];
 }> {
-  const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
+  const logs: ({ level: "warn" | "info" | "debug"; msg: string } & Record<
+    string,
+    unknown
+  >)[] = [];
 
   const perChainLatestBlockNumber = new Map<string, Promise<number>>();
 
@@ -152,7 +158,9 @@ export async function buildConfigAndIndexingFunctions({
               if (http === rpc) {
                 logs.push({
                   level: "warn",
-                  msg: `Chain '${chainName}' is using a public RPC URL (${http}). Most apps require an RPC URL with a higher rate limit.`,
+                  msg: "Detected public RPC URL. Most apps require an RPC URL with a higher rate limit.",
+                  chain: chainName,
+                  url: http,
                 });
                 break;
               }
@@ -161,7 +169,9 @@ export async function buildConfigAndIndexingFunctions({
               if (ws === rpc) {
                 logs.push({
                   level: "warn",
-                  msg: `Chain '${chainName}' is using a public RPC URL (${ws}). Most apps require an RPC URL with a higher rate limit.`,
+                  msg: "Detected public RPC URL. Most apps require an RPC URL with a higher rate limit.",
+                  chain: chainName,
+                  url: ws,
                 });
                 break;
               }
@@ -320,7 +330,7 @@ export async function buildConfigAndIndexingFunctions({
   }
 
   if (indexingFunctionCount === 0) {
-    logs.push({ level: "warn", msg: "No indexing functions were registered." });
+    logs.push({ level: "warn", msg: "No registered indexing functions" });
   }
 
   // common validation for all sources
@@ -738,10 +748,10 @@ export async function buildConfigAndIndexingFunctions({
             source.filter.topic0?.length === 0;
       if (hasNoRegisteredIndexingFunctions) {
         logs.push({
-          level: "debug",
-          msg: `No indexing functions were registered for '${
-            source.name
-          }' ${source.filter.type === "trace" ? "traces" : "logs"}`,
+          level: "warn",
+          msg: "No registered indexing functions",
+          name: source.name,
+          type: source.filter.type,
         });
       }
       return hasNoRegisteredIndexingFunctions === false;
@@ -988,7 +998,9 @@ export async function buildConfigAndIndexingFunctions({
       if (!hasRegisteredIndexingFunction) {
         logs.push({
           level: "debug",
-          msg: `No indexing functions were registered for '${eventName}'`,
+          msg: "No registered indexing functions",
+          name: eventName,
+          type: source.filter.type,
         });
       }
       return hasRegisteredIndexingFunction;
@@ -1035,8 +1047,10 @@ export async function buildConfigAndIndexingFunctions({
         indexingFunctions[`${blockSource.name}:block`] !== undefined;
       if (!hasRegisteredIndexingFunction) {
         logs.push({
-          level: "debug",
-          msg: `No indexing functions were registered for block interval '${blockSource.name}:block'`,
+          level: "warn",
+          msg: "No registered indexing functions",
+          name: blockSource.name,
+          type: "block",
         });
       }
       return hasRegisteredIndexingFunction;
@@ -1063,7 +1077,8 @@ export async function buildConfigAndIndexingFunctions({
     } else {
       logs.push({
         level: "warn",
-        msg: `No contracts, accounts, or block intervals registered for chain '${chain.name}'`,
+        msg: "No registered indexing functions",
+        name: chain.name,
       });
     }
   }
@@ -1090,9 +1105,15 @@ export function buildConfig({
 }: { common: Common; config: Config }): {
   chains: Chain[];
   rpcs: Rpc[];
-  logs: { level: "warn" | "info" | "debug"; msg: string }[];
+  logs: ({ level: "warn" | "info" | "debug"; msg: string } & Record<
+    string,
+    unknown
+  >)[];
 } {
-  const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
+  const logs: ({ level: "warn" | "info" | "debug"; msg: string } & Record<
+    string,
+    unknown
+  >)[] = [];
 
   const chains: Chain[] = Object.entries(config.chains).map(
     ([chainName, chain]) => {
@@ -1128,7 +1149,9 @@ export function buildConfig({
               if (http === rpc) {
                 logs.push({
                   level: "warn",
-                  msg: `Chain '${chainName}' is using a public RPC URL (${http}). Most apps require an RPC URL with a higher rate limit.`,
+                  msg: "Detected public RPC URL. Most apps require an RPC URL with a higher rate limit.",
+                  chain: chainName,
+                  url: http,
                 });
                 break;
               }
@@ -1137,7 +1160,9 @@ export function buildConfig({
               if (ws === rpc) {
                 logs.push({
                   level: "warn",
-                  msg: `Chain '${chainName}' is using a public RPC URL (${ws}). Most apps require an RPC URL with a higher rate limit.`,
+                  msg: "Detected public RPC URL. Most apps require an RPC URL with a higher rate limit.",
+                  chain: chainName,
+                  url: ws,
                 });
                 break;
               }

@@ -19,10 +19,7 @@ export const createExit = ({
 }) => {
   let isShuttingDown = false;
 
-  const exit = async ({
-    reason,
-    code,
-  }: { reason?: string; code: 0 | 1 | 75 }) => {
+  const exit = async ({ code }: { code: 0 | 1 | 75 }) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
     const timeout = setTimeout(async () => {
@@ -33,15 +30,10 @@ export const createExit = ({
       process.exit(code);
     }, SHUTDOWN_GRACE_PERIOD_MS);
 
-    if (reason === undefined) {
-      common.logger[code === 0 ? "info" : "warn"]({
-        msg: "Starting shutdown sequence",
-      });
-    } else {
-      common.logger[code === 0 ? "info" : "warn"]({
-        msg: `${reason}, starting shutdown sequence`,
-      });
-    }
+    common.logger[code === 0 ? "info" : "warn"]({
+      msg: "Started shutdown sequence",
+    });
+
     common.telemetry.record({
       name: "lifecycle:session_end",
       properties: { duration_seconds: process.uptime() },
@@ -67,39 +59,51 @@ export const createExit = ({
       input: process.stdin,
       output: process.stdout,
     });
-    readlineInterface.on("SIGINT", () =>
-      exit({ reason: "Received SIGINT", code: 0 }),
-    );
+    readlineInterface.on("SIGINT", () => {
+      if (isShuttingDown) return;
+      common.logger.warn({ msg: "Received SIGINT" });
+      exit({ code: 0 });
+    });
   }
 
-  process.on("SIGINT", () => exit({ reason: "Received SIGINT", code: 0 }));
-  process.on("SIGTERM", () => exit({ reason: "Received SIGTERM", code: 0 }));
-  process.on("SIGQUIT", () => exit({ reason: "Received SIGQUIT", code: 0 }));
+  process.on("SIGINT", () => {
+    if (isShuttingDown) return;
+    common.logger.warn({ msg: "Received SIGINT" });
+    exit({ code: 0 });
+  });
+  process.on("SIGTERM", () => {
+    if (isShuttingDown) return;
+    common.logger.warn({ msg: "Received SIGTERM" });
+    exit({ code: 0 });
+  });
+  process.on("SIGQUIT", () => {
+    if (isShuttingDown) return;
+    common.logger.warn({ msg: "Received SIGQUIT" });
+    exit({ code: 0 });
+  });
   if (options.command !== "dev") {
     process.on("uncaughtException", (error: Error) => {
       if (error instanceof ShutdownError) return;
       common.logger.error({
-        service: "process",
-        msg: "Caught uncaughtException event",
+        msg: "uncaughtException",
         error,
       });
       if (error instanceof NonRetryableUserError) {
-        exit({ reason: "Received fatal error", code: 1 });
+        exit({ code: 1 });
       } else {
-        exit({ reason: "Received fatal error", code: 75 });
+        exit({ code: 75 });
       }
     });
     process.on("unhandledRejection", (error: Error) => {
       if (error instanceof ShutdownError) return;
       common.logger.error({
-        service: "process",
-        msg: "Caught unhandledRejection event",
+        msg: "unhandledRejection",
         error,
       });
       if (error instanceof NonRetryableUserError) {
-        exit({ reason: "Received fatal error", code: 1 });
+        exit({ code: 1 });
       } else {
-        exit({ reason: "Received fatal error", code: 75 });
+        exit({ code: 75 });
       }
     });
   }

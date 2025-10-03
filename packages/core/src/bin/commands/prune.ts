@@ -12,6 +12,7 @@ import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { createTelemetry } from "@/internal/telemetry.js";
+import { startClock } from "@/utils/timer.js";
 import { count, eq, inArray, sql } from "drizzle-orm";
 import { unionAll } from "drizzle-orm/pg-core";
 import type { CliOptions } from "../ponder.js";
@@ -54,14 +55,24 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
 
   const configResult = await build.executeConfig();
   if (configResult.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "config",
+      error: configResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
 
   const buildResult = await build.preCompile(configResult.result);
 
   if (buildResult.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "pre-compile",
+      error: buildResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
 
@@ -108,10 +119,9 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
 
   if (queries.length === 0) {
     logger.warn({
-      service: "prune",
-      msg: "No inactive Ponder apps found in this database.",
+      msg: "Found 0 inactive Ponder apps",
     });
-    await exit({ reason: "Success", code: 0 });
+    await exit({ code: 0 });
     return;
   }
 
@@ -184,12 +194,13 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
 
   if (tablesToDrop.length === 0 && viewsToDrop.length === 0) {
     logger.warn({
-      service: "prune",
-      msg: "No inactive Ponder apps found in this database.",
+      msg: "Found 0 inactive Ponder apps",
     });
-    await exit({ reason: "Success", code: 0 });
+    await exit({ code: 0 });
     return;
   }
+
+  let endClock = startClock();
 
   if (tablesToDrop.length > 0) {
     await database.adminQB.wrap((db) =>
@@ -197,10 +208,13 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     );
 
     logger.warn({
-      service: "prune",
-      msg: `Dropped ${tablesToDrop.length} tables`,
+      msg: "Dropped database tables",
+      count: tablesToDrop.length,
+      duration: endClock(),
     });
   }
+
+  endClock = startClock();
 
   if (viewsToDrop.length > 0) {
     await database.adminQB.wrap((db) =>
@@ -208,10 +222,13 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     );
 
     logger.warn({
-      service: "prune",
-      msg: `Dropped ${viewsToDrop.length} views`,
+      msg: "Dropped database views",
+      count: viewsToDrop.length,
+      duration: endClock(),
     });
   }
+
+  endClock = startClock();
 
   if (functionsToDrop.length > 0) {
     await database.adminQB.wrap((db) =>
@@ -221,10 +238,13 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     );
 
     logger.warn({
-      service: "prune",
-      msg: `Dropped ${functionsToDrop.length} functions`,
+      msg: "Dropped database functions",
+      count: functionsToDrop.length,
+      duration: endClock(),
     });
   }
+
+  endClock = startClock();
 
   if (schemasToDrop.length > 0) {
     await database.adminQB.wrap((db) =>
@@ -232,10 +252,11 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     );
 
     logger.warn({
-      service: "prune",
-      msg: `Dropped ${schemasToDrop.length} schemas`,
+      msg: "Dropped database schemas",
+      count: schemasToDrop.length,
+      duration: endClock(),
     });
   }
 
-  await exit({ reason: "Success", code: 0 });
+  await exit({ code: 0 });
 }

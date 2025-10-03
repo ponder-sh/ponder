@@ -669,6 +669,7 @@ export const createCachedViemClient = ({
       const context = {
         logger: common.logger.child({ action: "prefetch JSON-RPC request" }),
       };
+      const prefetchEndClock = startClock();
 
       // Use profiling metadata + next event batch to determine which
       // rpc requests are going to be made, and preload them into the cache.
@@ -764,6 +765,7 @@ export const createCachedViemClient = ({
               msg: "Prefetched JSON-RPC requests",
               chain: chain.name,
               request_count: dbRequests.length,
+              duration: prefetchEndClock(),
             });
           }
         }),

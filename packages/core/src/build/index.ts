@@ -402,10 +402,6 @@ export const createBuild = async ({
         }
       }
 
-      for (const log of preBuild.logs) {
-        common.logger[log.level]({ msg: log.msg });
-      }
-
       return {
         status: "success",
         result: {
@@ -442,7 +438,8 @@ export const createBuild = async ({
       }
 
       for (const log of buildConfigResult.logs) {
-        common.logger[log.level]({ msg: log.msg });
+        const { level, ...rest } = log;
+        common.logger[level](rest);
       }
 
       return {
@@ -466,7 +463,8 @@ export const createBuild = async ({
       }
 
       for (const log of buildConfigAndIndexingFunctionsResult.logs) {
-        common.logger[log.level]({ msg: log.msg });
+        const { level, ...rest } = log;
+        common.logger[level](rest);
       }
 
       const buildId = createHash("sha256")

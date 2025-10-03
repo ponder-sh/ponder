@@ -35,24 +35,18 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     .map(Number) as [number, number, number];
   if (major < 18 || (major === 18 && minor < 14)) {
     logger.error({
-      service: "process",
-      msg: `Invalid Node.js version. Expected >=18.14, detected ${major}.${minor}.`,
+      msg: "Invalid Node.js version",
+      version: process.versions.node,
+      expected: "18.14",
     });
     process.exit(1);
   }
 
   if (!fs.existsSync(path.join(options.rootDir, ".env.local"))) {
     logger.warn({
-      service: "app",
       msg: "Local environment file (.env.local) not found",
     });
   }
-
-  const configRelPath = path.relative(options.rootDir, options.configFile);
-  logger.debug({
-    service: "app",
-    msg: `Started using config file: ${configRelPath}`,
-  });
 
   const metrics = new MetricsService();
   const common = {
@@ -309,8 +303,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     if (error instanceof ShutdownError) return;
     if (error instanceof NonRetryableUserError) {
       common.logger.error({
-        service: "process",
-        msg: "Caught uncaughtException event",
+        msg: "uncaughtException",
         error,
       });
 
@@ -318,19 +311,17 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       buildQueue.add({ status: "error", kind: "indexing", error });
     } else {
       common.logger.error({
-        service: "process",
-        msg: "Caught uncaughtException event",
+        msg: "uncaughtException",
         error,
       });
-      exit({ reason: "Received fatal error", code: 75 });
+      exit({ code: 75 });
     }
   });
   process.on("unhandledRejection", (error: Error) => {
     if (error instanceof ShutdownError) return;
     if (error instanceof NonRetryableUserError) {
       common.logger.error({
-        service: "process",
-        msg: "Caught unhandledRejection event",
+        msg: "unhandledRejection",
         error,
       });
 
@@ -338,11 +329,10 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       buildQueue.add({ status: "error", kind: "indexing", error });
     } else {
       common.logger.error({
-        service: "process",
-        msg: "Caught unhandledRejection event",
+        msg: "unhandledRejection",
         error,
       });
-      exit({ reason: "Received fatal error", code: 75 });
+      exit({ code: 75 });
     }
   });
 

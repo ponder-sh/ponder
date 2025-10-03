@@ -537,7 +537,7 @@ export async function runOmnichain({
   if (schemaBuild.statements.indexes.sql.length > 0) {
     common.logger.info({
       msg: "Created database indexes",
-      index_count: schemaBuild.statements.indexes.sql.length,
+      count: schemaBuild.statements.indexes.sql.length,
       duration: endClock(),
     });
   }
@@ -548,7 +548,7 @@ export async function runOmnichain({
 
   common.logger.debug({
     msg: "Created database triggers",
-    trigger_count: tables.length,
+    count: tables.length,
     duration: endClock(),
   });
 
@@ -559,8 +559,8 @@ export async function runOmnichain({
 
     common.logger.info({
       msg: "Created database views",
-      views_schema: namespaceBuild.viewsSchema,
-      view_count: tables.length,
+      schema: namespaceBuild.viewsSchema,
+      count: tables.length,
       duration: endClock(),
     });
   }

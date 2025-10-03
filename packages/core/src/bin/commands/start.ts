@@ -1,4 +1,3 @@
-import path from "node:path";
 import { createBuild } from "@/build/index.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
@@ -51,17 +50,12 @@ export async function start({
     .map(Number) as [number, number, number];
   if (major < 18 || (major === 18 && minor < 14)) {
     logger.error({
-      service: "process",
-      msg: `Invalid Node.js version. Expected >=18.14, detected ${major}.${minor}.`,
+      msg: "Invalid Node.js version",
+      version: process.versions.node,
+      expected: "18.14",
     });
     process.exit(1);
   }
-
-  const configRelPath = path.relative(options.rootDir, options.configFile);
-  logger.debug({
-    service: "app",
-    msg: `Started using config file: ${configRelPath}`,
-  });
 
   const metrics = new MetricsService();
   const shutdown = createShutdown();
