@@ -27,7 +27,6 @@ import type { SyncStore } from "@/sync-store/index.js";
 import {
   ZERO_CHECKPOINT_STRING,
   blockToCheckpoint,
-  decodeCheckpoint,
   encodeCheckpoint,
   min,
 } from "@/utils/checkpoint.js";
@@ -75,6 +74,12 @@ export async function* getRealtimeEventsOmnichain(params: {
   const eventGenerators = Array.from(params.perChainSync.entries())
     .map(([chain, { syncProgress, childAddresses }]) => {
       if (syncProgress.isEnd()) {
+        params.common.logger.info({
+          msg: "No live indexing",
+          chain: chain.name,
+          end_block: hexToNumber(syncProgress.end!.number),
+        });
+
         params.common.metrics.ponder_sync_is_complete.set(
           { chain: chain.name },
           1,
@@ -166,21 +171,37 @@ export async function* getRealtimeEventsOmnichain(params: {
           childAddresses,
         });
 
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Extracted ${events.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
+        params.common.logger.trace({
+          msg: "Constructed events from block",
+          chain: chain.name,
+          number: hexToNumber(event.block.number),
+          hash: event.block.hash,
+          event_count: events.length,
         });
 
         const decodedEvents = decodeEvents(params.common, sources, events);
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Decoded ${decodedEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
+
+        params.common.logger.trace({
+          msg: "Decoded block events",
+          chain: chain.name,
+          number: hexToNumber(event.block.number),
+          hash: event.block.hash,
+          event_count: decodedEvents.length,
         });
 
         const checkpoint = getOmnichainCheckpoint({
           perChainSync: params.perChainSync,
           tag: "current",
         });
+
+        if (pendingEvents.length > 0) {
+          params.common.logger.trace({
+            msg: "Included pending events",
+            chain: chain.name,
+            event_count: pendingEvents.filter((e) => e.checkpoint < checkpoint)
+              .length,
+          });
+        }
 
         const readyEvents = pendingEvents
           .concat(decodedEvents)
@@ -190,11 +211,6 @@ export async function* getRealtimeEventsOmnichain(params: {
           .concat(decodedEvents)
           .filter((e) => e.checkpoint > checkpoint);
         executedEvents = executedEvents.concat(readyEvents);
-
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Sequenced ${readyEvents.length} events`,
-        });
 
         yield {
           type: "block",
@@ -215,30 +231,6 @@ export async function* getRealtimeEventsOmnichain(params: {
           perChainSync: params.perChainSync,
           tag: "finalized",
         });
-
-        if (
-          syncProgress.getCheckpoint({ tag: "finalized" }) >
-          getOmnichainCheckpoint({
-            perChainSync: params.perChainSync,
-            tag: "current",
-          })
-        ) {
-          const chainId = Number(
-            decodeCheckpoint(
-              getOmnichainCheckpoint({
-                perChainSync: params.perChainSync,
-                tag: "current",
-              }),
-            ).chainId,
-          );
-          const chain = params.indexingBuild.chains.find(
-            (chain) => chain.id === chainId,
-          )!;
-          params.common.logger.warn({
-            service: "sync",
-            msg: `'${chain.name}' is lagging behind other chains`,
-          });
-        }
 
         if (to <= from) continue;
 
@@ -261,9 +253,9 @@ export async function* getRealtimeEventsOmnichain(params: {
           executedEvents = executedEvents.slice(finalizeIndex);
         }
 
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Finalized ${finalizedEvents.length} executed events`,
+        params.common.logger.trace({
+          msg: "Removed finalized events",
+          event_count: finalizedEvents.length,
         });
 
         yield { type: "finalize", chain, checkpoint: to };
@@ -295,9 +287,9 @@ export async function* getRealtimeEventsOmnichain(params: {
         );
         pendingEvents = pendingEvents.concat(reorgedEvents);
 
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Rescheduled ${reorgedEvents.length} reorged events`,
+        params.common.logger.trace({
+          msg: "Removed and rescheduled reorged events",
+          event_count: reorgedEvents.length,
         });
 
         pendingEvents = pendingEvents.filter(
@@ -333,6 +325,12 @@ export async function* getRealtimeEventsMultichain(params: {
   const eventGenerators = Array.from(params.perChainSync.entries())
     .map(([chain, { syncProgress, childAddresses }]) => {
       if (syncProgress.isEnd()) {
+        params.common.logger.info({
+          msg: "No live indexing",
+          chain: chain.name,
+          end_block: hexToNumber(syncProgress.end!.number),
+        });
+
         params.common.metrics.ponder_sync_is_complete.set(
           { chain: chain.name },
           1,
@@ -420,29 +418,39 @@ export async function* getRealtimeEventsMultichain(params: {
           childAddresses,
         });
 
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Extracted ${events.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
+        params.common.logger.trace({
+          msg: "Constructed events from block",
+          chain: chain.name,
+          number: hexToNumber(event.block.number),
+          hash: event.block.hash,
+          event_count: events.length,
         });
 
         const decodedEvents = decodeEvents(params.common, sources, events);
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Decoded ${decodedEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
+
+        params.common.logger.trace({
+          msg: "Decoded block events",
+          chain: chain.name,
+          number: hexToNumber(event.block.number),
+          hash: event.block.hash,
+          event_count: decodedEvents.length,
         });
 
         const checkpoint = syncProgress.getCheckpoint({ tag: "current" });
+
+        if (pendingEvents.length > 0) {
+          params.common.logger.trace({
+            msg: "Included pending events",
+            chain: chain.name,
+            event_count: pendingEvents.length,
+          });
+        }
 
         const readyEvents = decodedEvents
           .concat(pendingEvents)
           .sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
         pendingEvents = [];
         executedEvents = executedEvents.concat(readyEvents);
-
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Sequenced ${readyEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
-        });
 
         yield {
           type: "block",
@@ -483,9 +491,9 @@ export async function* getRealtimeEventsMultichain(params: {
           executedEvents = executedEvents.slice(finalizeIndex);
         }
 
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Finalized ${finalizedEvents.length} executed events`,
+        params.common.logger.trace({
+          msg: "Removed finalized events",
+          event_count: finalizedEvents.length,
         });
 
         yield { type: "finalize", chain, checkpoint };
@@ -521,9 +529,9 @@ export async function* getRealtimeEventsMultichain(params: {
         executedEvents = executedEvents.slice(0, reorgIndex);
         pendingEvents = pendingEvents.concat(reorgedEvents);
 
-        params.common.logger.debug({
-          service: "sync",
-          msg: `Rescheduled ${reorgedEvents.length} reorged events`,
+        params.common.logger.trace({
+          msg: "Removed and rescheduled reorged events",
+          event_count: reorgedEvents.length,
         });
 
         pendingEvents = pendingEvents.filter(
@@ -553,9 +561,11 @@ export async function* getRealtimeEventGenerator(params: {
     childCount += factoryChildAddresses.size;
   }
 
-  params.common.logger.debug({
-    service: "sync",
-    msg: `Initialized '${params.chain.name}' realtime sync with ${childCount} factory child addresses`,
+  params.common.logger.info({
+    msg: "Started live indexing",
+    chain: params.chain.name,
+    finalized_block: hexToNumber(params.syncProgress.finalized.number),
+    factory_address_count: childCount,
   });
 
   const { callback, generator } = createCallbackGenerator<
@@ -603,8 +613,9 @@ export async function* getRealtimeEventGenerator(params: {
         1,
       );
       params.common.logger.info({
-        service: "sync",
-        msg: `Killing '${params.chain.name}' live indexing because the end block ${hexToNumber(params.syncProgress.end!.number)} has been finalized`,
+        msg: "Killed live indexing",
+        chain: params.chain.name,
+        end_block: hexToNumber(params.syncProgress.end!.number),
       });
       await params.rpc.unsubscribe();
       return;
@@ -630,11 +641,6 @@ export async function handleRealtimeSyncEvent(
     case "block": {
       params.syncProgress.current = event.block;
 
-      params.common.logger.debug({
-        service: "sync",
-        msg: `Updated '${params.chain.name}' current block to ${hexToNumber(event.block.number)}`,
-      });
-
       params.common.metrics.ponder_sync_block.set(
         { chain: params.chain.name },
         hexToNumber(params.syncProgress.current!.number),
@@ -655,11 +661,6 @@ export async function handleRealtimeSyncEvent(
       ] satisfies Interval;
 
       params.syncProgress.finalized = event.block;
-
-      params.common.logger.debug({
-        service: "sync",
-        msg: `Updated '${params.chain.name}' finalized block to ${hexToNumber(event.block.number)}`,
-      });
 
       // Remove all finalized data
 
@@ -695,48 +696,70 @@ export async function handleRealtimeSyncEvent(
         }
       }
 
+      const context = {
+        logger: params.common.logger.child({ action: "finalize block range" }),
+      };
+
       await Promise.all([
-        params.syncStore.insertBlocks({
-          blocks: finalizedBlocks
-            .filter(({ hasMatchedFilter }) => hasMatchedFilter)
-            .map(({ block }) => block),
-          chainId: params.chain.id,
-        }),
-        params.syncStore.insertTransactions({
-          transactions: finalizedBlocks.flatMap(
-            ({ transactions }) => transactions,
-          ),
-          chainId: params.chain.id,
-        }),
-        params.syncStore.insertTransactionReceipts({
-          transactionReceipts: finalizedBlocks.flatMap(
-            ({ transactionReceipts }) => transactionReceipts,
-          ),
-          chainId: params.chain.id,
-        }),
-        params.syncStore.insertLogs({
-          logs: finalizedBlocks.flatMap(({ logs }) => logs),
-          chainId: params.chain.id,
-        }),
-        params.syncStore.insertTraces({
-          traces: finalizedBlocks.flatMap(({ traces, block, transactions }) =>
-            traces.map((trace) => ({
-              trace,
-              block: block as SyncBlock, // SyncBlock is expected for traces.length !== 0
-              transaction: transactions.find(
-                (t) => t.hash === trace.transactionHash,
-              )!,
-            })),
-          ),
-          chainId: params.chain.id,
-        }),
+        params.syncStore.insertBlocks(
+          {
+            blocks: finalizedBlocks
+              .filter(({ hasMatchedFilter }) => hasMatchedFilter)
+              .map(({ block }) => block),
+            chainId: params.chain.id,
+          },
+          context,
+        ),
+        params.syncStore.insertTransactions(
+          {
+            transactions: finalizedBlocks.flatMap(
+              ({ transactions }) => transactions,
+            ),
+            chainId: params.chain.id,
+          },
+          context,
+        ),
+        params.syncStore.insertTransactionReceipts(
+          {
+            transactionReceipts: finalizedBlocks.flatMap(
+              ({ transactionReceipts }) => transactionReceipts,
+            ),
+            chainId: params.chain.id,
+          },
+          context,
+        ),
+        params.syncStore.insertLogs(
+          {
+            logs: finalizedBlocks.flatMap(({ logs }) => logs),
+            chainId: params.chain.id,
+          },
+          context,
+        ),
+        params.syncStore.insertTraces(
+          {
+            traces: finalizedBlocks.flatMap(({ traces, block, transactions }) =>
+              traces.map((trace) => ({
+                trace,
+                block: block as SyncBlock, // SyncBlock is expected for traces.length !== 0
+                transaction: transactions.find(
+                  (t) => t.hash === trace.transactionHash,
+                )!,
+              })),
+            ),
+            chainId: params.chain.id,
+          },
+          context,
+        ),
         ...Array.from(childAddresses.entries()).map(
           ([factory, childAddresses]) =>
-            params.syncStore.insertChildAddresses({
-              factory,
-              childAddresses,
-              chainId: params.chain.id,
-            }),
+            params.syncStore.insertChildAddresses(
+              {
+                factory,
+                childAddresses,
+                chainId: params.chain.id,
+              },
+              context,
+            ),
         ),
       ]);
 
@@ -765,21 +788,19 @@ export async function handleRealtimeSyncEvent(
           }
         }
 
-        await params.syncStore.insertIntervals({
-          intervals: syncedIntervals,
-          chainId: params.chain.id,
-        });
+        await params.syncStore.insertIntervals(
+          {
+            intervals: syncedIntervals,
+            chainId: params.chain.id,
+          },
+          context,
+        );
       }
 
       break;
     }
     case "reorg": {
       params.syncProgress.current = event.block;
-
-      params.common.logger.debug({
-        service: "sync",
-        msg: `Updated '${params.chain.name}' current block to ${hexToNumber(event.block.number)}`,
-      });
 
       params.common.metrics.ponder_sync_block.set(
         { chain: params.chain.name },
@@ -801,16 +822,25 @@ export async function handleRealtimeSyncEvent(
         } else break;
       }
 
-      await params.syncStore.pruneRpcRequestResults({
-        chainId: params.chain.id,
-        blocks: event.reorgedBlocks,
-      });
+      await params.syncStore.pruneRpcRequestResults(
+        {
+          chainId: params.chain.id,
+          blocks: event.reorgedBlocks,
+        },
+        { logger: params.common.logger.child({ action: "reconcile reorg" }) },
+      );
 
       break;
     }
   }
 }
 
+/**
+ * Merges multiple async generators into a single async generator while preserving
+ * the order of "block" events.
+ *
+ * @dev "reorg" and "finalize" events are not ordered between chains.
+ */
 export async function* mergeAsyncGeneratorsWithRealtimeOrder(
   generators: AsyncGenerator<{ chain: Chain; event: RealtimeSyncEvent }>[],
 ): AsyncGenerator<{ chain: Chain; event: RealtimeSyncEvent }> {

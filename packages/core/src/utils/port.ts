@@ -10,8 +10,8 @@ export const getNextAvailablePort = async ({ common }: { common: Common }) => {
     server.once("error", (error: Error & { code: string }) => {
       if (error.code === "EADDRINUSE") {
         common.logger.warn({
-          service: "server",
-          msg: `Port ${port} was in use, trying port ${port + 1}`,
+          msg: "Port in use",
+          port,
         });
         port += 1;
         setTimeout(() => {

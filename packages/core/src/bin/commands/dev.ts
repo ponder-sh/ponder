@@ -34,25 +34,19 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     .split(".")
     .map(Number) as [number, number, number];
   if (major < 18 || (major === 18 && minor < 14)) {
-    logger.fatal({
-      service: "process",
-      msg: `Invalid Node.js version. Expected >=18.14, detected ${major}.${minor}.`,
+    logger.error({
+      msg: "Invalid Node.js version",
+      version: process.versions.node,
+      expected: "18.14",
     });
     process.exit(1);
   }
 
   if (!fs.existsSync(path.join(options.rootDir, ".env.local"))) {
     logger.warn({
-      service: "app",
       msg: "Local environment file (.env.local) not found",
     });
   }
-
-  const configRelPath = path.relative(options.rootDir, options.configFile);
-  logger.debug({
-    service: "app",
-    msg: `Started using config file: ${configRelPath}`,
-  });
 
   const metrics = new MetricsService();
   const common = {
@@ -132,7 +126,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         }
 
         const buildResult1 = mergeResults([
-          await build.preCompile(configResult.result),
+          build.preCompile(configResult.result),
           build.compileSchema(schemaResult.result),
         ]);
 
@@ -146,6 +140,44 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         }
 
         const [preBuild, schemaBuild] = buildResult1.result;
+
+        const databaseDiagnostic = await build.databaseDiagnostic({
+          preBuild,
+        });
+
+        if (databaseDiagnostic.status === "error") {
+          buildQueue.add({
+            status: "error",
+            kind: "indexing",
+            error: databaseDiagnostic.error,
+          });
+          return;
+        }
+
+        const configBuildResult = build.compileConfig({
+          configResult: configResult.result,
+        });
+        if (configBuildResult.status === "error") {
+          buildQueue.add({
+            status: "error",
+            kind: "indexing",
+            error: configBuildResult.error,
+          });
+          return;
+        }
+        configBuild = configBuildResult.result;
+
+        const rpcDiagnosticResult = await build.rpcDiagnostic({
+          configBuild: configBuildResult.result,
+        });
+        if (rpcDiagnosticResult.status === "error") {
+          buildQueue.add({
+            status: "error",
+            kind: "indexing",
+            error: rpcDiagnosticResult.error,
+          });
+          return;
+        }
 
         const indexingResult = await build.executeIndexingFunctions();
         if (indexingResult.status === "error") {
@@ -161,6 +193,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           configResult: configResult.result,
           schemaResult: schemaResult.result,
           indexingResult: indexingResult.result,
+          configBuild: configBuildResult.result,
         });
 
         if (indexingBuildResult.status === "error") {
@@ -171,7 +204,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           });
           return;
         }
-        indexingBuild = indexingBuildResult.result;
 
         database = createDatabase({
           common,
@@ -188,7 +220,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         await database.migrateSync();
 
         const apiResult = await build.executeApi({
-          indexingBuild,
+          configBuild: configBuildResult.result,
           database,
         });
         if (apiResult.status === "error") {
@@ -266,7 +298,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         metrics.resetApiMetrics();
 
         const apiResult = await build.executeApi({
-          indexingBuild: indexingBuild!,
+          configBuild: configBuild!,
           database: database!,
         });
         if (apiResult.status === "error") {
@@ -297,7 +329,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  let indexingBuild: IndexingBuild | undefined;
+  let configBuild: Pick<IndexingBuild, "chains" | "rpcs"> | undefined;
   let database: Database | undefined;
   let crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
 
@@ -309,8 +341,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     if (error instanceof ShutdownError) return;
     if (error instanceof NonRetryableUserError) {
       common.logger.error({
-        service: "process",
-        msg: "Caught uncaughtException event",
+        msg: "uncaughtException",
         error,
       });
 
@@ -318,19 +349,17 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       buildQueue.add({ status: "error", kind: "indexing", error });
     } else {
       common.logger.error({
-        service: "process",
-        msg: "Caught uncaughtException event",
+        msg: "uncaughtException",
         error,
       });
-      exit({ reason: "Received fatal error", code: 75 });
+      exit({ code: 75 });
     }
   });
   process.on("unhandledRejection", (error: Error) => {
     if (error instanceof ShutdownError) return;
     if (error instanceof NonRetryableUserError) {
       common.logger.error({
-        service: "process",
-        msg: "Caught unhandledRejection event",
+        msg: "unhandledRejection",
         error,
       });
 
@@ -338,11 +367,10 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       buildQueue.add({ status: "error", kind: "indexing", error });
     } else {
       common.logger.error({
-        service: "process",
-        msg: "Caught unhandledRejection event",
+        msg: "unhandledRejection",
         error,
       });
-      exit({ reason: "Received fatal error", code: 75 });
+      exit({ code: 75 });
     }
   });
 

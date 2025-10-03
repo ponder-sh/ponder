@@ -530,6 +530,11 @@ export const createIndexingCache = ({
       return inInsertBuffer || inUpdateBuffer || inDb;
     },
     async flush({ tableNames } = {}) {
+      const context = {
+        logger: common.logger.child({ action: "write cached database rows" }),
+      };
+      const flushEndClock = startClock();
+
       const copy = getCopyHelper(qb);
 
       // Note `isFlushRetry` is true when the previous flush failed. When `isFlushRetry` is false, this
@@ -554,7 +559,7 @@ export const createIndexingCache = ({
           if (insertValues.length > 0) {
             const endClock = startClock();
 
-            await qb.wrap((db) => db.execute("SAVEPOINT flush"));
+            await qb.wrap((db) => db.execute("SAVEPOINT flush"), context);
 
             try {
               const text = getCopyText(
@@ -570,14 +575,17 @@ export const createIndexingCache = ({
               const result = await recoverBatchError(
                 insertValues,
                 async (values) => {
-                  await qb.wrap((db) => db.execute("ROLLBACK to flush"));
+                  await qb.wrap(
+                    (db) => db.execute("ROLLBACK to flush"),
+                    context,
+                  );
                   const text = getCopyText(
                     table,
                     values.map(({ row }) => row),
                   );
                   await copy(table, text);
 
-                  await qb.wrap((db) => db.execute("SAVEPOINT flush"));
+                  await qb.wrap((db) => db.execute("SAVEPOINT flush"), context);
                 },
               );
 
@@ -594,14 +602,21 @@ export const createIndexingCache = ({
                   addErrorMeta(error, toErrorMeta(result.value.metadata.event));
 
                   common.logger.warn({
-                    service: "indexing",
-                    msg: `Error inserting into '${getTableName(table)}' in '${result.value.metadata.event.name}'`,
+                    msg: "Failed to write cached database rows",
+                    event: result.value.metadata.event.name,
+                    type: "insert",
+                    table: getTableName(table),
+                    row_count: insertValues.length,
+                    duration: endClock(),
                     error,
                   });
                 } else {
                   common.logger.warn({
-                    service: "indexing",
-                    msg: `Error inserting into '${getTableName(table)}'`,
+                    msg: "Failed to write cached database rows",
+                    type: "insert",
+                    table: getTableName(table),
+                    row_count: insertValues.length,
+                    duration: endClock(),
                     error,
                   });
                 }
@@ -612,8 +627,11 @@ export const createIndexingCache = ({
                 error.stack = undefined;
 
                 common.logger.warn({
-                  service: "indexing",
-                  msg: `Error inserting into '${getTableName(table)}'`,
+                  msg: "Failed to write cached database rows",
+                  type: "insert",
+                  table: getTableName(table),
+                  row_count: insertValues.length,
+                  duration: endClock(),
                   error,
                 });
               }
@@ -638,11 +656,6 @@ export const createIndexingCache = ({
             }
             tableCache.bytes += bytes;
             insertBuffer.get(table)!.clear();
-
-            common.logger.debug({
-              service: "database",
-              msg: `Inserted ${insertValues.length} '${getTableName(table)}' rows`,
-            });
 
             await new Promise(setImmediate);
           }
@@ -683,8 +696,8 @@ export const createIndexingCache = ({
 
             const endClock = startClock();
 
-            await qb.wrap((db) => db.execute(createTempTableQuery));
-            await qb.wrap((db) => db.execute("SAVEPOINT flush"));
+            await qb.wrap((db) => db.execute(createTempTableQuery), context);
+            await qb.wrap((db) => db.execute("SAVEPOINT flush"), context);
 
             try {
               const text = getCopyText(
@@ -700,14 +713,17 @@ export const createIndexingCache = ({
               const result = await recoverBatchError(
                 updateValues,
                 async (values) => {
-                  await qb.wrap((db) => db.execute("ROLLBACK to flush"));
+                  await qb.wrap(
+                    (db) => db.execute("ROLLBACK to flush"),
+                    context,
+                  );
                   const text = getCopyText(
                     table,
                     values.map(({ row }) => row),
                   );
                   await copy(table, text, false);
 
-                  await qb.wrap((db) => db.execute("SAVEPOINT flush"));
+                  await qb.wrap((db) => db.execute("SAVEPOINT flush"), context);
                 },
               );
 
@@ -724,14 +740,21 @@ export const createIndexingCache = ({
                   addErrorMeta(error, toErrorMeta(result.value.metadata.event));
 
                   common.logger.warn({
-                    service: "indexing",
-                    msg: `Error updating '${getTableName(table)}' in '${result.value.metadata.event.name}'`,
+                    msg: "Failed to write cached database rows",
+                    event: result.value.metadata.event.name,
+                    type: "update",
+                    table: getTableName(table),
+                    row_count: updateValues.length,
+                    duration: endClock(),
                     error,
                   });
                 } else {
                   common.logger.warn({
-                    service: "indexing",
-                    msg: `Error updating '${getTableName(table)}'`,
+                    msg: "Failed to write cached database rows",
+                    type: "update",
+                    table: getTableName(table),
+                    row_count: updateValues.length,
+                    duration: endClock(),
                     error,
                   });
                 }
@@ -742,8 +765,11 @@ export const createIndexingCache = ({
                 error.stack = undefined;
 
                 common.logger.warn({
-                  service: "indexing",
-                  msg: `Error updating '${getTableName(table)}'`,
+                  msg: "Failed to write cached database rows",
+                  type: "update",
+                  table: getTableName(table),
+                  row_count: updateValues.length,
+                  duration: endClock(),
                   error,
                 });
               }
@@ -751,9 +777,10 @@ export const createIndexingCache = ({
               throw error;
             }
 
-            await qb.wrap((db) => db.execute(updateQuery));
-            await qb.wrap((db) =>
-              db.execute(`TRUNCATE TABLE "${getTableName(table)}"`),
+            await qb.wrap((db) => db.execute(updateQuery), context);
+            await qb.wrap(
+              (db) => db.execute(`TRUNCATE TABLE "${getTableName(table)}"`),
+              context,
             );
 
             common.metrics.ponder_indexing_cache_query_duration.observe(
@@ -774,16 +801,18 @@ export const createIndexingCache = ({
             tableCache.bytes += bytes;
             updateBuffer.get(table)!.clear();
 
-            common.logger.debug({
-              service: "database",
-              msg: `Updated ${updateValues.length} '${getTableName(table)}' rows`,
-            });
-
             await new Promise(setImmediate);
           }
 
           if (insertValues.length > 0 || updateValues.length > 0) {
-            await qb.wrap((db) => db.execute("RELEASE flush"));
+            common.logger.debug({
+              msg: "Wrote cached database rows",
+              table: getTableName(table),
+              row_count: insertValues.length + updateValues.length,
+              duration: flushEndClock(),
+            });
+
+            await qb.wrap((db) => db.execute("RELEASE flush"), context);
           }
         }
       } else {
@@ -819,8 +848,10 @@ export const createIndexingCache = ({
 
                 await copy(table, text);
               } else {
-                await qb.wrap((db) =>
-                  db.insert(table).values(insertValues.map(({ row }) => row)),
+                await qb.wrap(
+                  (db) =>
+                    db.insert(table).values(insertValues.map(({ row }) => row)),
+                  context,
                 );
               }
 
@@ -841,11 +872,6 @@ export const createIndexingCache = ({
               }
               tableCache.bytes += bytes;
               insertBuffer.get(table)!.clear();
-
-              common.logger.debug({
-                service: "database",
-                msg: `Inserted ${insertValues.length} '${getTableName(table)}' rows`,
-              });
 
               await new Promise(setImmediate);
             }
@@ -888,7 +914,10 @@ export const createIndexingCache = ({
                   .join(" AND ")};
               `;
 
-                await qb.wrap((db) => db.execute(createTempTableQuery));
+                await qb.wrap(
+                  (db) => db.execute(createTempTableQuery),
+                  context,
+                );
 
                 const text = getCopyText(
                   table,
@@ -899,30 +928,33 @@ export const createIndexingCache = ({
 
                 await copy(table, text, false);
 
-                await qb.wrap((db) => db.execute(updateQuery));
+                await qb.wrap((db) => db.execute(updateQuery), context);
 
-                await qb.wrap((db) =>
-                  db.execute(`TRUNCATE TABLE "${getTableName(table)}"`),
+                await qb.wrap(
+                  (db) => db.execute(`TRUNCATE TABLE "${getTableName(table)}"`),
+                  context,
                 );
               } else {
-                await qb.wrap((db) =>
-                  db
-                    .insert(table)
-                    .values(updateValues.map(({ row }) => row))
-                    .onConflictDoUpdate({
-                      // @ts-ignore
-                      target: primaryKeys.map(({ js }) => table[js]!),
-                      set: Object.fromEntries(
-                        Object.entries(getTableColumns(table)).map(
-                          ([columnName, column]) => [
-                            columnName,
-                            sql.raw(
-                              `excluded."${getColumnCasing(column, "snake_case")}"`,
-                            ),
-                          ],
+                await qb.wrap(
+                  (db) =>
+                    db
+                      .insert(table)
+                      .values(updateValues.map(({ row }) => row))
+                      .onConflictDoUpdate({
+                        // @ts-ignore
+                        target: primaryKeys.map(({ js }) => table[js]!),
+                        set: Object.fromEntries(
+                          Object.entries(getTableColumns(table)).map(
+                            ([columnName, column]) => [
+                              columnName,
+                              sql.raw(
+                                `excluded."${getColumnCasing(column, "snake_case")}"`,
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    }),
+                      }),
+                  context,
                 );
               }
 
@@ -944,12 +976,16 @@ export const createIndexingCache = ({
               tableCache.bytes += bytes;
               updateBuffer.get(table)!.clear();
 
-              common.logger.debug({
-                service: "database",
-                msg: `Updated ${updateValues.length} '${getTableName(table)}' rows`,
-              });
-
               await new Promise(setImmediate);
+            }
+
+            if (insertValues.length > 0 || updateValues.length > 0) {
+              common.logger.debug({
+                msg: "Wrote cached database rows",
+                table: getTableName(table),
+                row_count: insertValues.length + updateValues.length,
+                duration: flushEndClock(),
+              });
             }
           }),
         );
@@ -966,6 +1002,10 @@ export const createIndexingCache = ({
       isFlushRetry = false;
     },
     async prefetch({ events }) {
+      const context = {
+        logger: common.logger.child({ action: "prefetch database rows" }),
+      };
+
       let totalBytes = 0;
       for (const table of tables) {
         totalBytes += cache.get(table)!.bytes;
@@ -980,11 +1020,6 @@ export const createIndexingCache = ({
         )) {
           if (cache.get(table)!.isCacheComplete === false) continue;
 
-          common.logger.debug({
-            service: "indexing",
-            msg: `Evicting '${getTableName(table)}' rows from cache`,
-          });
-
           totalBytes -= cache.get(table)!.bytes;
 
           cache.get(table)!.bytes = 0;
@@ -992,6 +1027,12 @@ export const createIndexingCache = ({
           cache.get(table)!.isCacheComplete = false;
           // Note: spillover is not cleared because it is an invariant
           // it is empty
+
+          common.logger.debug({
+            msg: "Evicted cached database rows",
+            table: getTableName(table),
+            row_count: cache.get(table)!.cache.size,
+          });
 
           if (totalBytes < common.options.indexingCacheMaxBytes) break;
         }
@@ -1075,17 +1116,15 @@ export const createIndexingCache = ({
             const endClock = startClock();
 
             await qb
-              .wrap((db) =>
-                db
-                  .select()
-                  .from(table)
-                  .where(or(...conditions)),
+              .wrap(
+                (db) =>
+                  db
+                    .select()
+                    .from(table)
+                    .where(or(...conditions)),
+                context,
               )
               .then((results) => {
-                common.logger.debug({
-                  service: "indexing",
-                  msg: `Pre-queried ${results.length} '${getTableName(table)}' rows`,
-                });
                 const resultsPerKey = new Map<CacheKey, Row>();
                 for (const result of results) {
                   const ck = getCacheKey(table, result, primaryKeyCache);
@@ -1100,6 +1139,13 @@ export const createIndexingCache = ({
                     tableCache.cache.set(key, null);
                   }
                 }
+
+                common.logger.debug({
+                  msg: "Pre-queried database rows",
+                  table: getTableName(table),
+                  row_count: results.length,
+                  duration: endClock(),
+                });
               });
 
             common.metrics.ponder_indexing_cache_query_duration.observe(

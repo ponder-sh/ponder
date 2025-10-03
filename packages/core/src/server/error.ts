@@ -34,8 +34,9 @@ export const onError = async (_error: Error, c: Context, common: Common) => {
   );
 
   common.logger.warn({
-    service: "server",
-    msg: `An error occurred while handling a '${c.req.method}' request to the route '${c.req.path}'`,
+    msg: "Failed to handle HTTP request",
+    method: c.req.method,
+    path: c.req.path,
     error,
   });
 

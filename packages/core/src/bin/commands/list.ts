@@ -55,14 +55,37 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
 
   const configResult = await build.executeConfig();
   if (configResult.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "config",
+      error: configResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
 
-  const buildResult = await build.preCompile(configResult.result);
+  const buildResult = build.preCompile(configResult.result);
 
   if (buildResult.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "pre-compile",
+      error: buildResult.error,
+    });
+    await exit({ code: 1 });
+    return;
+  }
+
+  const databaseDiagnostic = await build.databaseDiagnostic({
+    preBuild: buildResult.result,
+  });
+  if (databaseDiagnostic.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "diagnostic",
+      error: databaseDiagnostic.error,
+    });
+    await exit({ code: 75 });
     return;
   }
 
@@ -102,10 +125,9 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
 
   if (queries.length === 0) {
     logger.warn({
-      service: "list",
-      msg: "No 'ponder start' apps found in this database.",
+      msg: "Found 0 'ponder start' apps",
     });
-    await exit({ reason: "Success", code: 0 });
+    await exit({ code: 0 });
     return;
   }
 
@@ -148,10 +170,9 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
 
   if (rows.length === 0) {
     logger.warn({
-      service: "list",
-      msg: "No 'ponder start' apps found in this database.",
+      msg: "Found 0 'ponder start' apps",
     });
-    await exit({ reason: "Success", code: 0 });
+    await exit({ code: 0 });
     return;
   }
 
@@ -159,5 +180,5 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
   const text = [...lines, ""].join("\n");
   console.log(text);
 
-  await exit({ reason: "Success", code: 0 });
+  await exit({ code: 0 });
 }

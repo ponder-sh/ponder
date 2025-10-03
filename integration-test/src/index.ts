@@ -257,7 +257,6 @@ const onBuild = async (app: PonderApp) => {
   app.common.options.syncEventsQuerySize = 200;
 
   app.common.logger.warn({
-    service: "sim",
     msg: "Mocking syncQB, adminQB, userQB, and readonlyQB",
   });
 
@@ -1299,7 +1298,6 @@ const onBuild = async (app: PonderApp) => {
     });
 
     app.common.logger.warn({
-      service: "sim",
       msg: `Mocking eip1193 transport for chain '${chain.name}'`,
     });
   }
@@ -1327,7 +1325,6 @@ const onBuild = async (app: PonderApp) => {
         }
 
         app.common.logger.warn({
-          service: "sim",
           msg: `Realtime block subscription for chain '${chain.name}' completed`,
         });
         finishCount += 1;
@@ -1338,7 +1335,6 @@ const onBuild = async (app: PonderApp) => {
     };
 
     app.common.logger.warn({
-      service: "sim",
       msg: `Mocking realtime block subscription for chain '${chain.name}'`,
     });
   }

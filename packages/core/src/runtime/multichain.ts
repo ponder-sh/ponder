@@ -284,6 +284,23 @@ export async function runMultichain({
     });
   }
 
+  const etaInterval = setInterval(async () => {
+    // underlying metrics collection is actually synchronous
+    // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
+    const { eta, progress } = await getAppProgress(common.metrics);
+    if (eta === undefined || progress === undefined) {
+      return;
+    }
+
+    common.logger.info({
+      msg: "Updated indexing progress",
+      progress: formatPercentage(progress),
+      eta: formatEta(eta * 1_000),
+    });
+  }, 5_000);
+
+  const backfillEndClock = startClock();
+
   // Run historical indexing until complete.
   for await (const events of recordAsyncGenerator(
     getHistoricalEventsMultichain({
@@ -304,7 +321,10 @@ export async function runMultichain({
       );
     },
   )) {
-    let endClock = startClock();
+    const context = {
+      logger: common.logger.child({ action: "index block range" }),
+    };
+    const indexStartClock = startClock();
 
     indexingCache.qb = database.userQB;
     await Promise.all([
@@ -313,11 +333,12 @@ export async function runMultichain({
     ]);
     common.metrics.ponder_historical_transform_duration.inc(
       { step: "prefetch" },
-      endClock(),
+      indexStartClock(),
     );
-    if (events.events.length > 0) {
-      endClock = startClock();
-      await database.userQB.transaction(async (tx) => {
+
+    let endClock = startClock();
+    await database.userQB.transaction(
+      async (tx) => {
         const initialEventCount = structuredClone(eventCount);
 
         try {
@@ -376,46 +397,34 @@ export async function runMultichain({
             endClock(),
           );
 
-          // underlying metrics collection is actually synchronous
-          // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-          const { eta, progress } = await getAppProgress(common.metrics);
-          if (eta === undefined || progress === undefined) {
-            common.logger.info({
-              service: "app",
-              msg: `Indexed ${events.events.length} events`,
-            });
-          } else {
-            common.logger.info({
-              service: "app",
-              msg: `Indexed ${events.events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
-            });
-          }
-
           endClock = startClock();
 
           if (events.checkpoints.length > 0) {
-            await tx.wrap({ label: "update_checkpoints" }, (tx) =>
-              tx
-                .insert(PONDER_CHECKPOINT)
-                .values(
-                  events.checkpoints.map(({ chainId, checkpoint }) => ({
-                    chainName: indexingBuild.chains.find(
-                      (chain) => chain.id === chainId,
-                    )!.name,
-                    chainId,
-                    latestCheckpoint: checkpoint,
-                    finalizedCheckpoint: checkpoint,
-                    safeCheckpoint: checkpoint,
-                  })),
-                )
-                .onConflictDoUpdate({
-                  target: PONDER_CHECKPOINT.chainName,
-                  set: {
-                    safeCheckpoint: sql`excluded.safe_checkpoint`,
-                    finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
-                    latestCheckpoint: sql`excluded.latest_checkpoint`,
-                  },
-                }),
+            await tx.wrap(
+              { label: "update_checkpoints" },
+              (tx) =>
+                tx
+                  .insert(PONDER_CHECKPOINT)
+                  .values(
+                    events.checkpoints.map(({ chainId, checkpoint }) => ({
+                      chainName: indexingBuild.chains.find(
+                        (chain) => chain.id === chainId,
+                      )!.name,
+                      chainId,
+                      latestCheckpoint: checkpoint,
+                      finalizedCheckpoint: checkpoint,
+                      safeCheckpoint: checkpoint,
+                    })),
+                  )
+                  .onConflictDoUpdate({
+                    target: PONDER_CHECKPOINT.chainName,
+                    set: {
+                      safeCheckpoint: sql`excluded.safe_checkpoint`,
+                      finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
+                      latestCheckpoint: sql`excluded.latest_checkpoint`,
+                    },
+                  }),
+              context,
             );
           }
 
@@ -430,9 +439,10 @@ export async function runMultichain({
           indexingCache.clear();
 
           if (error instanceof InvalidEventAccessError) {
-            common.logger.warn({
-              service: "app",
-              msg: `Retrying event batch due to unexpected event property access. Missing: '${error.key}' field.`,
+            common.logger.debug({
+              msg: "Failed to index block range",
+              duration: indexStartClock(),
+              error,
             });
             events.events = await refetchHistoricalEvents({
               common,
@@ -443,24 +453,33 @@ export async function runMultichain({
             });
           } else if (error instanceof NonRetryableUserError === false) {
             common.logger.warn({
-              service: "app",
-              msg: "Retrying event batch",
+              msg: "Failed to index block range",
+              duration: indexStartClock(),
               error: error as Error,
             });
           }
 
           throw error;
         }
-      });
+      },
+      undefined,
+      context,
+    );
 
-      cachedViemClient.clear();
-      common.metrics.ponder_historical_transform_duration.inc(
-        { step: "commit" },
-        endClock(),
-      );
+    cachedViemClient.clear();
+    common.metrics.ponder_historical_transform_duration.inc(
+      { step: "commit" },
+      endClock(),
+    );
 
-      await new Promise(setImmediate);
-    }
+    await new Promise(setImmediate);
+
+    // TODO(kyle) block range
+    common.logger.info({
+      msg: "Indexed block range",
+      event_count: events.events.length,
+      duration: indexStartClock(),
+    });
   }
 
   indexingCache.clear();
@@ -489,20 +508,45 @@ export async function runMultichain({
   common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
 
   common.logger.info({
-    service: "indexing",
-    msg: "Completed historical indexing",
+    msg: "Completed backfill",
+    duration: backfillEndClock(),
   });
+  clearInterval(etaInterval);
 
   const tables = Object.values(schemaBuild.schema).filter(isTable);
 
+  let endClock = startClock();
+
   await createIndexes(database.adminQB, { statements: schemaBuild.statements });
+
+  if (schemaBuild.statements.indexes.sql.length > 0) {
+    common.logger.info({
+      msg: "Created database indexes",
+      count: schemaBuild.statements.indexes.sql.length,
+      duration: endClock(),
+    });
+  }
+
+  endClock = startClock();
+
   await createTriggers(database.adminQB, { tables });
+
+  common.logger.debug({
+    msg: "Created database triggers",
+    count: tables.length,
+    duration: endClock(),
+  });
+
   if (namespaceBuild.viewsSchema !== undefined) {
+    const endClock = startClock();
+
     await createViews(database.adminQB, { tables, namespaceBuild });
 
     common.logger.info({
-      service: "app",
-      msg: `Created ${tables.length} views in schema "${namespaceBuild.viewsSchema}"`,
+      msg: "Created database views",
+      schema: namespaceBuild.viewsSchema,
+      count: tables.length,
+      duration: endClock(),
     });
   }
 
@@ -513,8 +557,8 @@ export async function runMultichain({
   );
 
   common.logger.info({
-    service: "server",
-    msg: "Started returning 200 responses from /ready endpoint",
+    msg: "Started returning 200 responses",
+    endpoint: "/ready",
   });
 
   const realtimeIndexingStore = createRealtimeIndexingStore({
@@ -531,108 +575,185 @@ export async function runMultichain({
   })) {
     switch (event.type) {
       case "block": {
+        const context = {
+          logger: common.logger.child({ action: "index block" }),
+        };
+        const endClock = startClock();
+
         if (event.events.length > 0) {
           // Events must be run block-by-block, so that `database.commitBlock` can accurately
           // update the temporary `checkpoint` value set in the trigger.
 
           const perBlockEvents = splitEvents(event.events);
 
-          common.logger.debug({
-            service: "app",
-            msg: `Partitioned events into ${perBlockEvents.length} blocks`,
-          });
-
           for (const { checkpoint, events } of perBlockEvents) {
-            await database.userQB.transaction(async (tx) => {
-              const chain = indexingBuild.chains.find(
-                (chain) =>
-                  chain.id === Number(decodeCheckpoint(checkpoint).chainId),
-              )!;
+            await database.userQB.transaction(
+              async (tx) => {
+                const chain = indexingBuild.chains.find(
+                  (chain) =>
+                    chain.id === Number(decodeCheckpoint(checkpoint).chainId),
+                )!;
 
-              try {
-                realtimeIndexingStore.qb = tx;
-                realtimeIndexingStore.isProcessingEvents = true;
+                try {
+                  realtimeIndexingStore.qb = tx;
+                  realtimeIndexingStore.isProcessingEvents = true;
 
-                await indexing.processRealtimeEvents({
-                  events,
-                  db: realtimeIndexingStore,
-                });
-
-                realtimeIndexingStore.isProcessingEvents = false;
-
-                common.logger.info({
-                  service: "app",
-                  msg: `Indexed ${events.length} '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
-                });
-
-                await Promise.all(
-                  tables.map((table) => commitBlock(tx, { table, checkpoint })),
-                );
-
-                common.metrics.ponder_indexing_timestamp.set(
-                  { chain: chain.name },
-                  Number(decodeCheckpoint(checkpoint).blockTimestamp),
-                );
-              } catch (error) {
-                if (error instanceof NonRetryableUserError === false) {
-                  common.logger.warn({
-                    service: "app",
-                    msg: `Retrying '${chain.name}' events for block ${Number(decodeCheckpoint(checkpoint).blockNumber)}`,
+                  common.logger.trace({
+                    msg: "Processing block events",
+                    chain: chain.name,
+                    number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                    event_count: events.length,
                   });
-                }
 
-                throw error;
-              }
-            });
+                  await indexing.processRealtimeEvents({
+                    events,
+                    db: realtimeIndexingStore,
+                  });
+
+                  common.logger.trace({
+                    msg: "Processed block events",
+                    chain: chain.name,
+                    number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                    event_count: events.length,
+                  });
+
+                  realtimeIndexingStore.isProcessingEvents = false;
+
+                  await Promise.all(
+                    tables.map((table) =>
+                      commitBlock(tx, { table, checkpoint }, context),
+                    ),
+                  );
+
+                  common.logger.trace({
+                    msg: "Committed reorg data for block",
+                    chain: chain.name,
+                    number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                    event_count: events.length,
+                    checkpoint,
+                  });
+
+                  common.metrics.ponder_indexing_timestamp.set(
+                    { chain: chain.name },
+                    Number(decodeCheckpoint(checkpoint).blockTimestamp),
+                  );
+                } catch (error) {
+                  if (error instanceof NonRetryableUserError === false) {
+                    common.logger.warn({
+                      msg: "Failed to index block",
+                      chain: chain.name,
+                      number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                      error: error,
+                    });
+                  }
+
+                  throw error;
+                }
+              },
+              undefined,
+              context,
+            );
           }
         }
 
-        await database.userQB.wrap({ label: "update_checkpoints" }, (db) =>
-          db
-            .update(PONDER_CHECKPOINT)
-            .set({ latestCheckpoint: event.checkpoint })
-            .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
+        await database.userQB.wrap(
+          { label: "update_checkpoints" },
+          (db) =>
+            db
+              .update(PONDER_CHECKPOINT)
+              .set({ latestCheckpoint: event.checkpoint })
+              .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
+          context,
         );
 
         event.blockCallback?.(true);
 
+        common.logger.info({
+          msg: "Indexed block",
+          chain: event.chain.name,
+          number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
+          event_count: event.events.length,
+          duration: endClock(),
+        });
+
         break;
       }
-      case "reorg":
+      case "reorg": {
+        const context = {
+          logger: common.logger.child({ action: "reorg block" }),
+        };
+        const endClock = startClock();
+
         // Note: `_ponder_checkpoint` is not called here, instead it is called
         // in the `block` case.
 
-        await database.userQB.transaction(async (tx) => {
-          await dropTriggers(tx, { tables });
+        await database.userQB.transaction(
+          async (tx) => {
+            await dropTriggers(tx, { tables }, context);
 
-          const counts = await revert(tx, {
-            checkpoint: event.checkpoint,
-            tables,
-            preBuild,
-          });
+            const counts = await revert(
+              tx,
+              {
+                checkpoint: event.checkpoint,
+                tables,
+                preBuild,
+              },
+              context,
+            );
 
-          for (const [index, table] of tables.entries()) {
-            common.logger.info({
-              service: "database",
-              msg: `Reverted ${counts[index]} unfinalized operations from '${getTableName(table)}'`,
-            });
-          }
+            for (const [index, table] of tables.entries()) {
+              common.logger.debug({
+                msg: "Reverted reorged database rows",
+                table: getTableName(table),
+                row_count: counts[index],
+              });
+            }
 
-          await createTriggers(tx, { tables });
+            await createTriggers(tx, { tables }, context);
+          },
+          undefined,
+          context,
+        );
+
+        common.logger.info({
+          msg: "Reorged block",
+          chain: event.chain.name,
+          number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
+          duration: endClock(),
         });
 
         break;
+      }
       case "finalize": {
-        const count = await finalize(database.userQB, {
-          checkpoint: event.checkpoint,
-          tables,
-          preBuild,
-          namespaceBuild,
-        });
+        const context = {
+          logger: common.logger.child({ action: "finalize block" }),
+        };
+        const endClock = startClock();
+
+        const counts = await finalize(
+          database.userQB,
+          {
+            checkpoint: event.checkpoint,
+            tables,
+            preBuild,
+            namespaceBuild,
+          },
+          context,
+        );
+
+        for (const [index, table] of tables.entries()) {
+          common.logger.debug({
+            msg: "Finalized database rows",
+            table: getTableName(table),
+            row_count: counts[index],
+          });
+        }
 
         common.logger.info({
-          service: "database",
-          msg: `Finalized ${count} operations.`,
+          msg: "Finalized block",
+          chain: event.chain.name,
+          number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
+          duration: endClock(),
         });
 
         break;
@@ -641,4 +762,9 @@ export async function runMultichain({
         never(event);
     }
   }
+
+  common.logger.info({
+    msg: "Completed indexing",
+    duration: backfillEndClock(),
+  });
 }
