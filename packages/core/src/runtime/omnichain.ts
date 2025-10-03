@@ -24,7 +24,7 @@ import {
   NonRetryableUserError,
   type RetryableError,
 } from "@/internal/errors.js";
-import { getAppProgress } from "@/internal/metrics.js";
+// import { getAppProgress } from "@/internal/metrics.js";
 import type {
   Chain,
   CrashRecoveryCheckpoint,
@@ -45,7 +45,7 @@ import {
   max,
   min,
 } from "@/utils/checkpoint.js";
-import { formatEta, formatPercentage } from "@/utils/format.js";
+// import { formatEta, formatPercentage } from "@/utils/format.js";
 import { recordAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
@@ -287,6 +287,8 @@ export async function runOmnichain({
     });
   }
 
+  const backfillEndClock = startClock();
+
   let pendingEvents: Event[] = [];
 
   // Run historical indexing until complete.
@@ -314,7 +316,10 @@ export async function runOmnichain({
       continue;
     }
 
-    let endClock = startClock();
+    const context = {
+      logger: common.logger.child({ action: "index block range" }),
+    };
+    const indexStartClock = startClock();
 
     indexingCache.qb = database.userQB;
     await Promise.all([
@@ -323,155 +328,145 @@ export async function runOmnichain({
     ]);
     common.metrics.ponder_historical_transform_duration.inc(
       { step: "prefetch" },
-      endClock(),
+      indexStartClock(),
     );
     if (result.events.length > 0) {
-      endClock = startClock();
-      await database.userQB.transaction(async (tx) => {
-        const initialEventCount = structuredClone(eventCount);
+      let endClock = startClock();
+      await database.userQB.transaction(
+        async (tx) => {
+          const initialEventCount = structuredClone(eventCount);
 
-        try {
-          historicalIndexingStore.qb = tx;
-          historicalIndexingStore.isProcessingEvents = true;
-          indexingCache.qb = tx;
+          try {
+            historicalIndexingStore.qb = tx;
+            historicalIndexingStore.isProcessingEvents = true;
+            indexingCache.qb = tx;
 
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "begin" },
-            endClock(),
-          );
-
-          endClock = startClock();
-
-          await indexing.processHistoricalEvents({
-            events: result.events,
-            db: historicalIndexingStore,
-            cache: indexingCache,
-            updateIndexingSeconds(event) {
-              const checkpoint = decodeCheckpoint(event.checkpoint);
-              for (const chain of indexingBuild.chains) {
-                common.metrics.ponder_historical_completed_indexing_seconds.set(
-                  { chain: chain.name },
-                  Math.min(
-                    Math.max(
-                      Number(checkpoint.blockTimestamp) -
-                        Math.max(
-                          seconds[chain.name]!.cached,
-                          seconds[chain.name]!.start,
-                        ),
-                      0,
-                    ),
-                    Math.max(
-                      seconds[chain.name]!.end - seconds[chain.name]!.start,
-                      0,
-                    ),
-                  ),
-                );
-                common.metrics.ponder_indexing_timestamp.set(
-                  { chain: chain.name },
-                  Math.max(
-                    Number(checkpoint.blockTimestamp),
-                    seconds[chain.name]!.end,
-                  ),
-                );
-              }
-            },
-          });
-
-          historicalIndexingStore.isProcessingEvents = false;
-
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "index" },
-            endClock(),
-          );
-
-          endClock = startClock();
-
-          // Note: at this point, the next events can be preloaded, as long as the are not indexed until
-          // the "flush" + "finalize" is complete.
-
-          await indexingCache.flush();
-
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "load" },
-            endClock(),
-          );
-
-          // underlying metrics collection is actually synchronous
-          // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-          const { eta, progress } = await getAppProgress(common.metrics);
-          if (eta === undefined || progress === undefined) {
-            common.logger.info({
-              service: "app",
-              msg: `Indexed ${result.events.length} events`,
-            });
-          } else {
-            common.logger.info({
-              service: "app",
-              msg: `Indexed ${result.events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
-            });
-          }
-
-          endClock = startClock();
-
-          if (result.checkpoints.length > 0) {
-            await tx.wrap({ label: "update_checkpoints" }, (tx) =>
-              tx
-                .insert(PONDER_CHECKPOINT)
-                .values(
-                  result.checkpoints.map(({ chainId, checkpoint }) => ({
-                    chainName: indexingBuild.chains.find(
-                      (chain) => chain.id === chainId,
-                    )!.name,
-                    chainId,
-                    latestCheckpoint: checkpoint,
-                    safeCheckpoint: checkpoint,
-                    finalizedCheckpoint: checkpoint,
-                  })),
-                )
-                .onConflictDoUpdate({
-                  target: PONDER_CHECKPOINT.chainName,
-                  set: {
-                    safeCheckpoint: sql`excluded.safe_checkpoint`,
-                    latestCheckpoint: sql`excluded.latest_checkpoint`,
-                    finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
-                  },
-                }),
+            common.metrics.ponder_historical_transform_duration.inc(
+              { step: "begin" },
+              endClock(),
             );
-          }
 
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "finalize" },
-            endClock(),
-          );
-          endClock = startClock();
-        } catch (error) {
-          eventCount = initialEventCount;
-          indexingCache.invalidate();
-          indexingCache.clear();
+            endClock = startClock();
 
-          if (error instanceof InvalidEventAccessError) {
-            common.logger.warn({
-              service: "app",
-              msg: `Retrying event batch due to unexpected event property access. Missing: '${error.key}' field.`,
-            });
-            result.events = await refetchHistoricalEvents({
-              common,
-              indexingBuild,
-              perChainSync,
-              syncStore,
+            await indexing.processHistoricalEvents({
               events: result.events,
+              db: historicalIndexingStore,
+              cache: indexingCache,
+              updateIndexingSeconds(event) {
+                const checkpoint = decodeCheckpoint(event.checkpoint);
+                for (const chain of indexingBuild.chains) {
+                  common.metrics.ponder_historical_completed_indexing_seconds.set(
+                    { chain: chain.name },
+                    Math.min(
+                      Math.max(
+                        Number(checkpoint.blockTimestamp) -
+                          Math.max(
+                            seconds[chain.name]!.cached,
+                            seconds[chain.name]!.start,
+                          ),
+                        0,
+                      ),
+                      Math.max(
+                        seconds[chain.name]!.end - seconds[chain.name]!.start,
+                        0,
+                      ),
+                    ),
+                  );
+                  common.metrics.ponder_indexing_timestamp.set(
+                    { chain: chain.name },
+                    Math.max(
+                      Number(checkpoint.blockTimestamp),
+                      seconds[chain.name]!.end,
+                    ),
+                  );
+                }
+              },
             });
-          } else if (error instanceof NonRetryableUserError === false) {
-            common.logger.warn({
-              service: "app",
-              msg: "Retrying event batch",
-              error: error as Error,
-            });
-          }
 
-          throw error;
-        }
-      });
+            historicalIndexingStore.isProcessingEvents = false;
+
+            common.metrics.ponder_historical_transform_duration.inc(
+              { step: "index" },
+              endClock(),
+            );
+
+            endClock = startClock();
+
+            // Note: at this point, the next events can be preloaded, as long as the are not indexed until
+            // the "flush" + "finalize" is complete.
+
+            await indexingCache.flush();
+
+            common.metrics.ponder_historical_transform_duration.inc(
+              { step: "load" },
+              endClock(),
+            );
+
+            endClock = startClock();
+
+            if (result.checkpoints.length > 0) {
+              await tx.wrap({ label: "update_checkpoints" }, (tx) =>
+                tx
+                  .insert(PONDER_CHECKPOINT)
+                  .values(
+                    result.checkpoints.map(({ chainId, checkpoint }) => ({
+                      chainName: indexingBuild.chains.find(
+                        (chain) => chain.id === chainId,
+                      )!.name,
+                      chainId,
+                      latestCheckpoint: checkpoint,
+                      safeCheckpoint: checkpoint,
+                      finalizedCheckpoint: checkpoint,
+                    })),
+                  )
+                  .onConflictDoUpdate({
+                    target: PONDER_CHECKPOINT.chainName,
+                    set: {
+                      safeCheckpoint: sql`excluded.safe_checkpoint`,
+                      latestCheckpoint: sql`excluded.latest_checkpoint`,
+                      finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
+                    },
+                  }),
+              );
+            }
+
+            common.metrics.ponder_historical_transform_duration.inc(
+              { step: "finalize" },
+              endClock(),
+            );
+            endClock = startClock();
+          } catch (error) {
+            eventCount = initialEventCount;
+            indexingCache.invalidate();
+            indexingCache.clear();
+
+            if (error instanceof InvalidEventAccessError) {
+              common.logger.debug({
+                msg: "Failed to index block range",
+                duration: indexStartClock(),
+                error,
+              });
+              result.events = await refetchHistoricalEvents({
+                common,
+                indexingBuild,
+                perChainSync,
+                syncStore,
+                events: result.events,
+              });
+            } else if (error instanceof NonRetryableUserError === false) {
+              common.logger.warn({
+                msg: "Failed to index block range",
+                duration: indexStartClock(),
+                error: error as Error,
+              });
+            }
+
+            throw error;
+          }
+        },
+        undefined,
+        context,
+      );
 
       cachedViemClient.clear();
       common.metrics.ponder_historical_transform_duration.inc(
@@ -481,6 +476,26 @@ export async function runOmnichain({
 
       await new Promise(setImmediate);
     }
+
+    // // underlying metrics collection is actually synchronous
+    // // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
+    // const { eta, progress } = await getAppProgress(common.metrics);
+    // if (eta === undefined || progress === undefined) {
+    //   common.logger.info({
+    //     msg: `Indexed ${result.events.length} events`,
+    //   });
+    // } else {
+    //   common.logger.info({
+    //     msg: `Indexed ${result.events.length} events with ${formatPercentage(progress)} complete and ${formatEta(eta * 1_000)} remaining`,
+    //   });
+    // }
+
+    // TODO(kyle) block range per chain
+    common.logger.info({
+      msg: "Indexed block range",
+      event_count: result.events.length,
+      duration: indexStartClock(),
+    });
   }
 
   indexingCache.clear();
@@ -510,7 +525,7 @@ export async function runOmnichain({
 
   common.logger.info({
     msg: "Completed backfill",
-    duration: endTimestamp - startTimestamp,
+    duration: backfillEndClock(),
   });
 
   const tables = Object.values(schemaBuild.schema).filter(isTable);

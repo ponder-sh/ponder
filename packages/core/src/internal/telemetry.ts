@@ -83,7 +83,6 @@ export function createTelemetry({
   if (conf.get("notifiedAt") === undefined) {
     conf.set("notifiedAt", Date.now().toString());
     logger.info({
-      service: "telemetry",
       msg: "Ponder collects anonymous telemetry data to identify issues and prioritize features. See https://ponder.sh/docs/advanced/telemetry for more information.",
     });
   }
@@ -184,8 +183,9 @@ export function createTelemetry({
           body,
         });
         logger.trace({
-          service: "telemetry",
-          msg: `Sent '${event.name}' event in ${endClock()}ms`,
+          msg: "Sent telemetry event",
+          event: event.name,
+          duration: endClock(),
         });
       } catch (error_) {
         const error = error_ as Error;
@@ -195,8 +195,9 @@ export function createTelemetry({
         }
 
         logger.trace({
-          service: "telemetry",
-          msg: `Failed to send '${event.name}' event after ${endClock()}ms`,
+          msg: "Failed to send telemetry event",
+          event: event.name,
+          duration: endClock(),
           error,
         });
       }

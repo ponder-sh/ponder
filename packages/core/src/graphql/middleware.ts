@@ -105,8 +105,7 @@ async function generateSchema({
     "utf-8",
   );
 
-  // common.logger.debug({
-  //   service: "codegen",
-  //   msg: "Wrote new file at generated/schema.graphql",
-  // });
+  globalThis.PONDER_COMMON?.logger.debug({
+    msg: "Wrote 'generated/schema.graphql'",
+  });
 }

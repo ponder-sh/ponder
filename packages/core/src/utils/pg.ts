@@ -86,8 +86,9 @@ export function createPool(config: PoolConfig, logger: Logger) {
       "unknown";
 
     logger.warn({
-      service: "postgres",
-      msg: `Postgres pool error (application_name: ${applicationName}, pid: ${pid})`,
+      msg: "Postgres pool error",
+      application_name: applicationName,
+      pid,
       error,
     });
 
@@ -96,7 +97,7 @@ export function createPool(config: PoolConfig, logger: Logger) {
   }
 
   function onClientError(error: Error) {
-    logger.warn({ service: "postgres", msg: "Postgres client error", error });
+    logger.warn({ msg: "Postgres client error", error });
 
     // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
     // if the underlying problem persists, the process will crash due to downstream effects.
@@ -104,8 +105,9 @@ export function createPool(config: PoolConfig, logger: Logger) {
 
   function onNotice(notice: { message?: string; code?: string }) {
     logger.debug({
-      service: "postgres",
-      msg: `Postgres notice: ${notice.message} (code: ${notice.code})`,
+      msg: "Postgres notice",
+      message: notice.message,
+      code: notice.code,
     });
   }
 
@@ -169,8 +171,9 @@ export function createReadonlyPool(
       "unknown";
 
     logger.warn({
-      service: "postgres",
-      msg: `Postgres pool error (application_name: ${applicationName}, pid: ${pid})`,
+      msg: "Postgres pool error",
+      application_name: applicationName,
+      pid,
       error,
     });
 
@@ -179,7 +182,7 @@ export function createReadonlyPool(
   }
 
   function onClientError(error: Error) {
-    logger.warn({ service: "postgres", msg: "Postgres client error", error });
+    logger.warn({ msg: "Postgres client error", error });
 
     // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
     // if the underlying problem persists, the process will crash due to downstream effects.
@@ -187,8 +190,9 @@ export function createReadonlyPool(
 
   function onNotice(notice: { message?: string; code?: string }) {
     logger.debug({
-      service: "postgres",
-      msg: `Postgres notice: ${notice.message} (code: ${notice.code})`,
+      msg: "Postgres notice",
+      message: notice.message,
+      code: notice.code,
     });
   }
 
