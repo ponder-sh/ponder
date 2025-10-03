@@ -287,6 +287,21 @@ export async function runOmnichain({
     });
   }
 
+  const etaInterval = setInterval(async () => {
+    // underlying metrics collection is actually synchronous
+    // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
+    const { eta, progress } = await getAppProgress(common.metrics);
+    if (eta === undefined || progress === undefined) {
+      return;
+    }
+
+    common.logger.info({
+      msg: "Updated indexing progress",
+      progress: formatPercentage(progress),
+      eta: formatEta(eta * 1_000),
+    });
+  }, 5_000);
+
   const backfillEndClock = startClock();
 
   let pendingEvents: Event[] = [];
@@ -475,25 +490,12 @@ export async function runOmnichain({
 
     await new Promise(setImmediate);
 
-    // underlying metrics collection is actually synchronous
-    // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-    const { eta, progress } = await getAppProgress(common.metrics);
-    if (eta === undefined || progress === undefined) {
-      // TODO(kyle) block range
-      common.logger.info({
-        msg: "Indexed block range",
-        event_count: result.events.length,
-        duration: indexStartClock(),
-      });
-    } else {
-      common.logger.info({
-        msg: "Indexed block range",
-        event_count: result.events.length,
-        progress: formatPercentage(progress),
-        eta: formatEta(eta * 1_000),
-        duration: indexStartClock(),
-      });
-    }
+    // TODO(kyle) block range
+    common.logger.info({
+      msg: "Indexed block range",
+      event_count: result.events.length,
+      duration: indexStartClock(),
+    });
   }
 
   indexingCache.clear();
@@ -525,6 +527,7 @@ export async function runOmnichain({
     msg: "Completed backfill",
     duration: backfillEndClock(),
   });
+  clearInterval(etaInterval);
 
   const tables = Object.values(schemaBuild.schema).filter(isTable);
 
