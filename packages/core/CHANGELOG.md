@@ -1,5 +1,11 @@
 # ponder
 
+## 0.13.9
+
+### Patch Changes
+
+- [#2089](https://github.com/ponder-sh/ponder/pull/2089) [`b89918a`](https://github.com/ponder-sh/ponder/commit/b89918a4583c23c60ec511df49374805033fb5b5) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed event decoding for traces with undefined output. This bug caused many `Unable to decode trace, skipping it` logs.
+
 ## 0.13.8
 
 ### Patch Changes
