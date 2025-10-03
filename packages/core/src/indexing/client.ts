@@ -1,7 +1,7 @@
 import type { Common } from "@/internal/common.js";
 import type { Chain, IndexingBuild, SetupEvent } from "@/internal/types.js";
 import type { Event } from "@/internal/types.js";
-import type { Rpc } from "@/rpc/index.js";
+import type { RequestParameters, Rpc } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
@@ -16,7 +16,6 @@ import {
   type ContractFunctionArgs,
   type ContractFunctionName,
   type ContractFunctionParameters,
-  type EIP1193Parameters,
   type GetBlockReturnType,
   type GetTransactionConfirmationsParameters,
   type GetTransactionConfirmationsReturnType,
@@ -390,24 +389,25 @@ type ProfileConstantLRU = Map<EventName, Set<ProfileKey>>;
  */
 type Cache = Map<number, Map<CacheKey, Promise<Response | Error> | Response>>;
 
-export const getCacheKey = (request: EIP1193Parameters) => {
+export const getCacheKey = (request: RequestParameters) => {
   return toLowerCase(JSON.stringify(orderObject(request)));
 };
 
-export const encodeRequest = (request: Request) => ({
-  method: "eth_call",
-  params: [
-    {
-      to: request.address,
-      data: encodeFunctionData({
-        abi: request.abi,
-        functionName: request.functionName,
-        args: request.args,
-      }),
-    },
-    request.blockNumber === "latest" ? "latest" : toHex(request.blockNumber),
-  ],
-});
+export const encodeRequest = (request: Request) =>
+  ({
+    method: "eth_call",
+    params: [
+      {
+        to: request.address,
+        data: encodeFunctionData({
+          abi: request.abi,
+          functionName: request.functionName,
+          args: request.args,
+        }),
+      },
+      request.blockNumber === "latest" ? "latest" : toHex(request.blockNumber),
+    ],
+  }) satisfies RequestParameters;
 
 export const decodeResponse = (response: Response) => {
   // Note: I don't actually remember why we had to add the try catch.
@@ -576,8 +576,12 @@ export const createCachedViemClient = ({
               (args[0] as RetryableOptions).retryEmptyResponse === false
             ) {
               common.logger.warn({
-                service: "rpc",
-                msg: `Failed '${actionName}' RPC action`,
+                msg: "Failed 'context.client' action",
+                action: actionName,
+                event: event.name,
+                chain: indexingBuild.chains.find((n) => n.id === event.chainId)!
+                  .name,
+                retry_count: i,
                 error: error as Error,
               });
 
@@ -586,8 +590,13 @@ export const createCachedViemClient = ({
 
             const duration = BASE_DURATION * 2 ** i;
             common.logger.warn({
-              service: "rpc",
-              msg: `Failed '${actionName}' RPC action, retrying after ${duration} milliseconds`,
+              msg: "Failed 'context.client' action",
+              action: actionName,
+              event: event.name,
+              chain: indexingBuild.chains.find((n) => n.id === event.chainId)!
+                .name,
+              retry_count: i,
+              retry_delay: duration,
               error: error as Error,
             });
             await wait(duration);
@@ -650,12 +659,17 @@ export const createCachedViemClient = ({
           rpc,
           syncStore,
           cache,
+          event: () => event,
         }),
         chain: chain.viemChain,
         // @ts-expect-error overriding `readContract` is not supported by viem
       }).extend(ponderActions);
     },
     async prefetch({ events }) {
+      const context = {
+        logger: common.logger.child({ action: "prefetch JSON-RPC request" }),
+      };
+
       // Use profiling metadata + next event batch to determine which
       // rpc requests are going to be made, and preload them into the cache.
 
@@ -676,7 +690,7 @@ export const createCachedViemClient = ({
 
       const chainRequests: Map<
         number,
-        { ev: number; request: EIP1193Parameters }[]
+        { ev: number; request: RequestParameters }[]
       > = new Map();
       for (const chain of indexingBuild.chains) {
         chainRequests.set(chain.id, []);
@@ -710,10 +724,13 @@ export const createCachedViemClient = ({
             dbRequests.length,
           );
 
-          const cachedResults = await syncStore.getRpcRequestResults({
-            requests: dbRequests.map(({ request }) => request),
-            chainId,
-          });
+          const cachedResults = await syncStore.getRpcRequestResults(
+            {
+              requests: dbRequests.map(({ request }) => request),
+              chainId,
+            },
+            context,
+          );
 
           for (let i = 0; i < dbRequests.length; i++) {
             const request = dbRequests[i]!;
@@ -725,7 +742,7 @@ export const createCachedViemClient = ({
                 .set(getCacheKey(request.request), cachedResult);
             } else if (request.ev > RPC_PREDICTION_THRESHOLD) {
               const resultPromise = rpc
-                .request(request.request as EIP1193Parameters<PublicRpcSchema>)
+                .request(request.request, context)
                 .then((result) => JSON.stringify(result))
                 .catch((error) => error as Error);
 
@@ -744,8 +761,9 @@ export const createCachedViemClient = ({
 
           if (dbRequests.length > 0) {
             common.logger.debug({
-              service: "rpc",
-              msg: `Pre-fetched ${dbRequests.length} ${chain.name} RPC requests`,
+              msg: "Prefetched JSON-RPC requests",
+              chain: chain.name,
+              request_count: dbRequests.length,
             });
           }
         }),
@@ -769,16 +787,24 @@ export const cachedTransport =
     rpc,
     syncStore,
     cache,
+    event,
   }: {
     common: Common;
     chain: Chain;
     rpc: Rpc;
     syncStore: SyncStore;
     cache: Cache;
+    event: () => Event | SetupEvent;
   }): Transport =>
   ({ chain: viemChain }) =>
     custom({
       async request({ method, params }) {
+        const context = {
+          logger: common.logger.child({
+            action: "cache JSON-RPC request",
+            event: event().name,
+          }),
+        };
         const body = { method, params };
 
         // multicall
@@ -808,18 +834,18 @@ export const cachedTransport =
                     to: call.target,
                     data: call.callData,
                   },
-                  blockNumber,
+                  blockNumber ?? "latest",
                 ],
-              }) as const satisfies EIP1193Parameters,
+              }) as const satisfies RequestParameters,
           );
           const results = new Map<
-            EIP1193Parameters,
+            RequestParameters,
             {
               success: boolean;
               returnData: `0x${string}`;
             }
           >();
-          const requestsToInsert = new Set<EIP1193Parameters>();
+          const requestsToInsert = new Set<RequestParameters>();
 
           for (const request of requests) {
             const cacheKey = getCacheKey(request);
@@ -865,10 +891,10 @@ export const cachedTransport =
             (request) => results.has(request) === false,
           );
 
-          const dbResults = await syncStore.getRpcRequestResults({
-            requests: dbRequests,
-            chainId: chain.id,
-          });
+          const dbResults = await syncStore.getRpcRequestResults(
+            { requests: dbRequests, chainId: chain.id },
+            context,
+          );
 
           for (let i = 0; i < dbRequests.length; i++) {
             const request = dbRequests[i]!;
@@ -894,24 +920,27 @@ export const cachedTransport =
             );
 
             const multicallResult = await rpc
-              .request({
-                method: "eth_call",
-                params: [
-                  {
-                    to: params[0]!.to,
-                    data: encodeFunctionData({
-                      abi: multicall3Abi,
-                      functionName: "aggregate3",
-                      args: [
-                        multicallRequests.filter(
-                          (_, i) => results.has(requests[i]!) === false,
-                        ),
-                      ],
-                    }),
-                  },
-                  blockNumber!,
-                ],
-              })
+              .request(
+                {
+                  method: "eth_call",
+                  params: [
+                    {
+                      to: params[0]!.to,
+                      data: encodeFunctionData({
+                        abi: multicall3Abi,
+                        functionName: "aggregate3",
+                        args: [
+                          multicallRequests.filter(
+                            (_, i) => results.has(requests[i]!) === false,
+                          ),
+                        ],
+                      }),
+                    },
+                    blockNumber!,
+                  ],
+                },
+                context,
+              )
               .then((result) =>
                 decodeFunctionResult({
                   abi: multicall3Abi,
@@ -951,14 +980,17 @@ export const cachedTransport =
           // Note: insertRpcRequestResults errors can be ignored and not awaited, since
           // the response is already fetched.
           syncStore
-            .insertRpcRequestResults({
-              requests: Array.from(requestsToInsert).map((request) => ({
-                request,
-                blockNumber: encodedBlockNumber,
-                result: JSON.stringify(results.get(request)!.returnData),
-              })),
-              chainId: chain.id,
-            })
+            .insertRpcRequestResults(
+              {
+                requests: Array.from(requestsToInsert).map((request) => ({
+                  request,
+                  blockNumber: encodedBlockNumber,
+                  result: JSON.stringify(results.get(request)!.returnData),
+                })),
+                chainId: chain.id,
+              },
+              context,
+            )
             .catch(() => {});
 
           // Note: at this point, it is an invariant that either `allowFailure` is true or
@@ -1020,16 +1052,19 @@ export const cachedTransport =
                 // Note: insertRpcRequestResults errors can be ignored and not awaited, since
                 // the response is already fetched.
                 syncStore
-                  .insertRpcRequestResults({
-                    requests: [
-                      {
-                        request: body,
-                        blockNumber: encodedBlockNumber,
-                        result,
-                      },
-                    ],
-                    chainId: chain.id,
-                  })
+                  .insertRpcRequestResults(
+                    {
+                      requests: [
+                        {
+                          request: body,
+                          blockNumber: encodedBlockNumber,
+                          result,
+                        },
+                      ],
+                      chainId: chain.id,
+                    },
+                    context,
+                  )
                   .catch(() => {});
               }
 
@@ -1045,10 +1080,10 @@ export const cachedTransport =
             return decodeResponse(cachedResult);
           }
 
-          const [cachedResult] = await syncStore.getRpcRequestResults({
-            requests: [body],
-            chainId: chain.id,
-          });
+          const [cachedResult] = await syncStore.getRpcRequestResults(
+            { requests: [body], chainId: chain.id },
+            context,
+          );
 
           if (cachedResult !== undefined) {
             common.metrics.ponder_indexing_rpc_requests_total.inc({
@@ -1066,32 +1101,35 @@ export const cachedTransport =
             type: "rpc",
           });
 
-          const response = await rpc.request(body);
+          const response = await rpc.request(body, context);
 
           if (UNCACHED_RESPONSES.includes(response) === false) {
             // Note: insertRpcRequestResults errors can be ignored and not awaited, since
             // the response is already fetched.
             syncStore
-              .insertRpcRequestResults({
-                requests: [
-                  {
-                    request: body,
-                    blockNumber: encodedBlockNumber,
-                    result: JSON.stringify(response),
-                  },
-                ],
-                chainId: chain.id,
-              })
+              .insertRpcRequestResults(
+                {
+                  requests: [
+                    {
+                      request: body,
+                      blockNumber: encodedBlockNumber,
+                      result: JSON.stringify(response),
+                    },
+                  ],
+                  chainId: chain.id,
+                },
+                context,
+              )
               .catch(() => {});
           }
           return response;
         } else {
-          return rpc.request(body);
+          return rpc.request(body, context);
         }
       },
     })({ chain: viemChain, retryCount: 0 });
 
-export const extractBlockNumberParam = (request: EIP1193Parameters) => {
+export const extractBlockNumberParam = (request: RequestParameters) => {
   let blockNumber: Hex | "latest" | undefined = undefined;
 
   switch (request.method) {

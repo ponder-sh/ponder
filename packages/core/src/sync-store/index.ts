@@ -31,6 +31,7 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import type { RequestParameters } from "@/rpc/index.js";
 import {
   isAddressFactory,
   unionFilterIncludeBlock,
@@ -58,7 +59,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { type PgColumn, unionAll } from "drizzle-orm/pg-core";
-import { type Address, type EIP1193Parameters, hexToNumber, isHex } from "viem";
+import { type Address, hexToNumber, isHex } from "viem";
 import {
   encodeBlock,
   encodeLog,
@@ -157,7 +158,7 @@ export type SyncStore = {
   insertRpcRequestResults(
     args: {
       requests: {
-        request: EIP1193Parameters;
+        request: RequestParameters;
         blockNumber: number | undefined;
         result: string;
       }[];
@@ -167,7 +168,7 @@ export type SyncStore = {
   ): Promise<void>;
   getRpcRequestResults(
     args: {
-      requests: EIP1193Parameters[];
+      requests: RequestParameters[];
       chainId: number;
     },
     context?: { logger?: Logger },

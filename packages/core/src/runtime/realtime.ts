@@ -74,6 +74,12 @@ export async function* getRealtimeEventsOmnichain(params: {
   const eventGenerators = Array.from(params.perChainSync.entries())
     .map(([chain, { syncProgress, childAddresses }]) => {
       if (syncProgress.isEnd()) {
+        params.common.logger.info({
+          msg: "No live indexing",
+          chain: chain.name,
+          end_block: hexToNumber(syncProgress.end!.number),
+        });
+
         params.common.metrics.ponder_sync_is_complete.set(
           { chain: chain.name },
           1,
@@ -319,6 +325,12 @@ export async function* getRealtimeEventsMultichain(params: {
   const eventGenerators = Array.from(params.perChainSync.entries())
     .map(([chain, { syncProgress, childAddresses }]) => {
       if (syncProgress.isEnd()) {
+        params.common.logger.info({
+          msg: "No live indexing",
+          chain: chain.name,
+          end_block: hexToNumber(syncProgress.end!.number),
+        });
+
         params.common.metrics.ponder_sync_is_complete.set(
           { chain: chain.name },
           1,

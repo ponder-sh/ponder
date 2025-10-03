@@ -35,7 +35,7 @@ import {
 import { WebSocket } from "ws";
 import type { DebugRpcSchema } from "../utils/debug.js";
 
-type RpcSchema = [
+export type RpcSchema = [
   ...PublicRpcSchema,
   ...DebugRpcSchema,
   /**
@@ -52,10 +52,11 @@ type RpcSchema = [
   },
 ];
 
-type RequestParameters = EIP1193Parameters<RpcSchema>;
+export type RequestParameters = EIP1193Parameters<RpcSchema>;
 
-type RequestReturnType<method extends EIP1193Parameters<RpcSchema>["method"]> =
-  Extract<RpcSchema[number], { Method: method }>["ReturnType"];
+export type RequestReturnType<
+  method extends EIP1193Parameters<RpcSchema>["method"],
+> = Extract<RpcSchema[number], { Method: method }>["ReturnType"];
 
 export type Rpc = {
   request: <TParameters extends RequestParameters>(

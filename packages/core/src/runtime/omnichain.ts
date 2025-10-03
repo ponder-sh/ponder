@@ -777,6 +777,11 @@ export async function runOmnichain({
         never(event);
     }
   }
+
+  common.logger.info({
+    msg: "Completed indexing",
+    duration: backfillEndClock(),
+  });
 }
 
 /**
