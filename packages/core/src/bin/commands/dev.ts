@@ -126,7 +126,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         }
 
         const buildResult1 = mergeResults([
-          await build.preCompile(configResult.result),
+          build.preCompile(configResult.result),
           build.compileSchema(schemaResult.result),
         ]);
 
@@ -140,6 +140,44 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         }
 
         const [preBuild, schemaBuild] = buildResult1.result;
+
+        const databaseDiagnostic = await build.databaseDiagnostic({
+          preBuild,
+        });
+
+        if (databaseDiagnostic.status === "error") {
+          buildQueue.add({
+            status: "error",
+            kind: "indexing",
+            error: databaseDiagnostic.error,
+          });
+          return;
+        }
+
+        const configBuildResult = build.compileConfig({
+          configResult: configResult.result,
+        });
+        if (configBuildResult.status === "error") {
+          buildQueue.add({
+            status: "error",
+            kind: "indexing",
+            error: configBuildResult.error,
+          });
+          return;
+        }
+        configBuild = configBuildResult.result;
+
+        const rpcDiagnosticResult = await build.rpcDiagnostic({
+          configBuild: configBuildResult.result,
+        });
+        if (rpcDiagnosticResult.status === "error") {
+          buildQueue.add({
+            status: "error",
+            kind: "indexing",
+            error: rpcDiagnosticResult.error,
+          });
+          return;
+        }
 
         const indexingResult = await build.executeIndexingFunctions();
         if (indexingResult.status === "error") {
@@ -155,6 +193,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           configResult: configResult.result,
           schemaResult: schemaResult.result,
           indexingResult: indexingResult.result,
+          configBuild: configBuildResult.result,
         });
 
         if (indexingBuildResult.status === "error") {
@@ -165,7 +204,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           });
           return;
         }
-        indexingBuild = indexingBuildResult.result;
 
         database = createDatabase({
           common,
@@ -182,7 +220,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         await database.migrateSync();
 
         const apiResult = await build.executeApi({
-          indexingBuild,
+          configBuild: configBuildResult.result,
           database,
         });
         if (apiResult.status === "error") {
@@ -260,7 +298,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         metrics.resetApiMetrics();
 
         const apiResult = await build.executeApi({
-          indexingBuild: indexingBuild!,
+          configBuild: configBuild!,
           database: database!,
         });
         if (apiResult.status === "error") {
@@ -291,7 +329,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
-  let indexingBuild: IndexingBuild | undefined;
+  let configBuild: Pick<IndexingBuild, "chains" | "rpcs"> | undefined;
   let database: Database | undefined;
   let crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
 

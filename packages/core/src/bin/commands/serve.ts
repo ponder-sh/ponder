@@ -92,7 +92,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const preCompileResult = await build.preCompile(configResult.result);
+  const preCompileResult = build.preCompile(configResult.result);
 
   if (preCompileResult.status === "error") {
     common.logger.error({
@@ -113,6 +113,19 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
+  const databaseDiagnostic = await build.databaseDiagnostic({
+    preBuild: preCompileResult.result,
+  });
+  if (databaseDiagnostic.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "diagnostic",
+      error: databaseDiagnostic.error,
+    });
+    await exit({ code: 75 });
+    return;
+  }
+
   const compileSchemaResult = build.compileSchema(schemaResult.result);
 
   if (compileSchemaResult.status === "error") {
@@ -125,19 +138,21 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const indexingBuildResult = build.compileIndexingConfig({
+  const configBuildResult = build.compileConfig({
     configResult: configResult.result,
   });
 
-  if (indexingBuildResult.status === "error") {
+  if (configBuildResult.status === "error") {
     common.logger.error({
       msg: "Build failed",
       stage: "indexing",
-      error: indexingBuildResult.error,
+      error: configBuildResult.error,
     });
     await exit({ code: 1 });
     return;
   }
+
+  // Note: RPC diagnostic is skipped
 
   const database = createDatabase({
     common,
@@ -165,7 +180,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   const apiResult = await build.executeApi({
-    indexingBuild: indexingBuildResult.result,
+    configBuild: configBuildResult.result,
     database,
   });
   if (apiResult.status === "error") {

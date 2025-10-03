@@ -24,8 +24,8 @@ export const createExit = ({
     isShuttingDown = true;
     const timeout = setTimeout(async () => {
       common.logger.error({
-        service: "process",
-        msg: `Failed to shutdown within 5 seconds, terminating (exit code ${code})`,
+        msg: "Failed to shutdown within 5 seconds",
+        code,
       });
       process.exit(code);
     }, SHUTDOWN_GRACE_PERIOD_MS);

@@ -121,7 +121,7 @@ export async function start({
     return;
   }
 
-  const preCompileResult = await build.preCompile(configResult.result);
+  const preCompileResult = build.preCompile(configResult.result);
 
   if (preCompileResult.status === "error") {
     common.logger.error({
@@ -130,6 +130,19 @@ export async function start({
       error: preCompileResult.error,
     });
     await exit({ code: 1 });
+    return;
+  }
+
+  const databaseDiagnostic = await build.databaseDiagnostic({
+    preBuild: preCompileResult.result,
+  });
+  if (databaseDiagnostic.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "diagnostic",
+      error: databaseDiagnostic.error,
+    });
+    await exit({ code: 75 });
     return;
   }
 
@@ -142,6 +155,32 @@ export async function start({
       error: compileSchemaResult.error,
     });
     await exit({ code: 1 });
+    return;
+  }
+
+  const configBuildResult = build.compileConfig({
+    configResult: configResult.result,
+  });
+  if (configBuildResult.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "config",
+      error: configBuildResult.error,
+    });
+    await exit({ code: 1 });
+    return;
+  }
+
+  const rpcDiagnosticResult = await build.rpcDiagnostic({
+    configBuild: configBuildResult.result,
+  });
+  if (rpcDiagnosticResult.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "diagnostic",
+      error: rpcDiagnosticResult.error,
+    });
+    await exit({ code: 75 });
     return;
   }
 
@@ -160,6 +199,7 @@ export async function start({
     configResult: configResult.result,
     schemaResult: schemaResult.result,
     indexingResult: indexingResult.result,
+    configBuild: configBuildResult.result,
   });
 
   if (indexingBuildResult.status === "error") {
@@ -187,7 +227,7 @@ export async function start({
   await database.migrateSync();
 
   const apiResult = await build.executeApi({
-    indexingBuild: indexingBuildResult.result,
+    configBuild: configBuildResult.result,
     database,
   });
   if (apiResult.status === "error") {

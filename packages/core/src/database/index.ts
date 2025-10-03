@@ -589,9 +589,14 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
 
           await createAdminObjects(tx);
 
+          let endClock = startClock();
+
           common.logger.info({
             msg: "Created database admin objects",
             schema: namespace.schema,
+            table_count: 2,
+            trigger_count: 2,
+            duration: endClock(),
           });
 
           // Note: All ponder versions are compatible with the next query (every version of the "_ponder_meta" table have the same columns)
@@ -617,13 +622,15 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
           } satisfies PonderApp;
 
           if (previousApp === undefined) {
+            endClock = startClock();
             await createEnums(tx);
             await createTables(tx);
 
             common.logger.info({
               msg: "Created database tables",
-              table_count: tables.length,
+              count: tables.length,
               tables: JSON.stringify(tables.map(getTableName)),
+              duration: endClock(),
             });
 
             await tx.wrap(
@@ -638,11 +645,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
           }
 
           if (previousApp.is_dev === 1) {
-            common.logger.warn({
-              msg: "Dropping database tables",
-              table_count: previousApp.table_names.length,
-              tables: JSON.stringify(previousApp.table_names),
-            });
+            endClock = startClock();
 
             for (const table of previousApp.table_names) {
               await tx.wrap(
@@ -670,14 +673,26 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
               );
             }
 
+            common.logger.warn({
+              msg: "Dropped database tables",
+              count: previousApp.table_names.length,
+              tables: JSON.stringify(previousApp.table_names),
+              duration: endClock(),
+            });
+
+            endClock = startClock();
+
             await createEnums(tx);
             await createTables(tx);
 
             common.logger.info({
               msg: "Created database tables",
-              table_count: tables.length,
+              count: tables.length,
               tables: JSON.stringify(tables.map(getTableName)),
+              duration: endClock(),
             });
+
+            endClock = startClock();
 
             await tx.wrap(
               (tx) =>
@@ -700,6 +715,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             common.logger.info({
               msg: "Reset database admin objects",
               schema: namespace.schema,
+              duration: endClock(),
             });
 
             await tx.wrap(
@@ -862,6 +878,8 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
         try {
           const heartbeat = Date.now();
 
+          const endClock = startClock();
+
           await adminQB.wrap({ label: "update_heartbeat" }, (db) =>
             db.update(PONDER_META).set({
               value: sql`jsonb_set(value, '{heartbeat_at}', ${heartbeat})`,
@@ -873,6 +891,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             heartbeat,
             build_id: buildId,
             schema: namespace.schema,
+            duration: endClock(),
           });
         } catch (err) {
           const error = err as Error;

@@ -64,7 +64,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const buildResult = await build.preCompile(configResult.result);
+  const buildResult = build.preCompile(configResult.result);
 
   if (buildResult.status === "error") {
     common.logger.error({
@@ -73,6 +73,19 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
       error: buildResult.error,
     });
     await exit({ code: 1 });
+    return;
+  }
+
+  const databaseDiagnostic = await build.databaseDiagnostic({
+    preBuild: buildResult.result,
+  });
+  if (databaseDiagnostic.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "diagnostic",
+      error: databaseDiagnostic.error,
+    });
+    await exit({ code: 75 });
     return;
   }
 

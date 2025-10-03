@@ -131,29 +131,17 @@ export async function getLocalSyncProgress(params: {
 
   const diagnostics = await Promise.all(
     cached === undefined
-      ? [
-          params.rpc.request({ method: "eth_chainId" }),
-          _eth_getBlockByNumber(params.rpc, { blockNumber: start }),
-        ]
+      ? [_eth_getBlockByNumber(params.rpc, { blockNumber: start })]
       : [
-          params.rpc.request({ method: "eth_chainId" }),
           _eth_getBlockByNumber(params.rpc, { blockNumber: start }),
           _eth_getBlockByNumber(params.rpc, { blockNumber: cached }),
         ],
   );
 
   syncProgress.finalized = params.finalizedBlock;
-  syncProgress.start = diagnostics[1];
-  if (diagnostics.length === 3) {
-    syncProgress.current = diagnostics[2];
-  }
-
-  // Warn if the config has a different chainId than the remote.
-  if (hexToNumber(diagnostics[0]) !== params.chain.id) {
-    params.common.logger.warn({
-      service: "sync",
-      msg: `Remote chain ID (${diagnostics[0]}) does not match configured chain ID (${params.chain.id}) for chain "${params.chain.name}"`,
-    });
+  syncProgress.start = diagnostics[0];
+  if (diagnostics.length === 2) {
+    syncProgress.current = diagnostics[1];
   }
 
   if (filters.some((filter) => filter.toBlock === undefined)) {
