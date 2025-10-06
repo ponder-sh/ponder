@@ -131,8 +131,8 @@ export const buildEvents = ({
   }
 
   for (const transaction of transactions) {
-    const blockNumber = Number(transaction.blockNumber);
-    const transactionIndex = Number(transaction.transactionIndex);
+    const blockNumber = transaction.blockNumber;
+    const transactionIndex = transaction.transactionIndex;
 
     while (
       blocksIndex < blocks.length &&
@@ -145,13 +145,12 @@ export const buildEvents = ({
 
     while (
       transactionReceiptsIndex < transactionReceipts.length &&
-      (Number(transactionReceipts[transactionReceiptsIndex]!.blockNumber) <
+      (transactionReceipts[transactionReceiptsIndex]!.blockNumber <
         blockNumber ||
-        (Number(transactionReceipts[transactionReceiptsIndex]!.blockNumber) ===
+        (transactionReceipts[transactionReceiptsIndex]!.blockNumber ===
           blockNumber &&
-          Number(
-            transactionReceipts[transactionReceiptsIndex]!.transactionIndex,
-          ) < transactionIndex))
+          transactionReceipts[transactionReceiptsIndex]!.transactionIndex <
+            transactionIndex))
     ) {
       transactionReceiptsIndex++;
     }
@@ -206,9 +205,9 @@ export const buildEvents = ({
   transactionReceiptsIndex = 0;
 
   for (const trace of traces) {
-    const blockNumber = Number(trace.blockNumber);
-    const transactionIndex = Number(trace.transactionIndex);
-    const traceIndex = Number(trace.traceIndex);
+    const blockNumber = trace.blockNumber;
+    const transactionIndex = trace.transactionIndex;
+    const traceIndex = trace.traceIndex;
 
     while (
       blocksIndex < blocks.length &&
@@ -221,10 +220,9 @@ export const buildEvents = ({
 
     while (
       transactionsIndex < transactions.length &&
-      (Number(transactions[transactionsIndex]!.blockNumber) < blockNumber ||
-        (Number(transactions[transactionsIndex]!.blockNumber) === blockNumber &&
-          Number(transactions[transactionsIndex]!.transactionIndex) <
-            transactionIndex))
+      (transactions[transactionsIndex]!.blockNumber < blockNumber ||
+        (transactions[transactionsIndex]!.blockNumber === blockNumber &&
+          transactions[transactionsIndex]!.transactionIndex < transactionIndex))
     ) {
       transactionsIndex++;
     }
@@ -232,22 +230,20 @@ export const buildEvents = ({
     let transaction: InternalTransaction | undefined;
     if (
       transactionsIndex < transactions.length &&
-      Number(transactions[transactionsIndex]!.blockNumber) === blockNumber &&
-      Number(transactions[transactionsIndex]!.transactionIndex) ===
-        transactionIndex
+      transactions[transactionsIndex]!.blockNumber === blockNumber &&
+      transactions[transactionsIndex]!.transactionIndex === transactionIndex
     ) {
       transaction = transactions[transactionsIndex]!;
     }
 
     while (
       transactionReceiptsIndex < transactionReceipts.length &&
-      (Number(transactionReceipts[transactionReceiptsIndex]!.blockNumber) <
+      (transactionReceipts[transactionReceiptsIndex]!.blockNumber <
         blockNumber ||
-        (Number(transactionReceipts[transactionReceiptsIndex]!.blockNumber) ===
+        (transactionReceipts[transactionReceiptsIndex]!.blockNumber ===
           blockNumber &&
-          Number(
-            transactionReceipts[transactionReceiptsIndex]!.transactionIndex,
-          ) < transactionIndex))
+          transactionReceipts[transactionReceiptsIndex]!.transactionIndex <
+            transactionIndex))
     ) {
       transactionReceiptsIndex++;
     }
@@ -255,11 +251,10 @@ export const buildEvents = ({
     let transactionReceipt: InternalTransactionReceipt | undefined;
     if (
       transactionReceiptsIndex < transactionReceipts.length &&
-      Number(transactionReceipts[transactionReceiptsIndex]!.blockNumber) ===
+      transactionReceipts[transactionReceiptsIndex]!.blockNumber ===
         blockNumber &&
-      Number(
-        transactionReceipts[transactionReceiptsIndex]!.transactionIndex,
-      ) === transactionIndex
+      transactionReceipts[transactionReceiptsIndex]!.transactionIndex ===
+        transactionIndex
     ) {
       transactionReceipt = transactionReceipts[transactionReceiptsIndex]!;
     }
@@ -359,8 +354,8 @@ export const buildEvents = ({
   transactionReceiptsIndex = 0;
 
   for (const log of logs) {
-    const blockNumber = Number(log.blockNumber);
-    const transactionIndex = Number(log.transactionIndex);
+    const blockNumber = log.blockNumber;
+    const transactionIndex = log.transactionIndex;
 
     while (
       blocksIndex < blocks.length &&
@@ -373,10 +368,9 @@ export const buildEvents = ({
 
     while (
       transactionsIndex < transactions.length &&
-      (Number(transactions[transactionsIndex]!.blockNumber) < blockNumber ||
-        (Number(transactions[transactionsIndex]!.blockNumber) === blockNumber &&
-          Number(transactions[transactionsIndex]!.transactionIndex) <
-            transactionIndex))
+      (transactions[transactionsIndex]!.blockNumber < blockNumber ||
+        (transactions[transactionsIndex]!.blockNumber === blockNumber &&
+          transactions[transactionsIndex]!.transactionIndex < transactionIndex))
     ) {
       transactionsIndex++;
     }
@@ -384,22 +378,20 @@ export const buildEvents = ({
     let transaction: InternalTransaction | undefined;
     if (
       transactionsIndex < transactions.length &&
-      Number(transactions[transactionsIndex]!.blockNumber) === blockNumber &&
-      Number(transactions[transactionsIndex]!.transactionIndex) ===
-        transactionIndex
+      transactions[transactionsIndex]!.blockNumber === blockNumber &&
+      transactions[transactionsIndex]!.transactionIndex === transactionIndex
     ) {
       transaction = transactions[transactionsIndex]!;
     }
 
     while (
       transactionReceiptsIndex < transactionReceipts.length &&
-      (Number(transactionReceipts[transactionReceiptsIndex]!.blockNumber) <
+      (transactionReceipts[transactionReceiptsIndex]!.blockNumber <
         blockNumber ||
-        (Number(transactionReceipts[transactionReceiptsIndex]!.blockNumber) ===
+        (transactionReceipts[transactionReceiptsIndex]!.blockNumber ===
           blockNumber &&
-          Number(
-            transactionReceipts[transactionReceiptsIndex]!.transactionIndex,
-          ) < transactionIndex))
+          transactionReceipts[transactionReceiptsIndex]!.transactionIndex <
+            transactionIndex))
     ) {
       transactionReceiptsIndex++;
     }
@@ -407,11 +399,10 @@ export const buildEvents = ({
     let transactionReceipt: InternalTransactionReceipt | undefined;
     if (
       transactionReceiptsIndex < transactionReceipts.length &&
-      Number(transactionReceipts[transactionReceiptsIndex]!.blockNumber) ===
+      transactionReceipts[transactionReceiptsIndex]!.blockNumber ===
         blockNumber &&
-      Number(
-        transactionReceipts[transactionReceiptsIndex]!.transactionIndex,
-      ) === transactionIndex
+      transactionReceipts[transactionReceiptsIndex]!.transactionIndex ===
+        transactionIndex
     ) {
       transactionReceipt = transactionReceipts[transactionReceiptsIndex]!;
     }
