@@ -245,7 +245,16 @@ test("buildScheama() duplicate index name", () => {
       }),
       (table) => ({
         balanceIdx: index("balance_idx").on(table.balance),
-        balanceIdx2: index("balance_idx").on(table.balance),
+      }),
+    ),
+    account2: onchainTable(
+      "account2",
+      (p) => ({
+        address: p.hex().primaryKey(),
+        balance: p.bigint().notNull(),
+      }),
+      (table) => ({
+        balanceIdx: index("balance_idx").on(table.balance),
       }),
     ),
   };
