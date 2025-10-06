@@ -711,7 +711,7 @@ export async function refetchLocalEvents(params: {
     );
 
     params.common.logger.debug({
-      msg: "Queried block range",
+      msg: "Queried block data from database",
       chain: params.chain.name,
       block_range: JSON.stringify([cursor, queryCursor]),
       event_count: rawEvents.length,
@@ -800,7 +800,7 @@ export async function* getLocalEventGenerator(params: {
       );
 
       params.common.logger.debug({
-        msg: "Queried block range",
+        msg: "Queried block data from database",
         chain: params.chain.name,
         block_range: JSON.stringify([cursor, queryCursor]),
         event_count: events.length,
