@@ -399,6 +399,7 @@ export const createRpc = ({
             chain: chain.name,
             hostname: bucket.hostname,
             request_id: id,
+            method: body.method,
           });
 
           addRequestTimestamp(bucket);
@@ -416,6 +417,7 @@ export const createRpc = ({
             chain: chain.name,
             hostname: bucket.hostname,
             request_id: id,
+            method: body.method,
             duration,
           });
 
@@ -456,8 +458,9 @@ export const createRpc = ({
                 msg: "Caught eth_getLogs range error",
                 chain: chain.name,
                 hostname: bucket.hostname,
-                request: JSON.stringify(body),
                 request_id: id,
+                method: body.method,
+                request: JSON.stringify(body),
                 retry_ranges: JSON.stringify(getLogsErrorResponse.ranges),
                 error: error as Error,
               });
@@ -506,8 +509,9 @@ export const createRpc = ({
               msg: "Received JSON-RPC error",
               chain: chain.name,
               hostname: bucket.hostname,
-              request: JSON.stringify(body),
               request_id: id,
+              method: body.method,
+              request: JSON.stringify(body),
               duration: endClock(),
               error,
             });
@@ -519,8 +523,9 @@ export const createRpc = ({
               msg: "Received JSON-RPC error",
               chain: chain.name,
               hostname: bucket.hostname,
-              request: JSON.stringify(body),
               request_id: id,
+              method: body.method,
+              request: JSON.stringify(body),
               duration: endClock(),
               retry_count: i + 1,
               error,
@@ -533,8 +538,9 @@ export const createRpc = ({
             msg: "Received JSON-RPC error",
             chain: chain.name,
             hostname: bucket.hostname,
-            request: JSON.stringify(body),
             request_id: id,
+            method: body.method,
+            request: JSON.stringify(body),
             duration: endClock(),
             retry_count: i + 1,
             retry_delay: duration,
