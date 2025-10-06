@@ -674,7 +674,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             }
 
             common.logger.warn({
-              msg: "Dropped database tables",
+              msg: "Dropped existing database tables",
               count: previousApp.table_names.length,
               tables: JSON.stringify(previousApp.table_names),
               duration: endClock(),

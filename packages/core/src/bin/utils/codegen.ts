@@ -27,6 +27,6 @@ export function runCodegen({ common }: { common: Common }) {
   );
 
   common.logger.debug({
-    msg: "Wrote 'ponder-env.d.ts'",
+    msg: `Wrote file "ponder-env.d.ts"`,
   });
 }

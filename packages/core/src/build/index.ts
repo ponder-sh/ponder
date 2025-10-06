@@ -673,6 +673,7 @@ export const createBuild = async ({
           msg: "Connected to database",
           type: dialect,
           database: pglitePath,
+          duration: endClock(),
         });
       } else if (dialect === "postgres") {
         const pool = createPool(

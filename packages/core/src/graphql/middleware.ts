@@ -106,6 +106,6 @@ async function generateSchema({
   );
 
   globalThis.PONDER_COMMON?.logger.debug({
-    msg: "Wrote 'generated/schema.graphql'",
+    msg: `Wrote file "generated/schema.graphql"`,
   });
 }
