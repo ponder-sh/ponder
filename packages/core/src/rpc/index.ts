@@ -398,7 +398,6 @@ export const createRpc = ({
             msg: "Sent JSON-RPC request",
             chain: chain.name,
             hostname: bucket.hostname,
-            request: JSON.stringify(body),
             request_id: id,
           });
 
@@ -416,7 +415,6 @@ export const createRpc = ({
             msg: "Received JSON-RPC response",
             chain: chain.name,
             hostname: bucket.hostname,
-            request: JSON.stringify(body),
             request_id: id,
             duration,
           });
