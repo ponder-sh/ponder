@@ -324,7 +324,7 @@ export const createRpc = ({
       common.logger.debug({
         msg: "JSON-RPC provider reactivated",
         chain: chain.name,
-        provider: bucket.hostname,
+        hostname: bucket.hostname,
         retry_delay: Math.round(bucket.reactivationDelay),
       });
     }, bucket.reactivationDelay);
@@ -332,7 +332,7 @@ export const createRpc = ({
     common.logger.debug({
       msg: "JSON-RPC provider deactivated",
       chain: chain.name,
-      provider: bucket.hostname,
+      hostname: bucket.hostname,
       retry_delay: Math.round(bucket.reactivationDelay),
     });
 
@@ -397,7 +397,7 @@ export const createRpc = ({
           logger.trace({
             msg: "Sent JSON-RPC request",
             chain: chain.name,
-            provider: bucket.hostname,
+            hostname: bucket.hostname,
             request: JSON.stringify(body),
             request_id: id,
           });
@@ -413,9 +413,9 @@ export const createRpc = ({
           const duration = endClock();
 
           logger.trace({
-            msg: "Received successful JSON-RPC response",
+            msg: "Received JSON-RPC response",
             chain: chain.name,
-            provider: bucket.hostname,
+            hostname: bucket.hostname,
             request: JSON.stringify(body),
             request_id: id,
             duration,
@@ -455,9 +455,9 @@ export const createRpc = ({
 
             if (getLogsErrorResponse.shouldRetry) {
               common.logger.trace({
-                msg: "Caught 'eth_getLogs' range error",
+                msg: "Caught eth_getLogs range error",
                 chain: chain.name,
-                provider: bucket.hostname,
+                hostname: bucket.hostname,
                 request: JSON.stringify(body),
                 request_id: id,
                 retry_ranges: JSON.stringify(getLogsErrorResponse.ranges),
@@ -505,9 +505,9 @@ export const createRpc = ({
 
           if (shouldRetry(error) === false) {
             logger.warn({
-              msg: "Failed JSON-RPC request",
+              msg: "Received JSON-RPC error",
               chain: chain.name,
-              provider: bucket.hostname,
+              hostname: bucket.hostname,
               request: JSON.stringify(body),
               request_id: id,
               duration: endClock(),
@@ -518,9 +518,9 @@ export const createRpc = ({
 
           if (i === RETRY_COUNT) {
             logger.warn({
-              msg: "Failed JSON-RPC request",
+              msg: "Received JSON-RPC error",
               chain: chain.name,
-              provider: bucket.hostname,
+              hostname: bucket.hostname,
               request: JSON.stringify(body),
               request_id: id,
               duration: endClock(),
@@ -532,9 +532,9 @@ export const createRpc = ({
 
           const duration = BASE_DURATION * 2 ** i;
           logger.warn({
-            msg: "Failed JSON-RPC request",
+            msg: "Received JSON-RPC error",
             chain: chain.name,
-            provider: bucket.hostname,
+            hostname: bucket.hostname,
             request: JSON.stringify(body),
             request_id: id,
             duration: endClock(),
@@ -602,7 +602,7 @@ export const createRpc = ({
 
             ws.on("open", () => {
               common.logger.debug({
-                msg: "Created JSON-RPC websocket connection",
+                msg: "Created JSON-RPC WebSocket connection",
                 chain: chain.name,
               });
 
@@ -624,7 +624,7 @@ export const createRpc = ({
                   msg.params.subscription === subscriptionId
                 ) {
                   common.logger.trace({
-                    msg: "Received successful JSON-RPC websocket subscription data",
+                    msg: "Received successful JSON-RPC WebSocket subscription data",
                     chain: chain.name,
                   });
                   webSocketErrorCount = 0;
@@ -632,7 +632,7 @@ export const createRpc = ({
                   onBlock(standardizeBlock(msg.params.result, true));
                 } else if (msg.result) {
                   common.logger.debug({
-                    msg: "Created JSON-RPC websocket subscription",
+                    msg: "Created JSON-RPC WebSocket subscription",
                     chain: chain.name,
                     request: JSON.stringify({
                       method: "eth_subscribe",
@@ -644,7 +644,7 @@ export const createRpc = ({
                   subscriptionId = msg.result;
                 } else if (msg.error) {
                   common.logger.warn({
-                    msg: "Failed JSON-RPC websocket subscription",
+                    msg: "Failed JSON-RPC WebSocket subscription",
                     chain: chain.name,
                     request: JSON.stringify({
                       method: "eth_subscribe",
@@ -661,14 +661,14 @@ export const createRpc = ({
                   ws?.close();
                 } else {
                   common.logger.warn({
-                    msg: "Received unrecognized JSON-RPC websocket message",
+                    msg: "Received unrecognized JSON-RPC WebSocket message",
                     chain: chain.name,
                     websocket_message: msg,
                   });
                 }
               } catch (error) {
                 common.logger.warn({
-                  msg: "Failed JSON-RPC websocket subscription",
+                  msg: "Failed JSON-RPC WebSocket subscription",
                   chain: chain.name,
                   request: JSON.stringify({
                     method: "eth_subscribe",
@@ -688,7 +688,7 @@ export const createRpc = ({
 
             ws.on("error", async (error) => {
               common.logger.warn({
-                msg: "Failed JSON-RPC websocket subscription",
+                msg: "Failed JSON-RPC WebSocket subscription",
                 chain: chain.name,
                 request: JSON.stringify({
                   method: "eth_subscribe",
@@ -711,7 +711,7 @@ export const createRpc = ({
 
             ws.on("close", async () => {
               common.logger.debug({
-                msg: "Closed JSON-RPC websocket connection",
+                msg: "Closed JSON-RPC WebSocket connection",
                 chain: chain.name,
               });
 
@@ -723,7 +723,7 @@ export const createRpc = ({
                 const duration = BASE_DURATION * 2 ** webSocketErrorCount;
 
                 common.logger.debug({
-                  msg: "Retrying JSON-RPC websocket connection",
+                  msg: "Retrying JSON-RPC WebSocket connection",
                   chain: chain.name,
                   retry_count: webSocketErrorCount + 1,
                   retry_delay: duration,
@@ -751,7 +751,7 @@ export const createRpc = ({
           };
 
           common.logger.debug({
-            msg: "Ended JSON-RPC websocket subscription",
+            msg: "Ended JSON-RPC WebSocket subscription",
             chain: chain.name,
             request: JSON.stringify({
               method: "eth_unsubscribe",
