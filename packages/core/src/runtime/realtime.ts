@@ -32,6 +32,7 @@ import {
   min,
 } from "@/utils/checkpoint.js";
 import {
+  bufferAsyncGenerator,
   createCallbackGenerator,
   mergeAsyncGenerators,
 } from "@/utils/generators.js";
@@ -586,7 +587,10 @@ export async function* getRealtimeEventGenerator(params: {
       onComplete(isAccepted);
     });
 
-    for await (const event of syncGenerator) {
+    for await (const event of bufferAsyncGenerator(
+      syncGenerator,
+      Number.POSITIVE_INFINITY,
+    )) {
       yield { chain: params.chain, event };
     }
 

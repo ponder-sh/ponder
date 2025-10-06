@@ -60,8 +60,8 @@ const EPSILON = 0.1;
 const INITIAL_MAX_RPS = 20;
 const MIN_RPS = 1;
 const MAX_RPS = 500;
-const RPS_INCREASE_FACTOR = 1.2;
-const RPS_DECREASE_FACTOR = 0.7;
+const RPS_INCREASE_FACTOR = 1.05;
+const RPS_DECREASE_FACTOR = 0.95;
 const RPS_INCREASE_QUALIFIER = 0.8;
 const SUCCESS_WINDOW_SIZE = 100;
 
@@ -291,7 +291,7 @@ export const createRpc = ({
   };
 
   const getBucket = async (): Promise<Bucket> => {
-    const availableBuckets = buckets.filter((b) => isAvailable(b));
+    const availableBuckets = buckets.filter(isAvailable);
 
     if (availableBuckets.length === 0) {
       await wait(10);
@@ -408,6 +408,11 @@ export const createRpc = ({
 
               decreaseMaxRPS(bucket);
 
+              common.logger.debug({
+                service: "rpc",
+                msg: `RPC bucket '${chain.name}' ${bucket.index} rps limit lowered to ${Math.floor(bucket.rpsLimit)}`,
+              });
+
               scheduleBucketActivation(bucket);
 
               bucket.reactivationDelay =
@@ -477,19 +482,17 @@ export const createRpc = ({
 
             interval = setInterval(async () => {
               if (isFetching) return;
-
               isFetching = true;
-
               try {
                 const block = await _eth_getBlockByNumber(rpc, {
                   blockTag: "latest",
                 });
+                isFetching = false;
                 // Note: `onBlock` should never throw.
                 await onBlock(block);
               } catch (error) {
-                onError(error as Error);
-              } finally {
                 isFetching = false;
+                onError(error as Error);
               }
             }, chain.pollingInterval);
             common.shutdown.add(() => {
