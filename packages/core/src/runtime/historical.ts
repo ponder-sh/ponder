@@ -408,7 +408,6 @@ export async function* getHistoricalEventsMultichain(params: {
           ) {
             from = crashRecoveryCheckpoint;
           } else {
-            // TODO(kyle) context
             const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
               chainId: chain.id,
               timestamp: Number(

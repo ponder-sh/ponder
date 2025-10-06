@@ -453,9 +453,19 @@ export const createRpc = ({
               error: error as RpcError,
             });
 
-            // TODO(kyle) trace log
+            if (getLogsErrorResponse.shouldRetry) {
+              common.logger.trace({
+                msg: "Caught 'eth_getLogs' range error",
+                chain: chain.name,
+                provider: bucket.hostname,
+                request: JSON.stringify(body),
+                request_id: id,
+                retry_ranges: JSON.stringify(getLogsErrorResponse.ranges),
+                error: error as Error,
+              });
 
-            if (getLogsErrorResponse.shouldRetry === true) throw error;
+              throw error;
+            }
           }
 
           addLatency(bucket, endClock(), false);
@@ -475,6 +485,14 @@ export const createRpc = ({
 
               scheduleBucketActivation(bucket);
 
+              // @ts-expect-error typescript bug
+              if (buckets.every((b) => b.isActive === false)) {
+                logger.warn({
+                  msg: "All JSON-RPC providers are inactive",
+                  chain: chain.name,
+                });
+              }
+
               bucket.reactivationDelay =
                 error instanceof TimeoutError
                   ? INITIAL_REACTIVATION_DELAY
@@ -485,10 +503,7 @@ export const createRpc = ({
             }
           }
 
-          // TODO(kyle) provider hostname
-
           if (shouldRetry(error) === false) {
-            // TODO(kyle) nonretryable
             logger.warn({
               msg: "Failed JSON-RPC request",
               chain: chain.name,
@@ -584,8 +599,6 @@ export const createRpc = ({
 
           await new Promise<void>((resolve) => {
             ws = new WebSocket(chain.ws!);
-
-            // TODO(kyle) request_id, method, params
 
             ws.on("open", () => {
               common.logger.debug({
