@@ -591,7 +591,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
 
           let endClock = startClock();
 
-          common.logger.info({
+          common.logger.debug({
             msg: "Created database admin objects",
             schema: namespace.schema,
             table_count: 2,
@@ -712,7 +712,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
 
             await createAdminObjects(tx);
 
-            common.logger.info({
+            common.logger.debug({
               msg: "Reset database admin objects",
               schema: namespace.schema,
               duration: endClock(),
