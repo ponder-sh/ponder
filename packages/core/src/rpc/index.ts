@@ -270,7 +270,7 @@ export const createRpc = ({
           retryCount: 0,
           timeout: 5_000,
         }).request,
-        hostname: "custom transport",
+        hostname: "custom_transport",
       },
     ];
   }
