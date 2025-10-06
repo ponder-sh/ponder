@@ -7,70 +7,41 @@ export const COPY_ON_WRITE = Symbol.for("ponder:copyOnWrite");
  * Create a copy-on-write proxy for an object.
  */
 export const copyOnWrite = <T extends object>(obj: T): T => {
-  const isArray = Array.isArray(obj);
   let copiedObject: T | undefined;
-  const nestedProperties: (string | symbol)[] = [];
 
   return new Proxy<T>(obj, {
     get(target, prop, receiver) {
       if (prop === COPY_ON_WRITE) {
         return target;
       }
-      const result = Reflect.get(copiedObject ?? target, prop, receiver);
+      let result = Reflect.get(copiedObject ?? target, prop, receiver);
 
       if (
         typeof result === "object" &&
         result !== null &&
-        nestedProperties.includes(prop) === false
+        copiedObject === undefined
       ) {
-        if (copiedObject === undefined) {
-          // @ts-expect-error
-          if (isArray) copiedObject = [...target];
-          else {
-            copiedObject = Object.create(Object.getPrototypeOf(target));
-            Object.assign(copiedObject!, target);
-          }
-        }
-        nestedProperties.push(prop);
-
-        const nestedProxy = copyOnWrite(result);
-        // @ts-expect-error
-        copiedObject[prop] = nestedProxy;
-        return nestedProxy;
+        copiedObject = structuredClone(target);
+        result = Reflect.get(copiedObject, prop, receiver);
       }
 
       return result;
     },
     set(target, prop, newValue, receiver) {
       if (copiedObject === undefined) {
-        // @ts-expect-error
-        if (isArray) copiedObject = [...target];
-        else {
-          copiedObject = Object.create(Object.getPrototypeOf(target));
-          Object.assign(copiedObject!, target);
-        }
+        copiedObject = structuredClone(target);
       }
       return Reflect.set(copiedObject!, prop, newValue, receiver);
     },
     deleteProperty(target, prop) {
       if (copiedObject === undefined) {
-        // @ts-expect-error
-        if (isArray) copiedObject = [...target];
-        else {
-          copiedObject = Object.create(Object.getPrototypeOf(target));
-          Object.assign(copiedObject!, target);
-        }
+        copiedObject = structuredClone(target);
       }
       return Reflect.deleteProperty(copiedObject!, prop);
     },
     defineProperty(target, prop, descriptor) {
       if (copiedObject === undefined) {
-        // @ts-expect-error
-        if (isArray) copiedObject = [...target];
-        else {
-          copiedObject = Object.create(Object.getPrototypeOf(target));
-          Object.assign(copiedObject!, target);
-        }
+        copiedObject = structuredClone(target);
       }
       return Reflect.defineProperty(copiedObject!, prop, descriptor);
     },
@@ -119,6 +90,28 @@ export const copy = <T>(obj: T): T => {
     return false;
   };
 
+  const isDeeplyNested = (obj: any, depth = 0): boolean => {
+    if (obj === null || typeof obj !== "object") {
+      return false;
+    }
+
+    if (depth > 0) {
+      return true;
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.some((element) => isDeeplyNested(element, depth + 1));
+    }
+
+    for (const value of Object.values(obj)) {
+      if (isDeeplyNested(value, depth + 1)) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
   // @ts-expect-error
   const proxy = obj[COPY_ON_WRITE];
   if (proxy === undefined) {
@@ -141,9 +134,9 @@ export const copy = <T>(obj: T): T => {
       return result;
     }
 
-    const copiedObject = Object.create(Object.getPrototypeOf(obj));
-    Object.assign(copiedObject, obj);
-    return copiedObject;
+    // Note: spread operator is significantly faster than `structuredClone`
+    if (isDeeplyNested(obj)) return structuredClone(obj);
+    return { ...obj };
   }
 
   return proxy;

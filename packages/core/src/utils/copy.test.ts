@@ -84,10 +84,61 @@ test("copy bytes", () => {
     address: zeroAddress,
     calldata: toBytes(zeroAddress),
   };
+  const copiedObj = copyOnWrite(obj);
+  const copiedObj2 = copy(copiedObj);
 
-  const copiedObj = copy(obj);
+  expect(copiedObj.calldata).toMatchInlineSnapshot(`
+    Uint8Array [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+    ]
+  `);
+
+  expect(copiedObj2.calldata).toMatchInlineSnapshot(`
+    Uint8Array [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+    ]
+  `);
 
   expect(copiedObj.calldata).toBeInstanceOf(Uint8Array);
+  expect(copiedObj2.calldata).toBeInstanceOf(Uint8Array);
 });
 
 test("copy timestamp", () => {
