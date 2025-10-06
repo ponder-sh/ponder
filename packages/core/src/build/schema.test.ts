@@ -2,6 +2,7 @@ import { onchainEnum, onchainTable } from "@/index.js";
 import { sql } from "drizzle-orm";
 import {
   check,
+  index,
   pgSequence,
   pgView,
   primaryKey,
@@ -229,6 +230,33 @@ test("buildScheama() duplicate table name", () => {
     account2: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
     })),
+  };
+
+  expect(() => buildSchema({ schema })).toThrowError();
+});
+
+test("buildScheama() duplicate index name", () => {
+  const schema = {
+    account: onchainTable(
+      "account",
+      (p) => ({
+        address: p.hex().primaryKey(),
+        balance: p.bigint().notNull(),
+      }),
+      (table) => ({
+        balanceIdx: index("balance_idx").on(table.balance),
+      }),
+    ),
+    account2: onchainTable(
+      "account2",
+      (p) => ({
+        address: p.hex().primaryKey(),
+        balance: p.bigint().notNull(),
+      }),
+      (table) => ({
+        balanceIdx: index("balance_idx").on(table.balance),
+      }),
+    ),
   };
 
   expect(() => buildSchema({ schema })).toThrowError();
