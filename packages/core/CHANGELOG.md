@@ -1,5 +1,20 @@
 # ponder
 
+## 0.13.11
+
+### Patch Changes
+
+- [#2097](https://github.com/ponder-sh/ponder/pull/2097) [`a493472`](https://github.com/ponder-sh/ponder/commit/a4934721c35c8044d6be492834f0696319685621) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused `TypeError: Reflect.get called on non-object`.
+
+- [#2095](https://github.com/ponder-sh/ponder/pull/2095) [`478b668`](https://github.com/ponder-sh/ponder/commit/478b668355983bc0f8ba2fbdb572e0a6b0a04e54) Thanks [@kyscott18](https://github.com/kyscott18)! - Added validation for database indexes with the same name.
+
+## 0.13.10
+
+### Patch Changes
+
+- Updated dependencies [[`9cdb708`](https://github.com/ponder-sh/ponder/commit/9cdb70825814cca82cb0a9b4e4d36a4701b74516)]:
+  - @ponder/utils@0.2.14
+
 ## 0.13.9
 
 ### Patch Changes

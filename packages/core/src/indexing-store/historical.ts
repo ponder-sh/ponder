@@ -10,6 +10,7 @@ import {
   UniqueConstraintError,
 } from "@/internal/errors.js";
 import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
+import { copy, copyOnWrite } from "@/utils/copy.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import {
@@ -76,21 +77,26 @@ export const createHistoricalIndexingStore = ({
     };
   };
 
+  // Note: the naming convention is used to separate user space from ponder space.
+  // "user" prefix is user space, "ponder" prefix is ponder space.
+
   return {
     // @ts-ignore
-    find: storeMethodWrapper((table: Table, key) => {
+    find: storeMethodWrapper(async (table: Table, key) => {
       common.metrics.ponder_indexing_store_queries_total.inc({
         table: getTableName(table),
         method: "find",
       });
       checkOnchainTable(table, "find");
-      return indexingCache.get({ table, key });
+      const ponderRow = await indexingCache.get({ table, key });
+      const userRow = ponderRow === null ? null : copyOnWrite(ponderRow);
+      return userRow;
     }),
 
     // @ts-ignore
     insert(table: Table) {
       return {
-        values: (values: any) => {
+        values: (userValues: any) => {
           // @ts-ignore
           const inner = {
             onConflictDoNothing: storeMethodWrapper(async () => {
@@ -100,15 +106,17 @@ export const createHistoricalIndexingStore = ({
               });
               checkOnchainTable(table, "insert");
 
-              if (Array.isArray(values)) {
-                const rows = [];
-                for (const value of values) {
+              const ponderValues = copy(userValues);
+
+              if (Array.isArray(ponderValues)) {
+                const ponderRows = [];
+                for (const value of ponderValues) {
                   const row = await indexingCache.get({ table, key: value });
 
                   if (row) {
-                    rows.push(null);
+                    ponderRows.push(null);
                   } else {
-                    rows.push(
+                    ponderRows.push(
                       indexingCache.set({
                         table,
                         key: value,
@@ -118,108 +126,159 @@ export const createHistoricalIndexingStore = ({
                     );
                   }
                 }
-                return rows;
+                const userRows = ponderRows.map((row) =>
+                  row === null ? row : copyOnWrite(row),
+                );
+                return userRows;
               } else {
-                const row = await indexingCache.get({ table, key: values });
+                const row = await indexingCache.get({
+                  table,
+                  key: ponderValues,
+                });
 
                 if (row) {
                   return null;
                 }
 
-                return indexingCache.set({
+                const ponderRow = indexingCache.set({
                   table,
-                  key: values,
-                  row: values,
+                  key: ponderValues,
+                  row: ponderValues,
                   isUpdate: false,
                 });
+
+                const userRow = copyOnWrite(ponderRow);
+                return userRow;
               }
             }),
-            onConflictDoUpdate: storeMethodWrapper(async (valuesU: any) => {
-              common.metrics.ponder_indexing_store_queries_total.inc({
-                table: getTableName(table),
-                method: "insert",
-              });
-              checkOnchainTable(table, "insert");
+            onConflictDoUpdate: storeMethodWrapper(
+              async (userUpdateValues: any) => {
+                common.metrics.ponder_indexing_store_queries_total.inc({
+                  table: getTableName(table),
+                  method: "insert",
+                });
+                checkOnchainTable(table, "insert");
 
-              if (Array.isArray(values)) {
-                const rows = [];
-                for (const value of values) {
-                  const row = await indexingCache.get({
+                if (Array.isArray(userValues)) {
+                  const ponderRows: Row[] = [];
+                  for (const value of userValues) {
+                    const ponderRowUpdate = await indexingCache.get({
+                      table,
+                      key: value,
+                    });
+
+                    if (ponderRowUpdate) {
+                      if (typeof userUpdateValues === "function") {
+                        const userRowUpdate = copyOnWrite(ponderRowUpdate);
+                        const userSet = userUpdateValues(userRowUpdate);
+                        const ponderSet = copy(userSet);
+                        validateUpdateSet(
+                          table,
+                          ponderSet,
+                          ponderRowUpdate,
+                          primaryKeyCache,
+                        );
+                        for (const [key, value] of Object.entries(ponderSet)) {
+                          if (value === undefined) continue;
+                          ponderRowUpdate[key] = value;
+                        }
+                      } else {
+                        const userSet = userUpdateValues;
+                        const ponderSet = copy(userSet);
+                        validateUpdateSet(
+                          table,
+                          ponderSet,
+                          ponderRowUpdate,
+                          primaryKeyCache,
+                        );
+                        for (const [key, value] of Object.entries(ponderSet)) {
+                          if (value === undefined) continue;
+                          ponderRowUpdate[key] = value;
+                        }
+                      }
+                      ponderRows.push(
+                        indexingCache.set({
+                          table,
+                          key: ponderRowUpdate,
+                          row: ponderRowUpdate,
+                          isUpdate: true,
+                        }),
+                      );
+                    } else {
+                      const ponderValue = copy(value);
+                      ponderRows.push(
+                        indexingCache.set({
+                          table,
+                          key: ponderValue,
+                          row: ponderValue,
+                          isUpdate: false,
+                        }),
+                      );
+                    }
+                  }
+                  const userRows = ponderRows.map((row) =>
+                    row === null ? row : copyOnWrite(row),
+                  );
+                  return userRows;
+                } else {
+                  const ponderRowUpdate = await indexingCache.get({
                     table,
-                    key: value,
+                    key: userValues,
                   });
 
-                  if (row) {
-                    if (typeof valuesU === "function") {
-                      const set = valuesU(row);
-                      validateUpdateSet(table, set, row, primaryKeyCache);
-                      for (const [key, value] of Object.entries(set)) {
+                  if (ponderRowUpdate) {
+                    if (typeof userUpdateValues === "function") {
+                      const userRowUpdate = copyOnWrite(ponderRowUpdate);
+                      const userSet = userUpdateValues(userRowUpdate);
+                      const ponderSet = copy(userSet);
+                      validateUpdateSet(
+                        table,
+                        ponderSet,
+                        ponderRowUpdate,
+                        primaryKeyCache,
+                      );
+                      for (const [key, value] of Object.entries(ponderSet)) {
                         if (value === undefined) continue;
-                        row[key] = value;
+                        ponderRowUpdate[key] = value;
                       }
                     } else {
-                      const set = valuesU;
-                      validateUpdateSet(table, set, row, primaryKeyCache);
-                      for (const [key, value] of Object.entries(set)) {
+                      const userSet = userUpdateValues;
+                      const ponderSet = copy(userSet);
+                      validateUpdateSet(
+                        table,
+                        ponderSet,
+                        ponderRowUpdate,
+                        primaryKeyCache,
+                      );
+                      for (const [key, value] of Object.entries(ponderSet)) {
                         if (value === undefined) continue;
-                        row[key] = value;
+                        ponderRowUpdate[key] = value;
                       }
                     }
-                    rows.push(
-                      indexingCache.set({
-                        table,
-                        key: value,
-                        row,
-                        isUpdate: true,
-                      }),
-                    );
-                  } else {
-                    rows.push(
-                      indexingCache.set({
-                        table,
-                        key: value,
-                        row: value,
-                        isUpdate: false,
-                      }),
-                    );
+                    const ponderRow = indexingCache.set({
+                      table,
+                      key: ponderRowUpdate,
+                      row: ponderRowUpdate,
+                      isUpdate: true,
+                    });
+                    const userRow = copyOnWrite(ponderRow);
+                    return userRow;
                   }
-                }
-                return rows;
-              } else {
-                const row = await indexingCache.get({ table, key: values });
 
-                if (row) {
-                  if (typeof valuesU === "function") {
-                    const set = valuesU(row);
-                    validateUpdateSet(table, set, row, primaryKeyCache);
-                    for (const [key, value] of Object.entries(set)) {
-                      if (value === undefined) continue;
-                      row[key] = value;
-                    }
-                  } else {
-                    const set = valuesU;
-                    validateUpdateSet(table, set, row, primaryKeyCache);
-                    for (const [key, value] of Object.entries(set)) {
-                      if (value === undefined) continue;
-                      row[key] = value;
-                    }
-                  }
-                  return indexingCache.set({
+                  const ponderValues = copy(userValues);
+
+                  const ponderRowInsert = indexingCache.set({
                     table,
-                    key: values,
-                    row,
-                    isUpdate: true,
+                    key: ponderValues,
+                    row: ponderValues,
+                    isUpdate: false,
                   });
-                }
 
-                return indexingCache.set({
-                  table,
-                  key: values,
-                  row: values,
-                  isUpdate: false,
-                });
-              }
-            }),
+                  const userRow = copyOnWrite(ponderRowInsert);
+                  return userRow;
+                }
+              },
+            ),
             // biome-ignore lint/suspicious/noThenProperty: <explanation>
             then: (onFulfilled, onRejected) =>
               storeMethodWrapper(async () => {
@@ -228,10 +287,11 @@ export const createHistoricalIndexingStore = ({
                   method: "insert",
                 });
                 checkOnchainTable(table, "insert");
+                const ponderValues = copy(userValues);
 
-                if (Array.isArray(values)) {
-                  const rows = [];
-                  for (const value of values) {
+                if (Array.isArray(ponderValues)) {
+                  const ponderRows = [];
+                  for (const value of ponderValues) {
                     if (qb.$dialect === "pglite") {
                       const row = await indexingCache.get({
                         table,
@@ -243,7 +303,7 @@ export const createHistoricalIndexingStore = ({
                           `Primary key conflict in table '${getTableName(table)}'`,
                         );
                       } else {
-                        rows.push(
+                        ponderRows.push(
                           indexingCache.set({
                             table,
                             key: value,
@@ -256,7 +316,7 @@ export const createHistoricalIndexingStore = ({
                       // Note: optimistic assumption that no conflict exists
                       // because error is recovered at flush time
 
-                      rows.push(
+                      ponderRows.push(
                         indexingCache.set({
                           table,
                           key: value,
@@ -266,21 +326,30 @@ export const createHistoricalIndexingStore = ({
                       );
                     }
                   }
-                  return Promise.resolve(rows).then(onFulfilled, onRejected);
+                  const userRows = ponderRows.map((row) =>
+                    row === null ? row : copyOnWrite(row),
+                  );
+                  return Promise.resolve(userRows).then(
+                    onFulfilled,
+                    onRejected,
+                  );
                 } else {
-                  let result: Row;
+                  let ponderRow: Row;
                   if (qb.$dialect === "pglite") {
-                    const row = await indexingCache.get({ table, key: values });
+                    const row = await indexingCache.get({
+                      table,
+                      key: ponderValues,
+                    });
 
                     if (row) {
                       throw new UniqueConstraintError(
                         `Primary key conflict in table '${getTableName(table)}'`,
                       );
                     } else {
-                      result = indexingCache.set({
+                      ponderRow = indexingCache.set({
                         table,
-                        key: values,
-                        row: values,
+                        key: ponderValues,
+                        row: ponderValues,
                         isUpdate: false,
                       });
                     }
@@ -288,14 +357,15 @@ export const createHistoricalIndexingStore = ({
                     // Note: optimistic assumption that no conflict exists
                     // because error is recovered at flush time
 
-                    result = indexingCache.set({
+                    ponderRow = indexingCache.set({
                       table,
-                      key: values,
-                      row: values,
+                      key: ponderValues,
+                      row: ponderValues,
                       isUpdate: false,
                     });
                   }
-                  return Promise.resolve(result).then(onFulfilled, onRejected);
+                  const userRow = copyOnWrite(ponderRow);
+                  return Promise.resolve(userRow).then(onFulfilled, onRejected);
                 }
               })().then(onFulfilled, onRejected),
             catch: (onRejected) => inner.then(undefined, onRejected),
@@ -320,16 +390,16 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     update(table: Table, key) {
       return {
-        set: storeMethodWrapper(async (values: any) => {
+        set: storeMethodWrapper(async (userValues: any) => {
           common.metrics.ponder_indexing_store_queries_total.inc({
             table: getTableName(table),
             method: "update",
           });
           checkOnchainTable(table, "update");
 
-          const row = await indexingCache.get({ table, key });
+          const ponderRowUpdate = await indexingCache.get({ table, key });
 
-          if (row === null) {
+          if (ponderRowUpdate === null) {
             const error = new RecordNotFoundError(
               `No existing record found in table '${getTableName(table)}'`,
             );
@@ -337,23 +407,43 @@ export const createHistoricalIndexingStore = ({
             throw error;
           }
 
-          if (typeof values === "function") {
-            const set = values(row);
-            validateUpdateSet(table, set, row, primaryKeyCache);
-            for (const [key, value] of Object.entries(set)) {
+          if (typeof userValues === "function") {
+            const userRow = copyOnWrite(ponderRowUpdate);
+            const userSet = userValues(userRow);
+            const ponderSet = copy(userSet);
+            validateUpdateSet(
+              table,
+              ponderSet,
+              ponderRowUpdate,
+              primaryKeyCache,
+            );
+            for (const [key, value] of Object.entries(ponderSet)) {
               if (value === undefined) continue;
-              row[key] = value;
+              ponderRowUpdate[key] = value;
             }
           } else {
-            const set = values;
-            validateUpdateSet(table, set, row, primaryKeyCache);
-            for (const [key, value] of Object.entries(set)) {
+            const userSet = userValues;
+            const ponderSet = copy(userSet);
+            validateUpdateSet(
+              table,
+              ponderSet,
+              ponderRowUpdate,
+              primaryKeyCache,
+            );
+            for (const [key, value] of Object.entries(ponderSet)) {
               if (value === undefined) continue;
-              row[key] = value;
+              ponderRowUpdate[key] = value;
             }
           }
 
-          return indexingCache.set({ table, key, row, isUpdate: true });
+          const ponderRow = indexingCache.set({
+            table,
+            key: ponderRowUpdate,
+            row: ponderRowUpdate,
+            isUpdate: true,
+          });
+          const userRow = copyOnWrite(ponderRow);
+          return userRow;
         }),
       };
     },
