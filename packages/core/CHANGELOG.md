@@ -1,5 +1,12 @@
 # ponder
 
+## 0.13.10
+
+### Patch Changes
+
+- Updated dependencies [[`9cdb708`](https://github.com/ponder-sh/ponder/commit/9cdb70825814cca82cb0a9b4e4d36a4701b74516)]:
+  - @ponder/utils@0.2.14
+
 ## 0.13.9
 
 ### Patch Changes
