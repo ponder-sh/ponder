@@ -17,6 +17,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
   const statements = getSql(schema);
 
   const tableNames = new Set<string>();
+  const indexNames = new Set<string>();
 
   for (const [name, s] of Object.entries(schema)) {
     if (is(s, PgTable)) {
@@ -128,6 +129,16 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
         throw new Error(
           `Schema validation failed: '${name}' has a unique constraint and unique constraints are unsupported.`,
         );
+      }
+
+      for (const index of getTableConfig(s).indexes) {
+        if (index.config.name && indexNames.has(index.config.name)) {
+          throw new Error(
+            `Schema validation failed: index name '${index.config.name}' is used multiple times.`,
+          );
+        } else if (index.config.name) {
+          indexNames.add(index.config.name);
+        }
       }
     }
 

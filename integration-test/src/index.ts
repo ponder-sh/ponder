@@ -1,6 +1,21 @@
+import childProcess from "node:child_process";
 import crypto from "node:crypto";
-import { $ } from "bun";
+import { type PonderApp, start } from "@ponder/bin/commands/start.js";
+import { createQB } from "@ponder/database/queryBuilder.js";
+import { getPrimaryKeyColumns } from "@ponder/drizzle/index.js";
+import type { Factory, FragmentAddress } from "@ponder/internal/types.js";
+import { createRpc } from "@ponder/rpc/index.js";
+import {
+  decodeFragment,
+  getFragments,
+  isFragmentAddressFactory,
+} from "@ponder/runtime/fragments.js";
+import * as PONDER_SYNC from "@ponder/sync-store/schema.js";
+import { getChunks, intervalUnion } from "@ponder/utils/interval.js";
+import { promiseWithResolvers } from "@ponder/utils/promiseWithResolvers.js";
+import { _eth_getBlockByNumber } from "@ponder/utils/rpc.js";
 import { Command } from "commander";
+import dotenv from "dotenv";
 import {
   type SQL,
   Table,
@@ -27,34 +42,13 @@ import { type Address, type RpcBlock, custom, hexToNumber } from "viem";
 import packageJson from "../../packages/core/package.json" assert {
   type: "json",
 };
-import {
-  type PonderApp,
-  start,
-} from "../../packages/core/src/bin/commands/start.js";
-import { createQB } from "../../packages/core/src/database/queryBuilder.js";
-import { getPrimaryKeyColumns } from "../../packages/core/src/drizzle/index.js";
-import type {
-  Factory,
-  FragmentAddress,
-} from "../../packages/core/src/internal/types.js";
-import { createRpc } from "../../packages/core/src/rpc/index.js";
-import {
-  decodeFragment,
-  getFragments,
-  isFragmentAddressFactory,
-} from "../../packages/core/src/runtime/fragments.js";
-import * as PONDER_SYNC from "../../packages/core/src/sync-store/schema.js";
-import {
-  getChunks,
-  intervalUnion,
-} from "../../packages/core/src/utils/interval.js";
-import { promiseWithResolvers } from "../../packages/core/src/utils/promiseWithResolvers.js";
-import { _eth_getBlockByNumber } from "../../packages/core/src/utils/rpc.js";
 import * as SUPER_ASSESSMENT from "../apps/super-assessment/schema.js";
 import { metadata } from "../schema.js";
 import { dbSim } from "./db-sim.js";
 import { type RpcBlockHeader, realtimeBlockEngine, sim } from "./rpc-sim.js";
 import { getJoinConditions } from "./sql.js";
+
+dotenv.config({ path: ".env.local" });
 
 // Large apps that shouldn't be synced, use cached data instead
 const CACHED_APPS = ["the-compact", "basepaint"];
@@ -89,9 +83,13 @@ export const pick = <T>(possibilities: T[] | readonly T[], tag: string): T => {
 export const SIM_PARAMS = {
   RPC_ERROR_RATE: pick([0, 0.02, 0.05], "rpc-error-rate"),
   DB_ERROR_RATE: pick([0, 0.001, 0.001], "db-error-rate"),
+  DB_ERROR_RATE_TRANSACTION: pick(
+    [0, 0.00005, 0.00005],
+    "db-error-rate-transaction",
+  ),
   MAX_UNCACHED_BLOCKS: CACHED_APPS.includes(APP_ID)
     ? 0
-    : pick([0, 0, 0, 100, 1000], "max-uncached-blocks"),
+    : pick([0, 0, 0, 100, 250], "max-uncached-blocks"),
   SUPER_ASSESSMENT_FILTER_RATE: pick(
     [0, 0.25, 0.5],
     "super-assessment-filter-rate",
@@ -111,7 +109,7 @@ export const SIM_PARAMS = {
     "realtime-fast-forward-rate",
   ),
   REALTIME_DELAY_RATE: pick([0, 0.4, 0.8], "realtime-delay-rate"),
-  UNFINALIZED_BLOCKS: pick([0, 0, 100, 100, 1000, 1100], "unfinalized-blocks"),
+  UNFINALIZED_BLOCKS: pick([0, 0, 50, 100, 250, 300], "unfinalized-blocks"),
   REALTIME_SHUTDOWN_RATE:
     APP_ID === "super-assessment"
       ? undefined
@@ -190,8 +188,11 @@ const getAddressCondition = <
 
 // 2. Write metadata
 
-const branch = await $`git rev-parse --abbrev-ref HEAD`.text();
-const commit = await $`git rev-parse HEAD`.text();
+const branchResult = childProcess.execSync("git rev-parse --abbrev-ref HEAD");
+const commitResult = childProcess.execSync("git rev-parse HEAD");
+
+const branch = branchResult.toString().trim();
+const commit = commitResult.toString().trim();
 
 await DB.insert(metadata).values({
   id: UUID,
@@ -252,7 +253,7 @@ const pwr = promiseWithResolvers<void>();
 const onBuild = async (app: PonderApp) => {
   APP = app;
 
-  app.preBuild.ordering = SIM_PARAMS.ORDERING;
+  app.preBuild.ordering = SIM_PARAMS.ORDERING as "multichain" | "omnichain";
   app.common.options.syncEventsQuerySize = 200;
 
   app.common.logger.warn({
@@ -1228,7 +1229,7 @@ const onBuild = async (app: PonderApp) => {
     const intervals = intervalUnion(
       app.indexingBuild.sources
         .filter(({ filter }) => filter.chainId === chain.id)
-        .map(({ filter }) => [filter.fromBlock, filter.toBlock]!),
+        .map(({ filter }) => [filter.fromBlock!, filter.toBlock!]),
     );
 
     const end = intervals[intervals.length - 1]![1];
@@ -1355,6 +1356,10 @@ let kill = await start({
   },
   onBuild,
 });
+
+setInterval(() => {
+  console.log(APP_ID);
+}, 5_000);
 
 export const restart = async () => {
   if (RESTART_COUNT === 2) return;

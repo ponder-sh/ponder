@@ -11,6 +11,11 @@ export const createShutdown = (): Shutdown => {
 
   return {
     add: (callback) => {
+      if (abortController.signal.aborted) {
+        callback();
+        return;
+      }
+
       callbacks.push(callback);
     },
     kill: async () => {

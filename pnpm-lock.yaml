@@ -534,7 +534,7 @@ importers:
     dependencies:
       forge-std:
         specifier: github:foundry-rs/forge-std
-        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/6bce1540c7a5d1c40eec032a1ae16f0e01f82b92
+        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/17a9b2398a7d629931dc66a168a098d051d53dc6
 
   examples/with-foundry/ponder:
     dependencies:
@@ -751,6 +751,9 @@ importers:
       '@types/bun':
         specifier: ^1.2.14
         version: 1.2.14
+      '@types/node':
+        specifier: ^24.6.0
+        version: 24.6.0
       '@types/pg':
         specifier: ^8.10.9
         version: 8.10.9
@@ -760,6 +763,9 @@ importers:
       commander:
         specifier: ^12.0.0
         version: 12.0.0
+      dotenv:
+        specifier: ^16.3.1
+        version: 16.4.5
       drizzle-orm:
         specifier: 0.41.0
         version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.0)
@@ -772,6 +778,9 @@ importers:
       seedrandom:
         specifier: ^3.0.5
         version: 3.0.5
+      tsx:
+        specifier: ^4.19.2
+        version: 4.19.2
 
   packages/client:
     dependencies:
@@ -787,10 +796,10 @@ importers:
     devDependencies:
       tsup:
         specifier: ^8.0.1
-        version: 8.0.1(postcss@8.5.3)(ts-node@10.9.1(@types/node@22.15.18)(typescript@5.3.3))(typescript@5.3.3)
+        version: 8.0.1(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.6.0)(typescript@5.3.3))(typescript@5.3.3)
       vitest:
         specifier: ^1.0.2
-        version: 1.0.2(@edge-runtime/vm@3.2.0)(@types/node@22.15.18)(lightningcss@1.30.0)
+        version: 1.0.2(@edge-runtime/vm@3.2.0)(@types/node@24.6.0)(lightningcss@1.30.0)
 
   packages/core:
     dependencies:
@@ -3586,6 +3595,9 @@ packages:
   '@types/node@22.15.18':
     resolution: {integrity: sha512-v1DKRfUdyW+jJhZNEI1PYy29S2YRxMV5AOO/x/SjKmW0acCIOqmbj6Haf9eHAhsPmrhlHSxEhv/1WszcLWV4cg==}
 
+  '@types/node@24.6.0':
+    resolution: {integrity: sha512-F1CBxgqwOMc4GKJ7eY22hWhBVQuMYTtqI8L0FcszYcpYX0fzfDGpez22Xau8Mgm7O9fI+zA/TYIdq3tGWfweBA==}
+
   '@types/pg-copy-streams@1.2.5':
     resolution: {integrity: sha512-7D6/GYW2uHIaVU6S/5omI+6RZnwlZBpLQDZAH83xX1rjxAOK0f6/deKyyUTewxqts145VIGn6XWYz1YGf50G5g==}
 
@@ -5357,8 +5369,8 @@ packages:
     resolution: {integrity: sha512-TMKDUnIte6bfb5nWv7V/caI169OHgvwjb7V4WkeUvbQQdjr5rWKqHFiKWb/fcOwB+CzBT+qbWjvj+DVwRskpIg==}
     engines: {node: '>=14'}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/6bce1540c7a5d1c40eec032a1ae16f0e01f82b92:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/6bce1540c7a5d1c40eec032a1ae16f0e01f82b92}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/17a9b2398a7d629931dc66a168a098d051d53dc6:
+    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/17a9b2398a7d629931dc66a168a098d051d53dc6}
     version: 1.10.0
 
   format@0.2.2:
@@ -7920,6 +7932,9 @@ packages:
 
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
+
+  undici-types@7.13.0:
+    resolution: {integrity: sha512-Ov2Rr9Sx+fRgagJ5AX0qvItZG/JKKoBRAVITs1zk7IqZGTJUwgUr7qoYBpWwakpWilTZFM98rG/AFRocu10iIQ==}
 
   undici@5.28.4:
     resolution: {integrity: sha512-72RFADWFqKmUb2hmmvNODKL3p9hcB6Gt2DOQMis1SEBaV6a4MH8soBvzg+95CYhCKPFedut2JY9bMfrDl9D23g==}
@@ -10725,6 +10740,10 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
+  '@types/node@24.6.0':
+    dependencies:
+      undici-types: 7.13.0
+
   '@types/pg-copy-streams@1.2.5':
     dependencies:
       '@types/node': 20.11.24
@@ -12801,7 +12820,7 @@ snapshots:
       cross-spawn: 7.0.6
       signal-exit: 4.1.0
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/6bce1540c7a5d1c40eec032a1ae16f0e01f82b92: {}
+  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/17a9b2398a7d629931dc66a168a098d051d53dc6: {}
 
   format@0.2.2: {}
 
@@ -14751,13 +14770,13 @@ snapshots:
       postcss: 8.5.3
       ts-node: 10.9.1(@types/node@20.11.24)(typescript@5.3.3)
 
-  postcss-load-config@4.0.2(postcss@8.5.3)(ts-node@10.9.1(@types/node@22.15.18)(typescript@5.3.3)):
+  postcss-load-config@4.0.2(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.6.0)(typescript@5.3.3)):
     dependencies:
       lilconfig: 3.1.2
       yaml: 2.3.4
     optionalDependencies:
       postcss: 8.5.3
-      ts-node: 10.9.1(@types/node@22.15.18)(typescript@5.3.3)
+      ts-node: 10.9.1(@types/node@24.6.0)(typescript@5.3.3)
 
   postcss-nested@6.0.1(postcss@8.5.3):
     dependencies:
@@ -15774,14 +15793,14 @@ snapshots:
       yn: 3.1.1
     optional: true
 
-  ts-node@10.9.1(@types/node@22.15.18)(typescript@5.3.3):
+  ts-node@10.9.1(@types/node@24.6.0)(typescript@5.3.3):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       '@tsconfig/node10': 1.0.9
       '@tsconfig/node12': 1.0.11
       '@tsconfig/node14': 1.0.3
       '@tsconfig/node16': 1.0.4
-      '@types/node': 22.15.18
+      '@types/node': 24.6.0
       acorn: 8.14.1
       acorn-walk: 8.3.1
       arg: 4.1.3
@@ -15831,7 +15850,7 @@ snapshots:
       - supports-color
       - ts-node
 
-  tsup@8.0.1(postcss@8.5.3)(ts-node@10.9.1(@types/node@22.15.18)(typescript@5.3.3))(typescript@5.3.3):
+  tsup@8.0.1(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.6.0)(typescript@5.3.3))(typescript@5.3.3):
     dependencies:
       bundle-require: 4.0.2(esbuild@0.19.12)
       cac: 6.7.14
@@ -15841,7 +15860,7 @@ snapshots:
       execa: 5.1.1
       globby: 11.1.0
       joycon: 3.1.1
-      postcss-load-config: 4.0.2(postcss@8.5.3)(ts-node@10.9.1(@types/node@22.15.18)(typescript@5.3.3))
+      postcss-load-config: 4.0.2(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.6.0)(typescript@5.3.3))
       resolve-from: 5.0.0
       rollup: 4.40.2
       source-map: 0.8.0-beta.0
@@ -15934,6 +15953,8 @@ snapshots:
   undici-types@5.26.5: {}
 
   undici-types@6.21.0: {}
+
+  undici-types@7.13.0: {}
 
   undici@5.28.4:
     dependencies:
@@ -16134,13 +16155,13 @@ snapshots:
       - supports-color
       - terser
 
-  vite-node@1.0.2(@types/node@22.15.18)(lightningcss@1.30.0):
+  vite-node@1.0.2(@types/node@24.6.0)(lightningcss@1.30.0):
     dependencies:
       cac: 6.7.14
       debug: 4.4.0
       pathe: 1.1.1
       picocolors: 1.1.1
-      vite: 5.0.7(@types/node@22.15.18)(lightningcss@1.30.0)
+      vite: 5.0.7(@types/node@24.6.0)(lightningcss@1.30.0)
     transitivePeerDependencies:
       - '@types/node'
       - less
@@ -16199,6 +16220,16 @@ snapshots:
       fsevents: 2.3.3
       lightningcss: 1.30.0
 
+  vite@5.0.7(@types/node@24.6.0)(lightningcss@1.30.0):
+    dependencies:
+      esbuild: 0.19.12
+      postcss: 8.5.3
+      rollup: 4.40.2
+    optionalDependencies:
+      '@types/node': 24.6.0
+      fsevents: 2.3.3
+      lightningcss: 1.30.0
+
   vite@6.3.5(@types/node@22.15.18)(jiti@2.4.2)(lightningcss@1.30.0)(tsx@4.19.2):
     dependencies:
       esbuild: 0.25.4
@@ -16249,7 +16280,7 @@ snapshots:
       - supports-color
       - terser
 
-  vitest@1.0.2(@edge-runtime/vm@3.2.0)(@types/node@22.15.18)(lightningcss@1.30.0):
+  vitest@1.0.2(@edge-runtime/vm@3.2.0)(@types/node@24.6.0)(lightningcss@1.30.0):
     dependencies:
       '@vitest/expect': 1.0.2
       '@vitest/runner': 1.0.2
@@ -16269,12 +16300,12 @@ snapshots:
       strip-literal: 1.3.0
       tinybench: 2.5.1
       tinypool: 0.8.1
-      vite: 5.0.7(@types/node@22.15.18)(lightningcss@1.30.0)
-      vite-node: 1.0.2(@types/node@22.15.18)(lightningcss@1.30.0)
+      vite: 5.0.7(@types/node@24.6.0)(lightningcss@1.30.0)
+      vite-node: 1.0.2(@types/node@24.6.0)(lightningcss@1.30.0)
       why-is-node-running: 2.2.2
     optionalDependencies:
       '@edge-runtime/vm': 3.2.0
-      '@types/node': 22.15.18
+      '@types/node': 24.6.0
     transitivePeerDependencies:
       - less
       - lightningcss

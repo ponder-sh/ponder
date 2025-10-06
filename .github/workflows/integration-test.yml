@@ -8,7 +8,7 @@ on:
 jobs:
   integration-test:
     name: Integration Test
-    runs-on: default
+    runs-on: self-hosted
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -22,12 +22,11 @@ jobs:
           - "uniswap-v4"
           - "the-compact"
           - "basepaint"
-        iteration: [0, 1, 2, 3, 4]
+        iteration: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/actions/setup
-      - uses: oven-sh/setup-bun@v2
 
       - run: pnpm build
       - run: pnpm install
@@ -37,20 +36,13 @@ jobs:
           cd integration-test
           SEED=$(openssl rand -hex 32)
           UUID=$(cat /proc/sys/kernel/random/uuid)
-          pnpm test ${{ matrix.app_id }}
+          pnpm test:node ${{ matrix.app_id }}
         env:
           DATABASE_URL: ${{ secrets.TEST_CONNECTION_STRING }}
           PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
           PONDER_RPC_URL_10: ${{ secrets.PONDER_RPC_URL_10 }}
           PONDER_RPC_URL_130: ${{ secrets.PONDER_RPC_URL_130 }}
-          PONDER_RPC_URL_137: ${{ secrets.PONDER_RPC_URL_137 }}
-          PONDER_RPC_URL_480: ${{ secrets.PONDER_RPC_URL_480 }}
           PONDER_RPC_URL_8453: ${{ secrets.PONDER_RPC_URL_8453 }}
-          PONDER_RPC_URL_42161: ${{ secrets.PONDER_RPC_URL_42161 }}
-          PONDER_RPC_URL_81457: ${{ secrets.PONDER_RPC_URL_81457 }}
-          PONDER_RPC_URL_84532: ${{ secrets.PONDER_RPC_URL_84532 }}
-          PONDER_RPC_URL_11155111: ${{ secrets.PONDER_RPC_URL_11155111 }}
-          PONDER_RPC_URL_11155420: ${{ secrets.PONDER_RPC_URL_11155420 }}
           PGDATABASE: railway
           PGSSLMODE: disable
           NODE_ENV: ci

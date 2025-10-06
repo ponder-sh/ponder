@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.2.14
+
+### Patch Changes
+
+- [#2085](https://github.com/ponder-sh/ponder/pull/2085) [`9cdb708`](https://github.com/ponder-sh/ponder/commit/9cdb70825814cca82cb0a9b4e4d36a4701b74516) Thanks [@aramalipoor](https://github.com/aramalipoor)! - Fixed eRPC eth_getLogs retry range support.
+
 ## 0.2.13
 
 ### Patch Changes

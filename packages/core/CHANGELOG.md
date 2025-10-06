@@ -1,5 +1,40 @@
 # ponder
 
+## 0.13.11
+
+### Patch Changes
+
+- [#2097](https://github.com/ponder-sh/ponder/pull/2097) [`a493472`](https://github.com/ponder-sh/ponder/commit/a4934721c35c8044d6be492834f0696319685621) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused `TypeError: Reflect.get called on non-object`.
+
+- [#2095](https://github.com/ponder-sh/ponder/pull/2095) [`478b668`](https://github.com/ponder-sh/ponder/commit/478b668355983bc0f8ba2fbdb572e0a6b0a04e54) Thanks [@kyscott18](https://github.com/kyscott18)! - Added validation for database indexes with the same name.
+
+## 0.13.10
+
+### Patch Changes
+
+- Updated dependencies [[`9cdb708`](https://github.com/ponder-sh/ponder/commit/9cdb70825814cca82cb0a9b4e4d36a4701b74516)]:
+  - @ponder/utils@0.2.14
+
+## 0.13.9
+
+### Patch Changes
+
+- [#2089](https://github.com/ponder-sh/ponder/pull/2089) [`b89918a`](https://github.com/ponder-sh/ponder/commit/b89918a4583c23c60ec511df49374805033fb5b5) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed event decoding for traces with undefined output. This bug caused many `Unable to decode trace, skipping it` logs.
+
+## 0.13.8
+
+### Patch Changes
+
+- [#2073](https://github.com/ponder-sh/ponder/pull/2073) [`8a3bae0`](https://github.com/ponder-sh/ponder/commit/8a3bae03a3d8fb47f2590447361016eb5b59e54f) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved eventloop utilization.
+
+- [#2081](https://github.com/ponder-sh/ponder/pull/2081) [`4752e4e`](https://github.com/ponder-sh/ponder/commit/4752e4ee48029e49d9401fb9dd919eaa8fca85ef) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where Ponder wasn't correctly filtering out log events with missing topics.
+
+- [#2068](https://github.com/ponder-sh/ponder/pull/2068) [`b89fbf8`](https://github.com/ponder-sh/ponder/commit/b89fbf8386910a17c7cfad44d1f1484016832d44) Thanks [@goums](https://github.com/goums)! - Improve historical backfill memory usage.
+
+- [#2078](https://github.com/ponder-sh/ponder/pull/2078) [`add1171`](https://github.com/ponder-sh/ponder/commit/add1171f0ae05f481c3d684ee880cff882afcd0c) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed ordering of decoded arguments in `decodeEventLog`.
+
+- [`3021a91`](https://github.com/ponder-sh/ponder/commit/3021a91887d0a1afdfc840ca8b8ff3862361303e) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved `client.db` reliability.
+
 ## 0.13.7
 
 ### Patch Changes
