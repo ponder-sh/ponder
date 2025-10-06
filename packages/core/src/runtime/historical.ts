@@ -34,7 +34,6 @@ import {
 } from "@/utils/interval.js";
 import { partition } from "@/utils/partition.js";
 import { startClock } from "@/utils/timer.js";
-import { zipperMany } from "@/utils/zipper.js";
 import { hexToNumber } from "viem";
 import type { CachedIntervals, ChildAddresses, SyncProgress } from "./index.js";
 import { initEventGenerator, initRefetchEvents } from "./init.js";
@@ -59,10 +58,14 @@ export async function* getHistoricalEventsOmnichain(params: {
 }): AsyncGenerator<
   | {
       type: "events";
-      events: Event[];
-      checkpoints: { chainId: number; checkpoint: string }[];
+      result: {
+        chainId: number;
+        events: Event[];
+        checkpoint: string;
+        blockRange: [number, number];
+      }[];
     }
-  | { type: "pending"; pendingEvents: Event[] }
+  | { type: "pending"; result: Event[] }
 > {
   let pendingEvents: Event[] = [];
   let isCatchup = false;
@@ -151,7 +154,17 @@ export async function* getHistoricalEventsOmnichain(params: {
                 event.checkpoint <= omnichainTo) === false,
           );
 
-          yield { events, checkpoint: min(cursor, omnichainTo) };
+          const blockRange = [
+            Number(decodeCheckpoint(cursor).blockNumber),
+            events.length > 0
+              ? Number(
+                  decodeCheckpoint(events[events.length - 1]!.checkpoint)
+                    .blockNumber,
+                )
+              : Number(decodeCheckpoint(cursor).blockNumber),
+          ] satisfies [number, number];
+
+          yield { events, checkpoint: min(cursor, omnichainTo), blockRange };
 
           from = encodeCheckpoint({
             ...ZERO_CHECKPOINT,
@@ -192,7 +205,11 @@ export async function* getHistoricalEventsOmnichain(params: {
           isCatchup,
         });
 
-        for await (let { events: rawEvents, checkpoint } of eventGenerator) {
+        for await (let {
+          events: rawEvents,
+          checkpoint,
+          blockRange,
+        } of eventGenerator) {
           const endClock = startClock();
 
           let events = decodeEvents(params.common, sources, rawEvents);
@@ -241,6 +258,14 @@ export async function* getHistoricalEventsOmnichain(params: {
             events = left;
             checkpoint = omnichainTo;
 
+            if (left.length > 0) {
+              blockRange[1] = Number(
+                decodeCheckpoint(left[left.length - 1]!.checkpoint).blockNumber,
+              );
+            } else {
+              blockRange[1] = blockRange[0];
+            }
+
             params.common.logger.trace({
               msg: "Filtered pending events",
               event_count: right.length,
@@ -248,7 +273,7 @@ export async function* getHistoricalEventsOmnichain(params: {
             });
           }
 
-          yield { events, checkpoint };
+          yield { events, checkpoint, blockRange };
         }
 
         perChainCursor.set(chain, to);
@@ -257,8 +282,8 @@ export async function* getHistoricalEventsOmnichain(params: {
 
     const eventGenerator = mergeAsyncGeneratorsWithEventOrder(eventGenerators);
 
-    for await (const { events, checkpoints } of eventGenerator) {
-      yield { type: "events", events, checkpoints };
+    for await (const mergeResults of eventGenerator) {
+      yield { type: "events", result: mergeResults };
     }
 
     const context = {
@@ -322,7 +347,7 @@ export async function* getHistoricalEventsOmnichain(params: {
     isCatchup = true;
   }
 
-  yield { type: "pending", pendingEvents };
+  yield { type: "pending", result: pendingEvents };
 }
 
 export async function* getHistoricalEventsMultichain(params: {
@@ -444,7 +469,11 @@ export async function* getHistoricalEventsMultichain(params: {
           isCatchup,
         });
 
-        for await (const { events: rawEvents, checkpoint } of eventGenerator) {
+        for await (const {
+          events: rawEvents,
+          checkpoint,
+          blockRange,
+        } of eventGenerator) {
           const endClock = startClock();
 
           let events = decodeEvents(params.common, sources, rawEvents);
@@ -480,26 +509,14 @@ export async function* getHistoricalEventsMultichain(params: {
             }
           }
 
-          yield { events, checkpoint };
+          yield { chainId: chain.id, events, checkpoint, blockRange };
         }
 
         perChainCursor.set(chain, to);
       },
     );
 
-    for await (const { events, checkpoint } of mergeAsyncGenerators(
-      eventGenerators,
-    )) {
-      yield {
-        events,
-        checkpoints: [
-          {
-            chainId: Number(decodeCheckpoint(checkpoint).chainId),
-            checkpoint,
-          },
-        ],
-      };
-    }
+    yield* mergeAsyncGenerators(eventGenerators);
 
     const context = {
       logger: params.common.logger.child({ action: "refetch finalized block" }),
@@ -772,9 +789,11 @@ export async function* getLocalEventGenerator(params: {
 
       await new Promise(setImmediate);
 
+      const blockRange = [cursor, queryCursor] satisfies [number, number];
+
       cursor = queryCursor + 1;
       if (cursor >= toBlock) {
-        yield { events, checkpoint: params.to };
+        yield { events, checkpoint: params.to, blockRange };
       } else if (blockData.length > 0) {
         const checkpoint = encodeCheckpoint({
           ...MAX_CHECKPOINT,
@@ -782,7 +801,7 @@ export async function* getLocalEventGenerator(params: {
           chainId: BigInt(params.chain.id),
           blockNumber: blockData[blockData.length - 1]!.block.number,
         });
-        yield { events, checkpoint };
+        yield { events, checkpoint, blockRange };
       }
     }
   }
@@ -1051,15 +1070,19 @@ export async function* getLocalSyncGenerator(params: {
  * @returns A single generator that yields events from all generators.
  */
 export async function* mergeAsyncGeneratorsWithEventOrder(
-  generators: AsyncGenerator<{ events: Event[]; checkpoint: string }>[],
-): AsyncGenerator<{
-  events: Event[];
-  /**
-   * Closest-to-tip checkpoint for each chain,
-   * excluding chains that were not updated with this batch of events.
-   */
-  checkpoints: { chainId: number; checkpoint: string }[];
-}> {
+  generators: AsyncGenerator<{
+    events: Event[];
+    checkpoint: string;
+    blockRange: [number, number];
+  }>[],
+): AsyncGenerator<
+  {
+    chainId: number;
+    events: Event[];
+    checkpoint: string;
+    blockRange: [number, number];
+  }[]
+> {
   const results = await Promise.all(generators.map((gen) => gen.next()));
 
   while (results.some((res) => res.done !== true)) {
@@ -1067,10 +1090,11 @@ export async function* mergeAsyncGeneratorsWithEventOrder(
       ...results.map((res) => (res.done ? undefined : res.value.checkpoint)),
     );
 
-    const eventArrays: {
-      events: Event[];
+    const mergedResults: {
       chainId: number;
+      events: Event[];
       checkpoint: string;
+      blockRange: [number, number];
     }[] = [];
 
     for (const result of results) {
@@ -1083,11 +1107,19 @@ export async function* mergeAsyncGeneratorsWithEventOrder(
         const event = left[left.length - 1];
 
         if (event) {
-          eventArrays.push({
+          const blockRange = [
+            result.value.blockRange[0],
+            right.length > 0
+              ? Number(decodeCheckpoint(event.checkpoint).blockNumber)
+              : result.value.blockRange[1],
+          ] satisfies [number, number];
+
+          mergedResults.push({
             events: left,
             chainId: event.chainId,
             checkpoint:
               right.length > 0 ? event.checkpoint : result.value.checkpoint,
+            blockRange,
           });
         }
 
@@ -1095,22 +1127,13 @@ export async function* mergeAsyncGeneratorsWithEventOrder(
       }
     }
 
-    const events = zipperMany(eventArrays.map(({ events }) => events)).sort(
-      (a, b) => (a.checkpoint < b.checkpoint ? -1 : 1),
-    );
-
     const index = results.findIndex(
       (res) => res.done === false && res.value.checkpoint === supremum,
     );
 
     const resultPromise = generators[index]!.next();
-    if (events.length > 0) {
-      const checkpoints = eventArrays.map(({ chainId, checkpoint }) => ({
-        chainId,
-        checkpoint,
-      }));
-
-      yield { events, checkpoints };
+    if (mergedResults.length > 0) {
+      yield mergedResults;
     }
     results[index] = await resultPromise;
   }

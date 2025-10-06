@@ -302,7 +302,12 @@ export async function runMultichain({
   const backfillEndClock = startClock();
 
   // Run historical indexing until complete.
-  for await (const events of recordAsyncGenerator(
+  for await (let {
+    events,
+    chainId,
+    checkpoint,
+    blockRange,
+  } of recordAsyncGenerator(
     getHistoricalEventsMultichain({
       common,
       indexingBuild,
@@ -326,10 +331,12 @@ export async function runMultichain({
     };
     const indexStartClock = startClock();
 
+    const chain = indexingBuild.chains.find((chain) => chain.id === chainId)!;
+
     indexingCache.qb = database.userQB;
     await Promise.all([
-      indexingCache.prefetch({ events: events.events }),
-      cachedViemClient.prefetch({ events: events.events }),
+      indexingCache.prefetch({ events }),
+      cachedViemClient.prefetch({ events }),
     ]);
     common.metrics.ponder_historical_transform_duration.inc(
       { step: "prefetch" },
@@ -354,7 +361,7 @@ export async function runMultichain({
           endClock = startClock();
 
           await indexing.processHistoricalEvents({
-            events: events.events,
+            events,
             db: historicalIndexingStore,
             cache: indexingCache,
             updateIndexingSeconds(event, chain) {
@@ -399,34 +406,28 @@ export async function runMultichain({
 
           endClock = startClock();
 
-          if (events.checkpoints.length > 0) {
-            await tx.wrap(
-              { label: "update_checkpoints" },
-              (tx) =>
-                tx
-                  .insert(PONDER_CHECKPOINT)
-                  .values(
-                    events.checkpoints.map(({ chainId, checkpoint }) => ({
-                      chainName: indexingBuild.chains.find(
-                        (chain) => chain.id === chainId,
-                      )!.name,
-                      chainId,
-                      latestCheckpoint: checkpoint,
-                      finalizedCheckpoint: checkpoint,
-                      safeCheckpoint: checkpoint,
-                    })),
-                  )
-                  .onConflictDoUpdate({
-                    target: PONDER_CHECKPOINT.chainName,
-                    set: {
-                      safeCheckpoint: sql`excluded.safe_checkpoint`,
-                      finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
-                      latestCheckpoint: sql`excluded.latest_checkpoint`,
-                    },
-                  }),
-              context,
-            );
-          }
+          await tx.wrap(
+            { label: "update_checkpoints" },
+            (tx) =>
+              tx
+                .insert(PONDER_CHECKPOINT)
+                .values({
+                  chainName: chain.name,
+                  chainId,
+                  latestCheckpoint: checkpoint,
+                  finalizedCheckpoint: checkpoint,
+                  safeCheckpoint: checkpoint,
+                })
+                .onConflictDoUpdate({
+                  target: PONDER_CHECKPOINT.chainName,
+                  set: {
+                    safeCheckpoint: sql`excluded.safe_checkpoint`,
+                    finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
+                    latestCheckpoint: sql`excluded.latest_checkpoint`,
+                  },
+                }),
+            context,
+          );
 
           common.metrics.ponder_historical_transform_duration.inc(
             { step: "finalize" },
@@ -441,19 +442,23 @@ export async function runMultichain({
           if (error instanceof InvalidEventAccessError) {
             common.logger.debug({
               msg: "Failed to index block range",
+              chain: chain.name,
+              block_range: JSON.stringify(blockRange),
               duration: indexStartClock(),
               error,
             });
-            events.events = await refetchHistoricalEvents({
+            events = await refetchHistoricalEvents({
               common,
               indexingBuild,
               perChainSync,
               syncStore,
-              events: events.events,
+              events,
             });
           } else if (error instanceof NonRetryableUserError === false) {
             common.logger.warn({
               msg: "Failed to index block range",
+              chain: chain.name,
+              block_range: JSON.stringify(blockRange),
               duration: indexStartClock(),
               error: error as Error,
             });
@@ -474,10 +479,11 @@ export async function runMultichain({
 
     await new Promise(setImmediate);
 
-    // TODO(kyle) block range
     common.logger.info({
       msg: "Indexed block range",
-      event_count: events.events.length,
+      chain: chain.name,
+      event_count: events.length,
+      block_range: JSON.stringify(blockRange),
       duration: indexStartClock(),
     });
   }

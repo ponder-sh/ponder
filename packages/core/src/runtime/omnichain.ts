@@ -49,6 +49,7 @@ import { formatEta, formatPercentage } from "@/utils/format.js";
 import { recordAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
+import { zipperMany } from "@/utils/zipper.js";
 import { eq, getTableName, isTable, sql } from "drizzle-orm";
 import {
   getHistoricalEventsOmnichain,
@@ -327,7 +328,7 @@ export async function runOmnichain({
     },
   )) {
     if (result.type === "pending") {
-      pendingEvents = result.pendingEvents!;
+      pendingEvents = result.result;
       continue;
     }
 
@@ -336,10 +337,15 @@ export async function runOmnichain({
     };
     const indexStartClock = startClock();
 
+    let events = zipperMany(
+      result.result.map(({ events }) => events),
+      (a, b) => (a.checkpoint < b.checkpoint ? -1 : 1),
+    );
+
     indexingCache.qb = database.userQB;
     await Promise.all([
-      indexingCache.prefetch({ events: result.events }),
-      cachedViemClient.prefetch({ events: result.events }),
+      indexingCache.prefetch({ events }),
+      cachedViemClient.prefetch({ events }),
     ]);
     common.metrics.ponder_historical_transform_duration.inc(
       { step: "prefetch" },
@@ -363,7 +369,7 @@ export async function runOmnichain({
           endClock = startClock();
 
           await indexing.processHistoricalEvents({
-            events: result.events,
+            events,
             db: historicalIndexingStore,
             cache: indexingCache,
             updateIndexingSeconds(event) {
@@ -418,31 +424,30 @@ export async function runOmnichain({
 
           endClock = startClock();
 
-          if (result.checkpoints.length > 0) {
-            await tx.wrap({ label: "update_checkpoints" }, (tx) =>
-              tx
-                .insert(PONDER_CHECKPOINT)
-                .values(
-                  result.checkpoints.map(({ chainId, checkpoint }) => ({
-                    chainName: indexingBuild.chains.find(
-                      (chain) => chain.id === chainId,
-                    )!.name,
-                    chainId,
-                    latestCheckpoint: checkpoint,
-                    safeCheckpoint: checkpoint,
-                    finalizedCheckpoint: checkpoint,
-                  })),
-                )
-                .onConflictDoUpdate({
-                  target: PONDER_CHECKPOINT.chainName,
-                  set: {
-                    safeCheckpoint: sql`excluded.safe_checkpoint`,
-                    latestCheckpoint: sql`excluded.latest_checkpoint`,
-                    finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
-                  },
-                }),
-            );
-          }
+          // Note: It is an invariant that result.result.length > 0
+          await tx.wrap({ label: "update_checkpoints" }, (tx) =>
+            tx
+              .insert(PONDER_CHECKPOINT)
+              .values(
+                result.result.map(({ chainId, checkpoint }) => ({
+                  chainName: indexingBuild.chains.find(
+                    (chain) => chain.id === chainId,
+                  )!.name,
+                  chainId,
+                  latestCheckpoint: checkpoint,
+                  safeCheckpoint: checkpoint,
+                  finalizedCheckpoint: checkpoint,
+                })),
+              )
+              .onConflictDoUpdate({
+                target: PONDER_CHECKPOINT.chainName,
+                set: {
+                  safeCheckpoint: sql`excluded.safe_checkpoint`,
+                  latestCheckpoint: sql`excluded.latest_checkpoint`,
+                  finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
+                },
+              }),
+          );
 
           common.metrics.ponder_historical_transform_duration.inc(
             { step: "finalize" },
@@ -460,12 +465,12 @@ export async function runOmnichain({
               duration: indexStartClock(),
               error,
             });
-            result.events = await refetchHistoricalEvents({
+            events = await refetchHistoricalEvents({
               common,
               indexingBuild,
               perChainSync,
               syncStore,
-              events: result.events,
+              events,
             });
           } else if (error instanceof NonRetryableUserError === false) {
             common.logger.warn({
@@ -490,12 +495,15 @@ export async function runOmnichain({
 
     await new Promise(setImmediate);
 
-    // TODO(kyle) block range
-    common.logger.info({
-      msg: "Indexed block range",
-      event_count: result.events.length,
-      duration: indexStartClock(),
-    });
+    for (const { chainId, events, blockRange } of result.result) {
+      common.logger.info({
+        msg: "Indexed block range",
+        chain: indexingBuild.chains.find((chain) => chain.id === chainId)!.name,
+        event_count: events.length,
+        block_range: JSON.stringify(blockRange),
+        duration: indexStartClock(),
+      });
+    }
   }
 
   indexingCache.clear();
