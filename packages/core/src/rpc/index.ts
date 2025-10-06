@@ -25,7 +25,6 @@ import {
   type PublicRpcSchema,
   type RpcError,
   TimeoutError,
-  // TimeoutError,
   isHex,
   webSocket,
 } from "viem";
@@ -411,7 +410,7 @@ export const createRpc = ({
 
               common.logger.debug({
                 service: "rpc",
-                msg: `RPC bucket '${chain.name}' ${bucket.index} rps limit lowered to ${bucket.rpsLimit}`,
+                msg: `RPC bucket '${chain.name}' ${bucket.index} rps limit lowered to ${Math.floor(bucket.rpsLimit)}`,
               });
 
               scheduleBucketActivation(bucket);
