@@ -740,7 +740,7 @@ export const createIndexing = ({
           }
         }
 
-        common.logger.info(
+        common.logger.debug(
           {
             msg: "Resolved event property access",
             total_access_count:

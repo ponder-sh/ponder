@@ -30,7 +30,7 @@ export const createExit = ({
       process.exit(code);
     }, SHUTDOWN_GRACE_PERIOD_MS);
 
-    common.logger[code === 0 ? "info" : "warn"]({
+    common.logger.warn({
       msg: "Started shutdown sequence",
     });
 
