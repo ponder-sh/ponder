@@ -158,9 +158,11 @@ const levels = {
 } as const;
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
-  hour: "numeric",
-  minute: "numeric",
-  second: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  fractionalSecondDigits: 3,
+  hour12: false,
 });
 
 const format = (log: Log) => {
@@ -190,7 +192,7 @@ const format = (log: Log) => {
     }
 
     prettyLog = [
-      `${pc.gray(time)} ${level} ${messageText}${keyText}${durationText}`,
+      `${pc.dim(time)} ${level} ${messageText}${keyText}${durationText}`,
     ];
   } else {
     const level = levelObject.label;
