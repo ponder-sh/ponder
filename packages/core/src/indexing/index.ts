@@ -759,10 +759,12 @@ export const createIndexing = ({
 
       await new Promise(setImmediate);
       updateCompletedEvents();
-      updateIndexingSeconds(
-        events[events.length - 1]!,
-        chainById[events[events.length - 1]!.chainId]!,
-      );
+      if (events.length > 0) {
+        updateIndexingSeconds(
+          events[events.length - 1]!,
+          chainById[events[events.length - 1]!.chainId]!,
+        );
+      }
     },
     async processRealtimeEvents({ events, db }) {
       context.db = db;
