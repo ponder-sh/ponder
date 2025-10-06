@@ -697,7 +697,7 @@ export async function handleRealtimeSyncEvent(
       }
 
       const context = {
-        logger: params.common.logger.child({ action: "finalize block range" }),
+        logger: params.common.logger.child({ action: "finalize_block_range" }),
       };
 
       await Promise.all([
@@ -827,7 +827,7 @@ export async function handleRealtimeSyncEvent(
           chainId: params.chain.id,
           blocks: event.reorgedBlocks,
         },
-        { logger: params.common.logger.child({ action: "reconcile reorg" }) },
+        { logger: params.common.logger.child({ action: "reconcile_reorg" }) },
       );
 
       break;

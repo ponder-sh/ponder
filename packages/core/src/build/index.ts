@@ -595,7 +595,9 @@ export const createBuild = async ({
       viteDevServer.watcher.on("change", onFileChange);
     },
     async rpcDiagnostic({ configBuild }) {
-      const context = { logger: common.logger.child({ action: "diagnostic" }) };
+      const context = {
+        logger: common.logger.child({ action: "rpc_diagnostic" }),
+      };
       const endClock = startClock();
 
       const results = await Promise.all(
@@ -640,7 +642,9 @@ export const createBuild = async ({
       return { status: "success", result: undefined };
     },
     async databaseDiagnostic({ preBuild }) {
-      const context = { logger: common.logger.child({ action: "diagnostic" }) };
+      const context = {
+        logger: common.logger.child({ action: "database_diagnostic" }),
+      };
       const endClock = startClock();
 
       const dialect = preBuild.databaseConfig.kind;

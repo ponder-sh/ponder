@@ -333,7 +333,7 @@ export async function runOmnichain({
     }
 
     const context = {
-      logger: common.logger.child({ action: "index block range" }),
+      logger: common.logger.child({ action: "index_block_range" }),
     };
     const indexStartClock = startClock();
 
@@ -601,7 +601,7 @@ export async function runOmnichain({
     switch (event.type) {
       case "block": {
         const context = {
-          logger: common.logger.child({ action: "index block" }),
+          logger: common.logger.child({ action: "index_block" }),
         };
         const endClock = startClock();
 
@@ -708,7 +708,7 @@ export async function runOmnichain({
       }
       case "reorg": {
         const context = {
-          logger: common.logger.child({ action: "reorg block" }),
+          logger: common.logger.child({ action: "reorg_block" }),
         };
         const endClock = startClock();
 
@@ -750,7 +750,7 @@ export async function runOmnichain({
       }
       case "finalize": {
         const context = {
-          logger: common.logger.child({ action: "finalize block" }),
+          logger: common.logger.child({ action: "finalize_block" }),
         };
         const endClock = startClock();
 

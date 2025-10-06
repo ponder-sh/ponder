@@ -327,7 +327,7 @@ export async function runMultichain({
     },
   )) {
     const context = {
-      logger: common.logger.child({ action: "index block range" }),
+      logger: common.logger.child({ action: "index_block_range" }),
     };
     const indexStartClock = startClock();
 
@@ -582,7 +582,7 @@ export async function runMultichain({
     switch (event.type) {
       case "block": {
         const context = {
-          logger: common.logger.child({ action: "index block" }),
+          logger: common.logger.child({ action: "index_block" }),
         };
         const endClock = startClock();
 
@@ -686,7 +686,7 @@ export async function runMultichain({
       }
       case "reorg": {
         const context = {
-          logger: common.logger.child({ action: "reorg block" }),
+          logger: common.logger.child({ action: "reorg_block" }),
         };
         const endClock = startClock();
 
@@ -732,7 +732,7 @@ export async function runMultichain({
       }
       case "finalize": {
         const context = {
-          logger: common.logger.child({ action: "finalize block" }),
+          logger: common.logger.child({ action: "finalize_block" }),
         };
         const endClock = startClock();
 

@@ -531,7 +531,7 @@ export const createIndexingCache = ({
     },
     async flush({ tableNames } = {}) {
       const context = {
-        logger: common.logger.child({ action: "write cached database rows" }),
+        logger: common.logger.child({ action: "flush_database_rows" }),
       };
       const flushEndClock = startClock();
 
@@ -1003,7 +1003,7 @@ export const createIndexingCache = ({
     },
     async prefetch({ events }) {
       const context = {
-        logger: common.logger.child({ action: "prefetch database rows" }),
+        logger: common.logger.child({ action: "prefetch_database_rows" }),
       };
 
       let totalBytes = 0;

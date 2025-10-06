@@ -287,7 +287,7 @@ export async function* getHistoricalEventsOmnichain(params: {
     }
 
     const context = {
-      logger: params.common.logger.child({ action: "refetch finalized block" }),
+      logger: params.common.logger.child({ action: "refetch_finalized_block" }),
     };
 
     const endClock = startClock();
@@ -518,7 +518,7 @@ export async function* getHistoricalEventsMultichain(params: {
     yield* mergeAsyncGenerators(eventGenerators);
 
     const context = {
-      logger: params.common.logger.child({ action: "refetch finalized block" }),
+      logger: params.common.logger.child({ action: "refetch_finalized_block" }),
     };
 
     const endClock = startClock();

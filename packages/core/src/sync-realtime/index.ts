@@ -201,7 +201,7 @@ export const createRealtimeSync = (
     } catch (_error) {
       const error = _error as Error;
       args.common.logger.warn({
-        msg: "Caught 'eth_getBlockReceipts' error, switching to 'eth_getTransactionReceipt' method",
+        msg: "Caught eth_getBlockReceipts error, switching to eth_getTransactionReceipt method",
         action: "fetch block data",
         chain: args.chain.name,
         error,
@@ -242,7 +242,7 @@ export const createRealtimeSync = (
     maybeBlockHeader: SyncBlock | SyncBlockHeader,
   ): Promise<BlockWithEventData> => {
     const context = {
-      logger: args.common.logger.child({ action: "fetch block data" }),
+      logger: args.common.logger.child({ action: "fetch_block_data" }),
     };
     const endClock = startClock();
 
@@ -317,8 +317,8 @@ export const createRealtimeSync = (
 
         if (isInvalidLogsBloom) {
           args.common.logger.warn({
-            msg: "Detected inconsistent RPC responses. Log not in 'block.logsBloom'",
-            action: "fetch block data",
+            msg: "Detected inconsistent RPC responses. Log not found in block.logsBloom.",
+            action: "fetch_block_data",
             chain: args.chain.name,
             number: hexToNumber(block.number),
             hash: block.hash,
@@ -332,7 +332,7 @@ export const createRealtimeSync = (
         if (log.transactionHash === zeroHash) {
           args.common.logger.warn({
             msg: "Detected log with empty transaction hash. This is expected for some chains like ZKsync.",
-            action: "fetch block data",
+            action: "fetch_block_data",
             chain: args.chain.name,
             number: hexToNumber(block.number),
             hash: block.hash,
@@ -347,8 +347,8 @@ export const createRealtimeSync = (
       args.sources.some((s) => s.filter.type === "log")
     ) {
       args.common.logger.trace({
-        msg: "Skipped fetching logs due to bloom filter result",
-        action: "fetch block data",
+        msg: "Skipped eth_getLogs request due to bloom filter result",
+        action: "fetch_block_data",
         chain: args.chain.name,
         number: hexToNumber(maybeBlockHeader.number),
         hash: maybeBlockHeader.hash,
@@ -761,7 +761,7 @@ export const createRealtimeSync = (
     block: SyncBlock | SyncBlockHeader,
   ): Promise<Extract<RealtimeSyncEvent, { type: "reorg" }>> => {
     const context = {
-      logger: args.common.logger.child({ action: "reconcile reorg" }),
+      logger: args.common.logger.child({ action: "reconcile_reorg" }),
     };
     const endClock = startClock();
 
@@ -923,7 +923,7 @@ export const createRealtimeSync = (
             { blockNumber },
             {
               logger: args.common.logger.child({
-                action: "fetch missing blocks",
+                action: "fetch_missing_blocks",
               }),
             },
           ).then((block) => fetchBlockEventData(block)),

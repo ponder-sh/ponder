@@ -244,7 +244,7 @@ export const createHistoricalSync = (
               hexToNumber(getLogsErrorResponse.ranges[0]!.fromBlock);
 
             args.common.logger.debug({
-              msg: "Updated 'eth_getLogs' range",
+              msg: "Updated eth_getLogs range",
               chain: args.chain.name,
               range,
             });
@@ -368,8 +368,8 @@ export const createHistoricalSync = (
     } catch (_error) {
       const error = _error as Error;
       args.common.logger.warn({
-        msg: "Caught 'eth_getBlockReceipts' error, switching to 'eth_getTransactionReceipt' method",
-        action: "fetch block data",
+        msg: "Caught eth_getBlockReceipts error, switching to eth_getTransactionReceipt method",
+        action: "fetch_block_data",
         chain: args.chain.name,
         error,
       });
@@ -569,7 +569,7 @@ export const createHistoricalSync = (
         if (log.transactionHash === zeroHash) {
           args.common.logger.warn({
             msg: "Detected log with empty transaction hash. This is expected for some chains like ZKsync.",
-            action: "fetch block data",
+            action: "fetch_block_data",
             chain: args.chain.name,
             number: hexToNumber(block.number),
             hash: block.hash,
@@ -848,7 +848,7 @@ export const createHistoricalSync = (
   return {
     async sync(_interval) {
       const context = {
-        logger: args.common.logger.child({ action: "fetch block data" }),
+        logger: args.common.logger.child({ action: "fetch_block_data" }),
       };
       const endClock = startClock();
 

@@ -667,7 +667,7 @@ export const createCachedViemClient = ({
     },
     async prefetch({ events }) {
       const context = {
-        logger: common.logger.child({ action: "prefetch JSON-RPC request" }),
+        logger: common.logger.child({ action: "prefetch_rpc_requests" }),
       };
       const prefetchEndClock = startClock();
 
