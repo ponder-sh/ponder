@@ -514,7 +514,7 @@ export async function runMultichain({
   common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
 
   common.logger.info({
-    msg: "Completed backfill",
+    msg: "Completed backfill indexing across all chains",
     duration: backfillEndClock(),
   });
   clearInterval(etaInterval);

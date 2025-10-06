@@ -176,7 +176,7 @@ export const createQB = <
 
       if (label) {
         logger.trace({
-          msg: "Sent database query",
+          msg: "Started database query",
           query: label,
           query_id: id,
         });
@@ -197,7 +197,7 @@ export const createQB = <
 
         if (label) {
           logger.trace({
-            msg: "Completed successful database query",
+            msg: "Completed database query",
             query: label,
             query_id: id,
             duration: endClock(),

@@ -527,8 +527,8 @@ export async function* getHistoricalEventsMultichain(params: {
       params.indexingBuild.chains.map((chain, i) => {
         const rpc = params.indexingBuild.rpcs[i]!;
 
-        return _eth_getBlockByNumber(rpc, { blockTag: "latest" }, context).then(
-          (latest) =>
+        return _eth_getBlockByNumber(rpc, { blockTag: "latest" }, context)
+          .then((latest) =>
             _eth_getBlockByNumber(
               rpc,
               {
@@ -539,14 +539,20 @@ export async function* getHistoricalEventsMultichain(params: {
               },
               context,
             ),
-        );
+          )
+          .then((finalizedBlock) => {
+            const finalizedBlockNumber = hexToNumber(finalizedBlock.number);
+            params.common.logger.debug({
+              msg: "Refetched finalized block for backfill cutover",
+              chain: chain.name,
+              finalized_block: finalizedBlockNumber,
+              duration: endClock(),
+            });
+
+            return finalizedBlock;
+          });
       }),
     );
-
-    params.common.logger.debug({
-      msg: "Refetched finalized blocks",
-      duration: endClock(),
-    });
 
     let shouldCatchup = false;
 
@@ -844,7 +850,7 @@ export async function* getLocalSyncGenerator(params: {
     params.syncProgress.current = params.syncProgress.finalized;
 
     params.common.logger.info({
-      msg: "Skipped JSON-RPC fetching backfill",
+      msg: "Skipped fetching JSON-RPC data for backfill",
       chain: params.chain.name,
       finalized_block: hexToNumber(params.syncProgress.finalized.number),
       start_block: hexToNumber(params.syncProgress.start.number),
@@ -952,7 +958,7 @@ export async function* getLocalSyncGenerator(params: {
     ) {
       if (params.isCatchup === false) {
         params.common.logger.info({
-          msg: "Skipped JSON-RPC fetching backfill",
+          msg: "Skipped fetching JSON-RPC data for backfill",
           chain: params.chain.name,
           cached_block: hexToNumber(params.syncProgress.current.number),
           cache_rate: "100%",
@@ -961,7 +967,7 @@ export async function* getLocalSyncGenerator(params: {
       return;
     } else if (params.isCatchup === false) {
       params.common.logger.info({
-        msg: "Started JSON-RPC fetching backfill",
+        msg: "Started fetching JSON-RPC data for backfill",
         chain: params.chain.name,
         cached_block: hexToNumber(params.syncProgress.current.number),
         cache_rate: formatPercentage((total - required) / total),
@@ -971,7 +977,7 @@ export async function* getLocalSyncGenerator(params: {
     cursor = hexToNumber(params.syncProgress.current.number) + 1;
   } else {
     params.common.logger.info({
-      msg: "Started JSON-RPC fetching backfill",
+      msg: "Started fetching JSON-RPC data for backfill",
       chain: params.chain.name,
       cache_rate: "0%",
     });
@@ -1042,7 +1048,7 @@ export async function* getLocalSyncGenerator(params: {
       );
 
       params.common.logger.trace({
-        msg: "Updated backfill JSON-RPC fetching range",
+        msg: "Updated block range estimate for JSON-RPC backfill",
         chain: params.chain.name,
         range: estimateRange,
       });
@@ -1052,7 +1058,7 @@ export async function* getLocalSyncGenerator(params: {
 
     if (params.syncProgress.isEnd() || params.syncProgress.isFinalized()) {
       params.common.logger.info({
-        msg: "Completed backfill JSON-RPC fetching",
+        msg: "Finished fetching JSON-RPC data for backfill",
         chain: params.chain.name,
         duration: backfillEndClock(),
       });
