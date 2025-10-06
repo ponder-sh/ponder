@@ -143,6 +143,10 @@ export const buildEvents = ({
 
     const block = blocks[blocksIndex]!;
 
+    if (block === undefined) {
+      throw new Error("Error buildings events from block data");
+    }
+
     while (
       transactionReceiptsIndex < transactionReceipts.length &&
       (transactionReceipts[transactionReceiptsIndex]!.blockNumber <
@@ -180,6 +184,10 @@ export const buildEvents = ({
           ? true
           : transactionReceipt.status === "success")
       ) {
+        if (filter.hasTransactionReceipt && transactionReceipt === undefined) {
+          throw new Error("Error buildings events from block data");
+        }
+
         events.push({
           chainId: filter.chainId,
           sourceIndex: transactionSourceIndex,
@@ -218,6 +226,10 @@ export const buildEvents = ({
 
     const block = blocks[blocksIndex]!;
 
+    if (block === undefined) {
+      throw new Error("Error buildings events from block data");
+    }
+
     while (
       transactionsIndex < transactions.length &&
       (transactions[transactionsIndex]!.blockNumber < blockNumber ||
@@ -234,6 +246,10 @@ export const buildEvents = ({
       transactions[transactionsIndex]!.transactionIndex === transactionIndex
     ) {
       transaction = transactions[transactionsIndex]!;
+    }
+
+    if (transaction === undefined) {
+      throw new Error("Error buildings events from block data");
     }
 
     while (
@@ -283,6 +299,10 @@ export const buildEvents = ({
           : filter.callType === trace.type) &&
         (filter.includeReverted ? true : trace.error === undefined)
       ) {
+        if (filter.hasTransactionReceipt && transactionReceipt === undefined) {
+          throw new Error("Error buildings events from block data");
+        }
+
         events.push({
           chainId: filter.chainId,
           sourceIndex: traceSourceIndex,
@@ -326,6 +346,10 @@ export const buildEvents = ({
           : true) &&
         (filter.includeReverted ? true : trace.error === undefined)
       ) {
+        if (filter.hasTransactionReceipt && transactionReceipt === undefined) {
+          throw new Error("Error buildings events from block data");
+        }
+
         events.push({
           chainId: filter.chainId,
           sourceIndex: transferSourceIndex,
@@ -366,6 +390,10 @@ export const buildEvents = ({
 
     const block = blocks[blocksIndex]!;
 
+    if (block === undefined) {
+      throw new Error("Error buildings events from block data");
+    }
+
     while (
       transactionsIndex < transactions.length &&
       (transactions[transactionsIndex]!.blockNumber < blockNumber ||
@@ -383,6 +411,9 @@ export const buildEvents = ({
     ) {
       transaction = transactions[transactionsIndex]!;
     }
+
+    // Note: transaction can be undefined, this is expected behavior on
+    // chains like zkSync.
 
     while (
       transactionReceiptsIndex < transactionReceipts.length &&
@@ -419,6 +450,10 @@ export const buildEvents = ({
             })
           : true)
       ) {
+        if (filter.hasTransactionReceipt && transactionReceipt === undefined) {
+          throw new Error("Error buildings events from block data");
+        }
+
         events.push({
           chainId: filter.chainId,
           sourceIndex: logSourceIndex,
