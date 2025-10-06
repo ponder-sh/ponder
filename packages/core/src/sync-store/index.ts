@@ -754,6 +754,7 @@ export const createSyncStore = ({
         )
         .orderBy(
           asc(PONDER_SYNC.traces.blockNumber),
+          asc(PONDER_SYNC.traces.transactionIndex),
           asc(PONDER_SYNC.traces.traceIndex),
         )
         .limit(limit);
