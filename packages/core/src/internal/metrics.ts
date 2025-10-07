@@ -1,5 +1,7 @@
 import { truncate } from "@/utils/truncate.js";
+import { getTableName, isTable } from "drizzle-orm";
 import prometheus from "prom-client";
+import type { IndexingBuild, SchemaBuild } from "./types.js";
 
 const sometimesIODurationMs = [
   0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10, 50, 100, 500, 1_000, 5_000,
@@ -152,11 +154,13 @@ export class MetricsService {
     this.ponder_historical_start_timestamp_seconds = new prometheus.Gauge({
       name: "ponder_historical_start_timestamp_seconds",
       help: "Timestamp at which historical indexing started",
+      labelNames: ["chain"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_end_timestamp_seconds = new prometheus.Gauge({
       name: "ponder_historical_end_timestamp_seconds",
       help: "Timestamp at which historical indexing ended",
+      labelNames: ["chain"] as const,
       registers: [this.registry],
     });
 
@@ -190,11 +194,6 @@ export class MetricsService {
       labelNames: ["chain"] as const,
       registers: [this.registry],
     });
-    // this.ponder_indexing_has_error = new prometheus.Gauge({
-    //   name: "ponder_indexing_has_error",
-    //   help: "Boolean (0 or 1) indicating if there is an indexing error",
-    //   registers: [this.registry],
-    // });
     this.ponder_indexing_function_duration = new prometheus.Histogram({
       name: "ponder_indexing_function_duration",
       help: "Duration of indexing function execution",
@@ -390,6 +389,36 @@ export class MetricsService {
    */
   async getMetrics() {
     return await this.registry.metrics();
+  }
+
+  initializeIndexingMetrics({
+    indexingBuild,
+    schemaBuild,
+  }: {
+    indexingBuild: Pick<IndexingBuild, "indexingFunctions">;
+    schemaBuild: SchemaBuild;
+  }) {
+    const tables = Object.values(schemaBuild.schema).filter(isTable);
+
+    for (const event of Object.keys(indexingBuild.indexingFunctions)) {
+      this.ponder_indexing_completed_events.inc({ event }, 0);
+    }
+
+    for (const table of tables) {
+      for (const type of ["complete", "hit", "miss"]) {
+        this.ponder_indexing_cache_requests_total.inc(
+          { table: getTableName(table), type },
+          0,
+        );
+      }
+
+      for (const method of ["find", "insert", "update", "delete"]) {
+        this.ponder_indexing_store_queries_total.inc(
+          { table: getTableName(table), method },
+          0,
+        );
+      }
+    }
   }
 
   resetIndexingMetrics() {

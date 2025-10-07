@@ -241,6 +241,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
         createServer({ common, database, apiBuild: apiBuildResult.result });
 
+        metrics.initializeIndexingMetrics({
+          indexingBuild: indexingBuildResult.result,
+          schemaBuild,
+        });
+
         if (preBuild.ordering === "omnichain") {
           runOmnichain({
             common,
