@@ -1,3 +1,4 @@
+import util from "node:util";
 import type { IndexingCache } from "@/indexing-store/cache.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
 import type { CachedViemClient } from "@/indexing/client.js";
@@ -823,7 +824,17 @@ export const createEventProxy = <
 
   const proxy = new Proxy<T>(
     // @ts-expect-error
-    {},
+    {
+      [util.inspect.custom]: (): T => {
+        const printableObject = {} as T;
+
+        for (const prop of defaultInclude) {
+          printableObject[prop] = proxy[prop];
+        }
+
+        return printableObject;
+      },
+    },
     {
       deleteProperty(_, prop) {
         if (
