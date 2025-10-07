@@ -214,7 +214,9 @@ export const createSyncStore = ({
               .select({ blocks: sql.raw("unnest(blocks)").as("blocks") })
               .from(PONDER_SYNC.intervals)
               .where(
-                inArray(PONDER_SYNC.intervals.fragmentId, fragment.adjacentIds),
+                sql.raw(
+                  `fragment_id IN (${fragment.adjacentIds.map((id) => `'${id}'`).join(", ")})`,
+                ),
               )
               .as("unnested"),
           ),
