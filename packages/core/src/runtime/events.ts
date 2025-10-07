@@ -144,7 +144,9 @@ export const buildEvents = ({
     const block = blocks[blocksIndex]!;
 
     if (block === undefined) {
-      throw new Error("Error buildings events from block data");
+      throw new Error(
+        `Failed to build events from block data. Missing block ${blockNumber} for chain ID ${chainId}`,
+      );
     }
 
     while (
@@ -185,7 +187,9 @@ export const buildEvents = ({
           : transactionReceipt.status === "success")
       ) {
         if (filter.hasTransactionReceipt && transactionReceipt === undefined) {
-          throw new Error("Error buildings events from block data");
+          throw new Error(
+            `Failed to build events from block data. Missing transaction receipt for block ${blockNumber} and transaction index ${transactionIndex} for chain ID ${chainId}`,
+          );
         }
 
         events.push({
@@ -227,7 +231,9 @@ export const buildEvents = ({
     const block = blocks[blocksIndex]!;
 
     if (block === undefined) {
-      throw new Error("Error buildings events from block data");
+      throw new Error(
+        `Failed to build events from block data. Missing block ${blockNumber} for chain ID ${chainId}`,
+      );
     }
 
     while (
@@ -249,7 +255,9 @@ export const buildEvents = ({
     }
 
     if (transaction === undefined) {
-      throw new Error("Error buildings events from block data");
+      throw new Error(
+        `Failed to build events from block data. Missing transaction for block ${blockNumber} and transaction index ${transactionIndex} for chain ID ${chainId}`,
+      );
     }
 
     while (
@@ -300,7 +308,9 @@ export const buildEvents = ({
         (filter.includeReverted ? true : trace.error === undefined)
       ) {
         if (filter.hasTransactionReceipt && transactionReceipt === undefined) {
-          throw new Error("Error buildings events from block data");
+          throw new Error(
+            `Failed to build events from block data. Missing transaction receipt for block ${blockNumber} and transaction index ${transactionIndex} for chain ID ${chainId}`,
+          );
         }
 
         events.push({
@@ -347,7 +357,9 @@ export const buildEvents = ({
         (filter.includeReverted ? true : trace.error === undefined)
       ) {
         if (filter.hasTransactionReceipt && transactionReceipt === undefined) {
-          throw new Error("Error buildings events from block data");
+          throw new Error(
+            `Failed to build events from block data. Missing transaction receipt for block ${blockNumber} and transaction index ${transactionIndex} for chain ID ${chainId}`,
+          );
         }
 
         events.push({
@@ -391,7 +403,9 @@ export const buildEvents = ({
     const block = blocks[blocksIndex]!;
 
     if (block === undefined) {
-      throw new Error("Error buildings events from block data");
+      throw new Error(
+        `Failed to build events from block data. Missing block ${blockNumber} for chain ID ${chainId}`,
+      );
     }
 
     while (
@@ -451,7 +465,9 @@ export const buildEvents = ({
           : true)
       ) {
         if (filter.hasTransactionReceipt && transactionReceipt === undefined) {
-          throw new Error("Error buildings events from block data");
+          throw new Error(
+            `Failed to build events from block data. Missing transaction receipt for block ${blockNumber} and transaction index ${transactionIndex} for chain ID ${chainId}`,
+          );
         }
 
         events.push({
