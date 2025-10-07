@@ -1,5 +1,11 @@
 # ponder
 
+## 0.13.12
+
+### Patch Changes
+
+- [#2098](https://github.com/ponder-sh/ponder/pull/2098) [`35f9716`](https://github.com/ponder-sh/ponder/commit/35f9716facdd922536bfdad30ce5907aa3650f67) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that would cause `event.block`, `event.transaction`, `event.transactionReceipt`, and `event.trace` to be an empty object when console logged.
+
 ## 0.13.11
 
 ### Patch Changes
