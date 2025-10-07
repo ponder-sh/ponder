@@ -77,6 +77,9 @@ export function buildPre({
         connectionString,
         max: config.database.poolConfig?.max ?? 30,
         ssl: config.database.poolConfig?.ssl ?? false,
+        idleInTransactionSessionTimeout:
+          config.database.poolConfig?.idleInTransactionSessionTimeout ??
+          3600000,
       };
 
       databaseConfig = { kind: "postgres", poolConfig };
@@ -106,7 +109,11 @@ export function buildPre({
         msg: `Using Postgres database ${getDatabaseName(connectionString)} (${source})`,
       });
 
-      const poolConfig = { connectionString, max: 30 };
+      const poolConfig = {
+        connectionString,
+        max: 30,
+        idleInTransactionSessionTimeout: 3600000,
+      };
 
       databaseConfig = { kind: "postgres", poolConfig };
     } else {
