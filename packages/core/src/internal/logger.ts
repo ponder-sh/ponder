@@ -114,24 +114,33 @@ export function createLogger({
     };
   };
 
-  const logger = pino(
-    {
-      level,
-      serializers: {
-        error: pino.stdSerializers.wrapErrorSerializer((error) => {
-          error.meta = Array.isArray(error.meta)
-            ? error.meta.join("\n")
-            : error.meta;
-          // @ts-ignore
-          error.type = undefined;
-          return error;
-        }),
+  const errorSerializer = pino.stdSerializers.wrapErrorSerializer((error) => {
+    error.meta = Array.isArray(error.meta) ? error.meta.join("\n") : error.meta;
+    // @ts-ignore
+    error.type = undefined;
+    return error;
+  });
+
+  let logger: pino.Logger;
+
+  if (mode === "pretty") {
+    logger = pino(
+      {
+        level,
+        serializers: { error: errorSerializer },
+        // Removes "pid" and "hostname" properties from the log.
+        base: undefined,
       },
+      stream,
+    );
+  } else {
+    logger = pino({
+      level,
+      serializers: { error: errorSerializer },
       // Removes "pid" and "hostname" properties from the log.
       base: undefined,
-    },
-    mode === "pretty" ? stream : pino.destination({ sync: false }),
-  );
+    });
+  }
 
   return _createLogger(logger);
 }

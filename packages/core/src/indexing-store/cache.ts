@@ -7,6 +7,7 @@ import {
   CopyFlushError,
   DelayedInsertError,
   RetryableError,
+  ShutdownError,
 } from "@/internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
@@ -995,6 +996,9 @@ export const createIndexingCache = ({
             (result): result is PromiseRejectedResult =>
               result.status === "rejected",
           )!;
+          if (rejected.reason instanceof ShutdownError) {
+            throw rejected.reason;
+          }
           throw new RetryableError(rejected.reason.message);
         }
       }
