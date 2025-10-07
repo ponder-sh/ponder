@@ -104,7 +104,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
       if (result.status === "error") {
         // This handles indexing function build failures on hot reload.
-        metrics.ponder_indexing_has_error.set(1);
+        metrics.hasError = true;
         return;
       }
 

@@ -436,7 +436,11 @@ export function buildGraphQLSchema({
       }[];
 
       const status: Status = {};
-      for (const { chain_name, chain_id, latest_checkpoint } of checkpoints) {
+      for (const {
+        chain_name,
+        chain_id,
+        latest_checkpoint,
+      } of checkpoints.sort((a, b) => (a.chain_id > b.chain_id ? 1 : -1))) {
         status[chain_name] = {
           id: Number(chain_id),
           block: {
