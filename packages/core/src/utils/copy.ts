@@ -1,3 +1,5 @@
+import util from "node:util";
+
 /**
  * Symbol used to mark objects that are copied on write.
  */
@@ -8,6 +10,11 @@ export const COPY_ON_WRITE = Symbol.for("ponder:copyOnWrite");
  */
 export const copyOnWrite = <T extends object>(obj: T): T => {
   let copiedObject: T | undefined;
+
+  // @ts-ignore
+  obj[util.inspect.custom] = () => {
+    return copiedObject ?? obj;
+  };
 
   return new Proxy<T>(obj, {
     get(target, prop, receiver) {
