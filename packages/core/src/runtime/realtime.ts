@@ -31,6 +31,7 @@ import {
   min,
 } from "@/utils/checkpoint.js";
 import {
+  bufferAsyncGenerator,
   createCallbackGenerator,
   mergeAsyncGenerators,
 } from "@/utils/generators.js";
@@ -148,26 +149,24 @@ export async function* getRealtimeEventsOmnichain(params: {
         const events = buildEvents({
           sources,
           chainId: chain.id,
-          blockData: {
-            block: syncBlockToInternal({ block: event.block }),
-            logs: event.logs.map((log) => syncLogToInternal({ log })),
-            transactions: event.transactions.map((transaction) =>
-              syncTransactionToInternal({ transaction }),
-            ),
-            transactionReceipts: event.transactionReceipts.map(
-              (transactionReceipt) =>
-                syncTransactionReceiptToInternal({ transactionReceipt }),
-            ),
-            traces: event.traces.map((trace) =>
-              syncTraceToInternal({
-                trace,
-                block: event.block,
-                transaction: event.transactions.find(
-                  (t) => t.hash === trace.transactionHash,
-                )!,
-              }),
-            ),
-          },
+          blocks: [syncBlockToInternal({ block: event.block })],
+          logs: event.logs.map((log) => syncLogToInternal({ log })),
+          transactions: event.transactions.map((transaction) =>
+            syncTransactionToInternal({ transaction }),
+          ),
+          transactionReceipts: event.transactionReceipts.map(
+            (transactionReceipt) =>
+              syncTransactionReceiptToInternal({ transactionReceipt }),
+          ),
+          traces: event.traces.map((trace) =>
+            syncTraceToInternal({
+              trace,
+              block: event.block,
+              transaction: event.transactions.find(
+                (t) => t.hash === trace.transactionHash,
+              )!,
+            }),
+          ),
           childAddresses,
         });
 
@@ -395,26 +394,24 @@ export async function* getRealtimeEventsMultichain(params: {
         const events = buildEvents({
           sources,
           chainId: chain.id,
-          blockData: {
-            block: syncBlockToInternal({ block: event.block }),
-            logs: event.logs.map((log) => syncLogToInternal({ log })),
-            transactions: event.transactions.map((transaction) =>
-              syncTransactionToInternal({ transaction }),
-            ),
-            transactionReceipts: event.transactionReceipts.map(
-              (transactionReceipt) =>
-                syncTransactionReceiptToInternal({ transactionReceipt }),
-            ),
-            traces: event.traces.map((trace) =>
-              syncTraceToInternal({
-                trace,
-                block: event.block,
-                transaction: event.transactions.find(
-                  (t) => t.hash === trace.transactionHash,
-                )!,
-              }),
-            ),
-          },
+          blocks: [syncBlockToInternal({ block: event.block })],
+          logs: event.logs.map((log) => syncLogToInternal({ log })),
+          transactions: event.transactions.map((transaction) =>
+            syncTransactionToInternal({ transaction }),
+          ),
+          transactionReceipts: event.transactionReceipts.map(
+            (transactionReceipt) =>
+              syncTransactionReceiptToInternal({ transactionReceipt }),
+          ),
+          traces: event.traces.map((trace) =>
+            syncTraceToInternal({
+              trace,
+              block: event.block,
+              transaction: event.transactions.find(
+                (t) => t.hash === trace.transactionHash,
+              )!,
+            }),
+          ),
           childAddresses,
         });
 
@@ -596,7 +593,10 @@ export async function* getRealtimeEventGenerator(params: {
       onComplete(isAccepted);
     });
 
-    for await (const event of syncGenerator) {
+    for await (const event of bufferAsyncGenerator(
+      syncGenerator,
+      Number.POSITIVE_INFINITY,
+    )) {
       yield { chain: params.chain, event };
     }
 

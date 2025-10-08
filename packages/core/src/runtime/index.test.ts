@@ -545,7 +545,7 @@ test("historical events match realtime events", async (context) => {
     chainId: 1,
   });
 
-  const { blockData: historicalBlockData } = await syncStore.getEventBlockData({
+  const { logs: historicalLogs } = await syncStore.getEventData({
     filters: [sources[0]!.filter],
     fromBlock: 0,
     toBlock: 10,
@@ -567,7 +567,7 @@ test("historical events match realtime events", async (context) => {
 
   // Note: blocks and transactions are not asserted because they are non deterministic
 
-  expect(historicalBlockData[0]!.logs).toMatchInlineSnapshot(`
+  expect(historicalLogs).toMatchInlineSnapshot(`
     [
       {
         "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",

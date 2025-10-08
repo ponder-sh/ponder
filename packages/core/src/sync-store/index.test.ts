@@ -1080,7 +1080,7 @@ test("getEventBlockData() returns events", async (context) => {
     include: [],
   } satisfies LogFilter;
 
-  const { blockData } = await syncStore.getEventBlockData({
+  const { blocks } = await syncStore.getEventData({
     filters: [filter],
     fromBlock: 0,
     toBlock: 10,
@@ -1088,7 +1088,7 @@ test("getEventBlockData() returns events", async (context) => {
     limit: 10,
   });
 
-  expect(blockData).toHaveLength(1);
+  expect(blocks).toHaveLength(1);
 });
 
 test("getEventBlockData() pagination", async (context) => {
@@ -1123,7 +1123,7 @@ test("getEventBlockData() pagination", async (context) => {
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
-  const { blockData, cursor } = await syncStore.getEventBlockData({
+  const { blocks, cursor } = await syncStore.getEventData({
     filters: [sources[0]!.filter],
     fromBlock: 0,
     toBlock: 10,
@@ -1131,9 +1131,9 @@ test("getEventBlockData() pagination", async (context) => {
     limit: 1,
   });
 
-  expect(blockData).toHaveLength(1);
+  expect(blocks).toHaveLength(1);
 
-  const { blockData: blockData2 } = await syncStore.getEventBlockData({
+  const { blocks: blocks2 } = await syncStore.getEventData({
     filters: [sources[0]!.filter],
     fromBlock: cursor,
     toBlock: 10,
@@ -1141,7 +1141,7 @@ test("getEventBlockData() pagination", async (context) => {
     limit: 1,
   });
 
-  expect(blockData2).toHaveLength(1);
+  expect(blocks2).toHaveLength(1);
 });
 
 test("insertRpcRequestResults() ", async (context) => {
@@ -1303,7 +1303,7 @@ test("getEventBlockData() pagination with multiple filters", async (context) => 
     chainId: 1,
   });
 
-  const { blockData, cursor } = await syncStore.getEventBlockData({
+  const { blocks, cursor } = await syncStore.getEventData({
     filters: [erc20Sources[0]!.filter, blockSources[0]!.filter],
     fromBlock: 0,
     toBlock: 10,
@@ -1311,7 +1311,7 @@ test("getEventBlockData() pagination with multiple filters", async (context) => 
     limit: 3,
   });
 
-  expect(blockData).toHaveLength(2);
+  expect(blocks).toHaveLength(2);
   expect(cursor).toBe(10);
 });
 

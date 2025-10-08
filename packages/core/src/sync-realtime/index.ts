@@ -93,7 +93,7 @@ type CreateRealtimeSyncParameters = {
 };
 
 const MAX_LATEST_BLOCK_ATTEMPT_MS = 10 * 60 * 1000; // 10 minutes
-const MAX_QUEUED_BLOCKS = 25;
+const MAX_QUEUED_BLOCKS = 50;
 
 export const createRealtimeSync = (
   args: CreateRealtimeSyncParameters,
@@ -113,7 +113,11 @@ export const createRealtimeSync = (
    * `parentHash` => `hash`.
    */
   let unfinalizedBlocks: LightBlock[] = [];
+  /** Closest-to-tip block that has been fetched but not yet reconciled. */
+  let latestFetchedBlock: LightBlock | undefined;
   let fetchAndReconcileLatestBlockErrorCount = 0;
+
+  const realtimeSyncLock = createLock();
 
   const factories: Factory[] = [];
   const logFilters: LogFilter[] = [];
@@ -1107,8 +1111,6 @@ export const createRealtimeSync = (
     }
   };
 
-  const realtimeSyncLock = createLock();
-
   return {
     async *sync(block, blockCallback) {
       try {
@@ -1122,7 +1124,10 @@ export const createRealtimeSync = (
         const latestBlock = getLatestUnfinalizedBlock();
 
         // We already saw and handled this block. No-op.
-        if (latestBlock.hash === block.hash) {
+        if (
+          latestBlock.hash === block.hash ||
+          latestFetchedBlock?.hash === block.hash
+        ) {
           args.common.logger.trace({
             msg: "Detected duplicate block",
             chain: args.chain.name,
@@ -1133,6 +1138,12 @@ export const createRealtimeSync = (
 
           return;
         }
+
+        // Note: It's possible that a block with the same hash as `block` is
+        // currently being fetched but hasn't been fully reconciled. `latestFetchedBlock`
+        // is used to handle this case.
+
+        latestFetchedBlock = block;
 
         const blockWithEventData = await fetchBlockEventData(block);
 
@@ -1145,6 +1156,8 @@ export const createRealtimeSync = (
         } finally {
           realtimeSyncLock.unlock();
         }
+
+        latestFetchedBlock = undefined;
 
         fetchAndReconcileLatestBlockErrorCount = 0;
       } catch (_error) {

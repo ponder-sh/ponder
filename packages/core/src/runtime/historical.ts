@@ -669,28 +669,35 @@ export async function refetchLocalEvents(params: {
   while (cursor <= toBlock) {
     const queryEndClock = startClock();
 
-    const { blockData, cursor: queryCursor } =
-      await params.syncStore.getEventBlockData({
-        filters: params.sources.map(({ filter }) => filter),
-        fromBlock: cursor,
-        toBlock,
-        chainId: params.chain.id,
-        limit: params.events.length,
-      });
+    const {
+      blocks,
+      logs,
+      transactions,
+      transactionReceipts,
+      traces,
+      cursor: queryCursor,
+    } = await params.syncStore.getEventData({
+      filters: params.sources.map(({ filter }) => filter),
+      fromBlock: cursor,
+      toBlock,
+      chainId: params.chain.id,
+      limit: params.events.length,
+    });
 
     const endClock = startClock();
-
-    const rawEvents = blockData.flatMap((bd) =>
-      buildEvents({
-        sources: params.sources,
-        blockData: bd,
-        childAddresses: params.childAddresses,
-        chainId: params.chain.id,
-      }),
-    );
+    const rawEvents = buildEvents({
+      sources: params.sources,
+      blocks,
+      logs,
+      transactions,
+      transactionReceipts,
+      traces,
+      childAddresses: params.childAddresses,
+      chainId: params.chain.id,
+    });
 
     params.common.logger.trace({
-      msg: "Constructed events from blocks",
+      msg: "Constructed events from block data",
       chain: params.chain.name,
       block_range: JSON.stringify([cursor, queryCursor]),
       event_count: rawEvents.length,
@@ -751,28 +758,35 @@ export async function* getLocalEventGenerator(params: {
     while (cursor <= Math.min(syncCursor, toBlock)) {
       const queryEndClock = startClock();
 
-      const { blockData, cursor: queryCursor } =
-        await params.syncStore.getEventBlockData({
-          filters: params.sources.map(({ filter }) => filter),
-          fromBlock: cursor,
-          toBlock: Math.min(syncCursor, toBlock),
-          chainId: params.chain.id,
-          limit: params.limit,
-        });
+      const {
+        blocks,
+        logs,
+        transactions,
+        transactionReceipts,
+        traces,
+        cursor: queryCursor,
+      } = await params.syncStore.getEventData({
+        filters: params.sources.map(({ filter }) => filter),
+        fromBlock: cursor,
+        toBlock: Math.min(syncCursor, toBlock),
+        chainId: params.chain.id,
+        limit: params.limit,
+      });
 
       const endClock = startClock();
-
-      const events = blockData.flatMap((bd) =>
-        buildEvents({
-          sources: params.sources,
-          blockData: bd,
-          childAddresses: params.childAddresses,
-          chainId: params.chain.id,
-        }),
-      );
+      const events = buildEvents({
+        sources: params.sources,
+        blocks,
+        logs,
+        transactions,
+        transactionReceipts,
+        traces,
+        childAddresses: params.childAddresses,
+        chainId: params.chain.id,
+      });
 
       params.common.logger.trace({
-        msg: "Constructed events from blocks",
+        msg: "Constructed events from block data",
         chain: params.chain.name,
         block_range: JSON.stringify([cursor, queryCursor]),
         event_count: events.length,
@@ -799,12 +813,12 @@ export async function* getLocalEventGenerator(params: {
       cursor = queryCursor + 1;
       if (cursor >= toBlock) {
         yield { events, checkpoint: params.to, blockRange };
-      } else if (blockData.length > 0) {
+      } else if (blocks.length > 0) {
         const checkpoint = encodeCheckpoint({
           ...MAX_CHECKPOINT,
-          blockTimestamp: blockData[blockData.length - 1]!.block.timestamp,
+          blockTimestamp: blocks[blocks.length - 1]!.timestamp,
           chainId: BigInt(params.chain.id),
-          blockNumber: blockData[blockData.length - 1]!.block.number,
+          blockNumber: blocks[blocks.length - 1]!.number,
         });
         yield { events, checkpoint, blockRange };
       }
