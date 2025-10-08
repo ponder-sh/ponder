@@ -485,8 +485,10 @@ export const createRpc = ({
               decreaseMaxRPS(bucket);
 
               common.logger.debug({
-                service: "rpc",
-                msg: `RPC bucket '${chain.name}' ${bucket.index} rps limit lowered to ${Math.floor(bucket.rpsLimit)}`,
+                msg: "JSON-RPC provider rate limited",
+                chain: chain.name,
+                hostname: bucket.hostname,
+                rps_limit: Math.floor(bucket.rpsLimit),
               });
 
               scheduleBucketActivation(bucket);
