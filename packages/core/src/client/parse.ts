@@ -46,8 +46,6 @@ export const validateQuery = async (
 
       if (result) return;
       throw new Error("Invalid query");
-    } else {
-      ALLOW_CACHE.set(hash, false);
     }
   }
 
@@ -58,25 +56,30 @@ export const validateQuery = async (
   };
 
   if (parseResult.error !== null) {
+    ALLOW_CACHE.set(hash, false);
     throw new Error(parseResult.error);
   }
 
   if (parseResult.parse_tree.stmts.length === 0) {
+    ALLOW_CACHE.set(hash, false);
     throw new Error("Invalid query");
   }
 
   if (parseResult.parse_tree.stmts.length > 1) {
+    ALLOW_CACHE.set(hash, false);
     throw new Error("Multiple statements not supported");
   }
 
   const stmt = parseResult.parse_tree.stmts[0]!;
 
   if (stmt.stmt === undefined) {
+    ALLOW_CACHE.set(hash, false);
     throw new Error("Invalid query");
   }
 
   const validate = (node: Node) => {
     if (ALLOW_LIST.has(getNodeType(node)) === false) {
+      ALLOW_CACHE.set(hash, false);
       throw new Error(`${getNodeType(node)} not supported`);
     }
 
