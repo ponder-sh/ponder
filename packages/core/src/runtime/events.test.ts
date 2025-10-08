@@ -379,10 +379,15 @@ test("decodeEvents() trace w/o output", async (context) => {
     address: zeroAddress,
     includeCallTraces: true,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   // Remove output from the trace abi
