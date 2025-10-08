@@ -81,12 +81,12 @@ const LATENCY_HURDLE_RATE = 0.1;
 /** Exploration rate. */
 const EPSILON = 0.1;
 const INITIAL_MAX_RPS = 20;
-const MIN_RPS = 1;
+const MIN_RPS = 3;
 const MAX_RPS = 500;
 const RPS_INCREASE_FACTOR = 1.05;
 const RPS_DECREASE_FACTOR = 0.95;
-const RPS_INCREASE_QUALIFIER = 0.8;
-const SUCCESS_WINDOW_SIZE = 100;
+const RPS_INCREASE_QUALIFIER = 0.9;
+const SUCCESS_MULTIPLIER = 5;
 
 type Bucket = {
   index: number;
@@ -108,7 +108,7 @@ type Bucket = {
   };
   expectedLatency: number;
 
-  requestTimestamps: number[];
+  rps: { count: number; timestamp: number }[];
   /** Number of consecutive successful requests. */
   consecutiveSuccessfulRequests: number;
   /** Maximum requests per second (dynamic). */
@@ -138,10 +138,18 @@ const addLatency = (bucket: Bucket, latency: number, success: boolean) => {
 };
 
 const addRequestTimestamp = (bucket: Bucket) => {
-  const timestamp = Date.now() / 1000;
-  bucket.requestTimestamps.push(timestamp);
-  while (timestamp - bucket.requestTimestamps[0]! > 5) {
-    bucket.requestTimestamps.shift()!;
+  const timestamp = Math.floor(Date.now() / 1000);
+  if (
+    bucket.rps.length === 0 ||
+    bucket.rps[bucket.rps.length - 1]!.timestamp < timestamp
+  ) {
+    bucket.rps.push({ count: 1, timestamp });
+  } else {
+    bucket.rps[bucket.rps.length - 1]!.count++;
+  }
+
+  if (bucket.rps.length > 10) {
+    bucket.rps.shift()!;
   }
 };
 
@@ -149,29 +157,28 @@ const addRequestTimestamp = (bucket: Bucket) => {
  * Calculate the requests per second for a bucket
  * using historical request timestamps.
  */
-const getRPS = (bucket: Bucket) => {
-  const timestamp = Date.now() / 1000;
-  while (
-    bucket.requestTimestamps.length > 0 &&
-    timestamp - bucket.requestTimestamps[0]! > 5
-  ) {
-    bucket.requestTimestamps.shift()!;
-  }
+const getRPS = (bucket: Bucket, window: 1 | 10) => {
+  const timestamp = Math.floor(Date.now() / 1000);
 
-  if (bucket.requestTimestamps.length === 0) return 0;
+  const rps = bucket.rps.filter((r) => timestamp - r.timestamp < window);
 
-  const t =
-    bucket.requestTimestamps[bucket.requestTimestamps.length - 1]! -
-    bucket.requestTimestamps[0]! +
-    1;
-  return bucket.requestTimestamps.length / t;
+  const requests = rps.reduce((acc, r) => acc + r.count, 0);
+  const seconds = rps.length <= 1 ? 1 : timestamp - rps[0]!.timestamp + 1;
+
+  return requests / seconds;
 };
 
 /**
  * Return `true` if the bucket is available to send a request.
  */
 const isAvailable = (bucket: Bucket) => {
-  if (bucket.isActive && getRPS(bucket) < bucket.rpsLimit) return true;
+  if (
+    bucket.isActive &&
+    getRPS(bucket, 1) < bucket.rpsLimit &&
+    getRPS(bucket, 10) < bucket.rpsLimit
+  ) {
+    return true;
+  }
 
   if (bucket.isActive && bucket.isWarmingUp && bucket.activeConnections < 3) {
     return true;
@@ -181,9 +188,10 @@ const isAvailable = (bucket: Bucket) => {
 };
 
 const increaseMaxRPS = (bucket: Bucket) => {
+  const rps = getRPS(bucket, 10);
   if (
-    bucket.consecutiveSuccessfulRequests >= SUCCESS_WINDOW_SIZE &&
-    getRPS(bucket) > bucket.rpsLimit * RPS_INCREASE_QUALIFIER
+    bucket.consecutiveSuccessfulRequests >= rps * SUCCESS_MULTIPLIER &&
+    rps > bucket.rpsLimit * RPS_INCREASE_QUALIFIER
   ) {
     const newRPSLimit = Math.min(
       bucket.rpsLimit * RPS_INCREASE_FACTOR,
@@ -303,7 +311,7 @@ export const createRpc = ({
         },
         expectedLatency: 200,
 
-        requestTimestamps: [],
+        rps: [],
         consecutiveSuccessfulRequests: 0,
         rpsLimit: INITIAL_MAX_RPS,
 
@@ -311,10 +319,10 @@ export const createRpc = ({
       }) satisfies Bucket,
   );
 
+  let noAvailableBucketsTimer: NodeJS.Timeout | undefined;
+
   /** Tracks all active bucket reactivation timeouts to cleanup during shutdown */
   const timeouts = new Set<NodeJS.Timeout>();
-
-  // TODO(kyle) log warn if no buckets are available
 
   const scheduleBucketActivation = (bucket: Bucket) => {
     const timeoutId = setTimeout(() => {
@@ -322,7 +330,7 @@ export const createRpc = ({
       bucket.isWarmingUp = true;
       timeouts.delete(timeoutId);
       common.logger.debug({
-        msg: "JSON-RPC provider reactivated",
+        msg: "JSON-RPC provider reactivated after rate limiting",
         chain: chain.name,
         hostname: bucket.hostname,
         retry_delay: Math.round(bucket.reactivationDelay),
@@ -330,7 +338,7 @@ export const createRpc = ({
     }, bucket.reactivationDelay);
 
     common.logger.debug({
-      msg: "JSON-RPC provider deactivated",
+      msg: "JSON-RPC provider deactivated due to rate limiting",
       chain: chain.name,
       hostname: bucket.hostname,
       retry_delay: Math.round(bucket.reactivationDelay),
@@ -343,9 +351,21 @@ export const createRpc = ({
     const availableBuckets = buckets.filter(isAvailable);
 
     if (availableBuckets.length === 0) {
+      if (noAvailableBucketsTimer === undefined) {
+        noAvailableBucketsTimer = setTimeout(() => {
+          common.logger.warn({
+            msg: "All JSON-RPC providers are inactive due to rate limiting",
+            chain: chain.name,
+          });
+        }, 5_000);
+      }
+
       await wait(10);
       return getBucket();
     }
+
+    clearTimeout(noAvailableBucketsTimer);
+    noAvailableBucketsTimer = undefined;
 
     if (Math.random() < EPSILON) {
       const randomBucket =
