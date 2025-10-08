@@ -311,7 +311,7 @@ export const finalize = async (
     namespaceBuild: NamespaceBuild;
   },
   context?: { logger?: Logger },
-): Promise<number[]> => {
+): Promise<void> => {
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
 
   if (tables.length === 0) {
@@ -322,7 +322,7 @@ export const finalize = async (
           .set({ finalizedCheckpoint: checkpoint, safeCheckpoint: checkpoint }),
       context,
     );
-    return [];
+    return;
   }
 
   // NOTE: It is invariant that PONDER_CHECKPOINT has a value for each chain.
@@ -330,8 +330,6 @@ export const finalize = async (
   return qb.transaction(
     { label: "finalize" },
     async (tx) => {
-      const counts: number[] = [];
-
       if (preBuild.ordering === "multichain") {
         await tx.wrap((tx) =>
           tx
@@ -388,13 +386,7 @@ WHERE checkpoint > (
     GROUP BY SUBSTRING(checkpoint, 11, 16)::numeric;`),
         );
 
-        for (const {
-          chain_id,
-          safe_checkpoint,
-          deleted_count,
-        } of result.rows) {
-          counts.push(Number(deleted_count));
-
+        for (const { chain_id, safe_checkpoint } of result.rows) {
           await tx.wrap((tx) =>
             tx
               .update(PONDER_CHECKPOINT)
@@ -411,7 +403,7 @@ WHERE checkpoint > (
         );
 
         for (const table of tables) {
-          const count = await tx
+          await tx
             .wrap((tx) =>
               tx.execute(`
 WITH deleted AS (
@@ -421,12 +413,8 @@ WITH deleted AS (
 ) SELECT COUNT(*) AS deleted_count FROM deleted;`),
             )
             .then((result) => Number(result.rows[0]!.deleted_count));
-
-          counts.push(count);
         }
       }
-
-      return counts;
     },
     undefined,
     context,

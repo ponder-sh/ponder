@@ -736,7 +736,7 @@ export async function runMultichain({
         };
         const endClock = startClock();
 
-        const counts = await finalize(
+        await finalize(
           database.userQB,
           {
             checkpoint: event.checkpoint,
@@ -746,14 +746,6 @@ export async function runMultichain({
           },
           context,
         );
-
-        for (const [index, table] of tables.entries()) {
-          common.logger.debug({
-            msg: "Finalized database rows",
-            table: getTableName(table),
-            row_count: counts[index],
-          });
-        }
 
         common.logger.info({
           msg: "Finalized block",
