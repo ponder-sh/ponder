@@ -20,7 +20,7 @@ import {
   getPairWithFactoryConfigAndIndexingFunctions,
   testClient,
 } from "@/_test/utils.js";
-import { buildConfigAndIndexingFunctions } from "@/build/config.js";
+import { buildConfig, buildIndexingFunctions } from "@/build/config.js";
 import type {
   BlockFilter,
   Factory,
@@ -478,10 +478,12 @@ test("getChildAddresses()", async (context) => {
     getPairWithFactoryConfigAndIndexingFunctions({
       address,
     });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common: context.common, config });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
   const filter = sources[0]!.filter as LogFilter<Factory>;
 
@@ -511,10 +513,12 @@ test("getChildAddresses() empty", async (context) => {
     getPairWithFactoryConfigAndIndexingFunctions({
       address,
     });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common: context.common, config });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const filter = sources[0]!.filter as LogFilter<Factory>;
@@ -536,10 +540,12 @@ test("getChildAddresses() distinct", async (context) => {
     getPairWithFactoryConfigAndIndexingFunctions({
       address,
     });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common: context.common, config });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
   const filter = sources[0]!.filter as LogFilter<Factory>;
 
@@ -621,10 +627,12 @@ test("insertChildAddresses()", async (context) => {
     getPairWithFactoryConfigAndIndexingFunctions({
       address,
     });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common: context.common, config });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
   const filter = sources[0]!.filter as LogFilter<Factory>;
 
@@ -1097,10 +1105,12 @@ test("getEventBlockData() pagination", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common: context.common, config });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   let rpcBlock = await _eth_getBlockByNumber(rpc, {
@@ -1140,6 +1150,7 @@ test("insertRpcRequestResults() ", async (context) => {
   await syncStore.insertRpcRequestResults({
     requests: [
       {
+        // @ts-ignore
         request: { method: "eth_call", params: ["0x1"] },
         blockNumber: 1,
         result: "0x1",
@@ -1163,6 +1174,7 @@ test("inserttRpcRequestResults() hash matches postgres", async (context) => {
   await syncStore.insertRpcRequestResults({
     requests: [
       {
+        // @ts-ignore
         request: { method: "eth_call", params: ["0x1"] },
         blockNumber: 1,
         result: "0x1",
@@ -1192,6 +1204,7 @@ test("getRpcRequestResults()", async (context) => {
   await syncStore.insertRpcRequestResults({
     requests: [
       {
+        // @ts-ignore
         request: { method: "eth_call", params: ["0x1"] },
         blockNumber: 1,
         result: "0x1",
@@ -1201,7 +1214,9 @@ test("getRpcRequestResults()", async (context) => {
   });
   const result = await syncStore.getRpcRequestResults({
     requests: [
+      // @ts-ignore
       { method: "eth_call", params: ["0x1"] },
+      // @ts-ignore
       { method: "eth_call", params: ["0x2"] },
     ],
     chainId: 1,
@@ -1232,16 +1247,31 @@ test("getEventBlockData() pagination with multiple filters", async (context) => 
     sender: ALICE,
   });
 
-  const { sources: erc20Sources } = await buildConfigAndIndexingFunctions({
+  const erc20ConfigAndIndexingFunctions = getErc20ConfigAndIndexingFunctions({
+    address,
+  });
+  const erc20ConfigBuild = buildConfig({
     common: context.common,
-    ...getErc20ConfigAndIndexingFunctions({ address }),
+    config: erc20ConfigAndIndexingFunctions.config,
   });
 
-  const { sources: blockSources } = await buildConfigAndIndexingFunctions({
+  const blocksConfigAndIndexingFunctions = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const blocksConfigBuild = buildConfig({
     common: context.common,
-    ...getBlocksConfigAndIndexingFunctions({
-      interval: 1,
-    }),
+    config: blocksConfigAndIndexingFunctions.config,
+  });
+
+  const { sources: erc20Sources } = await buildIndexingFunctions({
+    common: context.common,
+    configBuild: erc20ConfigBuild,
+    ...erc20ConfigAndIndexingFunctions,
+  });
+  const { sources: blockSources } = await buildIndexingFunctions({
+    common: context.common,
+    configBuild: blocksConfigBuild,
+    ...blocksConfigAndIndexingFunctions,
   });
 
   let rpcBlock = await _eth_getBlockByNumber(rpc, {
@@ -1291,21 +1321,25 @@ test("pruneRpcRequestResult", async (context) => {
   await syncStore.insertRpcRequestResults({
     requests: [
       {
+        // @ts-ignore
         request: { method: "eth_call", params: ["0x1"] },
         blockNumber: 1,
         result: "0x1",
       },
       {
+        // @ts-ignore
         request: { method: "eth_call", params: ["0x2"] },
         blockNumber: 2,
         result: "0x2",
       },
       {
+        // @ts-ignore
         request: { method: "eth_call", params: ["0x3"] },
         blockNumber: 3,
         result: "0x3",
       },
       {
+        // @ts-ignore
         request: { method: "eth_call", params: ["0x4"] },
         blockNumber: 4,
         result: "0x4",

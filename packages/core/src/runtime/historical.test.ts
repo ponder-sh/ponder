@@ -10,7 +10,7 @@ import {
   getChain,
   testClient,
 } from "@/_test/utils.js";
-import { buildConfigAndIndexingFunctions } from "@/build/config.js";
+import { buildConfig, buildIndexingFunctions } from "@/build/config.js";
 import type { Chain } from "@/internal/types.js";
 import { _eth_getBlockByNumber, _eth_getLogs } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
@@ -45,10 +45,15 @@ test("getLocalEventGenerator()", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -95,10 +100,15 @@ test("getLocalEventGenerator() pagination", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   await testClient.mine({ blocks: 2 });
@@ -145,10 +155,15 @@ test("getLocalEventGenerator() pagination with zero interval", async (context) =
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   await testClient.mine({ blocks: 2 });
@@ -195,10 +210,15 @@ test("getLocalSyncGenerator()", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -248,10 +268,15 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -332,10 +357,15 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -415,10 +445,15 @@ test("getHistoricalEventsMultichain()", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources, rpcs, chains } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources, rpcs, chains } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -473,8 +508,8 @@ test("getHistoricalEventsMultichain()", async (context) => {
     }),
   );
 
+  expect(events).toHaveLength(1);
   expect(events.flatMap(({ events }) => events)).toHaveLength(2);
-  expect(events.flatMap(({ checkpoints }) => checkpoints)).toHaveLength(1);
 });
 
 test("getHistoricalEvents() omnichain", async (context) => {
@@ -483,10 +518,15 @@ test("getHistoricalEvents() omnichain", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources, rpcs, chains } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources, rpcs, chains } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -541,8 +581,8 @@ test("getHistoricalEvents() omnichain", async (context) => {
     }),
   );
 
+  expect(events).toHaveLength(1);
   expect(events.flatMap(({ events }) => events)).toHaveLength(2);
-  expect(events.flatMap(({ checkpoints }) => checkpoints)).toHaveLength(1);
 });
 
 test("getHistoricalEvents() with crash recovery checkpoint", async (context) => {
@@ -551,10 +591,15 @@ test("getHistoricalEvents() with crash recovery checkpoint", async (context) => 
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources, rpcs, chains } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources, rpcs, chains } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   await testClient.mine({ blocks: 2 });
