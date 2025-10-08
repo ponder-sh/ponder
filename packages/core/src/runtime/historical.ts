@@ -6,6 +6,7 @@ import type {
   IndexingBuild,
   RawEvent,
   Source,
+  SyncBlock,
 } from "@/internal/types.js";
 import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
@@ -1011,8 +1012,30 @@ export async function* getLocalSyncGenerator(params: {
 
     const endClock = startClock();
 
-    // TODO(kyle) log error
-    const synced = await historicalSync.sync(interval);
+    const durationTimer = setTimeout(() => {
+      params.common.logger.warn({
+        msg: "Fetching JSON-RPC data for backfill is taking longer than expected",
+        chain: params.chain.name,
+        block_range: JSON.stringify(interval),
+        duration: endClock(),
+      });
+    }, 5_000);
+
+    let synced: SyncBlock | undefined;
+    try {
+      synced = await historicalSync.sync(interval);
+    } catch (error) {
+      params.common.logger.warn({
+        msg: "Failed to fetch JSON-RPC data for backfill",
+        chain: params.chain.name,
+        block_range: JSON.stringify(interval),
+        duration: endClock(),
+        error,
+      });
+      throw error;
+    }
+
+    clearTimeout(durationTimer);
 
     // Update cursor to record progress
     cursor = interval[1] + 1;
