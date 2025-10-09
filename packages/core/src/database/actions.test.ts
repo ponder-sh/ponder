@@ -346,6 +346,7 @@ test("empty schema", async (context) => {
   await dropTriggers(database.userQB, { tables: [] });
   await createViews(database.userQB, {
     tables: [],
+    views: [],
     namespaceBuild: { schema: "public", viewsSchema: undefined },
   });
   await revert(database.userQB, {
