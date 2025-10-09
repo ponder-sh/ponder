@@ -107,7 +107,9 @@ export async function createServer({
         (db) => db.select().from(getPonderCheckpointTable()),
       );
       const status: Status = {};
-      for (const { chainName, chainId, latestCheckpoint } of checkpoints) {
+      for (const { chainName, chainId, latestCheckpoint } of checkpoints.sort(
+        (a, b) => (a.chainId > b.chainId ? 1 : -1),
+      )) {
         status[chainName] = {
           id: chainId,
           block: {
@@ -144,7 +146,7 @@ export async function createServer({
       },
       () => {
         clearTimeout(timeout);
-        common.metrics.ponder_http_server_port.set(apiBuild.port);
+        common.metrics.port = apiBuild.port;
         common.logger.info({
           msg: "Created HTTP server",
           port: apiBuild.port,

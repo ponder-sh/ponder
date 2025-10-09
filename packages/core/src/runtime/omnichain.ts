@@ -237,8 +237,12 @@ export async function runOmnichain({
   }
 
   const startTimestamp = Math.round(Date.now() / 1000);
-  common.metrics.ponder_historical_start_timestamp_seconds.set(startTimestamp);
-
+  for (const chain of indexingBuild.chains) {
+    common.metrics.ponder_historical_start_timestamp_seconds.set(
+      { chain: chain.name },
+      startTimestamp,
+    );
+  }
   // Reset the start timestamp so the eta estimate doesn't include
   // the startup time.
   common.metrics.start_timestamp = Date.now();
@@ -529,7 +533,12 @@ export async function runOmnichain({
   }
 
   const endTimestamp = Math.round(Date.now() / 1000);
-  common.metrics.ponder_historical_end_timestamp_seconds.set(endTimestamp);
+  for (const chain of indexingBuild.chains) {
+    common.metrics.ponder_historical_end_timestamp_seconds.set(
+      { chain: chain.name },
+      endTimestamp,
+    );
+  }
 
   common.logger.info({
     msg: "Completed backfill indexing across all chains",

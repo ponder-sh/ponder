@@ -11,6 +11,7 @@ import {
 } from "@/internal/errors.js";
 import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
 import { copy, copyOnWrite } from "@/utils/copy.js";
+import { createLock } from "@/utils/mutex.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import {
@@ -45,6 +46,8 @@ export const createHistoricalIndexingStore = ({
   const tables = Object.values(schema).filter(isTable);
   const primaryKeyCache = getPrimaryKeyCache(tables);
 
+  const lock = createLock();
+
   const storeMethodWrapper = (fn: (...args: any[]) => Promise<any>) => {
     return async (...args: any[]) => {
       try {
@@ -53,6 +56,7 @@ export const createHistoricalIndexingStore = ({
             "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
           );
         }
+        await lock.lock();
         const result = await fn(...args);
         // @ts-expect-error typescript bug lol
         if (isProcessingEvents === false) {
@@ -73,6 +77,8 @@ export const createHistoricalIndexingStore = ({
         }
 
         throw error;
+      } finally {
+        lock.unlock();
       }
     };
   };
