@@ -104,7 +104,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
       if (result.status === "error") {
         // This handles indexing function build failures on hot reload.
-        metrics.ponder_indexing_has_error.set(1);
+        metrics.hasError = true;
         return;
       }
 
@@ -240,6 +240,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         );
 
         createServer({ common, database, apiBuild: apiBuildResult.result });
+
+        metrics.initializeIndexingMetrics({
+          indexingBuild: indexingBuildResult.result,
+          schemaBuild,
+        });
 
         if (preBuild.ordering === "omnichain") {
           runOmnichain({

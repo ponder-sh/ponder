@@ -275,7 +275,7 @@ export const createIndexing = ({
         error,
       });
 
-      common.metrics.ponder_indexing_has_error.set(1);
+      common.metrics.hasError = true;
 
       if (error instanceof BaseError === false) {
         error = new IndexingFunctionError(error.message);
@@ -343,7 +343,7 @@ export const createIndexing = ({
         error,
       });
 
-      common.metrics.ponder_indexing_has_error.set(1);
+      common.metrics.hasError = true;
 
       if (error instanceof BaseError === false) {
         error = new IndexingFunctionError(error.message);

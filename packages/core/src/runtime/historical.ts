@@ -929,7 +929,6 @@ export async function* getLocalSyncGenerator(params: {
         label,
         hexToNumber(params.syncProgress.current!.timestamp),
       );
-      params.common.metrics.ponder_historical_duration.observe(label, duration);
       params.common.metrics.ponder_historical_completed_blocks.inc(
         label,
         interval[1] - interval[0] + 1,
