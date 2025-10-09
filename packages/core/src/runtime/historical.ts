@@ -369,6 +369,7 @@ export async function* getHistoricalEventsMultichain(params: {
   syncStore: SyncStore;
 }) {
   let isCatchup = false;
+  let lastUnfinalizedRefetch = Date.now();
   const perChainCursor = new Map<Chain, string>();
 
   while (true) {
@@ -517,6 +518,11 @@ export async function* getHistoricalEventsMultichain(params: {
     );
 
     yield* mergeAsyncGenerators(eventGenerators);
+
+    if (Date.now() - lastUnfinalizedRefetch < 30_000) {
+      break;
+    }
+    lastUnfinalizedRefetch = Date.now();
 
     const context = {
       logger: params.common.logger.child({ action: "refetch_finalized_block" }),

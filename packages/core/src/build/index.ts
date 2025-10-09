@@ -626,6 +626,7 @@ export const createBuild = async ({
           common.logger.info({
             msg: "Connected to JSON-RPC",
             chain: chain.name,
+            hostnames: JSON.stringify(rpc.hostnames),
             duration: endClock(),
           });
 
