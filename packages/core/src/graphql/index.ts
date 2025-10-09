@@ -578,13 +578,7 @@ export function buildGraphQLSchema({
           context.qb,
           args,
           includeTotalCount,
-        ).then((result) => {
-          // @ts-ignore
-          result.pageInfo.startCursor = undefined;
-          // @ts-ignore
-          result.pageInfo.endCursor = undefined;
-          return result;
-        });
+        );
       },
     };
   }
@@ -791,7 +785,6 @@ async function executePluralQuery(
   if (after !== null && before !== null) {
     throw new Error("Cannot specify both before and after cursors.");
   }
-
   if (after !== null && offset > 0) {
     throw new Error("Cannot specify both after cursor and offset.");
   }
@@ -833,12 +826,16 @@ async function executePluralQuery(
       hasNextPage = true;
     }
 
-    startCursor =
-      rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
-    endCursor =
-      rows.length > 0
-        ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
-        : null;
+    if (offset === 0) {
+      startCursor =
+        rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
+      endCursor =
+        rows.length > 0
+          ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
+          : null;
+    } else {
+      hasPreviousPage = true;
+    }
 
     return {
       items: rows,

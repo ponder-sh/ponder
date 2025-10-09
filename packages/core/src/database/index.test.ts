@@ -1,7 +1,12 @@
 import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
 import { getChain } from "@/_test/utils.js";
 import { buildSchema } from "@/build/schema.js";
-import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
+import {
+  onchainEnum,
+  onchainTable,
+  onchainView,
+  primaryKey,
+} from "@/drizzle/onchain.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import type { RetryableError } from "@/internal/errors.js";
 import { createShutdown } from "@/internal/shutdown.js";
@@ -20,6 +25,7 @@ import { commitBlock, createIndexes, createTriggers } from "./actions.js";
 import {
   type Database,
   TABLES,
+  VIEWS,
   createDatabase,
   getPonderCheckpointTable,
   getPonderMetaTable,
@@ -86,7 +92,7 @@ test("migrate() succeeds with empty schema", async (context) => {
   await context.common.shutdown.kill();
 });
 
-test("migrate() with empty schema creates tables and enums", async (context) => {
+test("migrate() with empty schema creates tables, views, and enums", async (context) => {
   const mood = onchainEnum("mood", ["sad", "happy"]);
 
   const kyle = onchainTable("kyle", (p) => ({
@@ -106,6 +112,8 @@ test("migrate() with empty schema creates tables and enums", async (context) => 
     }),
   );
 
+  const userView = onchainView("user_view").as((qb) => qb.select().from(user));
+
   const database = createDatabase({
     common: context.common,
     namespace: {
@@ -116,9 +124,10 @@ test("migrate() with empty schema creates tables and enums", async (context) => 
       databaseConfig: context.databaseConfig,
     },
     schemaBuild: {
-      schema: { account, kyle, mood, user },
-      statements: buildSchema({ schema: { account, kyle, mood, user } })
-        .statements,
+      schema: { account, kyle, mood, user, userView },
+      statements: buildSchema({
+        schema: { account, kyle, mood, user, userView },
+      }).statements,
     },
   });
 
@@ -136,6 +145,10 @@ test("migrate() with empty schema creates tables and enums", async (context) => 
   expect(tableNames).toContain("kyle");
   expect(tableNames).toContain("_reorg__kyle");
   expect(tableNames).toContain("_ponder_meta");
+  expect(tableNames).toContain("_ponder_checkpoint");
+
+  const viewNames = await getUserViewNames(database, "public");
+  expect(viewNames).toContain("user_view");
 
   await context.common.shutdown.kill();
 });
@@ -689,6 +702,17 @@ async function getUserTableNames(database: Database, namespace: string) {
           eq(TABLES.table_type, "BASE TABLE"),
         ),
       ),
+  );
+
+  return rows.map(({ name }) => name);
+}
+
+async function getUserViewNames(database: Database, namespace: string) {
+  const rows = await database.userQB.wrap((db) =>
+    db
+      .select({ name: VIEWS.table_name })
+      .from(VIEWS)
+      .where(and(eq(VIEWS.table_schema, namespace))),
   );
 
   return rows.map(({ name }) => name);
