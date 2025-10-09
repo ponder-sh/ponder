@@ -174,17 +174,51 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
         );
       }
 
-      // TODO(kyle) generated, identity, unique
-
-      for (const [columnName, column] of Object.entries(
-        viewConfig.selectedFields,
-      )) {
-        if (is(column, PgColumn) === false) {
-          throw new Error(
-            `Schema validation failed: view '${getViewName(s)}.${columnName}' is a non-column selected field.`,
-          );
-        }
+      if (viewConfig.isExisting) {
+        throw new Error(
+          `Schema validation failed: view '${getViewName(s)}' is an existing view and existing views are unsupported.`,
+        );
       }
+
+      if (viewConfig)
+        for (const [columnName, column] of Object.entries(
+          viewConfig.selectedFields,
+        )) {
+          if (is(column, PgColumn) === false) {
+            throw new Error(
+              `Schema validation failed: view '${getViewName(s)}.${columnName}' is a non-column selected field.`,
+            );
+          }
+
+          if (
+            column instanceof PgSerial ||
+            column instanceof PgSmallSerial ||
+            column instanceof PgBigSerial53 ||
+            column instanceof PgBigSerial64
+          ) {
+            throw new Error(
+              `Schema validation failed: '${name}.${columnName}' has a serial column and serial columns are unsupported.`,
+            );
+          }
+
+          if ((column as PgColumn).isUnique) {
+            throw new Error(
+              `Schema validation failed: '${name}.${columnName}' has a unique constraint and unique constraints are unsupported.`,
+            );
+          }
+
+          if ((column as PgColumn).generated !== undefined) {
+            throw new Error(
+              `Schema validation failed: '${name}.${columnName}' is a generated column and generated columns are unsupported.`,
+            );
+          }
+
+          if ((column as PgColumn).generatedIdentity !== undefined) {
+            throw new Error(
+              `Schema validation failed: '${name}.${columnName}' is a generated column and generated columns are unsupported.`,
+            );
+          }
+        }
     }
   }
 
