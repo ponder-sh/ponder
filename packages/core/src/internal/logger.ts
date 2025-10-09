@@ -197,11 +197,11 @@ const format = (log: Log) => {
 
     let durationText = "";
     if (log.duration) {
-      durationText = ` ${pc.gray(`[${formatEta(log.duration)}]`)}`;
+      durationText = ` ${pc.gray(`(${formatEta(log.duration)})`)}`;
     }
 
     prettyLog = [
-      `${pc.dim(time)} ${level} ${messageText}${keyText}${durationText}`,
+      `${pc.dim(time)} ${level} ${messageText}${pc.dim(keyText)}${durationText}`,
     ];
   } else {
     const level = levelObject.label;
@@ -220,7 +220,7 @@ const format = (log: Log) => {
 
     let durationText = "";
     if (log.duration) {
-      durationText = ` [${formatEta(log.duration)}]`;
+      durationText = ` (${formatEta(log.duration)})`;
     }
 
     prettyLog = [`${time} ${level} ${log.msg}${keyText}${durationText}`];

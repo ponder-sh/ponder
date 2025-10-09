@@ -298,9 +298,9 @@ export async function runMultichain({
     }
 
     common.logger.info({
-      msg: "Updated indexing progress",
+      msg: "Updated backfill indexing progress",
       progress: formatPercentage(progress),
-      eta: formatEta(eta * 1_000),
+      estimate: formatEta(eta * 1_000),
     });
   }, 5_000);
 
