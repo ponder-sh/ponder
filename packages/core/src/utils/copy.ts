@@ -128,6 +128,7 @@ export const copy = <T>(obj: T): T => {
         return obj.map((element) => copy(element));
       }
 
+      if (isDeeplyNested(obj)) return structuredClone(obj);
       return [...obj] as T;
     }
 
