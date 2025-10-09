@@ -72,10 +72,13 @@ test("flush() insert", async (context) => {
       address: zeroAddress,
     });
 
-    expect(result).toStrictEqual({
-      address: zeroAddress,
-      balance: 10n,
-    });
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "address": "0x0000000000000000000000000000000000000000",
+        "balance": 10n,
+        Symbol(nodejs.util.inspect.custom): [Function],
+      }
+    `);
   });
 });
 
@@ -136,10 +139,13 @@ test("flush() update", async (context) => {
       address: zeroAddress,
     });
 
-    expect(result).toStrictEqual({
-      address: zeroAddress,
-      balance: 12n,
-    });
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "address": "0x0000000000000000000000000000000000000000",
+        "balance": 12n,
+        Symbol(nodejs.util.inspect.custom): [Function],
+      }
+    `);
 
     // flush again to make sure temp tables are cleaned up
 
@@ -153,10 +159,13 @@ test("flush() update", async (context) => {
       address: zeroAddress,
     });
 
-    expect(result).toStrictEqual({
-      address: zeroAddress,
-      balance: 12n,
-    });
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "address": "0x0000000000000000000000000000000000000000",
+        "balance": 12n,
+        Symbol(nodejs.util.inspect.custom): [Function],
+      }
+    `);
   });
 });
 

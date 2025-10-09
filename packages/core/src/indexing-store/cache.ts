@@ -801,7 +801,7 @@ export const createIndexingCache = ({
 
           if (insertValues.length > 0 || updateValues.length > 0) {
             common.logger.debug({
-              msg: "Wrote cached database rows",
+              msg: "Wrote database rows",
               table: getTableName(table),
               row_count: insertValues.length + updateValues.length,
               duration: flushEndClock(),
@@ -976,7 +976,7 @@ export const createIndexingCache = ({
 
             if (insertValues.length > 0 || updateValues.length > 0) {
               common.logger.debug({
-                msg: "Wrote cached database rows",
+                msg: "Wrote database rows",
                 table: getTableName(table),
                 row_count: insertValues.length + updateValues.length,
                 duration: flushEndClock(),

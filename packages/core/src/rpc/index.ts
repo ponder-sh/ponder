@@ -59,6 +59,7 @@ export type RequestReturnType<
 > = Extract<RpcSchema[number], { Method: method }>["ReturnType"];
 
 export type Rpc = {
+  hostnames: string[];
   request: <TParameters extends RequestParameters>(
     parameters: TParameters,
     context?: { logger?: Logger },
@@ -590,6 +591,7 @@ export const createRpc = ({
   let interval: NodeJS.Timeout | undefined;
 
   const rpc: Rpc = {
+    hostnames: backends.map((backend) => backend.hostname),
     // @ts-ignore
     request: (parameters, context) => queue.add({ body: parameters, context }),
     subscribe({ onBlock, onError }) {

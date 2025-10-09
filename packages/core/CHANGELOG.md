@@ -1,5 +1,11 @@
 # ponder
 
+## 0.13.13
+
+### Patch Changes
+
+- [#2101](https://github.com/ponder-sh/ponder/pull/2101) [`223c72e`](https://github.com/ponder-sh/ponder/commit/223c72e2d742ea9ee7ff17a0a50efe388353fb21) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a race condition that caused key constraint violations or other database errors when executing multiple indexing store queries at the same time.
+
 ## 0.13.12
 
 ### Patch Changes

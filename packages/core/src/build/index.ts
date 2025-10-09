@@ -337,7 +337,7 @@ export const createBuild = async ({
         process.env.DATABASE_SCHEMA === undefined
       ) {
         const error = new BuildError(
-          "Database schema required. Specify with 'DATABASE_SCHEMA' env var or '--schema' CLI flag. Read more: https://ponder.sh/docs/database#database-schema",
+          `Database schema required. Specify with "DATABASE_SCHEMA" env var or "--schema" CLI flag. Read more: https://ponder.sh/docs/database#database-schema`,
         );
         error.stack = undefined;
 
@@ -553,7 +553,7 @@ export const createBuild = async ({
 
         common.logger.info({
           msg: `Hot reload ${Array.from(invalidated)
-            .map((f) => `'${path.relative(common.options.rootDir, f)}'`)
+            .map((f) => `"${path.relative(common.options.rootDir, f)}"`)
             .join(", ")}`,
         });
 
@@ -626,6 +626,7 @@ export const createBuild = async ({
           common.logger.info({
             msg: "Connected to JSON-RPC",
             chain: chain.name,
+            hostnames: JSON.stringify(rpc.hostnames),
             duration: endClock(),
           });
 

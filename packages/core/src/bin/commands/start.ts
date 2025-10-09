@@ -290,6 +290,8 @@ export async function start({
     app = await onBuild(app);
   }
 
+  metrics.initializeIndexingMetrics(app);
+
   if (preCompileResult.result.ordering === "omnichain") {
     runOmnichain(app);
   } else {
