@@ -18,7 +18,7 @@ import { runOmnichain } from "@/runtime/omnichain.js";
 import { createServer } from "@/server/index.js";
 import { createUi } from "@/ui/index.js";
 import { createQueue } from "@/utils/queue.js";
-import { type Result, mergeResults } from "@/utils/result.js";
+import type { Result } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 
@@ -97,6 +97,12 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       }
 
       if (result.status === "error") {
+        if (isInitialBuild === false) {
+          common.logger.error({
+            error: result.error,
+          });
+        }
+
         // This handles indexing function build failures on hot reload.
         metrics.hasError = true;
         return;
@@ -107,6 +113,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
         const configResult = await build.executeConfig();
         if (configResult.status === "error") {
+          common.logger.error({
+            msg: "Build failed",
+            stage: "config",
+            error: configResult.error,
+          });
           buildQueue.add({
             status: "error",
             kind: "indexing",
@@ -117,6 +128,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
         const schemaResult = await build.executeSchema();
         if (schemaResult.status === "error") {
+          common.logger.error({
+            msg: "Build failed",
+            stage: "schema",
+            error: schemaResult.error,
+          });
           buildQueue.add({
             status: "error",
             kind: "indexing",
@@ -125,27 +141,31 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           return;
         }
 
-        const buildResult1 = mergeResults([
-          build.preCompile(configResult.result),
-          build.compileSchema(schemaResult.result),
-        ]);
+        const preCompileResult = build.preCompile(configResult.result);
 
-        if (buildResult1.status === "error") {
+        if (preCompileResult.status === "error") {
+          common.logger.error({
+            msg: "Build failed",
+            stage: "pre-compile",
+            error: preCompileResult.error,
+          });
           buildQueue.add({
             status: "error",
             kind: "indexing",
-            error: buildResult1.error,
+            error: preCompileResult.error,
           });
           return;
         }
 
-        const [preBuild, schemaBuild] = buildResult1.result;
-
         const databaseDiagnostic = await build.databaseDiagnostic({
-          preBuild,
+          preBuild: preCompileResult.result,
         });
-
         if (databaseDiagnostic.status === "error") {
+          common.logger.error({
+            msg: "Build failed",
+            stage: "diagnostic",
+            error: databaseDiagnostic.error,
+          });
           buildQueue.add({
             status: "error",
             kind: "indexing",
@@ -154,10 +174,31 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           return;
         }
 
+        const compileSchemaResult = build.compileSchema(schemaResult.result);
+
+        if (compileSchemaResult.status === "error") {
+          common.logger.error({
+            msg: "Build failed",
+            stage: "schema",
+            error: compileSchemaResult.error,
+          });
+          buildQueue.add({
+            status: "error",
+            kind: "indexing",
+            error: compileSchemaResult.error,
+          });
+          return;
+        }
+
         const configBuildResult = build.compileConfig({
           configResult: configResult.result,
         });
         if (configBuildResult.status === "error") {
+          common.logger.error({
+            msg: "Build failed",
+            stage: "config",
+            error: configBuildResult.error,
+          });
           buildQueue.add({
             status: "error",
             kind: "indexing",
@@ -171,6 +212,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           configBuild: configBuildResult.result,
         });
         if (rpcDiagnosticResult.status === "error") {
+          common.logger.error({
+            msg: "Build failed",
+            stage: "diagnostic",
+            error: rpcDiagnosticResult.error,
+          });
           buildQueue.add({
             status: "error",
             kind: "indexing",
@@ -181,6 +227,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
         const indexingResult = await build.executeIndexingFunctions();
         if (indexingResult.status === "error") {
+          common.logger.error({
+            msg: "Build failed",
+            stage: "indexing",
+            error: indexingResult.error,
+          });
           buildQueue.add({
             status: "error",
             kind: "indexing",
@@ -197,6 +248,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         });
 
         if (indexingBuildResult.status === "error") {
+          common.logger.error({
+            msg: "Build failed",
+            stage: "indexing",
+            error: indexingBuildResult.error,
+          });
           buildQueue.add({
             status: "error",
             kind: "indexing",
@@ -208,8 +264,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         database = createDatabase({
           common,
           namespace: { schema, viewsSchema: undefined },
-          preBuild,
-          schemaBuild,
+          preBuild: preCompileResult.result,
+          schemaBuild: compileSchemaResult.result,
         });
         crashRecoveryCheckpoint = await database.migrate({
           buildId: indexingBuildResult.result.buildId,
@@ -224,6 +280,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           database,
         });
         if (apiResult.status === "error") {
+          common.logger.error({
+            msg: "Build failed",
+            stage: "api",
+            error: apiResult.error,
+          });
           buildQueue.add({
             status: "error",
             kind: "indexing",
@@ -237,6 +298,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         });
 
         if (apiBuildResult.status === "error") {
+          common.logger.error({
+            msg: "Build failed",
+            stage: "api",
+            error: apiBuildResult.error,
+          });
           buildQueue.add({
             status: "error",
             kind: "indexing",
@@ -253,8 +319,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
             properties: {
               cli_command: "dev",
               ...buildPayload({
-                preBuild,
-                schemaBuild,
+                preBuild: preCompileResult.result,
+                schemaBuild: compileSchemaResult.result,
                 indexingBuild: indexingBuildResult.result,
               }),
             },
@@ -264,8 +330,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         metrics.resetApiMetrics();
         metrics.ponder_settings_info.set(
           {
-            ordering: preBuild.ordering,
-            database: preBuild.databaseConfig.kind,
+            ordering: preCompileResult.result.ordering,
+            database: preCompileResult.result.databaseConfig.kind,
             command: cliOptions.command,
           },
           1,
@@ -275,16 +341,16 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
         metrics.initializeIndexingMetrics({
           indexingBuild: indexingBuildResult.result,
-          schemaBuild,
+          schemaBuild: compileSchemaResult.result,
         });
 
-        if (preBuild.ordering === "omnichain") {
+        if (preCompileResult.result.ordering === "omnichain") {
           runOmnichain({
             common,
             database,
-            preBuild,
+            preBuild: preCompileResult.result,
             namespaceBuild: { schema, viewsSchema: undefined },
-            schemaBuild,
+            schemaBuild: compileSchemaResult.result,
             indexingBuild: indexingBuildResult.result,
             crashRecoveryCheckpoint,
           });
@@ -292,9 +358,9 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           runMultichain({
             common,
             database,
-            preBuild,
+            preBuild: preCompileResult.result,
             namespaceBuild: { schema, viewsSchema: undefined },
-            schemaBuild,
+            schemaBuild: compileSchemaResult.result,
             indexingBuild: indexingBuildResult.result,
             crashRecoveryCheckpoint,
           });
