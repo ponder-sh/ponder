@@ -9,9 +9,7 @@ import {
   type AnyPgColumn,
   type PrimaryKeyBuilder as DrizzlePrimaryKeyBuilder,
   type ExtraConfigColumn,
-  ManualMaterializedViewBuilder,
   ManualViewBuilder,
-  MaterializedViewBuilder,
   type PgColumnBuilder,
   type PgColumnBuilderBase,
   PgEnumColumnBuilder,
@@ -277,39 +275,6 @@ export function onchainView(
   return view;
 }
 
-/**
- * Create an onchain materialized view.
- *
- * - Docs: https://ponder.sh/docs/api-reference/ponder/schema#onchainview
- *
- * @example
- * import { onchainMaterializedView } from "ponder";
- *
- * export const accountView = onchainMaterializedView("account_view").as((qb) =>
- *   qb.select().from(account),
- * );
- *
- * @param name - The view name in the database.
- * @param columns - [Optional] The view columns.
- * @returns The onchain view.
- */
-export function onchainMaterializedView<TName extends string>(
-  name: TName,
-): MaterializedViewBuilder<TName>;
-export function onchainMaterializedView<
-  TName extends string,
-  TColumns extends Record<string, PgColumnBuilderBase>,
->(
-  name: TName,
-  columns: TColumns,
-): ManualMaterializedViewBuilder<TName, TColumns>;
-export function onchainMaterializedView(
-  name: string,
-  columns?: Record<string, PgColumnBuilderBase>,
-): MaterializedViewBuilder | ManualMaterializedViewBuilder {
-  return pgMaterializedViewWithSchema(name, columns, undefined);
-}
-
 export const isPgEnumSym = Symbol.for("drizzle:isPgEnum");
 
 export type OnchainEnum<TValues extends [string, ...string[]]> = {
@@ -437,17 +402,6 @@ function pgViewWithSchema(
     return new ManualViewBuilder(name, selection, schema);
   }
   return new ViewBuilder(name, schema);
-}
-
-function pgMaterializedViewWithSchema(
-  name: string,
-  selection: Record<string, PgColumnBuilderBase> | undefined,
-  schema: string | undefined,
-): MaterializedViewBuilder | ManualMaterializedViewBuilder {
-  if (selection) {
-    return new ManualMaterializedViewBuilder(name, selection, schema);
-  }
-  return new MaterializedViewBuilder(name, schema);
 }
 
 function pgEnumWithSchema<U extends string, T extends Readonly<[U, ...U[]]>>(

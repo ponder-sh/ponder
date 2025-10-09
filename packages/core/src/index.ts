@@ -31,7 +31,6 @@ export type { AddressConfig } from "@/config/address.js";
 export {
   onchainTable,
   onchainView,
-  onchainMaterializedView,
   onchainEnum,
   primaryKey,
   hex,

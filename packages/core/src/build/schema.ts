@@ -11,12 +11,14 @@ import {
 import {
   PgBigSerial53,
   PgBigSerial64,
+  PgColumn,
   PgSequence,
   PgSerial,
   PgSmallSerial,
   PgTable,
   PgView,
   getTableConfig,
+  getViewConfig,
 } from "drizzle-orm/pg-core";
 
 export const buildSchema = ({ schema }: { schema: Schema }) => {
@@ -164,7 +166,25 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
         viewNames.add(getViewName(s));
       }
 
-      // TODO(kyle) no generated, identity, unique
+      const viewConfig = getViewConfig(s);
+
+      if (viewConfig.selectedFields.length === 0) {
+        throw new Error(
+          `Schema validation failed: view '${getViewName(s)}' has no selected fields.`,
+        );
+      }
+
+      // TODO(kyle) generated, identity, unique
+
+      for (const [columnName, column] of Object.entries(
+        viewConfig.selectedFields,
+      )) {
+        if (is(column, PgColumn) === false) {
+          throw new Error(
+            `Schema validation failed: view '${getViewName(s)}.${columnName}' is a non-column selected field.`,
+          );
+        }
+      }
     }
   }
 
