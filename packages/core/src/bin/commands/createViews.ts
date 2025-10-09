@@ -19,6 +19,7 @@ const emptySchemaBuild = {
   schema: {},
   statements: {
     tables: { sql: [], json: [] },
+    views: { sql: [], json: [] },
     enums: { sql: [], json: [] },
     indexes: { sql: [], json: [] },
     sequences: { sql: [], json: [] },

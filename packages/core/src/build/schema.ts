@@ -1,7 +1,13 @@
 import { getSql } from "@/drizzle/kit/index.js";
 import { BuildError } from "@/internal/errors.js";
 import type { Schema } from "@/internal/types.js";
-import { SQL, getTableColumns, getTableName, is } from "drizzle-orm";
+import {
+  SQL,
+  getTableColumns,
+  getTableName,
+  getViewName,
+  is,
+} from "drizzle-orm";
 import {
   PgBigSerial53,
   PgBigSerial64,
@@ -17,6 +23,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
   const statements = getSql(schema);
 
   const tableNames = new Set<string>();
+  const viewNames = new Set<string>();
   const indexNames = new Set<string>();
 
   for (const [name, s] of Object.entries(schema)) {
@@ -149,9 +156,15 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
     }
 
     if (is(s, PgView)) {
-      throw new Error(
-        `Schema validation failed: '${name}' is a view and views are unsupported.`,
-      );
+      if (viewNames.has(getViewName(s))) {
+        throw new Error(
+          `Schema validation failed: view name '${getViewName(s)}' is used multiple times.`,
+        );
+      } else {
+        viewNames.add(getViewName(s));
+      }
+
+      // TODO(kyle) no generated, identity, unique
     }
   }
 
