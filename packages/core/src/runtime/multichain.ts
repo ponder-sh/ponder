@@ -772,7 +772,7 @@ export async function runMultichain({
   }
 
   common.logger.info({
-    msg: "Completed indexing",
+    msg: "Completed indexing across all chains",
     duration: backfillEndClock(),
   });
 }

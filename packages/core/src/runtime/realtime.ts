@@ -76,7 +76,7 @@ export async function* getRealtimeEventsOmnichain(params: {
     .map(([chain, { syncProgress, childAddresses }]) => {
       if (syncProgress.isEnd()) {
         params.common.logger.info({
-          msg: "Skipped live indexing",
+          msg: "Skipped live indexing (chain only requires backfill indexing)",
           chain: chain.name,
           end_block: hexToNumber(syncProgress.end!.number),
         });
@@ -325,7 +325,7 @@ export async function* getRealtimeEventsMultichain(params: {
     .map(([chain, { syncProgress, childAddresses }]) => {
       if (syncProgress.isEnd()) {
         params.common.logger.info({
-          msg: "Skipped live indexing",
+          msg: "Skipped live indexing (chain only requires backfill indexing)",
           chain: chain.name,
           end_block: hexToNumber(syncProgress.end!.number),
         });
@@ -613,7 +613,7 @@ export async function* getRealtimeEventGenerator(params: {
         1,
       );
       params.common.logger.info({
-        msg: "Killed live indexing",
+        msg: "Completed live indexing (chain end block has been indexed)",
         chain: params.chain.name,
         end_block: hexToNumber(params.syncProgress.end!.number),
       });

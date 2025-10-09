@@ -789,7 +789,7 @@ export async function runOmnichain({
   }
 
   common.logger.info({
-    msg: "Completed indexing",
+    msg: "Completed indexing across all chains",
     duration: backfillEndClock(),
   });
 }

@@ -119,7 +119,12 @@ export function createPool(config: PoolConfig, logger: Logger) {
   }
 
   function onNotice(notice: { message?: string; code?: string }) {
-    logger.debug({
+    const level =
+      typeof notice.code === "string" &&
+      ["42P06", "42P07"].includes(notice.code)
+        ? "trace"
+        : "debug";
+    logger[level]({
       msg: "Postgres notice",
       message: notice.message,
       code: notice.code,
@@ -204,7 +209,12 @@ export function createReadonlyPool(
   }
 
   function onNotice(notice: { message?: string; code?: string }) {
-    logger.debug({
+    const level =
+      typeof notice.code === "string" &&
+      ["42P06", "42P07"].includes(notice.code)
+        ? "trace"
+        : "debug";
+    logger[level]({
       msg: "Postgres notice",
       message: notice.message,
       code: notice.code,
