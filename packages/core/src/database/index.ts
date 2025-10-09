@@ -499,7 +499,6 @@ export const createDatabase = ({
               context,
             )
             .catch((_error) => {
-              console.log(schemaBuild.statements.views.sql[i]!);
               const error = _error as Error;
               if (!error.message.includes("already exists")) throw error;
               const e = new MigrationError(

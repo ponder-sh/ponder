@@ -5,6 +5,7 @@ import {
   Table,
   type Writable,
 } from "drizzle-orm";
+import { toSnakeCase } from "drizzle-orm/casing";
 import {
   type AnyPgColumn,
   type PrimaryKeyBuilder as DrizzlePrimaryKeyBuilder,
@@ -344,7 +345,7 @@ function pgTableWithSchema<
     Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
       const colBuilder = colBuilderBase;
       // @ts-ignore
-      colBuilder.setName(name);
+      colBuilder.setName(toSnakeCase(name));
       // @ts-ignore
       const column = colBuilder.build(rawTable);
       // @ts-ignore
@@ -360,7 +361,7 @@ function pgTableWithSchema<
     Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
       const colBuilder = colBuilderBase as PgColumnBuilder;
       //@ts-ignore
-      colBuilder.setName(name);
+      colBuilder.setName(toSnakeCase(name));
       //@ts-ignore
       const column = colBuilder.buildExtraConfigColumn(rawTable);
       return [name, column];
