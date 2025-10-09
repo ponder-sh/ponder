@@ -47,7 +47,7 @@ import { formatEta, formatPercentage } from "@/utils/format.js";
 import { recordAsyncGenerator } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
-import { eq, getTableName, isTable, sql } from "drizzle-orm";
+import { eq, getTableName, isTable, isView, sql } from "drizzle-orm";
 import {
   getHistoricalEventsMultichain,
   refetchHistoricalEvents,
@@ -520,6 +520,7 @@ export async function runMultichain({
   clearInterval(etaInterval);
 
   const tables = Object.values(schemaBuild.schema).filter(isTable);
+  const views = Object.values(schemaBuild.schema).filter(isView);
 
   let endClock = startClock();
 
@@ -546,7 +547,7 @@ export async function runMultichain({
   if (namespaceBuild.viewsSchema !== undefined) {
     const endClock = startClock();
 
-    await createViews(database.adminQB, { tables, namespaceBuild });
+    await createViews(database.adminQB, { tables, views, namespaceBuild });
 
     common.logger.info({
       msg: "Created database views",

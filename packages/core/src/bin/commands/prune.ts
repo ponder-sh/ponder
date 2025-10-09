@@ -1,6 +1,11 @@
 import { createBuild } from "@/build/index.js";
 import {
-  type PonderApp,
+  type PonderApp0,
+  type PonderApp1,
+  type PonderApp2,
+  type PonderApp3,
+  type PonderApp4,
+  type PonderApp5,
   VIEWS,
   createDatabase,
   getPonderMetaTable,
@@ -139,7 +144,16 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  let result: { value: PonderApp; schema: string }[];
+  let result: {
+    value:
+      | Partial<PonderApp0>
+      | PonderApp1
+      | PonderApp2
+      | PonderApp3
+      | PonderApp4
+      | PonderApp5;
+    schema: string;
+  }[];
 
   if (queries.length === 1) {
     result = await queries[0]!;
@@ -153,7 +167,17 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   const schemasToDrop: string[] = [];
   const functionsToDrop: string[] = [];
 
-  for (const { value, schema } of result) {
+  // "start" apps with metadata version >=2
+  const filteredResults = result.filter(
+    (
+      row,
+    ): row is {
+      value: PonderApp2 | PonderApp3 | PonderApp4 | PonderApp5;
+      schema: string;
+    } => "is_dev" in row.value && row.value.is_dev === 0,
+  );
+
+  for (const { value, schema } of filteredResults) {
     if (value.is_dev === 1) continue;
     if (
       value.is_locked === 1 &&
@@ -165,6 +189,11 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     if (ponderViewSchemas.some((vs) => vs.schema === schema)) {
       for (const table of value.table_names) {
         viewsToDrop.push(`"${schema}"."${table}"`);
+      }
+      if ("view_names" in value) {
+        for (const view of value.view_names) {
+          viewsToDrop.push(`"${schema}"."${view}"`);
+        }
       }
       viewsToDrop.push(`"${schema}"."_ponder_meta"`);
       if (value.version === "2") {
@@ -185,6 +214,11 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
         tablesToDrop.push(`"${schema}"."${table}"`);
         tablesToDrop.push(`"${schema}"."${sqlToReorgTableName(table)}"`);
         functionsToDrop.push(`"${schema}"."operation_reorg__${table}"`);
+      }
+      if ("view_names" in value) {
+        for (const view of value.view_names) {
+          viewsToDrop.push(`"${schema}"."${view}"`);
+        }
       }
       tablesToDrop.push(`"${schema}"."_ponder_meta"`);
       if (value.version === "2") {

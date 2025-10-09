@@ -8,8 +8,15 @@ import type {
   SchemaBuild,
 } from "@/internal/types.js";
 import { MAX_CHECKPOINT_STRING, decodeCheckpoint } from "@/utils/checkpoint.js";
-import { eq, getTableColumns, getTableName } from "drizzle-orm";
-import { type PgTable, getTableConfig } from "drizzle-orm/pg-core";
+import {
+  type Table,
+  type View,
+  eq,
+  getTableColumns,
+  getTableName,
+  getViewName,
+} from "drizzle-orm";
+import { getTableConfig } from "drizzle-orm/pg-core";
 import { getPonderCheckpointTable } from "./index.js";
 import type { QB } from "./queryBuilder.js";
 
@@ -34,7 +41,7 @@ export const createIndexes = async (
 
 export const createTriggers = async (
   qb: QB,
-  { tables }: { tables: PgTable[] },
+  { tables }: { tables: Table[] },
   context?: { logger?: Logger },
 ) => {
   await qb.transaction(
@@ -89,7 +96,7 @@ export const createTriggers = async (
 
 export const dropTriggers = async (
   qb: QB,
-  { tables }: { tables: PgTable[] },
+  { tables }: { tables: Table[] },
   context?: { logger?: Logger },
 ) => {
   await qb.transaction(
@@ -115,8 +122,9 @@ export const createViews = async (
   qb: QB,
   {
     tables,
+    views,
     namespaceBuild,
-  }: { tables: PgTable[]; namespaceBuild: NamespaceBuild },
+  }: { tables: Table[]; views: View[]; namespaceBuild: NamespaceBuild },
   context?: { logger?: Logger },
 ) => {
   await qb.transaction(
@@ -139,6 +147,20 @@ export const createViews = async (
         await tx.wrap((tx) =>
           tx.execute(
             `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
+          ),
+        );
+      }
+
+      for (const view of views) {
+        await tx.wrap((tx) =>
+          tx.execute(
+            `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${getViewName(view)}"`,
+          ),
+        );
+
+        await tx.wrap((tx) =>
+          tx.execute(
+            `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getViewName(view)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getViewName(view)}"`,
           ),
         );
       }
@@ -206,7 +228,7 @@ export const revert = async (
     preBuild,
   }: {
     checkpoint: string;
-    tables: PgTable[];
+    tables: Table[];
     preBuild: Pick<PreBuild, "ordering">;
   },
   context?: { logger?: Logger },
@@ -306,7 +328,7 @@ export const finalize = async (
     namespaceBuild,
   }: {
     checkpoint: string;
-    tables: PgTable[];
+    tables: Table[];
     preBuild: Pick<PreBuild, "ordering">;
     namespaceBuild: NamespaceBuild;
   },
@@ -423,7 +445,7 @@ WITH deleted AS (
 
 export const commitBlock = async (
   qb: QB,
-  { checkpoint, table }: { checkpoint: string; table: PgTable },
+  { checkpoint, table }: { checkpoint: string; table: Table },
   context?: { logger?: Logger },
 ) => {
   const reorgTable = getReorgTable(table);
@@ -440,7 +462,7 @@ export const commitBlock = async (
 
 export const crashRecovery = async (
   qb: QB,
-  { table }: { table: PgTable },
+  { table }: { table: Table },
   context?: { logger?: Logger },
 ) => {
   const primaryKeyColumns = getPrimaryKeyColumns(table);
@@ -467,7 +489,7 @@ WITH reverted1 AS (
   );
 };
 
-const getRevertSql = ({ table }: { table: PgTable }) => {
+const getRevertSql = ({ table }: { table: Table }) => {
   const primaryKeyColumns = getPrimaryKeyColumns(table);
   const schema = getTableConfig(table).schema ?? "public";
 

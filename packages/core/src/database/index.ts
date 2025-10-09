@@ -85,15 +85,40 @@ export const VIEWS = pgSchema("information_schema").table("views", (t) => ({
   table_schema: t.text().notNull(),
 }));
 
-export type PonderApp = {
-  version: string;
-  build_id: string;
-  table_names: string[];
-  view_names: string[];
+// Note: "version" was introduced in 0.9
+
+export type PonderApp0 = {
+  version: undefined;
   is_locked: 0 | 1;
   is_dev: 0 | 1;
+  heartbeat_at: number;
+  build_id: string;
+  checkpoint: string;
+  table_names: string[];
+};
+
+export type PonderApp1 = {
+  version: "1";
+  build_id: string;
+  table_names: string[];
+  is_locked: 0 | 1;
   is_ready: 0 | 1;
   heartbeat_at: number;
+};
+export type PonderApp2 = Omit<PonderApp1, "version"> & {
+  version: "2";
+  is_dev: 0 | 1;
+};
+
+export type PonderApp3 = Omit<PonderApp2, "version"> & {
+  version: "3";
+};
+export type PonderApp4 = Omit<PonderApp3, "version"> & {
+  version: "4";
+};
+export type PonderApp5 = Omit<PonderApp4, "version"> & {
+  version: "5";
+  view_names: string[];
 };
 
 const VERSION = "5";
@@ -115,13 +140,13 @@ export const getPonderMetaTable = (schema?: string) => {
   if (schema === undefined || schema === "public") {
     return pgTable("_ponder_meta", (t) => ({
       key: t.text().primaryKey().$type<"app">(),
-      value: t.jsonb().$type<PonderApp>().notNull(),
+      value: t.jsonb().$type<PonderApp5>().notNull(),
     }));
   }
 
   return pgSchema(schema).table("_ponder_meta", (t) => ({
     key: t.text().primaryKey().$type<"app">(),
-    value: t.jsonb().$type<PonderApp>().notNull(),
+    value: t.jsonb().$type<PonderApp5>().notNull(),
   }));
 };
 
@@ -648,7 +673,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             is_locked: 1,
             is_ready: 0,
             heartbeat_at: Date.now(),
-          } satisfies PonderApp;
+          } satisfies PonderApp5;
 
           if (previousApp === undefined) {
             endClock = startClock();

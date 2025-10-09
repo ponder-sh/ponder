@@ -1,5 +1,11 @@
 import { createBuild } from "@/build/index.js";
 import {
+  type PonderApp0,
+  type PonderApp1,
+  type PonderApp2,
+  type PonderApp3,
+  type PonderApp4,
+  type PonderApp5,
   SCHEMATA,
   createDatabase,
   getPonderMetaTable,
@@ -142,12 +148,24 @@ export async function createViews({
 
   const PONDER_META = getPonderMetaTable(cliOptions.schema!);
 
-  const meta = await database.adminQB.wrap((db) =>
+  const meta = (await database.adminQB.wrap((db) =>
     db
       .select({ app: PONDER_META.value })
       .from(PONDER_META)
       .where(eq(PONDER_META.key, "app")),
-  );
+  )) as
+    | [
+        {
+          app:
+            | Partial<PonderApp0>
+            | PonderApp1
+            | PonderApp2
+            | PonderApp3
+            | PonderApp4
+            | PonderApp5;
+        },
+      ]
+    | [];
 
   if (meta.length === 0) {
     logger.warn({
@@ -158,11 +176,20 @@ export async function createViews({
     return;
   }
 
+  if ("table_names" in meta[0]!.app === false) {
+    logger.warn({
+      msg: "Ponder app version not compatible with this command",
+      schema: cliOptions.schema!,
+    });
+    await exit({ code: 0 });
+    return;
+  }
+
   await database.adminQB.wrap((db) =>
     db.execute(`CREATE SCHEMA IF NOT EXISTS "${cliOptions.viewsSchema}"`),
   );
 
-  for (const table of meta[0]!.app.table_names) {
+  for (const table of meta[0]!.app.table_names!) {
     // Note: drop views before creating new ones to avoid enum errors.
     await database.adminQB.wrap((db) =>
       db.execute(`DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${table}"`),
@@ -175,10 +202,26 @@ export async function createViews({
     );
   }
 
+  if ("view_names" in meta[0]!.app) {
+    for (const view of meta[0]!.app.view_names!) {
+      await database.adminQB.wrap((db) =>
+        db.execute(`DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${view}"`),
+      );
+
+      await database.adminQB.wrap((db) =>
+        db.execute(
+          `CREATE VIEW "${cliOptions.viewsSchema}"."${view}" AS SELECT * FROM "${cliOptions.schema!}"."${view}"`,
+        ),
+      );
+    }
+  }
+
   logger.warn({
     msg: "Created database views",
     schema: cliOptions.viewsSchema,
-    count: meta[0]!.app.table_names.length,
+    count:
+      meta[0]!.app.table_names!.length +
+      ((meta[0]!.app as { view_names?: string[] }).view_names?.length ?? 0),
     duration: endClock(),
   });
 
