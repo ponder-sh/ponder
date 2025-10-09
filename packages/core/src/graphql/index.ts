@@ -82,6 +82,7 @@ type PluralArgs = {
   after?: string;
   before?: string;
   limit?: number;
+  offset?: number;
   orderBy?: string;
   orderDirection?: "asc" | "desc";
 };
@@ -403,6 +404,7 @@ export function buildGraphQLSchema({
                 before: { type: GraphQLString },
                 after: { type: GraphQLString },
                 limit: { type: GraphQLInt },
+                offset: { type: GraphQLInt },
               },
               resolve: (parent, args: PluralArgs, context, info) => {
                 const relationalConditions = [];
@@ -484,7 +486,7 @@ export function buildGraphQLSchema({
             new GraphQLList(new GraphQLNonNull(entityTypes[viewName]!)),
           ),
         },
-        pageInfo: { type: new GraphQLNonNull(GraphQLPageInfo) },
+        pageInfo: { type: new GraphQLNonNull(GraphQLViewPageInfo) },
         totalCount: { type: new GraphQLNonNull(GraphQLInt) },
       }),
     });
@@ -534,6 +536,7 @@ export function buildGraphQLSchema({
         before: { type: GraphQLString },
         after: { type: GraphQLString },
         limit: { type: GraphQLInt },
+        offset: { type: GraphQLInt },
       },
       resolve: async (_parent, args: PluralArgs, context, info) => {
         const includeTotalCount = selectionIncludesField(info, "totalCount");
@@ -563,9 +566,8 @@ export function buildGraphQLSchema({
         where: { type: entityFilterType },
         orderBy: { type: GraphQLString },
         orderDirection: { type: GraphQLString },
-        before: { type: GraphQLString },
-        after: { type: GraphQLString },
         limit: { type: GraphQLInt },
+        offset: { type: GraphQLInt },
       },
       resolve: async (_parent, args: PluralArgs, context, info) => {
         const includeTotalCount = selectionIncludesField(info, "totalCount");
@@ -576,7 +578,13 @@ export function buildGraphQLSchema({
           context.qb,
           args,
           includeTotalCount,
-        );
+        ).then((result) => {
+          // @ts-ignore
+          result.pageInfo.startCursor = undefined;
+          // @ts-ignore
+          result.pageInfo.endCursor = undefined;
+          return result;
+        });
       },
     };
   }
@@ -616,7 +624,13 @@ export function buildGraphQLSchema({
 
   return new GraphQLSchema({
     // Include these here so they are listed first in the printed schema.
-    types: [GraphQLJSON, GraphQLBigInt, GraphQLPageInfo, GraphQLMeta],
+    types: [
+      GraphQLJSON,
+      GraphQLBigInt,
+      GraphQLPageInfo,
+      GraphQLViewPageInfo,
+      GraphQLMeta,
+    ],
     query: new GraphQLObjectType({
       name: "Query",
       fields: queryFields,
@@ -631,6 +645,14 @@ const GraphQLPageInfo = new GraphQLObjectType({
     hasPreviousPage: { type: new GraphQLNonNull(GraphQLBoolean) },
     startCursor: { type: GraphQLString },
     endCursor: { type: GraphQLString },
+  },
+});
+
+const GraphQLViewPageInfo = new GraphQLObjectType({
+  name: "ViewPageInfo",
+  fields: {
+    hasNextPage: { type: new GraphQLNonNull(GraphQLBoolean) },
+    hasPreviousPage: { type: new GraphQLNonNull(GraphQLBoolean) },
   },
 });
 
@@ -734,12 +756,9 @@ async function executePluralQuery(
   includeTotalCount: boolean,
   extraConditions: (SQL | undefined)[] = [],
 ) {
-  // const rawTable = qb.raw._.fullSchema[table.tsName];
-  // const baseQuery = qb.raw.query[table.tsName];
-  // if (rawTable === undefined || baseQuery === undefined)
-  //   throw new Error(`Internal error: Table "${table.tsName}" not found in RQB`);
-
   const limit = args.limit ?? DEFAULT_LIMIT;
+  const offset = args.offset ?? 0;
+
   if (limit > MAX_LIMIT) {
     throw new Error(`Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`);
   }
@@ -773,6 +792,13 @@ async function executePluralQuery(
     throw new Error("Cannot specify both before and after cursors.");
   }
 
+  if (after !== null && offset > 0) {
+    throw new Error("Cannot specify both after cursor and offset.");
+  }
+  if (before !== null && offset > 0) {
+    throw new Error("Cannot specify both before cursor and offset.");
+  }
+
   let startCursor = null;
   let endCursor = null;
   let hasPreviousPage = false;
@@ -797,7 +823,8 @@ async function executePluralQuery(
         .from(relation)
         .where(and(...whereConditions, ...extraConditions))
         .orderBy(...orderBy)
-        .limit(limit + 1),
+        .limit(limit + 1)
+        .offset(offset),
       totalCountPromise,
     ]);
 
@@ -836,7 +863,8 @@ async function executePluralQuery(
         .from(relation)
         .where(and(...whereConditions, cursorCondition, ...extraConditions))
         .orderBy(...orderBy)
-        .limit(limit + 2),
+        .limit(limit + 2)
+        .offset(offset),
       totalCountPromise,
     ]);
 
@@ -898,6 +926,7 @@ async function executePluralQuery(
       .where(and(...whereConditions, cursorCondition, ...extraConditions))
       .orderBy(...orderByReversed)
       .limit(limit + 2)
+      .offset(offset)
       .then((rows) => rows.reverse()),
     totalCountPromise,
   ]);
@@ -1110,7 +1139,6 @@ function buildOrderBySchema(relation: PgTable | PgView, args: PluralArgs) {
     args.orderBy !== undefined ? [[args.orderBy, userDirection]] : [];
 
   if (is(relation, PgView)) {
-    // TODO(kyle) this is unsafe
     return userColumns;
   }
 
