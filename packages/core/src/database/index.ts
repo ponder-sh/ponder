@@ -26,7 +26,14 @@ import { createPglite, createPgliteKyselyDialect } from "@/utils/pglite.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import type { PGlite } from "@electric-sql/pglite";
-import { eq, getTableName, isTable, sql } from "drizzle-orm";
+import {
+  eq,
+  getTableName,
+  getViewName,
+  isTable,
+  isView,
+  sql,
+} from "drizzle-orm";
 import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
 import { pgSchema, pgTable } from "drizzle-orm/pg-core";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
@@ -78,17 +85,43 @@ export const VIEWS = pgSchema("information_schema").table("views", (t) => ({
   table_schema: t.text().notNull(),
 }));
 
-export type PonderApp = {
-  version: string;
+// Note: "version" was introduced in 0.9
+
+export type PonderApp0 = {
+  version: undefined;
+  is_locked: 0 | 1;
+  is_dev: 0 | 1;
+  heartbeat_at: number;
+  build_id: string;
+  checkpoint: string;
+  table_names: string[];
+};
+
+export type PonderApp1 = {
+  version: "1";
   build_id: string;
   table_names: string[];
   is_locked: 0 | 1;
-  is_dev: 0 | 1;
   is_ready: 0 | 1;
   heartbeat_at: number;
 };
+export type PonderApp2 = Omit<PonderApp1, "version"> & {
+  version: "2";
+  is_dev: 0 | 1;
+};
 
-const VERSION = "4";
+export type PonderApp3 = Omit<PonderApp2, "version"> & {
+  version: "3";
+};
+export type PonderApp4 = Omit<PonderApp3, "version"> & {
+  version: "4";
+};
+export type PonderApp5 = Omit<PonderApp4, "version"> & {
+  version: "5";
+  view_names: string[];
+};
+
+const VERSION = "5";
 
 type PGliteDriver = {
   dialect: "pglite";
@@ -107,13 +140,13 @@ export const getPonderMetaTable = (schema?: string) => {
   if (schema === undefined || schema === "public") {
     return pgTable("_ponder_meta", (t) => ({
       key: t.text().primaryKey().$type<"app">(),
-      value: t.jsonb().$type<PonderApp>().notNull(),
+      value: t.jsonb().$type<PonderApp5>().notNull(),
     }));
   }
 
   return pgSchema(schema).table("_ponder_meta", (t) => ({
     key: t.text().primaryKey().$type<"app">(),
-    value: t.jsonb().$type<PonderApp>().notNull(),
+    value: t.jsonb().$type<PonderApp5>().notNull(),
   }));
 };
 
@@ -356,6 +389,7 @@ export const createDatabase = ({
   }
 
   const tables = Object.values(schemaBuild.schema).filter(isTable);
+  const views = Object.values(schemaBuild.schema).filter(isView);
 
   return {
     driver,
@@ -479,6 +513,25 @@ export const createDatabase = ({
               ),
             context,
           );
+        }
+      };
+
+      const createViews = async (tx: QB) => {
+        for (let i = 0; i < schemaBuild.statements.views.sql.length; i++) {
+          await tx
+            .wrap(
+              (tx) => tx.execute(schemaBuild.statements.views.sql[i]!),
+              context,
+            )
+            .catch((_error) => {
+              const error = _error as Error;
+              if (!error.message.includes("already exists")) throw error;
+              const e = new MigrationError(
+                `Unable to create view "${namespace.schema}"."${schemaBuild.statements.views.json[i]!.name}" because a view with that name already exists.`,
+              );
+              e.stack = undefined;
+              throw e;
+            });
         }
       };
 
@@ -615,16 +668,18 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             version: VERSION,
             build_id: buildId,
             table_names: tables.map(getTableName),
+            view_names: views.map(getViewName),
             is_dev: common.options.command === "dev" ? 1 : 0,
             is_locked: 1,
             is_ready: 0,
             heartbeat_at: Date.now(),
-          } satisfies PonderApp;
+          } satisfies PonderApp5;
 
           if (previousApp === undefined) {
             endClock = startClock();
             await createEnums(tx);
             await createTables(tx);
+            await createViews(tx);
 
             common.logger.info({
               msg: "Created database tables",
@@ -632,6 +687,15 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
               tables: JSON.stringify(tables.map(getTableName)),
               duration: endClock(),
             });
+
+            if (views.length > 0) {
+              common.logger.info({
+                msg: "Created database views",
+                count: views.length,
+                views: JSON.stringify(views.map(getViewName)),
+                duration: endClock(),
+              });
+            }
 
             await tx.wrap(
               (tx) =>
@@ -647,7 +711,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
           if (previousApp.is_dev === 1) {
             endClock = startClock();
 
-            for (const table of previousApp.table_names) {
+            for (const table of previousApp.table_names ?? []) {
               await tx.wrap(
                 (tx) =>
                   tx.execute(
@@ -659,6 +723,15 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
                 (tx) =>
                   tx.execute(
                     `DROP TABLE IF EXISTS "${namespace.schema}"."${sqlToReorgTableName(table)}" CASCADE`,
+                  ),
+                context,
+              );
+            }
+            for (const view of previousApp.view_names ?? []) {
+              await tx.wrap(
+                (tx) =>
+                  tx.execute(
+                    `DROP VIEW IF EXISTS "${namespace.schema}"."${view}" CASCADE`,
                   ),
                 context,
               );
@@ -675,15 +748,23 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
 
             common.logger.warn({
               msg: "Dropped existing database tables",
-              count: previousApp.table_names.length,
+              count: previousApp.table_names?.length,
               tables: JSON.stringify(previousApp.table_names),
               duration: endClock(),
             });
+            if (previousApp.view_names?.length > 0) {
+              common.logger.warn({
+                msg: "Dropped existing database views",
+                count: previousApp.view_names?.length,
+                views: JSON.stringify(previousApp.view_names),
+              });
+            }
 
             endClock = startClock();
 
             await createEnums(tx);
             await createTables(tx);
+            await createViews(tx);
 
             common.logger.info({
               msg: "Created database tables",
@@ -691,6 +772,15 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
               tables: JSON.stringify(tables.map(getTableName)),
               duration: endClock(),
             });
+
+            if (views.length > 0) {
+              common.logger.info({
+                msg: "Created database views",
+                count: views.length,
+                views: JSON.stringify(views.map(getViewName)),
+                duration: endClock(),
+              });
+            }
 
             endClock = startClock();
 

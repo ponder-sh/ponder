@@ -166,7 +166,7 @@ export type InferCompositePrimaryKey<
 export type Find = <table extends Table>(
   table: table extends { [onchain]: true }
     ? table
-    : PonderTypeError<`db.find() can only be used with onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
+    : PonderTypeError<`db.find() can only be used with onchain tables, and '${table["_"]["name"]}' is an offchain table or a view.`>,
   key: Key<table>,
 ) => Promise<InferSelectModel<table> | null>;
 
@@ -180,7 +180,7 @@ export type Insert = <
 >(
   table: table extends { [onchain]: true }
     ? table
-    : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
+    : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table or a view.`>,
 ) => {
   /**
    * Create new rows
@@ -256,7 +256,7 @@ export type Update = <
 >(
   table: table extends { [onchain]: true }
     ? table
-    : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
+    : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table or a view.`>,
   key: Key<table>,
 ) => {
   /**
@@ -287,6 +287,6 @@ export type Update = <
 export type Delete = <table extends Table>(
   table: table extends { [onchain]: true }
     ? table
-    : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table.`>,
+    : PonderTypeError<`Indexing functions can only write to onchain tables, and '${table["_"]["name"]}' is an offchain table or a view.`>,
   key: Key<table>,
 ) => Promise<boolean>;

@@ -18,7 +18,9 @@ import {
   type QueryWithTypings,
   type Table,
   getTableName,
+  getViewName,
   isTable,
+  isView,
 } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
 import type { IndexingCache, Row } from "./cache.js";
@@ -44,6 +46,7 @@ export const createHistoricalIndexingStore = ({
   let isProcessingEvents = true;
 
   const tables = Object.values(schema).filter(isTable);
+  const views = Object.values(schema).filter(isView);
   const primaryKeyCache = getPrimaryKeyCache(tables);
 
   const lock = createLock();
@@ -478,12 +481,20 @@ export const createHistoricalIndexingStore = ({
         } else {
           // Note: Not all nodes are implemented in the parser,
           // so we need to try/catch to avoid throwing an error.
-          let tableNames: Set<string> | undefined;
+          let refNames: Set<string> | undefined;
           try {
-            tableNames = await findTableNames(_sql);
+            refNames = await findTableNames(_sql);
           } catch {}
 
-          await indexingCache.flush({ tableNames });
+          if (
+            Array.from(refNames ?? []).some((refName) =>
+              views.some((view) => getViewName(view) === refName),
+            )
+          ) {
+            await indexingCache.flush();
+          } else {
+            await indexingCache.flush({ tableNames: refNames });
+          }
         }
 
         const query: QueryWithTypings = { sql: _sql, params, typings };

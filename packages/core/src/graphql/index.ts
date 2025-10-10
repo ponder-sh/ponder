@@ -1,4 +1,5 @@
 import type { QB } from "@/database/queryBuilder.js";
+import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import type { OnchainTable } from "@/drizzle/onchain.js";
 import { normalizeColumn } from "@/indexing-store/utils.js";
 import type { Schema, Status } from "@/internal/types.js";
@@ -37,11 +38,16 @@ import {
   or,
 } from "drizzle-orm";
 import {
+  type PgColumn,
   type PgEnum,
   PgEnumColumn,
   PgInteger,
   PgSerial,
+  type PgTable,
+  PgView,
+  getViewConfig,
   isPgEnum,
+  isPgView,
 } from "drizzle-orm/pg-core";
 import {
   GraphQLBoolean,
@@ -76,6 +82,7 @@ type PluralArgs = {
   after?: string;
   before?: string;
   limit?: number;
+  offset?: number;
   orderBy?: string;
   orderDirection?: "asc" | "desc";
 };
@@ -92,6 +99,10 @@ export function buildGraphQLSchema({
   );
 
   const tables = Object.values(tablesConfig.tables) as TableRelationalConfig[];
+
+  const views = Object.entries(schema).filter((el): el is [string, PgView] =>
+    isPgView(el[1]),
+  );
 
   const enums = Object.entries(schema).filter(
     (el): el is [string, PgEnum<[string, ...string[]]>] => isPgEnum(el[1]),
@@ -181,6 +192,82 @@ export function buildGraphQLSchema({
       },
     });
     entityFilterTypes[table.tsName] = filterType;
+  }
+
+  for (const [viewName, view] of views) {
+    const viewConfig = getViewConfig(view);
+    const filterType = new GraphQLInputObjectType({
+      name: `${viewName}Filter`,
+      fields: () => {
+        const filterFields: GraphQLInputFieldConfigMap = {
+          // Logical operators
+          AND: { type: new GraphQLList(filterType) },
+          OR: { type: new GraphQLList(filterType) },
+        };
+
+        for (const [columnName, column] of Object.entries(
+          viewConfig.selectedFields,
+        )) {
+          const type = columnToGraphQLCore(column as PgColumn, enumTypes);
+
+          // List fields => universal, plural
+          if (type instanceof GraphQLList) {
+            const baseType = innerType(type);
+
+            conditionSuffixes.universal.forEach((suffix) => {
+              filterFields[`${columnName}${suffix}`] = {
+                type: new GraphQLList(baseType),
+              };
+            });
+
+            conditionSuffixes.plural.forEach((suffix) => {
+              filterFields[`${columnName}${suffix}`] = { type: baseType };
+            });
+          }
+
+          // JSON => no filters.
+          // Boolean => universal and singular only.
+          // All other scalar => universal, singular, numeric OR string depending on type
+          if (
+            type instanceof GraphQLScalarType ||
+            type instanceof GraphQLEnumType
+          ) {
+            if (type.name === "JSON") continue;
+
+            conditionSuffixes.universal.forEach((suffix) => {
+              filterFields[`${columnName}${suffix}`] = {
+                type,
+              };
+            });
+
+            conditionSuffixes.singular.forEach((suffix) => {
+              filterFields[`${columnName}${suffix}`] = {
+                type: new GraphQLList(type),
+              };
+            });
+
+            if (["String", "ID"].includes(type.name)) {
+              conditionSuffixes.string.forEach((suffix) => {
+                filterFields[`${columnName}${suffix}`] = {
+                  type: type,
+                };
+              });
+            }
+
+            if (["Int", "Float", "BigInt"].includes(type.name)) {
+              conditionSuffixes.numeric.forEach((suffix) => {
+                filterFields[`${columnName}${suffix}`] = {
+                  type: type,
+                };
+              });
+            }
+          }
+        }
+
+        return filterFields;
+      },
+    });
+    entityFilterTypes[viewName] = filterType;
   }
 
   const entityTypes: Record<string, GraphQLObjectType<Parent, Context>> = {};
@@ -317,6 +404,7 @@ export function buildGraphQLSchema({
                 before: { type: GraphQLString },
                 after: { type: GraphQLString },
                 limit: { type: GraphQLInt },
+                offset: { type: GraphQLInt },
               },
               resolve: (parent, args: PluralArgs, context, info) => {
                 const relationalConditions = [];
@@ -332,7 +420,8 @@ export function buildGraphQLSchema({
                 );
 
                 return executePluralQuery(
-                  referencedTable,
+                  schema[referencedTable.tsName] as PgTable,
+                  referencedTable.columns,
                   context.qb,
                   args,
                   includeTotalCount,
@@ -360,6 +449,44 @@ export function buildGraphQLSchema({
           ),
         },
         pageInfo: { type: new GraphQLNonNull(GraphQLPageInfo) },
+        totalCount: { type: new GraphQLNonNull(GraphQLInt) },
+      }),
+    });
+  }
+
+  for (const [viewName, view] of views) {
+    entityTypes[viewName] = new GraphQLObjectType({
+      name: viewName,
+      fields: () => {
+        const fieldConfigMap: GraphQLFieldConfigMap<Parent, Context> = {};
+
+        const viewConfig = getViewConfig(view);
+
+        // Scalar fields
+        for (const [columnName, column] of Object.entries(
+          viewConfig.selectedFields,
+        )) {
+          const type = columnToGraphQLCore(column as PgColumn, enumTypes);
+          fieldConfigMap[columnName] = {
+            type: (column as PgColumn).notNull
+              ? new GraphQLNonNull(type)
+              : type,
+          };
+        }
+
+        return fieldConfigMap;
+      },
+    });
+
+    entityPageTypes[viewName] = new GraphQLObjectType({
+      name: `${viewName}Page`,
+      fields: () => ({
+        items: {
+          type: new GraphQLNonNull(
+            new GraphQLList(new GraphQLNonNull(entityTypes[viewName]!)),
+          ),
+        },
+        pageInfo: { type: new GraphQLNonNull(GraphQLViewPageInfo) },
         totalCount: { type: new GraphQLNonNull(GraphQLInt) },
       }),
     });
@@ -409,11 +536,49 @@ export function buildGraphQLSchema({
         before: { type: GraphQLString },
         after: { type: GraphQLString },
         limit: { type: GraphQLInt },
+        offset: { type: GraphQLInt },
       },
       resolve: async (_parent, args: PluralArgs, context, info) => {
         const includeTotalCount = selectionIncludesField(info, "totalCount");
 
-        return executePluralQuery(table, context.qb, args, includeTotalCount);
+        return executePluralQuery(
+          schema[table.tsName] as PgTable,
+          table.columns,
+          context.qb,
+          args,
+          includeTotalCount,
+        );
+      },
+    };
+  }
+  for (const [viewName, view] of views) {
+    const viewConfig = getViewConfig(view);
+    const entityPageType = entityPageTypes[viewName]!;
+    const entityFilterType = entityFilterTypes[viewName]!;
+
+    const singularFieldName =
+      viewName.charAt(0).toLowerCase() + viewName.slice(1);
+    const pluralFieldName = `${singularFieldName}s`;
+
+    queryFields[pluralFieldName] = {
+      type: new GraphQLNonNull(entityPageType),
+      args: {
+        where: { type: entityFilterType },
+        orderBy: { type: GraphQLString },
+        orderDirection: { type: GraphQLString },
+        limit: { type: GraphQLInt },
+        offset: { type: GraphQLInt },
+      },
+      resolve: async (_parent, args: PluralArgs, context, info) => {
+        const includeTotalCount = selectionIncludesField(info, "totalCount");
+
+        return executePluralQuery(
+          view,
+          viewConfig.selectedFields as Record<string, Column>,
+          context.qb,
+          args,
+          includeTotalCount,
+        );
       },
     };
   }
@@ -457,7 +622,13 @@ export function buildGraphQLSchema({
 
   return new GraphQLSchema({
     // Include these here so they are listed first in the printed schema.
-    types: [GraphQLJSON, GraphQLBigInt, GraphQLPageInfo, GraphQLMeta],
+    types: [
+      GraphQLJSON,
+      GraphQLBigInt,
+      GraphQLPageInfo,
+      GraphQLViewPageInfo,
+      GraphQLMeta,
+    ],
     query: new GraphQLObjectType({
       name: "Query",
       fields: queryFields,
@@ -472,6 +643,14 @@ const GraphQLPageInfo = new GraphQLObjectType({
     hasPreviousPage: { type: new GraphQLNonNull(GraphQLBoolean) },
     startCursor: { type: GraphQLString },
     endCursor: { type: GraphQLString },
+  },
+});
+
+const GraphQLViewPageInfo = new GraphQLObjectType({
+  name: "ViewPageInfo",
+  fields: {
+    hasNextPage: { type: new GraphQLNonNull(GraphQLBoolean) },
+    hasPreviousPage: { type: new GraphQLNonNull(GraphQLBoolean) },
   },
 });
 
@@ -568,25 +747,23 @@ const innerType = (
 };
 
 async function executePluralQuery(
-  table: TableRelationalConfig,
+  relation: PgTable | PgView,
+  columns: Record<string, Column>,
   qb: QB<{ [key: string]: OnchainTable }>,
   args: PluralArgs,
   includeTotalCount: boolean,
   extraConditions: (SQL | undefined)[] = [],
 ) {
-  const rawTable = qb.raw._.fullSchema[table.tsName];
-  const baseQuery = qb.raw.query[table.tsName];
-  if (rawTable === undefined || baseQuery === undefined)
-    throw new Error(`Internal error: Table "${table.tsName}" not found in RQB`);
-
   const limit = args.limit ?? DEFAULT_LIMIT;
+  const offset = args.offset ?? 0;
+
   if (limit > MAX_LIMIT) {
     throw new Error(`Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`);
   }
 
-  const orderBySchema = buildOrderBySchema(table, args);
+  const orderBySchema = buildOrderBySchema(relation, args);
   const orderBy = orderBySchema.map(([columnName, direction]) => {
-    const column = table.columns[columnName];
+    const column = columns[columnName];
     if (column === undefined) {
       throw new Error(
         `Unknown column "${columnName}" used in orderBy argument`,
@@ -595,7 +772,7 @@ async function executePluralQuery(
     return direction === "asc" ? asc(column) : desc(column);
   });
   const orderByReversed = orderBySchema.map(([columnName, direction]) => {
-    const column = table.columns[columnName];
+    const column = columns[columnName];
     if (column === undefined) {
       throw new Error(
         `Unknown column "${columnName}" used in orderBy argument`,
@@ -604,13 +781,19 @@ async function executePluralQuery(
     return direction === "asc" ? desc(column) : asc(column);
   });
 
-  const whereConditions = buildWhereConditions(args.where, table.columns);
+  const whereConditions = buildWhereConditions(args.where, columns);
 
   const after = args.after ?? null;
   const before = args.before ?? null;
 
   if (after !== null && before !== null) {
     throw new Error("Cannot specify both before and after cursors.");
+  }
+  if (after !== null && offset > 0) {
+    throw new Error("Cannot specify both after cursor and offset.");
+  }
+  if (before !== null && offset > 0) {
+    throw new Error("Cannot specify both before cursor and offset.");
   }
 
   let startCursor = null;
@@ -623,7 +806,7 @@ async function executePluralQuery(
         .wrap((db) =>
           db
             .select({ count: count() })
-            .from(rawTable)
+            .from(relation)
             .where(and(...whereConditions, ...extraConditions)),
         )
         .then((rows) => rows[0]?.count ?? null)
@@ -632,11 +815,13 @@ async function executePluralQuery(
   // Neither cursors are specified, apply the order conditions and execute.
   if (after === null && before === null) {
     const [rows, totalCount] = await Promise.all([
-      baseQuery.findMany({
-        where: and(...whereConditions, ...extraConditions),
-        orderBy,
-        limit: limit + 1,
-      }),
+      qb.raw
+        .select()
+        .from(relation)
+        .where(and(...whereConditions, ...extraConditions))
+        .orderBy(...orderBy)
+        .limit(limit + 1)
+        .offset(offset),
       totalCountPromise,
     ]);
 
@@ -645,12 +830,16 @@ async function executePluralQuery(
       hasNextPage = true;
     }
 
-    startCursor =
-      rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
-    endCursor =
-      rows.length > 0
-        ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
-        : null;
+    if (offset === 0) {
+      startCursor =
+        rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
+      endCursor =
+        rows.length > 0
+          ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
+          : null;
+    } else {
+      hasPreviousPage = true;
+    }
 
     return {
       items: rows,
@@ -663,18 +852,20 @@ async function executePluralQuery(
     // User specified an 'after' cursor.
     const cursorObject = decodeCursor(after);
     const cursorCondition = buildCursorCondition(
-      table,
+      columns,
       orderBySchema,
       "after",
       cursorObject,
     );
 
     const [rows, totalCount] = await Promise.all([
-      baseQuery.findMany({
-        where: and(...whereConditions, cursorCondition, ...extraConditions),
-        orderBy,
-        limit: limit + 2,
-      }),
+      qb.raw
+        .select()
+        .from(relation)
+        .where(and(...whereConditions, cursorCondition, ...extraConditions))
+        .orderBy(...orderBy)
+        .limit(limit + 2)
+        .offset(offset),
       totalCountPromise,
     ]);
 
@@ -721,7 +912,7 @@ async function executePluralQuery(
   // User specified a 'before' cursor.
   const cursorObject = decodeCursor(before!);
   const cursorCondition = buildCursorCondition(
-    table,
+    columns,
     orderBySchema,
     "before",
     cursorObject,
@@ -730,12 +921,13 @@ async function executePluralQuery(
   // Reverse the order by conditions to get the previous page,
   // then reverse the results back to the original order.
   const [rows, totalCount] = await Promise.all([
-    baseQuery
-      .findMany({
-        where: and(...whereConditions, cursorCondition, ...extraConditions),
-        orderBy: orderByReversed,
-        limit: limit + 2,
-      })
+    qb.raw
+      .select()
+      .from(relation)
+      .where(and(...whereConditions, cursorCondition, ...extraConditions))
+      .orderBy(...orderByReversed)
+      .limit(limit + 2)
+      .offset(offset)
       .then((rows) => rows.reverse()),
     totalCountPromise,
   ]);
@@ -939,17 +1131,23 @@ function buildWhereConditions(
   return conditions;
 }
 
-function buildOrderBySchema(table: TableRelationalConfig, args: PluralArgs) {
+function buildOrderBySchema(relation: PgTable | PgView, args: PluralArgs) {
   // If the user-provided order by does not include the ALL of the ID columns,
   // add any missing ID columns to the end of the order by clause (asc).
   // This ensures a consistent sort order to unblock cursor pagination.
   const userDirection = args.orderDirection ?? "asc";
   const userColumns: [string, "asc" | "desc"][] =
     args.orderBy !== undefined ? [[args.orderBy, userDirection]] : [];
-  const pkColumns = table.primaryKey.map((column) => [
-    getColumnTsName(column),
+
+  if (is(relation, PgView)) {
+    return userColumns;
+  }
+
+  const pkColumns = getPrimaryKeyColumns(relation).map(({ js }) => [
+    js,
     userDirection,
   ]);
+
   const missingPkColumns = pkColumns.filter(
     (pkColumn) =>
       !userColumns.some((userColumn) => userColumn[0] === pkColumn[0]),
@@ -980,13 +1178,13 @@ function decodeRowFragment(encodedRowFragment: string): {
 }
 
 function buildCursorCondition(
-  table: TableRelationalConfig,
+  columns: Record<string, Column>,
   orderBySchema: [string, "asc" | "desc"][],
   direction: "after" | "before",
   cursorObject: { [k: string]: unknown },
 ): SQL | undefined {
   const cursorColumns = orderBySchema.map(([columnName, orderDirection]) => {
-    const column = table.columns[columnName];
+    const column = columns[columnName];
     if (column === undefined)
       throw new Error(
         `Unknown column "${columnName}" used in orderBy argument`,
