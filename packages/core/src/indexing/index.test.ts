@@ -8,7 +8,7 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { deployErc20, deployMulticall, mintErc20 } from "@/_test/simulate.js";
-import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
+import { getChain, getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
 import { buildConfig, buildIndexingFunctions } from "@/build/config.js";
 import { onchainTable } from "@/drizzle/onchain.js";
 import type { IndexingCache } from "@/indexing-store/cache.js";
@@ -23,6 +23,7 @@ import type {
   LogEvent,
   RawEvent,
 } from "@/internal/types.js";
+import { createRpc } from "@/rpc/index.js";
 import { decodeEvents } from "@/runtime/events.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { checksumAddress, padHex, parseEther, toHex, zeroAddress } from "viem";
@@ -46,9 +47,10 @@ const account = onchainTable("account", (p) => ({
 
 const schema = { account };
 
-const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
-  address: zeroAddress,
-});
+const { config, indexingFunctions, eventCallbacks, sources } =
+  getErc20ConfigAndIndexingFunctions({
+    address: zeroAddress,
+  });
 
 const indexingErrorHandler: IndexingErrorHandler = {
   getRetryableError: () => {
@@ -69,17 +71,8 @@ test("createIndexing()", async (context) => {
     schemaBuild: { schema },
   });
 
-  const configBuild = buildConfig({
-    common,
-    config,
-  });
-  const { sources, chains, rpcs, indexingFunctions } =
-    await buildIndexingFunctions({
-      common,
-      config,
-      rawIndexingFunctions,
-      configBuild,
-    });
+  const chain = getChain();
+  const rpc = createRpc({ common, chain });
 
   const eventCount = {};
   const columnAccessPattern = createColumnAccessPattern({
@@ -88,7 +81,7 @@ test("createIndexing()", async (context) => {
 
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains, rpcs },
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount,
   });
@@ -97,8 +90,9 @@ test("createIndexing()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      chains,
-      indexingFunctions: {},
+      chains: [chain],
+      eventCallbacks: [eventCallbacks],
+      setupCallbacks: [[]],
     },
     client: cachedViemClient,
     eventCount,
@@ -115,17 +109,8 @@ test("processSetupEvents() empty", async (context) => {
     schemaBuild: { schema },
   });
 
-  const configBuild = buildConfig({
-    common,
-    config,
-  });
-  const { sources, chains, rpcs, indexingFunctions } =
-    await buildIndexingFunctions({
-      common,
-      config,
-      rawIndexingFunctions,
-      configBuild,
-    });
+  const chain = getChain();
+  const rpc = createRpc({ common, chain });
 
   const eventCount = {};
   const columnAccessPattern = createColumnAccessPattern({
@@ -134,7 +119,7 @@ test("processSetupEvents() empty", async (context) => {
 
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains, rpcs },
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount,
   });
@@ -143,8 +128,9 @@ test("processSetupEvents() empty", async (context) => {
     common,
     indexingBuild: {
       sources,
-      chains,
-      indexingFunctions: {},
+      chains: [chain],
+      eventCallbacks: [[]],
+      setupCallbacks: [[]],
     },
     client: cachedViemClient,
     eventCount,
@@ -161,20 +147,10 @@ test("processSetupEvents()", async (context) => {
     schemaBuild: { schema },
   });
 
-  const configBuild = buildConfig({
-    common,
-    config,
-  });
-  const { sources, chains, rpcs } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common, chain });
 
-  const indexingFunctions = {
-    "Erc20:setup": vi.fn(),
-  };
+  const indexingFunctions = [{ name: "Erc20:setup", fn: vi.fn() }];
 
   const eventCount = { "Erc20:setup": 0 };
   const columnAccessPattern = createColumnAccessPattern({
@@ -183,7 +159,7 @@ test("processSetupEvents()", async (context) => {
 
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains, rpcs },
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount,
   });
@@ -192,8 +168,9 @@ test("processSetupEvents()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      chains,
-      indexingFunctions,
+      chains: [chain],
+      eventCallbacks: [eventCallbacks],
+      setupCallbacks: [[]],
     },
     client: cachedViemClient,
     eventCount,
@@ -203,17 +180,16 @@ test("processSetupEvents()", async (context) => {
 
   await indexing.processSetupEvents({ db: indexingStore });
 
-  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledOnce();
-  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledWith({
+  expect(indexingFunctions[0]!.fn).toHaveBeenCalledOnce();
+  expect(indexingFunctions[0]!.fn).toHaveBeenCalledWith({
     context: {
       chain: { id: 1, name: "mainnet" },
       contracts: {
         Erc20: {
           abi: expect.any(Object),
-          // @ts-ignore
-          address: checksumAddress(sources[0]!.filter.address),
-          startBlock: sources[0]!.filter.fromBlock,
-          endBlock: sources[0]!.filter.toBlock,
+          address: zeroAddress,
+          startBlock: undefined,
+          endBlock: undefined,
         },
       },
       client: expect.any(Object),
@@ -228,22 +204,16 @@ test("processEvent()", async (context) => {
     schemaBuild: { schema },
   });
 
-  const configBuild = buildConfig({
-    common,
-    config,
-  });
-  const { sources, chains, rpcs } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common, chain });
 
-  const indexingFunctions = {
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-      vi.fn(),
-    "Pair:Swap": vi.fn(),
-  };
+  const indexingFunctions = [
+    {
+      name: "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)",
+      fn: vi.fn(),
+    },
+    { name: "Pair:Swap", fn: vi.fn() },
+  ];
 
   const eventCount = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)": 0,
@@ -255,7 +225,7 @@ test("processEvent()", async (context) => {
 
   const cachedViemClient = createCachedViemClient({
     common,
-    indexingBuild: { chains, rpcs },
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount,
   });
@@ -264,8 +234,9 @@ test("processEvent()", async (context) => {
     common,
     indexingBuild: {
       sources,
-      chains,
-      indexingFunctions,
+      chains: [chain],
+      eventCallbacks: [eventCallbacks],
+      setupCallbacks: [[]],
     },
     client: cachedViemClient,
     eventCount,
@@ -337,13 +308,8 @@ test("processEvents eventCount", async (context) => {
     schemaBuild: { schema },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { sources, chains, rpcs } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common, chain });
 
   const indexingFunctions = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
@@ -416,13 +382,8 @@ test("executeSetup() context.client", async (context) => {
     schemaBuild: { schema },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { sources, chains, rpcs } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common, chain });
 
   const indexingFunctions = {
     "Erc20:setup": async ({ context }: { context: Context }) => {
@@ -475,13 +436,8 @@ test("executeSetup() context.db", async (context) => {
     schemaBuild: { schema },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { sources, chains, rpcs } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common, chain });
 
   const indexingFunctions = {
     "Erc20:setup": async ({ context }: { context: Context }) => {
@@ -534,13 +490,8 @@ test("executeSetup() metrics", async (context) => {
     schemaBuild: { schema },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { sources, chains, rpcs } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common, chain });
 
   const indexingFunctions = {
     "Erc20:setup": vi.fn(),
@@ -583,13 +534,8 @@ test("executeSetup() error", async (context) => {
     schemaBuild: { schema },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { sources, chains, rpcs } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common, chain });
 
   const indexingFunctions = {
     "Erc20:setup": vi.fn(),
@@ -635,13 +581,8 @@ test("processEvents() context.client", async (context) => {
     schemaBuild: { schema },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { sources, chains, rpcs } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common, chain });
 
   const clientCall = async ({ context }: { context: Context }) => {
     await context.client.getBalance({ address: BOB });
@@ -720,13 +661,8 @@ test("processEvents() context.db", async (context) => {
     schemaBuild: { schema },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { sources, chains, rpcs } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common, chain });
 
   let i = 0;
 
@@ -807,13 +743,8 @@ test("processEvents() metrics", async (context) => {
     schemaBuild: { schema },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { sources, chains, rpcs } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common, chain });
 
   const indexingFunctions = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
@@ -883,13 +814,8 @@ test("processEvents() error", async (context) => {
     schemaBuild: { schema },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { sources, chains, rpcs } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common, chain });
 
   const indexingFunctions = {
     "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
@@ -965,13 +891,8 @@ test("processEvents() error with missing event object properties", async (contex
     schemaBuild: { schema },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { sources, chains, rpcs } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common, chain });
 
   const throwError = async ({ event }: { event: any; context: Context }) => {
     // biome-ignore lint/performance/noDelete: <explanation>
@@ -1041,13 +962,8 @@ test("processEvents() column selection", async (context) => {
     schemaBuild: { schema },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { sources, chains, rpcs } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
+  const chain = getChain();
+  const rpc = createRpc({ common, chain });
 
   let count = 0;
 

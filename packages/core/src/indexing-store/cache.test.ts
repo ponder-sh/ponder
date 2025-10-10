@@ -316,7 +316,6 @@ test("prefetch() uses profile metadata", async (context) => {
 
   const event = {
     type: "log",
-    chainId: 1,
     checkpoint: ZERO_CHECKPOINT_STRING,
     name: "Contract:Event",
     event: {

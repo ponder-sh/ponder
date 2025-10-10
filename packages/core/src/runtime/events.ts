@@ -2,6 +2,7 @@ import type { Common } from "@/internal/common.js";
 import type {
   BlockFilter,
   Event,
+  EventCallback,
   FactoryId,
   InternalBlock,
   InternalLog,
@@ -10,7 +11,6 @@ import type {
   InternalTransactionReceipt,
   LogFilter,
   RawEvent,
-  Source,
   SyncBlock,
   SyncBlockHeader,
   SyncLog,
@@ -35,11 +35,11 @@ import {
 } from "@/utils/checkpoint.js";
 import { decodeEventLog } from "@/utils/decodeEventLog.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { never } from "@/utils/never.js";
 import {
+  type AbiEvent,
+  type AbiFunction,
   type Address,
   type Hash,
-  type Hex,
   decodeFunctionData,
   decodeFunctionResult,
   hexToBigInt,
@@ -59,45 +59,41 @@ import { isAddressFactory } from "./filter.js";
  * Create `RawEvent`s from raw data types
  */
 export const buildEvents = ({
-  sources,
+  eventCallbacks,
   blocks,
   logs,
   transactions,
   transactionReceipts,
   traces,
   childAddresses,
-  chainId,
 }: {
-  sources: Source[];
+  eventCallbacks: EventCallback[];
   blocks: InternalBlock[];
   logs: InternalLog[];
   transactions: InternalTransaction[];
   transactionReceipts: InternalTransactionReceipt[];
   traces: InternalTrace[];
   childAddresses: Map<FactoryId, Map<Address, number>>;
-  chainId: number;
 }) => {
   const events: RawEvent[] = [];
 
-  const blockSourceIndexes: number[] = [];
-  const transactionSourceIndexes: number[] = [];
-  const logSourceIndexes: number[] = [];
-  const traceSourceIndexes: number[] = [];
-  const transferSourceIndexes: number[] = [];
+  const blockEventCallbacks: EventCallback[] = [];
+  const transactionEventCallbacks: EventCallback[] = [];
+  const logEventCallbacks: EventCallback[] = [];
+  const traceEventCallbacks: EventCallback[] = [];
+  const transferEventCallbacks: EventCallback[] = [];
 
-  for (let i = 0; i < sources.length; i++) {
-    const source = sources[i]!;
-    if (chainId !== source.filter.chainId) continue;
-    if (source.filter.type === "block") {
-      blockSourceIndexes.push(i);
-    } else if (source.filter.type === "transaction") {
-      transactionSourceIndexes.push(i);
-    } else if (source.filter.type === "log") {
-      logSourceIndexes.push(i);
-    } else if (source.filter.type === "trace") {
-      traceSourceIndexes.push(i);
-    } else if (source.filter.type === "transfer") {
-      transferSourceIndexes.push(i);
+  for (const eventCallback of eventCallbacks) {
+    if (eventCallback.filter.type === "block") {
+      blockEventCallbacks.push(eventCallback);
+    } else if (eventCallback.filter.type === "transaction") {
+      transactionEventCallbacks.push(eventCallback);
+    } else if (eventCallback.filter.type === "log") {
+      logEventCallbacks.push(eventCallback);
+    } else if (eventCallback.filter.type === "trace") {
+      traceEventCallbacks.push(eventCallback);
+    } else if (eventCallback.filter.type === "transfer") {
+      transferEventCallbacks.push(eventCallback);
     }
   }
 
@@ -106,12 +102,12 @@ export const buildEvents = ({
   let transactionReceiptsIndex = 0;
 
   for (const block of blocks) {
-    for (const blockSourceIndex of blockSourceIndexes) {
-      const filter = sources[blockSourceIndex]!.filter as BlockFilter;
+    for (const eventCallback of blockEventCallbacks) {
+      const filter = eventCallback.filter as BlockFilter;
       if (isBlockFilterMatched({ filter, block })) {
         events.push({
-          chainId: filter.chainId,
-          sourceIndex: blockSourceIndex,
+          chain: eventCallback.chain,
+          eventCallback,
           checkpoint: encodeCheckpoint({
             blockTimestamp: block.timestamp,
             chainId: filter.chainId,
@@ -145,7 +141,7 @@ export const buildEvents = ({
 
     if (block === undefined) {
       throw new Error(
-        `Failed to build events from block data. Missing block ${blockNumber} for chain ID ${chainId}`,
+        `Failed to build events from block data. Missing block ${blockNumber}`,
       );
     }
 
@@ -163,9 +159,8 @@ export const buildEvents = ({
 
     const transactionReceipt = transactionReceipts[transactionReceiptsIndex]!;
 
-    for (const transactionSourceIndex of transactionSourceIndexes) {
-      const filter = sources[transactionSourceIndex]!
-        .filter as TransactionFilter;
+    for (const eventCallback of transactionEventCallbacks) {
+      const filter = eventCallback.filter as TransactionFilter;
       if (
         isTransactionFilterMatched({ filter, transaction }) &&
         (isAddressFactory(filter.fromAddress)
@@ -188,13 +183,13 @@ export const buildEvents = ({
       ) {
         if (filter.hasTransactionReceipt && transactionReceipt === undefined) {
           throw new Error(
-            `Failed to build events from block data. Missing transaction receipt for block ${blockNumber} and transaction index ${transactionIndex} for chain ID ${chainId}`,
+            `Failed to build events from block data. Missing transaction receipt for block ${blockNumber} and transaction index ${transactionIndex} for chain ID ${eventCallback.chain.id}`,
           );
         }
 
         events.push({
-          chainId: filter.chainId,
-          sourceIndex: transactionSourceIndex,
+          chain: eventCallback.chain,
+          eventCallback,
           checkpoint: encodeCheckpoint({
             blockTimestamp: block.timestamp,
             chainId: filter.chainId,
@@ -232,7 +227,7 @@ export const buildEvents = ({
 
     if (block === undefined) {
       throw new Error(
-        `Failed to build events from block data. Missing block ${blockNumber} for chain ID ${chainId}`,
+        `Failed to build events from block data. Missing block ${blockNumber}`,
       );
     }
 
@@ -256,7 +251,7 @@ export const buildEvents = ({
 
     if (transaction === undefined) {
       throw new Error(
-        `Failed to build events from block data. Missing transaction for block ${blockNumber} and transaction index ${transactionIndex} for chain ID ${chainId}`,
+        `Failed to build events from block data. Missing transaction for block ${blockNumber} and transaction index ${transactionIndex}`,
       );
     }
 
@@ -283,8 +278,8 @@ export const buildEvents = ({
       transactionReceipt = transactionReceipts[transactionReceiptsIndex]!;
     }
 
-    for (const traceSourceIndex of traceSourceIndexes) {
-      const filter = sources[traceSourceIndex]!.filter as TraceFilter;
+    for (const eventCallback of traceEventCallbacks) {
+      const filter = eventCallback.filter as TraceFilter;
 
       if (
         isTraceFilterMatched({ filter, trace, block }) &&
@@ -309,13 +304,13 @@ export const buildEvents = ({
       ) {
         if (filter.hasTransactionReceipt && transactionReceipt === undefined) {
           throw new Error(
-            `Failed to build events from block data. Missing transaction receipt for block ${blockNumber} and transaction index ${transactionIndex} for chain ID ${chainId}`,
+            `Failed to build events from block data. Missing transaction receipt for block ${blockNumber} and transaction index ${transactionIndex}`,
           );
         }
 
         events.push({
-          chainId: filter.chainId,
-          sourceIndex: traceSourceIndex,
+          chain: eventCallback.chain,
+          eventCallback,
           checkpoint: encodeCheckpoint({
             blockTimestamp: block.timestamp,
             chainId: filter.chainId,
@@ -335,8 +330,8 @@ export const buildEvents = ({
       }
     }
 
-    for (const transferSourceIndex of transferSourceIndexes) {
-      const filter = sources[transferSourceIndex]!.filter as TransferFilter;
+    for (const eventCallback of transferEventCallbacks) {
+      const filter = eventCallback.filter as TransferFilter;
 
       if (
         isTransferFilterMatched({ filter, trace, block }) &&
@@ -358,13 +353,13 @@ export const buildEvents = ({
       ) {
         if (filter.hasTransactionReceipt && transactionReceipt === undefined) {
           throw new Error(
-            `Failed to build events from block data. Missing transaction receipt for block ${blockNumber} and transaction index ${transactionIndex} for chain ID ${chainId}`,
+            `Failed to build events from block data. Missing transaction receipt for block ${blockNumber} and transaction index ${transactionIndex}`,
           );
         }
 
         events.push({
-          chainId: filter.chainId,
-          sourceIndex: transferSourceIndex,
+          chain: eventCallback.chain,
+          eventCallback,
           checkpoint: encodeCheckpoint({
             blockTimestamp: block.timestamp,
             chainId: filter.chainId,
@@ -404,7 +399,7 @@ export const buildEvents = ({
 
     if (block === undefined) {
       throw new Error(
-        `Failed to build events from block data. Missing block ${blockNumber} for chain ID ${chainId}`,
+        `Failed to build events from block data. Missing block ${blockNumber}`,
       );
     }
 
@@ -452,8 +447,8 @@ export const buildEvents = ({
       transactionReceipt = transactionReceipts[transactionReceiptsIndex]!;
     }
 
-    for (const logSourceIndex of logSourceIndexes) {
-      const filter = sources[logSourceIndex]!.filter as LogFilter;
+    for (const eventCallback of logEventCallbacks) {
+      const filter = eventCallback.filter as LogFilter;
       if (
         isLogFilterMatched({ filter, log }) &&
         (isAddressFactory(filter.address)
@@ -466,13 +461,13 @@ export const buildEvents = ({
       ) {
         if (filter.hasTransactionReceipt && transactionReceipt === undefined) {
           throw new Error(
-            `Failed to build events from block data. Missing transaction receipt for block ${blockNumber} and transaction index ${transactionIndex} for chain ID ${chainId}`,
+            `Failed to build events from block data. Missing transaction receipt for block ${blockNumber} and transaction index ${transactionIndex}`,
           );
         }
 
         events.push({
-          chainId: filter.chainId,
-          sourceIndex: logSourceIndex,
+          chain: eventCallback.chain,
+          eventCallback,
           checkpoint: encodeCheckpoint({
             blockTimestamp: block.timestamp,
             chainId: filter.chainId,
@@ -506,11 +501,11 @@ export const splitEvents = (
     if (hash === undefined || hash !== event.event.block.hash) {
       result.push({
         events: [],
-        chainId: event.chainId,
+        chainId: event.chain.id,
         checkpoint: encodeCheckpoint({
           ...MAX_CHECKPOINT,
           blockTimestamp: event.event.block.timestamp,
-          chainId: BigInt(event.chainId),
+          chainId: BigInt(event.chain.id),
           blockNumber: event.event.block.number,
         }),
       });
@@ -525,220 +520,162 @@ export const splitEvents = (
 
 export const decodeEvents = (
   common: Common,
-  sources: Source[],
   rawEvents: RawEvent[],
 ): Event[] => {
   const events: Event[] = [];
 
   for (const event of rawEvents) {
-    const source = sources[event.sourceIndex]!;
+    if (
+      event.eventCallback.type === "contract" &&
+      event.eventCallback.filter.type === "log"
+    ) {
+      try {
+        const args = decodeEventLog({
+          abiItem: event.eventCallback.abiItem as AbiEvent,
+          data: event.log!.data,
+          topics: event.log!.topics,
+        });
 
-    switch (source.type) {
-      case "contract": {
-        switch (source.filter.type) {
-          case "log": {
-            try {
-              if (
-                event.log!.topics[0] === undefined ||
-                source.abiEvents.bySelector[event.log!.topics[0]] === undefined
-              ) {
-                throw new Error();
-              }
-
-              const { safeName, item } =
-                source.abiEvents.bySelector[event.log!.topics[0]]!;
-
-              const args = decodeEventLog({
-                abiItem: item,
-                data: event.log!.data,
-                topics: event.log!.topics,
-              });
-
-              events.push({
-                type: "log",
-                chainId: event.chainId,
-                checkpoint: event.checkpoint,
-
-                name: `${source.name}:${safeName}`,
-
-                event: {
-                  id: event.checkpoint,
-                  args,
-                  log: event.log!,
-                  block: event.block as Block,
-                  transaction: event.transaction! as Transaction,
-                  transactionReceipt:
-                    event.transactionReceipt as TransactionReceipt,
-                },
-              });
-            } catch (err) {
-              const blockNumber = event?.block?.number ?? "unknown";
-              if (source.filter.address === undefined) {
-                common.logger.debug({
-                  msg: "Unable to decode log, skipping it",
-                  block_number: blockNumber,
-                  log_index: event.log?.logIndex,
-                  data: event.log?.data,
-                  topics: JSON.stringify(event.log?.topics),
-                });
-              } else {
-                common.logger.warn({
-                  msg: "Unable to decode log, skipping it",
-                  block_number: blockNumber,
-                  log_index: event.log?.logIndex,
-                  data: event.log?.data,
-                  topics: JSON.stringify(event.log?.topics),
-                });
-              }
-            }
-            break;
-          }
-
-          case "trace": {
-            try {
-              const selector = event
-                .trace!.input.slice(0, 10)
-                .toLowerCase() as Hex;
-
-              if (source.abiFunctions.bySelector[selector] === undefined) {
-                throw new Error();
-              }
-
-              const { item, safeName } =
-                source.abiFunctions.bySelector[selector]!;
-
-              const { args, functionName } = decodeFunctionData({
-                abi: [item],
-                data: event.trace!.input,
-              });
-
-              const result = decodeFunctionResult({
-                abi: [item],
-                data: event.trace!.output ?? "0x",
-                functionName,
-              });
-
-              events.push({
-                type: "trace",
-                chainId: event.chainId,
-                checkpoint: event.checkpoint,
-
-                // NOTE: `safename` includes ()
-                name: `${source.name}.${safeName}`,
-
-                event: {
-                  id: event.checkpoint,
-                  args,
-                  result,
-                  trace: event.trace! as Trace,
-                  block: event.block as Block,
-                  transaction: event.transaction! as Transaction,
-                  transactionReceipt:
-                    event.transactionReceipt as TransactionReceipt,
-                },
-              });
-            } catch (err) {
-              const blockNumber = event?.block?.number ?? "unknown";
-              if (source.filter.toAddress === undefined) {
-                common.logger.debug({
-                  msg: "Unable to decode trace, skipping it",
-                  block_number: blockNumber,
-                  transaction_index: event.transaction?.transactionIndex,
-                  trace_index: event.trace?.traceIndex,
-                  input: event.trace?.input,
-                  output: event.trace?.output,
-                });
-              } else {
-                common.logger.warn({
-                  msg: "Unable to decode trace, skipping it",
-                  block_number: blockNumber,
-                  transaction_index: event.transaction?.transactionIndex,
-                  trace_index: event.trace?.traceIndex,
-                  input: event.trace?.input,
-                  output: event.trace?.output,
-                });
-              }
-            }
-            break;
-          }
-
-          default:
-            never(source.filter);
-        }
-        break;
-      }
-
-      case "account": {
-        switch (source.filter.type) {
-          case "transaction": {
-            const isFrom = source.filter.toAddress === undefined;
-
-            events.push({
-              type: "transaction",
-              chainId: event.chainId,
-              checkpoint: event.checkpoint,
-
-              name: `${source.name}:transaction:${isFrom ? "from" : "to"}`,
-
-              event: {
-                id: event.checkpoint,
-                block: event.block as Block,
-                transaction: event.transaction! as Transaction,
-                transactionReceipt:
-                  event.transactionReceipt as TransactionReceipt,
-              },
-            });
-
-            break;
-          }
-
-          case "transfer": {
-            const isFrom = source.filter.toAddress === undefined;
-
-            events.push({
-              type: "transfer",
-              chainId: event.chainId,
-              checkpoint: event.checkpoint,
-
-              name: `${source.name}:transfer:${isFrom ? "from" : "to"}`,
-
-              event: {
-                id: event.checkpoint,
-                transfer: {
-                  from: event.trace!.from,
-                  to: event.trace!.to!,
-                  value: event.trace!.value!,
-                },
-                block: event.block as Block,
-                transaction: event.transaction! as Transaction,
-                transactionReceipt:
-                  event.transactionReceipt as TransactionReceipt,
-                trace: event.trace! as Trace,
-              },
-            });
-
-            break;
-          }
-        }
-        break;
-      }
-
-      case "block": {
         events.push({
-          type: "block",
-          chainId: event.chainId,
+          type: "log",
           checkpoint: event.checkpoint,
-          name: `${source.name}:block`,
+          chain: event.chain,
+          eventCallback: event.eventCallback,
+
           event: {
             id: event.checkpoint,
+            args,
+            log: event.log!,
             block: event.block as Block,
+            transaction: event.transaction! as Transaction,
+            transactionReceipt: event.transactionReceipt as TransactionReceipt,
           },
         });
-        break;
+      } catch (err) {
+        const blockNumber = event?.block?.number ?? "unknown";
+        if (event.eventCallback.filter.address === undefined) {
+          common.logger.debug({
+            msg: "Unable to decode log, skipping it",
+            block_number: blockNumber,
+            log_index: event.log?.logIndex,
+            data: event.log?.data,
+            topics: JSON.stringify(event.log?.topics),
+          });
+        } else {
+          common.logger.warn({
+            msg: "Unable to decode log, skipping it",
+            block_number: blockNumber,
+            log_index: event.log?.logIndex,
+            data: event.log?.data,
+            topics: JSON.stringify(event.log?.topics),
+          });
+        }
       }
+    } else if (
+      event.eventCallback.type === "contract" &&
+      event.eventCallback.filter.type === "trace"
+    ) {
+      try {
+        const { args, functionName } = decodeFunctionData({
+          abi: [event.eventCallback.abiItem as AbiFunction],
+          data: event.trace!.input,
+        });
 
-      default:
-        never(source);
+        const result = decodeFunctionResult({
+          abi: [event.eventCallback.abiItem as AbiFunction],
+          data: event.trace!.output ?? "0x",
+          functionName,
+        });
+
+        events.push({
+          type: "trace",
+          checkpoint: event.checkpoint,
+          chain: event.chain,
+          eventCallback: event.eventCallback,
+
+          event: {
+            id: event.checkpoint,
+            args,
+            result,
+            trace: event.trace! as Trace,
+            block: event.block as Block,
+            transaction: event.transaction! as Transaction,
+            transactionReceipt: event.transactionReceipt as TransactionReceipt,
+          },
+        });
+      } catch (err) {
+        const blockNumber = event?.block?.number ?? "unknown";
+        if (event.eventCallback.filter.toAddress === undefined) {
+          common.logger.debug({
+            msg: "Unable to decode trace, skipping it",
+            block_number: blockNumber,
+            transaction_index: event.transaction?.transactionIndex,
+            trace_index: event.trace?.traceIndex,
+            input: event.trace?.input,
+            output: event.trace?.output,
+          });
+        } else {
+          common.logger.warn({
+            msg: "Unable to decode trace, skipping it",
+            block_number: blockNumber,
+            transaction_index: event.transaction?.transactionIndex,
+            trace_index: event.trace?.traceIndex,
+            input: event.trace?.input,
+            output: event.trace?.output,
+          });
+        }
+      }
+    } else if (
+      event.eventCallback.type === "account" &&
+      event.eventCallback.filter.type === "transaction"
+    ) {
+      events.push({
+        type: "transaction",
+        checkpoint: event.checkpoint,
+        chain: event.chain,
+        eventCallback: event.eventCallback,
+
+        event: {
+          id: event.checkpoint,
+          block: event.block as Block,
+          transaction: event.transaction! as Transaction,
+          transactionReceipt: event.transactionReceipt as TransactionReceipt,
+        },
+      });
+    } else if (
+      event.eventCallback.type === "account" &&
+      event.eventCallback.filter.type === "transfer"
+    ) {
+      events.push({
+        type: "transfer",
+        chain: event.chain,
+        eventCallback: event.eventCallback,
+        checkpoint: event.checkpoint,
+
+        event: {
+          id: event.checkpoint,
+          transfer: {
+            from: event.trace!.from,
+            to: event.trace!.to!,
+            value: event.trace!.value!,
+          },
+          block: event.block as Block,
+          transaction: event.transaction! as Transaction,
+          transactionReceipt: event.transactionReceipt as TransactionReceipt,
+          trace: event.trace! as Trace,
+        },
+      });
+    } else if (event.eventCallback.type === "block") {
+      events.push({
+        type: "block",
+        checkpoint: event.checkpoint,
+        chain: event.chain,
+        eventCallback: event.eventCallback,
+        event: {
+          id: event.checkpoint,
+          block: event.block as Block,
+        },
+      });
     }
   }
 

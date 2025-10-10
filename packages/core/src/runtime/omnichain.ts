@@ -93,7 +93,7 @@ export async function runOmnichain({
   const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
 
   let eventCount: { [eventName: string]: number } = {};
-  for (const eventName of Object.keys(indexingBuild.indexingFunctions)) {
+  for (const { name: eventName } of indexingBuild.indexingFunctions) {
     eventCount[eventName] = 0;
   }
 
@@ -156,18 +156,17 @@ export async function runOmnichain({
 
   await Promise.all(
     indexingBuild.chains.map(async (chain) => {
-      const sources = indexingBuild.sources.filter(
-        ({ filter }) => filter.chainId === chain.id,
-      );
+      const eventCallbacks =
+        indexingBuild.eventCallbacks[indexingBuild.chains.indexOf(chain)]!;
 
       const cachedIntervals = await getCachedIntervals({
         chain,
-        sources,
+        eventCallbacks,
         syncStore,
       });
       const syncProgress = await initSyncProgress({
         common,
-        sources,
+        eventCallbacks,
         chain,
         rpc: indexingBuild.rpcs[indexingBuild.chains.indexOf(chain)]!,
         finalizedBlock:
@@ -175,7 +174,7 @@ export async function runOmnichain({
         cachedIntervals,
       });
       const childAddresses = await getChildAddresses({
-        sources,
+        eventCallbacks,
         syncStore,
       });
       const unfinalizedBlocks: Omit<

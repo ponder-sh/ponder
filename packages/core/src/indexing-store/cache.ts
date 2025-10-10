@@ -393,11 +393,14 @@ export const createIndexingCache = ({
       );
     },
     async get({ table, key }) {
-      if (event && eventCount[event.name]! % SAMPLING_RATE === 1) {
-        if (profile.has(event.name) === false) {
-          profile.set(event.name, new Map());
+      if (
+        event &&
+        eventCount[event.eventCallback.name]! % SAMPLING_RATE === 1
+      ) {
+        if (profile.has(event.eventCallback.name) === false) {
+          profile.set(event.eventCallback.name, new Map());
           for (const table of tables) {
-            profile.get(event.name)!.set(table, new Map());
+            profile.get(event.eventCallback.name)!.set(table, new Map());
           }
         }
 
@@ -405,18 +408,19 @@ export const createIndexingCache = ({
           event,
           table,
           key,
-          Array.from(profile.get(event.name)!.get(table)!.values()).map(
-            ({ pattern }) => pattern,
-          ),
+          Array.from(
+            profile.get(event.eventCallback.name)!.get(table)!.values(),
+          ).map(({ pattern }) => pattern),
           primaryKeyCache,
         );
         if (pattern) {
           const key = getProfilePatternKey(pattern);
-          if (profile.get(event.name)!.get(table)!.has(key)) {
-            profile.get(event.name)!.get(table)!.get(key)!.count++;
+          if (profile.get(event.eventCallback.name)!.get(table)!.has(key)) {
+            profile.get(event.eventCallback.name)!.get(table)!.get(key)!
+              .count++;
           } else {
             profile
-              .get(event.name)!
+              .get(event.eventCallback.name)!
               .get(table)!
               .set(key, { pattern, count: 1 });
           }
@@ -598,7 +602,7 @@ export const createIndexingCache = ({
 
                   common.logger.warn({
                     msg: "Failed to write cached database rows",
-                    event: result.value.metadata.event.name,
+                    event: result.value.metadata.event.eventCallback.name,
                     type: "insert",
                     table: getTableName(table),
                     row_count: insertValues.length,
@@ -736,7 +740,7 @@ export const createIndexingCache = ({
 
                   common.logger.warn({
                     msg: "Failed to write cached database rows",
-                    event: result.value.metadata.event.name,
+                    event: result.value.metadata.event.eventCallback.name,
                     type: "update",
                     table: getTableName(table),
                     row_count: updateValues.length,
@@ -1050,14 +1054,15 @@ export const createIndexingCache = ({
       }
 
       for (const event of events) {
-        if (profile.has(event.name)) {
+        if (profile.has(event.eventCallback.name)) {
           for (const table of tables) {
             if (cache.get(table)!.isCacheComplete) continue;
             for (const [, { count, pattern }] of profile
-              .get(event.name)!
+              .get(event.eventCallback.name)!
               .get(table)!) {
               // Expected value of times the prediction will be used.
-              const ev = (count * SAMPLING_RATE) / eventCount[event.name]!;
+              const ev =
+                (count * SAMPLING_RATE) / eventCount[event.eventCallback.name]!;
               if (ev > PREDICTION_THRESHOLD) {
                 const row = recoverProfilePattern(pattern, event);
                 const key = getCacheKey(table, row, primaryKeyCache);

@@ -286,12 +286,7 @@ export function buildPayload({
   indexingBuild?: IndexingBuild;
 }) {
   const table_count = schemaBuild ? Object.keys(schemaBuild.schema).length : 0;
-  const indexing_function_count = indexingBuild
-    ? Object.values(indexingBuild.indexingFunctions).reduce(
-        (acc, f) => acc + Object.keys(f).length,
-        0,
-      )
-    : 0;
+  const indexing_function_count = indexingBuild?.indexingFunctions.length ?? 0;
 
   return {
     database_kind: preBuild?.databaseConfig.kind,

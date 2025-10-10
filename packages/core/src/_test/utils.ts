@@ -1,8 +1,13 @@
 import { type AddressInfo, createServer } from "node:net";
 import { factory } from "@/config/address.js";
 import { createConfig } from "@/config/index.js";
-import type { Chain, Status } from "@/internal/types.js";
-import type { Address, Chain as ViemChain } from "viem";
+import type { Chain, EventCallback, Source, Status } from "@/internal/types.js";
+import {
+  defaultLogFilterInclude,
+  defaultTraceFilterInclude,
+  defaultTransactionReceiptInclude,
+} from "@/runtime/filter.js";
+import { type Address, type Chain as ViemChain, toEventSelector } from "viem";
 import { http, createPublicClient, createTestClient, getAbiItem } from "viem";
 import { mainnet } from "viem/chains";
 import { erc20ABI, factoryABI, pairABI } from "./generated.js";
@@ -65,7 +70,7 @@ export const getErc20ConfigAndIndexingFunctions = (params: {
     },
   });
 
-  const rawIndexingFunctions = params.includeCallTraces
+  const indexingFunctions = params.includeCallTraces
     ? [
         { name: "Erc20.transfer()", fn: () => {} },
         {
@@ -80,7 +85,123 @@ export const getErc20ConfigAndIndexingFunctions = (params: {
         },
       ];
 
-  return { config, rawIndexingFunctions };
+  const eventCallbacks = params.includeCallTraces
+    ? ([
+        {
+          filter: {
+            type: "trace",
+            chainId: 1,
+            fromAddress: undefined,
+            toAddress: params.address,
+            callType: "CALL",
+            functionSelector: toEventSelector(
+              getAbiItem({ abi: erc20ABI, name: "Transfer" }),
+            ),
+            includeReverted: false,
+            fromBlock: undefined,
+            toBlock: undefined,
+            hasTransactionReceipt: false,
+            include: defaultTraceFilterInclude.concat(
+              params.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude.map(
+                    (value) => `transactionReceipt.${value}` as const,
+                  )
+                : [],
+            ),
+          },
+          name: "Erc20.transfer()",
+          fn: () => {},
+          chain: getChain(),
+          type: "contract",
+          abiItem: getAbiItem({ abi: erc20ABI, name: "transfer" }),
+          metadata: {
+            safeName: "transfer()",
+            abi: erc20ABI,
+          },
+        },
+        {
+          filter: {
+            type: "log",
+            chainId: 1,
+            address: params.address,
+            topic0: toEventSelector(
+              getAbiItem({ abi: erc20ABI, name: "Transfer" }),
+            ),
+            topic1: null,
+            topic2: null,
+            topic3: null,
+            fromBlock: undefined,
+            toBlock: undefined,
+            hasTransactionReceipt: false,
+            include: defaultLogFilterInclude.concat(
+              params.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude.map(
+                    (value) => `transactionReceipt.${value}` as const,
+                  )
+                : [],
+            ),
+          },
+          name: "Erc20.transfer()",
+          fn: () => {},
+          chain: getChain(),
+          type: "contract",
+          abiItem: getAbiItem({ abi: erc20ABI, name: "transfer" }),
+          metadata: {
+            safeName: "transfer()",
+            abi: erc20ABI,
+          },
+        },
+      ] satisfies [EventCallback, EventCallback])
+    : ([
+        {
+          filter: {
+            type: "trace",
+            chainId: 1,
+            fromAddress: undefined,
+            toAddress: params.address,
+            callType: "CALL",
+            functionSelector: toEventSelector(
+              getAbiItem({ abi: erc20ABI, name: "Transfer" }),
+            ),
+            includeReverted: false,
+            fromBlock: undefined,
+            toBlock: undefined,
+            hasTransactionReceipt: false,
+            include: defaultTraceFilterInclude.concat(
+              params.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude.map(
+                    (value) => `transactionReceipt.${value}` as const,
+                  )
+                : [],
+            ),
+          },
+          name: "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)",
+          fn: () => {},
+          chain: getChain(),
+          type: "contract",
+          abiItem: getAbiItem({ abi: erc20ABI, name: "Transfer" }),
+          metadata: {
+            safeName:
+              "Transfer(address indexed from, address indexed to, uint256 amount)",
+            abi: erc20ABI,
+          },
+        },
+      ] satisfies [EventCallback]);
+
+  const sources = [
+    {
+      name: "Erc20",
+      type: "contract",
+      chain: "mainnet",
+      startBlock: undefined,
+      endBlock: undefined,
+      abi: erc20ABI,
+      includeCallTraces: params.includeCallTraces,
+      includeTransactionReceipts: params.includeTransactionReceipts,
+    },
+  ] satisfies [Source];
+
+  return { config, indexingFunctions, eventCallbacks, sources };
 };
 
 export const getPairWithFactoryConfigAndIndexingFunctions = (params: {

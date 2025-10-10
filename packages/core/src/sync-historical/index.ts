@@ -2,13 +2,13 @@ import type { Common } from "@/internal/common.js";
 import type {
   BlockFilter,
   Chain,
+  EventCallback,
   Factory,
   FactoryId,
   FilterWithoutBlocks,
   Fragment,
   LogFactory,
   LogFilter,
-  Source,
   SyncBlock,
   SyncLog,
   SyncTrace,
@@ -74,7 +74,7 @@ type CreateHistoricalSyncParameters = {
   common: Common;
   chain: Chain;
   rpc: Rpc;
-  sources: Source[];
+  eventCallbacks: EventCallback[];
   childAddresses: Map<FactoryId, Map<Address, number>>;
   cachedIntervals: CachedIntervals;
   syncStore: SyncStore;
@@ -864,7 +864,7 @@ export const createHistoricalSync = (
       // Fragments are used to create a minimal filter, to avoid refetching data even if a filter
       // is only partially synced.
 
-      for (const { filter } of args.sources) {
+      for (const { filter } of args.eventCallbacks) {
         let filterIntervals: Interval[] = [
           [
             Math.max(filter.fromBlock ?? 0, _interval[0]),

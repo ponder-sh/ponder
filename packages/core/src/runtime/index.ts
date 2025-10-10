@@ -1,11 +1,11 @@
 import type { Common } from "@/internal/common.js";
 import type {
   Chain,
+  EventCallback,
   FactoryId,
   Filter,
   Fragment,
   LightBlock,
-  Source,
 } from "@/internal/types.js";
 import type { SyncBlock } from "@/internal/types.js";
 import { _eth_getBlockByNumber } from "@/rpc/actions.js";
@@ -47,7 +47,7 @@ export type CachedIntervals = Map<
 
 export async function getLocalSyncProgress(params: {
   common: Common;
-  sources: Source[];
+  eventCallbacks: EventCallback[];
   chain: Chain;
   rpc: Rpc;
   finalizedBlock: LightBlock;
@@ -96,7 +96,7 @@ export async function getLocalSyncProgress(params: {
       );
     },
   } as SyncProgress;
-  const filters = params.sources.map(({ filter }) => filter);
+  const filters = params.eventCallbacks.map(({ filter }) => filter);
 
   // Earliest `fromBlock` among all `filters`
   const start = Math.min(
@@ -168,35 +168,41 @@ export async function getLocalSyncProgress(params: {
 }
 
 export async function getChildAddresses(params: {
-  sources: Source[];
+  eventCallbacks: EventCallback[];
   syncStore: SyncStore;
 }): Promise<ChildAddresses> {
   const childAddresses: ChildAddresses = new Map();
-  for (const source of params.sources) {
-    switch (source.filter.type) {
+  for (const eventCallback of params.eventCallbacks) {
+    switch (eventCallback.filter.type) {
       case "log":
-        if (isAddressFactory(source.filter.address)) {
+        if (isAddressFactory(eventCallback.filter.address)) {
           const _childAddresses = await params.syncStore.getChildAddresses({
-            factory: source.filter.address,
+            factory: eventCallback.filter.address,
           });
-          childAddresses.set(source.filter.address.id, _childAddresses);
+          childAddresses.set(eventCallback.filter.address.id, _childAddresses);
         }
         break;
       case "transaction":
       case "transfer":
       case "trace":
-        if (isAddressFactory(source.filter.fromAddress)) {
+        if (isAddressFactory(eventCallback.filter.fromAddress)) {
           const _childAddresses = await params.syncStore.getChildAddresses({
-            factory: source.filter.fromAddress,
+            factory: eventCallback.filter.fromAddress,
           });
-          childAddresses.set(source.filter.fromAddress.id, _childAddresses);
+          childAddresses.set(
+            eventCallback.filter.fromAddress.id,
+            _childAddresses,
+          );
         }
 
-        if (isAddressFactory(source.filter.toAddress)) {
+        if (isAddressFactory(eventCallback.filter.toAddress)) {
           const _childAddresses = await params.syncStore.getChildAddresses({
-            factory: source.filter.toAddress,
+            factory: eventCallback.filter.toAddress,
           });
-          childAddresses.set(source.filter.toAddress.id, _childAddresses);
+          childAddresses.set(
+            eventCallback.filter.toAddress.id,
+            _childAddresses,
+          );
         }
 
         break;
@@ -208,7 +214,7 @@ export async function getChildAddresses(params: {
 export async function getCachedIntervals(params: {
   chain: Chain;
   syncStore: SyncStore;
-  sources: Source[];
+  eventCallbacks: EventCallback[];
 }): Promise<CachedIntervals> {
   /**
    * Intervals that have been completed for all filters in `args.sources`.
@@ -218,7 +224,7 @@ export async function getCachedIntervals(params: {
   let cachedIntervals: CachedIntervals;
   if (params.chain.disableCache) {
     cachedIntervals = new Map();
-    for (const { filter } of params.sources) {
+    for (const { filter } of params.eventCallbacks) {
       cachedIntervals.set(filter, []);
       for (const { fragment } of getFragments(filter)) {
         cachedIntervals.get(filter)!.push({ fragment, intervals: [] });
@@ -226,7 +232,7 @@ export async function getCachedIntervals(params: {
     }
   } else {
     cachedIntervals = await params.syncStore.getIntervals({
-      filters: params.sources.map(({ filter }) => filter),
+      filters: params.eventCallbacks.map(({ filter }) => filter),
     });
   }
 

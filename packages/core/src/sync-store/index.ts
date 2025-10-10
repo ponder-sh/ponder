@@ -1498,18 +1498,9 @@ export const traceFilter = (filter: TraceFilter): SQL => {
   }
 
   if (filter.functionSelector !== undefined) {
-    if (Array.isArray(filter.functionSelector)) {
-      conditions.push(
-        inArray(
-          sql`substring(traces.input from 1 for 10)`,
-          filter.functionSelector,
-        ),
-      );
-    } else {
-      conditions.push(
-        eq(sql`substring(traces.input from 1 for 10)`, filter.functionSelector),
-      );
-    }
+    conditions.push(
+      eq(sql`substring(traces.input from 1 for 10)`, filter.functionSelector),
+    );
   }
 
   if (filter.fromBlock !== undefined) {

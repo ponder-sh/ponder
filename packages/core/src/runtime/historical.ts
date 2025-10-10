@@ -3,9 +3,9 @@ import type {
   Chain,
   CrashRecoveryCheckpoint,
   Event,
+  EventCallback,
   IndexingBuild,
   RawEvent,
-  Source,
   SyncBlock,
 } from "@/internal/types.js";
 import { _eth_getBlockByNumber } from "@/rpc/actions.js";
@@ -44,7 +44,7 @@ export async function* getHistoricalEventsOmnichain(params: {
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
-    "sources" | "chains" | "rpcs" | "finalizedBlocks"
+    "eventCallbacks" | "chains" | "rpcs" | "finalizedBlocks"
   >;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   perChainSync: Map<
@@ -83,9 +83,10 @@ export async function* getHistoricalEventsOmnichain(params: {
             params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
           ]!;
 
-        const sources = params.indexingBuild.sources.filter(
-          ({ filter }) => filter.chainId === chain.id,
-        );
+        const eventCallbacks =
+          params.indexingBuild.eventCallbacks[
+            params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
+          ]!;
 
         const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
           ({ chainId }) => chainId === chain.id,
@@ -146,12 +147,12 @@ export async function* getHistoricalEventsOmnichain(params: {
 
           const events = pendingEvents.filter(
             (event) =>
-              event.chainId === chain.id && event.checkpoint <= omnichainTo,
+              event.chain.id === chain.id && event.checkpoint <= omnichainTo,
           );
 
           pendingEvents = pendingEvents.filter(
             (event) =>
-              (event.chainId === chain.id &&
+              (event.chain.id === chain.id &&
                 event.checkpoint <= omnichainTo) === false,
           );
 
@@ -192,7 +193,7 @@ export async function* getHistoricalEventsOmnichain(params: {
           indexingBuild: params.indexingBuild,
           chain,
           rpc,
-          sources,
+          eventCallbacks,
           childAddresses,
           syncProgress,
           cachedIntervals,
@@ -214,7 +215,7 @@ export async function* getHistoricalEventsOmnichain(params: {
         } of eventGenerator) {
           const endClock = startClock();
 
-          let events = decodeEvents(params.common, sources, rawEvents);
+          let events = decodeEvents(params.common, rawEvents);
 
           params.common.logger.trace({
             msg: "Decoded events",
@@ -369,7 +370,7 @@ export async function* getHistoricalEventsMultichain(params: {
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
-    "sources" | "chains" | "rpcs" | "finalizedBlocks"
+    "eventCallbacks" | "chains" | "rpcs" | "finalizedBlocks"
   >;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   perChainSync: Map<
@@ -397,9 +398,10 @@ export async function* getHistoricalEventsMultichain(params: {
             params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
           ]!;
 
-        const sources = params.indexingBuild.sources.filter(
-          ({ filter }) => filter.chainId === chain.id,
-        );
+        const eventCallbacks =
+          params.indexingBuild.eventCallbacks[
+            params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
+          ]!;
 
         const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
           ({ chainId }) => chainId === chain.id,
@@ -470,7 +472,7 @@ export async function* getHistoricalEventsMultichain(params: {
           indexingBuild: params.indexingBuild,
           chain,
           rpc,
-          sources,
+          eventCallbacks,
           childAddresses,
           syncProgress,
           cachedIntervals,
@@ -492,7 +494,7 @@ export async function* getHistoricalEventsMultichain(params: {
         } of eventGenerator) {
           const endClock = startClock();
 
-          let events = decodeEvents(params.common, sources, rawEvents);
+          let events = decodeEvents(params.common, rawEvents);
 
           params.common.logger.trace({
             msg: "Decoded events",
@@ -613,23 +615,24 @@ export async function* getHistoricalEventsMultichain(params: {
 
 export async function refetchHistoricalEvents(params: {
   common: Common;
-  indexingBuild: Pick<IndexingBuild, "sources" | "chains">;
+  indexingBuild: Pick<IndexingBuild, "eventCallbacks" | "chains">;
   perChainSync: Map<Chain, { childAddresses: ChildAddresses }>;
   events: Event[];
   syncStore: SyncStore;
 }): Promise<Event[]> {
   const events: Event[] = new Array(params.events.length);
 
-  for (const chain of PONDER_INDEXING_BUILD.chains) {
+  for (const chain of params.indexingBuild.chains) {
     const { childAddresses } = params.perChainSync.get(chain)!;
 
     // Note: All filters are refetched, no matter if they are resolved or not.
-    const sources = params.indexingBuild.sources.filter(
-      ({ filter }) => filter.chainId === chain.id,
-    );
+    const eventCallbacks =
+      params.indexingBuild.eventCallbacks[
+        params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
+      ]!;
 
     const chainEvents = params.events.filter(
-      (event) => event.chainId === chain.id,
+      (event) => event.chain.id === chain.id,
     );
 
     if (chainEvents.length === 0) continue;
@@ -638,14 +641,14 @@ export async function refetchHistoricalEvents(params: {
       common: params.common,
       chain,
       childAddresses,
-      sources,
+      eventCallbacks,
       events: chainEvents,
       syncStore: params.syncStore,
     });
 
     const endClock = startClock();
 
-    const refetchedEvents = decodeEvents(params.common, sources, rawEvents);
+    const refetchedEvents = decodeEvents(params.common, rawEvents);
 
     params.common.logger.trace({
       msg: "Decoded events",
@@ -664,7 +667,7 @@ export async function refetchHistoricalEvents(params: {
     let j = 0;
 
     while (i < params.events.length && j < refetchedEvents.length) {
-      if (params.events[i]?.chainId === chain.id) {
+      if (params.events[i]?.chain.id === chain.id) {
         events[i] = refetchedEvents[j]!;
         i++;
         j++;
@@ -681,7 +684,7 @@ export async function refetchLocalEvents(params: {
   common: Common;
   chain: Chain;
   childAddresses: ChildAddresses;
-  sources: Source[];
+  eventCallbacks: EventCallback[];
   events: Event[];
   syncStore: SyncStore;
 }): Promise<RawEvent[]> {
@@ -704,7 +707,7 @@ export async function refetchLocalEvents(params: {
       traces,
       cursor: queryCursor,
     } = await params.syncStore.getEventData({
-      filters: params.sources.map(({ filter }) => filter),
+      filters: params.eventCallbacks.map(({ filter }) => filter),
       fromBlock: cursor,
       toBlock,
       chainId: params.chain.id,
@@ -713,14 +716,13 @@ export async function refetchLocalEvents(params: {
 
     const endClock = startClock();
     const rawEvents = buildEvents({
-      sources: params.sources,
+      eventCallbacks: params.eventCallbacks,
       blocks,
       logs,
       transactions,
       transactionReceipts,
       traces,
       childAddresses: params.childAddresses,
-      chainId: params.chain.id,
     });
 
     params.common.logger.trace({
@@ -764,7 +766,7 @@ export async function* getLocalEventGenerator(params: {
   common: Common;
   chain: Chain;
   rpc: Rpc;
-  sources: Source[];
+  eventCallbacks: EventCallback[];
   childAddresses: ChildAddresses;
   syncProgress: SyncProgress;
   cachedIntervals: CachedIntervals;
@@ -795,7 +797,7 @@ export async function* getLocalEventGenerator(params: {
         traces,
         cursor: queryCursor,
       } = await params.syncStore.getEventData({
-        filters: params.sources.map(({ filter }) => filter),
+        filters: params.eventCallbacks.map(({ filter }) => filter),
         fromBlock: cursor,
         toBlock: Math.min(syncCursor, toBlock),
         chainId: params.chain.id,
@@ -804,14 +806,13 @@ export async function* getLocalEventGenerator(params: {
 
       const endClock = startClock();
       const events = buildEvents({
-        sources: params.sources,
+        eventCallbacks: params.eventCallbacks,
         blocks,
         logs,
         transactions,
         transactionReceipts,
         traces,
         childAddresses: params.childAddresses,
-        chainId: params.chain.id,
       });
 
       params.common.logger.trace({
@@ -861,7 +862,7 @@ export async function* getLocalSyncGenerator(params: {
   common: Common;
   chain: Chain;
   rpc: Rpc;
-  sources: Source[];
+  eventCallbacks: EventCallback[];
   syncProgress: SyncProgress;
   childAddresses: ChildAddresses;
   cachedIntervals: CachedIntervals;
@@ -1195,7 +1196,7 @@ export async function* mergeAsyncGeneratorsWithEventOrder(
 
           mergedResults.push({
             events: left,
-            chainId: event.chainId,
+            chainId: event.chain.id,
             checkpoint:
               right.length > 0 ? event.checkpoint : result.value.checkpoint,
             blockRange,

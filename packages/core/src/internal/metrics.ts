@@ -404,8 +404,8 @@ export class MetricsService {
   }) {
     const tables = Object.values(schemaBuild.schema).filter(isTable);
 
-    for (const event of Object.keys(indexingBuild.indexingFunctions)) {
-      this.ponder_indexing_completed_events.inc({ event }, 0);
+    for (const { name: eventName } of indexingBuild.indexingFunctions) {
+      this.ponder_indexing_completed_events.inc({ event: eventName }, 0);
     }
 
     for (const table of tables) {
