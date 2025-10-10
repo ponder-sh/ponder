@@ -613,8 +613,8 @@ export const createBuild = async ({
               common.logger.warn({
                 msg: "Configured chain ID does not match JSON-RPC response",
                 chain: chain.name,
-                configured_id: chain.id,
-                remote_id: hexToNumber(chainId),
+                chain_id: chain.id,
+                rpc_chain_id: hexToNumber(chainId),
               });
             }
           } catch (e) {
@@ -626,6 +626,7 @@ export const createBuild = async ({
           common.logger.info({
             msg: "Connected to JSON-RPC",
             chain: chain.name,
+            chain_id: chain.id,
             hostnames: JSON.stringify(rpc.hostnames),
             duration: endClock(),
           });

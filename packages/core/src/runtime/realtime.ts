@@ -78,6 +78,7 @@ export async function* getRealtimeEventsOmnichain(params: {
         params.common.logger.info({
           msg: "Skipped live indexing (chain only requires backfill indexing)",
           chain: chain.name,
+          chain_id: chain.id,
           end_block: hexToNumber(syncProgress.end!.number),
         });
 
@@ -173,6 +174,7 @@ export async function* getRealtimeEventsOmnichain(params: {
         params.common.logger.trace({
           msg: "Constructed events from block",
           chain: chain.name,
+          chain_id: chain.id,
           number: hexToNumber(event.block.number),
           hash: event.block.hash,
           event_count: events.length,
@@ -183,6 +185,7 @@ export async function* getRealtimeEventsOmnichain(params: {
         params.common.logger.trace({
           msg: "Decoded block events",
           chain: chain.name,
+          chain_id: chain.id,
           number: hexToNumber(event.block.number),
           hash: event.block.hash,
           event_count: decodedEvents.length,
@@ -197,6 +200,7 @@ export async function* getRealtimeEventsOmnichain(params: {
           params.common.logger.trace({
             msg: "Included pending events",
             chain: chain.name,
+            chain_id: chain.id,
             event_count: pendingEvents.filter((e) => e.checkpoint < checkpoint)
               .length,
           });
@@ -327,6 +331,7 @@ export async function* getRealtimeEventsMultichain(params: {
         params.common.logger.info({
           msg: "Skipped live indexing (chain only requires backfill indexing)",
           chain: chain.name,
+          chain_id: chain.id,
           end_block: hexToNumber(syncProgress.end!.number),
         });
 
@@ -418,6 +423,7 @@ export async function* getRealtimeEventsMultichain(params: {
         params.common.logger.trace({
           msg: "Constructed events from block",
           chain: chain.name,
+          chain_id: chain.id,
           number: hexToNumber(event.block.number),
           hash: event.block.hash,
           event_count: events.length,
@@ -428,6 +434,7 @@ export async function* getRealtimeEventsMultichain(params: {
         params.common.logger.trace({
           msg: "Decoded block events",
           chain: chain.name,
+          chain_id: chain.id,
           number: hexToNumber(event.block.number),
           hash: event.block.hash,
           event_count: decodedEvents.length,
@@ -439,6 +446,7 @@ export async function* getRealtimeEventsMultichain(params: {
           params.common.logger.trace({
             msg: "Included pending events",
             chain: chain.name,
+            chain_id: chain.id,
             event_count: pendingEvents.length,
           });
         }
@@ -561,6 +569,7 @@ export async function* getRealtimeEventGenerator(params: {
   params.common.logger.info({
     msg: "Started live indexing",
     chain: params.chain.name,
+    chain_id: params.chain.id,
     finalized_block: hexToNumber(params.syncProgress.finalized.number),
     factory_address_count: childCount,
   });
@@ -615,6 +624,7 @@ export async function* getRealtimeEventGenerator(params: {
       params.common.logger.info({
         msg: "Completed live indexing (chain end block has been indexed)",
         chain: params.chain.name,
+        chain_id: params.chain.id,
         end_block: hexToNumber(params.syncProgress.end!.number),
       });
       await params.rpc.unsubscribe();

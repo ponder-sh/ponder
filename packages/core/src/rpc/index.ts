@@ -333,6 +333,7 @@ export const createRpc = ({
       common.logger.debug({
         msg: "JSON-RPC provider reactivated after rate limiting",
         chain: chain.name,
+        chain_id: chain.id,
         hostname: bucket.hostname,
         retry_delay: Math.round(bucket.reactivationDelay),
       });
@@ -341,6 +342,7 @@ export const createRpc = ({
     common.logger.debug({
       msg: "JSON-RPC provider deactivated due to rate limiting",
       chain: chain.name,
+      chain_id: chain.id,
       hostname: bucket.hostname,
       retry_delay: Math.round(bucket.reactivationDelay),
     });
@@ -357,6 +359,7 @@ export const createRpc = ({
           common.logger.warn({
             msg: "All JSON-RPC providers are inactive due to rate limiting",
             chain: chain.name,
+            chain_id: chain.id,
           });
         }, 5_000);
       }
@@ -418,6 +421,7 @@ export const createRpc = ({
           logger.trace({
             msg: "Sent JSON-RPC request",
             chain: chain.name,
+            chain_id: chain.id,
             hostname: bucket.hostname,
             request_id: id,
             method: body.method,
@@ -436,6 +440,7 @@ export const createRpc = ({
           logger.trace({
             msg: "Received JSON-RPC response",
             chain: chain.name,
+            chain_id: chain.id,
             hostname: bucket.hostname,
             request_id: id,
             method: body.method,
@@ -478,6 +483,7 @@ export const createRpc = ({
               common.logger.trace({
                 msg: "Caught eth_getLogs range error",
                 chain: chain.name,
+                chain_id: chain.id,
                 hostname: bucket.hostname,
                 request_id: id,
                 method: body.method,
@@ -508,6 +514,7 @@ export const createRpc = ({
               common.logger.debug({
                 msg: "JSON-RPC provider rate limited",
                 chain: chain.name,
+                chain_id: chain.id,
                 hostname: bucket.hostname,
                 rps_limit: Math.floor(bucket.rpsLimit),
               });
@@ -519,6 +526,7 @@ export const createRpc = ({
                 logger.warn({
                   msg: "All JSON-RPC providers are inactive",
                   chain: chain.name,
+                  chain_id: chain.id,
                 });
               }
 
@@ -536,6 +544,7 @@ export const createRpc = ({
             logger.warn({
               msg: "Received JSON-RPC error",
               chain: chain.name,
+              chain_id: chain.id,
               hostname: bucket.hostname,
               request_id: id,
               method: body.method,
@@ -550,6 +559,7 @@ export const createRpc = ({
             logger.warn({
               msg: "Received JSON-RPC error",
               chain: chain.name,
+              chain_id: chain.id,
               hostname: bucket.hostname,
               request_id: id,
               method: body.method,
@@ -565,6 +575,7 @@ export const createRpc = ({
           logger.warn({
             msg: "Received JSON-RPC error",
             chain: chain.name,
+            chain_id: chain.id,
             hostname: bucket.hostname,
             request_id: id,
             method: body.method,
@@ -604,6 +615,7 @@ export const createRpc = ({
             common.logger.debug({
               msg: "Created JSON-RPC polling subscription",
               chain: chain.name,
+              chain_id: chain.id,
             });
 
             interval = setInterval(async () => {
@@ -635,6 +647,7 @@ export const createRpc = ({
               common.logger.debug({
                 msg: "Created JSON-RPC WebSocket connection",
                 chain: chain.name,
+                chain_id: chain.id,
               });
 
               const subscriptionRequest = {
@@ -657,6 +670,7 @@ export const createRpc = ({
                   common.logger.trace({
                     msg: "Received successful JSON-RPC WebSocket subscription data",
                     chain: chain.name,
+                    chain_id: chain.id,
                   });
                   webSocketErrorCount = 0;
 
@@ -665,6 +679,7 @@ export const createRpc = ({
                   common.logger.debug({
                     msg: "Created JSON-RPC WebSocket subscription",
                     chain: chain.name,
+                    chain_id: chain.id,
                     request: JSON.stringify({
                       method: "eth_subscribe",
                       params: ["newHeads"],
@@ -677,6 +692,7 @@ export const createRpc = ({
                   common.logger.warn({
                     msg: "Failed JSON-RPC WebSocket subscription",
                     chain: chain.name,
+                    chain_id: chain.id,
                     request: JSON.stringify({
                       method: "eth_subscribe",
                       params: ["newHeads"],
@@ -701,6 +717,7 @@ export const createRpc = ({
                 common.logger.warn({
                   msg: "Failed JSON-RPC WebSocket subscription",
                   chain: chain.name,
+                  chain_id: chain.id,
                   request: JSON.stringify({
                     method: "eth_subscribe",
                     params: ["newHeads"],
@@ -721,6 +738,7 @@ export const createRpc = ({
               common.logger.warn({
                 msg: "Failed JSON-RPC WebSocket subscription",
                 chain: chain.name,
+                chain_id: chain.id,
                 request: JSON.stringify({
                   method: "eth_subscribe",
                   params: ["newHeads"],
@@ -744,6 +762,7 @@ export const createRpc = ({
               common.logger.debug({
                 msg: "Closed JSON-RPC WebSocket connection",
                 chain: chain.name,
+                chain_id: chain.id,
               });
 
               ws = undefined;
@@ -784,6 +803,7 @@ export const createRpc = ({
           common.logger.debug({
             msg: "Ended JSON-RPC WebSocket subscription",
             chain: chain.name,
+            chain_id: chain.id,
             request: JSON.stringify({
               method: "eth_unsubscribe",
               params: [subscriptionId],

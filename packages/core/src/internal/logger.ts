@@ -42,7 +42,15 @@ type Log = {
 } & Record<string, unknown>;
 
 const PRINT_KEYS = "PRINT_KEYS";
-const INTERNAL_KEYS = ["level", "time", "msg", "duration", "error", PRINT_KEYS];
+const INTERNAL_KEYS = [
+  "level",
+  "time",
+  "msg",
+  "duration",
+  "error",
+  "chain_id",
+  PRINT_KEYS,
+];
 
 export function createLogger({
   level,

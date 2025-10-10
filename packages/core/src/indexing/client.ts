@@ -575,12 +575,15 @@ export const createCachedViemClient = ({
               i === RETRY_COUNT ||
               (args[0] as RetryableOptions).retryEmptyResponse === false
             ) {
+              const chain = indexingBuild.chains.find(
+                (n) => n.id === event.chainId,
+              )!;
               common.logger.warn({
                 msg: "Failed 'context.client' action",
                 action: actionName,
                 event: event.name,
-                chain: indexingBuild.chains.find((n) => n.id === event.chainId)!
-                  .name,
+                chain: chain.name,
+                chain_id: chain.id,
                 retry_count: i,
                 error: error as Error,
               });
@@ -589,12 +592,15 @@ export const createCachedViemClient = ({
             }
 
             const duration = BASE_DURATION * 2 ** i;
+            const chain = indexingBuild.chains.find(
+              (n) => n.id === event.chainId,
+            )!;
             common.logger.warn({
               msg: "Failed 'context.client' action",
               action: actionName,
               event: event.name,
-              chain: indexingBuild.chains.find((n) => n.id === event.chainId)!
-                .name,
+              chain: chain.name,
+              chain_id: chain.id,
               retry_count: i,
               retry_delay: duration,
               error: error as Error,
@@ -764,6 +770,7 @@ export const createCachedViemClient = ({
             common.logger.debug({
               msg: "Prefetched JSON-RPC requests",
               chain: chain.name,
+              chain_id: chain.id,
               request_count: dbRequests.length,
               duration: prefetchEndClock(),
             });

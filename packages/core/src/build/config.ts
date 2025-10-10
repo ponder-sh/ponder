@@ -1069,6 +1069,7 @@ export function buildConfig({
                   level: "warn",
                   msg: "Detected public RPC URL. Most apps require an RPC URL with a higher rate limit.",
                   chain: chainName,
+                  chain_id: chain.id,
                   url: http,
                 });
                 break;
@@ -1080,6 +1081,7 @@ export function buildConfig({
                   level: "warn",
                   msg: "Detected public RPC URL. Most apps require an RPC URL with a higher rate limit.",
                   chain: chainName,
+                  chain_id: chain.id,
                   url: ws,
                 });
                 break;

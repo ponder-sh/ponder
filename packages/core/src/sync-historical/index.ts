@@ -246,6 +246,7 @@ export const createHistoricalSync = (
             args.common.logger.debug({
               msg: "Updated eth_getLogs range",
               chain: args.chain.name,
+              chain_id: args.chain.id,
               range,
             });
 
@@ -371,6 +372,7 @@ export const createHistoricalSync = (
         msg: "Caught eth_getBlockReceipts error, switching to eth_getTransactionReceipt method",
         action: "fetch_block_data",
         chain: args.chain.name,
+        chain_id: args.chain.id,
         error,
       });
 
@@ -571,6 +573,7 @@ export const createHistoricalSync = (
             msg: "Detected log with empty transaction hash. This is expected for some chains like ZKsync.",
             action: "fetch_block_data",
             chain: args.chain.name,
+            chain_id: args.chain.id,
             number: hexToNumber(block.number),
             hash: block.hash,
             logIndex: hexToNumber(log.logIndex),
@@ -1047,6 +1050,7 @@ export const createHistoricalSync = (
         {
           msg: "Fetched block data",
           chain: args.chain.name,
+          chain_id: args.chain.id,
           block_range: JSON.stringify(_interval),
           block_count: blockCache.size,
           transaction_count: transactionsCache.size,

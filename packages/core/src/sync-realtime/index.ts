@@ -121,6 +121,7 @@ export const createRealtimeSync = (
     args.common.logger.warn({
       msg: "No new block received within expected time",
       chain: args.chain.name,
+      chain_id: args.chain.id,
     });
   };
   let noNewBlockTimer = setTimeout(noNewBlockWarning, 30_000);
@@ -216,6 +217,7 @@ export const createRealtimeSync = (
         msg: "Caught eth_getBlockReceipts error, switching to eth_getTransactionReceipt method",
         action: "fetch block data",
         chain: args.chain.name,
+        chain_id: args.chain.id,
         error,
       });
 
@@ -332,6 +334,7 @@ export const createRealtimeSync = (
             msg: "Detected inconsistent RPC responses. Log not found in block.logsBloom.",
             action: "fetch_block_data",
             chain: args.chain.name,
+            chain_id: args.chain.id,
             number: hexToNumber(block.number),
             hash: block.hash,
             logIndex: hexToNumber(log.logIndex),
@@ -346,6 +349,7 @@ export const createRealtimeSync = (
             msg: "Detected log with empty transaction hash. This is expected for some chains like ZKsync.",
             action: "fetch_block_data",
             chain: args.chain.name,
+            chain_id: args.chain.id,
             number: hexToNumber(block.number),
             hash: block.hash,
             logIndex: hexToNumber(log.logIndex),
@@ -362,6 +366,7 @@ export const createRealtimeSync = (
         msg: "Skipped eth_getLogs request due to bloom filter result",
         action: "fetch_block_data",
         chain: args.chain.name,
+        chain_id: args.chain.id,
         number: hexToNumber(maybeBlockHeader.number),
         hash: maybeBlockHeader.hash,
       });
@@ -493,6 +498,7 @@ export const createRealtimeSync = (
         {
           msg: "Fetched block data",
           chain: args.chain.name,
+          chain_id: args.chain.id,
           number: hexToNumber(maybeBlockHeader.number),
           hash: maybeBlockHeader.hash,
           transaction_count: 0,
@@ -555,6 +561,7 @@ export const createRealtimeSync = (
       {
         msg: "Fetched block data",
         chain: args.chain.name,
+        chain_id: args.chain.id,
         number: hexToNumber(block.number),
         hash: block.hash,
         transaction_count: transactions.length,
@@ -780,6 +787,7 @@ export const createRealtimeSync = (
     args.common.logger.debug({
       msg: "Detected reorg in local chain",
       chain: args.chain.name,
+      chain_id: args.chain.id,
       number: hexToNumber(block.number),
       hash: block.hash,
     });
@@ -813,6 +821,7 @@ export const createRealtimeSync = (
         args.common.logger.warn({
           msg: "Encountered unrecoverable reorg",
           chain: args.chain.name,
+          chain_id: args.chain.id,
           finalized_block: hexToNumber(finalizedBlock.number),
           duration: endClock(),
         });
@@ -836,6 +845,7 @@ export const createRealtimeSync = (
     args.common.logger.debug({
       msg: "Reconciled reorg in local chain",
       chain: args.chain.name,
+      chain_id: args.chain.id,
       reorg_depth: reorgedBlocks.length,
       common_ancestor_block: hexToNumber(commonAncestor.number),
       duration: endClock(),
@@ -890,6 +900,7 @@ export const createRealtimeSync = (
       args.common.logger.trace({
         msg: "Detected duplicate block",
         chain: args.chain.name,
+        chain_id: args.chain.id,
         number: hexToNumber(block.number),
         hash: block.hash,
       });
@@ -913,6 +924,7 @@ export const createRealtimeSync = (
       args.common.logger.trace({
         msg: "Missing blocks from local chain",
         chain: args.chain.name,
+        chain_id: args.chain.id,
         block_range: JSON.stringify([
           hexToNumber(latestBlock.number) + 1,
           hexToNumber(block.number),
@@ -945,6 +957,7 @@ export const createRealtimeSync = (
       args.common.logger.debug({
         msg: "Fetched missing blocks",
         chain: args.chain.name,
+        chain_id: args.chain.id,
         block_range: JSON.stringify([
           hexToNumber(latestBlock.number) + 1,
           Math.min(
@@ -965,6 +978,7 @@ export const createRealtimeSync = (
         args.common.logger.trace({
           msg: "Block too far ahead of local chain",
           chain: args.chain.name,
+          chain_id: args.chain.id,
           number: hexToNumber(block.number),
           hash: block.hash,
         });
@@ -999,6 +1013,7 @@ export const createRealtimeSync = (
       {
         msg: "Added block to local chain",
         chain: args.chain.name,
+        chain_id: args.chain.id,
         number: hexToNumber(block.number),
         hash: block.hash,
         transaction_count: blockWithFilteredEventData.transactions.length,
@@ -1052,6 +1067,7 @@ export const createRealtimeSync = (
       args.common.logger.debug({
         msg: "Removed finalized blocks from local chain",
         chain: args.chain.name,
+        chain_id: args.chain.id,
         block_count:
           hexToNumber(pendingFinalizedBlock.number) -
           hexToNumber(finalizedBlock.number),
@@ -1093,6 +1109,7 @@ export const createRealtimeSync = (
       args.common.logger.warn({
         msg: "Failed to fetch latest block",
         chain: args.chain.name,
+        chain_id: args.chain.id,
         number: hexToNumber(block.number),
         hash: block.hash,
         retry_count: fetchAndReconcileLatestBlockErrorCount,
@@ -1102,6 +1119,7 @@ export const createRealtimeSync = (
       args.common.logger.warn({
         msg: "Failed to fetch latest block",
         chain: args.chain.name,
+        chain_id: args.chain.id,
         retry_count: fetchAndReconcileLatestBlockErrorCount,
         error,
       });
@@ -1125,6 +1143,7 @@ export const createRealtimeSync = (
         args.common.logger.debug({
           msg: "Received new head block",
           chain: args.chain.name,
+          chain_id: args.chain.id,
           number: hexToNumber(block.number),
           hash: block.hash,
         });
@@ -1139,6 +1158,7 @@ export const createRealtimeSync = (
           args.common.logger.trace({
             msg: "Detected duplicate block",
             chain: args.chain.name,
+            chain_id: args.chain.id,
             number: hexToNumber(block.number),
             hash: block.hash,
           });

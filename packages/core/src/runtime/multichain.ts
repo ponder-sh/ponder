@@ -448,6 +448,7 @@ export async function runMultichain({
             common.logger.debug({
               msg: "Failed to index block range",
               chain: chain.name,
+              chain_id: chain.id,
               block_range: JSON.stringify(blockRange),
               duration: indexStartClock(),
               error,
@@ -463,6 +464,7 @@ export async function runMultichain({
             common.logger.warn({
               msg: "Failed to index block range",
               chain: chain.name,
+              chain_id: chain.id,
               block_range: JSON.stringify(blockRange),
               duration: indexStartClock(),
               error: error as Error,
@@ -487,6 +489,7 @@ export async function runMultichain({
     common.logger.info({
       msg: "Indexed block range",
       chain: chain.name,
+      chain_id: chain.id,
       event_count: events.length,
       block_range: JSON.stringify(blockRange),
       duration: indexStartClock(),
@@ -617,6 +620,7 @@ export async function runMultichain({
                   common.logger.trace({
                     msg: "Processing block events",
                     chain: chain.name,
+                    chain_id: chain.id,
                     number: Number(decodeCheckpoint(checkpoint).blockNumber),
                     event_count: events.length,
                   });
@@ -629,6 +633,7 @@ export async function runMultichain({
                   common.logger.trace({
                     msg: "Processed block events",
                     chain: chain.name,
+                    chain_id: chain.id,
                     number: Number(decodeCheckpoint(checkpoint).blockNumber),
                     event_count: events.length,
                   });
@@ -644,6 +649,7 @@ export async function runMultichain({
                   common.logger.trace({
                     msg: "Committed reorg data for block",
                     chain: chain.name,
+                    chain_id: chain.id,
                     number: Number(decodeCheckpoint(checkpoint).blockNumber),
                     event_count: events.length,
                     checkpoint,
@@ -658,6 +664,7 @@ export async function runMultichain({
                     common.logger.warn({
                       msg: "Failed to index block",
                       chain: chain.name,
+                      chain_id: chain.id,
                       number: Number(decodeCheckpoint(checkpoint).blockNumber),
                       error: error,
                     });
@@ -687,6 +694,7 @@ export async function runMultichain({
         common.logger.info({
           msg: "Indexed block",
           chain: event.chain.name,
+          chain_id: event.chain.id,
           number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
           event_count: event.events.length,
           duration: endClock(),
@@ -734,6 +742,7 @@ export async function runMultichain({
         common.logger.info({
           msg: "Reorged block",
           chain: event.chain.name,
+          chain_id: event.chain.id,
           number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
           duration: endClock(),
         });
@@ -760,6 +769,7 @@ export async function runMultichain({
         common.logger.info({
           msg: "Finalized block",
           chain: event.chain.name,
+          chain_id: event.chain.id,
           number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
           duration: endClock(),
         });

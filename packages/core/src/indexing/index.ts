@@ -273,6 +273,7 @@ export const createIndexing = ({
         msg: "Error while processing event",
         event: event.name,
         chain: chainById[event.chainId]!.name,
+        chain_id: event.chainId,
         block_number: decodedCheckpoint.blockNumber,
         error,
       });
@@ -343,6 +344,7 @@ export const createIndexing = ({
         msg: "Error while processing event",
         event: event.name,
         chain: chainById[event.chainId]!.name,
+        chain_id: event.chainId,
         block_number: decodedCheckpoint.blockNumber,
         error,
       });

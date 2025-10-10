@@ -180,6 +180,7 @@ export async function* getHistoricalEventsOmnichain(params: {
         params.common.logger.info({
           msg: "Started backfill indexing",
           chain: chain.name,
+          chain_id: chain.id,
           block_range: JSON.stringify([
             Number(decodeCheckpoint(from).blockNumber),
             Number(decodeCheckpoint(to).blockNumber),
@@ -217,6 +218,8 @@ export async function* getHistoricalEventsOmnichain(params: {
 
           params.common.logger.trace({
             msg: "Decoded events",
+            chain: chain.name,
+            chain_id: chain.id,
             event_count: events.length,
             duration: endClock(),
           });
@@ -239,6 +242,8 @@ export async function* getHistoricalEventsOmnichain(params: {
             if (left.length > 0) {
               params.common.logger.trace({
                 msg: "Filtered events before crash recovery checkpoint",
+                chain: chain.name,
+                chain_id: chain.id,
                 event_count: left.length,
                 checkpoint: crashRecoveryCheckpoint,
               });
@@ -269,6 +274,8 @@ export async function* getHistoricalEventsOmnichain(params: {
 
             params.common.logger.trace({
               msg: "Filtered pending events",
+              chain: chain.name,
+              chain_id: chain.id,
               event_count: right.length,
               checkpoint: omnichainTo,
             });
@@ -297,8 +304,8 @@ export async function* getHistoricalEventsOmnichain(params: {
       params.indexingBuild.chains.map((chain, i) => {
         const rpc = params.indexingBuild.rpcs[i]!;
 
-        return _eth_getBlockByNumber(rpc, { blockTag: "latest" }, context).then(
-          (latest) =>
+        return _eth_getBlockByNumber(rpc, { blockTag: "latest" }, context)
+          .then((latest) =>
             _eth_getBlockByNumber(
               rpc,
               {
@@ -309,14 +316,21 @@ export async function* getHistoricalEventsOmnichain(params: {
               },
               context,
             ),
-        );
+          )
+          .then((finalizedBlock) => {
+            const finalizedBlockNumber = hexToNumber(finalizedBlock.number);
+            params.common.logger.debug({
+              msg: "Refetched finalized block for backfill cutover",
+              chain: chain.name,
+              chain_id: chain.id,
+              finalized_block: finalizedBlockNumber,
+              duration: endClock(),
+            });
+
+            return finalizedBlock;
+          });
       }),
     );
-
-    params.common.logger.debug({
-      msg: "Refetched finalized blocks",
-      duration: endClock(),
-    });
 
     let shouldCatchup = false;
 
@@ -444,6 +458,7 @@ export async function* getHistoricalEventsMultichain(params: {
         params.common.logger.info({
           msg: "Started backfill indexing",
           chain: chain.name,
+          chain_id: chain.id,
           block_range: JSON.stringify([
             Number(decodeCheckpoint(from).blockNumber),
             Number(decodeCheckpoint(to).blockNumber),
@@ -482,6 +497,7 @@ export async function* getHistoricalEventsMultichain(params: {
           params.common.logger.trace({
             msg: "Decoded events",
             chain: chain.name,
+            chain_id: chain.id,
             event_count: events.length,
             duration: endClock(),
           });
@@ -504,6 +520,8 @@ export async function* getHistoricalEventsMultichain(params: {
             if (left.length > 0) {
               params.common.logger.trace({
                 msg: "Filtered events before crash recovery checkpoint",
+                chain: chain.name,
+                chain_id: chain.id,
                 event_count: left.length,
                 checkpoint: crashRecoveryCheckpoint,
               });
@@ -552,6 +570,7 @@ export async function* getHistoricalEventsMultichain(params: {
             params.common.logger.debug({
               msg: "Refetched finalized block for backfill cutover",
               chain: chain.name,
+              chain_id: chain.id,
               finalized_block: finalizedBlockNumber,
               duration: endClock(),
             });
@@ -631,6 +650,7 @@ export async function refetchHistoricalEvents(params: {
     params.common.logger.trace({
       msg: "Decoded events",
       chain: chain.name,
+      chain_id: chain.id,
       event_count: events.length,
       duration: endClock(),
     });
@@ -706,6 +726,7 @@ export async function refetchLocalEvents(params: {
     params.common.logger.trace({
       msg: "Constructed events from block data",
       chain: params.chain.name,
+      chain_id: params.chain.id,
       block_range: JSON.stringify([cursor, queryCursor]),
       event_count: rawEvents.length,
       duration: endClock(),
@@ -719,6 +740,7 @@ export async function refetchLocalEvents(params: {
     params.common.logger.debug({
       msg: "Queried backfill JSON-RPC data from database",
       chain: params.chain.name,
+      chain_id: params.chain.id,
       block_range: JSON.stringify([cursor, queryCursor]),
       event_count: rawEvents.length,
       duration: queryEndClock(),
@@ -795,6 +817,7 @@ export async function* getLocalEventGenerator(params: {
       params.common.logger.trace({
         msg: "Constructed events from block data",
         chain: params.chain.name,
+        chain_id: params.chain.id,
         block_range: JSON.stringify([cursor, queryCursor]),
         event_count: events.length,
         duration: endClock(),
@@ -808,6 +831,7 @@ export async function* getLocalEventGenerator(params: {
       params.common.logger.debug({
         msg: "Queried backfill JSON-RPC data from database",
         chain: params.chain.name,
+        chain_id: params.chain.id,
         block_range: JSON.stringify([cursor, queryCursor]),
         event_count: events.length,
         duration: queryEndClock(),
@@ -873,6 +897,7 @@ export async function* getLocalSyncGenerator(params: {
     params.common.logger.info({
       msg: "Skipped fetching backfill JSON-RPC data (chain only requires live indexing)",
       chain: params.chain.name,
+      chain_id: params.chain.id,
       finalized_block: hexToNumber(params.syncProgress.finalized.number),
       start_block: hexToNumber(params.syncProgress.start.number),
     });
@@ -981,6 +1006,7 @@ export async function* getLocalSyncGenerator(params: {
         params.common.logger.info({
           msg: "Skipped fetching backfill JSON-RPC data (cache contains all required data)",
           chain: params.chain.name,
+          chain_id: params.chain.id,
           cached_block: hexToNumber(params.syncProgress.current.number),
           cache_rate: "100%",
         });
@@ -990,6 +1016,7 @@ export async function* getLocalSyncGenerator(params: {
       params.common.logger.info({
         msg: "Started fetching backfill JSON-RPC data",
         chain: params.chain.name,
+        chain_id: params.chain.id,
         cached_block: hexToNumber(params.syncProgress.current.number),
         cache_rate: formatPercentage((total - required) / total),
       });
@@ -1000,6 +1027,7 @@ export async function* getLocalSyncGenerator(params: {
     params.common.logger.info({
       msg: "Started fetching backfill JSON-RPC data",
       chain: params.chain.name,
+      chain_id: params.chain.id,
       cache_rate: "0%",
     });
   }
@@ -1022,6 +1050,7 @@ export async function* getLocalSyncGenerator(params: {
       params.common.logger.warn({
         msg: "Fetching backfill JSON-RPC data is taking longer than expected",
         chain: params.chain.name,
+        chain_id: params.chain.id,
         block_range: JSON.stringify(interval),
         duration: endClock(),
       });
@@ -1034,6 +1063,7 @@ export async function* getLocalSyncGenerator(params: {
       params.common.logger.warn({
         msg: "Failed to fetch backfill JSON-RPC data",
         chain: params.chain.name,
+        chain_id: params.chain.id,
         block_range: JSON.stringify(interval),
         duration: endClock(),
         error,
@@ -1092,6 +1122,7 @@ export async function* getLocalSyncGenerator(params: {
       params.common.logger.trace({
         msg: "Updated block range estimate for fetching backfill JSON-RPC data",
         chain: params.chain.name,
+        chain_id: params.chain.id,
         range: estimateRange,
       });
     }
@@ -1102,6 +1133,7 @@ export async function* getLocalSyncGenerator(params: {
       params.common.logger.info({
         msg: "Finished fetching backfill JSON-RPC data",
         chain: params.chain.name,
+        chain_id: params.chain.id,
         duration: backfillEndClock(),
       });
       return;
