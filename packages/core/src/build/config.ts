@@ -996,7 +996,8 @@ export async function buildIndexingFunctions({
       logs.push({
         level: "warn",
         msg: "No registered indexing functions",
-        name: chain.name,
+        chain: chain.name,
+        chain_id: chain.id,
       });
     }
   }
