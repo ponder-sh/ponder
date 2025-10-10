@@ -9,7 +9,7 @@ import {
 } from "@/_test/setup.js";
 import { deployErc20, deployMulticall, mintErc20 } from "@/_test/simulate.js";
 import { getErc20ConfigAndIndexingFunctions } from "@/_test/utils.js";
-import { buildConfigAndIndexingFunctions } from "@/build/config.js";
+import { buildConfig, buildIndexingFunctions } from "@/build/config.js";
 import { onchainTable } from "@/drizzle/onchain.js";
 import type { IndexingCache } from "@/indexing-store/cache.js";
 import { createCachedViemClient } from "@/indexing/client.js";
@@ -69,11 +69,16 @@ test("createIndexing()", async (context) => {
     schemaBuild: { schema },
   });
 
+  const configBuild = buildConfig({
+    common,
+    config,
+  });
   const { sources, chains, rpcs, indexingFunctions } =
-    await buildConfigAndIndexingFunctions({
+    await buildIndexingFunctions({
       common,
       config,
       rawIndexingFunctions,
+      configBuild,
     });
 
   const eventCount = {};
@@ -110,11 +115,16 @@ test("processSetupEvents() empty", async (context) => {
     schemaBuild: { schema },
   });
 
+  const configBuild = buildConfig({
+    common,
+    config,
+  });
   const { sources, chains, rpcs, indexingFunctions } =
-    await buildConfigAndIndexingFunctions({
+    await buildIndexingFunctions({
       common,
       config,
       rawIndexingFunctions,
+      configBuild,
     });
 
   const eventCount = {};
@@ -151,10 +161,15 @@ test("processSetupEvents()", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common,
+    config,
+  });
+  const { sources, chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const indexingFunctions = {
@@ -213,10 +228,15 @@ test("processEvent()", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common,
+    config,
+  });
+  const { sources, chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const indexingFunctions = {
@@ -317,10 +337,12 @@ test("processEvents eventCount", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources, chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const indexingFunctions = {
@@ -394,10 +416,12 @@ test("executeSetup() context.client", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources, chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const indexingFunctions = {
@@ -436,10 +460,13 @@ test("executeSetup() context.client", async (context) => {
   await indexing.processSetupEvents({ db: indexingStore });
 
   expect(getBalanceSpy).toHaveBeenCalledOnce();
-  expect(getBalanceSpy).toHaveBeenCalledWith({
-    method: "eth_getBalance",
-    params: ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "0x0"],
-  });
+  expect(getBalanceSpy).toHaveBeenCalledWith(
+    {
+      method: "eth_getBalance",
+      params: ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "0x0"],
+    },
+    expect.any(Object),
+  );
 });
 
 test("executeSetup() context.db", async (context) => {
@@ -448,10 +475,12 @@ test("executeSetup() context.db", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources, chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const indexingFunctions = {
@@ -505,10 +534,12 @@ test("executeSetup() metrics", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources, chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const indexingFunctions = {
@@ -552,10 +583,12 @@ test("executeSetup() error", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources, chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const indexingFunctions = {
@@ -602,10 +635,12 @@ test("processEvents() context.client", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources, chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const clientCall = async ({ context }: { context: Context }) => {
@@ -670,10 +705,13 @@ test("processEvents() context.client", async (context) => {
   await indexing.processRealtimeEvents({ db: indexingStore, events });
 
   expect(getBalanceSpy).toHaveBeenCalledTimes(1);
-  expect(getBalanceSpy).toHaveBeenCalledWith({
-    method: "eth_getBalance",
-    params: ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "0x0"],
-  });
+  expect(getBalanceSpy).toHaveBeenCalledWith(
+    {
+      method: "eth_getBalance",
+      params: ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "0x0"],
+    },
+    expect.any(Object),
+  );
 });
 
 test("processEvents() context.db", async (context) => {
@@ -682,10 +720,12 @@ test("processEvents() context.db", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources, chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   let i = 0;
@@ -767,10 +807,12 @@ test("processEvents() metrics", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources, chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const indexingFunctions = {
@@ -841,10 +883,12 @@ test("processEvents() error", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources, chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const indexingFunctions = {
@@ -921,10 +965,12 @@ test("processEvents() error with missing event object properties", async (contex
     schemaBuild: { schema },
   });
 
-  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources, chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const throwError = async ({ event }: { event: any; context: Context }) => {
@@ -995,10 +1041,12 @@ test("processEvents() column selection", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { sources, chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources, chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   let count = 0;
@@ -1120,10 +1168,12 @@ test("ponderActions getBalance()", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const eventCount = {};
@@ -1152,10 +1202,12 @@ test("ponderActions getCode()", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1204,10 +1256,12 @@ test("ponderActions getStorageAt()", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1248,10 +1302,12 @@ test("ponderActions readContract()", async (context) => {
     schemaBuild: { schema },
   });
 
-  const { chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1307,10 +1363,12 @@ test("ponderActions readContract() blockNumber", async (context) => {
   const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
-  const { chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1366,10 +1424,12 @@ test("ponderActions readContract() ContractFunctionZeroDataError", async (contex
   const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
-  const { chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1429,10 +1489,12 @@ test("ponderActions multicall()", async (context) => {
   const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
-  const { chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const { address: multicall } = await deployMulticall({ sender: ALICE });
@@ -1499,10 +1561,12 @@ test("ponderActions multicall() allowFailure", async (context) => {
   const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
-  const { chains, rpcs } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { chains, rpcs } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const { address: multicall } = await deployMulticall({ sender: ALICE });

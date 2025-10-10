@@ -6,12 +6,14 @@ import type {
   BlockSource,
   Chain,
   ContractSource,
+  IndexingBuild,
   IndexingFunctions,
   LightBlock,
   RawIndexingFunctions,
   Source,
   SyncBlock,
 } from "@/internal/types.js";
+import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import { type Rpc, createRpc } from "@/rpc/index.js";
 import {
   defaultBlockFilterInclude,
@@ -26,7 +28,6 @@ import { hyperliquidEvm, chains as viemChains } from "@/utils/chains.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { getFinalityBlockCount } from "@/utils/finality.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import { BlockNotFoundError, type Hex, type LogTopic, hexToNumber } from "viem";
 import { buildLogFactory } from "./factory.js";
 
@@ -59,23 +60,33 @@ const flattenSources = <
   );
 };
 
-export async function buildConfigAndIndexingFunctions({
+export async function buildIndexingFunctions({
   common,
   config,
   rawIndexingFunctions,
+  configBuild: { chains, rpcs },
 }: {
   common: Common;
   config: Config;
   rawIndexingFunctions: RawIndexingFunctions;
+  configBuild: Pick<IndexingBuild, "chains" | "rpcs">;
 }): Promise<{
   chains: Chain[];
   rpcs: Rpc[];
   finalizedBlocks: LightBlock[];
   sources: Source[];
   indexingFunctions: IndexingFunctions;
-  logs: { level: "warn" | "info" | "debug"; msg: string }[];
+  logs: ({ level: "warn" | "info" | "debug"; msg: string } & Record<
+    string,
+    unknown
+  >)[];
 }> {
-  const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
+  const context = { logger: common.logger.child({ action: "build" }) };
+
+  const logs: ({ level: "warn" | "info" | "debug"; msg: string } & Record<
+    string,
+    unknown
+  >)[] = [];
 
   const perChainLatestBlockNumber = new Map<string, Promise<number>>();
 
@@ -96,10 +107,13 @@ export async function buildConfigAndIndexingFunctions({
       } else {
         const rpc = rpcs[chains.findIndex((c) => c.name === chain.name)]!;
         const blockPromise = rpc
-          .request({
-            method: "eth_getBlockByNumber",
-            params: ["latest", false],
-          })
+          .request(
+            {
+              method: "eth_getBlockByNumber",
+              params: ["latest", false],
+            },
+            context,
+          )
           .then((block) => {
             if (!block)
               throw new BlockNotFoundError({ blockNumber: "latest" as any });
@@ -118,102 +132,14 @@ export async function buildConfigAndIndexingFunctions({
     return blockNumberOrTag;
   };
 
-  const chains: Chain[] = Object.entries(config.chains).map(
-    ([chainName, chain]) => {
-      let matchedChain = Object.values(viemChains).find((c) =>
-        "id" in c ? c.id === chain.id : false,
-      );
-      if (chain.id === 999) {
-        matchedChain = hyperliquidEvm;
-      }
-
-      if (chain.rpc === undefined || chain.rpc === "") {
-        if (matchedChain === undefined) {
-          throw new Error(
-            `Chain "${chainName}" with id ${chain.id} has no RPC defined and no default RPC URL was found in 'viem/chains'.`,
-          );
-        }
-
-        chain.rpc = matchedChain.rpcUrls.default.http as string[];
-      }
-
-      if (typeof chain.rpc === "string" || Array.isArray(chain.rpc)) {
-        const rpcs = Array.isArray(chain.rpc) ? chain.rpc : [chain.rpc];
-
-        if (rpcs.length === 0) {
-          throw new Error(
-            `Chain "${chainName}" with id ${chain.id} has no RPC URLs.`,
-          );
-        }
-
-        if (matchedChain) {
-          for (const rpc of rpcs) {
-            for (const http of matchedChain.rpcUrls.default.http) {
-              if (http === rpc) {
-                logs.push({
-                  level: "warn",
-                  msg: `Chain '${chainName}' is using a public RPC URL (${http}). Most apps require an RPC URL with a higher rate limit.`,
-                });
-                break;
-              }
-            }
-            for (const ws of matchedChain.rpcUrls.default.webSocket ?? []) {
-              if (ws === rpc) {
-                logs.push({
-                  level: "warn",
-                  msg: `Chain '${chainName}' is using a public RPC URL (${ws}). Most apps require an RPC URL with a higher rate limit.`,
-                });
-                break;
-              }
-            }
-          }
-        }
-      }
-
-      if (chain.pollingInterval !== undefined && chain.pollingInterval! < 100) {
-        throw new Error(
-          `Invalid 'pollingInterval' for chain '${chainName}. Expected 100 milliseconds or greater, got ${chain.pollingInterval} milliseconds.`,
-        );
-      }
-
-      return {
-        id: chain.id,
-        name: chainName,
-        rpc: chain.rpc,
-        ws: chain.ws,
-        pollingInterval: chain.pollingInterval ?? 1_000,
-        finalityBlockCount: getFinalityBlockCount({ chain: matchedChain }),
-        disableCache: chain.disableCache ?? false,
-        viemChain: matchedChain,
-      } satisfies Chain;
-    },
-  );
-
-  const chainIds = new Set<number>();
-  for (const chain of chains) {
-    if (chainIds.has(chain.id)) {
-      throw new Error(
-        `Invalid id for chain "${chain.name}". ${chain.id} is already in use.`,
-      );
-    }
-    chainIds.add(chain.id);
-  }
-
-  const rpcs = chains.map((chain) =>
-    createRpc({
-      common,
-      chain,
-      concurrency: Math.floor(common.options.rpcMaxConcurrency / chains.length),
-    }),
-  );
-
   const finalizedBlocks = await Promise.all(
     chains.map((chain) => {
       const rpc = rpcs[chains.findIndex((c) => c.name === chain.name)]!;
-
-      const blockPromise = _eth_getBlockByNumber(rpc, {
-        blockTag: "latest",
-      })
+      const blockPromise = _eth_getBlockByNumber(
+        rpc,
+        { blockTag: "latest" },
+        context,
+      )
         .then((block) => hexToNumber((block as SyncBlock).number))
         .catch((e) => {
           throw new Error(
@@ -224,9 +150,11 @@ export async function buildConfigAndIndexingFunctions({
       perChainLatestBlockNumber.set(chain.name, blockPromise);
 
       return blockPromise.then((latest) =>
-        _eth_getBlockByNumber(rpc, {
-          blockNumber: Math.max(latest - chain.finalityBlockCount, 0),
-        }).then((block) => ({
+        _eth_getBlockByNumber(
+          rpc,
+          { blockNumber: Math.max(latest - chain.finalityBlockCount, 0) },
+          context,
+        ).then((block) => ({
           hash: block.hash,
           parentHash: block.parentHash,
           number: block.number,
@@ -320,7 +248,7 @@ export async function buildConfigAndIndexingFunctions({
   }
 
   if (indexingFunctionCount === 0) {
-    logs.push({ level: "warn", msg: "No indexing functions were registered." });
+    logs.push({ level: "warn", msg: "No registered indexing functions" });
   }
 
   // common validation for all sources
@@ -738,10 +666,10 @@ export async function buildConfigAndIndexingFunctions({
             source.filter.topic0?.length === 0;
       if (hasNoRegisteredIndexingFunctions) {
         logs.push({
-          level: "debug",
-          msg: `No indexing functions were registered for '${
-            source.name
-          }' ${source.filter.type === "trace" ? "traces" : "logs"}`,
+          level: "warn",
+          msg: "No registered indexing functions",
+          name: source.name,
+          type: source.filter.type,
         });
       }
       return hasNoRegisteredIndexingFunctions === false;
@@ -988,7 +916,9 @@ export async function buildConfigAndIndexingFunctions({
       if (!hasRegisteredIndexingFunction) {
         logs.push({
           level: "debug",
-          msg: `No indexing functions were registered for '${eventName}'`,
+          msg: "No registered indexing functions",
+          name: eventName,
+          type: source.filter.type,
         });
       }
       return hasRegisteredIndexingFunction;
@@ -1035,8 +965,10 @@ export async function buildConfigAndIndexingFunctions({
         indexingFunctions[`${blockSource.name}:block`] !== undefined;
       if (!hasRegisteredIndexingFunction) {
         logs.push({
-          level: "debug",
-          msg: `No indexing functions were registered for block interval '${blockSource.name}:block'`,
+          level: "warn",
+          msg: "No registered indexing functions",
+          name: blockSource.name,
+          type: "block",
         });
       }
       return hasRegisteredIndexingFunction;
@@ -1063,7 +995,8 @@ export async function buildConfigAndIndexingFunctions({
     } else {
       logs.push({
         level: "warn",
-        msg: `No contracts, accounts, or block intervals registered for chain '${chain.name}'`,
+        msg: "No registered indexing functions",
+        name: chain.name,
       });
     }
   }
@@ -1090,9 +1023,15 @@ export function buildConfig({
 }: { common: Common; config: Config }): {
   chains: Chain[];
   rpcs: Rpc[];
-  logs: { level: "warn" | "info" | "debug"; msg: string }[];
+  logs: ({ level: "warn" | "info" | "debug"; msg: string } & Record<
+    string,
+    unknown
+  >)[];
 } {
-  const logs: { level: "warn" | "info" | "debug"; msg: string }[] = [];
+  const logs: ({ level: "warn" | "info" | "debug"; msg: string } & Record<
+    string,
+    unknown
+  >)[] = [];
 
   const chains: Chain[] = Object.entries(config.chains).map(
     ([chainName, chain]) => {
@@ -1128,7 +1067,10 @@ export function buildConfig({
               if (http === rpc) {
                 logs.push({
                   level: "warn",
-                  msg: `Chain '${chainName}' is using a public RPC URL (${http}). Most apps require an RPC URL with a higher rate limit.`,
+                  msg: "Detected public RPC URL. Most apps require an RPC URL with a higher rate limit.",
+                  chain: chainName,
+                  chain_id: chain.id,
+                  url: http,
                 });
                 break;
               }
@@ -1137,7 +1079,10 @@ export function buildConfig({
               if (ws === rpc) {
                 logs.push({
                   level: "warn",
-                  msg: `Chain '${chainName}' is using a public RPC URL (${ws}). Most apps require an RPC URL with a higher rate limit.`,
+                  msg: "Detected public RPC URL. Most apps require an RPC URL with a higher rate limit.",
+                  chain: chainName,
+                  chain_id: chain.id,
+                  url: ws,
                 });
                 break;
               }
@@ -1186,20 +1131,23 @@ export function buildConfig({
   return { chains, rpcs, logs };
 }
 
-export async function safeBuildConfigAndIndexingFunctions({
+export async function safeBuildIndexingFunctions({
   common,
   config,
   rawIndexingFunctions,
+  configBuild,
 }: {
   common: Common;
   config: Config;
   rawIndexingFunctions: RawIndexingFunctions;
+  configBuild: Pick<IndexingBuild, "chains" | "rpcs">;
 }) {
   try {
-    const result = await buildConfigAndIndexingFunctions({
+    const result = await buildIndexingFunctions({
       common,
       config,
       rawIndexingFunctions,
+      configBuild,
     });
 
     return {

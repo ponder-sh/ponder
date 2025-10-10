@@ -24,11 +24,11 @@ import {
   getPairWithFactoryConfigAndIndexingFunctions,
   testClient,
 } from "@/_test/utils.js";
-import { buildConfigAndIndexingFunctions } from "@/build/config.js";
+import { buildConfig, buildIndexingFunctions } from "@/build/config.js";
 import type { LogFactory, LogFilter } from "@/internal/types.js";
+import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
-import { _eth_getBlockByNumber } from "@/utils/rpc.js";
 import {
   encodeFunctionData,
   encodeFunctionResult,
@@ -53,10 +53,12 @@ test("createRealtimeSync()", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -83,10 +85,12 @@ test("sync() handles block", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -120,10 +124,12 @@ test("sync() no-op when receiving same block twice", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -158,10 +164,12 @@ test("sync() gets missing block", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -198,10 +206,12 @@ test("sync() catches error", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -246,10 +256,12 @@ test("handleBlock() block event with log", async (context) => {
   const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
     address,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
@@ -322,10 +334,12 @@ test("handleBlock() block event with log factory", async (context) => {
     getPairWithFactoryConfigAndIndexingFunctions({
       address,
     });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const filter = sources[0]!.filter as LogFilter<LogFactory>;
@@ -437,10 +451,12 @@ test("handleBlock() block event with block", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -498,10 +514,12 @@ test("handleBlock() block event with transaction", async (context) => {
     getAccountsConfigAndIndexingFunctions({
       address: ALICE,
     });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -559,10 +577,12 @@ test("handleBlock() block event with transfer", async (context) => {
     getAccountsConfigAndIndexingFunctions({
       address: ALICE,
     });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const request = async (request: any) => {
@@ -657,10 +677,12 @@ test("handleBlock() block event with trace", async (context) => {
     address,
     includeCallTraces: true,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const request = async (request: any) => {
@@ -770,10 +792,12 @@ test("handleBlock() finalize event", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -832,10 +856,12 @@ test("handleReorg() finds common ancestor", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -891,10 +917,12 @@ test("handleReorg() throws error for deep reorg", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common, config });
+  const { sources } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });

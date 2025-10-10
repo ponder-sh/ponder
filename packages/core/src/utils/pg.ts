@@ -1,5 +1,6 @@
 import type { Logger } from "@/internal/logger.js";
 import pg, { type PoolConfig } from "pg";
+import parse from "pg-connection-string";
 import { prettyPrint } from "./print.js";
 
 // The default parser for numeric[] (1231) seems to parse values as Number
@@ -7,6 +8,20 @@ import { prettyPrint } from "./print.js";
 // which properly returns an array of strings.
 const bigIntArrayParser = pg.types.getTypeParser(1016);
 pg.types.setTypeParser(1231, bigIntArrayParser);
+
+export function getDatabaseName(connectionString: string) {
+  try {
+    const parsed = (parse as unknown as typeof parse.parse)(connectionString);
+    return `${parsed.host}:${parsed.port}/${parsed.database}`;
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+
+    throw new Error(
+      `Failed to parse database connection string: ${errorMessage}.`,
+    );
+  }
+}
 
 // Monkeypatch Pool.query to get more informative stack traces. I have no idea why this works.
 // https://stackoverflow.com/a/70601114
@@ -86,8 +101,9 @@ export function createPool(config: PoolConfig, logger: Logger) {
       "unknown";
 
     logger.warn({
-      service: "postgres",
-      msg: `Postgres pool error (application_name: ${applicationName}, pid: ${pid})`,
+      msg: "Postgres pool error",
+      application_name: applicationName,
+      pid,
       error,
     });
 
@@ -96,16 +112,22 @@ export function createPool(config: PoolConfig, logger: Logger) {
   }
 
   function onClientError(error: Error) {
-    logger.warn({ service: "postgres", msg: "Postgres client error", error });
+    logger.warn({ msg: "Postgres client error", error });
 
     // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
     // if the underlying problem persists, the process will crash due to downstream effects.
   }
 
   function onNotice(notice: { message?: string; code?: string }) {
-    logger.debug({
-      service: "postgres",
-      msg: `Postgres notice: ${notice.message} (code: ${notice.code})`,
+    const level =
+      typeof notice.code === "string" &&
+      ["42P06", "42P07"].includes(notice.code)
+        ? "trace"
+        : "debug";
+    logger[level]({
+      msg: "Postgres notice",
+      message: notice.message,
+      code: notice.code,
     });
   }
 
@@ -169,8 +191,9 @@ export function createReadonlyPool(
       "unknown";
 
     logger.warn({
-      service: "postgres",
-      msg: `Postgres pool error (application_name: ${applicationName}, pid: ${pid})`,
+      msg: "Postgres pool error",
+      application_name: applicationName,
+      pid,
       error,
     });
 
@@ -179,16 +202,22 @@ export function createReadonlyPool(
   }
 
   function onClientError(error: Error) {
-    logger.warn({ service: "postgres", msg: "Postgres client error", error });
+    logger.warn({ msg: "Postgres client error", error });
 
     // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
     // if the underlying problem persists, the process will crash due to downstream effects.
   }
 
   function onNotice(notice: { message?: string; code?: string }) {
-    logger.debug({
-      service: "postgres",
-      msg: `Postgres notice: ${notice.message} (code: ${notice.code})`,
+    const level =
+      typeof notice.code === "string" &&
+      ["42P06", "42P07"].includes(notice.code)
+        ? "trace"
+        : "debug";
+    logger[level]({
+      msg: "Postgres notice",
+      message: notice.message,
+      code: notice.code,
     });
   }
 

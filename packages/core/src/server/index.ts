@@ -125,6 +125,8 @@ export async function createServer({
     .route("/", apiBuild.app)
     .onError((error, c) => onError(error, c, common));
 
+  const endClock = startClock();
+
   // Create nodejs server
 
   const httpServer = await new Promise<http.Server>((resolve, reject) => {
@@ -146,12 +148,14 @@ export async function createServer({
         clearTimeout(timeout);
         common.metrics.port = apiBuild.port;
         common.logger.info({
-          service: "server",
-          msg: `Started listening on port ${apiBuild.port}`,
+          msg: "Created HTTP server",
+          port: apiBuild.port,
+          hostname: apiBuild.hostname,
+          duration: endClock(),
         });
         common.logger.info({
-          service: "server",
-          msg: "Started returning 200 responses from /health endpoint",
+          msg: "Started returning 200 responses",
+          endpoint: "/health",
         });
         resolve(httpServer as http.Server);
       },

@@ -1300,7 +1300,6 @@ GROUP BY fragment_id, chain_id
       // 7. reset metadata
 
       logger.debug({
-        service: "migrate",
         msg: `${new Date().toISOString()} [ponder_sync migration] started 2025_02_19_0_primary_key`,
       });
 
@@ -1342,7 +1341,6 @@ GROUP BY fragment_id, chain_id
       await db.schema.dropIndex("trace_value_index").ifExists().execute();
 
       logger.debug({
-        service: "migrate",
         msg: `${new Date().toISOString()} [ponder_sync migration] dropped indexes`,
       });
 
@@ -1398,7 +1396,6 @@ GROUP BY fragment_id, chain_id
       await db.deleteFrom("logs").where("checkpoint", "=", null).execute();
 
       logger.debug({
-        service: "migrate",
         msg: `${new Date().toISOString()} [ponder_sync migration] updated column types`,
       });
 
@@ -1441,7 +1438,6 @@ GROUP BY fragment_id, chain_id
       await db.schema.alterTable("traces").dropColumn("isReverted").execute();
 
       logger.debug({
-        service: "migrate",
         msg: `${new Date().toISOString()} [ponder_sync migration] dropped columns`,
       });
 
@@ -1619,7 +1615,6 @@ GROUP BY fragment_id, chain_id
         .execute();
 
       logger.debug({
-        service: "migrate",
         msg: `${new Date().toISOString()} [ponder_sync migration] renamed columns`,
       });
 
@@ -1662,7 +1657,6 @@ GROUP BY fragment_id, chain_id
         .execute();
 
       logger.debug({
-        service: "migrate",
         msg: `${new Date().toISOString()} [ponder_sync migration] added primary keys`,
       });
 
@@ -1679,7 +1673,6 @@ GROUP BY fragment_id, chain_id
       await sql`REINDEX TABLE ponder_sync.traces`.execute(db);
 
       logger.debug({
-        service: "migrate",
         msg: `${new Date().toISOString()} [ponder_sync migration] finished 2025_02_19_0_primary_key`,
       });
     },
@@ -1687,7 +1680,6 @@ GROUP BY fragment_id, chain_id
   "2025_02_26_0_factories": {
     async up(db) {
       logger.debug({
-        service: "migrate",
         msg: `${new Date().toISOString()} [ponder_sync migration] started 2025_02_26_0_factories`,
       });
       await db.executeQuery(sql`SET statement_timeout = 3600000;`.compile(db));
@@ -1735,7 +1727,6 @@ GROUP BY fragment_id, chain_id
         .execute();
 
       logger.debug({
-        service: "migrate",
         msg: `${new Date().toISOString()} [ponder_sync migration] finished 2025_02_26_0_factories`,
       });
     },
@@ -1743,7 +1734,6 @@ GROUP BY fragment_id, chain_id
   "2025_02_26_1_rpc_request_results": {
     async up(db) {
       logger.debug({
-        service: "migrate",
         msg: `${new Date().toISOString()} [ponder_sync migration] started 2025_02_26_1_rpc_request_results`,
       });
       await db.executeQuery(sql`SET statement_timeout = 3600000;`.compile(db));
@@ -1804,7 +1794,6 @@ GROUP BY fragment_id, chain_id
       await sql`ANALYZE ponder_sync.rpc_request_results`.execute(db);
 
       logger.debug({
-        service: "migrate",
         msg: `${new Date().toISOString()} [ponder_sync migration] finished 2025_02_26_1_rpc_request_results`,
       });
     },

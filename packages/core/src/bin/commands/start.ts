@@ -1,4 +1,3 @@
-import path from "node:path";
 import { createBuild } from "@/build/index.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
@@ -18,7 +17,6 @@ import type {
 import { runMultichain } from "@/runtime/multichain.js";
 import { runOmnichain } from "@/runtime/omnichain.js";
 import { createServer } from "@/server/index.js";
-import { mergeResults } from "@/utils/result.js";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 
@@ -51,18 +49,13 @@ export async function start({
     .split(".")
     .map(Number) as [number, number, number];
   if (major < 18 || (major === 18 && minor < 14)) {
-    logger.fatal({
-      service: "process",
-      msg: `Invalid Node.js version. Expected >=18.14, detected ${major}.${minor}.`,
+    logger.error({
+      msg: "Invalid Node.js version",
+      version: process.versions.node,
+      expected: "18.14",
     });
     process.exit(1);
   }
-
-  const configRelPath = path.relative(options.rootDir, options.configFile);
-  logger.debug({
-    service: "app",
-    msg: `Started using config file: ${configRelPath}`,
-  });
 
   const metrics = new MetricsService();
   const shutdown = createShutdown();
@@ -97,37 +90,108 @@ export async function start({
 
   const namespaceResult = build.namespaceCompile();
   if (namespaceResult.status === "error") {
-    await exit({ reason: "Failed to initialize namespace", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "namespace",
+      error: namespaceResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
 
   const configResult = await build.executeConfig();
   if (configResult.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "config",
+      error: configResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
 
   const schemaResult = await build.executeSchema();
   if (schemaResult.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "schema",
+      error: schemaResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
 
-  const buildResult1 = mergeResults([
-    await build.preCompile(configResult.result),
-    build.compileSchema(schemaResult.result),
-  ]);
+  const preCompileResult = build.preCompile(configResult.result);
 
-  if (buildResult1.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+  if (preCompileResult.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "pre-compile",
+      error: preCompileResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
 
-  const [preBuild, schemaBuild] = buildResult1.result;
+  const databaseDiagnostic = await build.databaseDiagnostic({
+    preBuild: preCompileResult.result,
+  });
+  if (databaseDiagnostic.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "diagnostic",
+      error: databaseDiagnostic.error,
+    });
+    await exit({ code: 75 });
+    return;
+  }
+
+  const compileSchemaResult = build.compileSchema(schemaResult.result);
+
+  if (compileSchemaResult.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "schema",
+      error: compileSchemaResult.error,
+    });
+    await exit({ code: 1 });
+    return;
+  }
+
+  const configBuildResult = build.compileConfig({
+    configResult: configResult.result,
+  });
+  if (configBuildResult.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "config",
+      error: configBuildResult.error,
+    });
+    await exit({ code: 1 });
+    return;
+  }
+
+  const rpcDiagnosticResult = await build.rpcDiagnostic({
+    configBuild: configBuildResult.result,
+  });
+  if (rpcDiagnosticResult.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "diagnostic",
+      error: rpcDiagnosticResult.error,
+    });
+    await exit({ code: 75 });
+    return;
+  }
 
   const indexingResult = await build.executeIndexingFunctions();
   if (indexingResult.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "indexing",
+      error: indexingResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
 
@@ -135,18 +199,24 @@ export async function start({
     configResult: configResult.result,
     schemaResult: schemaResult.result,
     indexingResult: indexingResult.result,
+    configBuild: configBuildResult.result,
   });
 
   if (indexingBuildResult.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "indexing",
+      error: indexingBuildResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
 
   database = createDatabase({
     common,
     namespace: namespaceResult.result,
-    preBuild,
-    schemaBuild,
+    preBuild: preCompileResult.result,
+    schemaBuild: compileSchemaResult.result,
   });
   const crashRecoveryCheckpoint = await database.migrate({
     buildId: indexingBuildResult.result.buildId,
@@ -157,11 +227,16 @@ export async function start({
   await database.migrateSync();
 
   const apiResult = await build.executeApi({
-    indexingBuild: indexingBuildResult.result,
+    configBuild: configBuildResult.result,
     database,
   });
   if (apiResult.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "api",
+      error: apiResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
 
@@ -170,7 +245,12 @@ export async function start({
   });
 
   if (apiBuildResult.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "api",
+      error: apiBuildResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
 
@@ -179,8 +259,8 @@ export async function start({
     properties: {
       cli_command: "start",
       ...buildPayload({
-        preBuild,
-        schemaBuild,
+        preBuild: preCompileResult.result,
+        schemaBuild: compileSchemaResult.result,
         indexingBuild: indexingBuildResult.result,
       }),
     },
@@ -188,8 +268,8 @@ export async function start({
 
   metrics.ponder_settings_info.set(
     {
-      ordering: preBuild.ordering,
-      database: preBuild.databaseConfig.kind,
+      ordering: preCompileResult.result.ordering,
+      database: preCompileResult.result.databaseConfig.kind,
       command: cliOptions.command,
     },
     1,
@@ -197,9 +277,9 @@ export async function start({
 
   let app: PonderApp = {
     common,
-    preBuild,
+    preBuild: preCompileResult.result,
     namespaceBuild: namespaceResult.result,
-    schemaBuild,
+    schemaBuild: compileSchemaResult.result,
     indexingBuild: indexingBuildResult.result,
     apiBuild: apiBuildResult.result,
     crashRecoveryCheckpoint,
@@ -212,7 +292,7 @@ export async function start({
 
   metrics.initializeIndexingMetrics(app);
 
-  if (preBuild.ordering === "omnichain") {
+  if (preCompileResult.result.ordering === "omnichain") {
     runOmnichain(app);
   } else {
     runMultichain(app);

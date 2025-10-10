@@ -19,6 +19,18 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import {
+  _debug_traceBlockByHash,
+  _eth_getBlockByHash,
+  _eth_getBlockByNumber,
+  _eth_getBlockReceipts,
+  _eth_getLogs,
+  _eth_getTransactionReceipt,
+  validateLogsAndBlock,
+  validateReceiptsAndBlock,
+  validateTracesAndBlock,
+  validateTransactionsAndBlock,
+} from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
 import {
   getChildAddress,
@@ -34,18 +46,7 @@ import {
 import type { SyncProgress } from "@/runtime/index.js";
 import { createLock } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
-import {
-  _debug_traceBlockByHash,
-  _eth_getBlockByHash,
-  _eth_getBlockByNumber,
-  _eth_getBlockReceipts,
-  _eth_getLogs,
-  _eth_getTransactionReceipt,
-  validateLogsAndBlock,
-  validateReceiptsAndBlock,
-  validateTracesAndBlock,
-  validateTransactionsAndBlock,
-} from "@/utils/rpc.js";
+import { startClock } from "@/utils/timer.js";
 import { type Address, type Hash, hexToNumber, zeroHash } from "viem";
 import { isFilterInBloom, isInBloom, zeroLogsBloom } from "./bloom.js";
 
@@ -92,10 +93,6 @@ type CreateRealtimeSyncParameters = {
 };
 
 const MAX_LATEST_BLOCK_ATTEMPT_MS = 10 * 60 * 1000; // 10 minutes
-
-const ERROR_TIMEOUT = [
-  1, 2, 5, 10, 30, 60, 60, 60, 60, 60, 60, 60, 60, 60,
-] as const;
 const MAX_QUEUED_BLOCKS = 50;
 
 export const createRealtimeSync = (
@@ -119,6 +116,15 @@ export const createRealtimeSync = (
   /** Closest-to-tip block that has been fetched but not yet reconciled. */
   let latestFetchedBlock: LightBlock | undefined;
   let fetchAndReconcileLatestBlockErrorCount = 0;
+
+  const noNewBlockWarning = () => {
+    args.common.logger.warn({
+      msg: "No new block received within expected time",
+      chain: args.chain.name,
+      chain_id: args.chain.id,
+    });
+  };
+  let noNewBlockTimer = setTimeout(noNewBlockWarning, 30_000);
 
   const realtimeSyncLock = createLock();
 
@@ -175,6 +181,7 @@ export const createRealtimeSync = (
   const syncTransactionReceipts = async (
     block: SyncBlock,
     transactionHashes: Set<Hash>,
+    context?: Parameters<Rpc["request"]>[1],
   ): Promise<SyncTransactionReceipt[]> => {
     if (transactionHashes.size === 0) {
       return [];
@@ -183,7 +190,7 @@ export const createRealtimeSync = (
     if (isBlockReceipts === false) {
       const transactionReceipts = await Promise.all(
         Array.from(transactionHashes).map(async (hash) =>
-          _eth_getTransactionReceipt(args.rpc, { hash }),
+          _eth_getTransactionReceipt(args.rpc, { hash }, context),
         ),
       );
 
@@ -199,21 +206,23 @@ export const createRealtimeSync = (
 
     let blockReceipts: SyncTransactionReceipt[];
     try {
-      blockReceipts = await _eth_getBlockReceipts(args.rpc, {
-        blockHash: block.hash,
-      });
+      blockReceipts = await _eth_getBlockReceipts(
+        args.rpc,
+        { blockHash: block.hash },
+        context,
+      );
     } catch (_error) {
       const error = _error as Error;
       args.common.logger.warn({
-        service: "realtime",
-        msg: `Caught eth_getBlockReceipts error on '${
-          args.chain.name
-        }', switching to eth_getTransactionReceipt method.`,
+        msg: "Caught eth_getBlockReceipts error, switching to eth_getTransactionReceipt method",
+        action: "fetch block data",
+        chain: args.chain.name,
+        chain_id: args.chain.id,
         error,
       });
 
       isBlockReceipts = false;
-      return syncTransactionReceipts(block, transactionHashes);
+      return syncTransactionReceipts(block, transactionHashes, context);
     }
 
     validateReceiptsAndBlock(
@@ -246,6 +255,11 @@ export const createRealtimeSync = (
   const fetchBlockEventData = async (
     maybeBlockHeader: SyncBlock | SyncBlockHeader,
   ): Promise<BlockWithEventData> => {
+    const context = {
+      logger: args.common.logger.child({ action: "fetch_block_data" }),
+    };
+    const endClock = startClock();
+
     let block: SyncBlock | undefined;
 
     if (maybeBlockHeader.transactions !== undefined) {
@@ -267,11 +281,15 @@ export const createRealtimeSync = (
     if (shouldRequestLogs) {
       if (block === undefined) {
         [block, logs] = await Promise.all([
-          _eth_getBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
-          _eth_getLogs(args.rpc, { blockHash: maybeBlockHeader.hash }),
+          _eth_getBlockByHash(
+            args.rpc,
+            { hash: maybeBlockHeader.hash },
+            context,
+          ),
+          _eth_getLogs(args.rpc, { blockHash: maybeBlockHeader.hash }, context),
         ]);
       } else {
-        logs = await _eth_getLogs(args.rpc, { blockHash: block.hash });
+        logs = await _eth_getLogs(args.rpc, { blockHash: block.hash }, context);
       }
 
       validateLogsAndBlock(logs, block, "hash");
@@ -313,8 +331,13 @@ export const createRealtimeSync = (
 
         if (isInvalidLogsBloom) {
           args.common.logger.warn({
-            service: "realtime",
-            msg: `Detected inconsistent RPC responses. Log at index ${log.logIndex} is not in 'block.logsBloom' for block ${block.hash}.`,
+            msg: "Detected inconsistent RPC responses. Log not found in block.logsBloom.",
+            action: "fetch_block_data",
+            chain: args.chain.name,
+            chain_id: args.chain.id,
+            number: hexToNumber(block.number),
+            hash: block.hash,
+            logIndex: hexToNumber(log.logIndex),
           });
           break;
         }
@@ -323,8 +346,13 @@ export const createRealtimeSync = (
       for (const log of logs) {
         if (log.transactionHash === zeroHash) {
           args.common.logger.warn({
-            service: "realtime",
-            msg: `Detected '${args.chain.name}' log with empty transaction hash in block ${block.hash} at log index ${hexToNumber(log.logIndex)}. This is expected for some chains like ZKsync.`,
+            msg: "Detected log with empty transaction hash. This is expected for some chains like ZKsync.",
+            action: "fetch_block_data",
+            chain: args.chain.name,
+            chain_id: args.chain.id,
+            number: hexToNumber(block.number),
+            hash: block.hash,
+            logIndex: hexToNumber(log.logIndex),
           });
         }
       }
@@ -334,9 +362,13 @@ export const createRealtimeSync = (
       shouldRequestLogs === false &&
       args.sources.some((s) => s.filter.type === "log")
     ) {
-      args.common.logger.debug({
-        service: "realtime",
-        msg: `Skipped fetching '${args.chain.name}' logs for block ${hexToNumber(maybeBlockHeader.number)} due to bloom filter result`,
+      args.common.logger.trace({
+        msg: "Skipped eth_getLogs request due to bloom filter result",
+        action: "fetch_block_data",
+        chain: args.chain.name,
+        chain_id: args.chain.id,
+        number: hexToNumber(maybeBlockHeader.number),
+        hash: maybeBlockHeader.hash,
       });
     }
 
@@ -351,11 +383,23 @@ export const createRealtimeSync = (
     if (shouldRequestTraces) {
       if (block === undefined) {
         [block, traces] = await Promise.all([
-          _eth_getBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
-          _debug_traceBlockByHash(args.rpc, { hash: maybeBlockHeader.hash }),
+          _eth_getBlockByHash(
+            args.rpc,
+            { hash: maybeBlockHeader.hash },
+            context,
+          ),
+          _debug_traceBlockByHash(
+            args.rpc,
+            { hash: maybeBlockHeader.hash },
+            context,
+          ),
         ]);
       } else {
-        traces = await _debug_traceBlockByHash(args.rpc, { hash: block.hash });
+        traces = await _debug_traceBlockByHash(
+          args.rpc,
+          { hash: block.hash },
+          context,
+        );
       }
 
       validateTracesAndBlock(traces, block, "hash");
@@ -450,6 +494,23 @@ export const createRealtimeSync = (
 
     // exit early if no logs or traces were requested and no transactions are required
     if (block === undefined && transactionFilters.length === 0) {
+      args.common.logger.debug(
+        {
+          msg: "Fetched block data",
+          chain: args.chain.name,
+          chain_id: args.chain.id,
+          number: hexToNumber(maybeBlockHeader.number),
+          hash: maybeBlockHeader.hash,
+          transaction_count: 0,
+          receipt_count: 0,
+          trace_count: 0,
+          log_count: 0,
+          child_address_count: 0,
+          duration: endClock(),
+        },
+        ["chain", "number", "hash"],
+      );
+
       return {
         block: maybeBlockHeader,
         transactions: [],
@@ -461,9 +522,11 @@ export const createRealtimeSync = (
     }
 
     if (block === undefined) {
-      block = await _eth_getBlockByHash(args.rpc, {
-        hash: maybeBlockHeader.hash,
-      });
+      block = await _eth_getBlockByHash(
+        args.rpc,
+        { hash: maybeBlockHeader.hash },
+        context,
+      );
     }
     validateTransactionsAndBlock(block, "hash");
 
@@ -486,6 +549,29 @@ export const createRealtimeSync = (
     const transactionReceipts = await syncTransactionReceipts(
       block,
       requiredTransactionReceipts,
+      context,
+    );
+
+    let childAddressCount = 0;
+    for (const childAddresses of blockChildAddresses.values()) {
+      childAddressCount += childAddresses.size;
+    }
+
+    args.common.logger.debug(
+      {
+        msg: "Fetched block data",
+        chain: args.chain.name,
+        chain_id: args.chain.id,
+        number: hexToNumber(block.number),
+        hash: block.hash,
+        transaction_count: transactions.length,
+        log_count: logs.length,
+        trace_count: traces.length,
+        receipt_count: transactionReceipts.length,
+        child_address_count: childAddressCount,
+        duration: endClock(),
+      },
+      ["chain", "number", "hash"],
     );
 
     return {
@@ -693,9 +779,17 @@ export const createRealtimeSync = (
   const reconcileReorg = async (
     block: SyncBlock | SyncBlockHeader,
   ): Promise<Extract<RealtimeSyncEvent, { type: "reorg" }>> => {
-    args.common.logger.warn({
-      service: "realtime",
-      msg: `Detected forked '${args.chain.name}' block at height ${hexToNumber(block.number)}`,
+    const context = {
+      logger: args.common.logger.child({ action: "reconcile_reorg" }),
+    };
+    const endClock = startClock();
+
+    args.common.logger.debug({
+      msg: "Detected reorg in local chain",
+      chain: args.chain.name,
+      chain_id: args.chain.id,
+      number: hexToNumber(block.number),
+      hash: block.hash,
     });
 
     // Record blocks that have been removed from the local chain.
@@ -724,15 +818,23 @@ export const createRealtimeSync = (
         // to what it was before we started.
         unfinalizedBlocks = reorgedBlocks;
 
-        const msg = `Encountered unrecoverable '${args.chain.name}' reorg beyond finalized block ${hexToNumber(finalizedBlock.number)}`;
-
-        args.common.logger.warn({ service: "realtime", msg });
-
-        throw new Error(msg);
-      } else {
-        remoteBlock = await _eth_getBlockByHash(args.rpc, {
-          hash: remoteBlock.parentHash,
+        args.common.logger.warn({
+          msg: "Encountered unrecoverable reorg",
+          chain: args.chain.name,
+          chain_id: args.chain.id,
+          finalized_block: hexToNumber(finalizedBlock.number),
+          duration: endClock(),
         });
+
+        throw new Error(
+          `Encountered unrecoverable '${args.chain.name}' reorg beyond finalized block ${hexToNumber(finalizedBlock.number)}`,
+        );
+      } else {
+        remoteBlock = await _eth_getBlockByHash(
+          args.rpc,
+          { hash: remoteBlock.parentHash },
+          context,
+        );
         // Add tip to `reorgedBlocks`
         reorgedBlocks.unshift(unfinalizedBlocks.pop()!);
       }
@@ -740,11 +842,13 @@ export const createRealtimeSync = (
 
     const commonAncestor = getLatestUnfinalizedBlock();
 
-    args.common.logger.warn({
-      service: "realtime",
-      msg: `Reconciled ${reorgedBlocks.length}-block '${
-        args.chain.name
-      }' reorg with common ancestor block ${hexToNumber(commonAncestor.number)}`,
+    args.common.logger.debug({
+      msg: "Reconciled reorg in local chain",
+      chain: args.chain.name,
+      chain_id: args.chain.id,
+      reorg_depth: reorgedBlocks.length,
+      common_ancestor_block: hexToNumber(commonAncestor.number),
+      duration: endClock(),
     });
 
     // remove reorged blocks from `childAddresses`
@@ -786,14 +890,19 @@ export const createRealtimeSync = (
     blockWithEventData: BlockWithEventData,
     blockCallback?: (isAccepted: boolean) => void,
   ): AsyncGenerator<RealtimeSyncEvent> {
+    const endClock = startClock();
+
     const latestBlock = getLatestUnfinalizedBlock();
     const block = blockWithEventData.block;
 
     // We already saw and handled this block. No-op.
     if (latestBlock.hash === block.hash) {
       args.common.logger.trace({
-        service: "realtime",
-        msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
+        msg: "Detected duplicate block",
+        chain: args.chain.name,
+        chain_id: args.chain.id,
+        number: hexToNumber(block.number),
+        hash: block.hash,
       });
 
       blockCallback?.(false);
@@ -812,6 +921,16 @@ export const createRealtimeSync = (
 
     // Blocks are missing. They should be fetched and enqueued.
     if (hexToNumber(latestBlock.number) + 1 < hexToNumber(block.number)) {
+      args.common.logger.trace({
+        msg: "Missing blocks from local chain",
+        chain: args.chain.name,
+        chain_id: args.chain.id,
+        block_range: JSON.stringify([
+          hexToNumber(latestBlock.number) + 1,
+          hexToNumber(block.number),
+        ]),
+      });
+
       // Retrieve missing blocks, but only fetch a certain amount.
       const missingBlockRange = range(
         hexToNumber(latestBlock.number) + 1,
@@ -823,20 +942,29 @@ export const createRealtimeSync = (
 
       const pendingBlocks = await Promise.all(
         missingBlockRange.map((blockNumber) =>
-          _eth_getBlockByNumber(args.rpc, { blockNumber }).then((block) =>
-            fetchBlockEventData(block),
-          ),
+          _eth_getBlockByNumber(
+            args.rpc,
+            { blockNumber },
+            {
+              logger: args.common.logger.child({
+                action: "fetch_missing_blocks",
+              }),
+            },
+          ).then((block) => fetchBlockEventData(block)),
         ),
       );
 
-      args.common.logger.info({
-        service: "realtime",
-        msg: `Fetched ${missingBlockRange.length + 1} missing '${
-          args.chain.name
-        }' blocks [${hexToNumber(latestBlock.number) + 1}, ${Math.min(
-          hexToNumber(block.number),
-          hexToNumber(latestBlock.number) + MAX_QUEUED_BLOCKS,
-        )}]`,
+      args.common.logger.debug({
+        msg: "Fetched missing blocks",
+        chain: args.chain.name,
+        chain_id: args.chain.id,
+        block_range: JSON.stringify([
+          hexToNumber(latestBlock.number) + 1,
+          Math.min(
+            hexToNumber(block.number),
+            hexToNumber(latestBlock.number) + MAX_QUEUED_BLOCKS,
+          ),
+        ]),
       });
 
       for (const pendingBlock of pendingBlocks) {
@@ -847,6 +975,14 @@ export const createRealtimeSync = (
         hexToNumber(block.number) - hexToNumber(latestBlock.number) >
         MAX_QUEUED_BLOCKS
       ) {
+        args.common.logger.trace({
+          msg: "Block too far ahead of local chain",
+          chain: args.chain.name,
+          chain_id: args.chain.id,
+          number: hexToNumber(block.number),
+          hash: block.hash,
+        });
+
         blockCallback?.(false);
       } else {
         yield* reconcileBlock(blockWithEventData, blockCallback);
@@ -868,44 +1004,27 @@ export const createRealtimeSync = (
 
     const blockWithFilteredEventData = filterBlockEventData(blockWithEventData);
 
-    if (
-      blockWithFilteredEventData.logs.length > 0 ||
-      blockWithFilteredEventData.traces.length > 0 ||
-      blockWithFilteredEventData.transactions.length > 0
-    ) {
-      const _text: string[] = [];
-
-      if (blockWithFilteredEventData.logs.length === 1) {
-        _text.push("1 log");
-      } else if (blockWithFilteredEventData.logs.length > 1) {
-        _text.push(`${blockWithFilteredEventData.logs.length} logs`);
-      }
-
-      if (blockWithFilteredEventData.traces.length === 1) {
-        _text.push("1 trace");
-      } else if (blockWithFilteredEventData.traces.length > 1) {
-        _text.push(`${blockWithFilteredEventData.traces.length} traces`);
-      }
-
-      if (blockWithFilteredEventData.transactions.length === 1) {
-        _text.push("1 transaction");
-      } else if (blockWithFilteredEventData.transactions.length > 1) {
-        _text.push(
-          `${blockWithFilteredEventData.transactions.length} transactions`,
-        );
-      }
-
-      const text = _text.filter((t) => t !== undefined).join(" and ");
-      args.common.logger.info({
-        service: "realtime",
-        msg: `Synced ${text} from '${args.chain.name}' block ${hexToNumber(block.number)}`,
-      });
-    } else {
-      args.common.logger.info({
-        service: "realtime",
-        msg: `Synced block ${hexToNumber(block.number)} from '${args.chain.name}' `,
-      });
+    let childAddressCount = 0;
+    for (const childAddresses of blockWithFilteredEventData.childAddresses.values()) {
+      childAddressCount += childAddresses.size;
     }
+
+    args.common.logger.debug(
+      {
+        msg: "Added block to local chain",
+        chain: args.chain.name,
+        chain_id: args.chain.id,
+        number: hexToNumber(block.number),
+        hash: block.hash,
+        transaction_count: blockWithFilteredEventData.transactions.length,
+        log_count: blockWithFilteredEventData.logs.length,
+        trace_count: blockWithFilteredEventData.traces.length,
+        receipt_count: blockWithFilteredEventData.transactionReceipts.length,
+        child_address_count: childAddressCount,
+        duration: endClock(),
+      },
+      ["chain", "number", "hash"],
+    );
 
     unfinalizedBlocks.push({
       hash: block.hash,
@@ -946,10 +1065,16 @@ export const createRealtimeSync = (
       )!;
 
       args.common.logger.debug({
-        service: "realtime",
-        msg: `Finalized ${hexToNumber(pendingFinalizedBlock.number) - hexToNumber(finalizedBlock.number) + 1} '${
-          args.chain.name
-        }' blocks [${hexToNumber(finalizedBlock.number) + 1}, ${hexToNumber(pendingFinalizedBlock.number)}]`,
+        msg: "Removed finalized blocks from local chain",
+        chain: args.chain.name,
+        chain_id: args.chain.id,
+        block_count:
+          hexToNumber(pendingFinalizedBlock.number) -
+          hexToNumber(finalizedBlock.number),
+        block_range: JSON.stringify([
+          hexToNumber(finalizedBlock.number) + 1,
+          hexToNumber(pendingFinalizedBlock.number),
+        ]),
       });
 
       const finalizedBlocks = unfinalizedBlocks.filter(
@@ -975,16 +1100,30 @@ export const createRealtimeSync = (
     }
   };
 
-  const onError = (error: Error) => {
+  const onError = (error: Error, block?: SyncBlock | SyncBlockHeader) => {
     if (args.common.shutdown.isKilled) {
       throw new ShutdownError();
     }
 
-    args.common.logger.warn({
-      service: "realtime",
-      msg: `Failed to fetch and reconcile '${args.chain.name}' block`,
-      error,
-    });
+    if (block) {
+      args.common.logger.warn({
+        msg: "Failed to fetch latest block",
+        chain: args.chain.name,
+        chain_id: args.chain.id,
+        number: hexToNumber(block.number),
+        hash: block.hash,
+        retry_count: fetchAndReconcileLatestBlockErrorCount,
+        error,
+      });
+    } else {
+      args.common.logger.warn({
+        msg: "Failed to fetch latest block",
+        chain: args.chain.name,
+        chain_id: args.chain.id,
+        retry_count: fetchAndReconcileLatestBlockErrorCount,
+        error,
+      });
+    }
 
     fetchAndReconcileLatestBlockErrorCount += 1;
 
@@ -994,12 +1133,6 @@ export const createRealtimeSync = (
       fetchAndReconcileLatestBlockErrorCount * args.chain.pollingInterval >
         MAX_LATEST_BLOCK_ATTEMPT_MS
     ) {
-      args.common.logger.error({
-        service: "realtime",
-        msg: `Fatal error: Unable to fetch latest '${args.chain.name}' block after ${ERROR_TIMEOUT.length} attempts.`,
-        error,
-      });
-
       throw error;
     }
   };
@@ -1008,8 +1141,11 @@ export const createRealtimeSync = (
     async *sync(block, blockCallback) {
       try {
         args.common.logger.debug({
-          service: "realtime",
-          msg: `Received latest '${args.chain.name}' block ${hexToNumber(block.number)}`,
+          msg: "Received new head block",
+          chain: args.chain.name,
+          chain_id: args.chain.id,
+          number: hexToNumber(block.number),
+          hash: block.hash,
         });
 
         const latestBlock = getLatestUnfinalizedBlock();
@@ -1020,13 +1156,20 @@ export const createRealtimeSync = (
           latestFetchedBlock?.hash === block.hash
         ) {
           args.common.logger.trace({
-            service: "realtime",
-            msg: `Skipped processing '${args.chain.name}' block ${hexToNumber(block.number)}, already synced`,
+            msg: "Detected duplicate block",
+            chain: args.chain.name,
+            chain_id: args.chain.id,
+            number: hexToNumber(block.number),
+            hash: block.hash,
           });
           blockCallback?.(false);
 
           return;
         }
+
+        // Register a warning timer if no new block is received within expected time
+        clearTimeout(noNewBlockTimer);
+        noNewBlockTimer = setTimeout(noNewBlockWarning, 30_000);
 
         // Note: It's possible that a block with the same hash as `block` is
         // currently being fetched but hasn't been fully reconciled. `latestFetchedBlock`
@@ -1051,7 +1194,7 @@ export const createRealtimeSync = (
         fetchAndReconcileLatestBlockErrorCount = 0;
       } catch (_error) {
         blockCallback?.(false);
-        onError(_error as Error);
+        onError(_error as Error, block);
       }
     },
     onError,

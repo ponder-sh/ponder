@@ -19,9 +19,10 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
     .split(".")
     .map(Number) as [number, number, number];
   if (major < 18 || (major === 18 && minor < 14)) {
-    logger.fatal({
-      service: "process",
-      msg: `Invalid Node.js version. Expected >=18.14, detected ${major}.${minor}.`,
+    logger.error({
+      msg: "Invalid Node.js version",
+      version: process.versions.node,
+      expected: "18.14",
     });
 
     process.exit(1);
@@ -49,7 +50,7 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
 
   runCodegen({ common });
 
-  logger.info({ service: "codegen", msg: "Wrote ponder-env.d.ts" });
+  logger.info({ msg: `Wrote file "ponder-env.d.ts"` });
 
-  await exit({ reason: "Success", code: 0 });
+  await exit({ code: 0 });
 }
