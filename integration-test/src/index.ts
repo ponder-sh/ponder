@@ -4,6 +4,7 @@ import { type PonderApp, start } from "@ponder/bin/commands/start.js";
 import { createQB } from "@ponder/database/queryBuilder.js";
 import { getPrimaryKeyColumns } from "@ponder/drizzle/index.js";
 import type { Factory, FragmentAddress } from "@ponder/internal/types.js";
+import { _eth_getBlockByNumber } from "@ponder/rpc/actions.js";
 import { createRpc } from "@ponder/rpc/index.js";
 import {
   decodeFragment,
@@ -13,7 +14,6 @@ import {
 import * as PONDER_SYNC from "@ponder/sync-store/schema.js";
 import { getChunks, intervalUnion } from "@ponder/utils/interval.js";
 import { promiseWithResolvers } from "@ponder/utils/promiseWithResolvers.js";
-import { _eth_getBlockByNumber } from "@ponder/utils/rpc.js";
 import { Command } from "commander";
 import dotenv from "dotenv";
 import {
