@@ -687,7 +687,7 @@ export const createIndexing = ({
         }
 
         // @ts-expect-error
-        source.filter.include = dedupe(filterInclude);
+        eventCallback.filter.include = dedupe(filterInclude);
       }
 
       if (isEveryFilterResolvedBefore === false && isEveryFilterResolvedAfter) {

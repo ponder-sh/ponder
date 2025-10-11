@@ -453,7 +453,10 @@ export const createCachedViemClient = ({
       hasConstant,
     }: { pattern: ProfilePattern; hasConstant: boolean }) => {
       const profilePatternKey = getProfilePatternKey(pattern);
-      const eventName = event.eventCallback.name;
+      const eventName =
+        event.type === "setup"
+          ? event.setupCallback.name
+          : event.eventCallback.name;
 
       if (profile.get(eventName)!.has(profilePatternKey)) {
         profile.get(eventName)!.get(profilePatternKey)!.count++;
@@ -497,7 +500,10 @@ export const createCachedViemClient = ({
       }: Parameters<PonderActions[action]>[0]) => {
         // Note: prediction only possible when block number is managed by Ponder.
 
-        const eventName = event.eventCallback.name;
+        const eventName =
+          event.type === "setup"
+            ? event.setupCallback.name
+            : event.eventCallback.name;
 
         if (
           event.type !== "setup" &&
@@ -580,7 +586,10 @@ export const createCachedViemClient = ({
               common.logger.warn({
                 msg: "Failed 'context.client' action",
                 action: actionName,
-                event: event.eventCallback.name,
+                event:
+                  event.type === "setup"
+                    ? event.setupCallback.name
+                    : event.eventCallback.name,
                 chain: event.chain.name,
                 chain_id: event.chain.id,
                 retry_count: i,
@@ -595,7 +604,10 @@ export const createCachedViemClient = ({
             common.logger.warn({
               msg: "Failed 'context.client' action",
               action: actionName,
-              event: event.eventCallback.name,
+              event:
+                event.type === "setup"
+                  ? event.setupCallback.name
+                  : event.eventCallback.name,
               chain: event.chain.name,
               chain_id: event.chain.id,
               retry_count: i,
@@ -808,10 +820,14 @@ export const cachedTransport =
   ({ chain: viemChain }) =>
     custom({
       async request({ method, params }) {
+        const _event = event();
         const context = {
           logger: common.logger.child({
             action: "cache JSON-RPC request",
-            event: event().eventCallback.name,
+            event:
+              _event.type === "setup"
+                ? _event.setupCallback.name
+                : _event.eventCallback.name,
           }),
         };
         const body = { method, params };
