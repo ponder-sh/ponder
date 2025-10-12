@@ -5,6 +5,7 @@ import type {
   FactoryId,
   Filter,
   Fragment,
+  IndexingFunctions,
   LightBlock,
 } from "@/internal/types.js";
 import type { SyncBlock } from "@/internal/types.js";
@@ -284,4 +285,14 @@ export const getCachedBlock = ({
   }
 
   return undefined;
+};
+
+export const getEventCount = (params: {
+  indexingFunctions: IndexingFunctions;
+}) => {
+  const eventCount: { [eventName: string]: number } = {};
+  for (const { name: eventName } of params.indexingFunctions) {
+    eventCount[eventName] = 0;
+  }
+  return eventCount;
 };

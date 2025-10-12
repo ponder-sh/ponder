@@ -16,7 +16,6 @@ import {
 import {
   getBlocksConfigAndIndexingFunctions,
   getChain,
-  getErc20ConfigAndIndexingFunctions,
   getPairWithFactoryConfigAndIndexingFunctions,
   testClient,
 } from "@/_test/utils.js";
@@ -44,6 +43,7 @@ import {
   hexToNumber,
   parseEther,
   zeroAddress,
+  zeroHash,
 } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import * as ponderSyncSchema from "./schema.js";
@@ -230,7 +230,7 @@ test("getIntervals() adjacent intervals", async (context) => {
   const filter = {
     type: "log",
     chainId: 1,
-    topic0: null,
+    topic0: zeroHash,
     topic1: null,
     topic2: null,
     topic3: null,
@@ -384,7 +384,7 @@ test("insertIntervals() preserves fragments", async (context) => {
   const filter = {
     type: "log",
     chainId: 1,
-    topic0: null,
+    topic0: zeroHash,
     topic1: null,
     topic2: null,
     topic3: null,
@@ -1070,7 +1070,7 @@ test("getEventBlockData() returns events", async (context) => {
     type: "log",
     chainId: 1,
     address: undefined,
-    topic0: null,
+    topic0: zeroHash,
     topic1: null,
     topic2: null,
     topic3: null,

@@ -746,7 +746,6 @@ export const createIndexing = ({
         context.client = clientByChainId[event.chain.id]!;
 
         eventCount[event.eventCallback.name]!++;
-
         await executeEvent(event);
       }
 

@@ -1,3 +1,14 @@
+import type {
+  SyncBlock,
+  SyncLog,
+  SyncTrace,
+  SyncTransaction,
+  SyncTransactionReceipt,
+} from "@/internal/types.js";
+import {
+  _eth_getBlockByNumber,
+  _eth_getTransactionReceipt,
+} from "@/rpc/actions.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import {
   http,
@@ -52,7 +63,7 @@ export const deployFactory = async (params: { sender: Address }) => {
     hash,
   });
 
-  return { address: contractAddress!, hash };
+  return { address: contractAddress! };
 };
 
 /** Deploy Revert contract and mine block. */
@@ -73,9 +84,10 @@ export const deployRevert = async (params: { sender: Address }) => {
     hash,
   });
 
-  return { address: contractAddress!, hash };
+  return { address: contractAddress! };
 };
 
+/** Deploy Multicall contract and mine block. */
 export const deployMulticall = async (params: { sender: Address }) => {
   const walletClient = createWalletClient({
     chain: anvil,
@@ -94,59 +106,7 @@ export const deployMulticall = async (params: { sender: Address }) => {
     hash,
   });
 
-  return { address: contractAddress!, hash };
-};
-
-/** Mint Erc20 tokens and mine block. */
-export const mintErc20 = async (params: {
-  erc20: Address;
-  to: Address;
-  amount: bigint;
-  sender: Address;
-}) => {
-  const walletClient = createWalletClient({
-    chain: anvil,
-    transport: http(),
-    account: params.sender,
-  });
-
-  const hash = await walletClient.writeContract({
-    abi: erc20ABI,
-    functionName: "mint",
-    address: params.erc20,
-    args: [params.to, params.amount],
-  });
-
-  await testClient.mine({ blocks: 1 });
-  await publicClient.waitForTransactionReceipt({ hash });
-
-  return { hash };
-};
-
-/** Transfer Erc20 tokens and mine block. */
-export const transferErc20 = async (params: {
-  erc20: Address;
-  to: Address;
-  amount: bigint;
-  sender: Address;
-}) => {
-  const walletClient = createWalletClient({
-    chain: anvil,
-    transport: http(),
-    account: params.sender,
-  });
-
-  const hash = await walletClient.writeContract({
-    abi: erc20ABI,
-    functionName: "transfer",
-    address: params.erc20,
-    args: [params.to, params.amount],
-  });
-
-  await testClient.mine({ blocks: 1 });
-  await publicClient.waitForTransactionReceipt({ hash });
-
-  return { hash };
+  return { address: contractAddress! };
 };
 
 /** Create pair and mine block. */
@@ -173,7 +133,95 @@ export const createPair = async (params: {
     hash,
   });
 
-  return { result: toLowerCase(result), hash };
+  return { address: toLowerCase(result) };
+};
+
+/** Mint Erc20 tokens and mine block. */
+export const mintErc20 = async (params: {
+  erc20: Address;
+  to: Address;
+  amount: bigint;
+  sender: Address;
+}): Promise<{
+  block: SyncBlock;
+  log: SyncLog;
+  transaction: SyncTransaction;
+  transactionReceipt: SyncTransactionReceipt;
+}> => {
+  const walletClient = createWalletClient({
+    chain: anvil,
+    transport: http(),
+    account: params.sender,
+  });
+
+  const hash = await walletClient.writeContract({
+    abi: erc20ABI,
+    functionName: "mint",
+    address: params.erc20,
+    args: [params.to, params.amount],
+  });
+
+  await testClient.mine({ blocks: 1 });
+  const block = await publicClient.request({
+    method: "eth_getBlockByNumber",
+    params: ["latest", true],
+  });
+  const receipt = await publicClient.request({
+    method: "eth_getTransactionReceipt",
+    params: [hash],
+  });
+
+  return {
+    block: block! as SyncBlock,
+    transaction: block!.transactions[0]! as SyncTransaction,
+    transactionReceipt: receipt!,
+    log: receipt!.logs[0]!,
+  };
+};
+
+/** Transfer Erc20 tokens and mine block. */
+export const transferErc20 = async (params: {
+  erc20: Address;
+  to: Address;
+  amount: bigint;
+  sender: Address;
+}): Promise<{
+  block: SyncBlock;
+  log: SyncLog;
+  trace: SyncTrace;
+  transaction: SyncTransaction;
+  transactionReceipt: SyncTransactionReceipt;
+}> => {
+  const walletClient = createWalletClient({
+    chain: anvil,
+    transport: http(),
+    account: params.sender,
+  });
+
+  const hash = await walletClient.writeContract({
+    abi: erc20ABI,
+    functionName: "transfer",
+    address: params.erc20,
+    args: [params.to, params.amount],
+  });
+
+  await testClient.mine({ blocks: 1 });
+
+  const block = await publicClient.request({
+    method: "eth_getBlockByNumber",
+    params: ["latest", true],
+  });
+  const receipt = await publicClient.request({
+    method: "eth_getTransactionReceipt",
+    params: [hash],
+  });
+
+  return {
+    block: block! as SyncBlock,
+    transaction: block!.transactions[0]! as SyncTransaction,
+    transactionReceipt: receipt!,
+    log: receipt!.logs[0]!,
+  };
 };
 
 /** Swap tokens in pair and mine block. */
@@ -225,3 +273,9 @@ export const transferEth = async (params: {
 
   return { hash };
 };
+
+// simulateErc20Mint => log event
+// simulateErc20Transfer => log event + trace event
+// createPair
+// simulateSwapPair
+// simulateTransferEth => transfer event + transaction event

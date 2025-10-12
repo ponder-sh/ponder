@@ -61,6 +61,7 @@ import {
   type SyncProgress,
   getCachedIntervals,
   getChildAddresses,
+  getEventCount,
 } from "./index.js";
 import { initSyncProgress } from "./init.js";
 import { getRealtimeEventsOmnichain } from "./realtime.js";
@@ -92,10 +93,9 @@ export async function runOmnichain({
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
   const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
 
-  let eventCount: { [eventName: string]: number } = {};
-  for (const { name: eventName } of indexingBuild.indexingFunctions) {
-    eventCount[eventName] = 0;
-  }
+  let eventCount = getEventCount({
+    indexingFunctions: indexingBuild.indexingFunctions,
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
