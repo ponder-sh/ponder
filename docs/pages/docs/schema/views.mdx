@@ -79,8 +79,3 @@ export const hourlyBucket = onchainView("hourly_bucket").as((qb) =>
     .groupBy(sql`FLOOR(${transferEvent.timestamp} / 3600)`)
 );
 ```
-
-|                       | Complexity   | Query performance          | Jump to any page |
-| :-------------------- | :----------- | :------------------------- | :--------------- |
-| **Offset pagination** | Simple       | Slow for large result sets | Supported        |
-| **Cursor pagination** | More complex | Consistently fast          | Not supported    |
