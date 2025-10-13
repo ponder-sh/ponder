@@ -61,7 +61,7 @@ If the versions are not correct or you don't have Node.js or pnpm installed, dow
 
 ## Install Foundry
 
-Ponder uses [Foundry](https://book.getfoundry.sh/) for testing. The test suite uses local [Anvil](https://github.com/foundry-rs/foundry/tree/master/anvil) instances via [Anvil.js](https://github.com/wagmi-dev/anvil.js) to run isolated, concurrent tests against forks of Ethereum mainnet.
+Ponder uses [Foundry](https://getfoundry.sh/) for testing. The test suite uses local [Anvil](https://github.com/foundry-rs/foundry/tree/master/anvil) instances via [Anvil.js](https://github.com/wevm/anvil.js) to run isolated, concurrent tests against forks of Ethereum mainnet.
 
 Install Foundry (and Anvil) using the following command:
 
