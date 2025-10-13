@@ -1,7 +1,6 @@
 import type { Logger } from "@/internal/logger.js";
 import pg, { type PoolConfig } from "pg";
 import parse from "pg-connection-string";
-import { prettyPrint } from "./print.js";
 
 // The default parser for numeric[] (1231) seems to parse values as Number
 // or perhaps through JSON.parse(). Use the int8[] (1016) parser instead,
@@ -12,7 +11,8 @@ pg.types.setTypeParser(1231, bigIntArrayParser);
 export function getDatabaseName(connectionString: string) {
   try {
     const parsed = (parse as unknown as typeof parse.parse)(connectionString);
-    return `${parsed.host}:${parsed.port}/${parsed.database}`;
+    const port = parsed.port ? `:${parsed.port}` : "";
+    return `${parsed.host}${port}/${parsed.database}`;
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
@@ -22,43 +22,6 @@ export function getDatabaseName(connectionString: string) {
     );
   }
 }
-
-// Monkeypatch Pool.query to get more informative stack traces. I have no idea why this works.
-// https://stackoverflow.com/a/70601114
-const originalClientQuery = pg.Client.prototype.query;
-// @ts-ignore
-pg.Client.prototype.query = function query(
-  ...args: [queryText: string, values: any[], callback: () => void]
-) {
-  try {
-    return originalClientQuery.apply(this, args as any);
-  } catch (error_) {
-    const error = error_ as Error & { detail?: string; meta?: string[] };
-    const [statement, parameters_] = args ?? ["empty", []];
-
-    error.name = "PostgresError";
-
-    let parameters = parameters_ ?? [];
-    parameters =
-      parameters.length <= 25
-        ? parameters
-        : parameters.slice(0, 26).concat(["..."]);
-    const params = parameters.reduce<Record<number, any>>(
-      (acc, parameter, idx) => {
-        acc[idx + 1] = parameter;
-        return acc;
-      },
-      {},
-    );
-
-    error.meta = Array.isArray(error.meta) ? error.meta : [];
-    if (error.detail) error.meta.push(`Detail:\n  ${error.detail}`);
-    error.meta.push(`Statement:\n  ${statement}`);
-    error.meta.push(`Parameters:\n${prettyPrint(params)}`);
-
-    throw error;
-  }
-};
 
 export function createPool(config: PoolConfig, logger: Logger) {
   class Client extends pg.Client {
