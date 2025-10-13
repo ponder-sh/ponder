@@ -189,8 +189,10 @@ export async function createViews({
     db.execute(`CREATE SCHEMA IF NOT EXISTS "${cliOptions.viewsSchema}"`),
   );
 
+  // Note: Drop views before creating new ones because Postgres does not support
+  // altering the schema of a view with CREATE OR REPLACE VIEW.
+
   for (const table of meta[0]!.app.table_names!) {
-    // Note: drop views before creating new ones to avoid enum errors.
     await database.adminQB.wrap((db) =>
       db.execute(`DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${table}"`),
     );

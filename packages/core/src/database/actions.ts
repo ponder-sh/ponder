@@ -136,8 +136,10 @@ export const createViews = async (
         ),
       );
 
+      // Note: Drop views before creating new ones because Postgres does not support
+      // altering the schema of a view with CREATE OR REPLACE VIEW.
+
       for (const table of tables) {
-        // Note: drop views before creating new ones to avoid enum errors.
         await tx.wrap((tx) =>
           tx.execute(
             `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${getTableName(table)}"`,
