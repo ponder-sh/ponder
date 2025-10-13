@@ -191,10 +191,9 @@ export async function* getRealtimeEventsOmnichain(params: {
           event_count: decodedEvents.length,
         });
 
-        const checkpoint = getOmnichainCheckpoint({
-          perChainSync: params.perChainSync,
-          tag: "current",
-        });
+        const checkpoint = encodeCheckpoint(
+          blockToCheckpoint(event.block, chain.id, "up"),
+        );
 
         if (pendingEvents.length > 0) {
           params.common.logger.trace({
