@@ -42,10 +42,6 @@ Logs produced by your code (e.g. `console.log` statements in `ponder.config.ts` 
 
 Use the `--log-format <FORMAT>` CLI option to set the log format.
 
-:::info
-The auto-updating terminal UI is always enabled during development (`ponder dev`) regardless of the log level or format.
-:::
-
 #### Pretty (default)
 
 ```bash [Terminal]
@@ -76,6 +72,40 @@ The JSON log format emits newline-delimited JSON objects with properties `level`
 {"level":30,"time":1717170664625,"service":"historical","msg":"Started syncing 'base' logs for 'weth9' with 0.0% cached"}
 {"level":30,"time":1717170664628,"service":"historical","msg":"Started syncing 'optimism' logs for 'weth9' with 0.0% cached"}
 {"level":30,"time":1717170664683,"service":"historical","msg":"Started syncing 'polygon' logs for 'weth9' with 0.0% cached"}
+```
+
+### Terminal UI
+
+The dynamic terminal UI displays a useful summary of chain connection status, indexing function duration, and backfill progress.
+
+```bash [Output]
+Sync
+
+│ Chain    │ Status   │ Block     │ RPC (req/s) │
+├──────────┼──────────┼───────────┼─────────────┤
+│ base     │ realtime │  36790467 │         1.5 │
+│ mainnet  │ realtime │  23569763 │         1.1 │
+│ polygon  │ realtime │  77632803 │         1.4 │
+│ optimism │ realtime │ 142385752 │         1.4 │
+
+Indexing
+
+│ Event         │ Count │ Duration (ms) │
+├───────────────┼───────┼───────────────┤
+│ weth9:Deposit │   721 │         1.655 │
+
+Progress (live)
+
+███████████████████████████████░░░░░░░░░░░░░░░░░ 64.5%
+
+API functions
+Server live at http://localhost:42069
+```
+
+The terminal UI is disabled by default for `ponder start`. Use the `--disable-ui` CLI option to disable the UI for `ponder dev`.
+
+```bash [Terminal]
+ponder dev --disable-ui
 ```
 
 ## Metrics

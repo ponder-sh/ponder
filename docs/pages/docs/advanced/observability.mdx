@@ -4,7 +4,7 @@
 
 Ponder produces logs to help you understand and debug your application.
 
-![Dev server logs screenshot](/logs.gif)
+![Terminal logs gif](/logs-014.gif)
 
 ### Log level
 
@@ -14,7 +14,7 @@ There are two ways to configure the minimum log level. If specified, the environ
 - Use the `--log-level <LEVEL>`, `-v` (debug) or `-vv` (trace) CLI option
 
 ```js [.env.local]
-PONDER_LOG_LEVEL=trace
+PONDER_LOG_LEVEL = trace;
 ```
 
 ```bash [Terminal]
@@ -25,14 +25,14 @@ ponder dev -v
 
 #### Levels
 
-| Log level        | Example                                           |
-| :--------------- | :------------------------------------------------ |
-| `silent`         |                                                   |
-| `error`          | Unrecoverable RPC error, SQL constraint violation |
-| `warn`           | Reorg reconciliation, malformed config            |
-| `info` (default) | Indexing progress, real-time block processing     |
-| `debug`          | Internal service lifecycle events                 |
-| `trace`          | Query-level database logs                         |
+| Log level        | Example                                                                     |
+| :--------------- | :-------------------------------------------------------------------------- |
+| `silent`         |                                                                             |
+| `error`          | Errors thrown in user code and other errors that will likely cause a crash  |
+| `warn`           | Malformed RPC data, reorgs, and other errors that will be retried           |
+| `info` (default) | Indexing progress and key lifecycle events                                  |
+| `debug`          | Successful database and RPC actions, other internal events                  |
+| `trace`          | Database query logs, RPC request logs                                       |
 
 #### User logs
 
@@ -42,10 +42,6 @@ Logs produced by your code (e.g. `console.log` statements in `ponder.config.ts` 
 
 Use the `--log-format <FORMAT>` CLI option to set the log format.
 
-:::info
-The auto-updating terminal UI is always enabled during development (`ponder dev`) regardless of the log level or format.
-:::
-
 #### Pretty (default)
 
 ```bash [Terminal]
@@ -53,12 +49,14 @@ ponder start --log-format pretty
 ```
 
 ```bash [Output]
-11:54:36 AM INFO  build      Using PGlite database at .ponder/pglite (default)
-11:54:36 AM INFO  database   Created table 'Account' in 'public.db'
-11:54:36 AM INFO  server     Started listening on port 42069
-11:54:36 AM INFO  historical Started syncing 'optimism' logs for 'weth9' with 0.0% cached
-11:54:36 AM INFO  historical Started syncing 'base' logs for 'weth9' with 0.0% cached
-11:54:36 AM INFO  historical Started syncing 'polygon' logs for 'weth9' with 0.0% cached
+12:12:15.391 INFO  Indexed block chain=mainnet number=23569900 event_count=14 (23ms)
+12:12:16.159 INFO  Indexed block chain=polygon number=77633630 event_count=0 (1ms)
+12:12:16.174 INFO  Indexed block chain=optimism number=142386579 event_count=1 (4ms)
+12:12:16.226 INFO  Indexed block chain=base number=36791294 event_count=9 (14ms)
+12:12:18.068 INFO  Indexed block chain=optimism number=142386580 event_count=2 (8ms)
+12:12:18.125 INFO  Indexed block chain=polygon number=77633631 event_count=0 (1ms)
+12:12:18.188 INFO  Indexed block chain=base number=36791295 event_count=10 (16ms)
+12:12:20.021 INFO  Indexed block chain=optimism number=142386581 event_count=0 (4ms)
 ```
 
 #### JSON
@@ -67,15 +65,51 @@ ponder start --log-format pretty
 ponder start --log-format json
 ```
 
-The JSON log format emits newline-delimited JSON objects with properties `level`, `time`, `service`, `msg`, and (optionally) `error`.
+The JSON log format emits newline-delimited JSON objects with required properties `level`, `time`, and `msg`. Most logs also include a `duration` property and other properties depending on the context.
 
 ```json [Output]
-{"level":30,"time":1717170664426,"service":"build","msg":"Using PGlite database at .ponder/pglite (default)"}
-{"level":30,"time":1717170664454,"service":"database","msg":"Created table 'Account' in 'public.db'"}
-{"level":30,"time":1717170664458,"service":"server","msg":"Started listening on port 42069"}
-{"level":30,"time":1717170664625,"service":"historical","msg":"Started syncing 'base' logs for 'weth9' with 0.0% cached"}
-{"level":30,"time":1717170664628,"service":"historical","msg":"Started syncing 'optimism' logs for 'weth9' with 0.0% cached"}
-{"level":30,"time":1717170664683,"service":"historical","msg":"Started syncing 'polygon' logs for 'weth9' with 0.0% cached"}
+{"level":30,"time":1760372079306,"msg":"Indexed block","chain":"mainnet","chain_id":1,"number":23569912,"event_count":17,"duration":27.752416999996058}
+{"level":30,"time":1760372080106,"msg":"Indexed block","chain":"polygon","chain_id":137,"number":77633702,"event_count":0,"duration":3.4684160000033444}
+{"level":30,"time":1760372080122,"msg":"Indexed block","chain":"optimism","chain_id":10,"number":142386651,"event_count":0,"duration":2.3179999999993015}
+{"level":30,"time":1760372080314,"msg":"Indexed block","chain":"base","chain_id":8453,"number":36791366,"event_count":10,"duration":18.320999999996275}
+{"level":30,"time":1760372082131,"msg":"Indexed block","chain":"optimism","chain_id":10,"number":142386652,"event_count":0,"duration":3.074124999999185}
+{"level":30,"time":1760372082258,"msg":"Indexed block","chain":"polygon","chain_id":137,"number":77633703,"event_count":0,"duration":1.7850829999952111}
+{"level":30,"time":1760372082328,"msg":"Indexed block","chain":"base","chain_id":8453,"number":36791367,"event_count":4,"duration":9.394625000000815}
+{"level":30,"time":1760372084153,"msg":"Indexed block","chain":"optimism","chain_id":10,"number":142386653,"event_count":0,"duration":2.679999999993015}
+```
+
+### Terminal UI
+
+The dynamic terminal UI displays a useful summary of chain connection status, indexing function duration, and backfill progress.
+
+```bash [Output]
+Sync
+
+│ Chain    │ Status   │ Block     │ RPC (req/s) │
+├──────────┼──────────┼───────────┼─────────────┤
+│ base     │ realtime │  36790467 │         1.5 │
+│ mainnet  │ realtime │  23569763 │         1.1 │
+│ polygon  │ realtime │  77632803 │         1.4 │
+│ optimism │ realtime │ 142385752 │         1.4 │
+
+Indexing
+
+│ Event         │ Count │ Duration (ms) │
+├───────────────┼───────┼───────────────┤
+│ weth9:Deposit │   721 │         1.655 │
+
+Progress (live)
+
+███████████████████████████████░░░░░░░░░░░░░░░░░ 64.5%
+
+API functions
+Server live at http://localhost:42069
+```
+
+The terminal UI is disabled by default for `ponder start`. Use the `--disable-ui` CLI option to disable the UI for `ponder dev`.
+
+```bash [Terminal]
+ponder dev --disable-ui
 ```
 
 ## Metrics
@@ -100,7 +134,7 @@ Metrics are not part of the public API, so these are subject to change without n
 | ponder_historical_cached_blocks        | Number of blocks that were found in the cache for the historical sync | gauge     |
 | ponder_historical_completed_blocks     | Number of blocks that have been processed for the historical sync     | gauge     |
 | ponder_realtime_is_connected           | Boolean (0 or 1) indicating if the realtime sync service is connected | gauge     |
-| ponder_realtime_latest_block_number    | Block number of the latest synced block                              | gauge     |
+| ponder_realtime_latest_block_number    | Block number of the latest synced block                               | gauge     |
 | ponder_realtime_latest_block_timestamp | Block timestamp of the latest synced block                            | gauge     |
 | ponder_realtime_reorg_total            | Count of how many re-orgs have occurred                               | counter   |
 | ponder_database_method_duration        | Duration of database operations                                       | histogram |

@@ -102,38 +102,37 @@ Ponder will connect to the database, start the HTTP server, and begin indexing.
 :::code-group
 
 ```ansi [Logs]
-11:34:39 AM INFO  build      Using PGlite database at .ponder/pglite (default)
-11:34:39 AM INFO  database   Using database schema 'public'
-11:34:40 AM INFO  database   Created tables [account, transfer_event, allowance, approval_event]
-11:34:40 AM INFO  server     Started listening on port 42069
-11:34:40 AM INFO  server     Started returning 200 responses from /health endpoint
-11:34:56 AM INFO  app        Indexed 12 events with 4.1% complete
+12:16:42.845 INFO  Connected to database type=postgres database=localhost:5432/demo (35ms)
+12:16:42.934 INFO  Connected to JSON-RPC chain=mainnet hostnames=["eth-mainnet.g.alchemy.com"] (85ms)
+12:16:43.199 INFO  Created database tables count=4 tables=["account","transfer_event","allowance","approval_event"] (17ms)
+12:16:43.324 INFO  Created HTTP server port=42069 (5ms)
+12:16:43.325 INFO  Started returning 200 responses endpoint=/health
+12:16:43.553 INFO  Started backfill indexing chain=mainnet block_range=[13142655,13150000]
+12:16:43.555 INFO  Started fetching backfill JSON-RPC data chain=mainnet cached_block=13145448 cache_rate=38.0%
+12:16:43.796 INFO  Indexed block range chain=mainnet event_count=4259 block_range=[13142655,13145448] (164ms)
+12:16:43.840 INFO  Indexed block range chain=mainnet event_count=33 block_range=[13145449,13145474] (4ms)
 ```
 
 ```ansi [Terminal UI]
 Sync
 
-│ Network │ Status            │ Block    │ RPC (req/s) │
-├─────────┼───────────────────┼──────────┼─────────────┤
-│ mainnet │ historical (9.2%) │ 13143062 │        21.4 │
+│ Chain   │ Status             │ Block    │ RPC (req/s) │
+├─────────┼────────────────────┼──────────┼─────────────┤
+│ mainnet │ historical (51.2%) │ 13146415 │        34.8 │
 
 Indexing
 
 │ Event          │ Count │ Duration (ms) │
 ├────────────────┼───────┼───────────────┤
-│ ERC20:Transfer │    12 │         0.123 │
-│ ERC20:Approval │     0 │             - │
+│ ERC20:Transfer │  5133 │         0.012 │
+│ ERC20:Approval │   930 │         0.009 │
 
 Progress (historical)
 
-███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 7.4% (2m 59s eta)
+████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░ 51.3%
 ```
 
 :::
-
-{/* :::info
-By default, Ponder uses public RPC endpoints and writes data to PGlite, an embedded Postgres database. You can change these settings later.
-::: */}
 
 ### Query the database
 
@@ -230,31 +229,32 @@ As soon as we save the file, the dev server hot reloads and finishes indexing su
 :::code-group
 
 ```ansi [Logs]
-12:27:26 PM INFO  build      Hot reload 'src/index.ts'
-12:27:29 PM INFO  app        Indexed 4999 events with 54.2% complete and 471ms remaining
-12:27:29 PM INFO  app        Indexed 4999 events with 75.5% complete and 276ms remaining
-12:27:29 PM INFO  app        Indexed 4998 events with 99.4% complete and 6ms remaining
-12:27:29 PM INFO  app        Indexed 108 events with 100% complete and 0ms remaining
-12:27:29 PM INFO  indexing   Completed historical indexing
+12:19:31.629 INFO  Hot reload "src/index.ts"
+12:19:31.889 WARN  Dropped existing database tables count=4 tables=["account","transfer_event","allowance","approval_event"] (3ms)
+12:19:31.901 INFO  Created database tables count=4 tables=["account","transfer_event","allowance","approval_event"] (12ms)
+12:19:32.168 INFO  Started backfill indexing chain=mainnet block_range=[13142655,13150000]
+12:19:32.169 INFO  Started fetching backfill JSON-RPC data chain=mainnet cached_block=13147325 cache_rate=63.6%
+12:19:32.447 INFO  Indexed block range chain=mainnet event_count=6004 block_range=[13142655,13146396] (199ms)
+12:19:32.551 INFO  Indexed block range chain=mainnet event_count=3607 block_range=[13146397,13147325] (104ms)
 ```
 
 ```ansi [Terminal UI]
 Sync
 
-│ Network │ Status   │ Block    │ RPC (req/s) │
-├─────────┼──────────┼──────────┼─────────────┤
-│ mainnet │ complete │ 13149000 │         0.0 │
+│ Chain   │ Status             │ Block    │ RPC (req/s) │
+├─────────┼────────────────────┼──────────┼─────────────┤
+│ mainnet │ historical (72.0%) │ 13147940 │        38.0 │
 
 Indexing
 
 │ Event          │ Count │ Duration (ms) │
 ├────────────────┼───────┼───────────────┤
-│ ERC20:Transfer │ 11626 │         0.011 │
-│ ERC20:Approval │  3478 │         0.008 │
+│ ERC20:Transfer │  9691 │         0.014 │
+│ ERC20:Approval │  2502 │         0.008 │
 
-Progress (live)
+Progress (historical)
 
-████████████████████████████████████████████████ 100%
+██████████████████████████████████░░░░░░░░░░░░░░ 72.1%
 ```
 
 :::
