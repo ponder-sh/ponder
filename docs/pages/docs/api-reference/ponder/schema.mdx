@@ -154,6 +154,30 @@ export const dogs = onchainTable("cats", (t) => ({
 }));
 ```
 
+## `onchainView`
+
+The `onchainView` function uses the Drizzle query builder API to define a custom query against other tables and views in `ponder.schema.ts`.
+
+{/* prettier-ignore */}
+```ts [ponder.schema.ts]
+import { onchainView, sql, sum, count } from "ponder";
+
+// ... `transferEvent` and other table definitions
+
+export const hourlyBucket = onchainView("hourly_bucket").as((qb) =>
+  qb
+    .select({
+      hour: sql`FLOOR(${transferEvent.timestamp} / 3600) * 3600`.as("hour"),
+      totalVolume: sum(transferEvent.amount).as("total_volume"),
+      transferCount: count().as("transfer_count"),
+    })
+    .from(transferEvent)
+    .groupBy(sql`FLOOR(${transferEvent.timestamp} / 3600)`),
+);
+```
+
+[Read more](https://orm.drizzle.team/docs/select) about the Drizzle query builder API.
+
 ## `relations`
 
 Use the `relations` function to define relationships between tables.
