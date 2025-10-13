@@ -1,4 +1,5 @@
 import type { Common } from "@/internal/common.js";
+import { ShutdownError } from "@/internal/errors.js";
 import type {
   Chain,
   CrashRecoveryCheckpoint,
@@ -1060,6 +1061,10 @@ export async function* getLocalSyncGenerator(params: {
     try {
       synced = await historicalSync.sync(interval);
     } catch (error) {
+      if (error instanceof ShutdownError) {
+        throw error;
+      }
+
       params.common.logger.warn({
         msg: "Failed to fetch backfill JSON-RPC data",
         chain: params.chain.name,

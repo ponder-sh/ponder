@@ -307,6 +307,10 @@ export async function runOmnichain({
     });
   }, 5_000);
 
+  common.shutdown.add(() => {
+    clearInterval(etaInterval);
+  });
+
   const backfillEndClock = startClock();
 
   let pendingEvents: Event[] = [];

@@ -304,6 +304,10 @@ export async function runMultichain({
     });
   }, 5_000);
 
+  common.shutdown.add(() => {
+    clearInterval(etaInterval);
+  });
+
   const backfillEndClock = startClock();
 
   // Run historical indexing until complete.
