@@ -83,27 +83,23 @@ The JSON log format emits newline-delimited JSON objects with required propertie
 The dynamic terminal UI displays a useful summary of chain connection status, indexing function duration, and backfill progress.
 
 ```bash [Output]
-Sync
+Chains
 
 │ Chain    │ Status   │ Block     │ RPC (req/s) │
 ├──────────┼──────────┼───────────┼─────────────┤
-│ base     │ realtime │  36790467 │         1.5 │
-│ mainnet  │ realtime │  23569763 │         1.1 │
-│ polygon  │ realtime │  77632803 │         1.4 │
-│ optimism │ realtime │ 142385752 │         1.4 │
+│ optimism │ realtime │ 142388578 │         1.6 │
+│ polygon  │ realtime │  77635629 │        17.2 │
+│ base     │ realtime │  36793293 │         4.2 │
+│ mainnet  │ realtime │  23570232 │         7.5 │
 
-Indexing
+Indexing (live)
 
 │ Event         │ Count │ Duration (ms) │
 ├───────────────┼───────┼───────────────┤
-│ weth9:Deposit │   721 │         1.655 │
+│ WETH:Deposit │   107 │         1.554 │
 
-Progress (live)
-
-███████████████████████████████░░░░░░░░░░░░░░░░░ 64.5%
-
-API functions
-Server live at http://localhost:42069
+API endpoints
+Live at http://localhost:42069
 ```
 
 The terminal UI is disabled by default for `ponder start`. Use the `--disable-ui` CLI option to disable the UI for `ponder dev`.
@@ -126,7 +122,6 @@ Metrics are not part of the public API, so these are subject to change without n
 | ponder_indexing_completed_seconds      | Number of seconds that have been completed                            | gauge     |
 | ponder_indexing_completed_events       | Number of events that have been processed                             | gauge     |
 | ponder_indexing_completed_timestamp    | Timestamp through which all events have been completed                | gauge     |
-| ponder_indexing_has_error              | Boolean (0 or 1) indicating if there is an indexing error             | gauge     |
 | ponder_indexing_function_duration      | Duration of indexing function execution                               | histogram |
 | ponder_indexing_function_error_total   | Total number of errors encountered during indexing function execution | counter   |
 | ponder_historical_start_timestamp      | Unix timestamp (ms) when the historical sync service started          | gauge     |
@@ -139,7 +134,6 @@ Metrics are not part of the public API, so these are subject to change without n
 | ponder_realtime_reorg_total            | Count of how many re-orgs have occurred                               | counter   |
 | ponder_database_method_duration        | Duration of database operations                                       | histogram |
 | ponder_database_method_error_total     | Total number of errors encountered during database operations         | counter   |
-| ponder_http_server_port                | Port that the server is listening on                                  | gauge     |
 | ponder_http_server_active_requests     | Number of active HTTP server requests                                 | gauge     |
 | ponder_http_server_request_duration_ms | Duration of HTTP responses served by the server                       | histogram |
 | ponder_http_server_request_size_bytes  | Size of HTTP requests received by the server                          | histogram |

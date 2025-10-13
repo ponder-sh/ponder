@@ -114,22 +114,23 @@ Ponder will connect to the database, start the HTTP server, and begin indexing.
 ```
 
 ```ansi [Terminal UI]
-Sync
+Chains
 
-│ Chain   │ Status             │ Block    │ RPC (req/s) │
-├─────────┼────────────────────┼──────────┼─────────────┤
-│ mainnet │ historical (51.2%) │ 13146415 │        34.8 │
+│ Chain   │ Status     │ Block    │ RPC (req/s) │
+├─────────┼────────────┼──────────┼─────────────┤
+│ mainnet │ historical │ 13145260 │        27.5 │
 
-Indexing
+Indexing (backfill)
 
 │ Event          │ Count │ Duration (ms) │
 ├────────────────┼───────┼───────────────┤
-│ ERC20:Transfer │  5133 │         0.012 │
-│ ERC20:Approval │   930 │         0.009 │
+│ ERC20:Transfer │  3345 │         0.015 │
+│ ERC20:Approval │   384 │         0.011 │
 
-Progress (historical)
+████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 35.1% (1m 22s eta)
 
-████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░ 51.3%
+API endpoints
+Live at http://localhost:42069
 ```
 
 :::
@@ -239,22 +240,23 @@ As soon as we save the file, the dev server hot reloads and finishes indexing su
 ```
 
 ```ansi [Terminal UI]
-Sync
+Chains
 
-│ Chain   │ Status             │ Block    │ RPC (req/s) │
-├─────────┼────────────────────┼──────────┼─────────────┤
-│ mainnet │ historical (72.0%) │ 13147940 │        38.0 │
+│ Chain   │ Status     │ Block    │ RPC (req/s) │
+├─────────┼────────────┼──────────┼─────────────┤
+│ mainnet │ historical │ 13146425 │        25.2 │
 
-Indexing
+Indexing (backfill)
 
 │ Event          │ Count │ Duration (ms) │
 ├────────────────┼───────┼───────────────┤
-│ ERC20:Transfer │  9691 │         0.014 │
-│ ERC20:Approval │  2502 │         0.008 │
+│ ERC20:Transfer │  5155 │         0.014 │
+│ ERC20:Approval │   938 │         0.010 │
 
-Progress (historical)
+████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░ 51.5% (1m 07s eta)
 
-██████████████████████████████████░░░░░░░░░░░░░░ 72.1%
+API endpoints
+Live at http://localhost:42069
 ```
 
 :::
