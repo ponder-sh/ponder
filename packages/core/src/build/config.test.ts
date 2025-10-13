@@ -715,10 +715,10 @@ test("buildIndexingFunctions() includeCallTraces", async (context) => {
   ).toBeUndefined();
   expect(
     (eventCallbacks[0]![0]!.filter as TraceFilter).toAddress,
-  ).toMatchObject([zeroAddress]);
+  ).toMatchObject(zeroAddress);
   expect(
     (eventCallbacks[0]![0]!.filter as TraceFilter).functionSelector,
-  ).toMatchObject([toFunctionSelector(func0)]);
+  ).toMatchObject(toFunctionSelector(func0));
   expect(eventCallbacks[0]![0]!.filter.hasTransactionReceipt).toBe(false);
 });
 
@@ -764,7 +764,7 @@ test("buildIndexingFunctions() includeCallTraces with factory", async (context) 
   ).toMatchObject(address2);
   expect(
     (eventCallbacks[0]![0]!.filter as TraceFilter).functionSelector,
-  ).toMatchObject([toFunctionSelector(func0)]);
+  ).toMatchObject(toFunctionSelector(func0));
   expect(eventCallbacks[0]![0]!.filter.hasTransactionReceipt).toBe(false);
 });
 

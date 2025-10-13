@@ -1,5 +1,4 @@
 import { ALICE, BOB } from "@/_test/constants.js";
-import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
   setupCleanup,
@@ -17,24 +16,18 @@ import {
   transferEth,
 } from "@/_test/simulate.js";
 import {
-  getAccountsConfigAndIndexingFunctions,
-  getBlocksConfigAndIndexingFunctions,
+  getAccountsIndexingBuild,
+  getBlocksIndexingBuild,
   getChain,
-  getErc20ConfigAndIndexingFunctions,
-  getPairWithFactoryConfigAndIndexingFunctions,
+  getErc20IndexingBuild,
+  getPairWithFactoryIndexingBuild,
   testClient,
 } from "@/_test/utils.js";
-import { buildConfig, buildIndexingFunctions } from "@/build/config.js";
 import type { LogFactory, LogFilter } from "@/internal/types.js";
 import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
-import {
-  encodeFunctionData,
-  encodeFunctionResult,
-  parseEther,
-  toHex,
-} from "viem";
+import { parseEther } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { type RealtimeSyncEvent, createRealtimeSync } from "./index.js";
 
@@ -50,15 +43,8 @@ test("createRealtimeSync()", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -67,7 +53,7 @@ test("createRealtimeSync()", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -82,15 +68,8 @@ test("sync() handles block", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -99,7 +78,7 @@ test("sync() handles block", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -121,15 +100,8 @@ test("sync() no-op when receiving same block twice", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -138,7 +110,7 @@ test("sync() no-op when receiving same block twice", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -161,15 +133,8 @@ test("sync() gets missing block", async (context) => {
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -178,7 +143,7 @@ test("sync() gets missing block", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -203,15 +168,8 @@ test("sync() catches error", async (context) => {
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -220,7 +178,7 @@ test("sync() catches error", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -253,15 +211,8 @@ test("handleBlock() block event with log", async (context) => {
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { eventCallbacks } = getErc20IndexingBuild({
     address,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
@@ -270,7 +221,7 @@ test("handleBlock() block event with log", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -318,31 +269,23 @@ test("handleBlock() block event with log factory", async (context) => {
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployFactory({ sender: ALICE });
-  const { result: pair } = await createPair({
+  const { address: pairAddress } = await createPair({
     factory: address,
     sender: ALICE,
   });
   await swapPair({
-    pair,
+    pair: pairAddress,
     amount0Out: 1n,
     amount1Out: 1n,
     to: ALICE,
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } =
-    getPairWithFactoryConfigAndIndexingFunctions({
-      address,
-    });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({
+    address,
   });
 
-  const filter = sources[0]!.filter as LogFilter<LogFactory>;
+  const filter = eventCallbacks[0]!.filter as LogFilter<LogFactory>;
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
@@ -350,7 +293,7 @@ test("handleBlock() block event with log factory", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map([[filter.address.id, new Map()]]),
   });
@@ -448,15 +391,8 @@ test("handleBlock() block event with block", async (context) => {
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -465,7 +401,7 @@ test("handleBlock() block event with block", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -504,22 +440,14 @@ test("handleBlock() block event with transaction", async (context) => {
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
 
-  await transferEth({
+  const blockData = await transferEth({
     to: BOB,
     amount: parseEther("1"),
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
+  const { eventCallbacks } = getAccountsIndexingBuild({
+    address: ALICE,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -528,14 +456,16 @@ test("handleBlock() block event with transaction", async (context) => {
     common,
     chain,
     rpc,
-    sources: sources.filter(({ filter }) => filter.type === "transaction"),
+    eventCallbacks: eventCallbacks.filter(
+      ({ filter }) => filter.type === "transaction",
+    ),
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
 
-  const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
-
-  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
+  const syncResult = await drainAsyncGenerator(
+    realtimeSync.sync(blockData.block),
+  );
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 
@@ -567,39 +497,22 @@ test("handleBlock() block event with transfer", async (context) => {
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
 
-  const { hash } = await transferEth({
+  const blockData = await transferEth({
     to: BOB,
     amount: parseEther("1"),
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
+  const { eventCallbacks } = getAccountsIndexingBuild({
+    address: ALICE,
   });
 
   const request = async (request: any) => {
     if (request.method === "debug_traceBlockByHash") {
       return Promise.resolve([
         {
-          txHash: hash,
-          result: {
-            type: "CALL",
-            from: ALICE,
-            to: BOB,
-            gas: "0x0",
-            gasUsed: "0x0",
-            input: "0x0",
-            output: "0x0",
-            value: toHex(parseEther("1")),
-          },
+          txHash: blockData.trace.transactionHash,
+          result: blockData.trace.trace,
         },
       ]);
     }
@@ -616,7 +529,7 @@ test("handleBlock() block event with transfer", async (context) => {
       // @ts-ignore
       request,
     },
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -662,7 +575,7 @@ test("handleBlock() block event with trace", async (context) => {
     amount: parseEther("1"),
     sender: ALICE,
   });
-  await transferErc20({
+  const blockData = await transferErc20({
     erc20: address,
     to: BOB,
     amount: parseEther("1"),
@@ -671,18 +584,9 @@ test("handleBlock() block event with trace", async (context) => {
 
   const block2 = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
 
-  const block3 = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
-
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { eventCallbacks } = getErc20IndexingBuild({
     address,
     includeCallTraces: true,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const request = async (request: any) => {
@@ -703,28 +607,11 @@ test("handleBlock() block event with trace", async (context) => {
         ]);
       }
 
-      if (request.params[0] === block3.hash) {
+      if (request.params[0] === blockData.block.hash) {
         return Promise.resolve([
           {
-            txHash: block3.transactions[0]!.hash,
-            result: {
-              type: "CALL",
-              from: ALICE,
-              to: address,
-              gas: "0x0",
-              gasUsed: "0x0",
-              input: encodeFunctionData({
-                abi: erc20ABI,
-                functionName: "transfer",
-                args: [BOB, parseEther("1")],
-              }),
-              output: encodeFunctionResult({
-                abi: erc20ABI,
-                functionName: "transfer",
-                result: true,
-              }),
-              value: "0x0",
-            },
+            txHash: blockData.trace.transactionHash,
+            result: blockData.trace.trace,
           },
         ]);
       }
@@ -745,13 +632,15 @@ test("handleBlock() block event with trace", async (context) => {
       // @ts-ignore
       request,
     },
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
 
   const syncResult1 = await drainAsyncGenerator(realtimeSync.sync(block2));
-  const syncResult2 = await drainAsyncGenerator(realtimeSync.sync(block3));
+  const syncResult2 = await drainAsyncGenerator(
+    realtimeSync.sync(blockData.block),
+  );
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
 
@@ -789,15 +678,8 @@ test("handleBlock() finalize event", async (context) => {
     common,
   });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -806,7 +688,7 @@ test("handleBlock() finalize event", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -853,15 +735,8 @@ test("handleReorg() finds common ancestor", async (context) => {
     common,
   });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -870,7 +745,7 @@ test("handleReorg() finds common ancestor", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -914,15 +789,8 @@ test("handleReorg() throws error for deep reorg", async (context) => {
     common,
   });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -931,7 +799,7 @@ test("handleReorg() throws error for deep reorg", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });

@@ -1,15 +1,19 @@
 import { ALICE, BOB } from "@/_test/constants.js";
-import { erc20ABI } from "@/_test/generated.js";
 import { setupCommon } from "@/_test/setup.js";
 import {
-  getAccountsConfigAndIndexingFunctions,
-  getBlocksConfigAndIndexingFunctions,
-  getErc20ConfigAndIndexingFunctions,
+  deployErc20,
+  mintErc20,
+  transferErc20,
+  transferEth,
+} from "@/_test/simulate.js";
+import {
+  getAccountsIndexingBuild,
+  getBlocksIndexingBuild,
+  getChain,
+  getErc20IndexingBuild,
 } from "@/_test/utils.js";
-import { buildConfig, buildIndexingFunctions } from "@/build/config.js";
 import type {
   BlockEvent,
-  ContractSource,
   Event,
   LogEvent,
   RawEvent,
@@ -17,24 +21,25 @@ import type {
   TransferEvent,
 } from "@/internal/types.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
-import {
-  type Hex,
-  encodeEventTopics,
-  padHex,
-  parseEther,
-  toHex,
-  zeroAddress,
-} from "viem";
-import { encodeFunctionData, encodeFunctionResult } from "viem/utils";
+import { toLowerCase } from "@/utils/lowercase.js";
+import { parseEther, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
-import { decodeEvents, splitEvents } from "./events.js";
+import {
+  decodeEvents,
+  splitEvents,
+  syncBlockToInternal,
+  syncLogToInternal,
+  syncTraceToInternal,
+  syncTransactionReceiptToInternal,
+  syncTransactionToInternal,
+} from "./events.js";
 
 beforeEach(setupCommon);
 
 test("splitEvents()", async () => {
   const events = [
     {
-      chainId: 1,
+      chain: getChain(),
       checkpoint: "0",
       event: {
         block: {
@@ -45,7 +50,7 @@ test("splitEvents()", async () => {
       },
     },
     {
-      chainId: 1,
+      chain: getChain(),
       checkpoint: "0",
       event: {
         block: {
@@ -59,6 +64,14 @@ test("splitEvents()", async () => {
 
   const result = splitEvents(events);
 
+  for (const event of result) {
+    for (const _event of event.events) {
+      // @ts-ignore
+      // biome-ignore lint/performance/noDelete: <explanation>
+      delete _event.chain;
+    }
+  }
+
   expect(result).toMatchInlineSnapshot(`
     [
       {
@@ -66,7 +79,6 @@ test("splitEvents()", async () => {
         "checkpoint": "000000000100000000000000010000000000000001999999999999999999999999999999999",
         "events": [
           {
-            "chainId": 1,
             "checkpoint": "0",
             "event": {
               "block": {
@@ -83,7 +95,6 @@ test("splitEvents()", async () => {
         "checkpoint": "000000000200000000000000010000000000000002999999999999999999999999999999999",
         "events": [
           {
-            "chainId": 1,
             "checkpoint": "0",
             "event": {
               "block": {
@@ -102,41 +113,30 @@ test("splitEvents()", async () => {
 test("decodeEvents() log", async (context) => {
   const { common } = context;
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
-    address: zeroAddress,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
+  const { address } = await deployErc20({ sender: ALICE });
+  const blockData = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
   });
 
-  const topics = encodeEventTopics({
-    abi: erc20ABI,
-    eventName: "Transfer",
-    args: {
-      from: zeroAddress,
-      to: ALICE,
+  const { eventCallbacks } = getErc20IndexingBuild({
+    address,
+  });
+
+  const events = decodeEvents(common, [
+    {
+      checkpoint: ZERO_CHECKPOINT_STRING,
+      chain: getChain(),
+      eventCallback: eventCallbacks[0],
+      block: syncBlockToInternal({ block: blockData.block }),
+      transaction: syncTransactionToInternal({
+        transaction: blockData.transaction,
+      }),
+      log: syncLogToInternal({ log: blockData.log }),
     },
-  });
-
-  const data = padHex(toHex(parseEther("1")), { size: 32 });
-
-  const rawEvent = {
-    chainId: 1,
-    sourceIndex: 0,
-    checkpoint: ZERO_CHECKPOINT_STRING,
-    block: {} as RawEvent["block"],
-    transaction: {} as RawEvent["transaction"],
-    log: { data, topics },
-  } as RawEvent;
-
-  const events = decodeEvents(common, sources, [rawEvent]) as [LogEvent];
+  ]) as [LogEvent];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.args).toMatchObject({
@@ -149,43 +149,33 @@ test("decodeEvents() log", async (context) => {
 test("decodeEvents() log error", async (context) => {
   const { common } = context;
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
-    address: zeroAddress,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
+  const { address } = await deployErc20({ sender: ALICE });
+  const blockData = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
   });
 
-  const topics = encodeEventTopics({
-    abi: erc20ABI,
-    eventName: "Transfer",
-    args: {
-      from: zeroAddress,
-      to: ALICE,
-    },
+  const { eventCallbacks } = getErc20IndexingBuild({
+    address,
   });
 
   // invalid log.data, causing an error when decoding
-  const rawEvent = {
-    chainId: 1,
-    sourceIndex: 0,
-    checkpoint: ZERO_CHECKPOINT_STRING,
-    block: {} as RawEvent["block"],
-    transaction: {} as RawEvent["transaction"],
-    log: {
-      data: "0x0" as Hex,
-      topics,
-    },
-  } as RawEvent;
+  blockData.log.data = "0x0";
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [LogEvent];
+  const events = decodeEvents(common, [
+    {
+      checkpoint: ZERO_CHECKPOINT_STRING,
+      chain: getChain(),
+      eventCallback: eventCallbacks[0],
+      block: syncBlockToInternal({ block: blockData.block }),
+      transaction: syncTransactionToInternal({
+        transaction: blockData.transaction,
+      }),
+      log: syncLogToInternal({ log: blockData.log }),
+    },
+  ]) as [LogEvent];
 
   expect(events).toHaveLength(0);
 });
@@ -193,24 +183,14 @@ test("decodeEvents() log error", async (context) => {
 test("decodeEvents() block", async (context) => {
   const { common } = context;
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const rawEvent = {
-    chainId: 1,
-    sourceIndex: 0,
+    chain: getChain(),
     checkpoint: ZERO_CHECKPOINT_STRING,
+    eventCallback: eventCallbacks[0],
     block: {
       number: 1n,
     } as RawEvent["block"],
@@ -218,7 +198,7 @@ test("decodeEvents() block", async (context) => {
     log: undefined,
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [BlockEvent];
+  const events = decodeEvents(common, [rawEvent]) as [BlockEvent];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.block).toMatchObject({
@@ -229,253 +209,226 @@ test("decodeEvents() block", async (context) => {
 test("decodeEvents() transfer", async (context) => {
   const { common } = context;
 
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
+  const { eventCallbacks } = getAccountsIndexingBuild({
+    address: ALICE,
   });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
+
+  const blockData = await transferEth({
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
   });
 
   const rawEvent = {
-    chainId: 1,
-    sourceIndex: 3,
+    chain: getChain(),
+    eventCallback: eventCallbacks[2],
     checkpoint: ZERO_CHECKPOINT_STRING,
-    block: {} as RawEvent["block"],
-    transaction: {} as RawEvent["transaction"],
+    block: syncBlockToInternal({ block: blockData.block }),
+    transaction: syncTransactionToInternal({
+      transaction: blockData.transaction,
+    }),
     log: undefined,
-    trace: {
-      type: "CALL",
-      from: ALICE,
-      to: BOB,
-      gas: 0n,
-      gasUsed: 0n,
-      input: "0x0",
-      output: "0x0",
-      value: parseEther("1"),
-      traceIndex: 0,
-      subcalls: 0,
-      blockNumber: 0,
-      transactionIndex: 0,
-    },
+    trace: syncTraceToInternal({
+      trace: blockData.trace,
+      block: blockData.block,
+      transaction: blockData.transaction,
+    }),
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [TransferEvent];
+  const events = decodeEvents(common, [rawEvent]) as [TransferEvent];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.transfer).toMatchObject({
-    from: ALICE,
-    to: BOB,
+    from: toLowerCase(ALICE),
+    to: toLowerCase(BOB),
     value: parseEther("1"),
   });
-  expect(events[0].name).toBe("Accounts:transfer:from");
 });
 
 test("decodeEvents() transaction", async (context) => {
   const { common } = context;
 
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
+  const { eventCallbacks } = getAccountsIndexingBuild({
+    address: ALICE,
   });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+  const blockData = await transferErc20({
+    erc20: address,
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
   });
 
   const rawEvent = {
-    chainId: 1,
-    sourceIndex: 0,
+    chain: getChain(),
+    eventCallback: eventCallbacks[0],
     checkpoint: ZERO_CHECKPOINT_STRING,
-    block: {} as RawEvent["block"],
-    transaction: {} as RawEvent["transaction"],
+    block: syncBlockToInternal({ block: blockData.block }),
+    transaction: syncTransactionToInternal({
+      transaction: blockData.transaction,
+    }),
+    transactionReceipt: syncTransactionReceiptToInternal({
+      transactionReceipt: blockData.transactionReceipt,
+    }),
     log: undefined,
-    trace: undefined,
+    trace: syncTraceToInternal({
+      trace: blockData.trace,
+      block: blockData.block,
+      transaction: blockData.transaction,
+    }),
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [TransferEvent];
+  const events = decodeEvents(common, [rawEvent]) as [TransferEvent];
 
   expect(events).toHaveLength(1);
-
-  expect(events[0].name).toBe("Accounts:transaction:to");
 });
 
 test("decodeEvents() trace", async (context) => {
   const { common } = context;
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+  const blockData = await transferErc20({
+    erc20: address,
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({
     address: zeroAddress,
     includeCallTraces: true,
   });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
 
   const rawEvent = {
-    chainId: 1,
-    sourceIndex: 1,
+    chain: getChain(),
+    eventCallback: eventCallbacks[0],
     checkpoint: ZERO_CHECKPOINT_STRING,
-    block: {} as RawEvent["block"],
-    transaction: {} as RawEvent["transaction"],
+    block: syncBlockToInternal({ block: blockData.block }),
+    transaction: syncTransactionToInternal({
+      transaction: blockData.transaction,
+    }),
+    transactionReceipt: undefined,
     log: undefined,
-    trace: {
-      type: "CALL",
-      from: ALICE,
-      to: BOB,
-      input: encodeFunctionData({
-        abi: erc20ABI,
-        functionName: "transfer",
-        args: [BOB, parseEther("1")],
-      }),
-      output: encodeFunctionResult({
-        abi: erc20ABI,
-        functionName: "transfer",
-        result: true,
-      }),
-      gas: 0n,
-      gasUsed: 0n,
-      value: 0n,
-      traceIndex: 0,
-      subcalls: 0,
-      blockNumber: 0,
-      transactionIndex: 0,
-    },
+    trace: syncTraceToInternal({
+      trace: blockData.trace,
+      block: blockData.block,
+      transaction: blockData.transaction,
+    }),
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [TraceEvent];
+  const events = decodeEvents(common, [rawEvent]) as [TraceEvent];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.args).toStrictEqual([BOB, parseEther("1")]);
   expect(events[0].event.result).toBe(true);
-  expect(events[0].name).toBe("Erc20.transfer()");
 });
 
 test("decodeEvents() trace w/o output", async (context) => {
   const { common } = context;
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+  const blockData = await transferErc20({
+    erc20: address,
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({
     address: zeroAddress,
     includeCallTraces: true,
   });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
 
   // Remove output from the trace abi
-  (sources[1] as ContractSource).abiFunctions.bySafeName[
-    "transfer()"
-  ]!.item.outputs = [];
+  // @ts-ignore
+  eventCallbacks[0].abiItem.outputs = [];
 
   const rawEvent = {
-    chainId: 1,
-    sourceIndex: 1,
+    chain: getChain(),
+    eventCallback: eventCallbacks[0],
     checkpoint: ZERO_CHECKPOINT_STRING,
-    block: {} as RawEvent["block"],
-    transaction: {} as RawEvent["transaction"],
+    block: syncBlockToInternal({ block: blockData.block }),
+    transaction: syncTransactionToInternal({
+      transaction: blockData.transaction,
+    }),
+    transactionReceipt: undefined,
     log: undefined,
-    trace: {
-      type: "CALL",
-      from: ALICE,
-      to: BOB,
-      input: encodeFunctionData({
-        abi: erc20ABI,
-        functionName: "transfer",
-        args: [BOB, parseEther("1")],
-      }),
-      output: undefined,
-      gas: 0n,
-      gasUsed: 0n,
-      value: 0n,
-      traceIndex: 0,
-      subcalls: 0,
-      blockNumber: 0,
-      transactionIndex: 0,
-    },
+    trace: syncTraceToInternal({
+      trace: blockData.trace,
+      block: blockData.block,
+      transaction: blockData.transaction,
+    }),
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [TraceEvent];
+  const events = decodeEvents(common, [rawEvent]) as [TraceEvent];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.args).toStrictEqual([BOB, parseEther("1")]);
   expect(events[0].event.result).toBe(undefined);
-  expect(events[0].name).toBe("Erc20.transfer()");
 });
 
 test("decodeEvents() trace error", async (context) => {
   const { common } = context;
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+  const blockData = await transferErc20({
+    erc20: address,
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({
     address: zeroAddress,
     includeCallTraces: true,
   });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
 
   const rawEvent = {
-    chainId: 1,
-    sourceIndex: 1,
+    chain: getChain(),
+    eventCallback: eventCallbacks[0],
     checkpoint: ZERO_CHECKPOINT_STRING,
-    block: {} as RawEvent["block"],
-    transaction: {} as RawEvent["transaction"],
+    block: syncBlockToInternal({ block: blockData.block }),
+    transaction: syncTransactionToInternal({
+      transaction: blockData.transaction,
+    }),
+    transactionReceipt: undefined,
     log: undefined,
-    trace: {
-      type: "CALL",
-      from: ALICE,
-      to: BOB,
-      input: "0x",
-      output: encodeFunctionResult({
-        abi: erc20ABI,
-        functionName: "transfer",
-        result: true,
-      }),
-      gas: 0n,
-      gasUsed: 0n,
-      value: 0n,
-      traceIndex: 0,
-      subcalls: 0,
-      blockNumber: 0,
-      transactionIndex: 0,
-    },
+    trace: syncTraceToInternal({
+      trace: blockData.trace,
+      block: blockData.block,
+      transaction: blockData.transaction,
+    }),
   } as RawEvent;
 
-  const events = decodeEvents(common, sources, [rawEvent]) as [TraceEvent];
+  // Remove input from the trace to cause error
+  rawEvent.trace!.input = "0x";
+
+  const events = decodeEvents(common, [rawEvent]) as [TraceEvent];
 
   expect(events).toHaveLength(0);
 });

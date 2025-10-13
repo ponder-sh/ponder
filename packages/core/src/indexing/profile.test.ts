@@ -1,5 +1,6 @@
 import { ALICE } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
+import { getChain, getErc20IndexingBuild } from "@/_test/utils.js";
 import type { BlockEvent, LogEvent, TraceEvent } from "@/internal/types.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { getAbiItem, zeroAddress } from "viem";
@@ -7,11 +8,15 @@ import { expect, test } from "vitest";
 import { recordProfilePattern, recoverProfilePattern } from "./profile.js";
 
 test("recordProfilePattern() with undefined log event args", () => {
+  const { eventCallbacks } = getErc20IndexingBuild({
+    address: zeroAddress,
+  });
+
   const event = {
     type: "log",
-    chainId: 1,
+    chain: getChain(),
+    eventCallback: eventCallbacks[0],
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: undefined,
@@ -108,11 +113,16 @@ test("recordProfilePattern() with undefined log event args", () => {
 });
 
 test("recordProfilePattern() with undefined trace event args", () => {
+  const { eventCallbacks } = getErc20IndexingBuild({
+    address: zeroAddress,
+    includeCallTraces: true,
+  });
+
   const event = {
     type: "trace",
-    chainId: 1,
+    chain: getChain(),
+    eventCallback: eventCallbacks[0],
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: undefined,
@@ -210,11 +220,15 @@ test("recordProfilePattern() with undefined trace event args", () => {
 });
 
 test("recordProfilePattern() with array log event args", () => {
+  const { eventCallbacks } = getErc20IndexingBuild({
+    address: zeroAddress,
+  });
+
   const event = {
     type: "log",
-    chainId: 1,
+    chain: getChain(),
+    eventCallback: eventCallbacks[0],
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: [],
@@ -311,11 +325,16 @@ test("recordProfilePattern() with array log event args", () => {
 });
 
 test("recordProfilePattern() with array trace event args", () => {
+  const { eventCallbacks } = getErc20IndexingBuild({
+    address: zeroAddress,
+    includeCallTraces: true,
+  });
+
   const event = {
     type: "trace",
-    chainId: 1,
+    chain: getChain(),
+    eventCallback: eventCallbacks[0],
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: [],
@@ -413,11 +432,15 @@ test("recordProfilePattern() with array trace event args", () => {
 });
 
 test("recordProfilePattern() address", () => {
+  const { eventCallbacks } = getErc20IndexingBuild({
+    address: zeroAddress,
+  });
+
   const event = {
     type: "log",
-    chainId: 1,
+    chain: getChain(),
+    eventCallback: eventCallbacks[0],
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: { address: zeroAddress },
@@ -511,11 +534,15 @@ test("recordProfilePattern() address", () => {
 });
 
 test("recordProfilePattern() args", () => {
+  const { eventCallbacks } = getErc20IndexingBuild({
+    address: zeroAddress,
+  });
+
   const event = {
     type: "log",
-    chainId: 1,
+    chain: getChain(),
+    eventCallback: eventCallbacks[0],
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: { address: zeroAddress },
@@ -620,11 +647,15 @@ test("recordProfilePattern() args", () => {
 });
 
 test("recordProfilePattern() constants", () => {
+  const { eventCallbacks } = getErc20IndexingBuild({
+    address: zeroAddress,
+  });
+
   const event = {
     type: "log",
-    chainId: 1,
+    chain: getChain(),
+    eventCallback: eventCallbacks[0],
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: { address: zeroAddress },
@@ -724,11 +755,15 @@ test("recordProfilePattern() constants", () => {
 });
 
 test("recordProfilePattern() hint", () => {
+  const { eventCallbacks } = getErc20IndexingBuild({
+    address: zeroAddress,
+  });
+
   const event = {
     type: "log",
-    chainId: 1,
+    chain: getChain(),
+    eventCallback: eventCallbacks[0],
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: { address: zeroAddress },
@@ -839,11 +874,15 @@ test("recordProfilePattern() hint", () => {
 });
 
 test("recordProfilePattern() cache immutable", () => {
+  const { eventCallbacks } = getErc20IndexingBuild({
+    address: zeroAddress,
+  });
+
   const event = {
     type: "log",
-    chainId: 1,
+    chain: getChain(),
+    eventCallback: eventCallbacks[0],
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: undefined,

@@ -13,17 +13,19 @@ import {
   deployRevert,
   mintErc20,
 } from "@/_test/simulate.js";
-import { getChain, publicClient, testClient } from "@/_test/utils.js";
-import type { BlockEvent, LogEvent } from "@/internal/types.js";
+import {
+  getChain,
+  getErc20IndexingBuild,
+  getErc20LogEvent,
+} from "@/_test/utils.js";
 import { createRpc } from "@/rpc/index.js";
-import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
+import { getEventCount } from "@/runtime/index.js";
 import {
   type Hex,
   decodeFunctionResult,
   encodeFunctionData,
   multicall3Abi,
   parseEther,
-  zeroAddress,
 } from "viem";
 import { toHex } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -42,24 +44,29 @@ test("request() block dependent method", async (context) => {
   });
 
   const { syncStore } = await setupDatabaseServices(context);
-  const blockNumber = await publicClient.getBlockNumber();
 
-  const event = {
-    type: "block",
-    chainId: 1,
-    checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "Contract:block",
-    event: {
-      id: ZERO_CHECKPOINT_STRING,
-      block: { number: 0n } as LogEvent["event"]["block"],
-    },
-  } satisfies BlockEvent;
+  const { address } = await deployErc20({ sender: ALICE });
+  const blockData = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { indexingFunctions, eventCallbacks } = getErc20IndexingBuild({
+    address,
+  });
+
+  const event = getErc20LogEvent({
+    blockData,
+    eventCallback: eventCallbacks[0],
+  });
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
     indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
-    eventCount: {},
+    eventCount: getEventCount({ indexingFunctions }),
   });
 
   cachedViemClient.event = event;
@@ -68,7 +75,7 @@ test("request() block dependent method", async (context) => {
 
   const response1 = await request({
     method: "eth_getBlockByNumber",
-    params: [toHex(blockNumber), false],
+    params: [toHex(2), false],
   });
 
   expect(response1).toBeDefined();
@@ -78,7 +85,7 @@ test("request() block dependent method", async (context) => {
 
   const response2 = await request({
     method: "eth_getBlockByNumber",
-    params: [toHex(blockNumber), false],
+    params: [toHex(2), false],
   });
 
   expect(response1).toStrictEqual(response2);
@@ -94,34 +101,30 @@ test("request() non-block dependent method", async (context) => {
     common: context.common,
   });
 
+  const { syncStore } = await setupDatabaseServices(context);
+
   const { address } = await deployErc20({ sender: ALICE });
-  await mintErc20({
+  const blockData = await mintErc20({
     erc20: address,
     to: ALICE,
     amount: parseEther("1"),
     sender: ALICE,
   });
 
-  const { syncStore } = await setupDatabaseServices(context);
-  const blockNumber = await publicClient.getBlockNumber();
-  const block = await publicClient.getBlock({ blockNumber: blockNumber });
+  const { indexingFunctions, eventCallbacks } = getErc20IndexingBuild({
+    address,
+  });
 
-  const event = {
-    type: "block",
-    chainId: 1,
-    checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "Contract:block",
-    event: {
-      id: ZERO_CHECKPOINT_STRING,
-      block: { number: 0n } as LogEvent["event"]["block"],
-    },
-  } satisfies BlockEvent;
+  const event = getErc20LogEvent({
+    blockData,
+    eventCallback: eventCallbacks[0],
+  });
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
     indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
-    eventCount: {},
+    eventCount: getEventCount({ indexingFunctions }),
   });
 
   cachedViemClient.event = event;
@@ -130,7 +133,7 @@ test("request() non-block dependent method", async (context) => {
 
   const response1 = await request({
     method: "eth_getTransactionByHash",
-    params: [block.transactions[0]!],
+    params: [blockData.transaction.hash],
   });
 
   expect(response1).toBeDefined;
@@ -140,7 +143,7 @@ test("request() non-block dependent method", async (context) => {
 
   const response2 = await request({
     method: "eth_getTransactionByHash",
-    params: [block.transactions[0]!],
+    params: [blockData.transaction.hash],
   });
 
   expect(response1).toStrictEqual(response2);
@@ -158,22 +161,28 @@ test("request() non-cached method", async (context) => {
 
   const { syncStore } = await setupDatabaseServices(context);
 
-  const event = {
-    type: "block",
-    chainId: 1,
-    checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "Contract:block",
-    event: {
-      id: ZERO_CHECKPOINT_STRING,
-      block: { number: 0n } as LogEvent["event"]["block"],
-    },
-  } satisfies BlockEvent;
+  const { address } = await deployErc20({ sender: ALICE });
+  const blockData = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { indexingFunctions, eventCallbacks } = getErc20IndexingBuild({
+    address,
+  });
+
+  const event = getErc20LogEvent({
+    blockData,
+    eventCallback: eventCallbacks[0],
+  });
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
     indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
-    eventCount: {},
+    eventCount: getEventCount({ indexingFunctions }),
   });
 
   cachedViemClient.event = event;
@@ -198,36 +207,34 @@ test("request() multicall", async (context) => {
 
   const { syncStore } = await setupDatabaseServices(context);
 
-  const event = {
-    type: "block",
-    chainId: 1,
-    checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "Contract:block",
-    event: {
-      id: ZERO_CHECKPOINT_STRING,
-      block: { number: 0n } as LogEvent["event"]["block"],
-    },
-  } satisfies BlockEvent;
-
-  const cachedViemClient = createCachedViemClient({
-    common: context.common,
-    indexingBuild: { chains: [chain], rpcs: [rpc] },
-    syncStore,
-    eventCount: {},
-  });
-
-  cachedViemClient.event = event;
-
-  const request = cachedViemClient.getClient(chain).request;
-
   const { address: multicall } = await deployMulticall({ sender: ALICE });
   const { address } = await deployErc20({ sender: ALICE });
-  await mintErc20({
+  const blockData = await mintErc20({
     erc20: address,
     to: ALICE,
     amount: parseEther("1"),
     sender: ALICE,
   });
+
+  const { indexingFunctions, eventCallbacks } = getErc20IndexingBuild({
+    address,
+  });
+
+  const event = getErc20LogEvent({
+    blockData,
+    eventCallback: eventCallbacks[0],
+  });
+
+  const cachedViemClient = createCachedViemClient({
+    common: context.common,
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
+    syncStore,
+    eventCount: getEventCount({ indexingFunctions }),
+  });
+
+  cachedViemClient.event = event;
+
+  const request = cachedViemClient.getClient(chain).request;
 
   const response1 = await request({
     method: "eth_call",
@@ -343,29 +350,34 @@ test("request() multicall empty", async (context) => {
 
   const { syncStore } = await setupDatabaseServices(context);
 
-  const event = {
-    type: "block",
-    chainId: 1,
-    checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "Contract:block",
-    event: {
-      id: ZERO_CHECKPOINT_STRING,
-      block: { number: 0n } as LogEvent["event"]["block"],
-    },
-  } satisfies BlockEvent;
+  const { address: multicall } = await deployMulticall({ sender: ALICE });
+  const { address } = await deployErc20({ sender: ALICE });
+  const blockData = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { indexingFunctions, eventCallbacks } = getErc20IndexingBuild({
+    address,
+  });
+
+  const event = getErc20LogEvent({
+    blockData,
+    eventCallback: eventCallbacks[0],
+  });
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
     indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
-    eventCount: {},
+    eventCount: getEventCount({ indexingFunctions }),
   });
 
   cachedViemClient.event = event;
 
   const request = cachedViemClient.getClient(chain).request;
-
-  const { address: multicall } = await deployMulticall({ sender: ALICE });
 
   const response = await request({
     method: "eth_call",
@@ -403,38 +415,30 @@ test("prefetch() uses profile metadata", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
   const { address } = await deployErc20({ sender: ALICE });
-  await mintErc20({
+  const blockData = await mintErc20({
     erc20: address,
     to: ALICE,
     amount: parseEther("1"),
     sender: ALICE,
   });
 
-  const event = {
-    type: "log",
-    chainId: 1,
-    checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "Contract:Event",
-    event: {
-      id: ZERO_CHECKPOINT_STRING,
-      args: {
-        from: zeroAddress,
-        to: ALICE,
-        amount: parseEther("1"),
-      },
-      log: {
-        address,
-      } as LogEvent["event"]["log"],
-      block: { number: 1n } as LogEvent["event"]["block"],
-      transaction: {} as LogEvent["event"]["transaction"],
-    },
-  } satisfies LogEvent;
+  const { indexingFunctions, eventCallbacks } = getErc20IndexingBuild({
+    address,
+  });
+
+  const event = getErc20LogEvent({
+    blockData,
+    eventCallback: eventCallbacks[0],
+  });
+
+  const eventCount = getEventCount({ indexingFunctions });
+  eventCount[event.eventCallback.name] = 1;
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
     indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
-    eventCount: { "Contract:Event": 1 },
+    eventCount,
   });
   cachedViemClient.event = event;
 
@@ -444,10 +448,7 @@ test("prefetch() uses profile metadata", async (context) => {
     address,
   });
 
-  expect(totalSupply).toBe(parseEther("0"));
-
-  event.event.block.number = 2n;
-  cachedViemClient.event = event;
+  expect(totalSupply).toBe(parseEther("1"));
 
   await cachedViemClient.prefetch({
     events: [event],
@@ -475,35 +476,35 @@ test("request() revert", async (context) => {
     common: context.common,
   });
 
-  const { address } = await deployRevert({ sender: ALICE });
-
   const { syncStore } = await setupDatabaseServices(context);
 
-  const event = {
-    type: "log",
-    chainId: 1,
-    checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "Contract:Event",
-    event: {
-      id: ZERO_CHECKPOINT_STRING,
-      args: {
-        from: zeroAddress,
-        to: ALICE,
-        amount: parseEther("1"),
-      },
-      log: {
-        address,
-      } as LogEvent["event"]["log"],
-      block: { number: 1n } as LogEvent["event"]["block"],
-      transaction: {} as LogEvent["event"]["transaction"],
-    },
-  } satisfies LogEvent;
+  const { address } = await deployRevert({ sender: ALICE });
+  const { address: erc20Address } = await deployErc20({ sender: ALICE });
+  const blockData = await mintErc20({
+    erc20: erc20Address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { indexingFunctions, eventCallbacks } = getErc20IndexingBuild({
+    address: erc20Address,
+  });
+
+  const event = getErc20LogEvent({
+    blockData,
+    eventCallback: eventCallbacks[0],
+  });
+
+  const eventCount = getEventCount({ indexingFunctions });
+
+  eventCount[event.eventCallback.name] = 1;
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
     indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
-    eventCount: { "Contract:Event": 1 },
+    eventCount,
   });
   cachedViemClient.event = event;
 
@@ -534,38 +535,34 @@ test("readContract() action retry", async (context) => {
     common: context.common,
   });
 
+  const { syncStore } = await setupDatabaseServices(context);
+
   const { address } = await deployErc20({ sender: ALICE });
-  await mintErc20({
+  const blockData = await mintErc20({
     erc20: address,
     to: ALICE,
     amount: parseEther("1"),
     sender: ALICE,
   });
 
-  const { syncStore } = await setupDatabaseServices(context);
+  const { indexingFunctions, eventCallbacks } = getErc20IndexingBuild({
+    address,
+  });
 
-  await testClient.mine({ blocks: 1 });
+  const event = getErc20LogEvent({
+    blockData,
+    eventCallback: eventCallbacks[0],
+  });
 
   const requestSpy = vi.spyOn(rpc, "request");
 
   requestSpy.mockReturnValueOnce(Promise.resolve("0x"));
 
-  const event = {
-    type: "block",
-    chainId: 1,
-    checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "Contract:block",
-    event: {
-      id: ZERO_CHECKPOINT_STRING,
-      block: { number: 1n } as LogEvent["event"]["block"],
-    },
-  } satisfies BlockEvent;
-
   const cachedViemClient = createCachedViemClient({
     common: context.common,
     indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
-    eventCount: {},
+    eventCount: getEventCount({ indexingFunctions }),
   });
 
   cachedViemClient.event = event;
@@ -586,36 +583,32 @@ test("readContract() with immutable cache", async (context) => {
     common: context.common,
   });
 
+  const { syncStore } = await setupDatabaseServices(context);
+
   const { address } = await deployErc20({ sender: ALICE });
-  await mintErc20({
+  const blockData = await mintErc20({
     erc20: address,
     to: ALICE,
     amount: parseEther("1"),
     sender: ALICE,
   });
 
-  const { syncStore } = await setupDatabaseServices(context);
+  const { indexingFunctions, eventCallbacks } = getErc20IndexingBuild({
+    address,
+  });
 
-  await testClient.mine({ blocks: 1 });
+  const event = getErc20LogEvent({
+    blockData,
+    eventCallback: eventCallbacks[0],
+  });
 
   const requestSpy = vi.spyOn(rpc, "request");
-
-  const event = {
-    type: "block",
-    chainId: 1,
-    checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "Contract:block",
-    event: {
-      id: ZERO_CHECKPOINT_STRING,
-      block: { number: 0n } as LogEvent["event"]["block"],
-    },
-  } satisfies BlockEvent;
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
     indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
-    eventCount: {},
+    eventCount: getEventCount({ indexingFunctions }),
   });
 
   cachedViemClient.event = event;
@@ -645,38 +638,34 @@ test("readContract() with no retry empty response", async (context) => {
     common: context.common,
   });
 
+  const { syncStore } = await setupDatabaseServices(context);
+
   const { address } = await deployErc20({ sender: ALICE });
-  await mintErc20({
+  const blockData = await mintErc20({
     erc20: address,
     to: ALICE,
     amount: parseEther("1"),
     sender: ALICE,
   });
 
-  const { syncStore } = await setupDatabaseServices(context);
+  const { indexingFunctions, eventCallbacks } = getErc20IndexingBuild({
+    address,
+  });
 
-  await testClient.mine({ blocks: 1 });
+  const event = getErc20LogEvent({
+    blockData,
+    eventCallback: eventCallbacks[0],
+  });
 
   const requestSpy = vi.spyOn(rpc, "request");
 
   requestSpy.mockReturnValueOnce(Promise.resolve("0x"));
 
-  const event = {
-    type: "block",
-    chainId: 1,
-    checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "Contract:block",
-    event: {
-      id: ZERO_CHECKPOINT_STRING,
-      block: { number: 1n } as LogEvent["event"]["block"],
-    },
-  } satisfies BlockEvent;
-
   const cachedViemClient = createCachedViemClient({
     common: context.common,
     indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
-    eventCount: {},
+    eventCount: getEventCount({ indexingFunctions }),
   });
 
   cachedViemClient.event = event;
@@ -698,30 +687,34 @@ test("getBlock() action retry", async (context) => {
     common: context.common,
   });
 
-  await testClient.mine({ blocks: 1 });
-
   const { syncStore } = await setupDatabaseServices(context);
+
+  const { address } = await deployErc20({ sender: ALICE });
+  const blockData = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { indexingFunctions, eventCallbacks } = getErc20IndexingBuild({
+    address,
+  });
+
+  const event = getErc20LogEvent({
+    blockData,
+    eventCallback: eventCallbacks[0],
+  });
 
   const requestSpy = vi.spyOn(rpc, "request");
 
   requestSpy.mockReturnValueOnce(Promise.resolve(null));
 
-  const event = {
-    type: "block",
-    chainId: 1,
-    checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "Contract:block",
-    event: {
-      id: ZERO_CHECKPOINT_STRING,
-      block: { number: 1n } as LogEvent["event"]["block"],
-    },
-  } satisfies BlockEvent;
-
   const cachedViemClient = createCachedViemClient({
     common: context.common,
     indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
-    eventCount: {},
+    eventCount: getEventCount({ indexingFunctions }),
   });
 
   cachedViemClient.event = event;

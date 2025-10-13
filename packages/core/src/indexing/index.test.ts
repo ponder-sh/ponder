@@ -182,21 +182,21 @@ test("processSetupEvents()", async (context) => {
   await indexing.processSetupEvents({ db: indexingStore });
 
   expect(setupCallbacks[0]!.fn).toHaveBeenCalledOnce();
-  // expect(setupCallbacks[0]!.fn).toHaveBeenCalledWith({
-  //   context: {
-  //     chain: { id: 1, name: "mainnet" },
-  //     contracts: {
-  //       Erc20: {
-  //         abi: expect.any(Object),
-  //         address: zeroAddress,
-  //         startBlock: undefined,
-  //         endBlock: undefined,
-  //       },
-  //     },
-  //     client: expect.any(Object),
-  //     db: expect.any(Object),
-  //   },
-  // });
+  expect(setupCallbacks[0]!.fn).toHaveBeenCalledWith({
+    context: {
+      chain: { id: 1, name: "mainnet" },
+      contracts: {
+        Erc20: {
+          abi: expect.any(Object),
+          address: zeroAddress,
+          startBlock: undefined,
+          endBlock: undefined,
+        },
+      },
+      client: expect.any(Object),
+      db: expect.any(Object),
+    },
+  });
 });
 
 test("processEvent()", async (context) => {

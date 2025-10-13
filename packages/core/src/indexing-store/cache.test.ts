@@ -5,10 +5,12 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { deployErc20, mintErc20 } from "@/_test/simulate.js";
+import { getErc20IndexingBuild, getErc20LogEvent } from "@/_test/utils.js";
 import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
 import type { RetryableError } from "@/internal/errors.js";
-import type { IndexingErrorHandler, LogEvent } from "@/internal/types.js";
-import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
+import type { IndexingErrorHandler } from "@/internal/types.js";
+import { getEventCount } from "@/runtime/index.js";
 import { parseEther, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { createIndexingCache } from "./cache.js";
@@ -314,28 +316,30 @@ test("prefetch() uses profile metadata", async (context) => {
     schemaBuild: { schema },
   });
 
-  const event = {
-    type: "log",
-    checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "Contract:Event",
-    event: {
-      id: ZERO_CHECKPOINT_STRING,
-      args: {
-        from: zeroAddress,
-        to: ALICE,
-        amount: parseEther("1"),
-      },
-      log: {} as LogEvent["event"]["log"],
-      block: {} as LogEvent["event"]["block"],
-      transaction: {} as LogEvent["event"]["transaction"],
-    },
-  } satisfies LogEvent;
+  const { address } = await deployErc20({ sender: ALICE });
+  const blockData = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { indexingFunctions, eventCallbacks } = getErc20IndexingBuild({
+    address,
+  });
+
+  const event = getErc20LogEvent({
+    blockData,
+    eventCallback: eventCallbacks[0],
+  });
+
+  const eventCount = getEventCount({ indexingFunctions });
 
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
-    eventCount: { "Contract:Event": 0 },
+    eventCount,
   });
 
   const indexingStore = createHistoricalIndexingStore({

@@ -42,6 +42,7 @@ import {
   type LogTopic,
   hexToNumber,
   toEventSelector,
+  toFunctionSelector,
 } from "viem";
 import { buildLogFactory } from "./factory.js";
 
@@ -200,6 +201,8 @@ export async function buildIndexingFunctions({
     );
   }
 
+  const eventNames = new Set<string>();
+
   for (const { name: eventName } of indexingFunctions) {
     const eventNameComponents = eventName.includes(".")
       ? eventName.split(".")
@@ -238,12 +241,13 @@ export async function buildIndexingFunctions({
       );
     }
 
-    // TODO(kyle) validate duplicates
-    // if (eventName in indexingFunctions) {
-    //   throw new Error(
-    //     `Validation failed: Multiple indexing functions registered for event '${eventName}'.`,
-    //   );
-    // }
+    if (eventNames.has(eventName)) {
+      throw new Error(
+        `Validation failed: Multiple indexing functions registered for event '${eventName}'.`,
+      );
+    }
+
+    eventNames.add(eventName);
 
     // Validate that the indexing function uses a sourceName that is present in the config.
     const matchedSourceName = Object.keys({
@@ -510,10 +514,9 @@ export async function buildIndexingFunctions({
           string,
         ];
 
-        // TODO(kyle)
-        // if (source.includeCallTraces !== true) {
-        //   continue;
-        // }
+        if (source.includeCallTraces !== true) {
+          continue;
+        }
         if (functionContractName === source.name) {
           registeredCallTraceEvents.push(functionName);
         }
@@ -620,7 +623,7 @@ export async function buildIndexingFunctions({
         fromAddress: undefined,
         toAddress: address,
         callType: "CALL",
-        functionSelector: toEventSelector(abiFunction),
+        functionSelector: toFunctionSelector(abiFunction),
         includeReverted: false,
         fromBlock,
         toBlock,

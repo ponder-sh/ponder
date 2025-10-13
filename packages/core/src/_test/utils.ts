@@ -33,11 +33,13 @@ import {
 } from "@/runtime/filter.js";
 import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { decodeEventLog } from "@/utils/decodeEventLog.js";
+import { toLowerCase } from "@/utils/lowercase.js";
 import {
   type Address,
   type Chain as ViemChain,
   hexToNumber,
   toEventSelector,
+  toFunctionSelector,
 } from "viem";
 import { http, createPublicClient, createTestClient, getAbiItem } from "viem";
 import { mainnet } from "viem/chains";
@@ -123,9 +125,9 @@ export const getErc20IndexingBuild = <
             type: "trace",
             chainId: 1,
             fromAddress: undefined,
-            toAddress: params.address,
+            toAddress: toLowerCase(params.address),
             callType: "CALL",
-            functionSelector: toEventSelector(
+            functionSelector: toFunctionSelector(
               getAbiItem({ abi: erc20ABI, name: "transfer" }),
             ),
             includeReverted: false,
@@ -154,7 +156,7 @@ export const getErc20IndexingBuild = <
           filter: {
             type: "log",
             chainId: 1,
-            address: params.address,
+            address: toLowerCase(params.address),
             topic0: toEventSelector(
               getAbiItem({ abi: erc20ABI, name: "Transfer" }),
             ),
@@ -189,7 +191,7 @@ export const getErc20IndexingBuild = <
           filter: {
             type: "log",
             chainId: 1,
-            address: params.address,
+            address: toLowerCase(params.address),
             topic0: toEventSelector(
               getAbiItem({ abi: erc20ABI, name: "Transfer" }),
             ),
@@ -541,7 +543,7 @@ export const getAccountsIndexingBuild = (params: {
         type: "transaction",
         chainId: 1,
         fromAddress: undefined,
-        toAddress: params.address,
+        toAddress: toLowerCase(params.address),
         includeReverted: false,
         fromBlock: undefined,
         toBlock: undefined,
@@ -558,7 +560,7 @@ export const getAccountsIndexingBuild = (params: {
       filter: {
         type: "transaction",
         chainId: 1,
-        fromAddress: params.address,
+        fromAddress: toLowerCase(params.address),
         toAddress: undefined,
         includeReverted: false,
         fromBlock: undefined,
@@ -577,7 +579,7 @@ export const getAccountsIndexingBuild = (params: {
         type: "transfer",
         chainId: 1,
         fromAddress: undefined,
-        toAddress: params.address,
+        toAddress: toLowerCase(params.address),
         includeReverted: false,
         fromBlock: undefined,
         toBlock: undefined,
@@ -594,7 +596,7 @@ export const getAccountsIndexingBuild = (params: {
       filter: {
         type: "transfer",
         chainId: 1,
-        fromAddress: params.address,
+        fromAddress: toLowerCase(params.address),
         toAddress: undefined,
         includeReverted: false,
         fromBlock: undefined,
@@ -615,7 +617,7 @@ export const getAccountsIndexingBuild = (params: {
       name: "Accounts",
       type: "account",
       chain: "mainnet",
-      address: params.address,
+      address: toLowerCase(params.address),
       startBlock: undefined,
       endBlock: undefined,
     },

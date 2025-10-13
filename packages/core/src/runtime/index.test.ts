@@ -8,13 +8,12 @@ import {
 import { setupAnvil } from "@/_test/setup.js";
 import { deployErc20, mintErc20 } from "@/_test/simulate.js";
 import {
-  getBlocksConfigAndIndexingFunctions,
+  getBlocksIndexingBuild,
   getChain,
-  getErc20ConfigAndIndexingFunctions,
+  getErc20IndexingBuild,
 } from "@/_test/utils.js";
-import { buildConfig, buildIndexingFunctions } from "@/build/config.js";
 import type { BlockFilter, Event, Filter, Fragment } from "@/internal/types.js";
-import { _eth_getBlockByNumber, _eth_getLogs } from "@/rpc/actions.js";
+import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
 import { encodeCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
@@ -40,33 +39,23 @@ test("getLocalSyncProgress()", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const cachedIntervals = new Map<
     Filter,
     { fragment: Fragment; intervals: Interval[] }[]
   >();
-  for (const source of sources) {
-    for (const { fragment } of getFragments(source.filter)) {
-      cachedIntervals.set(source.filter, [{ fragment, intervals: [] }]);
+  for (const eventCallback of eventCallbacks) {
+    for (const { fragment } of getFragments(eventCallback.filter)) {
+      cachedIntervals.set(eventCallback.filter, [{ fragment, intervals: [] }]);
     }
   }
 
   const syncProgress = await getLocalSyncProgress({
     common: context.common,
-    sources,
+    eventCallbacks,
     chain,
     rpc,
     finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 0 }),
@@ -83,37 +72,25 @@ test("getLocalSyncProgress() future end block", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
-  // @ts-ignore
-  config.blocks.Blocks.endBlock = 12;
-
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
+  eventCallbacks[0]!.filter.toBlock = 12;
 
   const cachedIntervals = new Map<
     Filter,
     { fragment: Fragment; intervals: Interval[] }[]
   >();
-  for (const source of sources) {
-    for (const { fragment } of getFragments(source.filter)) {
-      cachedIntervals.set(source.filter, [{ fragment, intervals: [] }]);
+  for (const eventCallback of eventCallbacks) {
+    for (const { fragment } of getFragments(eventCallback.filter)) {
+      cachedIntervals.set(eventCallback.filter, [{ fragment, intervals: [] }]);
     }
   }
 
   const syncProgress = await getLocalSyncProgress({
     common: context.common,
-    sources,
+    eventCallbacks,
     chain,
     rpc,
     finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 0 }),
@@ -133,7 +110,7 @@ test("getLocalSyncProgress() future end block", async (context) => {
   expect(syncProgress.current).toBe(undefined);
 });
 
-test("getCachedBlock() no cached intervals", async () => {
+test("getCachedBlock() no cached intervals", () => {
   const filter = {
     type: "block",
     chainId: 1,
@@ -158,7 +135,7 @@ test("getCachedBlock() no cached intervals", async () => {
   expect(cachedBlock).toBe(undefined);
 });
 
-test("getCachedBlock() with cache", async () => {
+test("getCachedBlock() with cache", () => {
   const filter = {
     type: "block",
     chainId: 1,
@@ -208,7 +185,7 @@ test("getCachedBlock() with cache", async () => {
   expect(cachedBlock).toBe(100);
 });
 
-test("getCachedBlock() with incomplete cache", async () => {
+test("getCachedBlock() with incomplete cache", () => {
   const filter = {
     type: "block",
     chainId: 1,
@@ -304,6 +281,11 @@ test("getCachedBlock() with multiple filters", async () => {
 });
 
 test("mergeAsyncGeneratorsWithEventOrder()", async () => {
+  const chain1 = getChain();
+  const chain2 = getChain();
+  chain1.id = 1;
+  chain2.id = 2;
+
   const p1 = promiseWithResolvers<{
     events: Event[];
     checkpoint: string;
@@ -352,17 +334,17 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
 
   p1.resolve({
     events: [
-      { checkpoint: createCheckpoint(1), chainId: 1 },
-      { checkpoint: createCheckpoint(7), chainId: 1 },
-    ] as Event[],
+      { checkpoint: createCheckpoint(1), chain: chain1 },
+      { checkpoint: createCheckpoint(7), chain: chain1 },
+    ] as unknown as Event[],
     checkpoint: createCheckpoint(10),
     blockRange: [1, 7],
   });
   p3.resolve({
     events: [
-      { checkpoint: createCheckpoint(2), chainId: 2 },
-      { checkpoint: createCheckpoint(5), chainId: 2 },
-    ] as Event[],
+      { checkpoint: createCheckpoint(2), chain: chain2 },
+      { checkpoint: createCheckpoint(5), chain: chain2 },
+    ] as unknown as Event[],
     checkpoint: createCheckpoint(6),
     blockRange: [2, 5],
   });
@@ -371,17 +353,17 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
 
   p4.resolve({
     events: [
-      { checkpoint: createCheckpoint(8), chainId: 2 },
-      { checkpoint: createCheckpoint(11), chainId: 2 },
-    ] as Event[],
+      { checkpoint: createCheckpoint(8), chain: chain2 },
+      { checkpoint: createCheckpoint(11), chain: chain2 },
+    ] as unknown as Event[],
     checkpoint: createCheckpoint(20),
     blockRange: [8, 11],
   });
   p2.resolve({
     events: [
-      { checkpoint: createCheckpoint(8), chainId: 1 },
-      { checkpoint: createCheckpoint(13), chainId: 1 },
-    ] as Event[],
+      { checkpoint: createCheckpoint(8), chain: chain1 },
+      { checkpoint: createCheckpoint(13), chain: chain1 },
+    ] as unknown as Event[],
     checkpoint: createCheckpoint(20),
     blockRange: [8, 13],
   });
@@ -389,6 +371,15 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
   await new Promise((res) => setTimeout(res));
 
   const results = await drainAsyncGenerator(generator);
+
+  // Delete chain from events for snapshot
+  for (const result of results.flat()) {
+    for (const event of result.events) {
+      // @ts-ignore
+      // biome-ignore lint/performance/noDelete: <explanation>
+      delete event.chain;
+    }
+  }
 
   expect(results).toMatchInlineSnapshot(`
     [
@@ -402,7 +393,6 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
           "checkpoint": "000000000100000000000000000000000000000001000000000000000000000000000000000",
           "events": [
             {
-              "chainId": 1,
               "checkpoint": "000000000100000000000000000000000000000001000000000000000000000000000000000",
             },
           ],
@@ -416,11 +406,9 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
           "checkpoint": "000000000600000000000000000000000000000006000000000000000000000000000000000",
           "events": [
             {
-              "chainId": 2,
               "checkpoint": "000000000200000000000000000000000000000002000000000000000000000000000000000",
             },
             {
-              "chainId": 2,
               "checkpoint": "000000000500000000000000000000000000000005000000000000000000000000000000000",
             },
           ],
@@ -436,7 +424,6 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
           "checkpoint": "000000001000000000000000000000000000000010000000000000000000000000000000000",
           "events": [
             {
-              "chainId": 1,
               "checkpoint": "000000000700000000000000000000000000000007000000000000000000000000000000000",
             },
           ],
@@ -450,7 +437,6 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
           "checkpoint": "000000000800000000000000000000000000000008000000000000000000000000000000000",
           "events": [
             {
-              "chainId": 2,
               "checkpoint": "000000000800000000000000000000000000000008000000000000000000000000000000000",
             },
           ],
@@ -466,11 +452,9 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
           "checkpoint": "000000002000000000000000000000000000000020000000000000000000000000000000000",
           "events": [
             {
-              "chainId": 1,
               "checkpoint": "000000000800000000000000000000000000000008000000000000000000000000000000000",
             },
             {
-              "chainId": 1,
               "checkpoint": "000000001300000000000000000000000000000013000000000000000000000000000000000",
             },
           ],
@@ -484,7 +468,6 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
           "checkpoint": "000000002000000000000000000000000000000020000000000000000000000000000000000",
           "events": [
             {
-              "chainId": 2,
               "checkpoint": "000000001100000000000000000000000000000011000000000000000000000000000000000",
             },
           ],
@@ -497,56 +480,31 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
 test("historical events match realtime events", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
   const { address } = await deployErc20({ sender: ALICE });
-  await mintErc20({
+  const eventData = await mintErc20({
     erc20: address,
     to: ALICE,
     amount: parseEther("1"),
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { eventCallbacks } = getErc20IndexingBuild({
     address,
     includeTransactionReceipts: true,
   });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
 
-  const rpcBlock = await _eth_getBlockByNumber(rpc, {
-    blockNumber: 2,
-  });
-  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
-
+  await syncStore.insertBlocks({ blocks: [eventData.block], chainId: 1 });
   await syncStore.insertTransactions({
-    transactions: [rpcBlock.transactions[0]!],
+    transactions: [eventData.transaction],
     chainId: 1,
   });
-
-  const rpcLogs = await _eth_getLogs(rpc, {
-    fromBlock: 2,
-    toBlock: 2,
-  });
   await syncStore.insertLogs({
-    logs: [rpcLogs[0]!],
+    logs: [eventData.log],
     chainId: 1,
   });
 
   const { logs: historicalLogs } = await syncStore.getEventData({
-    filters: [sources[0]!.filter],
+    filters: [eventCallbacks[0]!.filter],
     fromBlock: 0,
     toBlock: 10,
     chainId: 1,
@@ -555,11 +513,11 @@ test("historical events match realtime events", async (context) => {
 
   const realtimeBlockData = [
     {
-      block: syncBlockToInternal({ block: rpcBlock }),
-      logs: rpcLogs.map((log) => syncLogToInternal({ log })),
-      transactions: rpcBlock.transactions.map((transaction) =>
-        syncTransactionToInternal({ transaction }),
-      ),
+      block: syncBlockToInternal({ block: eventData.block }),
+      logs: [syncLogToInternal({ log: eventData.log })],
+      transactions: syncTransactionToInternal({
+        transaction: eventData.transaction,
+      }),
       transactionReceipts: [],
       traces: [],
     },
