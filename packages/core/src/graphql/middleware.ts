@@ -39,7 +39,7 @@ export const graphql = (
     maxOperationAliases?: number;
   } = {
     // Default limits are from Apollo:
-    // https://www.apollographql.com/blog/prevent-graph-misuse-with-operation-size-and-complexity-limit
+    // https://www.apollographql.com/blog/prevent-graph-misuse-with-operation-size-and-complexity-limits
     maxOperationTokens: 1000,
     maxOperationDepth: 100,
     maxOperationAliases: 30,
