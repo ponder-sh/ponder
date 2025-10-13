@@ -139,7 +139,7 @@ export const fromSubgraphId = async ({
   const warnings = [];
   if (manifest.templates?.length > 0) {
     warnings.push(
-      "Factory contract detected. Please see the factory contract documentation for more details: https://ponder.sh/docs/guides/add-contracts#factory-contracts",
+      "Factory contract detected. Please see the factory contract documentation for more details: https://ponder.sh/docs/indexing/read-contracts#factory-contracts",
     );
   }
 
