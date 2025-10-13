@@ -123,7 +123,7 @@ export const buildUiLines = (ui: UiState): string[] => {
     return lines;
   }
 
-  lines.push(pc.bold("Sync"));
+  lines.push(pc.bold("Chains"));
   lines.push("");
 
   if (sync.length === 0) {
@@ -141,7 +141,7 @@ export const buildUiLines = (ui: UiState): string[] => {
           key: "status",
           align: "left",
           format: (_, row) =>
-            row.status === "historical"
+            row.status === "backfill"
               ? `${row.status} (${formatPercentage(row.progress)})`
               : row.status,
         },
@@ -161,7 +161,12 @@ export const buildUiLines = (ui: UiState): string[] => {
   }
 
   lines.push("");
-  lines.push(pc.bold("Indexing"));
+  let indexingLabel = pc.bold("Indexing");
+  if (app.mode !== undefined && app.progress !== 0) {
+    const color = app.mode === "backfill" ? "yellowBright" : "greenBright";
+    indexingLabel += ` (${pc[color](app.mode)})`;
+  }
+  lines.push(indexingLabel);
   lines.push("");
 
   if (indexing.events.length === 0) {
@@ -181,28 +186,22 @@ export const buildUiLines = (ui: UiState): string[] => {
     );
   }
 
-  lines.push("");
+  if (app.mode !== "live") {
+    const progressValue = app.progress ?? 0;
+    const progressBar = buildProgressBar(progressValue, 1, 48);
+    let progressText = `${progressBar} ${formatPercentage(progressValue)}`;
 
-  let progressLabel = pc.bold("Progress");
-  if (app.mode !== undefined && app.progress !== 0) {
-    progressLabel += ` (${app.mode === "historical" ? pc.yellowBright("historical") : pc.greenBright("live")})`;
-  }
-  lines.push(progressLabel);
-  lines.push("");
+    if (app.eta !== undefined && app.eta !== 0) {
+      progressText += ` (${formatEta(app.eta * 1_000)} eta)`;
+    }
 
-  const progressValue = app.mode === "realtime" ? 1 : (app.progress ?? 0);
-  const progressBar = buildProgressBar(progressValue, 1, 48);
-  let progressText = `${progressBar} ${formatPercentage(progressValue)}`;
-
-  if (app.eta !== undefined && app.eta !== 0) {
-    progressText += ` (${formatEta(app.eta * 1_000)} eta)`;
+    lines.push("");
+    lines.push(progressText);
   }
 
-  lines.push(progressText);
   lines.push("");
-
-  lines.push(pc.bold("API functions"));
-  lines.push(`Server live at http://${hostname}:${port}`);
+  lines.push(pc.bold("API endpoints"));
+  lines.push(`Live at http://${hostname}:${port}`);
 
   return lines;
 };

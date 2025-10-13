@@ -371,7 +371,7 @@ ponder.on("SudoswapPool:Transfer", async ({ event }) => {
 
 ### Proxy & upgradable contracts
 
-To index a proxy/upgradable contract, use the proxy contract address in the `address` field. Then, be sure to include the ABIs of all implementation contracts that the proxy has ever had. The implementation ABIs are required to properly identify and decode all event logs throughout the contract history. To add multiple ABIs safely, use the [`mergeAbis`](/docs/api-reference/ponder-utils#mergeabis) utility function.
+To index a proxy/upgradable contract, use the proxy contract address in the `address` field. Then, be sure to include the ABIs of all implementation contracts that the proxy has ever had. The implementation ABIs are required to properly identify and decode all historical event logs. To add multiple ABIs safely, use the [`mergeAbis`](/docs/api-reference/ponder-utils#mergeabis) utility function.
 
 :::tip
   On Etherscan, there is a link to the current implementation contract on the **Contract → Read as Proxy** tab. You can copy all the implementation ABIs as text and paste them into `.ts` files.
@@ -405,11 +405,11 @@ export default createConfig({
 
 The `startBlock` option specifies the block number to begin indexing from. The default is `0` – to avoid wasteful RPC requests, set `startBlock` to the contract deployment block number.
 
-If you set `startBlock` to `"latest"`, the indexing engine will fetch the latest block on startup and use that value. This is the best way to skip the backfill and only index live blocks.
+If you set `startBlock` to `"latest"`, the indexing engine will fetch the latest block on startup and use that value. This is the best way to skip the historical period and only index in realtime.
 
 ### End block
 
-The `endBlock` option specifies the block number to stop indexing at. The default is `undefined`, which means that indexing will continue indefinitely with live blocks.
+The `endBlock` option specifies the block number to stop indexing at. The default is `undefined`, which configures indexing to continue indefinitely in realtime.
 
 If you set `endBlock` to `"latest"`, the indexing engine will fetch the latest block on startup and use that value.
 

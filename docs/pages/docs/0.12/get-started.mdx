@@ -102,38 +102,38 @@ Ponder will connect to the database, start the HTTP server, and begin indexing.
 :::code-group
 
 ```ansi [Logs]
-12:16:42.845 INFO  Connected to database type=postgres database=localhost:5432/demo (35ms)
-12:16:42.934 INFO  Connected to JSON-RPC chain=mainnet hostnames=["eth-mainnet.g.alchemy.com"] (85ms)
-12:16:43.199 INFO  Created database tables count=4 tables=["account","transfer_event","allowance","approval_event"] (17ms)
-12:16:43.324 INFO  Created HTTP server port=42069 (5ms)
-12:16:43.325 INFO  Started returning 200 responses endpoint=/health
-12:16:43.553 INFO  Started backfill indexing chain=mainnet block_range=[13142655,13150000]
-12:16:43.555 INFO  Started fetching backfill JSON-RPC data chain=mainnet cached_block=13145448 cache_rate=38.0%
-12:16:43.796 INFO  Indexed block range chain=mainnet event_count=4259 block_range=[13142655,13145448] (164ms)
-12:16:43.840 INFO  Indexed block range chain=mainnet event_count=33 block_range=[13145449,13145474] (4ms)
+11:34:39 AM INFO  build      Using PGlite database at .ponder/pglite (default)
+11:34:39 AM INFO  database   Using database schema 'public'
+11:34:40 AM INFO  database   Created tables [account, transfer_event, allowance, approval_event]
+11:34:40 AM INFO  server     Started listening on port 42069
+11:34:40 AM INFO  server     Started returning 200 responses from /health endpoint
+11:34:56 AM INFO  app        Indexed 12 events with 4.1% complete
 ```
 
 ```ansi [Terminal UI]
-Chains
+Sync
 
-│ Chain   │ Status   │ Block    │ RPC (req/s) │
-├─────────┼──────────┼──────────┼─────────────┤
-│ mainnet │ backfill │ 13145260 │        27.5 │
+│ Network │ Status            │ Block    │ RPC (req/s) │
+├─────────┼───────────────────┼──────────┼─────────────┤
+│ mainnet │ historical (9.2%) │ 13143062 │        21.4 │
 
-Indexing (backfill)
+Indexing
 
 │ Event          │ Count │ Duration (ms) │
 ├────────────────┼───────┼───────────────┤
-│ ERC20:Transfer │  3345 │         0.015 │
-│ ERC20:Approval │   384 │         0.011 │
+│ ERC20:Transfer │    12 │         0.123 │
+│ ERC20:Approval │     0 │             - │
 
-████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 35.1% (1m 22s eta)
+Progress (historical)
 
-API endpoints
-Live at http://localhost:42069
+███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 7.4% (2m 59s eta)
 ```
 
 :::
+
+{/* :::info
+By default, Ponder uses public RPC endpoints and writes data to PGlite, an embedded Postgres database. You can change these settings later.
+::: */}
 
 ### Query the database
 
@@ -230,38 +230,37 @@ As soon as we save the file, the dev server hot reloads and finishes indexing su
 :::code-group
 
 ```ansi [Logs]
-12:19:31.629 INFO  Hot reload "src/index.ts"
-12:19:31.889 WARN  Dropped existing database tables count=4 tables=["account","transfer_event","allowance","approval_event"] (3ms)
-12:19:31.901 INFO  Created database tables count=4 tables=["account","transfer_event","allowance","approval_event"] (12ms)
-12:19:32.168 INFO  Started backfill indexing chain=mainnet block_range=[13142655,13150000]
-12:19:32.169 INFO  Started fetching backfill JSON-RPC data chain=mainnet cached_block=13147325 cache_rate=63.6%
-12:19:32.447 INFO  Indexed block range chain=mainnet event_count=6004 block_range=[13142655,13146396] (199ms)
-12:19:32.551 INFO  Indexed block range chain=mainnet event_count=3607 block_range=[13146397,13147325] (104ms)
+12:27:26 PM INFO  build      Hot reload 'src/index.ts'
+12:27:29 PM INFO  app        Indexed 4999 events with 54.2% complete and 471ms remaining
+12:27:29 PM INFO  app        Indexed 4999 events with 75.5% complete and 276ms remaining
+12:27:29 PM INFO  app        Indexed 4998 events with 99.4% complete and 6ms remaining
+12:27:29 PM INFO  app        Indexed 108 events with 100% complete and 0ms remaining
+12:27:29 PM INFO  indexing   Completed historical indexing
 ```
 
 ```ansi [Terminal UI]
-Chains
+Sync
 
-│ Chain   │ Status   │ Block    │ RPC (req/s) │
+│ Network │ Status   │ Block    │ RPC (req/s) │
 ├─────────┼──────────┼──────────┼─────────────┤
-│ mainnet │ backfill │ 13146425 │        25.2 │
+│ mainnet │ complete │ 13149000 │         0.0 │
 
-Indexing (backfill)
+Indexing
 
 │ Event          │ Count │ Duration (ms) │
 ├────────────────┼───────┼───────────────┤
-│ ERC20:Transfer │  5155 │         0.014 │
-│ ERC20:Approval │   938 │         0.010 │
+│ ERC20:Transfer │ 11626 │         0.011 │
+│ ERC20:Approval │  3478 │         0.008 │
 
-████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░ 51.5% (1m 07s eta)
+Progress (live)
 
-API endpoints
-Live at http://localhost:42069
+████████████████████████████████████████████████ 100%
 ```
 
 :::
 
 ::::
+
 
 ## Next steps
 
@@ -269,6 +268,6 @@ This quickstart only scratches the surface of what Ponder can do. Take a look at
 
 Or, continue reading the guides and API reference here on the documentation site.
 
-- [Contract configuration](/docs/config/contracts)
-- [Query the database directly](/docs/query/direct-sql)
-- [Schema design](/docs/schema/tables)
+* [Contract configuration](/docs/config/contracts)
+* [Query the database directly](/docs/query/direct-sql)
+* [Schema design](/docs/schema/tables)

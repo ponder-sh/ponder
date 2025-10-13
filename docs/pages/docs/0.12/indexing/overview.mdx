@@ -50,9 +50,9 @@ The indexing engine handles reorgs automatically. You do not need to adjust your
 
 If the process crashes and starts back up again using the same exact configuration, the indexing engine attempts a crash recovery. This process is similar to reorg reconciliation, except all unfinalized changes (the entire transaction log) are rolled back. Then, indexing resumes from the finalized block.
 
-### Backfill vs. live indexing
+### Historical vs. realtime
 
-Internally, the indexing engine has two distinct modes – **backfill** and **live** indexing – which use different approaches for fetching data from the RPC.
+Internally, the indexing engine has two distinct modes – **historical** and **realtime** – which use different approaches for fetching data from the RPC.
 
 However, indexing function logic works the same way in both modes. As long as the logic is compatible with the expected onchain activity, indexing will work fine in both modes.
 
