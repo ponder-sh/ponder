@@ -592,7 +592,7 @@ export async function getIndexingProgress(metrics: MetricsService) {
 }
 
 export async function getAppProgress(metrics: MetricsService): Promise<{
-  mode: "historical" | "realtime" | undefined;
+  mode: "backfill" | "live" | undefined;
   progress: number | undefined;
   eta: number | undefined;
 }> {
@@ -610,7 +610,7 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
       .then((metric) => metric.values[0]?.labels.ordering as any);
   if (ordering === undefined) {
     return {
-      mode: "historical",
+      mode: "backfill",
       progress: undefined,
       eta: undefined,
     };
@@ -658,7 +658,7 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
         completedSeconds,
       );
       perChainAppProgress.push({
-        mode: progress === 1 ? "realtime" : "historical",
+        mode: progress === 1 ? "live" : "backfill",
         progress,
         eta,
       });
@@ -666,7 +666,7 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
 
     return perChainAppProgress.reduce(
       (prev, curr) => ({
-        mode: curr.mode === "historical" ? curr.mode : prev.mode,
+        mode: curr.mode === "backfill" ? curr.mode : prev.mode,
         progress:
           prev.progress === undefined || curr.progress === undefined
             ? undefined
@@ -679,7 +679,7 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
               : Math.max(prev.eta, curr.eta),
       }),
       {
-        mode: "realtime",
+        mode: "live",
         progress: 1,
         eta: 0,
       },
@@ -706,7 +706,7 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
           : (completedSeconds + cachedSeconds) / totalSeconds;
 
     return {
-      mode: progress === 1 ? "realtime" : "historical",
+      mode: progress === 1 ? "live" : "backfill",
       progress: progress,
       eta: calculateEta(
         metrics.progressMetadata.general!,
