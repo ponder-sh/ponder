@@ -1758,7 +1758,7 @@ test("invalid type", () => {
     [InvalidAbiDecodingType: Type "lol" is not a valid decoding type.
     Please provide a valid ABI type.
 
-    Docs: https://viem.sh/docs/abi/decodeAbiParameters
+    Docs: https://viem.sh/docs/contract/decodeAbiParameters
     Version: viem@2.30.1]
   `);
 });
