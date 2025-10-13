@@ -241,7 +241,7 @@ query {
 
 ## Pagination
 
-Ponder supports both **cursor** and **offset** pagination through a unified interface on each plural query field and `p.many()` relationship field.
+Ponder supports both **cursor** and **offset** pagination through a unified interface on each plural query field and `many()` relationship field.
 
 Here are some trade-offs to consider when choosing between cursor and offset pagination.
 
@@ -252,7 +252,7 @@ Here are some trade-offs to consider when choosing between cursor and offset pag
 
 ### Page
 
-Each plural field and `p.many()` relationship field returns a `Page` type which includes a list of items, a `PageInfo` object, and the total count of records that match the query.
+Each plural field and `many()` relationship field returns a `Page` type which includes a list of items, a `PageInfo` object, and the total count of records that match the query.
 
 :::code-group
 
