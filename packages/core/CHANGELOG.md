@@ -1,5 +1,11 @@
 # ponder
 
+## 0.13.14
+
+### Patch Changes
+
+- [#2110](https://github.com/ponder-sh/ponder/pull/2110) [`3683754`](https://github.com/ponder-sh/ponder/commit/3683754f37a14fe9a76e7816e3bdb9879747b2c1) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused `/status` to return incorrect blocks for `ordering: "omnichain"`.
+
 ## 0.13.13
 
 ### Patch Changes

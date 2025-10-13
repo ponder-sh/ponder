@@ -195,16 +195,6 @@ export async function* getRealtimeEventsOmnichain(params: {
           blockToCheckpoint(event.block, chain.id, "up"),
         );
 
-        if (pendingEvents.length > 0) {
-          params.common.logger.trace({
-            msg: "Included pending events",
-            chain: chain.name,
-            chain_id: chain.id,
-            event_count: pendingEvents.filter((e) => e.checkpoint < checkpoint)
-              .length,
-          });
-        }
-
         const readyEvents = pendingEvents
           .concat(decodedEvents)
           .filter((e) => e.checkpoint < checkpoint)
