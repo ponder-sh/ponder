@@ -14,7 +14,7 @@ There are two ways to configure the minimum log level. If specified, the environ
 - Use the `--log-level <LEVEL>`, `-v` (debug) or `-vv` (trace) CLI option
 
 ```js [.env.local]
-PONDER_LOG_LEVEL = trace;
+PONDER_LOG_LEVEL=trace
 ```
 
 ```bash [Terminal]
@@ -25,14 +25,14 @@ ponder dev -v
 
 #### Levels
 
-| Log level        | Example                                                                     |
-| :--------------- | :-------------------------------------------------------------------------- |
-| `silent`         |                                                                             |
-| `error`          | Errors thrown in user code and other errors that will likely cause a crash  |
-| `warn`           | Malformed RPC data, reorgs, and other errors that will be retried           |
-| `info` (default) | Indexing progress and key lifecycle events                                  |
-| `debug`          | Successful database and RPC actions, other internal events                  |
-| `trace`          | Database query logs, RPC request logs                                       |
+| Log level        | Example                                                                    |
+| :--------------- | :------------------------------------------------------------------------- |
+| `silent`         |                                                                            |
+| `error`          | Errors thrown in user code and other errors that will likely cause a crash |
+| `warn`           | Malformed RPC data, reorgs, and other errors that will be retried          |
+| `info` (default) | Indexing progress and key lifecycle events                                 |
+| `debug`          | Successful database and RPC actions, other internal events                 |
+| `trace`          | Database query logs, RPC request logs                                      |
 
 #### User logs
 
@@ -211,7 +211,7 @@ query {
 
 The response object contains a property for each chain in your app with the following fields.
 
-| field     |                       type                       | description                                                                        |
-| :-------- | :----------------------------------------------: | :--------------------------------------------------------------------------------- |
-| **id**    |                     `number`                     | The chain ID.                                                                      |
-| **block** | `{ number: number; timestamp: number; } \| null` | The most recently indexed block, or `null` if historical indexing is not complete. |
+| field     |                       type                       | description                                                                 |
+| :-------- | :----------------------------------------------: | :-------------------------------------------------------------------------- |
+| **id**    |                     `number`                     | The chain ID.                                                               |
+| **block** | `{ number: number; timestamp: number; } \| null` | The most recently indexed block, or `null` if the backfill is not complete. |
