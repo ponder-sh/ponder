@@ -25,6 +25,7 @@ export const sidebar = {
       items: [
         { text: "Tables", link: "/docs/schema/tables" },
         { text: "Relations", link: "/docs/schema/relations" },
+        { text: "Views", link: "/docs/schema/views" },
       ],
     },
     {
