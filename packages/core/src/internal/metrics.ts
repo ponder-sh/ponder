@@ -488,7 +488,7 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
   {
     chainName: string;
     block: number | undefined;
-    status: "historical" | "realtime" | "complete";
+    status: "backfill" | "live" | "complete";
     progress: number;
     rps: number;
   }[]
@@ -550,7 +550,7 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
       chainName: chain,
       block: syncBlock,
       progress,
-      status: isComplete ? "complete" : isRealtime ? "realtime" : "historical",
+      status: isComplete ? "complete" : isRealtime ? "live" : "backfill",
       rps: requests / seconds,
     } as const;
   });

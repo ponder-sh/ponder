@@ -105,7 +105,7 @@ export const poolStates = onchainTable(
 
 ### Indexes
 
-Create indexes using the `index()` function in the constraints & indexes argument. Ponder creates database indexes after historical indexing completes, just before
+Create indexes using the `index()` function in the constraints & indexes argument. Ponder creates database indexes after the backfill completes, just before
 the app becomes ready.
 
 ```ts [ponder.schema.ts] {1,10}
