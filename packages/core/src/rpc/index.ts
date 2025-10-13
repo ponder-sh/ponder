@@ -351,9 +351,18 @@ export const createRpc = ({
   };
 
   const getBucket = async (): Promise<Bucket> => {
-    const availableBuckets = buckets.filter(isAvailable);
+    let availableBuckets: Bucket[];
 
-    if (availableBuckets.length === 0) {
+    // Note: wait for the next event loop to ensure that the bucket rps are updated
+    await new Promise((resolve) => setImmediate(resolve));
+
+    while (true) {
+      availableBuckets = buckets.filter(isAvailable);
+
+      if (availableBuckets.length > 0) {
+        break;
+      }
+
       if (noAvailableBucketsTimer === undefined) {
         noAvailableBucketsTimer = setTimeout(() => {
           common.logger.warn({
@@ -365,7 +374,6 @@ export const createRpc = ({
       }
 
       await wait(10);
-      return getBucket();
     }
 
     clearTimeout(noAvailableBucketsTimer);
