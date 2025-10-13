@@ -3,7 +3,7 @@
 Ponder supports custom [PostgreSQL views](https://www.postgresql.org/docs/current/tutorial-views.html) defined using Drizzle.
 
 :::info
-  Custom views are not to be confused with the **views schema** pattern, an advanced feature that enables direct SQL queries. [Read more](/docs/production/self-hosting#views-pattern) about the views schema pattern in the self-hosting guide.
+Custom views are not to be confused with the **views schema** pattern, an advanced feature that enables direct SQL queries. [Read more](/docs/production/self-hosting#views-pattern) about the views schema pattern in the self-hosting guide.
 :::
 
 ## Usage
@@ -26,7 +26,7 @@ export const petLeaderboard = onchainView("pet_leaderboard").as((qb) =>
       petCount: count().as("pet_count"),
     })
     .from(pets)
-    .groupBy(pets.owner),
+    .groupBy(pets.owner)
 );
 ```
 
@@ -45,7 +45,7 @@ Custom views do not have a primary key constraint, which leads to several import
 
 1. **Store API disabled**. The indexing function store API cannot access custom views. However, you can query custom views within indexing functions using raw SQL.
 2. **No GraphQL singular query fields**. The GraphQL API does not include singular query fields for custom views.
-3. **No GraphQL cursor pagination**. The GraphQL API includes plural query fields for custom views that support limit/offset pagination, but do not support cursor pagination.
+3. **No GraphQL cursor pagination**. The GraphQL API includes plural query fields for custom views that support offset pagination, but do not support cursor pagination.
 
 ## Performance
 
@@ -73,9 +73,14 @@ export const hourlyBucket = onchainView("hourly_bucket").as((qb) =>
     .select({
       hour: sql`FLOOR(${transferEvent.timestamp} / 3600) * 3600`.as("hour"),
       totalVolume: sum(transferEvent.amount).as("total_volume"),
-      transferCount: count().as("transfer_count")
+      transferCount: count().as("transfer_count"),
     })
     .from(transferEvent)
     .groupBy(sql`FLOOR(${transferEvent.timestamp} / 3600)`)
 );
 ```
+
+|                       | Complexity   | Query performance          | Jump to any page |
+| :-------------------- | :----------- | :------------------------- | :--------------- |
+| **Offset pagination** | Simple       | Slow for large result sets | Supported        |
+| **Cursor pagination** | More complex | Consistently fast          | Not supported    |

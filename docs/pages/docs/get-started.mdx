@@ -157,10 +157,16 @@ query {
 {
   "accounts": {
     "items": [
-      { "address": "0x1234567890123456789012345678901234567890", "balance": "1000000000000000000" },
-      { "address": "0x1234567890123456789012345678901234567891", "balance": "900000000000000000" },
+      {
+        "address": "0x1234567890123456789012345678901234567890",
+        "balance": "1000000000000000000"
+      },
+      {
+        "address": "0x1234567890123456789012345678901234567891",
+        "balance": "900000000000000000"
+      }
     ],
-    "totalCount": 1726,
+    "totalCount": 1726
   }
 }
 ```
@@ -263,13 +269,17 @@ Live at http://localhost:42069
 
 ::::
 
-
 ## Next steps
 
 This quickstart only scratches the surface of what Ponder can do. Take a look at the [examples directory](https://github.com/ponder-sh/ponder/tree/main/examples) for more complex projects, or the [GitHub dependents](https://github.com/ponder-sh/ponder/network/dependents?package_id=UGFja2FnZS0xMzA2OTEyMw%3D%3D) for a list of real-world repositories using Ponder.
 
 Or, continue reading the guides and API reference here on the documentation site.
 
-* [Contract configuration](/docs/config/contracts)
-* [Query the database directly](/docs/query/direct-sql)
-* [Schema design](/docs/schema/tables)
+- [Contract configuration](/docs/config/contracts)
+- [Query the database directly](/docs/query/direct-sql)
+- [Schema design](/docs/schema/tables)
+
+| Type           | Singular field | Plural field                                 |
+| :------------- | :------------- | :------------------------------------------- |
+| `onchainTable` | Yes            | Yes (limit/offset **and** cursor pagination) |
+| `onchainView`  | No             | Yes (limit/offset pagination **only**)       |
