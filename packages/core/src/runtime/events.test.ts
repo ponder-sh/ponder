@@ -1,5 +1,5 @@
 import { ALICE, BOB } from "@/_test/constants.js";
-import { setupCommon } from "@/_test/setup.js";
+import { setupAnvil, setupCommon } from "@/_test/setup.js";
 import {
   deployErc20,
   mintErc20,
@@ -35,6 +35,7 @@ import {
 } from "./events.js";
 
 beforeEach(setupCommon);
+beforeEach(setupAnvil);
 
 test("splitEvents()", async () => {
   const events = [

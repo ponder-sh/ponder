@@ -1,5 +1,6 @@
 import { ALICE, BOB } from "@/_test/constants.js";
 import {
+  setupAnvil,
   setupCleanup,
   setupCommon,
   setupDatabaseServices,
@@ -19,6 +20,7 @@ import { createHistoricalIndexingStore } from "./historical.js";
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
+beforeEach(setupAnvil);
 
 const indexingErrorHandler: IndexingErrorHandler = {
   getRetryableError: () => {
