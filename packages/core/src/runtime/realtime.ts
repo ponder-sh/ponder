@@ -177,10 +177,9 @@ export async function* getRealtimeEventsOmnichain(params: {
           msg: `Decoded ${decodedEvents.length} '${chain.name}' events for block ${hexToNumber(event.block.number)}`,
         });
 
-        const checkpoint = getOmnichainCheckpoint({
-          perChainSync: params.perChainSync,
-          tag: "current",
-        });
+        const checkpoint = encodeCheckpoint(
+          blockToCheckpoint(event.block, chain.id, "up"),
+        );
 
         const readyEvents = pendingEvents
           .concat(decodedEvents)
