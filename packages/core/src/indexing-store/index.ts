@@ -51,7 +51,7 @@ export const checkOnchainTable = (
 
   throw new InvalidStoreMethodError(
     method === "find"
-      ? `db.find() can only be used with onchain tables, and '${getTableConfig(table).name}' is an offchain table.`
-      : `Indexing functions can only write to onchain tables, and '${getTableConfig(table).name}' is an offchain table.`,
+      ? `db.find() can only be used with onchain tables, and '${getTableConfig(table).name}' is an offchain table or a view.`
+      : `Indexing functions can only write to onchain tables, and '${getTableConfig(table).name}' is an offchain table or a view.`,
   );
 };

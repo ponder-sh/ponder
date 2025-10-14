@@ -26,7 +26,7 @@ import {
   getPairWithFactoryConfigAndIndexingFunctions,
   testClient,
 } from "@/_test/utils.js";
-import { buildConfigAndIndexingFunctions } from "@/build/config.js";
+import { buildConfig, buildIndexingFunctions } from "@/build/config.js";
 import { createRpc } from "@/rpc/index.js";
 import { getCachedIntervals } from "@/runtime/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
@@ -57,10 +57,12 @@ test("createHistoricalSync()", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common: context.common, config });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const historicalSync = createHistoricalSync({
@@ -96,10 +98,12 @@ test("sync() with log filter", async (context) => {
   const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
     address,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common: context.common, config });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const historicalSync = createHistoricalSync({
@@ -148,10 +152,12 @@ test("sync() with log filter and transaction receipts", async (context) => {
     address,
     includeTransactionReceipts: true,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common: context.common, config });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const historicalSync = createHistoricalSync({
@@ -191,10 +197,12 @@ test("sync() with block filter", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common: context.common, config });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   await testClient.mine({ blocks: 3 });
@@ -247,10 +255,12 @@ test("sync() with log factory", async (context) => {
     getPairWithFactoryConfigAndIndexingFunctions({
       address,
     });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common: context.common, config });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const historicalSync = await createHistoricalSync({
@@ -309,10 +319,12 @@ test("sync() with trace filter", async (context) => {
     address,
     includeCallTraces: true,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common: context.common, config });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const request = async (request: any) => {
@@ -398,10 +410,12 @@ test("sync() with transaction filter", async (context) => {
       address: ALICE,
     });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common: context.common, config });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const historicalSync = createHistoricalSync({
@@ -456,10 +470,12 @@ test("sync() with transfer filter", async (context) => {
       address: ALICE,
     });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common: context.common, config });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const request = async (request: any) => {
@@ -533,17 +549,31 @@ test("sync() with many filters", async (context) => {
     sender: ALICE,
   });
 
-  const { sources: erc20Sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    ...getErc20ConfigAndIndexingFunctions({
-      address,
-    }),
+  const erc20ConfigAndIndexingFunctions = getErc20ConfigAndIndexingFunctions({
+    address,
   });
-  const { sources: blockSources } = await buildConfigAndIndexingFunctions({
+  const erc20ConfigBuild = buildConfig({
     common: context.common,
-    ...getBlocksConfigAndIndexingFunctions({
-      interval: 1,
-    }),
+    config: erc20ConfigAndIndexingFunctions.config,
+  });
+
+  const blocksConfigAndIndexingFunctions = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const blocksConfigBuild = buildConfig({
+    common: context.common,
+    config: blocksConfigAndIndexingFunctions.config,
+  });
+
+  const { sources: erc20Sources } = await buildIndexingFunctions({
+    common: context.common,
+    configBuild: erc20ConfigBuild,
+    ...erc20ConfigAndIndexingFunctions,
+  });
+  const { sources: blockSources } = await buildIndexingFunctions({
+    common: context.common,
+    configBuild: blocksConfigBuild,
+    ...blocksConfigAndIndexingFunctions,
   });
 
   const historicalSync = createHistoricalSync({
@@ -595,10 +625,12 @@ test("sync() with cache", async (context) => {
   const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
     address,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common: context.common, config });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   let historicalSync = createHistoricalSync({
@@ -657,10 +689,12 @@ test("sync() with partial cache", async (context) => {
   const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
     address,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({ common: context.common, config });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   let historicalSync = createHistoricalSync({
@@ -701,21 +735,24 @@ test("sync() with partial cache", async (context) => {
   await historicalSync.sync([1, 2]);
   expect(spy).toHaveBeenCalledTimes(2);
 
-  expect(spy).toHaveBeenCalledWith({
-    method: "eth_getLogs",
-    params: [
-      {
-        address: [zeroAddress],
-        fromBlock: "0x1",
-        toBlock: "0x2",
-        topics: [
-          [
-            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+  expect(spy).toHaveBeenCalledWith(
+    {
+      method: "eth_getLogs",
+      params: [
+        {
+          address: [zeroAddress],
+          fromBlock: "0x1",
+          toBlock: "0x2",
+          topics: [
+            [
+              "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            ],
           ],
-        ],
-      },
-    ],
-  });
+        },
+      ],
+    },
+    expect.any(Object),
+  );
 
   // re-instantiate `historicalSync` to reset the cached intervals
 
@@ -742,21 +779,24 @@ test("sync() with partial cache", async (context) => {
   await historicalSync.sync([1, 3]);
   expect(spy).toHaveBeenCalledTimes(2);
 
-  expect(spy).toHaveBeenCalledWith({
-    method: "eth_getLogs",
-    params: [
-      {
-        address: [address, zeroAddress],
-        fromBlock: "0x3",
-        toBlock: "0x3",
-        topics: [
-          [
-            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+  expect(spy).toHaveBeenCalledWith(
+    {
+      method: "eth_getLogs",
+      params: [
+        {
+          address: [address, zeroAddress],
+          fromBlock: "0x3",
+          toBlock: "0x3",
+          topics: [
+            [
+              "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            ],
           ],
-        ],
-      },
-    ],
-  });
+        },
+      ],
+    },
+    expect.any(Object),
+  );
 });
 
 test("syncBlock() with cache", async (context) => {
@@ -776,17 +816,31 @@ test("syncBlock() with cache", async (context) => {
     sender: ALICE,
   });
 
-  const { sources: erc20Sources } = await buildConfigAndIndexingFunctions({
-    common: context.common,
-    ...getErc20ConfigAndIndexingFunctions({
-      address,
-    }),
+  const erc20ConfigAndIndexingFunctions = getErc20ConfigAndIndexingFunctions({
+    address,
   });
-  const { sources: blockSources } = await buildConfigAndIndexingFunctions({
+  const erc20ConfigBuild = buildConfig({
     common: context.common,
-    ...getBlocksConfigAndIndexingFunctions({
-      interval: 1,
-    }),
+    config: erc20ConfigAndIndexingFunctions.config,
+  });
+
+  const blocksConfigAndIndexingFunctions = getBlocksConfigAndIndexingFunctions({
+    interval: 1,
+  });
+  const blocksConfigBuild = buildConfig({
+    common: context.common,
+    config: blocksConfigAndIndexingFunctions.config,
+  });
+
+  const { sources: erc20Sources } = await buildIndexingFunctions({
+    common: context.common,
+    configBuild: erc20ConfigBuild,
+    ...erc20ConfigAndIndexingFunctions,
+  });
+  const { sources: blockSources } = await buildIndexingFunctions({
+    common: context.common,
+    configBuild: blocksConfigBuild,
+    ...blocksConfigAndIndexingFunctions,
   });
 
   const historicalSync = createHistoricalSync({
@@ -838,10 +892,15 @@ test("syncAddress() handles many addresses", async (context) => {
     getPairWithFactoryConfigAndIndexingFunctions({
       address,
     });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const historicalSync = createHistoricalSync({

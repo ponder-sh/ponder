@@ -5,10 +5,12 @@ import {
   Table,
   type Writable,
 } from "drizzle-orm";
+import { toSnakeCase } from "drizzle-orm/casing";
 import {
   type AnyPgColumn,
   type PrimaryKeyBuilder as DrizzlePrimaryKeyBuilder,
   type ExtraConfigColumn,
+  ManualViewBuilder,
   type PgColumnBuilder,
   type PgColumnBuilderBase,
   PgEnumColumnBuilder,
@@ -18,6 +20,7 @@ import {
   type PgTableWithColumns,
   type PgTextConfig,
   type TableConfig,
+  ViewBuilder,
   primaryKey as drizzlePrimaryKey,
 } from "drizzle-orm/pg-core";
 import {
@@ -236,6 +239,43 @@ export const onchainTable = <
   return table;
 };
 
+/**
+ * Create an onchain view.
+ *
+ * - Docs: https://ponder.sh/docs/api-reference/ponder/schema#onchainview
+ *
+ * @example
+ * import { onchainView } from "ponder";
+ *
+ * export const accountView = onchainView("account_view").as((qb) =>
+ *   qb.select().from(account),
+ * );
+ *
+ * @param name - The view name in the database.
+ * @param columns - [Optional] The view columns.
+ * @returns The onchain view.
+ */
+export function onchainView<TName extends string>(
+  name: TName,
+): ViewBuilder<TName>;
+export function onchainView<
+  TName extends string,
+  TColumns extends Record<string, PgColumnBuilderBase>,
+>(name: TName, columns: TColumns): ManualViewBuilder<TName, TColumns>;
+export function onchainView(
+  name: string,
+  columns?: Record<string, PgColumnBuilderBase>,
+): ViewBuilder | ManualViewBuilder {
+  const schema = globalThis?.PONDER_NAMESPACE_BUILD?.schema;
+
+  const view = pgViewWithSchema(name, columns, schema);
+
+  // @ts-ignore
+  view[onchain] = true;
+
+  return view;
+}
+
 export const isPgEnumSym = Symbol.for("drizzle:isPgEnum");
 
 export type OnchainEnum<TValues extends [string, ...string[]]> = {
@@ -305,7 +345,7 @@ function pgTableWithSchema<
     Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
       const colBuilder = colBuilderBase;
       // @ts-ignore
-      colBuilder.setName(name);
+      colBuilder.setName(toSnakeCase(name));
       // @ts-ignore
       const column = colBuilder.build(rawTable);
       // @ts-ignore
@@ -321,7 +361,7 @@ function pgTableWithSchema<
     Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
       const colBuilder = colBuilderBase as PgColumnBuilder;
       //@ts-ignore
-      colBuilder.setName(name);
+      colBuilder.setName(toSnakeCase(name));
       //@ts-ignore
       const column = colBuilder.buildExtraConfigColumn(rawTable);
       return [name, column];
@@ -352,6 +392,17 @@ function pgTableWithSchema<
       }>;
     },
   });
+}
+
+function pgViewWithSchema(
+  name: string,
+  selection: Record<string, PgColumnBuilderBase> | undefined,
+  schema: string | undefined,
+): ViewBuilder | ManualViewBuilder {
+  if (selection) {
+    return new ManualViewBuilder(name, selection, schema);
+  }
+  return new ViewBuilder(name, schema);
 }
 
 function pgEnumWithSchema<U extends string, T extends Readonly<[U, ...U[]]>>(

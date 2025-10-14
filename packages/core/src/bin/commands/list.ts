@@ -1,6 +1,11 @@
 import { createBuild } from "@/build/index.js";
 import {
-  type PonderApp,
+  type PonderApp0,
+  type PonderApp1,
+  type PonderApp2,
+  type PonderApp3,
+  type PonderApp4,
+  type PonderApp5,
   VIEWS,
   createDatabase,
   getPonderMetaTable,
@@ -22,6 +27,7 @@ const emptySchemaBuild = {
   schema: {},
   statements: {
     tables: { sql: [], json: [] },
+    views: { sql: [], json: [] },
     enums: { sql: [], json: [] },
     indexes: { sql: [], json: [] },
     sequences: { sql: [], json: [] },
@@ -55,14 +61,37 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
 
   const configResult = await build.executeConfig();
   if (configResult.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "config",
+      error: configResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
 
-  const buildResult = await build.preCompile(configResult.result);
+  const buildResult = build.preCompile(configResult.result);
 
   if (buildResult.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "pre-compile",
+      error: buildResult.error,
+    });
+    await exit({ code: 1 });
+    return;
+  }
+
+  const databaseDiagnostic = await build.databaseDiagnostic({
+    preBuild: buildResult.result,
+  });
+  if (databaseDiagnostic.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "diagnostic",
+      error: databaseDiagnostic.error,
+    });
+    await exit({ code: 75 });
     return;
   }
 
@@ -102,14 +131,22 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
 
   if (queries.length === 0) {
     logger.warn({
-      service: "list",
-      msg: "No 'ponder start' apps found in this database.",
+      msg: "Found 0 'ponder start' apps",
     });
-    await exit({ reason: "Success", code: 0 });
+    await exit({ code: 0 });
     return;
   }
 
-  let result: { value: PonderApp; schema: string }[];
+  let result: {
+    value:
+      | Partial<PonderApp0>
+      | PonderApp1
+      | PonderApp2
+      | PonderApp3
+      | PonderApp4
+      | PonderApp5;
+    schema: string;
+  }[];
 
   if (queries.length === 1) {
     result = await queries[0]!;
@@ -122,36 +159,43 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
     { title: "Schema", key: "table_schema", align: "left" },
     { title: "Active", key: "active", align: "right" },
     { title: "Last active", key: "last_active", align: "right" },
-    { title: "Table count", key: "table_count", align: "right" },
+    { title: "Relation count", key: "relation_count", align: "right" },
     { title: "Is view", key: "is_view", align: "right" },
   ];
 
-  const rows = result
-    .filter((row) => row.value.is_dev === 0)
-    .map((row) => ({
-      table_schema: row.schema,
-      active:
-        row.value.is_locked === 1 &&
-        row.value.heartbeat_at + common.options.databaseHeartbeatTimeout >
-          Date.now()
-          ? "yes"
-          : "no",
-      last_active:
-        row.value.is_locked === 1
-          ? "---"
-          : `${formatEta(Date.now() - row.value.heartbeat_at)} ago`,
-      table_count: row.value.table_names.length,
-      is_view: ponderViewSchemas.some((schema) => schema.schema === row.schema)
+  // "start" apps with metadata version >=2
+  const filteredResults = result.filter(
+    (
+      row,
+    ): row is {
+      value: PonderApp2 | PonderApp3 | PonderApp4 | PonderApp5;
+      schema: string;
+    } => "is_dev" in row.value && row.value.is_dev === 0,
+  );
+
+  const rows = filteredResults.map((row) => ({
+    table_schema: row.schema,
+    active:
+      row.value.is_locked === 1 &&
+      row.value.heartbeat_at + common.options.databaseHeartbeatTimeout >
+        Date.now()
         ? "yes"
         : "no",
-    }));
+    last_active:
+      row.value.is_locked === 1
+        ? "---"
+        : `${formatEta(Date.now() - row.value.heartbeat_at)} ago`,
+    relation_count:
+      (row.value.table_names?.length ?? 0) +
+      ((row.value as { view_names?: string[] }).view_names?.length ?? 0),
+    is_view: ponderViewSchemas.some((schema) => schema.schema === row.schema)
+      ? "yes"
+      : "no",
+  }));
 
   if (rows.length === 0) {
-    logger.warn({
-      service: "list",
-      msg: "No 'ponder start' apps found in this database.",
-    });
-    await exit({ reason: "Success", code: 0 });
+    logger.warn({ msg: "Found 0 'ponder start' apps" });
+    await exit({ code: 0 });
     return;
   }
 
@@ -159,5 +203,5 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
   const text = [...lines, ""].join("\n");
   console.log(text);
 
-  await exit({ reason: "Success", code: 0 });
+  await exit({ code: 0 });
 }

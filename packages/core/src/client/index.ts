@@ -78,8 +78,7 @@ export const client = ({
             }
 
             globalThis.PONDER_COMMON.logger.info({
-              service: "client",
-              msg: "Established listen connection for client middleware",
+              msg: `Established listen connection for "@ponder/client" middleware`,
             });
 
             client.on("notification", () => {
@@ -89,8 +88,8 @@ export const client = ({
 
             client.on("error", async (error) => {
               globalThis.PONDER_COMMON.logger.warn({
-                service: "client",
-                msg: "Received error on listen connection, retrying after 250ms",
+                msg: `Failed listen connection for "@ponder/client" middleware`,
+                retry_delay: 250,
                 error,
               });
               client?.release();
@@ -104,8 +103,8 @@ export const client = ({
             await client.query(`LISTEN "${channel}"`);
           } catch (error) {
             globalThis.PONDER_COMMON.logger.warn({
-              service: "client",
-              msg: "Received error on listen connection, retrying after 250ms",
+              msg: `Failed listen connection for "@ponder/client" middleware`,
+              retry_delay: 250,
               error: error as Error,
             });
             client?.release();

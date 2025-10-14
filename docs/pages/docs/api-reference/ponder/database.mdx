@@ -14,8 +14,8 @@ Here's an overview of the instance lifecycle. Here, _instance_ refers to a Node.
 1. Start returning `200` from the `/health` endpoint. Return `503` from the `/ready` endpoint.
 2. Build all user code (config, schema, indexing functions), then generate a `build_id` by hashing the build artifacts.
 3. Follow the database schema flow chart below to validate and prepare the target database schema.
-4. Begin historical indexing, either from scratch or from where the previous instance left off (crash recovery).
-5. When historical indexing is complete, start returning `200` from the `/ready` endpoint.
+4. Start the backfill, either from scratch or from where the previous instance left off (crash recovery).
+5. When the backfill finishes, start returning `200` from the `/ready` endpoint.
 6. On shutdown (e.g. due to a process exit signal), release the lock on the target schema. Do not drop any tables.
 
 ### Database schema rules

@@ -6,7 +6,7 @@ import {
   getBlocksConfigAndIndexingFunctions,
   getErc20ConfigAndIndexingFunctions,
 } from "@/_test/utils.js";
-import { buildConfigAndIndexingFunctions } from "@/build/config.js";
+import { buildConfig, buildIndexingFunctions } from "@/build/config.js";
 import type {
   BlockEvent,
   ContractSource,
@@ -105,10 +105,15 @@ test("decodeEvents() log", async (context) => {
   const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
     address: zeroAddress,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const topics = encodeEventTopics({
@@ -147,10 +152,15 @@ test("decodeEvents() log error", async (context) => {
   const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
     address: zeroAddress,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const topics = encodeEventTopics({
@@ -186,10 +196,15 @@ test("decodeEvents() block", async (context) => {
   const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
     interval: 1,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const rawEvent = {
@@ -219,10 +234,15 @@ test("decodeEvents() transfer", async (context) => {
       address: ALICE,
     });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const rawEvent = {
@@ -267,10 +287,15 @@ test("decodeEvents() transaction", async (context) => {
       address: ALICE,
     });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const rawEvent = {
@@ -297,10 +322,15 @@ test("decodeEvents() trace", async (context) => {
     address: zeroAddress,
     includeCallTraces: true,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const rawEvent = {
@@ -349,10 +379,15 @@ test("decodeEvents() trace w/o output", async (context) => {
     address: zeroAddress,
     includeCallTraces: true,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
     common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   // Remove output from the trace abi
@@ -402,10 +437,15 @@ test("decodeEvents() trace error", async (context) => {
     address: zeroAddress,
     includeCallTraces: true,
   });
-  const { sources } = await buildConfigAndIndexingFunctions({
-    common,
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
+    common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const rawEvent = {

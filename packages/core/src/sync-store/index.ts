@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { Database } from "@/database/index.js";
 import { extractBlockNumberParam } from "@/indexing/client.js";
 import type { Common } from "@/internal/common.js";
+import type { Logger } from "@/internal/logger.js";
 import type {
   BlockFilter,
   Factory,
@@ -30,6 +31,7 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import type { RequestParameters } from "@/rpc/index.js";
 import {
   isAddressFactory,
   unionFilterIncludeBlock,
@@ -57,7 +59,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { type PgColumn, unionAll } from "drizzle-orm/pg-core";
-import { type Address, type EIP1193Parameters, hexToNumber, isHex } from "viem";
+import { type Address, hexToNumber, isHex } from "viem";
 import {
   encodeBlock,
   encodeLog,
@@ -68,77 +70,118 @@ import {
 import * as PONDER_SYNC from "./schema.js";
 
 export type SyncStore = {
-  insertIntervals(args: {
-    intervals: { filter: FilterWithoutBlocks; interval: Interval }[];
-    chainId: number;
-  }): Promise<void>;
-  getIntervals(args: { filters: Filter[] }): Promise<
-    Map<Filter, { fragment: Fragment; intervals: Interval[] }[]>
-  >;
-  insertChildAddresses(args: {
-    factory: Factory;
-    childAddresses: Map<Address, number>;
-    chainId: number;
-  }): Promise<void>;
-  getChildAddresses(args: { factory: Factory }): Promise<Map<Address, number>>;
-  getSafeCrashRecoveryBlock(args: {
-    chainId: number;
-    timestamp: number;
-  }): Promise<{ number: bigint; timestamp: bigint } | undefined>;
-  insertLogs(args: { logs: SyncLog[]; chainId: number }): Promise<void>;
-  insertBlocks(args: {
-    blocks: (SyncBlock | SyncBlockHeader)[];
-    chainId: number;
-  }): Promise<void>;
-  insertTransactions(args: {
-    transactions: SyncTransaction[];
-    chainId: number;
-  }): Promise<void>;
-  insertTransactionReceipts(args: {
-    transactionReceipts: SyncTransactionReceipt[];
-    chainId: number;
-  }): Promise<void>;
-  insertTraces(args: {
-    traces: {
-      trace: SyncTrace;
-      block: SyncBlock;
-      transaction: SyncTransaction;
-    }[];
-    chainId: number;
-  }): Promise<void>;
-  getEventBlockData(args: {
-    filters: Filter[];
-    fromBlock: number;
-    toBlock: number;
-    chainId: number;
-    limit: number;
-  }): Promise<{
-    blockData: {
-      block: InternalBlock;
-      logs: InternalLog[];
-      transactions: InternalTransaction[];
-      transactionReceipts: InternalTransactionReceipt[];
-      traces: InternalTrace[];
-    }[];
+  insertIntervals(
+    args: {
+      intervals: { filter: FilterWithoutBlocks; interval: Interval }[];
+      chainId: number;
+    },
+    context?: { logger?: Logger },
+  ): Promise<void>;
+  getIntervals(
+    args: { filters: Filter[] },
+    context?: { logger?: Logger },
+  ): Promise<Map<Filter, { fragment: Fragment; intervals: Interval[] }[]>>;
+  insertChildAddresses(
+    args: {
+      factory: Factory;
+      childAddresses: Map<Address, number>;
+      chainId: number;
+    },
+    context?: { logger?: Logger },
+  ): Promise<void>;
+  getChildAddresses(
+    args: { factory: Factory },
+    context?: { logger?: Logger },
+  ): Promise<Map<Address, number>>;
+  getSafeCrashRecoveryBlock(
+    args: {
+      chainId: number;
+      timestamp: number;
+    },
+    context?: { logger?: Logger },
+  ): Promise<{ number: bigint; timestamp: bigint } | undefined>;
+  insertLogs(
+    args: { logs: SyncLog[]; chainId: number },
+    context?: { logger?: Logger },
+  ): Promise<void>;
+  insertBlocks(
+    args: {
+      blocks: (SyncBlock | SyncBlockHeader)[];
+      chainId: number;
+    },
+    context?: { logger?: Logger },
+  ): Promise<void>;
+  insertTransactions(
+    args: {
+      transactions: SyncTransaction[];
+      chainId: number;
+    },
+    context?: { logger?: Logger },
+  ): Promise<void>;
+  insertTransactionReceipts(
+    args: {
+      transactionReceipts: SyncTransactionReceipt[];
+      chainId: number;
+    },
+    context?: { logger?: Logger },
+  ): Promise<void>;
+  insertTraces(
+    args: {
+      traces: {
+        trace: SyncTrace;
+        block: SyncBlock;
+        transaction: SyncTransaction;
+      }[];
+      chainId: number;
+    },
+    context?: { logger?: Logger },
+  ): Promise<void>;
+  getEventData(
+    args: {
+      filters: Filter[];
+      fromBlock: number;
+      toBlock: number;
+      chainId: number;
+      limit: number;
+    },
+    context?: { logger?: Logger },
+  ): Promise<{
+    blocks: InternalBlock[];
+    logs: InternalLog[];
+    transactions: InternalTransaction[];
+    transactionReceipts: InternalTransactionReceipt[];
+    traces: InternalTrace[];
     cursor: number;
   }>;
-  insertRpcRequestResults(args: {
-    requests: {
-      request: EIP1193Parameters;
-      blockNumber: number | undefined;
-      result: string;
-    }[];
-    chainId: number;
-  }): Promise<void>;
-  getRpcRequestResults(args: {
-    requests: EIP1193Parameters[];
-    chainId: number;
-  }): Promise<(string | undefined)[]>;
-  pruneRpcRequestResults(args: {
-    blocks: Pick<LightBlock, "number">[];
-    chainId: number;
-  }): Promise<void>;
-  pruneByChain(args: { chainId: number }): Promise<void>;
+  insertRpcRequestResults(
+    args: {
+      requests: {
+        request: RequestParameters;
+        blockNumber: number | undefined;
+        result: string;
+      }[];
+      chainId: number;
+    },
+    context?: { logger?: Logger },
+  ): Promise<void>;
+  getRpcRequestResults(
+    args: {
+      requests: RequestParameters[];
+      chainId: number;
+    },
+    context?: { logger?: Logger },
+  ): Promise<(string | undefined)[]>;
+  pruneRpcRequestResults(
+    args: {
+      blocks: Pick<LightBlock, "number">[];
+      chainId: number;
+    },
+    context?: { logger?: Logger },
+  ): Promise<void>;
+  pruneByChain(
+    args: { chainId: number },
+    context?: { logger?: Logger },
+  ): Promise<void>;
 };
 
 export const createSyncStore = ({
@@ -147,423 +190,464 @@ export const createSyncStore = ({
 }: {
   common: Common;
   database: Database;
-}): SyncStore => ({
-  insertIntervals: async ({ intervals, chainId }) => {
-    if (intervals.length === 0) return;
+}): SyncStore => {
+  const syncStore = {
+    insertIntervals: async ({ intervals, chainId }, context) => {
+      if (intervals.length === 0) return;
 
-    const perFragmentIntervals = new Map<FragmentId, Interval[]>();
-    const values: (typeof PONDER_SYNC.intervals.$inferInsert)[] = [];
+      const perFragmentIntervals = new Map<FragmentId, Interval[]>();
+      const values: (typeof PONDER_SYNC.intervals.$inferInsert)[] = [];
 
-    // dedupe and merge matching fragments
+      // dedupe and merge matching fragments
 
-    for (const { filter, interval } of intervals) {
-      for (const fragment of getFragments(filter)) {
-        const fragmentId = encodeFragment(fragment.fragment);
-        if (perFragmentIntervals.has(fragmentId) === false) {
-          perFragmentIntervals.set(fragmentId, []);
-        }
-
-        perFragmentIntervals.get(fragmentId)!.push(interval);
-      }
-    }
-
-    // NOTE: In order to force proper range union behavior, `interval[1]` must
-    // be rounded up.
-
-    for (const [fragmentId, intervals] of perFragmentIntervals) {
-      const numranges = intervals
-        .map((interval) => {
-          const start = interval[0];
-          const end = interval[1] + 1;
-          return `numrange(${start}, ${end}, '[]')`;
-        })
-        .join(", ");
-
-      values.push({
-        fragmentId: fragmentId,
-        chainId: BigInt(chainId),
-        // @ts-expect-error
-        blocks: sql.raw(`nummultirange(${numranges})`),
-      });
-    }
-
-    await database.syncQB.wrap({ label: "insert_intervals" }, (db) =>
-      db
-        .insert(PONDER_SYNC.intervals)
-        .values(values)
-        .onConflictDoUpdate({
-          target: PONDER_SYNC.intervals.fragmentId,
-          set: { blocks: sql`intervals.blocks + excluded.blocks` },
-        }),
-    );
-  },
-  getIntervals: async ({ filters }) => {
-    const queries = filters.flatMap((filter, i) => {
-      const fragments = getFragments(filter);
-      return fragments.map((fragment, j) =>
-        database.syncQB.raw
-          .select({
-            mergedBlocks: sql<string>`range_agg(unnested.blocks)`.as(
-              "merged_blocks",
-            ),
-            filter: sql.raw(`'${i}'`).as("filter"),
-            fragment: sql.raw(`'${j}'`).as("fragment"),
-          })
-          .from(
-            database.syncQB.raw
-              .select({ blocks: sql.raw("unnest(blocks)").as("blocks") })
-              .from(PONDER_SYNC.intervals)
-              .where(
-                inArray(PONDER_SYNC.intervals.fragmentId, fragment.adjacentIds),
-              )
-              .as("unnested"),
-          ),
-      );
-    });
-
-    let rows: Awaited<(typeof queries)[number]>;
-
-    if (queries.length > 1) {
-      rows = await database.syncQB.wrap({ label: "select_intervals" }, () =>
-        // @ts-expect-error
-        unionAll(...queries),
-      );
-    } else {
-      rows = await database.syncQB.wrap({ label: "select_intervals" }, () =>
-        queries[0]!.execute(),
-      );
-    }
-
-    const result = new Map<
-      Filter,
-      { fragment: Fragment; intervals: Interval[] }[]
-    >();
-
-    // NOTE: `interval[1]` must be rounded down in order to offset the previous
-    // rounding.
-
-    for (let i = 0; i < filters.length; i++) {
-      const filter = filters[i]!;
-      const fragments = getFragments(filter);
-      result.set(filter, []);
-      for (let j = 0; j < fragments.length; j++) {
-        const fragment = fragments[j]!;
-        const intervals = rows
-          .filter((row) => row.filter === `${i}`)
-          .filter((row) => row.fragment === `${j}`)
-          .map((row) =>
-            (row.mergedBlocks
-              ? (JSON.parse(`[${row.mergedBlocks.slice(1, -1)}]`) as Interval[])
-              : []
-            ).map((interval) => [interval[0], interval[1] - 1] as Interval),
-          )[0]!;
-
-        result.get(filter)!.push({ fragment: fragment.fragment, intervals });
-      }
-    }
-
-    return result;
-  },
-
-  insertChildAddresses: async ({ factory, childAddresses, chainId }) => {
-    if (childAddresses.size === 0) return;
-
-    const { id, ..._factory } = factory;
-
-    const batchSize = Math.floor(common.options.databaseMaxQueryParameters / 3);
-
-    const values: (typeof PONDER_SYNC.factoryAddresses.$inferInsert)[] = [];
-
-    const factoryInsert = database.syncQB.raw.$with("factory_insert").as(
-      database.syncQB.raw
-        .insert(PONDER_SYNC.factories)
-        .values({ factory: _factory })
-        // @ts-expect-error bug with drizzle-orm
-        .returning({ id: PONDER_SYNC.factories.id })
-        .onConflictDoUpdate({
-          target: PONDER_SYNC.factories.factory,
-          set: { factory: sql`excluded.factory` },
-        }),
-    );
-
-    for (const [address, blockNumber] of childAddresses) {
-      values.push({
-        // @ts-expect-error
-        factoryId: sql`(SELECT id FROM factory_insert)`,
-        chainId: BigInt(chainId),
-        blockNumber: BigInt(blockNumber),
-        address,
-      });
-    }
-
-    for (let i = 0; i < values.length; i += batchSize) {
-      await database.syncQB.wrap({ label: "insert_child_addresses" }, (db) =>
-        db
-          .with(factoryInsert)
-          .insert(PONDER_SYNC.factoryAddresses)
-          .values(values.slice(i, i + batchSize)),
-      );
-    }
-  },
-  getChildAddresses: ({ factory }) => {
-    const { id, ..._factory } = factory;
-
-    const factoryInsert = database.syncQB.raw.$with("factory_insert").as(
-      database.syncQB.raw
-        .insert(PONDER_SYNC.factories)
-        .values({ factory: _factory })
-        // @ts-expect-error bug with drizzle-orm
-        .returning({ id: PONDER_SYNC.factories.id })
-        .onConflictDoUpdate({
-          target: PONDER_SYNC.factories.factory,
-          set: { factory: sql`excluded.factory` },
-        }),
-    );
-
-    return database.syncQB
-      .wrap({ label: "select_child_addresses" }, (db) =>
-        db
-          .with(factoryInsert)
-          .select({
-            address: PONDER_SYNC.factoryAddresses.address,
-            blockNumber: PONDER_SYNC.factoryAddresses.blockNumber,
-          })
-          .from(PONDER_SYNC.factoryAddresses)
-          .where(
-            eq(
-              PONDER_SYNC.factoryAddresses.factoryId,
-              database.syncQB.raw
-                .select({ id: factoryInsert.id })
-                .from(factoryInsert),
-            ),
-          ),
-      )
-      .then((rows) => {
-        const result = new Map<Address, number>();
-        for (const { address, blockNumber } of rows) {
-          if (
-            result.has(address) === false ||
-            result.get(address)! > Number(blockNumber)
-          ) {
-            result.set(address, Number(blockNumber));
+      for (const { filter, interval } of intervals) {
+        for (const fragment of getFragments(filter)) {
+          const fragmentId = encodeFragment(fragment.fragment);
+          if (perFragmentIntervals.has(fragmentId) === false) {
+            perFragmentIntervals.set(fragmentId, []);
           }
+
+          perFragmentIntervals.get(fragmentId)!.push(interval);
         }
-        return result;
-      });
-  },
-  getSafeCrashRecoveryBlock: async ({ chainId, timestamp }) => {
-    const rows = await database.syncQB.wrap(
-      { label: "select_crash_recovery_block" },
-      (db) =>
-        db
-          .select({
-            number: PONDER_SYNC.blocks.number,
-            timestamp: PONDER_SYNC.blocks.timestamp,
+      }
+
+      // NOTE: In order to force proper range union behavior, `interval[1]` must
+      // be rounded up.
+
+      for (const [fragmentId, intervals] of perFragmentIntervals) {
+        const numranges = intervals
+          .map((interval) => {
+            const start = interval[0];
+            const end = interval[1] + 1;
+            return `numrange(${start}, ${end}, '[]')`;
           })
-          .from(PONDER_SYNC.blocks)
-          .where(
-            and(
-              eq(PONDER_SYNC.blocks.chainId, BigInt(chainId)),
-              lt(PONDER_SYNC.blocks.timestamp, BigInt(timestamp)),
-            ),
-          )
-          .orderBy(desc(PONDER_SYNC.blocks.number))
-          .limit(1),
-    );
+          .join(", ");
 
-    return rows[0];
-  },
-  insertLogs: async ({ logs, chainId }) => {
-    if (logs.length === 0) return;
+        values.push({
+          fragmentId: fragmentId,
+          chainId: BigInt(chainId),
+          // @ts-expect-error
+          blocks: sql.raw(`nummultirange(${numranges})`),
+        });
+      }
 
-    // Calculate `batchSize` based on how many parameters the
-    // input will have
-    const batchSize = Math.floor(
-      common.options.databaseMaxQueryParameters /
-        Object.keys(encodeLog({ log: logs[0]!, chainId })).length,
-    );
-
-    // As an optimization, logs that are matched by a factory do
-    // not contain a checkpoint, because not corresponding block is
-    // fetched (no block.timestamp). However, when a log is matched by
-    // both a log filter and a factory, the checkpoint must be included
-    // in the db.
-
-    for (let i = 0; i < logs.length; i += batchSize) {
-      await database.syncQB.wrap({ label: "insert_logs" }, (db) =>
-        db
-          .insert(PONDER_SYNC.logs)
-          .values(
-            logs
-              .slice(i, i + batchSize)
-              .map((log) => encodeLog({ log, chainId })),
-          )
-          .onConflictDoNothing({
-            target: [
-              PONDER_SYNC.logs.chainId,
-              PONDER_SYNC.logs.blockNumber,
-              PONDER_SYNC.logs.logIndex,
-            ],
-          }),
-      );
-    }
-  },
-  insertBlocks: async ({ blocks, chainId }) => {
-    if (blocks.length === 0) return;
-
-    // Calculate `batchSize` based on how many parameters the
-    // input will have
-    const batchSize = Math.floor(
-      common.options.databaseMaxQueryParameters /
-        Object.keys(encodeBlock({ block: blocks[0]!, chainId })).length,
-    );
-
-    for (let i = 0; i < blocks.length; i += batchSize) {
-      await database.syncQB.wrap({ label: "insert_blocks" }, (db) =>
-        db
-          .insert(PONDER_SYNC.blocks)
-          .values(
-            blocks
-              .slice(i, i + batchSize)
-              .map((block) => encodeBlock({ block, chainId })),
-          )
-          .onConflictDoNothing({
-            target: [PONDER_SYNC.blocks.chainId, PONDER_SYNC.blocks.number],
-          }),
-      );
-    }
-  },
-  insertTransactions: async ({ transactions, chainId }) => {
-    if (transactions.length === 0) return;
-
-    // Calculate `batchSize` based on how many parameters the
-    // input will have
-    const batchSize = Math.floor(
-      common.options.databaseMaxQueryParameters /
-        Object.keys(
-          encodeTransaction({
-            transaction: transactions[0]!,
-            chainId,
-          }),
-        ).length,
-    );
-
-    // As an optimization for the migration, transactions inserted before 0.8 do not
-    // contain a checkpoint. However, for correctness the checkpoint must be inserted
-    // for new transactions (using onConflictDoUpdate).
-
-    for (let i = 0; i < transactions.length; i += batchSize) {
-      await database.syncQB.wrap({ label: "insert_transactions" }, (db) =>
-        db
-          .insert(PONDER_SYNC.transactions)
-          .values(
-            transactions
-              .slice(i, i + batchSize)
-              .map((transaction) =>
-                encodeTransaction({ transaction, chainId }),
-              ),
-          )
-          .onConflictDoNothing({
-            target: [
-              PONDER_SYNC.transactions.chainId,
-              PONDER_SYNC.transactions.blockNumber,
-              PONDER_SYNC.transactions.transactionIndex,
-            ],
-          }),
-      );
-    }
-  },
-  insertTransactionReceipts: async ({ transactionReceipts, chainId }) => {
-    if (transactionReceipts.length === 0) return;
-
-    // Calculate `batchSize` based on how many parameters the
-    // input will have
-    const batchSize = Math.floor(
-      common.options.databaseMaxQueryParameters /
-        Object.keys(
-          encodeTransactionReceipt({
-            transactionReceipt: transactionReceipts[0]!,
-            chainId,
-          }),
-        ).length,
-    );
-
-    for (let i = 0; i < transactionReceipts.length; i += batchSize) {
       await database.syncQB.wrap(
-        { label: "insert_transaction_receipts" },
+        { label: "insert_intervals" },
         (db) =>
           db
-            .insert(PONDER_SYNC.transactionReceipts)
-            .values(
-              transactionReceipts
-                .slice(i, i + batchSize)
-                .map((transactionReceipt) =>
-                  encodeTransactionReceipt({
-                    transactionReceipt,
-                    chainId,
-                  }),
-                ),
-            )
-            .onConflictDoNothing({
-              target: [
-                PONDER_SYNC.transactionReceipts.chainId,
-                PONDER_SYNC.transactionReceipts.blockNumber,
-                PONDER_SYNC.transactionReceipts.transactionIndex,
-              ],
+            .insert(PONDER_SYNC.intervals)
+            .values(values)
+            .onConflictDoUpdate({
+              target: PONDER_SYNC.intervals.fragmentId,
+              set: { blocks: sql`intervals.blocks + excluded.blocks` },
             }),
+        context,
       );
-    }
-  },
-  insertTraces: async ({ traces, chainId }) => {
-    if (traces.length === 0) return;
-
-    // Calculate `batchSize` based on how many parameters the
-    // input will have
-    const batchSize = Math.floor(
-      common.options.databaseMaxQueryParameters /
-        Object.keys(
-          encodeTrace({
-            trace: traces[0]!.trace,
-            block: traces[0]!.block,
-            transaction: traces[0]!.transaction,
-            chainId,
-          }),
-        ).length,
-    );
-
-    for (let i = 0; i < traces.length; i += batchSize) {
-      await database.syncQB.wrap({ label: "insert_traces" }, (db) =>
-        db
-          .insert(PONDER_SYNC.traces)
-          .values(
-            traces
-              .slice(i, i + batchSize)
-              .map(({ trace, block, transaction }) =>
-                encodeTrace({ trace, block, transaction, chainId }),
+    },
+    getIntervals: async ({ filters }, context) => {
+      const queries = filters.flatMap((filter, i) => {
+        const fragments = getFragments(filter);
+        return fragments.map((fragment, j) =>
+          database.syncQB.raw
+            .select({
+              mergedBlocks: sql<string>`range_agg(unnested.blocks)`.as(
+                "merged_blocks",
               ),
-          )
-          .onConflictDoNothing({
-            target: [
-              PONDER_SYNC.traces.chainId,
-              PONDER_SYNC.traces.blockNumber,
-              PONDER_SYNC.traces.transactionIndex,
-              PONDER_SYNC.traces.traceIndex,
-            ],
+              filter: sql.raw(`'${i}'`).as("filter"),
+              fragment: sql.raw(`'${j}'`).as("fragment"),
+            })
+            .from(
+              database.syncQB.raw
+                .select({ blocks: sql.raw("unnest(blocks)").as("blocks") })
+                .from(PONDER_SYNC.intervals)
+                .where(
+                  inArray(
+                    PONDER_SYNC.intervals.fragmentId,
+                    fragment.adjacentIds,
+                  ),
+                )
+                .as("unnested"),
+            ),
+        );
+      });
+
+      let rows: Awaited<(typeof queries)[number]>;
+
+      if (queries.length > 1) {
+        rows = await database.syncQB.wrap(
+          { label: "select_intervals" },
+          () =>
+            // @ts-expect-error
+            unionAll(...queries),
+          context,
+        );
+      } else {
+        rows = await database.syncQB.wrap(
+          { label: "select_intervals" },
+          () => queries[0]!.execute(),
+          context,
+        );
+      }
+
+      const result = new Map<
+        Filter,
+        { fragment: Fragment; intervals: Interval[] }[]
+      >();
+
+      // NOTE: `interval[1]` must be rounded down in order to offset the previous
+      // rounding.
+
+      for (let i = 0; i < filters.length; i++) {
+        const filter = filters[i]!;
+        const fragments = getFragments(filter);
+        result.set(filter, []);
+        for (let j = 0; j < fragments.length; j++) {
+          const fragment = fragments[j]!;
+          const intervals = rows
+            .filter((row) => row.filter === `${i}`)
+            .filter((row) => row.fragment === `${j}`)
+            .map((row) =>
+              (row.mergedBlocks
+                ? (JSON.parse(
+                    `[${row.mergedBlocks.slice(1, -1)}]`,
+                  ) as Interval[])
+                : []
+              ).map((interval) => [interval[0], interval[1] - 1] as Interval),
+            )[0]!;
+
+          result.get(filter)!.push({ fragment: fragment.fragment, intervals });
+        }
+      }
+
+      return result;
+    },
+    insertChildAddresses: async (
+      { factory, childAddresses, chainId },
+      context,
+    ) => {
+      if (childAddresses.size === 0) return;
+
+      const { id, ..._factory } = factory;
+
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters / 3,
+      );
+
+      const values: (typeof PONDER_SYNC.factoryAddresses.$inferInsert)[] = [];
+
+      const factoryInsert = database.syncQB.raw.$with("factory_insert").as(
+        database.syncQB.raw
+          .insert(PONDER_SYNC.factories)
+          .values({ factory: _factory })
+          // @ts-expect-error bug with drizzle-orm
+          .returning({ id: PONDER_SYNC.factories.id })
+          .onConflictDoUpdate({
+            target: PONDER_SYNC.factories.factory,
+            set: { factory: sql`excluded.factory` },
           }),
       );
-    }
-  },
-  getEventBlockData: async ({
-    filters,
-    fromBlock,
-    toBlock,
-    chainId,
-    limit: _limit,
-  }) => {
-    let limit = _limit;
 
-    // @ts-ignore
-    const fn = async () => {
+      for (const [address, blockNumber] of childAddresses) {
+        values.push({
+          // @ts-expect-error
+          factoryId: sql`(SELECT id FROM factory_insert)`,
+          chainId: BigInt(chainId),
+          blockNumber: BigInt(blockNumber),
+          address,
+        });
+      }
+
+      for (let i = 0; i < values.length; i += batchSize) {
+        await database.syncQB.wrap(
+          { label: "insert_child_addresses" },
+          (db) =>
+            db
+              .with(factoryInsert)
+              .insert(PONDER_SYNC.factoryAddresses)
+              .values(values.slice(i, i + batchSize)),
+          context,
+        );
+      }
+    },
+    getChildAddresses: ({ factory }, context) => {
+      const { id, ..._factory } = factory;
+
+      const factoryInsert = database.syncQB.raw.$with("factory_insert").as(
+        database.syncQB.raw
+          .insert(PONDER_SYNC.factories)
+          .values({ factory: _factory })
+          // @ts-expect-error bug with drizzle-orm
+          .returning({ id: PONDER_SYNC.factories.id })
+          .onConflictDoUpdate({
+            target: PONDER_SYNC.factories.factory,
+            set: { factory: sql`excluded.factory` },
+          }),
+      );
+
+      return database.syncQB
+        .wrap(
+          { label: "select_child_addresses" },
+          (db) =>
+            db
+              .with(factoryInsert)
+              .select({
+                address: PONDER_SYNC.factoryAddresses.address,
+                blockNumber: PONDER_SYNC.factoryAddresses.blockNumber,
+              })
+              .from(PONDER_SYNC.factoryAddresses)
+              .where(
+                eq(
+                  PONDER_SYNC.factoryAddresses.factoryId,
+                  database.syncQB.raw
+                    .select({ id: factoryInsert.id })
+                    .from(factoryInsert),
+                ),
+              ),
+          context,
+        )
+        .then((rows) => {
+          const result = new Map<Address, number>();
+          for (const { address, blockNumber } of rows) {
+            if (
+              result.has(address) === false ||
+              result.get(address)! > Number(blockNumber)
+            ) {
+              result.set(address, Number(blockNumber));
+            }
+          }
+          return result;
+        });
+    },
+    getSafeCrashRecoveryBlock: async ({ chainId, timestamp }, context) => {
+      const rows = await database.syncQB.wrap(
+        { label: "select_crash_recovery_block" },
+        (db) =>
+          db
+            .select({
+              number: PONDER_SYNC.blocks.number,
+              timestamp: PONDER_SYNC.blocks.timestamp,
+            })
+            .from(PONDER_SYNC.blocks)
+            .where(
+              and(
+                eq(PONDER_SYNC.blocks.chainId, BigInt(chainId)),
+                lt(PONDER_SYNC.blocks.timestamp, BigInt(timestamp)),
+              ),
+            )
+            .orderBy(desc(PONDER_SYNC.blocks.number))
+            .limit(1),
+        context,
+      );
+
+      return rows[0];
+    },
+    insertLogs: async ({ logs, chainId }, context) => {
+      if (logs.length === 0) return;
+
+      // Calculate `batchSize` based on how many parameters the
+      // input will have
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters /
+          Object.keys(encodeLog({ log: logs[0]!, chainId })).length,
+      );
+
+      // As an optimization, logs that are matched by a factory do
+      // not contain a checkpoint, because not corresponding block is
+      // fetched (no block.timestamp). However, when a log is matched by
+      // both a log filter and a factory, the checkpoint must be included
+      // in the db.
+
+      for (let i = 0; i < logs.length; i += batchSize) {
+        await database.syncQB.wrap(
+          { label: "insert_logs" },
+          (db) =>
+            db
+              .insert(PONDER_SYNC.logs)
+              .values(
+                logs
+                  .slice(i, i + batchSize)
+                  .map((log) => encodeLog({ log, chainId })),
+              )
+              .onConflictDoNothing({
+                target: [
+                  PONDER_SYNC.logs.chainId,
+                  PONDER_SYNC.logs.blockNumber,
+                  PONDER_SYNC.logs.logIndex,
+                ],
+              }),
+          context,
+        );
+      }
+    },
+    insertBlocks: async ({ blocks, chainId }, context) => {
+      if (blocks.length === 0) return;
+
+      // Calculate `batchSize` based on how many parameters the
+      // input will have
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters /
+          Object.keys(encodeBlock({ block: blocks[0]!, chainId })).length,
+      );
+
+      for (let i = 0; i < blocks.length; i += batchSize) {
+        await database.syncQB.wrap(
+          { label: "insert_blocks" },
+          (db) =>
+            db
+              .insert(PONDER_SYNC.blocks)
+              .values(
+                blocks
+                  .slice(i, i + batchSize)
+                  .map((block) => encodeBlock({ block, chainId })),
+              )
+              .onConflictDoNothing({
+                target: [PONDER_SYNC.blocks.chainId, PONDER_SYNC.blocks.number],
+              }),
+          context,
+        );
+      }
+    },
+    insertTransactions: async ({ transactions, chainId }, context) => {
+      if (transactions.length === 0) return;
+
+      // Calculate `batchSize` based on how many parameters the
+      // input will have
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters /
+          Object.keys(
+            encodeTransaction({
+              transaction: transactions[0]!,
+              chainId,
+            }),
+          ).length,
+      );
+
+      // As an optimization for the migration, transactions inserted before 0.8 do not
+      // contain a checkpoint. However, for correctness the checkpoint must be inserted
+      // for new transactions (using onConflictDoUpdate).
+
+      for (let i = 0; i < transactions.length; i += batchSize) {
+        await database.syncQB.wrap(
+          { label: "insert_transactions" },
+          (db) =>
+            db
+              .insert(PONDER_SYNC.transactions)
+              .values(
+                transactions
+                  .slice(i, i + batchSize)
+                  .map((transaction) =>
+                    encodeTransaction({ transaction, chainId }),
+                  ),
+              )
+              .onConflictDoNothing({
+                target: [
+                  PONDER_SYNC.transactions.chainId,
+                  PONDER_SYNC.transactions.blockNumber,
+                  PONDER_SYNC.transactions.transactionIndex,
+                ],
+              }),
+          context,
+        );
+      }
+    },
+    insertTransactionReceipts: async (
+      { transactionReceipts, chainId },
+      context,
+    ) => {
+      if (transactionReceipts.length === 0) return;
+
+      // Calculate `batchSize` based on how many parameters the
+      // input will have
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters /
+          Object.keys(
+            encodeTransactionReceipt({
+              transactionReceipt: transactionReceipts[0]!,
+              chainId,
+            }),
+          ).length,
+      );
+
+      for (let i = 0; i < transactionReceipts.length; i += batchSize) {
+        await database.syncQB.wrap(
+          { label: "insert_transaction_receipts" },
+          (db) =>
+            db
+              .insert(PONDER_SYNC.transactionReceipts)
+              .values(
+                transactionReceipts
+                  .slice(i, i + batchSize)
+                  .map((transactionReceipt) =>
+                    encodeTransactionReceipt({
+                      transactionReceipt,
+                      chainId,
+                    }),
+                  ),
+              )
+              .onConflictDoNothing({
+                target: [
+                  PONDER_SYNC.transactionReceipts.chainId,
+                  PONDER_SYNC.transactionReceipts.blockNumber,
+                  PONDER_SYNC.transactionReceipts.transactionIndex,
+                ],
+              }),
+          context,
+        );
+      }
+    },
+    insertTraces: async ({ traces, chainId }, context) => {
+      if (traces.length === 0) return;
+
+      // Calculate `batchSize` based on how many parameters the
+      // input will have
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters /
+          Object.keys(
+            encodeTrace({
+              trace: traces[0]!.trace,
+              block: traces[0]!.block,
+              transaction: traces[0]!.transaction,
+              chainId,
+            }),
+          ).length,
+      );
+
+      for (let i = 0; i < traces.length; i += batchSize) {
+        await database.syncQB.wrap(
+          { label: "insert_traces" },
+          (db) =>
+            db
+              .insert(PONDER_SYNC.traces)
+              .values(
+                traces
+                  .slice(i, i + batchSize)
+                  .map(({ trace, block, transaction }) =>
+                    encodeTrace({ trace, block, transaction, chainId }),
+                  ),
+              )
+              .onConflictDoNothing({
+                target: [
+                  PONDER_SYNC.traces.chainId,
+                  PONDER_SYNC.traces.blockNumber,
+                  PONDER_SYNC.traces.transactionIndex,
+                  PONDER_SYNC.traces.traceIndex,
+                ],
+              }),
+          context,
+        );
+      }
+    },
+    getEventData: async (
+      { filters, fromBlock, toBlock, chainId, limit },
+      context,
+    ): Promise<{
+      blocks: InternalBlock[];
+      logs: InternalLog[];
+      transactions: InternalTransaction[];
+      transactionReceipts: InternalTransactionReceipt[];
+      traces: InternalTrace[];
+      cursor: number;
+    }> => {
       const logFilters = filters.filter(
         (f): f is LogFilter => f.type === "log",
       );
@@ -739,6 +823,7 @@ export const createSyncStore = ({
         )
         .orderBy(
           asc(PONDER_SYNC.traces.blockNumber),
+          asc(PONDER_SYNC.traces.transactionIndex),
           asc(PONDER_SYNC.traces.traceIndex),
         )
         .limit(limit);
@@ -786,19 +871,29 @@ export const createSyncStore = ({
           ? database.syncQB.wrap(
               { label: "select_transactions" },
               () => transactionsQuery,
+              context,
             )
           : [],
         shouldQueryTransactionReceipts
           ? database.syncQB.wrap(
               { label: "select_transaction_receipts" },
               () => transactionReceiptsQuery,
+              context,
             )
           : [],
         shouldQueryLogs
-          ? database.syncQB.wrap({ label: "select_logs" }, () => logsQuery)
+          ? database.syncQB.wrap(
+              { label: "select_logs" },
+              () => logsQuery,
+              context,
+            )
           : [],
         shouldQueryTraces
-          ? database.syncQB.wrap({ label: "select_traces" }, () => tracesQuery)
+          ? database.syncQB.wrap(
+              { label: "select_traces" },
+              () => tracesQuery,
+              context,
+            )
           : [],
       ]);
 
@@ -825,205 +920,6 @@ export const createSyncStore = ({
 
       endClock = startClock();
 
-      const blockData: {
-        block: InternalBlock;
-        logs: InternalLog[];
-        transactions: InternalTransaction[];
-        transactionReceipts: InternalTransactionReceipt[];
-        traces: InternalTrace[];
-      }[] = [];
-      let transactionIndex = 0;
-      let transactionReceiptIndex = 0;
-      let traceIndex = 0;
-      let logIndex = 0;
-      for (const block of blocksRows) {
-        if (Number(block.number) > supremum) {
-          break;
-        }
-
-        const transactions: InternalTransaction[] = [];
-        const transactionReceipts: InternalTransactionReceipt[] = [];
-        const logs: InternalLog[] = [];
-        const traces: InternalTrace[] = [];
-
-        while (
-          transactionIndex < transactionsRows.length &&
-          transactionsRows[transactionIndex]!.blockNumber === block.number
-        ) {
-          const transaction = transactionsRows[transactionIndex]!;
-          const internalTransaction =
-            transaction as unknown as InternalTransaction;
-
-          internalTransaction.blockNumber = Number(transaction.blockNumber);
-          internalTransaction.from = toLowerCase(transaction.from) as Address;
-          if (transaction.to !== null) {
-            internalTransaction.to = toLowerCase(transaction.to) as Address;
-          }
-
-          if (transaction.type === "0x0") {
-            internalTransaction.type = "legacy";
-            internalTransaction.accessList = undefined;
-            internalTransaction.maxFeePerGas = undefined;
-            internalTransaction.maxPriorityFeePerGas = undefined;
-          } else if (transaction.type === "0x1") {
-            internalTransaction.type = "eip2930";
-            internalTransaction.accessList =
-              transaction.accessList === undefined
-                ? undefined
-                : JSON.parse(transaction.accessList!);
-            internalTransaction.maxFeePerGas = undefined;
-            internalTransaction.maxPriorityFeePerGas = undefined;
-          } else if (transaction.type === "0x2") {
-            internalTransaction.type = "eip1559";
-            internalTransaction.gasPrice = undefined;
-            internalTransaction.accessList = undefined;
-          } else if (transaction.type === "0x7e") {
-            internalTransaction.type = "deposit";
-            internalTransaction.gasPrice = undefined;
-            internalTransaction.accessList = undefined;
-          }
-
-          transactions.push(internalTransaction);
-          transactionIndex++;
-        }
-
-        while (
-          transactionReceiptIndex < transactionReceiptsRows.length &&
-          transactionReceiptsRows[transactionReceiptIndex]!.blockNumber ===
-            block.number
-        ) {
-          const transactionReceipt =
-            transactionReceiptsRows[transactionReceiptIndex]!;
-
-          const internalTransactionReceipt =
-            transactionReceipt as unknown as InternalTransactionReceipt;
-
-          internalTransactionReceipt.blockNumber = Number(
-            transactionReceipt.blockNumber,
-          );
-          if (
-            transactionReceipt.contractAddress !== undefined &&
-            transactionReceipt.contractAddress !== null
-          ) {
-            internalTransactionReceipt.contractAddress = toLowerCase(
-              transactionReceipt.contractAddress,
-            ) as Address;
-          }
-          internalTransactionReceipt.from = toLowerCase(
-            transactionReceipt.from,
-          ) as Address;
-          if (transactionReceipt.to !== null) {
-            internalTransactionReceipt.to = toLowerCase(
-              transactionReceipt.to,
-            ) as Address;
-          }
-          internalTransactionReceipt.status =
-            transactionReceipt.status === "0x1"
-              ? "success"
-              : transactionReceipt.status === "0x0"
-                ? "reverted"
-                : (transactionReceipt.status as InternalTransactionReceipt["status"]);
-          internalTransactionReceipt.type =
-            transactionReceipt.type === "0x0"
-              ? "legacy"
-              : transactionReceipt.type === "0x1"
-                ? "eip2930"
-                : transactionReceipt.type === "0x2"
-                  ? "eip1559"
-                  : transactionReceipt.type === "0x7e"
-                    ? "deposit"
-                    : transactionReceipt.type;
-
-          transactionReceipts.push(internalTransactionReceipt);
-          transactionReceiptIndex++;
-        }
-
-        while (
-          logIndex < logsRows.length &&
-          logsRows[logIndex]!.blockNumber === block.number
-        ) {
-          const log = logsRows[logIndex]!;
-          const internalLog = log as unknown as InternalLog;
-
-          internalLog.blockNumber = Number(log.blockNumber);
-          internalLog.address = toLowerCase(log.address);
-          internalLog.removed = false;
-          internalLog.topics = [
-            // @ts-ignore
-            log.topic0,
-            log.topic1,
-            log.topic2,
-            log.topic3,
-          ];
-          // @ts-ignore
-          log.topic0 = undefined;
-          // @ts-ignore
-          log.topic1 = undefined;
-          // @ts-ignore
-          log.topic2 = undefined;
-          // @ts-ignore
-          log.topic3 = undefined;
-
-          logs.push(internalLog);
-          logIndex++;
-        }
-
-        while (
-          traceIndex < tracesRows.length &&
-          tracesRows[traceIndex]!.blockNumber === block.number
-        ) {
-          const trace = tracesRows[traceIndex]!;
-          const internalTrace = trace as unknown as InternalTrace;
-
-          internalTrace.blockNumber = Number(trace.blockNumber);
-
-          internalTrace.from = toLowerCase(trace.from) as Address;
-          if (trace.to !== null) {
-            internalTrace.to = toLowerCase(trace.to) as Address;
-          }
-
-          if (trace.output === undefined || trace.output === null) {
-            internalTrace.output = undefined;
-          }
-
-          if (trace.error === null) {
-            internalTrace.error = undefined;
-          }
-
-          if (trace.revertReason === undefined || trace.revertReason === null) {
-            internalTrace.revertReason = undefined;
-          }
-
-          traces.push(internalTrace);
-          traceIndex++;
-        }
-
-        if (block.miner) {
-          block.miner = toLowerCase(block.miner);
-        }
-
-        blockData.push({
-          block,
-          logs,
-          transactions,
-          traces,
-          transactionReceipts,
-        } as {
-          block: InternalBlock;
-          logs: InternalLog[];
-          transactions: InternalTransaction[];
-          transactionReceipts: InternalTransactionReceipt[];
-          traces: InternalTrace[];
-        });
-      }
-
-      common.metrics.ponder_historical_extract_duration.inc(
-        { step: "format" },
-        endClock(),
-      );
-
-      await new Promise(setImmediate);
-
       let cursor: number;
       if (
         Math.max(
@@ -1048,112 +944,267 @@ export const createSyncStore = ({
         cursor = supremum;
       } else {
         // there may be events for `supremum` block that have not been extracted
-        blockData.pop();
         cursor = supremum - 1;
 
         if (cursor < fromBlock) {
-          limit = limit * 2;
-          return await fn();
+          return syncStore.getEventData(
+            {
+              filters,
+              fromBlock,
+              toBlock,
+              chainId,
+              limit: limit * 2,
+            },
+            context,
+          );
         }
       }
 
-      return { blockData, cursor };
-    };
+      endClock = startClock();
 
-    return fn();
-  },
-  insertRpcRequestResults: async ({ requests, chainId }) => {
-    if (requests.length === 0) return;
+      for (let i = 0; i < blocksRows.length; i++) {
+        if (Number(blocksRows[i]!.number) > cursor) {
+          blocksRows.length = i;
+          break;
+        }
 
-    const values = requests.map(({ request, blockNumber, result }) => ({
-      requestHash: crypto
-        .createHash("md5")
-        .update(toLowerCase(JSON.stringify(orderObject(request))))
-        .digest("hex"),
-      chainId: BigInt(chainId),
-      blockNumber: blockNumber ? BigInt(blockNumber) : undefined,
-      result,
-    }));
+        const block = blocksRows[i]!;
 
-    await database.syncQB.wrap({ label: "insert_rpc_requests" }, (db) =>
-      db
-        .insert(PONDER_SYNC.rpcRequestResults)
-        .values(values)
-        .onConflictDoNothing({
-          target: [
-            PONDER_SYNC.rpcRequestResults.requestHash,
-            PONDER_SYNC.rpcRequestResults.chainId,
-          ],
-        }),
-    );
-  },
-  getRpcRequestResults: async ({ requests, chainId }) => {
-    if (requests.length === 0) return [];
-
-    // Optimized fast path for high number of `requests` using a range of block numbers
-    // rather than querying each request individually.
-
-    const blockNumbersByRequest: (number | undefined)[] = new Array(
-      requests.length,
-    );
-    const requestHashes: string[] = new Array(requests.length);
-
-    for (let i = 0; i < requests.length; i++) {
-      const request = requests[i]!;
-      const blockNumber = extractBlockNumberParam(request);
-
-      // Note: "latest" is not considered a block number
-      if (isHex(blockNumber)) {
-        blockNumbersByRequest[i] = hexToNumber(blockNumber);
-      } else {
-        blockNumbersByRequest[i] = undefined;
+        if (block.miner) {
+          block.miner = toLowerCase(block.miner);
+        }
       }
 
-      const requestHash = crypto
-        .createHash("md5")
-        .update(toLowerCase(JSON.stringify(orderObject(request))))
-        .digest("hex");
+      for (let i = 0; i < transactionsRows.length; i++) {
+        if (Number(transactionsRows[i]!.blockNumber) > cursor) {
+          transactionsRows.length = i;
+          break;
+        }
 
-      requestHashes[i] = requestHash;
-    }
+        const transaction = transactionsRows[i]!;
+        const internalTransaction =
+          transaction as unknown as InternalTransaction;
 
-    const blockNumbers = blockNumbersByRequest.filter(
-      (blockNumber): blockNumber is number => blockNumber !== undefined,
-    );
+        internalTransaction.blockNumber = Number(transaction.blockNumber);
+        internalTransaction.from = toLowerCase(transaction.from);
+        if (transaction.to !== null) {
+          internalTransaction.to = toLowerCase(transaction.to);
+        }
 
-    if (blockNumbers.length > 100) {
-      const minBlockNumber = Math.min(...blockNumbers);
-      const maxBlockNumber = Math.max(...blockNumbers);
+        if (transaction.type === "0x0") {
+          internalTransaction.type = "legacy";
+          internalTransaction.accessList = undefined;
+          internalTransaction.maxFeePerGas = undefined;
+          internalTransaction.maxPriorityFeePerGas = undefined;
+        } else if (transaction.type === "0x1") {
+          internalTransaction.type = "eip2930";
+          internalTransaction.accessList =
+            transaction.accessList === undefined
+              ? undefined
+              : JSON.parse(transaction.accessList!);
+          internalTransaction.maxFeePerGas = undefined;
+          internalTransaction.maxPriorityFeePerGas = undefined;
+        } else if (transaction.type === "0x2") {
+          internalTransaction.type = "eip1559";
+          internalTransaction.gasPrice = undefined;
+          internalTransaction.accessList = undefined;
+        } else if (transaction.type === "0x7e") {
+          internalTransaction.type = "deposit";
+          internalTransaction.gasPrice = undefined;
+          internalTransaction.accessList = undefined;
+        }
+      }
 
-      const nonBlockRequestHashes = requestHashes.filter(
-        (_, i) => blockNumbersByRequest[i] === undefined,
+      for (let i = 0; i < transactionReceiptsRows.length; i++) {
+        if (Number(transactionReceiptsRows[i]!.blockNumber) > cursor) {
+          transactionReceiptsRows.length = i;
+          break;
+        }
+
+        const transactionReceipt = transactionReceiptsRows[i]!;
+
+        const internalTransactionReceipt =
+          transactionReceipt as unknown as InternalTransactionReceipt;
+
+        internalTransactionReceipt.blockNumber = Number(
+          transactionReceipt.blockNumber,
+        );
+        if (transactionReceipt.contractAddress) {
+          internalTransactionReceipt.contractAddress = toLowerCase(
+            transactionReceipt.contractAddress,
+          );
+        }
+        internalTransactionReceipt.from = toLowerCase(transactionReceipt.from);
+        if (transactionReceipt.to !== null) {
+          internalTransactionReceipt.to = toLowerCase(transactionReceipt.to);
+        }
+        internalTransactionReceipt.status =
+          transactionReceipt.status === "0x1"
+            ? "success"
+            : transactionReceipt.status === "0x0"
+              ? "reverted"
+              : (transactionReceipt.status as InternalTransactionReceipt["status"]);
+        internalTransactionReceipt.type =
+          transactionReceipt.type === "0x0"
+            ? "legacy"
+            : transactionReceipt.type === "0x1"
+              ? "eip2930"
+              : transactionReceipt.type === "0x2"
+                ? "eip1559"
+                : transactionReceipt.type === "0x7e"
+                  ? "deposit"
+                  : transactionReceipt.type;
+      }
+
+      for (let i = 0; i < tracesRows.length; i++) {
+        if (Number(tracesRows[i]!.blockNumber) > cursor) {
+          tracesRows.length = i;
+          break;
+        }
+
+        const trace = tracesRows[i]!;
+        const internalTrace = trace as unknown as InternalTrace;
+
+        internalTrace.blockNumber = Number(trace.blockNumber);
+
+        internalTrace.from = toLowerCase(trace.from);
+        if (trace.to !== null) {
+          internalTrace.to = toLowerCase(trace.to);
+        }
+
+        if (trace.output === null) {
+          internalTrace.output = undefined;
+        }
+
+        if (trace.error === null) {
+          internalTrace.error = undefined;
+        }
+
+        if (trace.revertReason === null) {
+          internalTrace.revertReason = undefined;
+        }
+      }
+
+      for (let i = 0; i < logsRows.length; i++) {
+        if (Number(logsRows[i]!.blockNumber) > cursor) {
+          logsRows.length = i;
+          break;
+        }
+
+        const log = logsRows[i]!;
+        const internalLog = log as unknown as InternalLog;
+
+        internalLog.blockNumber = Number(log.blockNumber);
+        internalLog.address = toLowerCase(log.address);
+        internalLog.removed = false;
+        internalLog.topics = [
+          // @ts-ignore
+          log.topic0,
+          log.topic1,
+          log.topic2,
+          log.topic3,
+        ];
+        // @ts-ignore
+        log.topic0 = undefined;
+        // @ts-ignore
+        log.topic1 = undefined;
+        // @ts-ignore
+        log.topic2 = undefined;
+        // @ts-ignore
+        log.topic3 = undefined;
+      }
+
+      common.metrics.ponder_historical_extract_duration.inc(
+        { step: "format" },
+        endClock(),
       );
 
-      const result = await Promise.all([
-        database.syncQB.wrap({ label: "select_rpc_requests" }, (db) =>
+      await new Promise(setImmediate);
+
+      return {
+        blocks: blocksRows as InternalBlock[],
+        logs: logsRows as InternalLog[],
+        transactions: transactionsRows as InternalTransaction[],
+        transactionReceipts:
+          transactionReceiptsRows as InternalTransactionReceipt[],
+        traces: tracesRows as InternalTrace[],
+        cursor,
+      };
+    },
+    insertRpcRequestResults: async ({ requests, chainId }, context) => {
+      if (requests.length === 0) return;
+
+      const values = requests.map(({ request, blockNumber, result }) => ({
+        requestHash: crypto
+          .createHash("md5")
+          .update(toLowerCase(JSON.stringify(orderObject(request))))
+          .digest("hex"),
+        chainId: BigInt(chainId),
+        blockNumber: blockNumber ? BigInt(blockNumber) : undefined,
+        result,
+      }));
+
+      await database.syncQB.wrap(
+        { label: "insert_rpc_requests" },
+        (db) =>
           db
-            .select({
-              request_hash: PONDER_SYNC.rpcRequestResults.requestHash,
-              result: PONDER_SYNC.rpcRequestResults.result,
-            })
-            .from(PONDER_SYNC.rpcRequestResults)
-            .where(
-              and(
-                eq(PONDER_SYNC.rpcRequestResults.chainId, BigInt(chainId)),
-                gte(
-                  PONDER_SYNC.rpcRequestResults.blockNumber,
-                  BigInt(minBlockNumber),
-                ),
-                lte(
-                  PONDER_SYNC.rpcRequestResults.blockNumber,
-                  BigInt(maxBlockNumber),
-                ),
-              ),
-            ),
-        ),
-        nonBlockRequestHashes.length === 0
-          ? []
-          : database.syncQB.wrap({ label: "select_rpc_requests" }, (db) =>
+            .insert(PONDER_SYNC.rpcRequestResults)
+            .values(values)
+            .onConflictDoNothing({
+              target: [
+                PONDER_SYNC.rpcRequestResults.requestHash,
+                PONDER_SYNC.rpcRequestResults.chainId,
+              ],
+            }),
+        context,
+      );
+    },
+    getRpcRequestResults: async ({ requests, chainId }, context) => {
+      if (requests.length === 0) return [];
+
+      // Optimized fast path for high number of `requests` using a range of block numbers
+      // rather than querying each request individually.
+
+      const blockNumbersByRequest: (number | undefined)[] = new Array(
+        requests.length,
+      );
+      const requestHashes: string[] = new Array(requests.length);
+
+      for (let i = 0; i < requests.length; i++) {
+        const request = requests[i]!;
+        const blockNumber = extractBlockNumberParam(request);
+
+        // Note: "latest" is not considered a block number
+        if (isHex(blockNumber)) {
+          blockNumbersByRequest[i] = hexToNumber(blockNumber);
+        } else {
+          blockNumbersByRequest[i] = undefined;
+        }
+
+        const requestHash = crypto
+          .createHash("md5")
+          .update(toLowerCase(JSON.stringify(orderObject(request))))
+          .digest("hex");
+
+        requestHashes[i] = requestHash;
+      }
+
+      const blockNumbers = blockNumbersByRequest.filter(
+        (blockNumber): blockNumber is number => blockNumber !== undefined,
+      );
+
+      if (blockNumbers.length > 100) {
+        const minBlockNumber = Math.min(...blockNumbers);
+        const maxBlockNumber = Math.max(...blockNumbers);
+
+        const nonBlockRequestHashes = requestHashes.filter(
+          (_, i) => blockNumbersByRequest[i] === undefined,
+        );
+
+        const result = await Promise.all([
+          database.syncQB.wrap(
+            { label: "select_rpc_requests" },
+            (db) =>
               db
                 .select({
                   request_hash: PONDER_SYNC.rpcRequestResults.requestHash,
@@ -1163,106 +1214,166 @@ export const createSyncStore = ({
                 .where(
                   and(
                     eq(PONDER_SYNC.rpcRequestResults.chainId, BigInt(chainId)),
-                    inArray(
-                      PONDER_SYNC.rpcRequestResults.requestHash,
-                      nonBlockRequestHashes,
+                    gte(
+                      PONDER_SYNC.rpcRequestResults.blockNumber,
+                      BigInt(minBlockNumber),
+                    ),
+                    lte(
+                      PONDER_SYNC.rpcRequestResults.blockNumber,
+                      BigInt(maxBlockNumber),
                     ),
                   ),
                 ),
+            context,
+          ),
+          nonBlockRequestHashes.length === 0
+            ? []
+            : database.syncQB.wrap(
+                { label: "select_rpc_requests" },
+                (db) =>
+                  db
+                    .select({
+                      request_hash: PONDER_SYNC.rpcRequestResults.requestHash,
+                      result: PONDER_SYNC.rpcRequestResults.result,
+                    })
+                    .from(PONDER_SYNC.rpcRequestResults)
+                    .where(
+                      and(
+                        eq(
+                          PONDER_SYNC.rpcRequestResults.chainId,
+                          BigInt(chainId),
+                        ),
+                        inArray(
+                          PONDER_SYNC.rpcRequestResults.requestHash,
+                          nonBlockRequestHashes,
+                        ),
+                      ),
+                    ),
+                context,
+              ),
+        ]);
+
+        const results = new Map<string, string | undefined>();
+        for (const row of result[0]!) {
+          results.set(row.request_hash, row.result);
+        }
+        for (const row of result[1]!) {
+          results.set(row.request_hash, row.result);
+        }
+
+        return requestHashes.map((requestHash) => results.get(requestHash));
+      }
+
+      const result = await database.syncQB.wrap(
+        { label: "select_rpc_requests" },
+        (db) =>
+          db
+            .select({
+              request_hash: PONDER_SYNC.rpcRequestResults.requestHash,
+              result: PONDER_SYNC.rpcRequestResults.result,
+            })
+            .from(PONDER_SYNC.rpcRequestResults)
+            .where(
+              and(
+                eq(PONDER_SYNC.rpcRequestResults.chainId, BigInt(chainId)),
+                inArray(
+                  PONDER_SYNC.rpcRequestResults.requestHash,
+                  requestHashes,
+                ),
+              ),
             ),
-      ]);
+        context,
+      );
 
       const results = new Map<string, string | undefined>();
-      for (const row of result[0]!) {
-        results.set(row.request_hash, row.result);
-      }
-      for (const row of result[1]!) {
+      for (const row of result) {
         results.set(row.request_hash, row.result);
       }
 
       return requestHashes.map((requestHash) => results.get(requestHash));
-    }
+    },
+    pruneRpcRequestResults: async ({ blocks, chainId }, context) => {
+      if (blocks.length === 0) return;
 
-    const result = await database.syncQB.wrap(
-      { label: "select_rpc_requests" },
-      (db) =>
-        db
-          .select({
-            request_hash: PONDER_SYNC.rpcRequestResults.requestHash,
-            result: PONDER_SYNC.rpcRequestResults.result,
-          })
-          .from(PONDER_SYNC.rpcRequestResults)
-          .where(
-            and(
-              eq(PONDER_SYNC.rpcRequestResults.chainId, BigInt(chainId)),
-              inArray(PONDER_SYNC.rpcRequestResults.requestHash, requestHashes),
+      const numbers = blocks.map(({ number }) => BigInt(hexToNumber(number)));
+
+      await database.syncQB.wrap(
+        { label: "delete_rpc_requests" },
+        (db) =>
+          db
+            .delete(PONDER_SYNC.rpcRequestResults)
+            .where(
+              and(
+                eq(PONDER_SYNC.rpcRequestResults.chainId, BigInt(chainId)),
+                inArray(PONDER_SYNC.rpcRequestResults.blockNumber, numbers),
+              ),
             ),
-          ),
-    );
+        context,
+      );
+    },
+    pruneByChain: async ({ chainId }, context) =>
+      database.syncQB.transaction(async (tx) => {
+        await tx.wrap(
+          { label: "delete_logs" },
+          (db) =>
+            db
+              .delete(PONDER_SYNC.logs)
+              .where(eq(PONDER_SYNC.logs.chainId, BigInt(chainId)))
+              .execute(),
+          context,
+        );
+        await tx.wrap(
+          { label: "delete_blocks" },
+          (db) =>
+            db
+              .delete(PONDER_SYNC.blocks)
+              .where(eq(PONDER_SYNC.blocks.chainId, BigInt(chainId)))
+              .execute(),
+          context,
+        );
+        await tx.wrap(
+          { label: "delete_traces" },
+          (db) =>
+            db
+              .delete(PONDER_SYNC.traces)
+              .where(eq(PONDER_SYNC.traces.chainId, BigInt(chainId)))
+              .execute(),
+          context,
+        );
+        await tx.wrap(
+          { label: "delete_transactions" },
+          (db) =>
+            db
+              .delete(PONDER_SYNC.transactions)
+              .where(eq(PONDER_SYNC.transactions.chainId, BigInt(chainId)))
+              .execute(),
+          context,
+        );
+        await tx.wrap(
+          { label: "delete_transaction_receipts" },
+          (db) =>
+            db
+              .delete(PONDER_SYNC.transactionReceipts)
+              .where(
+                eq(PONDER_SYNC.transactionReceipts.chainId, BigInt(chainId)),
+              )
+              .execute(),
+          context,
+        );
+        await tx.wrap(
+          { label: "delete_factory_addresses" },
+          (db) =>
+            db
+              .delete(PONDER_SYNC.factoryAddresses)
+              .where(eq(PONDER_SYNC.factoryAddresses.chainId, BigInt(chainId)))
+              .execute(),
+          context,
+        );
+      }),
+  } satisfies SyncStore;
 
-    const results = new Map<string, string | undefined>();
-    for (const row of result) {
-      results.set(row.request_hash, row.result);
-    }
-
-    return requestHashes.map((requestHash) => results.get(requestHash));
-  },
-  pruneRpcRequestResults: async ({ blocks, chainId }) => {
-    if (blocks.length === 0) return;
-
-    const numbers = blocks.map(({ number }) => BigInt(hexToNumber(number)));
-
-    await database.syncQB.wrap({ label: "delete_rpc_requests" }, (db) =>
-      db
-        .delete(PONDER_SYNC.rpcRequestResults)
-        .where(
-          and(
-            eq(PONDER_SYNC.rpcRequestResults.chainId, BigInt(chainId)),
-            inArray(PONDER_SYNC.rpcRequestResults.blockNumber, numbers),
-          ),
-        ),
-    );
-  },
-  pruneByChain: async ({ chainId }) =>
-    database.syncQB.transaction(async (tx) => {
-      await tx.wrap({ label: "delete_logs" }, (db) =>
-        db
-          .delete(PONDER_SYNC.logs)
-          .where(eq(PONDER_SYNC.logs.chainId, BigInt(chainId)))
-          .execute(),
-      );
-      await tx.wrap({ label: "delete_blocks" }, (db) =>
-        db
-          .delete(PONDER_SYNC.blocks)
-          .where(eq(PONDER_SYNC.blocks.chainId, BigInt(chainId)))
-          .execute(),
-      );
-      await tx.wrap({ label: "delete_traces" }, (db) =>
-        db
-          .delete(PONDER_SYNC.traces)
-          .where(eq(PONDER_SYNC.traces.chainId, BigInt(chainId)))
-          .execute(),
-      );
-      await tx.wrap({ label: "delete_transactions" }, (db) =>
-        db
-          .delete(PONDER_SYNC.transactions)
-          .where(eq(PONDER_SYNC.transactions.chainId, BigInt(chainId)))
-          .execute(),
-      );
-      await tx.wrap({ label: "delete_transaction_receipts" }, (db) =>
-        db
-          .delete(PONDER_SYNC.transactionReceipts)
-          .where(eq(PONDER_SYNC.transactionReceipts.chainId, BigInt(chainId)))
-          .execute(),
-      );
-      await tx.wrap({ label: "delete_factory_addresses" }, (db) =>
-        db
-          .delete(PONDER_SYNC.factoryAddresses)
-          .where(eq(PONDER_SYNC.factoryAddresses.chainId, BigInt(chainId)))
-          .execute(),
-      );
-    }),
-});
+  return syncStore;
+};
 
 const addressFilter = (
   address:

@@ -1,22 +1,31 @@
 import { getSql } from "@/drizzle/kit/index.js";
 import { BuildError } from "@/internal/errors.js";
 import type { Schema } from "@/internal/types.js";
-import { SQL, getTableColumns, getTableName, is } from "drizzle-orm";
+import {
+  SQL,
+  getTableColumns,
+  getTableName,
+  getViewName,
+  is,
+} from "drizzle-orm";
 import {
   PgBigSerial53,
   PgBigSerial64,
+  PgColumn,
   PgSequence,
   PgSerial,
   PgSmallSerial,
   PgTable,
   PgView,
   getTableConfig,
+  getViewConfig,
 } from "drizzle-orm/pg-core";
 
 export const buildSchema = ({ schema }: { schema: Schema }) => {
   const statements = getSql(schema);
 
   const tableNames = new Set<string>();
+  const viewNames = new Set<string>();
   const indexNames = new Set<string>();
 
   for (const [name, s] of Object.entries(schema)) {
@@ -149,9 +158,67 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
     }
 
     if (is(s, PgView)) {
-      throw new Error(
-        `Schema validation failed: '${name}' is a view and views are unsupported.`,
-      );
+      if (viewNames.has(getViewName(s))) {
+        throw new Error(
+          `Schema validation failed: view name '${getViewName(s)}' is used multiple times.`,
+        );
+      } else {
+        viewNames.add(getViewName(s));
+      }
+
+      const viewConfig = getViewConfig(s);
+
+      if (viewConfig.selectedFields.length === 0) {
+        throw new Error(
+          `Schema validation failed: view '${getViewName(s)}' has no selected fields.`,
+        );
+      }
+
+      if (viewConfig.isExisting) {
+        throw new Error(
+          `Schema validation failed: view '${getViewName(s)}' is an existing view and existing views are unsupported.`,
+        );
+      }
+
+      if (viewConfig)
+        for (const [columnName, column] of Object.entries(
+          viewConfig.selectedFields,
+        )) {
+          if (is(column, PgColumn) === false) {
+            throw new Error(
+              `Schema validation failed: view '${getViewName(s)}.${columnName}' is a non-column selected field.`,
+            );
+          }
+
+          if (
+            column instanceof PgSerial ||
+            column instanceof PgSmallSerial ||
+            column instanceof PgBigSerial53 ||
+            column instanceof PgBigSerial64
+          ) {
+            throw new Error(
+              `Schema validation failed: '${name}.${columnName}' has a serial column and serial columns are unsupported.`,
+            );
+          }
+
+          if ((column as PgColumn).isUnique) {
+            throw new Error(
+              `Schema validation failed: '${name}.${columnName}' has a unique constraint and unique constraints are unsupported.`,
+            );
+          }
+
+          if ((column as PgColumn).generated !== undefined) {
+            throw new Error(
+              `Schema validation failed: '${name}.${columnName}' is a generated column and generated columns are unsupported.`,
+            );
+          }
+
+          if ((column as PgColumn).generatedIdentity !== undefined) {
+            throw new Error(
+              `Schema validation failed: '${name}.${columnName}' is a generated column and generated columns are unsupported.`,
+            );
+          }
+        }
     }
   }
 

@@ -2,6 +2,7 @@ import { SQL, getTableName, is, sql } from "drizzle-orm";
 import { CasingCache, toCamelCase, toSnakeCase } from "drizzle-orm/casing";
 import {
   type AnyPgTable,
+  PgColumn,
   PgDialect,
   type PgEnum,
   PgEnumColumn,
@@ -11,6 +12,7 @@ import {
   PgTable,
   PgView,
   getTableConfig,
+  getViewConfig,
   index,
   integer,
   isPgEnum,
@@ -27,6 +29,10 @@ export type SqlStatements = {
   tables: {
     sql: string[];
     json: JsonCreateTableStatement[];
+  };
+  views: {
+    sql: string[];
+    json: JsonCreatePgViewStatement[];
   };
   enums: {
     sql: string[];
@@ -73,8 +79,8 @@ export const getReorgTable = (table: PgTable) => {
 };
 
 export const getSql = (schema: { [name: string]: unknown }): SqlStatements => {
-  const { tables, enums, schemas } = prepareFromExports(schema);
-  const json = generatePgSnapshot(tables, enums, schemas, "snake_case");
+  const { tables, views, enums, schemas } = prepareFromExports(schema);
+  const json = generatePgSnapshot(tables, views, enums, schemas, "snake_case");
   const squashed = squashPgScheme(json);
 
   const jsonCreateIndexesForCreatedTables = Object.values(
@@ -92,6 +98,19 @@ export const getSql = (schema: { [name: string]: unknown }): SqlStatements => {
 
   const jsonCreateTables = Object.values(squashed.tables).map((it: any) => {
     return preparePgCreateTableJson(it, json);
+  });
+
+  const jsonCreateViews = Object.values(squashed.views).map((it: any) => {
+    return preparePgCreateViewJson(
+      it.name,
+      it.schema,
+      it.definition!,
+      it.materialized,
+      it.withNoData,
+      it.with,
+      it.using,
+      it.tablespace,
+    );
   });
 
   const fromJson = (statements: any[]) =>
@@ -121,6 +140,7 @@ export const getSql = (schema: { [name: string]: unknown }): SqlStatements => {
       sql: fromJson(combinedTables),
       json: combinedTables,
     },
+    views: { sql: fromJson(jsonCreateViews), json: jsonCreateViews },
     enums: { sql: fromJson(jsonCreateEnums), json: jsonCreateEnums },
     indexes: {
       sql: fromJson(jsonCreateIndexesForCreatedTables),
@@ -156,6 +176,7 @@ const createReorgTableStatement = (statement: JsonCreateTableStatement) => {
             checkpoint: varchar({ length: 75 }).notNull(),
           }),
         ],
+        [],
         [],
         [],
         "snake_case",
@@ -264,6 +285,18 @@ interface JsonCreateTableStatement {
   checkConstraints?: string[];
 }
 
+type JsonCreatePgViewStatement = {
+  type: "create_view";
+  name: string;
+  schema: string;
+  definition?: string;
+  materialized: boolean;
+  with: any;
+  withNoData?: boolean;
+  using?: string;
+  tablespace?: string;
+};
+
 interface JsonCreateEnumStatement {
   type: "create_type_enum";
   name: string;
@@ -326,6 +359,7 @@ interface JsonCreateReferenceStatement {
 
 type JsonStatement =
   | JsonCreateTableStatement
+  | JsonCreatePgViewStatement
   | JsonCreateEnumStatement
   | JsonCreateIndexStatement
   | JsonPgCreateIndexStatement
@@ -510,6 +544,58 @@ class PgCreateTableConvertor extends Convertor {
   }
 }
 
+class PgCreateViewConvertor extends Convertor {
+  can(statement: JsonStatement, dialect: Dialect): boolean {
+    return statement.type === "create_view" && dialect === "postgresql";
+  }
+
+  convert(st: JsonCreatePgViewStatement) {
+    const {
+      definition,
+      name: viewName,
+      schema,
+      with: withOption,
+      materialized,
+      withNoData,
+      tablespace,
+      using,
+    } = st;
+
+    const name = schema ? `"${schema}"."${viewName}"` : `"${viewName}"`;
+
+    let statement = materialized
+      ? `CREATE MATERIALIZED VIEW ${name}`
+      : `CREATE VIEW ${name}`;
+
+    if (using) statement += ` USING "${using}"`;
+
+    const options: string[] = [];
+    if (withOption) {
+      statement += " WITH (";
+
+      Object.entries(withOption).forEach(([key, value]) => {
+        if (typeof value === "undefined") return;
+
+        options.push(`${toSnakeCase(key)} = ${value}`);
+      });
+
+      statement += options.join(", ");
+
+      statement += ")";
+    }
+
+    if (tablespace) statement += ` TABLESPACE ${tablespace}`;
+
+    statement += ` AS (${definition})`;
+
+    if (withNoData) statement += " WITH NO DATA";
+
+    statement += ";";
+
+    return statement;
+  }
+}
+
 class CreateTypeEnumConvertor extends Convertor {
   can(statement: JsonStatement): boolean {
     return statement.type === "create_type_enum";
@@ -614,6 +700,7 @@ class PgCreateSchemaConvertor extends Convertor {
 
 const convertors: Convertor[] = [];
 convertors.push(new PgCreateTableConvertor());
+convertors.push(new PgCreateViewConvertor());
 convertors.push(new CreateTypeEnumConvertor());
 convertors.push(new CreatePgIndexConvertor());
 convertors.push(new PgCreateSchemaConvertor());
@@ -640,6 +727,29 @@ const preparePgCreateTableJson = (
     columns: Object.values(columns),
     compositePKs: Object.values(compositePrimaryKeys),
     compositePkName: compositePkName,
+  };
+};
+
+const preparePgCreateViewJson = (
+  name: string,
+  schema: string,
+  definition: string,
+  materialized: boolean,
+  withNoData = false,
+  withOption?: any,
+  using?: string,
+  tablespace?: string,
+): JsonCreatePgViewStatement => {
+  return {
+    type: "create_view",
+    name: name,
+    schema: schema,
+    definition: definition,
+    with: withOption,
+    materialized: materialized,
+    withNoData,
+    using,
+    tablespace,
   };
 };
 
@@ -775,12 +885,14 @@ const indexName = (tableName: string, columns: string[]) => {
 
 const generatePgSnapshot = (
   tables: AnyPgTable[],
+  views: PgView[],
   enums: PgEnum<any>[],
   schemas: PgSchema[],
   casing: CasingType | undefined,
 ) => {
   const dialect = new PgDialect({ casing });
   const result: Record<string, Table> = {};
+  const resultViews: Record<string, any> = {};
 
   // This object stores unique names for indexes and will be used to detect if you have the same names for indexes
   // within the same PostgreSQL schema
@@ -943,6 +1055,211 @@ const generatePgSnapshot = (
     };
   }
 
+  const combinedViews = [...views];
+  for (const view of combinedViews) {
+    // @ts-ignore
+    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
+    // biome-ignore lint/style/useConst: <explanation>
+    let viewName;
+    // @ts-ignore
+    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
+    // biome-ignore lint/style/useConst: <explanation>
+    let schema;
+    // @ts-ignore
+    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
+    // biome-ignore lint/style/useConst: <explanation>
+    let query;
+    // @ts-ignore
+    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
+    // biome-ignore lint/style/useConst: <explanation>
+    let selectedFields;
+    // @ts-ignore
+    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
+    // biome-ignore lint/style/useConst: <explanation>
+    let isExisting;
+    // @ts-ignore
+    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
+    // biome-ignore lint/style/useConst: <explanation>
+    let withOption;
+    // @ts-ignore
+    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
+    // biome-ignore lint/style/useConst: <explanation>
+    let tablespace;
+    // @ts-ignore
+    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
+    // biome-ignore lint/style/useConst: <explanation>
+    let using;
+    // @ts-ignore
+    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
+    // biome-ignore lint/style/useConst: <explanation>
+    let withNoData;
+    const materialized: boolean = false;
+
+    // if (is(view, PgView)) {
+    ({
+      name: viewName,
+      schema,
+      query,
+      selectedFields,
+      isExisting,
+      with: withOption,
+    } = getViewConfig(view));
+    // } else {
+    // 	({ name: viewName, schema, query, selectedFields, isExisting, with: withOption, tablespace, using, withNoData } =
+    // 		getMaterializedViewConfig(view));
+
+    // 	materialized = true;
+    // }
+
+    const viewSchema = schema ?? "public";
+
+    const viewKey = `${viewSchema}.${viewName}`;
+
+    const columnsObject: Record<string, Column> = {};
+    // const uniqueConstraintObject: Record<string, UniqueConstraint> = {};
+
+    // const existingView = resultViews[viewKey];
+    // if (typeof existingView !== 'undefined') {
+    // 	console.log(
+    // 		`\n${
+    // 			withStyle.errorWarning(
+    // 				`We\'ve found duplicated view name across ${
+    // 					chalk.underline.blue(schema ?? 'public')
+    // 				} schema. Please rename your view`,
+    // 			)
+    // 		}`,
+    // 	);
+    // 	process.exit(1);
+    // }
+
+    for (const key in selectedFields) {
+      if (is(selectedFields[key], PgColumn)) {
+        const column = selectedFields[key] as PgColumn;
+
+        const notNull: boolean = column.notNull;
+        const primaryKey: boolean = column.primary;
+        const sqlTypeLowered = column.getSQLType().toLowerCase();
+
+        const typeSchema = is(column, PgEnumColumn)
+          ? column.enum.schema || "public"
+          : undefined;
+        // const generated = column.generated;
+        // const identity = column.generatedIdentity;
+
+        // const increment = stringFromIdentityProperty(identity?.sequenceOptions?.increment) ?? '1';
+        // const minValue = stringFromIdentityProperty(identity?.sequenceOptions?.minValue)
+        // 	?? (Number.parseFloat(increment) < 0 ? minRangeForIdentityBasedOn(column.columnType) : '1');
+        // const maxValue = stringFromIdentityProperty(identity?.sequenceOptions?.maxValue)
+        // 	?? (Number.parseFloat(increment) < 0 ? '-1' : maxRangeForIdentityBasedOn(column.getSQLType()));
+        // const startWith = stringFromIdentityProperty(identity?.sequenceOptions?.startWith)
+        // 	?? (Number.parseFloat(increment) < 0 ? maxValue : minValue);
+        // const cache = stringFromIdentityProperty(identity?.sequenceOptions?.cache) ?? '1';
+
+        const columnToSet: Column = {
+          name: column.name,
+          type: column.getSQLType(),
+          typeSchema: typeSchema,
+          primaryKey,
+          notNull,
+          // generated: generated
+          // 	? {
+          // 		as: is(generated.as, SQL)
+          // 			? dialect.sqlToQuery(generated.as as SQL).sql
+          // 			: typeof generated.as === 'function'
+          // 			? dialect.sqlToQuery(generated.as() as SQL).sql
+          // 			: (generated.as as any),
+          // 		type: 'stored',
+          // 	}
+          // 	: undefined,
+          // identity: identity
+          // 	? {
+          // 		type: identity.type,
+          // 		name: identity.sequenceName ?? `${viewName}_${column.name}_seq`,
+          // 		schema: schema ?? 'public',
+          // 		increment,
+          // 		startWith,
+          // 		minValue,
+          // 		maxValue,
+          // 		cache,
+          // 		cycle: identity?.sequenceOptions?.cycle ?? false,
+          // 	}
+          // 	: undefined,
+        };
+
+        // if (column.isUnique) {
+        // 	// const existingUnique = uniqueConstraintObject[column.uniqueName!];
+        // 	// if (typeof existingUnique !== 'undefined') {
+        // 	// 	console.log(
+        // 	// 		`\n${
+        // 	// 			withStyle.errorWarning(
+        // 	// 				`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(viewName)} table.
+        //   // The unique constraint ${chalk.underline.blue(column.uniqueName)} on the ${
+        // 	// 					chalk.underline.blue(
+        // 	// 						column.name,
+        // 	// 					)
+        // 	// 				} column is confilcting with a unique constraint name already defined for ${
+        // 	// 					chalk.underline.blue(existingUnique.columns.join(','))
+        // 	// 				} columns\n`,
+        // 	// 			)
+        // 	// 		}`,
+        // 	// 	);
+        // 	// 	process.exit(1);
+        // 	// }
+        // 	uniqueConstraintObject[column.uniqueName!] = {
+        // 		name: column.uniqueName!,
+        // 		nullsNotDistinct: column.uniqueType === 'not distinct',
+        // 		columns: [columnToSet.name],
+        // 	};
+        // }
+
+        if (column.default !== undefined) {
+          if (is(column.default, SQL)) {
+            columnToSet.default = sqlToStr(column.default, casing);
+          } else {
+            if (typeof column.default === "string") {
+              columnToSet.default = `'${column.default}'`;
+            } else {
+              if (sqlTypeLowered === "jsonb" || sqlTypeLowered === "json") {
+                columnToSet.default = `'${JSON.stringify(column.default)}'::${sqlTypeLowered}`;
+              } else if (column.default instanceof Date) {
+                if (sqlTypeLowered === "date") {
+                  columnToSet.default = `'${column.default.toISOString().split("T")[0]}'`;
+                } else if (sqlTypeLowered === "timestamp") {
+                  columnToSet.default = `'${column.default.toISOString().replace("T", " ").slice(0, 23)}'`;
+                } else {
+                  columnToSet.default = `'${column.default.toISOString()}'`;
+                }
+              } else if (
+                isPgArrayType(sqlTypeLowered) &&
+                Array.isArray(column.default)
+              ) {
+                columnToSet.default = `'${buildArrayString(column.default, sqlTypeLowered)}'`;
+              } else {
+                // Should do for all types
+                // columnToSet.default = `'${column.default}'::${sqlTypeLowered}`;
+                columnToSet.default = column.default;
+              }
+            }
+          }
+        }
+        columnsObject[column.name] = columnToSet;
+      }
+    }
+
+    resultViews[viewKey] = {
+      columns: columnsObject,
+      definition: isExisting ? undefined : dialect.sqlToQuery(query!).sql,
+      name: viewName,
+      schema: viewSchema,
+      isExisting,
+      with: withOption,
+      withNoData,
+      materialized,
+      tablespace,
+      using,
+    };
+  }
+
   const enumsToReturn: Record<string, Enum> = enums.reduce<{
     [key: string]: Enum;
   }>((map, obj) => {
@@ -970,6 +1287,7 @@ const generatePgSnapshot = (
     tables: result,
     enums: enumsToReturn,
     schemas: schemasObject,
+    views: resultViews,
   };
 };
 

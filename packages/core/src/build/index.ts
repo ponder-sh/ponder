@@ -16,25 +16,24 @@ import type {
   Schema,
   SchemaBuild,
 } from "@/internal/types.js";
-import { createPool } from "@/utils/pg.js";
+import { createPool, getDatabaseName } from "@/utils/pg.js";
 import { createPglite } from "@/utils/pglite.js";
 import { getNextAvailablePort } from "@/utils/port.js";
 import type { Result } from "@/utils/result.js";
+import { startClock } from "@/utils/timer.js";
 import { drizzle as drizzleNodePostgres } from "drizzle-orm/node-postgres";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { glob } from "glob";
 import { Hono } from "hono";
 import superjson from "superjson";
+import { hexToNumber } from "viem";
 import { createServer } from "vite";
 import { ViteNodeRunner } from "vite-node/client";
 import { ViteNodeServer } from "vite-node/server";
 import { installSourcemapsSupport } from "vite-node/source-map";
 import { normalizeModuleId, toFilePath } from "vite-node/utils";
 import viteTsconfigPathsPlugin from "vite-tsconfig-paths";
-import {
-  safeBuildConfig,
-  safeBuildConfigAndIndexingFunctions,
-} from "./config.js";
+import { safeBuildConfig, safeBuildIndexingFunctions } from "./config.js";
 import { vitePluginPonder } from "./plugin.js";
 import { safeBuildPre } from "./pre.js";
 import { safeBuildSchema } from "./schema.js";
@@ -62,26 +61,29 @@ export type Build = {
   executeSchema: () => Promise<SchemaResult>;
   executeIndexingFunctions: () => Promise<IndexingResult>;
   executeApi: (params: {
-    indexingBuild: Pick<IndexingBuild, "chains" | "rpcs">;
+    configBuild: Pick<IndexingBuild, "chains" | "rpcs">;
     database: Database;
   }) => Promise<ApiResult>;
   namespaceCompile: () => Result<NamespaceBuild>;
-  preCompile: (params: { config: Config }) => Promise<Result<PreBuild>>;
+  preCompile: (params: { config: Config }) => Result<PreBuild>;
   compileSchema: (params: { schema: Schema }) => Result<SchemaBuild>;
-  compileIndexingConfig: (params: {
+  compileConfig: (params: {
     configResult: Extract<ConfigResult, { status: "success" }>["result"];
   }) => Result<Pick<IndexingBuild, "chains" | "rpcs">>;
   compileIndexing: (params: {
     configResult: Extract<ConfigResult, { status: "success" }>["result"];
     schemaResult: Extract<SchemaResult, { status: "success" }>["result"];
     indexingResult: Extract<IndexingResult, { status: "success" }>["result"];
+    configBuild: Pick<IndexingBuild, "chains" | "rpcs">;
   }) => Promise<Result<IndexingBuild>>;
   compileApi: (params: {
     apiResult: Extract<ApiResult, { status: "success" }>["result"];
   }) => Promise<Result<ApiBuild>>;
-  startDev: (params: {
-    onReload: (kind: "indexing" | "api") => void;
-  }) => void;
+  startDev: (params: { onReload: (kind: "indexing" | "api") => void }) => void;
+  rpcDiagnostic: (params: {
+    configBuild: Pick<IndexingBuild, "chains" | "rpcs">;
+  }) => Promise<Result<void>>;
+  databaseDiagnostic: (params: { preBuild: PreBuild }) => Promise<Result<void>>;
 };
 
 export const createBuild = async ({
@@ -117,21 +119,21 @@ export const createBuild = async ({
     clearScreen() {},
     hasErrorLogged: (error: Error) => viteLogger.loggedErrors.has(error),
     info: (msg: string) => {
-      common.logger.trace({ service: "build(vite)", msg });
+      common.logger.trace({ msg, action: "build" });
     },
     warn: (msg: string) => {
       viteLogger.hasWarned = true;
-      common.logger.trace({ service: "build(vite)", msg });
+      common.logger.trace({ msg, action: "build" });
     },
     warnOnce: (msg: string) => {
       if (viteLogger.warnedMessages.has(msg)) return;
       viteLogger.hasWarned = true;
-      common.logger.trace({ service: "build(vite)", msg });
+      common.logger.trace({ msg, action: "build" });
       viteLogger.warnedMessages.add(msg);
     },
     error: (msg: string) => {
       viteLogger.hasWarned = true;
-      common.logger.trace({ service: "build(vite)", msg });
+      common.logger.trace({ msg, action: "build" });
     },
   };
 
@@ -183,8 +185,8 @@ export const createBuild = async ({
 
       if (executeResult.status === "error") {
         common.logger.error({
-          service: "build",
-          msg: "Error while executing 'ponder.config.ts':",
+          msg: "Error while executing file",
+          file: "ponder.config.ts",
           error: executeResult.error,
         });
 
@@ -216,8 +218,8 @@ export const createBuild = async ({
 
       if (executeResult.status === "error") {
         common.logger.error({
-          service: "build",
-          msg: "Error while executing 'ponder.schema.ts':",
+          msg: "Error while executing file",
+          file: "ponder.schema.ts",
           error: executeResult.error,
         });
 
@@ -250,11 +252,8 @@ export const createBuild = async ({
       for (const executeResult of executeResults) {
         if (executeResult.status === "error") {
           common.logger.error({
-            service: "build",
-            msg: `Error while executing '${path.relative(
-              common.options.rootDir,
-              executeResult.file,
-            )}':`,
+            msg: "Error while executing file",
+            file: path.relative(common.options.rootDir, executeResult.file),
             error: executeResult.error,
           });
 
@@ -271,8 +270,8 @@ export const createBuild = async ({
           hash.update(contents);
         } catch (e) {
           common.logger.warn({
-            service: "build",
-            msg: `Unable to read contents of file '${file}' while constructing build ID`,
+            msg: "Unable to read file",
+            file,
           });
           hash.update(file);
         }
@@ -289,8 +288,8 @@ export const createBuild = async ({
         },
       };
     },
-    async executeApi({ indexingBuild, database }): Promise<ApiResult> {
-      globalThis.PONDER_INDEXING_BUILD = indexingBuild;
+    async executeApi({ configBuild, database }): Promise<ApiResult> {
+      globalThis.PONDER_INDEXING_BUILD = configBuild;
       globalThis.PONDER_DATABASE = database;
 
       if (!fs.existsSync(common.options.apiFile)) {
@@ -298,11 +297,6 @@ export const createBuild = async ({
           `API endpoint file not found. Create a file at ${common.options.apiFile}. Read more: https://ponder.sh/docs/api-reference/ponder/api-endpoints`,
         );
         error.stack = undefined;
-        common.logger.error({
-          service: "build",
-          msg: "Failed build",
-          error,
-        });
 
         return { status: "error", error };
       }
@@ -313,11 +307,8 @@ export const createBuild = async ({
 
       if (executeResult.status === "error") {
         common.logger.error({
-          service: "build",
-          msg: `Error while executing '${path.relative(
-            common.options.rootDir,
-            common.options.apiFile,
-          )}':`,
+          msg: "Error while executing file",
+          file: path.relative(common.options.rootDir, common.options.apiFile),
           error: executeResult.error,
         });
 
@@ -331,11 +322,6 @@ export const createBuild = async ({
           "API endpoint file does not export a Hono instance as the default export. Read more: https://ponder.sh/docs/api-reference/ponder/api-endpoints",
         );
         error.stack = undefined;
-        common.logger.error({
-          service: "build",
-          msg: "Failed build",
-          error,
-        });
 
         return { status: "error", error };
       }
@@ -351,14 +337,10 @@ export const createBuild = async ({
         process.env.DATABASE_SCHEMA === undefined
       ) {
         const error = new BuildError(
-          "Database schema required. Specify with 'DATABASE_SCHEMA' env var or '--schema' CLI flag. Read more: https://ponder.sh/docs/database#database-schema",
+          `Database schema required. Specify with "DATABASE_SCHEMA" env var or "--schema" CLI flag. Read more: https://ponder.sh/docs/database#database-schema`,
         );
         error.stack = undefined;
-        common.logger.error({
-          service: "build",
-          msg: "Failed build",
-          error,
-        });
+
         return { status: "error", error } as const;
       }
 
@@ -373,73 +355,13 @@ export const createBuild = async ({
         result: { schema, viewsSchema },
       } as const;
     },
-    async preCompile({ config }): Promise<Result<PreBuild>> {
+    preCompile({ config }): Result<PreBuild> {
       const preBuild = safeBuildPre({
         config,
         options: common.options,
       });
       if (preBuild.status === "error") {
-        common.logger.error({
-          service: "build",
-          msg: "Failed build",
-          error: preBuild.error,
-        });
-
         return preBuild;
-      }
-
-      // diagnostic query
-      const dialect = preBuild.databaseConfig.kind;
-      if (dialect === "pglite") {
-        const driver = createPglite(preBuild.databaseConfig.options);
-        const qb = createQB(drizzlePglite(driver), { common });
-        try {
-          await qb.wrap((db) => db.execute("SELECT version()"));
-        } catch (e) {
-          const error = new RetryableError(
-            `Failed to connect to PGlite database. Please check your database connection settings.\n\n${(e as any).message}`,
-          );
-          error.stack = undefined;
-          common.logger.error({
-            service: "build",
-            msg: "Failed build",
-            error,
-          });
-          return { status: "error", error };
-        } finally {
-          await driver.close();
-        }
-      } else if (dialect === "postgres") {
-        const pool = createPool(
-          {
-            ...preBuild.databaseConfig.poolConfig,
-            application_name: "test",
-            max: 1,
-            statement_timeout: 10_000,
-          },
-          common.logger,
-        );
-        const qb = createQB(drizzleNodePostgres(pool), { common });
-        try {
-          await qb.wrap((db) => db.execute("SELECT version()"));
-        } catch (e) {
-          const error = new RetryableError(
-            `Failed to connect to database. Please check your database connection settings.\n\n${(e as any).message}`,
-          );
-          error.stack = undefined;
-          common.logger.error({
-            service: "build",
-            msg: "Failed build",
-            error,
-          });
-          return { status: "error", error };
-        } finally {
-          await pool.end();
-        }
-      }
-
-      for (const log of preBuild.logs) {
-        common.logger[log.level]({ service: "build", msg: log.msg });
       }
 
       return {
@@ -456,12 +378,6 @@ export const createBuild = async ({
       });
 
       if (buildSchemaResult.status === "error") {
-        common.logger.error({
-          service: "build",
-          msg: "Error while building schema:",
-          error: buildSchemaResult.error,
-        });
-
         return buildSchemaResult;
       }
 
@@ -473,24 +389,19 @@ export const createBuild = async ({
         },
       } as const;
     },
-    compileIndexingConfig({ configResult }) {
+    compileConfig({ configResult }) {
       // Validates and builds the config
       const buildConfigResult = safeBuildConfig({
         common,
         config: configResult.config,
       });
       if (buildConfigResult.status === "error") {
-        common.logger.error({
-          service: "build",
-          msg: "Failed build",
-          error: buildConfigResult.error,
-        });
-
         return buildConfigResult;
       }
 
       for (const log of buildConfigResult.logs) {
-        common.logger[log.level]({ service: "build", msg: log.msg });
+        const { level, ...rest } = log;
+        common.logger[level](rest);
       }
 
       return {
@@ -501,26 +412,26 @@ export const createBuild = async ({
         },
       } as const;
     },
-    async compileIndexing({ configResult, schemaResult, indexingResult }) {
+    async compileIndexing({
+      configResult,
+      schemaResult,
+      indexingResult,
+      configBuild,
+    }) {
       // Validates and builds the config
-      const buildConfigAndIndexingFunctionsResult =
-        await safeBuildConfigAndIndexingFunctions({
-          common,
-          config: configResult.config,
-          rawIndexingFunctions: indexingResult.indexingFunctions,
-        });
-      if (buildConfigAndIndexingFunctionsResult.status === "error") {
-        common.logger.error({
-          service: "build",
-          msg: "Failed build",
-          error: buildConfigAndIndexingFunctionsResult.error,
-        });
-
-        return buildConfigAndIndexingFunctionsResult;
+      const buildIndexingFunctionsResult = await safeBuildIndexingFunctions({
+        common,
+        config: configResult.config,
+        rawIndexingFunctions: indexingResult.indexingFunctions,
+        configBuild,
+      });
+      if (buildIndexingFunctionsResult.status === "error") {
+        return buildIndexingFunctionsResult;
       }
 
-      for (const log of buildConfigAndIndexingFunctionsResult.logs) {
-        common.logger[log.level]({ service: "build", msg: log.msg });
+      for (const log of buildIndexingFunctionsResult.logs) {
+        const { level, ...rest } = log;
+        common.logger[level](rest);
       }
 
       const buildId = createHash("sha256")
@@ -535,13 +446,11 @@ export const createBuild = async ({
         status: "success",
         result: {
           buildId,
-          sources: buildConfigAndIndexingFunctionsResult.sources,
-          chains: buildConfigAndIndexingFunctionsResult.chains,
-          rpcs: buildConfigAndIndexingFunctionsResult.rpcs,
-          finalizedBlocks:
-            buildConfigAndIndexingFunctionsResult.finalizedBlocks,
-          indexingFunctions:
-            buildConfigAndIndexingFunctionsResult.indexingFunctions,
+          sources: buildIndexingFunctionsResult.sources,
+          chains: buildIndexingFunctionsResult.chains,
+          rpcs: buildIndexingFunctionsResult.rpcs,
+          finalizedBlocks: buildIndexingFunctionsResult.finalizedBlocks,
+          indexingFunctions: buildIndexingFunctionsResult.indexingFunctions,
         },
       } as const;
     },
@@ -559,11 +468,6 @@ export const createBuild = async ({
               `Validation failed: API route "${route.path}" is reserved for internal use.`,
             );
             error.stack = undefined;
-            common.logger.error({
-              service: "build",
-              msg: "Failed build",
-              error,
-            });
             return { status: "error", error } as const;
           }
         }
@@ -648,9 +552,8 @@ export const createBuild = async ({
         }
 
         common.logger.info({
-          service: "build",
           msg: `Hot reload ${Array.from(invalidated)
-            .map((f) => `'${path.relative(common.options.rootDir, f)}'`)
+            .map((f) => `"${path.relative(common.options.rootDir, f)}"`)
             .join(", ")}`,
         });
 
@@ -690,6 +593,124 @@ export const createBuild = async ({
       };
 
       viteDevServer.watcher.on("change", onFileChange);
+    },
+    async rpcDiagnostic({ configBuild }) {
+      const context = {
+        logger: common.logger.child({ action: "rpc_diagnostic" }),
+      };
+      const endClock = startClock();
+
+      const results = await Promise.all(
+        configBuild.rpcs.map(async (rpc, index) => {
+          const chain = configBuild.chains[index]!;
+          try {
+            const chainId = await rpc.request(
+              { method: "eth_chainId" },
+              context,
+            );
+
+            if (hexToNumber(chainId) !== chain.id) {
+              common.logger.warn({
+                msg: "Configured chain ID does not match JSON-RPC response",
+                chain: chain.name,
+                chain_id: chain.id,
+                rpc_chain_id: hexToNumber(chainId),
+              });
+            }
+          } catch (e) {
+            const error = new RetryableError("Failed to connect to JSON-RPC");
+            error.stack = undefined;
+            return { status: "error", error } as const;
+          }
+
+          common.logger.info({
+            msg: "Connected to JSON-RPC",
+            chain: chain.name,
+            chain_id: chain.id,
+            hostnames: JSON.stringify(rpc.hostnames),
+            duration: endClock(),
+          });
+
+          return { status: "success", result: undefined } as const;
+        }),
+      );
+
+      for (const result of results) {
+        if (result.status === "error") {
+          return result;
+        }
+      }
+
+      return { status: "success", result: undefined };
+    },
+    async databaseDiagnostic({ preBuild }) {
+      const context = {
+        logger: common.logger.child({ action: "database_diagnostic" }),
+      };
+      const endClock = startClock();
+
+      const dialect = preBuild.databaseConfig.kind;
+      if (dialect === "pglite") {
+        const driver = createPglite(preBuild.databaseConfig.options);
+        const qb = createQB(drizzlePglite(driver), { common });
+        try {
+          await qb.wrap((db) => db.execute("SELECT version()"), context);
+        } catch (e) {
+          const error = new RetryableError(
+            `Failed to connect to PGlite database. Please check your database connection settings.\n\n${(e as any).message}`,
+          );
+          error.stack = undefined;
+          return { status: "error", error };
+        } finally {
+          await driver.close();
+        }
+
+        const pgliteDir = preBuild.databaseConfig.options.dataDir;
+
+        const pglitePath =
+          pgliteDir === "memory://"
+            ? "memory://"
+            : path.relative(common.options.rootDir, pgliteDir);
+        common.logger.info({
+          msg: "Connected to database",
+          type: dialect,
+          database: pglitePath,
+          duration: endClock(),
+        });
+      } else if (dialect === "postgres") {
+        const pool = createPool(
+          {
+            ...preBuild.databaseConfig.poolConfig,
+            application_name: "test",
+            max: 1,
+            statement_timeout: 10_000,
+          },
+          common.logger,
+        );
+        const qb = createQB(drizzleNodePostgres(pool), { common });
+        try {
+          await qb.wrap((db) => db.execute("SELECT version()"), context);
+        } catch (e) {
+          const error = new RetryableError(
+            `Failed to connect to database. Please check your database connection settings.\n\n${(e as any).message}`,
+          );
+          error.stack = undefined;
+          return { status: "error", error };
+        } finally {
+          await pool.end();
+        }
+
+        const connectionString =
+          preBuild.databaseConfig.poolConfig.connectionString!;
+        common.logger.info({
+          msg: "Connected to database",
+          type: dialect,
+          database: getDatabaseName(connectionString),
+          duration: endClock(),
+        });
+      }
+
+      return { status: "success", result: undefined };
     },
   } satisfies Build;
 
