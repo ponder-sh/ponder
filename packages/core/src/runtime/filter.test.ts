@@ -1,5 +1,4 @@
 import { ALICE, BOB } from "@/_test/constants.js";
-import { erc20ABI } from "@/_test/generated.js";
 import { setupAnvil, setupCommon } from "@/_test/setup.js";
 import {
   createPair,
@@ -10,33 +9,21 @@ import {
   transferEth,
 } from "@/_test/simulate.js";
 import {
-  getAccountsConfigAndIndexingFunctions,
-  getBlocksConfigAndIndexingFunctions,
+  getAccountsIndexingBuild,
+  getBlocksIndexingBuild,
   getChain,
-  getErc20ConfigAndIndexingFunctions,
-  getPairWithFactoryConfigAndIndexingFunctions,
+  getErc20IndexingBuild,
+  getPairWithFactoryIndexingBuild,
 } from "@/_test/utils.js";
-import { buildConfig, buildIndexingFunctions } from "@/build/config.js";
 import type {
   BlockFilter,
   LogFactory,
-  LogFilter,
   SyncLog,
-  SyncTrace,
-  TraceFilter,
   TransactionFilter,
-  TransferFilter,
 } from "@/internal/types.js";
-import { _eth_getBlockByNumber, _eth_getLogs } from "@/rpc/actions.js";
+import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
-import {
-  type Address,
-  encodeFunctionData,
-  encodeFunctionResult,
-  parseEther,
-  zeroAddress,
-  zeroHash,
-} from "viem";
+import { type Address, parseEther, zeroAddress, zeroHash } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import {
   getChildAddress,
@@ -82,45 +69,22 @@ test("getChildAddress() offset", () => {
   );
 });
 
-test("isLogFactoryMatched()", async (context) => {
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
+test("isLogFactoryMatched()", async () => {
   const { address } = await deployFactory({ sender: ALICE });
-  await createPair({
+  const blockData = await createPair({
     factory: address,
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } =
-    getPairWithFactoryConfigAndIndexingFunctions({
-      address,
-    });
-
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
+  const { sources } = getPairWithFactoryIndexingBuild({
+    address,
   });
 
-  const filter = sources[0]!.filter as LogFilter<LogFactory>;
-
-  const rpcLogs = await _eth_getLogs(rpc, {
-    fromBlock: 2,
-    toBlock: 2,
-  });
+  const filter = sources[0]!.filter;
 
   let isMatched = isLogFactoryMatched({
     factory: filter.address,
-    log: rpcLogs[0]!,
+    log: blockData.log,
   });
   expect(isMatched).toBe(true);
 
@@ -128,67 +92,45 @@ test("isLogFactoryMatched()", async (context) => {
 
   isMatched = isLogFactoryMatched({
     factory: filter.address,
-    log: rpcLogs[0]!,
+    log: blockData.log,
   });
   expect(isMatched).toBe(true);
 
-  rpcLogs[0]!.topics[0] = zeroHash;
+  blockData.log.topics[0] = zeroHash;
 
   isMatched = isLogFactoryMatched({
     factory: filter.address,
-    log: rpcLogs[0]!,
+    log: blockData.log,
   });
   expect(isMatched).toBe(false);
 });
 
-test("isLogFilterMatched()", async (context) => {
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
+test("isLogFilterMatched()", async () => {
   const { address } = await deployErc20({ sender: ALICE });
-  await mintErc20({
+  const blockData = await mintErc20({
     erc20: address,
     to: ALICE,
     amount: parseEther("1"),
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { sources } = getErc20IndexingBuild({
     address,
   });
 
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
+  const filter = sources[0]!.filter;
 
-  const filter = sources[0]!.filter as LogFilter<undefined>;
-
-  const rpcLogs = await _eth_getLogs(rpc, {
-    fromBlock: 2,
-    toBlock: 2,
-  });
-
-  let isMatched = isLogFilterMatched({ filter, log: rpcLogs[0]! });
+  let isMatched = isLogFilterMatched({ filter, log: blockData.log });
   expect(isMatched).toBe(true);
 
   filter.topic0 = null;
 
-  isMatched = isLogFilterMatched({ filter, log: rpcLogs[0]! });
+  isMatched = isLogFilterMatched({ filter, log: blockData.log });
   expect(isMatched).toBe(true);
 
-  rpcLogs[0]!.address = zeroAddress;
+  blockData.log.address = zeroAddress;
 
-  isMatched = isLogFilterMatched({ filter, log: rpcLogs[0]! });
+  isMatched = isLogFilterMatched({ filter, log: blockData.log });
   expect(isMatched).toBe(false);
 });
 
@@ -199,19 +141,8 @@ test("isBlockFilterMatched", async (context) => {
     common: context.common,
   });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const filter = sources[0]!.filter as BlockFilter;
@@ -249,20 +180,8 @@ test("isTransactionFilterMatched()", async (context) => {
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
+  const { sources } = getAccountsIndexingBuild({
+    address: ALICE,
   });
 
   // transaction:from
@@ -300,20 +219,8 @@ test("isTransactionFilterMatched() with null transaction.to", async (context) =>
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
+  const { sources } = getAccountsIndexingBuild({
+    address: ALICE,
   });
 
   // transaction:to
@@ -339,82 +246,38 @@ test("isTransactionFilterMatched() with null transaction.to", async (context) =>
   expect(isMatched).toBe(false);
 });
 
-test("isTransferFilterMatched()", async (context) => {
-  const chain = getChain();
-  const requestQueue = createRpc({
-    chain,
-    common: context.common,
-  });
-
-  const { hash } = await transferEth({
+test("isTransferFilterMatched()", async () => {
+  const blockData = await transferEth({
     to: BOB,
     amount: parseEther("1"),
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
+  const { sources } = getAccountsIndexingBuild({
+    address: ALICE,
   });
 
   // transfer:from
-  const filter = sources[3]!.filter as TransferFilter<undefined, undefined>;
-
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 1,
-  });
-
-  const rpcTrace = {
-    trace: {
-      type: "CALL",
-      from: ALICE,
-      to: BOB,
-      gas: "0x0",
-      gasUsed: "0x0",
-      input: "0x0",
-      output: "0x0",
-      value: rpcBlock.transactions[0]!.value,
-      index: 0,
-      subcalls: 0,
-    },
-    transactionHash: hash,
-  } satisfies SyncTrace;
+  const filter = sources[3]!.filter;
 
   let isMatched = isTransferFilterMatched({
     filter,
-    block: rpcBlock,
-    trace: rpcTrace.trace,
+    block: blockData.block,
+    trace: blockData.trace.trace,
   });
   expect(isMatched).toBe(true);
 
-  rpcTrace.trace.value = "0x0";
+  blockData.trace.trace.value = "0x0";
 
   isMatched = isTransferFilterMatched({
     filter,
-    block: rpcBlock,
-    trace: rpcTrace.trace,
+    block: blockData.block,
+    trace: blockData.trace.trace,
   });
   expect(isMatched).toBe(false);
 });
 
-test("isTraceFilterMatched()", async (context) => {
-  const chain = getChain();
-  const requestQueue = createRpc({
-    chain,
-    common: context.common,
-  });
-
+test("isTraceFilterMatched()", async () => {
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
     erc20: address,
@@ -422,63 +285,24 @@ test("isTraceFilterMatched()", async (context) => {
     amount: parseEther("1"),
     sender: ALICE,
   });
-  const { hash } = await transferErc20({
+  const blockData = await transferErc20({
     erc20: address,
     to: BOB,
     amount: parseEther("1"),
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { sources } = getErc20IndexingBuild({
     address,
     includeCallTraces: true,
   });
 
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
-
-  const filter = sources[1]!.filter as TraceFilter<undefined, undefined>;
-
-  const rpcTrace = {
-    trace: {
-      type: "CALL",
-      from: ALICE,
-      to: address,
-      gas: "0x0",
-      gasUsed: "0x0",
-      input: encodeFunctionData({
-        abi: erc20ABI,
-        functionName: "transfer",
-        args: [BOB, parseEther("1")],
-      }),
-      output: encodeFunctionResult({
-        abi: erc20ABI,
-        functionName: "transfer",
-        result: true,
-      }),
-      value: "0x0",
-      index: 0,
-      subcalls: 0,
-    },
-    transactionHash: hash,
-  } satisfies SyncTrace;
-
-  const rpcBlock = await _eth_getBlockByNumber(requestQueue, {
-    blockNumber: 3,
-  });
+  const filter = sources[0]!.filter;
 
   let isMatched = isTraceFilterMatched({
     filter,
-    block: rpcBlock,
-    trace: rpcTrace.trace,
+    block: blockData.block,
+    trace: blockData.trace.trace,
   });
   expect(isMatched).toBe(true);
 
@@ -486,17 +310,17 @@ test("isTraceFilterMatched()", async (context) => {
 
   isMatched = isTraceFilterMatched({
     filter,
-    block: rpcBlock,
-    trace: rpcTrace.trace,
+    block: blockData.block,
+    trace: blockData.trace.trace,
   });
   expect(isMatched).toBe(true);
 
-  rpcTrace.trace.to = zeroAddress;
+  blockData.trace.trace.to = zeroAddress;
 
   isMatched = isTraceFilterMatched({
     filter,
-    block: rpcBlock,
-    trace: rpcTrace.trace,
+    block: blockData.block,
+    trace: blockData.trace.trace,
   });
   expect(isMatched).toBe(false);
 });

@@ -1,5 +1,4 @@
 import { ALICE, BOB } from "@/_test/constants.js";
-import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
   setupCleanup,
@@ -12,29 +11,23 @@ import {
   deployErc20,
   deployFactory,
   mintErc20,
+  simulateBlock,
   swapPair,
   transferErc20,
   transferEth,
 } from "@/_test/simulate.js";
 import {
-  getAccountsConfigAndIndexingFunctions,
-  getBlocksConfigAndIndexingFunctions,
+  getAccountsIndexingBuild,
+  getBlocksIndexingBuild,
   getChain,
-  getErc20ConfigAndIndexingFunctions,
-  getPairWithFactoryConfigAndIndexingFunctions,
-  testClient,
+  getErc20IndexingBuild,
+  getPairWithFactoryIndexingBuild,
 } from "@/_test/utils.js";
-import { buildConfig, buildIndexingFunctions } from "@/build/config.js";
 import type { LogFactory, LogFilter } from "@/internal/types.js";
 import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
-import {
-  encodeFunctionData,
-  encodeFunctionResult,
-  parseEther,
-  toHex,
-} from "viem";
+import { parseEther } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { type RealtimeSyncEvent, createRealtimeSync } from "./index.js";
 
@@ -50,15 +43,8 @@ test("createRealtimeSync()", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -82,15 +68,8 @@ test("sync() handles block", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -104,10 +83,11 @@ test("sync() handles block", async (context) => {
     childAddresses: new Map(),
   });
 
-  await testClient.mine({ blocks: 1 });
-  const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
+  const blockData = await simulateBlock();
 
-  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
+  const syncResult = await drainAsyncGenerator(
+    realtimeSync.sync(blockData.block),
+  );
 
   expect(syncResult).toHaveLength(1);
   expect(syncResult[0]!.type).toBe("block");
@@ -121,15 +101,8 @@ test("sync() no-op when receiving same block twice", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -142,12 +115,12 @@ test("sync() no-op when receiving same block twice", async (context) => {
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
+  const blockData = await simulateBlock();
 
-  await testClient.mine({ blocks: 1 });
-  const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
-
-  await drainAsyncGenerator(realtimeSync.sync(block));
-  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
+  await drainAsyncGenerator(realtimeSync.sync(blockData.block));
+  const syncResult = await drainAsyncGenerator(
+    realtimeSync.sync(blockData.block),
+  );
 
   expect(syncResult).toHaveLength(0);
 
@@ -161,15 +134,8 @@ test("sync() gets missing block", async (context) => {
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -183,10 +149,12 @@ test("sync() gets missing block", async (context) => {
     childAddresses: new Map(),
   });
 
-  await testClient.mine({ blocks: 2 });
-  const block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
+  await simulateBlock();
+  const blockData = await simulateBlock();
 
-  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
+  const syncResult = await drainAsyncGenerator(
+    realtimeSync.sync(blockData.block),
+  );
 
   expect(syncResult).toHaveLength(2);
 
@@ -203,15 +171,8 @@ test("sync() catches error", async (context) => {
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -225,13 +186,14 @@ test("sync() catches error", async (context) => {
     childAddresses: new Map(),
   });
 
-  await testClient.mine({ blocks: 1 });
-  const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
+  const blockData = await simulateBlock();
 
   const requestSpy = vi.spyOn(rpc, "request");
   requestSpy.mockRejectedValueOnce(new Error());
 
-  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
+  const syncResult = await drainAsyncGenerator(
+    realtimeSync.sync(blockData.block),
+  );
 
   expect(syncResult).toHaveLength(0);
 
@@ -253,15 +215,8 @@ test("handleBlock() block event with log", async (context) => {
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { sources } = getErc20IndexingBuild({
     address,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
@@ -318,7 +273,7 @@ test("handleBlock() block event with log factory", async (context) => {
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployFactory({ sender: ALICE });
-  const { result: pair } = await createPair({
+  const { address: pair } = await createPair({
     factory: address,
     sender: ALICE,
   });
@@ -330,16 +285,8 @@ test("handleBlock() block event with log factory", async (context) => {
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } =
-    getPairWithFactoryConfigAndIndexingFunctions({
-      address,
-    });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
+  const { sources } = getPairWithFactoryIndexingBuild({
+    address,
   });
 
   const filter = sources[0]!.filter as LogFilter<LogFactory>;
@@ -448,15 +395,8 @@ test("handleBlock() block event with block", async (context) => {
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -470,10 +410,11 @@ test("handleBlock() block event with block", async (context) => {
     childAddresses: new Map(),
   });
 
-  await testClient.mine({ blocks: 1 });
-  const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
+  const blockData = await simulateBlock();
 
-  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
+  const syncResult = await drainAsyncGenerator(
+    realtimeSync.sync(blockData.block),
+  );
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 
@@ -510,16 +451,8 @@ test("handleBlock() block event with transaction", async (context) => {
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
+  const { sources } = getAccountsIndexingBuild({
+    address: ALICE,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -567,39 +500,22 @@ test("handleBlock() block event with transfer", async (context) => {
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
 
-  const { hash } = await transferEth({
+  const blockData = await transferEth({
     to: BOB,
     amount: parseEther("1"),
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
+  const { sources } = getAccountsIndexingBuild({
+    address: ALICE,
   });
 
   const request = async (request: any) => {
     if (request.method === "debug_traceBlockByHash") {
       return Promise.resolve([
         {
-          txHash: hash,
-          result: {
-            type: "CALL",
-            from: ALICE,
-            to: BOB,
-            gas: "0x0",
-            gasUsed: "0x0",
-            input: "0x0",
-            output: "0x0",
-            value: toHex(parseEther("1")),
-          },
+          txHash: blockData.trace.transactionHash,
+          result: blockData.trace.trace,
         },
       ]);
     }
@@ -656,41 +572,30 @@ test("handleBlock() block event with trace", async (context) => {
   const rpc = createRpc({ chain, common });
 
   const { address } = await deployErc20({ sender: ALICE });
-  await mintErc20({
+  const blockData2 = await mintErc20({
     erc20: address,
     to: ALICE,
     amount: parseEther("1"),
     sender: ALICE,
   });
-  await transferErc20({
+  const blockData3 = await transferErc20({
     erc20: address,
     to: BOB,
     amount: parseEther("1"),
     sender: ALICE,
   });
 
-  const block2 = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
-
-  const block3 = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
-
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { sources } = getErc20IndexingBuild({
     address,
     includeCallTraces: true,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const request = async (request: any) => {
     if (request.method === "debug_traceBlockByHash") {
-      if (request.params[0] === block2.hash) {
+      if (request.params[0] === blockData2.block.hash) {
         return Promise.resolve([
           {
-            txHash: block2.transactions[0]!.hash,
+            txHash: blockData2.transaction.hash,
             result: {
               type: "CREATE",
               from: ALICE,
@@ -703,28 +608,11 @@ test("handleBlock() block event with trace", async (context) => {
         ]);
       }
 
-      if (request.params[0] === block3.hash) {
+      if (request.params[0] === blockData3.block.hash) {
         return Promise.resolve([
           {
-            txHash: block3.transactions[0]!.hash,
-            result: {
-              type: "CALL",
-              from: ALICE,
-              to: address,
-              gas: "0x0",
-              gasUsed: "0x0",
-              input: encodeFunctionData({
-                abi: erc20ABI,
-                functionName: "transfer",
-                args: [BOB, parseEther("1")],
-              }),
-              output: encodeFunctionResult({
-                abi: erc20ABI,
-                functionName: "transfer",
-                result: true,
-              }),
-              value: "0x0",
-            },
+            txHash: blockData3.trace.transactionHash,
+            result: blockData3.trace.trace,
           },
         ]);
       }
@@ -750,8 +638,12 @@ test("handleBlock() block event with trace", async (context) => {
     childAddresses: new Map(),
   });
 
-  const syncResult1 = await drainAsyncGenerator(realtimeSync.sync(block2));
-  const syncResult2 = await drainAsyncGenerator(realtimeSync.sync(block3));
+  const syncResult1 = await drainAsyncGenerator(
+    realtimeSync.sync(blockData2.block),
+  );
+  const syncResult2 = await drainAsyncGenerator(
+    realtimeSync.sync(blockData3.block),
+  );
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
 
@@ -789,15 +681,8 @@ test("handleBlock() finalize event", async (context) => {
     common,
   });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -811,23 +696,19 @@ test("handleBlock() finalize event", async (context) => {
     childAddresses: new Map(),
   });
 
-  await testClient.mine({ blocks: 4 });
+  let blockData = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(blockData.block));
 
-  let block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
+  blockData = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(blockData.block));
 
-  await drainAsyncGenerator(realtimeSync.sync(block));
+  blockData = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(blockData.block));
 
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
-
-  await drainAsyncGenerator(realtimeSync.sync(block));
-
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
-
-  await drainAsyncGenerator(realtimeSync.sync(block));
-
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 4 });
-
-  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
+  blockData = await simulateBlock();
+  const syncResult = await drainAsyncGenerator(
+    realtimeSync.sync(blockData.block),
+  );
 
   expect(syncResult).toHaveLength(2);
   expect(syncResult[1]).toStrictEqual({
@@ -853,15 +734,8 @@ test("handleReorg() finds common ancestor", async (context) => {
     common,
   });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -875,24 +749,18 @@ test("handleReorg() finds common ancestor", async (context) => {
     childAddresses: new Map(),
   });
 
-  await testClient.mine({ blocks: 1 });
-  let block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
+  const blockData1 = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(blockData1.block));
 
-  await drainAsyncGenerator(realtimeSync.sync(block));
+  const blockData2 = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(blockData2.block));
 
-  await testClient.mine({ blocks: 1 });
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
+  const blockData3 = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(blockData3.block));
 
-  await drainAsyncGenerator(realtimeSync.sync(block));
-
-  await testClient.mine({ blocks: 1 });
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
-
-  await drainAsyncGenerator(realtimeSync.sync(block));
-
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
-
-  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
+  const syncResult = await drainAsyncGenerator(
+    realtimeSync.sync(blockData2.block),
+  );
 
   expect(syncResult).toHaveLength(1);
   expect(syncResult[0]).toStrictEqual({
@@ -914,15 +782,8 @@ test("handleReorg() throws error for deep reorg", async (context) => {
     common,
   });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({ common, config });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
@@ -936,26 +797,18 @@ test("handleReorg() throws error for deep reorg", async (context) => {
     childAddresses: new Map(),
   });
 
-  await testClient.mine({ blocks: 1 });
-  let block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
+  const blockData1 = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(blockData1.block));
 
-  await drainAsyncGenerator(realtimeSync.sync(block));
+  const blockData2 = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(blockData2.block));
 
-  await testClient.mine({ blocks: 1 });
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
-
-  await drainAsyncGenerator(realtimeSync.sync(block));
-
-  await testClient.mine({ blocks: 1 });
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
-
-  await drainAsyncGenerator(realtimeSync.sync(block));
-
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
+  const blockData3 = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(blockData3.block));
 
   await drainAsyncGenerator(
     realtimeSync.sync({
-      ...block,
+      ...blockData3.block,
       number: "0x4",
       hash: "0x0000000000000000000000000000000000000000000000000000000000000000",
       parentHash: realtimeSync.unfinalizedBlocks[1]!.hash,

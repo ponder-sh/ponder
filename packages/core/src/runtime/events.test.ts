@@ -2,11 +2,10 @@ import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import { setupCommon } from "@/_test/setup.js";
 import {
-  getAccountsConfigAndIndexingFunctions,
-  getBlocksConfigAndIndexingFunctions,
-  getErc20ConfigAndIndexingFunctions,
+  getAccountsIndexingBuild,
+  getBlocksIndexingBuild,
+  getErc20IndexingBuild,
 } from "@/_test/utils.js";
-import { buildConfig, buildIndexingFunctions } from "@/build/config.js";
 import type {
   BlockEvent,
   ContractSource,
@@ -102,18 +101,8 @@ test("splitEvents()", async () => {
 test("decodeEvents() log", async (context) => {
   const { common } = context;
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { sources } = getErc20IndexingBuild({
     address: zeroAddress,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const topics = encodeEventTopics({
@@ -149,18 +138,8 @@ test("decodeEvents() log", async (context) => {
 test("decodeEvents() log error", async (context) => {
   const { common } = context;
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { sources } = getErc20IndexingBuild({
     address: zeroAddress,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const topics = encodeEventTopics({
@@ -193,18 +172,8 @@ test("decodeEvents() log error", async (context) => {
 test("decodeEvents() block", async (context) => {
   const { common } = context;
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const rawEvent = {
@@ -229,20 +198,8 @@ test("decodeEvents() block", async (context) => {
 test("decodeEvents() transfer", async (context) => {
   const { common } = context;
 
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
+  const { sources } = getAccountsIndexingBuild({
+    address: ALICE,
   });
 
   const rawEvent = {
@@ -282,20 +239,8 @@ test("decodeEvents() transfer", async (context) => {
 test("decodeEvents() transaction", async (context) => {
   const { common } = context;
 
-  const { config, rawIndexingFunctions } =
-    getAccountsConfigAndIndexingFunctions({
-      address: ALICE,
-    });
-
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
+  const { sources } = getAccountsIndexingBuild({
+    address: ALICE,
   });
 
   const rawEvent = {
@@ -318,24 +263,14 @@ test("decodeEvents() transaction", async (context) => {
 test("decodeEvents() trace", async (context) => {
   const { common } = context;
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { sources } = getErc20IndexingBuild({
     address: zeroAddress,
     includeCallTraces: true,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const rawEvent = {
     chainId: 1,
-    sourceIndex: 1,
+    sourceIndex: 0,
     checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
@@ -375,19 +310,9 @@ test("decodeEvents() trace", async (context) => {
 test("decodeEvents() trace w/o output", async (context) => {
   const { common } = context;
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { sources } = getErc20IndexingBuild({
     address: zeroAddress,
     includeCallTraces: true,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   // Remove output from the trace abi
@@ -397,7 +322,7 @@ test("decodeEvents() trace w/o output", async (context) => {
 
   const rawEvent = {
     chainId: 1,
-    sourceIndex: 1,
+    sourceIndex: 0,
     checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],
@@ -433,24 +358,14 @@ test("decodeEvents() trace w/o output", async (context) => {
 test("decodeEvents() trace error", async (context) => {
   const { common } = context;
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { sources } = getErc20IndexingBuild({
     address: zeroAddress,
     includeCallTraces: true,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const rawEvent = {
     chainId: 1,
-    sourceIndex: 1,
+    sourceIndex: 0,
     checkpoint: ZERO_CHECKPOINT_STRING,
     block: {} as RawEvent["block"],
     transaction: {} as RawEvent["transaction"],

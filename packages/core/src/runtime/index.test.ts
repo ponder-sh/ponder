@@ -8,13 +8,12 @@ import {
 import { setupAnvil } from "@/_test/setup.js";
 import { deployErc20, mintErc20 } from "@/_test/simulate.js";
 import {
-  getBlocksConfigAndIndexingFunctions,
+  getBlocksIndexingBuild,
   getChain,
-  getErc20ConfigAndIndexingFunctions,
+  getErc20IndexingBuild,
 } from "@/_test/utils.js";
-import { buildConfig, buildIndexingFunctions } from "@/build/config.js";
 import type { BlockFilter, Event, Filter, Fragment } from "@/internal/types.js";
-import { _eth_getBlockByNumber, _eth_getLogs } from "@/rpc/actions.js";
+import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
 import { encodeCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
@@ -40,18 +39,8 @@ test("getLocalSyncProgress()", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   const cachedIntervals = new Map<
@@ -83,23 +72,11 @@ test("getLocalSyncProgress() future end block", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
   });
 
-  // @ts-ignore
-  config.blocks.Blocks.endBlock = 12;
-
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
+  sources[0]!.filter.toBlock = 12;
 
   const cachedIntervals = new Map<
     Filter,
@@ -475,51 +452,26 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
 test("historical events match realtime events", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
   const { address } = await deployErc20({ sender: ALICE });
-  await mintErc20({
+  const blockData = await mintErc20({
     erc20: address,
     to: ALICE,
     amount: parseEther("1"),
     sender: ALICE,
   });
 
-  const { config, rawIndexingFunctions } = getErc20ConfigAndIndexingFunctions({
+  const { sources } = getErc20IndexingBuild({
     address,
     includeTransactionReceipts: true,
   });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
-  });
 
-  const rpcBlock = await _eth_getBlockByNumber(rpc, {
-    blockNumber: 2,
-  });
-  await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
-
+  await syncStore.insertBlocks({ blocks: [blockData.block], chainId: 1 });
   await syncStore.insertTransactions({
-    transactions: [rpcBlock.transactions[0]!],
+    transactions: [blockData.transaction],
     chainId: 1,
   });
-
-  const rpcLogs = await _eth_getLogs(rpc, {
-    fromBlock: 2,
-    toBlock: 2,
-  });
   await syncStore.insertLogs({
-    logs: [rpcLogs[0]!],
+    logs: [blockData.log],
     chainId: 1,
   });
 
@@ -533,11 +485,11 @@ test("historical events match realtime events", async (context) => {
 
   const realtimeBlockData = [
     {
-      block: syncBlockToInternal({ block: rpcBlock }),
-      logs: rpcLogs.map((log) => syncLogToInternal({ log })),
-      transactions: rpcBlock.transactions.map((transaction) =>
-        syncTransactionToInternal({ transaction }),
-      ),
+      block: syncBlockToInternal({ block: blockData.block }),
+      logs: [syncLogToInternal({ log: blockData.log })],
+      transactions: syncTransactionToInternal({
+        transaction: blockData.transaction,
+      }),
       transactionReceipts: [],
       traces: [],
     },

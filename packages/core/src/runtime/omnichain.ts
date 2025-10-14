@@ -17,7 +17,11 @@ import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createCachedViemClient } from "@/indexing/client.js";
-import { createColumnAccessPattern, createIndexing } from "@/indexing/index.js";
+import {
+  createColumnAccessPattern,
+  createIndexing,
+  getEventCount,
+} from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import {
   InvalidEventAccessError,
@@ -92,10 +96,7 @@ export async function runOmnichain({
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
   const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
 
-  let eventCount: { [eventName: string]: number } = {};
-  for (const eventName of Object.keys(indexingBuild.indexingFunctions)) {
-    eventCount[eventName] = 0;
-  }
+  let eventCount = getEventCount(indexingBuild.indexingFunctions);
 
   const cachedViemClient = createCachedViemClient({
     common,

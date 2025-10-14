@@ -100,6 +100,16 @@ export type Indexing = {
   }) => Promise<void>;
 };
 
+export const getEventCount = (
+  indexingFunctions: IndexingBuild["indexingFunctions"],
+) => {
+  const eventCount: { [eventName: string]: number } = {};
+  for (const eventName of Object.keys(indexingFunctions)) {
+    eventCount[eventName] = 0;
+  }
+  return eventCount;
+};
+
 export type ColumnAccessProfile = {
   block: Set<keyof Block>;
   trace: Set<keyof Trace>;

@@ -49,7 +49,7 @@ test(
     });
 
     const { address } = await deployFactory({ sender: ALICE });
-    const { result: pair } = await createPair({
+    const { address: pair } = await createPair({
       factory: address,
       sender: ALICE,
     });
