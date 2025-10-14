@@ -1,5 +1,19 @@
 # ponder
 
+## 1.0.0
+
+### Minor Changes
+
+- [#2105](https://github.com/ponder-sh/ponder/pull/2105) [`ee254c5`](https://github.com/ponder-sh/ponder/commit/ee254c55a95bf231bd4ab88ee092471ee2d4c1e6) Thanks [@kyscott18](https://github.com/kyscott18)! - Released `0.14`. Visit the [migration guide](https://ponder.sh/docs/migration-guide#014) for details.
+
+### Patch Changes
+
+- [#2105](https://github.com/ponder-sh/ponder/pull/2105) [`ee254c5`](https://github.com/ponder-sh/ponder/commit/ee254c55a95bf231bd4ab88ee092471ee2d4c1e6) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved backfill indexing performance.
+
+- [#2105](https://github.com/ponder-sh/ponder/pull/2105) [`ee254c5`](https://github.com/ponder-sh/ponder/commit/ee254c55a95bf231bd4ab88ee092471ee2d4c1e6) Thanks [@kyscott18](https://github.com/kyscott18)! - Upgraded `@hono/node-server` to eliminate the "Failed to find Response internal state key" log on startup when using Node 24.
+
+- [#2105](https://github.com/ponder-sh/ponder/pull/2105) [`ee254c5`](https://github.com/ponder-sh/ponder/commit/ee254c55a95bf231bd4ab88ee092471ee2d4c1e6) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved JSON-RPC rate limit and timeout handling.
+
 ## 0.13.14
 
 ### Patch Changes
