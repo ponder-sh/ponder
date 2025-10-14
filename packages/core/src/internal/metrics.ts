@@ -1,14 +1,15 @@
 import { truncate } from "@/utils/truncate.js";
+import { getTableName, isTable } from "drizzle-orm";
 import prometheus from "prom-client";
+import type { IndexingBuild, SchemaBuild } from "./types.js";
 
-const databaseQueryDurationMs = [
-  0.05, 0.1, 1, 5, 10, 25, 50, 75, 100, 250, 500, 750, 1_000, 2_500, 5_000,
-  7_500, 10_000, 25_000,
+const sometimesIODurationMs = [
+  0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10, 50, 100, 500, 1_000, 5_000,
+  10_000, 50_000, 100_000,
 ];
 
-const httpRequestDurationMs = [
-  5, 10, 25, 50, 75, 100, 250, 500, 750, 1_000, 2_500, 5_000, 7_500, 10_000,
-  25_000,
+const alwaysIODurationMs = [
+  1, 5, 10, 50, 100, 500, 1_000, 5_000, 10_000, 50_000, 100_000, 500_000,
 ];
 
 const httpRequestSizeBytes = [
@@ -31,6 +32,8 @@ export class MetricsService {
     };
   };
 
+  hasError: boolean;
+  port: number | undefined;
   rps: { [chain: string]: { count: number; timestamp: number }[] };
 
   ponder_version_info: prometheus.Gauge<
@@ -42,15 +45,14 @@ export class MetricsService {
   ponder_historical_extract_duration: prometheus.Gauge<"step">;
   ponder_historical_transform_duration: prometheus.Gauge<"step">;
 
-  ponder_historical_start_timestamp_seconds: prometheus.Gauge;
-  ponder_historical_end_timestamp_seconds: prometheus.Gauge;
+  ponder_historical_start_timestamp_seconds: prometheus.Gauge<"chain">;
+  ponder_historical_end_timestamp_seconds: prometheus.Gauge<"chain">;
 
   ponder_historical_total_indexing_seconds: prometheus.Gauge<"chain">;
   ponder_historical_cached_indexing_seconds: prometheus.Gauge<"chain">;
   ponder_historical_completed_indexing_seconds: prometheus.Gauge<"chain">;
 
   ponder_indexing_timestamp: prometheus.Gauge<"chain">;
-  ponder_indexing_has_error: prometheus.Gauge<"chain">;
 
   ponder_indexing_completed_events: prometheus.Gauge<"event">;
   ponder_indexing_function_duration: prometheus.Histogram<"event">;
@@ -73,7 +75,6 @@ export class MetricsService {
   ponder_sync_is_realtime: prometheus.Gauge<"chain">;
   ponder_sync_is_complete: prometheus.Gauge<"chain">;
 
-  ponder_historical_duration: prometheus.Histogram<"chain">;
   ponder_historical_total_blocks: prometheus.Gauge<"chain">;
   ponder_historical_cached_blocks: prometheus.Gauge<"chain">;
   ponder_historical_completed_blocks: prometheus.Gauge<"chain">;
@@ -85,7 +86,6 @@ export class MetricsService {
   ponder_database_method_duration: prometheus.Histogram<"service" | "method">;
   ponder_database_method_error_total: prometheus.Counter<"service" | "method">;
 
-  ponder_http_server_port: prometheus.Gauge;
   ponder_http_server_active_requests: prometheus.Gauge<"method" | "path">;
   ponder_http_server_request_duration_ms: prometheus.Histogram<
     "method" | "path" | "status"
@@ -115,6 +115,8 @@ export class MetricsService {
         rate: 0,
       },
     };
+    this.port = undefined!;
+    this.hasError = false;
     this.rps = {};
 
     this.ponder_version_info = new prometheus.Gauge({
@@ -152,11 +154,13 @@ export class MetricsService {
     this.ponder_historical_start_timestamp_seconds = new prometheus.Gauge({
       name: "ponder_historical_start_timestamp_seconds",
       help: "Timestamp at which historical indexing started",
+      labelNames: ["chain"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_end_timestamp_seconds = new prometheus.Gauge({
       name: "ponder_historical_end_timestamp_seconds",
       help: "Timestamp at which historical indexing ended",
+      labelNames: ["chain"] as const,
       registers: [this.registry],
     });
 
@@ -190,30 +194,25 @@ export class MetricsService {
       labelNames: ["chain"] as const,
       registers: [this.registry],
     });
-    this.ponder_indexing_has_error = new prometheus.Gauge({
-      name: "ponder_indexing_has_error",
-      help: "Boolean (0 or 1) indicating if there is an indexing error",
-      registers: [this.registry],
-    });
     this.ponder_indexing_function_duration = new prometheus.Histogram({
       name: "ponder_indexing_function_duration",
       help: "Duration of indexing function execution",
       labelNames: ["chain", "event"] as const,
-      buckets: databaseQueryDurationMs,
+      buckets: sometimesIODurationMs,
       registers: [this.registry],
     });
     this.ponder_indexing_cache_query_duration = new prometheus.Histogram({
       name: "ponder_indexing_cache_query_duration",
       help: "Duration of cache operations",
       labelNames: ["table", "method"] as const,
-      buckets: databaseQueryDurationMs,
+      buckets: alwaysIODurationMs,
       registers: [this.registry],
     });
     this.ponder_indexing_rpc_action_duration = new prometheus.Histogram({
       name: "ponder_indexing_rpc_action_duration",
       help: "Duration of RPC actions",
       labelNames: ["action"] as const,
-      buckets: databaseQueryDurationMs,
+      buckets: sometimesIODurationMs,
       registers: [this.registry],
     });
     this.ponder_indexing_rpc_prefetch_total = new prometheus.Counter({
@@ -243,7 +242,7 @@ export class MetricsService {
     this.ponder_indexing_store_raw_sql_duration = new prometheus.Histogram({
       name: "ponder_indexing_store_raw_sql_duration",
       help: "Duration of raw SQL store operations",
-      buckets: databaseQueryDurationMs,
+      buckets: alwaysIODurationMs,
       registers: [this.registry],
     });
 
@@ -272,13 +271,6 @@ export class MetricsService {
       registers: [this.registry],
     });
 
-    this.ponder_historical_duration = new prometheus.Histogram({
-      name: "ponder_historical_duration",
-      help: "Duration of historical sync execution",
-      labelNames: ["chain"] as const,
-      buckets: httpRequestDurationMs,
-      registers: [this.registry],
-    });
     this.ponder_historical_total_blocks = new prometheus.Gauge({
       name: "ponder_historical_total_blocks",
       help: "Number of blocks required for the historical sync",
@@ -308,14 +300,20 @@ export class MetricsService {
       name: "ponder_realtime_latency",
       help: "Time elapsed between receiving a block and fully processing it",
       labelNames: ["chain"] as const,
-      buckets: httpRequestDurationMs,
+      buckets: [
+        1, 5, 10, 50, 100, 500, 1_000, 5_000, 10_000, 50_000, 100_000, 500_000,
+        1_000_000,
+      ],
       registers: [this.registry],
     });
     this.ponder_realtime_block_arrival_latency = new prometheus.Histogram({
       name: "ponder_realtime_block_arrival_latency",
       help: "Time elapsed between mining a block and being received by the realtime sync",
       labelNames: ["chain"] as const,
-      buckets: httpRequestDurationMs,
+      buckets: [
+        1, 5, 10, 50, 100, 500, 1_000, 5_000, 10_000, 50_000, 100_000, 500_000,
+        1_000_000,
+      ],
       registers: [this.registry],
     });
 
@@ -323,19 +321,13 @@ export class MetricsService {
       name: "ponder_database_method_duration",
       help: "Duration of database operations",
       labelNames: ["service", "method"] as const,
-      buckets: databaseQueryDurationMs,
+      buckets: alwaysIODurationMs,
       registers: [this.registry],
     });
     this.ponder_database_method_error_total = new prometheus.Counter({
       name: "ponder_database_method_error_total",
       help: "Total number of errors encountered during database operations",
       labelNames: ["service", "method"] as const,
-      registers: [this.registry],
-    });
-
-    this.ponder_http_server_port = new prometheus.Gauge({
-      name: "ponder_http_server_port",
-      help: "Port that the server is listening on",
       registers: [this.registry],
     });
     this.ponder_http_server_active_requests = new prometheus.Gauge({
@@ -348,7 +340,7 @@ export class MetricsService {
       name: "ponder_http_server_request_duration_ms",
       help: "Duration of HTTP responses served the server",
       labelNames: ["method", "path", "status"] as const,
-      buckets: httpRequestDurationMs,
+      buckets: alwaysIODurationMs,
       registers: [this.registry],
     });
     this.ponder_http_server_request_size_bytes = new prometheus.Histogram({
@@ -370,7 +362,7 @@ export class MetricsService {
       name: "ponder_rpc_request_duration",
       help: "Duration of successful RPC requests",
       labelNames: ["chain", "method"] as const,
-      buckets: httpRequestDurationMs,
+      buckets: alwaysIODurationMs,
       registers: [this.registry],
     });
 
@@ -388,7 +380,11 @@ export class MetricsService {
       registers: [this.registry],
     });
 
-    prometheus.collectDefaultMetrics({ register: this.registry });
+    prometheus.collectDefaultMetrics({
+      register: this.registry,
+      eventLoopMonitoringPrecision: 1,
+      gcDurationBuckets: [0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10],
+    });
   }
 
   /**
@@ -397,6 +393,36 @@ export class MetricsService {
    */
   async getMetrics() {
     return await this.registry.metrics();
+  }
+
+  initializeIndexingMetrics({
+    indexingBuild,
+    schemaBuild,
+  }: {
+    indexingBuild: Pick<IndexingBuild, "indexingFunctions">;
+    schemaBuild: SchemaBuild;
+  }) {
+    const tables = Object.values(schemaBuild.schema).filter(isTable);
+
+    for (const event of Object.keys(indexingBuild.indexingFunctions)) {
+      this.ponder_indexing_completed_events.inc({ event }, 0);
+    }
+
+    for (const table of tables) {
+      for (const type of ["complete", "hit", "miss"]) {
+        this.ponder_indexing_cache_requests_total.inc(
+          { table: getTableName(table), type },
+          0,
+        );
+      }
+
+      for (const method of ["find", "insert", "update", "delete"]) {
+        this.ponder_indexing_store_queries_total.inc(
+          { table: getTableName(table), method },
+          0,
+        );
+      }
+    }
   }
 
   resetIndexingMetrics() {
@@ -410,6 +436,7 @@ export class MetricsService {
         rate: 0,
       },
     };
+    this.hasError = false;
 
     this.ponder_settings_info.reset();
     this.ponder_historical_start_timestamp_seconds.reset();
@@ -419,12 +446,10 @@ export class MetricsService {
     this.ponder_historical_completed_indexing_seconds.reset();
     this.ponder_indexing_completed_events.reset();
     this.ponder_indexing_timestamp.reset();
-    this.ponder_indexing_has_error.reset();
     this.ponder_indexing_function_duration.reset();
     this.ponder_sync_block.reset();
     this.ponder_sync_is_realtime.reset();
     this.ponder_sync_is_complete.reset();
-    this.ponder_historical_duration.reset();
     this.ponder_historical_total_blocks.reset();
     this.ponder_historical_cached_blocks.reset();
     this.ponder_historical_completed_blocks.reset();
@@ -441,15 +466,14 @@ export class MetricsService {
   }
 
   resetApiMetrics() {
-    this.ponder_http_server_port.reset();
+    this.port = undefined;
+    // TODO: Create a separate metric for API build errors,
+    // or stop using metrics for the TUI error message.
+    this.hasError = false;
     this.ponder_http_server_active_requests.reset();
     this.ponder_http_server_request_duration_ms.reset();
     this.ponder_http_server_request_size_bytes.reset();
     this.ponder_http_server_response_size_bytes.reset();
-
-    // TODO: Create a separate metric for API build errors,
-    // or stop using metrics for the TUI error message.
-    this.ponder_indexing_has_error.reset();
   }
 }
 
@@ -464,23 +488,11 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
   {
     chainName: string;
     block: number | undefined;
-    // events: number;
-    status: "historical" | "realtime" | "complete";
+    status: "backfill" | "live" | "complete";
     progress: number;
-    eta: number | undefined;
     rps: number;
   }[]
 > {
-  const syncDurationMetric = await metrics.ponder_historical_duration
-    .get()
-    .then((metrics) => metrics.values);
-  const syncDurationSum: { [chain: string]: number } = {};
-  for (const m of syncDurationMetric) {
-    if (m.metricName === "ponder_historical_duration_sum") {
-      syncDurationSum[m.labels.chain!] = m.value;
-    }
-  }
-
   const totalBlocksMetric = await metrics.ponder_historical_total_blocks.get();
   const cachedBlocksMetric =
     await metrics.ponder_historical_cached_blocks.get();
@@ -525,10 +537,6 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
 
     const progress =
       totalBlocks === 0 ? 1 : (completedBlocks + cachedBlocks) / totalBlocks;
-    const elapsed = syncDurationSum[chain]!;
-    const total = elapsed / (completedBlocks / (totalBlocks - cachedBlocks));
-    // The ETA is low quality if we've completed only one or two blocks.
-    const eta = completedBlocks >= 3 ? total - elapsed : undefined;
 
     const _length = metrics.rps[labels.chain!]!.length;
     const _firstRps = metrics.rps[labels.chain!]![0]!;
@@ -542,18 +550,13 @@ export async function getSyncProgress(metrics: MetricsService): Promise<
       chainName: chain,
       block: syncBlock,
       progress,
-      status: isComplete ? "complete" : isRealtime ? "realtime" : "historical",
-      eta,
+      status: isComplete ? "complete" : isRealtime ? "live" : "backfill",
       rps: requests / seconds,
     } as const;
   });
 }
 
 export async function getIndexingProgress(metrics: MetricsService) {
-  const hasErrorMetric = (await metrics.ponder_indexing_has_error.get())
-    .values[0]?.value;
-  const hasError = hasErrorMetric === 1;
-
   const indexingCompletedEventsMetric = (
     await metrics.ponder_indexing_completed_events.get()
   ).values;
@@ -583,13 +586,13 @@ export async function getIndexingProgress(metrics: MetricsService) {
   });
 
   return {
-    hasError,
+    hasError: metrics.hasError,
     events,
   };
 }
 
 export async function getAppProgress(metrics: MetricsService): Promise<{
-  mode: "historical" | "realtime" | undefined;
+  mode: "backfill" | "live" | undefined;
   progress: number | undefined;
   eta: number | undefined;
 }> {
@@ -607,7 +610,7 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
       .then((metric) => metric.values[0]?.labels.ordering as any);
   if (ordering === undefined) {
     return {
-      mode: "historical",
+      mode: "backfill",
       progress: undefined,
       eta: undefined,
     };
@@ -655,7 +658,7 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
         completedSeconds,
       );
       perChainAppProgress.push({
-        mode: progress === 1 ? "realtime" : "historical",
+        mode: progress === 1 ? "live" : "backfill",
         progress,
         eta,
       });
@@ -663,7 +666,7 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
 
     return perChainAppProgress.reduce(
       (prev, curr) => ({
-        mode: curr.mode === "historical" ? curr.mode : prev.mode,
+        mode: curr.mode === "backfill" ? curr.mode : prev.mode,
         progress:
           prev.progress === undefined || curr.progress === undefined
             ? undefined
@@ -676,7 +679,7 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
               : Math.max(prev.eta, curr.eta),
       }),
       {
-        mode: "realtime",
+        mode: "live",
         progress: 1,
         eta: 0,
       },
@@ -703,7 +706,7 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
           : (completedSeconds + cachedSeconds) / totalSeconds;
 
     return {
-      mode: progress === 1 ? "realtime" : "historical",
+      mode: progress === 1 ? "live" : "backfill",
       progress: progress,
       eta: calculateEta(
         metrics.progressMetadata.general!,

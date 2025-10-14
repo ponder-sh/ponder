@@ -1,11 +1,46 @@
 # Migration guide [Upgrade to a new version of Ponder]
 
+## 0.14
+
+### Breaking changes
+
+#### Metrics updates
+
+* Removed the `ponder_historical_duration`, `ponder_indexing_has_error`, and `ponder_http_server_port` metrics.
+* Added a `chain` label to `ponder_historical_start_timestamp_seconds` and `ponder_historical_end_timestamp_seconds`.
+* Updated histogram bucket limits.
+
+### New features
+
+#### Log output improvements
+
+Ponder now emits a more useful set of logs. These changes improve signal-to-noise and aim to eliminate scenarios where Ponder appears to hang without printing any logs.
+
+Highlights:
+* Pretty logs (the default) now use millisecond precision for timestamps, no longer include a "service" column, and use [logfmt](https://brandur.org/logfmt) formatting for extra properties.
+* JSON-formatted logs (`--log-format json` CLI option) now include a wider range of properties, e.g. `duration`, `block_range`, `chain_id`, and so on. The standard `service` property was removed.
+
+![New log output screenshot](/logs-014.png)
+
+#### GraphQL offset pagination
+
+The GraphQL now supports `offset` pagination for each plural query field and `many()` relationship field.
+
+[Read more](/docs/query/graphql#pagination) in the GraphQL pagination docs.
+
+#### Custom database views
+
+Ponder now supports custom database views in `ponder.schema.ts` that reference other tables or views in your schema. Custom views are defined using the Drizzle query builder API.
+
+We expect this feature to be particularly useful for users who want custom query-time transformation logic but still prefer GraphQL (vs. SQL-over-HTTP or direct SQL).
+
+[Read more](/docs/schema/views) in the custom view guide.
+
 ## 0.13
 
 ### Breaking changes
 
 None.
-
 
 ### New features
 

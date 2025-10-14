@@ -270,12 +270,15 @@ export const createIndexing = ({
 
       const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
       common.logger.error({
-        service: "indexing",
-        msg: `Error while processing '${event.name}' event in '${chainById[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
+        msg: "Error while processing event",
+        event: event.name,
+        chain: chainById[event.chainId]!.name,
+        chain_id: event.chainId,
+        block_number: decodedCheckpoint.blockNumber,
         error,
       });
 
-      common.metrics.ponder_indexing_has_error.set(1);
+      common.metrics.hasError = true;
 
       if (error instanceof BaseError === false) {
         error = new IndexingFunctionError(error.message);
@@ -338,12 +341,15 @@ export const createIndexing = ({
       const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
 
       common.logger.error({
-        service: "indexing",
-        msg: `Error while processing '${event.name}' event in '${chainById[event.chainId]!.name}' block ${decodedCheckpoint.blockNumber}`,
+        msg: "Error while processing event",
+        event: event.name,
+        chain: chainById[event.chainId]!.name,
+        chain_id: event.chainId,
+        block_number: decodedCheckpoint.blockNumber,
         error,
       });
 
-      common.metrics.ponder_indexing_has_error.set(1);
+      common.metrics.hasError = true;
 
       if (error instanceof BaseError === false) {
         error = new IndexingFunctionError(error.message);
@@ -527,11 +533,6 @@ export const createIndexing = ({
         context.client = clientByChainId[event.chainId]!;
         cache.event = event;
 
-        common.logger.trace({
-          service: "indexing",
-          msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
-        });
-
         // Note: Create a new event object instead of mutuating the original one because
         // the event object could be reused across multiple indexing functions.
         const proxyEvent: typeof event.event = { ...event.event };
@@ -622,11 +623,6 @@ export const createIndexing = ({
 
         eventCount[event.name]!++;
         columnAccessPattern.get(event.name)!.count++;
-
-        common.logger.trace({
-          service: "indexing",
-          msg: `Completed indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
-        });
 
         const now = performance.now();
 
@@ -749,23 +745,31 @@ export const createIndexing = ({
           }
         }
 
-        common.logger.info({
-          service: "indexing",
-          msg: `Resolved event property access:\n${prettyPrint({
-            block: blockInclude.size,
-            transaction: transactionInclude.size,
-            transactionReceipt: transactionReceiptInclude.size,
-            trace: traceInclude.size,
-          })}`,
-        });
+        common.logger.debug(
+          {
+            msg: "Resolved event property access",
+            total_access_count:
+              blockInclude.size +
+              transactionInclude.size +
+              transactionReceiptInclude.size +
+              traceInclude.size,
+            block_count: blockInclude.size,
+            transaction_count: transactionInclude.size,
+            transaction_receipt_count: transactionReceiptInclude.size,
+            trace_count: traceInclude.size,
+          },
+          ["total_access_count"],
+        );
       }
 
       await new Promise(setImmediate);
       updateCompletedEvents();
-      updateIndexingSeconds(
-        events[events.length - 1]!,
-        chainById[events[events.length - 1]!.chainId]!,
-      );
+      if (events.length > 0) {
+        updateIndexingSeconds(
+          events[events.length - 1]!,
+          chainById[events[events.length - 1]!.chainId]!,
+        );
+      }
     },
     async processRealtimeEvents({ events, db }) {
       context.db = db;
@@ -777,17 +781,7 @@ export const createIndexing = ({
 
         eventCount[event.name]!++;
 
-        common.logger.trace({
-          service: "indexing",
-          msg: `Started indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
-        });
-
         await executeEvent(event);
-
-        common.logger.trace({
-          service: "indexing",
-          msg: `Completed indexing function (event="${event.name}", checkpoint=${event.checkpoint})`,
-        });
       }
 
       updateCompletedEvents();

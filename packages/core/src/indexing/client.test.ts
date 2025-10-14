@@ -44,12 +44,25 @@ test("request() block dependent method", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
   const blockNumber = await publicClient.getBlockNumber();
 
+  const event = {
+    type: "block",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "Contract:block",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      block: { number: 0n } as LogEvent["event"]["block"],
+    },
+  } satisfies BlockEvent;
+
   const cachedViemClient = createCachedViemClient({
     common: context.common,
     indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: {},
   });
+
+  cachedViemClient.event = event;
 
   const request = cachedViemClient.getClient(chain).request;
 
@@ -93,12 +106,25 @@ test("request() non-block dependent method", async (context) => {
   const blockNumber = await publicClient.getBlockNumber();
   const block = await publicClient.getBlock({ blockNumber: blockNumber });
 
+  const event = {
+    type: "block",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "Contract:block",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      block: { number: 0n } as LogEvent["event"]["block"],
+    },
+  } satisfies BlockEvent;
+
   const cachedViemClient = createCachedViemClient({
     common: context.common,
     indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: {},
   });
+
+  cachedViemClient.event = event;
 
   const request = cachedViemClient.getClient(chain).request;
 
@@ -131,12 +157,26 @@ test("request() non-cached method", async (context) => {
   });
 
   const { syncStore } = await setupDatabaseServices(context);
+
+  const event = {
+    type: "block",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "Contract:block",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      block: { number: 0n } as LogEvent["event"]["block"],
+    },
+  } satisfies BlockEvent;
+
   const cachedViemClient = createCachedViemClient({
     common: context.common,
     indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: {},
   });
+
+  cachedViemClient.event = event;
 
   const request = cachedViemClient.getClient(chain).request;
 
@@ -158,12 +198,25 @@ test("request() multicall", async (context) => {
 
   const { syncStore } = await setupDatabaseServices(context);
 
+  const event = {
+    type: "block",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "Contract:block",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      block: { number: 0n } as LogEvent["event"]["block"],
+    },
+  } satisfies BlockEvent;
+
   const cachedViemClient = createCachedViemClient({
     common: context.common,
     indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: {},
   });
+
+  cachedViemClient.event = event;
 
   const request = cachedViemClient.getClient(chain).request;
 
@@ -290,12 +343,25 @@ test("request() multicall empty", async (context) => {
 
   const { syncStore } = await setupDatabaseServices(context);
 
+  const event = {
+    type: "block",
+    chainId: 1,
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    name: "Contract:block",
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      block: { number: 0n } as LogEvent["event"]["block"],
+    },
+  } satisfies BlockEvent;
+
   const cachedViemClient = createCachedViemClient({
     common: context.common,
     indexingBuild: { chains: [chain], rpcs: [rpc] },
     syncStore,
     eventCount: {},
   });
+
+  cachedViemClient.event = event;
 
   const request = cachedViemClient.getClient(chain).request;
 
@@ -563,10 +629,13 @@ test("readContract() with immutable cache", async (context) => {
 
   expect(result).toMatchInlineSnapshot("1000000000000000000n");
 
-  expect(requestSpy).toBeCalledWith({
-    method: "eth_call",
-    params: [expect.any(Object), "latest"],
-  });
+  expect(requestSpy).toBeCalledWith(
+    {
+      method: "eth_call",
+      params: [expect.any(Object), "latest"],
+    },
+    expect.any(Object),
+  );
 });
 
 test("readContract() with no retry empty response", async (context) => {

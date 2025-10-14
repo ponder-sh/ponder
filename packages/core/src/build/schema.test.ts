@@ -1,10 +1,15 @@
-import { onchainEnum, onchainTable } from "@/index.js";
+import {
+  bigint,
+  hex,
+  onchainEnum,
+  onchainTable,
+  onchainView,
+} from "@/index.js";
 import { sql } from "drizzle-orm";
 import {
   check,
   index,
   pgSequence,
-  pgView,
   primaryKey,
   serial,
 } from "drizzle-orm/pg-core";
@@ -61,20 +66,7 @@ test("buildSchema() success with composite primary key", () => {
   buildSchema({ schema });
 });
 
-test("buildScheama() error with view", () => {
-  const account = onchainTable("account", (p) => ({
-    address: p.hex().primaryKey(),
-    balance: p.bigint().notNull(),
-  }));
-  const schema = {
-    account,
-    v: pgView("v").as((qb) => qb.select().from(account)),
-  };
-
-  expect(() => buildSchema({ schema })).toThrowError();
-});
-
-test("buildScheama() error with sequences", () => {
+test("buildSchema() error with sequences", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -86,7 +78,7 @@ test("buildScheama() error with sequences", () => {
   expect(() => buildSchema({ schema })).toThrowError();
 });
 
-test("buildScheama() error with generated", () => {
+test("buildSchema() error with generated", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.integer().primaryKey(),
@@ -97,7 +89,7 @@ test("buildScheama() error with generated", () => {
   expect(() => buildSchema({ schema })).toThrowError();
 });
 
-test("buildScheama() error with generated identity", () => {
+test("buildSchema() error with generated identity", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       id: p
@@ -111,7 +103,7 @@ test("buildScheama() error with generated identity", () => {
   expect(() => buildSchema({ schema })).toThrowError();
 });
 
-test("buildScheama() error with serial", () => {
+test("buildSchema() error with serial", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: serial().primaryKey(),
@@ -122,7 +114,7 @@ test("buildScheama() error with serial", () => {
   expect(() => buildSchema({ schema })).toThrowError();
 });
 
-test("buildScheama() success with default", () => {
+test("buildSchema() success with default", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.integer().primaryKey(),
@@ -133,7 +125,7 @@ test("buildScheama() success with default", () => {
   buildSchema({ schema });
 });
 
-test("buildScheama() error with default sql", () => {
+test("buildSchema() error with default sql", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.integer().primaryKey(),
@@ -144,7 +136,7 @@ test("buildScheama() error with default sql", () => {
   expect(() => buildSchema({ schema })).toThrowError();
 });
 
-test("buildScheama() error with $defaultFn sql", () => {
+test("buildSchema() error with $defaultFn sql", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.integer().primaryKey(),
@@ -155,7 +147,7 @@ test("buildScheama() error with $defaultFn sql", () => {
   expect(() => buildSchema({ schema })).toThrowError();
 });
 
-test("buildScheama() error with $onUpdateFn sql", () => {
+test("buildSchema() error with $onUpdateFn sql", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.integer().primaryKey(),
@@ -166,7 +158,7 @@ test("buildScheama() error with $onUpdateFn sql", () => {
   expect(() => buildSchema({ schema })).toThrowError();
 });
 
-test("buildScheama() error with foreign key", () => {
+test("buildSchema() error with foreign key", () => {
   // @ts-ignore
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -181,7 +173,7 @@ test("buildScheama() error with foreign key", () => {
   expect(() => buildSchema({ schema })).toThrowError();
 });
 
-test("buildScheama() error with unique", () => {
+test("buildSchema() error with unique", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.integer().primaryKey(),
@@ -192,7 +184,7 @@ test("buildScheama() error with unique", () => {
   expect(() => buildSchema({ schema })).toThrowError();
 });
 
-test("buildScheama() error with check", () => {
+test("buildSchema() error with check", () => {
   const schema = {
     account: onchainTable(
       "account",
@@ -209,7 +201,7 @@ test("buildScheama() error with check", () => {
   expect(() => buildSchema({ schema })).toThrowError();
 });
 
-test("buildScheama() success with enum", () => {
+test("buildSchema() success with enum", () => {
   const mood = onchainEnum("mood", ["good", "bad"]);
   const schema = {
     mood,
@@ -222,7 +214,7 @@ test("buildScheama() success with enum", () => {
   buildSchema({ schema });
 });
 
-test("buildScheama() duplicate table name", () => {
+test("buildSchema() duplicate table name", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -235,7 +227,7 @@ test("buildScheama() duplicate table name", () => {
   expect(() => buildSchema({ schema })).toThrowError();
 });
 
-test("buildScheama() duplicate index name", () => {
+test("buildSchema() duplicate index name", () => {
   const schema = {
     account: onchainTable(
       "account",
@@ -260,4 +252,47 @@ test("buildScheama() duplicate index name", () => {
   };
 
   expect(() => buildSchema({ schema })).toThrowError();
+});
+
+test("buildSchema view", () => {
+  const account = onchainTable(
+    "account",
+    (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    }),
+    (table) => ({
+      balanceIdx: index("balance_idx").on(table.balance),
+    }),
+  );
+  const schema = {
+    account,
+    accountView: onchainView("account_view").as((qb) =>
+      qb.select().from(account),
+    ),
+  };
+
+  buildSchema({ schema });
+});
+
+test("buildSchema view raw sql", () => {
+  const account = onchainTable(
+    "account",
+    (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    }),
+    (table) => ({
+      balanceIdx: index("balance_idx").on(table.balance),
+    }),
+  );
+  const schema = {
+    account,
+    accountView: onchainView("account_view", {
+      address: hex().primaryKey(),
+      balance: bigint().notNull(),
+    }).as(sql`SELECT * FROM account`),
+  };
+
+  buildSchema({ schema });
 });

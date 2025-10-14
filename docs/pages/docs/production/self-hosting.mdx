@@ -47,7 +47,7 @@ Ponder natively supports this pattern in two ways.
   pnpm db create-views --schema=deployment-123 --views-schema=project-name
   ```
   <div className="h-3" />
-- **Automated**: The `ponder start` command also accepts the `--views-schema` CLI flag. When specified, the deployment will run the `ponder db create-views` command automatically as soon as it becomes ready (when historical indexing is complete).
+- **Automated**: The `ponder start` command also accepts the `--views-schema` CLI flag. When specified, the deployment will run the `ponder db create-views` command automatically as soon as it becomes ready (when the backfill is complete).
   <div className="h-3" />
   ```bash
   pnpm start --schema=deployment-123 --views-schema=project-name
@@ -77,7 +77,7 @@ To simulate the same behavior at the SQL level, Ponder supports using **database
 Use the `/health` and `/ready` endpoints to configure health checks or [probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/).
 
 - **`/health`**: Returns status code `200` immediately after the process starts.
-- **`/ready`**: Returns status code `200` once indexing progress has reached realtime across all chains. During the historical backfill, the endpoint returns status code `503`.
+- **`/ready`**: Returns status code `200` once indexing progress has reached realtime across all chains. During the backfill, this endpoint returns status code `503`.
 
 ## Crash recovery
 

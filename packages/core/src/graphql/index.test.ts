@@ -5,7 +5,12 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { type Database, getPonderCheckpointTable } from "@/database/index.js";
-import { onchainEnum, onchainTable, primaryKey } from "@/drizzle/onchain.js";
+import {
+  onchainEnum,
+  onchainTable,
+  onchainView,
+  primaryKey,
+} from "@/drizzle/onchain.js";
 import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { relations } from "drizzle-orm";
 import { type GraphQLType, execute, parse } from "graphql";
@@ -930,17 +935,9 @@ test("plural with one relation uses dataloader", async (context) => {
 
   const graphqlSchema = buildGraphQLSchema({ schema });
 
-  const personFindManySpy = vi.spyOn(
-    // @ts-expect-error
-    database.readonlyQB.query.person,
-    "findMany",
-  );
+  const personSelectSpy = vi.spyOn(database.readonlyQB.raw, "select");
 
-  const petFindManySpy = vi.spyOn(
-    // @ts-expect-error
-    database.readonlyQB.query.pet,
-    "findMany",
-  );
+  const petSelectSpy = vi.spyOn(database.readonlyQB.raw, "select");
 
   const result = await query(`
     query {
@@ -966,8 +963,8 @@ test("plural with one relation uses dataloader", async (context) => {
     },
   });
 
-  expect(personFindManySpy).toHaveBeenCalledTimes(1);
-  expect(petFindManySpy).toHaveBeenCalledTimes(1);
+  expect(personSelectSpy).toHaveBeenCalledTimes(1);
+  expect(petSelectSpy).toHaveBeenCalledTimes(1);
 });
 
 test("filter input type", async (context) => {
@@ -2670,6 +2667,237 @@ test("singular with hex primary key uses case insensitive where", async (context
           address: LOWERCASE_ADDRESS,
         },
       ],
+    },
+  });
+});
+
+test("view", async (context) => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text().notNull(),
+  }));
+  const petView = onchainView("pet_view").as((qb) => qb.select().from(pet));
+  const schema = { pet, petView };
+
+  const { database, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await indexingStore.insert(schema.pet).values([
+    { id: "id1", name: "Skip" },
+    { id: "id2", name: "Foo" },
+    { id: "id3", name: "Bar" },
+    { id: "id4", name: "Zarbar" },
+    { id: "id5", name: "Winston" },
+    { id: "id6", name: "Book" },
+    { id: "id7", name: "Shea" },
+    { id: "id8", name: "Snack" },
+    { id: "id9", name: "Last" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      petViews(orderBy: "id", orderDirection: "asc", limit: 5) {
+        items {
+          id
+          name
+        }
+        totalCount
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    petViews: {
+      items: [
+        { id: "id1", name: "Skip" },
+        { id: "id2", name: "Foo" },
+        { id: "id3", name: "Bar" },
+        { id: "id4", name: "Zarbar" },
+        { id: "id5", name: "Winston" },
+      ],
+      totalCount: 9,
+    },
+  });
+
+  // // @ts-ignore
+  // const endCursor = result.data.pets.pageInfo.endCursor;
+
+  // result = await query(`
+  //   query {
+  //     pets(orderBy: "id", orderDirection: "asc", after: "${endCursor}") {
+  //       items {
+  //         id
+  //         name
+  //       }
+  //       pageInfo {
+  //         hasNextPage
+  //         hasPreviousPage
+  //         startCursor
+  //         endCursor
+  //       }
+  //       totalCount
+  //     }
+  //   }
+  // `);
+
+  // expect(result.errors?.[0]?.message).toBeUndefined();
+  // expect(result.data).toMatchObject({
+  //   pets: {
+  //     items: [
+  //       { id: "id6", name: "Book" },
+  //       { id: "id7", name: "Shea" },
+  //       { id: "id8", name: "Snack" },
+  //       { id: "id9", name: "Last" },
+  //     ],
+  //     pageInfo: {
+  //       hasNextPage: false,
+  //       hasPreviousPage: true,
+  //       startCursor: expect.any(String),
+  //       endCursor: expect.any(String),
+  //     },
+  //     totalCount: 9,
+  //   },
+  // });
+
+  // // @ts-ignore
+  // const startCursor = result.data.pets.pageInfo.startCursor;
+
+  // result = await query(`
+  //   query {
+  //     pets(orderBy: "id", orderDirection: "asc", before: "${startCursor}", limit: 2) {
+  //       items {
+  //         id
+  //         name
+  //       }
+  //       pageInfo {
+  //         hasNextPage
+  //         hasPreviousPage
+  //         startCursor
+  //         endCursor
+  //       }
+  //       totalCount
+  //     }
+  //   }
+  // `);
+
+  // expect(result.errors?.[0]?.message).toBeUndefined();
+  // expect(result.data).toMatchObject({
+  //   pets: {
+  //     items: [
+  //       { id: "id4", name: "Zarbar" },
+  //       { id: "id5", name: "Winston" },
+  //     ],
+  //     pageInfo: {
+  //       hasNextPage: true,
+  //       hasPreviousPage: true,
+  //       startCursor: expect.any(String),
+  //       endCursor: expect.any(String),
+  //     },
+  //     totalCount: 9,
+  //   },
+  // });
+});
+
+test("view limit/offset pagination", async (context) => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text().notNull(),
+  }));
+  const petView = onchainView("pet_view").as((qb) => qb.select().from(pet));
+  const schema = { pet, petView };
+
+  const { database, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await indexingStore.insert(schema.pet).values([
+    { id: "id1", name: "Skip" },
+    { id: "id2", name: "Foo" },
+    { id: "id3", name: "Bar" },
+    { id: "id4", name: "Zarbar" },
+    { id: "id5", name: "Winston" },
+    { id: "id6", name: "Book" },
+    { id: "id7", name: "Shea" },
+    { id: "id8", name: "Snack" },
+    { id: "id9", name: "Last" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      petViews(orderBy: "id", orderDirection: "asc", limit: 5) {
+        items {
+          id
+          name
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+        totalCount
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    petViews: {
+      items: [
+        { id: "id1", name: "Skip" },
+        { id: "id2", name: "Foo" },
+        { id: "id3", name: "Bar" },
+        { id: "id4", name: "Zarbar" },
+        { id: "id5", name: "Winston" },
+      ],
+      pageInfo: {
+        hasNextPage: true,
+        hasPreviousPage: false,
+      },
+      totalCount: 9,
+    },
+  });
+
+  result = await query(`
+    query {
+      petViews(orderBy: "id", orderDirection: "asc", offset: 5) {
+        items {
+          id
+          name
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+        totalCount
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    petViews: {
+      items: [
+        { id: "id6", name: "Book" },
+        { id: "id7", name: "Shea" },
+        { id: "id8", name: "Snack" },
+        { id: "id9", name: "Last" },
+      ],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: true,
+      },
+      totalCount: 9,
     },
   });
 });

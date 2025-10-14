@@ -1,5 +1,11 @@
 import { createBuild } from "@/build/index.js";
 import {
+  type PonderApp0,
+  type PonderApp1,
+  type PonderApp2,
+  type PonderApp3,
+  type PonderApp4,
+  type PonderApp5,
   SCHEMATA,
   createDatabase,
   getPonderMetaTable,
@@ -10,6 +16,7 @@ import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { createTelemetry } from "@/internal/telemetry.js";
+import { startClock } from "@/utils/timer.js";
 import { eq } from "drizzle-orm";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
@@ -18,6 +25,7 @@ const emptySchemaBuild = {
   schema: {},
   statements: {
     tables: { sql: [], json: [] },
+    views: { sql: [], json: [] },
     enums: { sql: [], json: [] },
     indexes: { sql: [], json: [] },
     sequences: { sql: [], json: [] },
@@ -57,32 +65,53 @@ export async function createViews({
   const exit = createExit({ common, options });
 
   if (cliOptions.schema === undefined) {
-    logger.warn({
-      service: "create-views",
+    logger.error({
       msg: "Required CLI option '--schema' not provided.",
     });
-    await exit({ reason: "Create views failed", code: 1 });
+    await exit({ code: 1 });
     return;
   }
   if (cliOptions.viewsSchema === undefined) {
-    logger.warn({
-      service: "create-views",
+    logger.error({
       msg: "Required CLI option '--views-schema' not provided.",
     });
-    await exit({ reason: "Create views failed", code: 1 });
+    await exit({ code: 1 });
     return;
   }
 
   const configResult = await build.executeConfig();
   if (configResult.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "config",
+      error: configResult.error,
+    });
+    await exit({ code: 1 });
     return;
   }
 
-  const buildResult = await build.preCompile(configResult.result);
+  const buildResult = build.preCompile(configResult.result);
 
   if (buildResult.status === "error") {
-    await exit({ reason: "Failed initial build", code: 1 });
+    common.logger.error({
+      msg: "Build failed",
+      stage: "pre-compile",
+      error: buildResult.error,
+    });
+    await exit({ code: 1 });
+    return;
+  }
+
+  const databaseDiagnostic = await build.databaseDiagnostic({
+    preBuild: buildResult.result,
+  });
+  if (databaseDiagnostic.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "diagnostic",
+      error: databaseDiagnostic.error,
+    });
+    await exit({ code: 75 });
     return;
   }
 
@@ -97,6 +126,8 @@ export async function createViews({
     schemaBuild: emptySchemaBuild,
   });
 
+  const endClock = startClock();
+
   const schemaExists = await database.adminQB
     .wrap((db) =>
       db
@@ -107,28 +138,50 @@ export async function createViews({
     .then((res) => res.length > 0);
 
   if (schemaExists === false) {
-    await exit({
-      reason: `Schema '${cliOptions.schema!}' does not exist.`,
-      code: 1,
+    common.logger.error({
+      msg: "Schema does not exist.",
+      schema: cliOptions.schema!,
     });
+    await exit({ code: 1 });
     return;
   }
 
   const PONDER_META = getPonderMetaTable(cliOptions.schema!);
 
-  const meta = await database.adminQB.wrap((db) =>
+  const meta = (await database.adminQB.wrap((db) =>
     db
       .select({ app: PONDER_META.value })
       .from(PONDER_META)
       .where(eq(PONDER_META.key, "app")),
-  );
+  )) as
+    | [
+        {
+          app:
+            | Partial<PonderApp0>
+            | PonderApp1
+            | PonderApp2
+            | PonderApp3
+            | PonderApp4
+            | PonderApp5;
+        },
+      ]
+    | [];
 
   if (meta.length === 0) {
     logger.warn({
-      service: "create-views",
-      msg: `No Ponder app found in schema ${cliOptions.schema!}.`,
+      msg: "Found 0 Ponder apps",
+      schema: cliOptions.schema!,
     });
-    await exit({ reason: "Create views failed", code: 0 });
+    await exit({ code: 0 });
+    return;
+  }
+
+  if ("table_names" in meta[0]!.app === false) {
+    logger.warn({
+      msg: "Ponder app version not compatible with this command",
+      schema: cliOptions.schema!,
+    });
+    await exit({ code: 0 });
     return;
   }
 
@@ -136,8 +189,10 @@ export async function createViews({
     db.execute(`CREATE SCHEMA IF NOT EXISTS "${cliOptions.viewsSchema}"`),
   );
 
-  for (const table of meta[0]!.app.table_names) {
-    // Note: drop views before creating new ones to avoid enum errors.
+  // Note: Drop views before creating new ones because Postgres does not support
+  // altering the schema of a view with CREATE OR REPLACE VIEW.
+
+  for (const table of meta[0]!.app.table_names!) {
     await database.adminQB.wrap((db) =>
       db.execute(`DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${table}"`),
     );
@@ -149,9 +204,27 @@ export async function createViews({
     );
   }
 
+  if ("view_names" in meta[0]!.app) {
+    for (const view of meta[0]!.app.view_names!) {
+      await database.adminQB.wrap((db) =>
+        db.execute(`DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${view}"`),
+      );
+
+      await database.adminQB.wrap((db) =>
+        db.execute(
+          `CREATE VIEW "${cliOptions.viewsSchema}"."${view}" AS SELECT * FROM "${cliOptions.schema!}"."${view}"`,
+        ),
+      );
+    }
+  }
+
   logger.warn({
-    service: "create-views",
-    msg: `Created ${meta[0]!.app.table_names.length} views in schema "${cliOptions.viewsSchema}"`,
+    msg: "Created database views",
+    schema: cliOptions.viewsSchema,
+    count:
+      meta[0]!.app.table_names!.length +
+      ((meta[0]!.app as { view_names?: string[] }).view_names?.length ?? 0),
+    duration: endClock(),
   });
 
   await database.adminQB.wrap((db) =>
@@ -214,5 +287,5 @@ EXECUTE PROCEDURE "${cliOptions.viewsSchema}".${notification};`,
     ),
   );
 
-  await exit({ reason: "Success", code: 0 });
+  await exit({ code: 0 });
 }

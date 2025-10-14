@@ -16,7 +16,7 @@ import {
   getErc20ConfigAndIndexingFunctions,
   getPairWithFactoryConfigAndIndexingFunctions,
 } from "@/_test/utils.js";
-import { buildConfigAndIndexingFunctions } from "@/build/config.js";
+import { buildConfig, buildIndexingFunctions } from "@/build/config.js";
 import type {
   BlockFilter,
   LogFactory,
@@ -27,8 +27,8 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import { _eth_getBlockByNumber, _eth_getLogs } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
-import { _eth_getBlockByNumber, _eth_getLogs } from "@/utils/rpc.js";
 import {
   type Address,
   encodeFunctionData,
@@ -100,10 +100,15 @@ test("isLogFactoryMatched()", async (context) => {
       address,
     });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const filter = sources[0]!.filter as LogFilter<LogFactory>;
@@ -155,10 +160,15 @@ test("isLogFilterMatched()", async (context) => {
     address,
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const filter = sources[0]!.filter as LogFilter<undefined>;
@@ -193,10 +203,15 @@ test("isBlockFilterMatched", async (context) => {
     interval: 1,
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const filter = sources[0]!.filter as BlockFilter;
@@ -239,10 +254,15 @@ test("isTransactionFilterMatched()", async (context) => {
       address: ALICE,
     });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   // transaction:from
@@ -285,10 +305,15 @@ test("isTransactionFilterMatched() with null transaction.to", async (context) =>
       address: ALICE,
     });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   // transaction:to
@@ -332,10 +357,15 @@ test("isTransferFilterMatched()", async (context) => {
       address: ALICE,
     });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   // transfer:from
@@ -404,10 +434,15 @@ test("isTraceFilterMatched()", async (context) => {
     includeCallTraces: true,
   });
 
-  const { sources } = await buildConfigAndIndexingFunctions({
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { sources } = await buildIndexingFunctions({
     common: context.common,
     config,
     rawIndexingFunctions,
+    configBuild,
   });
 
   const filter = sources[1]!.filter as TraceFilter<undefined, undefined>;
