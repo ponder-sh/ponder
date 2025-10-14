@@ -1,4 +1,9 @@
-import { ALICE, BOB } from "@/_test/constants.js";
+import {
+  ALICE,
+  BOB,
+  EMPTY_BLOCK_FILTER,
+  EMPTY_LOG_FILTER,
+} from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
   setupAnvil,
@@ -22,7 +27,6 @@ import {
 } from "@/_test/utils.js";
 import { buildConfig, buildIndexingFunctions } from "@/build/config.js";
 import type {
-  BlockFilter,
   Factory,
   LogFilter,
   SyncTrace,
@@ -56,16 +60,7 @@ beforeEach(setupCleanup);
 test("getIntervals() empty", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const filter = {
-    type: "block",
-    chainId: 1,
-    interval: 1,
-    offset: 0,
-    hasTransactionReceipt: false,
-    fromBlock: undefined,
-    toBlock: undefined,
-    include: [],
-  } satisfies BlockFilter;
+  const filter = EMPTY_BLOCK_FILTER;
 
   const intervals = await syncStore.getIntervals({
     filters: [filter],
@@ -100,16 +95,7 @@ test("getIntervals() empty", async (context) => {
 test("getIntervals() returns intervals", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const filter = {
-    type: "block",
-    chainId: 1,
-    interval: 1,
-    offset: 0,
-    hasTransactionReceipt: false,
-    fromBlock: undefined,
-    toBlock: undefined,
-    include: [],
-  } satisfies BlockFilter;
+  const filter = EMPTY_BLOCK_FILTER;
 
   await syncStore.insertIntervals({
     intervals: [
@@ -159,16 +145,7 @@ test("getIntervals() returns intervals", async (context) => {
 test("getIntervals() merges intervals", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const filter = {
-    type: "block",
-    chainId: 1,
-    interval: 1,
-    offset: 0,
-    hasTransactionReceipt: false,
-    fromBlock: undefined,
-    toBlock: undefined,
-    include: [],
-  } satisfies BlockFilter;
+  const filter = EMPTY_BLOCK_FILTER;
 
   await syncStore.insertIntervals({
     intervals: [
@@ -228,17 +205,8 @@ test("getIntervals() adjacent intervals", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
   const filter = {
-    type: "log",
-    chainId: 1,
-    topic0: null,
-    topic1: null,
-    topic2: null,
-    topic3: null,
+    ...EMPTY_LOG_FILTER,
     address: [zeroAddress],
-    hasTransactionReceipt: false,
-    fromBlock: undefined,
-    toBlock: undefined,
-    include: [],
   } satisfies LogFilter;
 
   await syncStore.insertIntervals({
@@ -308,16 +276,7 @@ test("getIntervals() adjacent intervals", async (context) => {
 test("insertIntervals() merges duplicates", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const filter = {
-    type: "block",
-    chainId: 1,
-    interval: 1,
-    offset: 0,
-    hasTransactionReceipt: false,
-    fromBlock: undefined,
-    toBlock: undefined,
-    include: [],
-  } satisfies BlockFilter;
+  const filter = EMPTY_BLOCK_FILTER;
 
   await syncStore.insertIntervals({
     intervals: [
@@ -382,17 +341,8 @@ test("insertIntervals() preserves fragments", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
   const filter = {
-    type: "log",
-    chainId: 1,
-    topic0: null,
-    topic1: null,
-    topic2: null,
-    topic3: null,
+    ...EMPTY_LOG_FILTER,
     address: [zeroAddress, ALICE],
-    hasTransactionReceipt: false,
-    fromBlock: undefined,
-    toBlock: undefined,
-    include: [],
   } satisfies LogFilter;
 
   await syncStore.insertIntervals({
@@ -1066,19 +1016,7 @@ test("getEventBlockData() returns events", async (context) => {
   });
   await syncStore.insertBlocks({ blocks: [rpcBlock], chainId: 1 });
 
-  const filter = {
-    type: "log",
-    chainId: 1,
-    address: undefined,
-    topic0: null,
-    topic1: null,
-    topic2: null,
-    topic3: null,
-    hasTransactionReceipt: false,
-    fromBlock: undefined,
-    toBlock: undefined,
-    include: [],
-  } satisfies LogFilter;
+  const filter = EMPTY_LOG_FILTER;
 
   const { blocks } = await syncStore.getEventData({
     filters: [filter],

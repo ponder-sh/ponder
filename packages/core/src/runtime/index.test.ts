@@ -1,4 +1,4 @@
-import { ALICE } from "@/_test/constants.js";
+import { ALICE, EMPTY_BLOCK_FILTER } from "@/_test/constants.js";
 import {
   setupCleanup,
   setupCommon,
@@ -135,14 +135,9 @@ test("getLocalSyncProgress() future end block", async (context) => {
 
 test("getCachedBlock() no cached intervals", async () => {
   const filter = {
-    type: "block",
-    chainId: 1,
-    interval: 1,
-    offset: 0,
+    ...EMPTY_BLOCK_FILTER,
     fromBlock: 0,
     toBlock: 100,
-    hasTransactionReceipt: false,
-    include: [],
   } satisfies BlockFilter;
 
   const cachedIntervals = new Map<
@@ -160,14 +155,9 @@ test("getCachedBlock() no cached intervals", async () => {
 
 test("getCachedBlock() with cache", async () => {
   const filter = {
-    type: "block",
-    chainId: 1,
-    interval: 1,
-    offset: 0,
+    ...EMPTY_BLOCK_FILTER,
     fromBlock: 0,
     toBlock: 100,
-    hasTransactionReceipt: false,
-    include: [],
   } satisfies BlockFilter;
 
   let cachedIntervals = new Map<
@@ -210,14 +200,9 @@ test("getCachedBlock() with cache", async () => {
 
 test("getCachedBlock() with incomplete cache", async () => {
   const filter = {
-    type: "block",
-    chainId: 1,
-    interval: 1,
-    offset: 0,
+    ...EMPTY_BLOCK_FILTER,
     fromBlock: 0,
     toBlock: 100,
-    hasTransactionReceipt: false,
-    include: [],
   } satisfies BlockFilter;
 
   const cachedIntervals = new Map<
@@ -236,24 +221,17 @@ test("getCachedBlock() with incomplete cache", async () => {
 test("getCachedBlock() with multiple filters", async () => {
   const filters = [
     {
-      type: "block",
-      chainId: 1,
-      interval: 1,
-      offset: 0,
+      ...EMPTY_BLOCK_FILTER,
+
       fromBlock: 0,
       toBlock: 100,
-      hasTransactionReceipt: false,
-      include: [],
     },
     {
-      type: "block",
-      chainId: 1,
-      interval: 1,
+      ...EMPTY_BLOCK_FILTER,
+
       offset: 1,
       fromBlock: 50,
       toBlock: 150,
-      hasTransactionReceipt: false,
-      include: [],
     },
   ] satisfies BlockFilter[];
 

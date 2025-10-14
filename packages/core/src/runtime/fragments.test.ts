@@ -1,3 +1,10 @@
+import {
+  EMPTY_BLOCK_FILTER,
+  EMPTY_LOG_FILTER,
+  EMPTY_TRACE_FILTER,
+  EMPTY_TRANSACTION_FILTER,
+  EMPTY_TRANSFER_FILTER,
+} from "@/_test/constants.js";
 import type { FilterWithoutBlocks } from "@/internal/types.js";
 import { expect, test } from "vitest";
 import {
@@ -9,12 +16,9 @@ import {
 
 test("getFragments() block filter", () => {
   const fragments = getFragments({
-    type: "block",
-    chainId: 1,
+    ...EMPTY_BLOCK_FILTER,
     interval: 100,
     offset: 5,
-    hasTransactionReceipt: false,
-    include: [],
   });
 
   expect(fragments).toMatchInlineSnapshot(`
@@ -36,13 +40,10 @@ test("getFragments() block filter", () => {
 
 test("getFragments() transaction filter", () => {
   const fragments = getFragments({
-    type: "transaction",
-    chainId: 1,
+    ...EMPTY_TRANSACTION_FILTER,
     fromAddress: "0xa",
     toAddress: "0xb",
     includeReverted: false,
-    hasTransactionReceipt: true,
-    include: [],
   });
 
   expect(fragments).toMatchInlineSnapshot(`
@@ -67,15 +68,12 @@ test("getFragments() transaction filter", () => {
 
 test("getFragments() log filter", () => {
   const fragments = getFragments({
-    type: "log",
-    chainId: 1,
+    ...EMPTY_LOG_FILTER,
     address: ["0xa", "0xb"],
     topic0: ["0xc", "0xd"],
     topic1: null,
     topic2: "0xe",
     topic3: null,
-    hasTransactionReceipt: false,
-    include: [],
   });
 
   expect(fragments).toMatchInlineSnapshot(`
@@ -206,15 +204,8 @@ test("getFragments() log filter", () => {
 
 test("getFragments() log filter with transaction receipts", () => {
   const fragments = getFragments({
-    type: "log",
-    chainId: 1,
-    address: undefined,
-    topic0: null,
-    topic1: null,
-    topic2: null,
-    topic3: null,
+    ...EMPTY_LOG_FILTER,
     hasTransactionReceipt: true,
-    include: [],
   });
 
   expect(fragments).toMatchInlineSnapshot(`
@@ -240,15 +231,12 @@ test("getFragments() log filter with transaction receipts", () => {
 
 test("getFragments() trace filter", () => {
   const fragments = getFragments({
-    type: "trace",
-    chainId: 1,
+    ...EMPTY_TRACE_FILTER,
     fromAddress: "0xa",
     toAddress: undefined,
     includeReverted: false,
     functionSelector: "0xb",
     callType: "CALL",
-    hasTransactionReceipt: false,
-    include: [],
   });
 
   expect(fragments).toMatchInlineSnapshot(`
@@ -279,13 +267,10 @@ test("getFragments() trace filter", () => {
 
 test("getFragments() transfer filter", () => {
   const fragments = getFragments({
-    type: "transfer",
-    chainId: 1,
+    ...EMPTY_TRANSFER_FILTER,
     fromAddress: "0xa",
     toAddress: undefined,
     includeReverted: false,
-    hasTransactionReceipt: false,
-    include: [],
   });
 
   expect(fragments).toMatchInlineSnapshot(`
@@ -311,12 +296,7 @@ test("getFragments() transfer filter", () => {
 
 test("getFragments() factory with topic", () => {
   const fragments = getFragments({
-    type: "log",
-    chainId: 1,
-    topic0: null,
-    topic1: null,
-    topic2: null,
-    topic3: null,
+    ...EMPTY_LOG_FILTER,
     address: {
       id: `log_${"0xa"}_${1}_topic${1}_${"0xb"}_${"undefined"}_${"undefined"}`,
       type: "log",
@@ -327,8 +307,6 @@ test("getFragments() factory with topic", () => {
       fromBlock: undefined,
       toBlock: undefined,
     },
-    hasTransactionReceipt: false,
-    include: [],
   });
 
   expect(fragments).toMatchInlineSnapshot(`
@@ -359,12 +337,7 @@ test("getFragments() factory with topic", () => {
 
 test("getFragments() factory with offset", () => {
   const fragments = getFragments({
-    type: "log",
-    chainId: 1,
-    topic0: null,
-    topic1: null,
-    topic2: null,
-    topic3: null,
+    ...EMPTY_LOG_FILTER,
     address: {
       id: `log_${"0xa"}_${1}_offset${64}_${"0xb"}_${"undefined"}_${"undefined"}`,
       type: "log",
@@ -375,8 +348,6 @@ test("getFragments() factory with offset", () => {
       fromBlock: undefined,
       toBlock: undefined,
     },
-    hasTransactionReceipt: false,
-    include: [],
   });
 
   expect(fragments).toMatchInlineSnapshot(`
@@ -407,12 +378,7 @@ test("getFragments() factory with offset", () => {
 
 test("getFragments() multiple factories", () => {
   const fragments = getFragments({
-    type: "log",
-    chainId: 1,
-    topic0: null,
-    topic1: null,
-    topic2: null,
-    topic3: null,
+    ...EMPTY_LOG_FILTER,
     address: {
       id: `log_${["0xa", "0xb"].join("_")}_${1}_topic${1}_${"0xb"}_${"undefined"}_${"undefined"}`,
       type: "log",
@@ -423,8 +389,6 @@ test("getFragments() multiple factories", () => {
       fromBlock: undefined,
       toBlock: undefined,
     },
-    hasTransactionReceipt: false,
-    include: [],
   });
 
   expect(fragments).toMatchInlineSnapshot(`
@@ -475,12 +439,9 @@ test("getFragments() multiple factories", () => {
 
 test("decodeFragment()", () => {
   const [blockFragment] = getFragments({
-    type: "block",
-    chainId: 1,
+    ...EMPTY_BLOCK_FILTER,
     interval: 100,
     offset: 5,
-    hasTransactionReceipt: false,
-    include: [],
   });
 
   expect(decodeFragment(encodeFragment(blockFragment!.fragment))).toStrictEqual(
@@ -488,15 +449,13 @@ test("decodeFragment()", () => {
   );
 
   const [logFragment] = getFragments({
-    type: "log",
+    ...EMPTY_LOG_FILTER,
     chainId: 1,
     address: ["0xa", "0xb"],
     topic0: ["0xc", "0xd"],
     topic1: null,
     topic2: "0xe",
     topic3: null,
-    hasTransactionReceipt: false,
-    include: [],
   });
 
   expect(decodeFragment(encodeFragment(logFragment!.fragment))).toStrictEqual(
@@ -504,8 +463,7 @@ test("decodeFragment()", () => {
   );
 
   const [traceFragment] = getFragments({
-    type: "trace",
-    chainId: 1,
+    ...EMPTY_TRACE_FILTER,
     fromAddress: {
       id: `log_${"0xa"}_${1}_topic${1}_${"0xc"}_${"undefined"}_${"undefined"}`,
       type: "log",
@@ -520,8 +478,6 @@ test("decodeFragment()", () => {
     includeReverted: false,
     functionSelector: "0xd",
     callType: "CALL",
-    hasTransactionReceipt: false,
-    include: [],
   });
 
   expect(decodeFragment(encodeFragment(traceFragment!.fragment))).toStrictEqual(
@@ -529,13 +485,10 @@ test("decodeFragment()", () => {
   );
 
   const [transferFragment] = getFragments({
-    type: "transfer",
-    chainId: 1,
+    ...EMPTY_TRANSFER_FILTER,
     fromAddress: "0xa",
     toAddress: undefined,
     includeReverted: false,
-    hasTransactionReceipt: true,
-    include: [],
   });
 
   expect(
@@ -544,14 +497,7 @@ test("decodeFragment()", () => {
 });
 
 test("recoverFilter() block filter", () => {
-  const filter = {
-    type: "block",
-    chainId: 1,
-    interval: 100,
-    offset: 5,
-    hasTransactionReceipt: false,
-    include: [],
-  } satisfies FilterWithoutBlocks;
+  const filter = { ...EMPTY_BLOCK_FILTER, interval: 100, offset: 5 };
 
   const fragments = getFragments(filter);
 
@@ -565,13 +511,9 @@ test("recoverFilter() block filter", () => {
 
 test("recoverFilter() transaction filter", () => {
   const filter = {
-    type: "transaction",
-    chainId: 1,
+    ...EMPTY_TRANSACTION_FILTER,
     fromAddress: "0xa",
     toAddress: "0xb",
-    includeReverted: false,
-    hasTransactionReceipt: true,
-    include: [],
   } satisfies FilterWithoutBlocks;
 
   const fragments = getFragments(filter);
@@ -586,15 +528,12 @@ test("recoverFilter() transaction filter", () => {
 
 test("recoverFilter() log filter", () => {
   const filter = {
-    type: "log",
-    chainId: 1,
+    ...EMPTY_LOG_FILTER,
     address: ["0xa", "0xb"],
     topic0: ["0xc", "0xd"],
     topic1: null,
     topic2: "0xe",
     topic3: null,
-    hasTransactionReceipt: false,
-    include: [],
   } satisfies FilterWithoutBlocks;
 
   const fragments = getFragments(filter);
@@ -609,15 +548,11 @@ test("recoverFilter() log filter", () => {
 
 test("recoverFilter() trace filter", () => {
   const filter = {
-    type: "trace",
-    chainId: 1,
+    ...EMPTY_TRACE_FILTER,
+    callType: "CALL",
+    functionSelector: "0xb",
     fromAddress: "0xa",
     toAddress: undefined,
-    includeReverted: false,
-    functionSelector: "0xb",
-    callType: "CALL",
-    hasTransactionReceipt: false,
-    include: [],
   } satisfies FilterWithoutBlocks;
 
   const fragments = getFragments(filter);
@@ -632,13 +567,9 @@ test("recoverFilter() trace filter", () => {
 
 test("recoverFilter() transfer filter", () => {
   const filter = {
-    type: "transfer",
-    chainId: 1,
+    ...EMPTY_TRANSFER_FILTER,
     fromAddress: "0xa",
     toAddress: undefined,
-    includeReverted: false,
-    hasTransactionReceipt: false,
-    include: [],
   } satisfies FilterWithoutBlocks;
 
   const fragments = getFragments(filter);
@@ -653,12 +584,7 @@ test("recoverFilter() transfer filter", () => {
 
 test("recoverFilter() factory", () => {
   const filter = {
-    type: "log",
-    chainId: 1,
-    topic0: null,
-    topic1: null,
-    topic2: null,
-    topic3: null,
+    ...EMPTY_LOG_FILTER,
     address: {
       id: `log_${"0xa"}_${1}_topic${1}_${"0xb"}_${"undefined"}_${"undefined"}`,
       type: "log",
@@ -669,8 +595,6 @@ test("recoverFilter() factory", () => {
       fromBlock: undefined,
       toBlock: undefined,
     },
-    hasTransactionReceipt: false,
-    include: [],
   } satisfies FilterWithoutBlocks;
 
   const fragments = getFragments(filter);
@@ -685,12 +609,7 @@ test("recoverFilter() factory", () => {
 
 test("recoverFilter() multiple factories", () => {
   const filter = {
-    type: "log",
-    chainId: 1,
-    topic0: null,
-    topic1: null,
-    topic2: null,
-    topic3: null,
+    ...EMPTY_LOG_FILTER,
     address: {
       id: `log_${["0xa", "0xb"].join("_")}_${1}_topic${1}_${"0xc"}_${"undefined"}_${"undefined"}`,
       type: "log",
@@ -701,8 +620,6 @@ test("recoverFilter() multiple factories", () => {
       fromBlock: undefined,
       toBlock: undefined,
     },
-    hasTransactionReceipt: false,
-    include: [],
   } satisfies FilterWithoutBlocks;
 
   const fragments = getFragments(filter);
