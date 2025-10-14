@@ -38,6 +38,7 @@ import {
 import { type Interval, intervalIntersection } from "@/utils/interval.js";
 import { startClock } from "@/utils/timer.js";
 import { type Address, hexToNumber } from "viem";
+import { filterFromBlock, filterToBlock } from "./filter.js";
 import type { ChildAddresses, SyncProgress } from "./index.js";
 import { getOmnichainCheckpoint } from "./omnichain.js";
 
@@ -751,12 +752,7 @@ export async function handleRealtimeSyncEvent(
         for (const { filter } of params.sources) {
           const intervals = intervalIntersection(
             [finalizedInterval],
-            [
-              [
-                filter.fromBlock ?? 0,
-                filter.toBlock ?? Number.POSITIVE_INFINITY,
-              ],
-            ],
+            [[filterFromBlock(filter), filterToBlock(filter)]],
           );
 
           for (const interval of intervals) {

@@ -9,7 +9,7 @@ import type {
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
 import { buildEvents, decodeEvents } from "@/runtime/events.js";
-import { isAddressFactory } from "@/runtime/filter.js";
+import { filterToIntervals } from "@/runtime/filter.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
@@ -27,6 +27,7 @@ import {
 import {
   type Interval,
   intervalDifference,
+  intervalIntersection,
   intervalIntersectionMany,
   intervalSum,
   intervalUnion,
@@ -760,51 +761,10 @@ export async function* getLocalSyncGenerator(params: {
   const requiredIntervals = Array.from(
     params.cachedIntervals.entries(),
   ).flatMap(([filter, fragmentIntervals]) => {
-    const filterIntervals: Interval[] = [
-      [
-        filter.fromBlock ?? 0,
-        Math.min(filter.toBlock ?? Number.POSITIVE_INFINITY, totalInterval[1]),
-      ],
-    ];
-
-    switch (filter.type) {
-      case "log":
-        if (isAddressFactory(filter.address)) {
-          filterIntervals.push([
-            filter.address.fromBlock ?? 0,
-            Math.min(
-              filter.address.toBlock ?? Number.POSITIVE_INFINITY,
-              totalInterval[1],
-            ),
-          ]);
-        }
-        break;
-      case "trace":
-      case "transaction":
-      case "transfer":
-        if (isAddressFactory(filter.fromAddress)) {
-          filterIntervals.push([
-            filter.fromAddress.fromBlock ?? 0,
-            Math.min(
-              filter.fromAddress.toBlock ?? Number.POSITIVE_INFINITY,
-              totalInterval[1],
-            ),
-          ]);
-        }
-
-        if (isAddressFactory(filter.toAddress)) {
-          filterIntervals.push([
-            filter.toAddress.fromBlock ?? 0,
-            Math.min(
-              filter.toAddress.toBlock ?? Number.POSITIVE_INFINITY,
-              totalInterval[1],
-            ),
-          ]);
-        }
-    }
+    const filterIntervals = filterToIntervals(filter);
 
     return intervalDifference(
-      intervalUnion(filterIntervals),
+      intervalIntersection([totalInterval], intervalUnion(filterIntervals)),
       intervalIntersectionMany(
         fragmentIntervals.map(({ intervals }) => intervals),
       ),

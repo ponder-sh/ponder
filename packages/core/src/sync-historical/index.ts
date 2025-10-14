@@ -20,6 +20,8 @@ import type {
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
 import {
+  filterFromBlock,
+  filterToBlock,
   getChildAddress,
   isAddressFactory,
   isAddressMatched,
@@ -37,7 +39,6 @@ import {
   intervalBounds,
   intervalDifference,
   intervalRange,
-  intervalUnion,
 } from "@/utils/interval.js";
 import {
   _debug_traceBlockByNumber,
@@ -776,58 +777,14 @@ export const createHistoricalSync = (
       // is only partially synced.
 
       for (const { filter } of args.sources) {
-        let filterIntervals: Interval[] = [
-          [
-            Math.max(filter.fromBlock ?? 0, _interval[0]),
-            Math.min(filter.toBlock ?? Number.POSITIVE_INFINITY, _interval[1]),
-          ],
-        ];
+        const filterInterval = [
+          Math.max(filterFromBlock(filter), _interval[0]),
+          Math.min(filterToBlock(filter), _interval[1]),
+        ] satisfies Interval;
 
-        switch (filter.type) {
-          case "log":
-            if (isAddressFactory(filter.address)) {
-              filterIntervals.push([
-                Math.max(filter.address.fromBlock ?? 0, _interval[0]),
-                Math.min(
-                  filter.address.toBlock ?? Number.POSITIVE_INFINITY,
-                  _interval[1],
-                ),
-              ]);
-            }
-            break;
-          case "trace":
-          case "transaction":
-          case "transfer":
-            if (isAddressFactory(filter.fromAddress)) {
-              filterIntervals.push([
-                Math.max(filter.fromAddress.fromBlock ?? 0, _interval[0]),
-                Math.min(
-                  filter.fromAddress.toBlock ?? Number.POSITIVE_INFINITY,
-                  _interval[1],
-                ),
-              ]);
-            }
-
-            if (isAddressFactory(filter.toAddress)) {
-              filterIntervals.push([
-                Math.max(filter.toAddress.fromBlock ?? 0, _interval[0]),
-                Math.min(
-                  filter.toAddress.toBlock ?? Number.POSITIVE_INFINITY,
-                  _interval[1],
-                ),
-              ]);
-            }
-        }
-
-        filterIntervals = filterIntervals.filter(
-          ([start, end]) => start <= end,
-        );
-
-        if (filterIntervals.length === 0) {
+        if (filterInterval[0] > filterInterval[1]) {
           continue;
         }
-
-        filterIntervals = intervalUnion(filterIntervals);
 
         const completedIntervals = args.cachedIntervals.get(filter)!;
         const requiredIntervals: {
@@ -840,7 +797,7 @@ export const createHistoricalSync = (
           intervals: fragmentIntervals,
         } of completedIntervals) {
           const requiredFragmentIntervals = intervalDifference(
-            filterIntervals,
+            [filterInterval],
             fragmentIntervals,
           );
 
