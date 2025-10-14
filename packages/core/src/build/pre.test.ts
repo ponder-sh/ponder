@@ -30,6 +30,19 @@ test("buildPre() database uses pglite by default", () => {
     },
   });
 
+  process.env.DATABASE_URL = "";
+
+  const { databaseConfig: databaseConfig2 } = buildPre({
+    config,
+    options,
+  });
+  expect(databaseConfig2).toMatchObject({
+    kind: "pglite",
+    options: {
+      dataDir: expect.stringContaining(path.join(".ponder", "pglite")),
+    },
+  });
+
   process.env.DATABASE_URL = prev;
 });
 
