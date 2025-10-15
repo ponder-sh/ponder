@@ -612,6 +612,214 @@ export async function* getHistoricalEventsMultichain(params: {
   }
 }
 
+export async function* getHistoricalEventsIsolated(params: {
+  common: Common;
+  indexingBuild: Pick<
+    IndexingBuild,
+    "sources" | "chains" | "rpcs" | "finalizedBlocks"
+  >;
+  crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
+  chain: Chain;
+  syncProgress: SyncProgress;
+  childAddresses: ChildAddresses;
+  cachedIntervals: CachedIntervals;
+  syncStore: SyncStore;
+}) {
+  let isCatchup = false;
+  let lastUnfinalizedRefetch = Date.now();
+  let cursor: string | undefined;
+
+  while (true) {
+    const rpc =
+      params.indexingBuild.rpcs[
+        params.indexingBuild.chains.findIndex((c) => c.id === params.chain.id)
+      ]!;
+
+    const sources = params.indexingBuild.sources.filter(
+      ({ filter }) => filter.chainId === params.chain.id,
+    );
+
+    const crashRecoveryCheckpoint = params.crashRecoveryCheckpoint?.find(
+      ({ chainId }) => chainId === params.chain.id,
+    )?.checkpoint;
+
+    const to = min(
+      params.syncProgress.getCheckpoint({ tag: "finalized" }),
+      params.syncProgress.getCheckpoint({ tag: "end" }),
+    );
+    let from: string;
+
+    if (isCatchup === false) {
+      // In order to speed up the "extract" phase when there is a crash recovery,
+      // the beginning cursor is moved forwards. This only works when `crashRecoveryCheckpoint`
+      // is defined.
+
+      if (crashRecoveryCheckpoint === undefined) {
+        from = params.syncProgress.getCheckpoint({ tag: "start" });
+      } else if (
+        Number(decodeCheckpoint(crashRecoveryCheckpoint).chainId) ===
+        params.chain.id
+      ) {
+        from = crashRecoveryCheckpoint;
+      } else {
+        // TODO(kyle) is it an invariant that the chainId is the same as the crashRecoveryCheckpoint chainId?
+        const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
+          chainId: params.chain.id,
+          timestamp: Number(
+            decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
+          ),
+        });
+
+        if (fromBlock === undefined) {
+          from = params.syncProgress.getCheckpoint({ tag: "start" });
+        } else {
+          from = encodeCheckpoint({
+            ...ZERO_CHECKPOINT,
+            blockNumber: fromBlock.number,
+            blockTimestamp: fromBlock.timestamp,
+            chainId: BigInt(params.chain.id),
+          });
+        }
+      }
+    } else {
+      from = encodeCheckpoint({
+        ...ZERO_CHECKPOINT,
+        blockTimestamp: decodeCheckpoint(cursor!).blockTimestamp,
+        chainId: decodeCheckpoint(cursor!).chainId,
+        blockNumber: decodeCheckpoint(cursor!).blockNumber + 1n,
+      });
+
+      if (from > to) return;
+    }
+
+    params.common.logger.info({
+      msg: "Started backfill indexing",
+      chain: params.chain.name,
+      chain_id: params.chain.id,
+      block_range: JSON.stringify([
+        Number(decodeCheckpoint(from).blockNumber),
+        Number(decodeCheckpoint(to).blockNumber),
+      ]),
+    });
+
+    const eventGenerator = await initEventGenerator({
+      common: params.common,
+      indexingBuild: params.indexingBuild,
+      chain: params.chain,
+      rpc,
+      sources,
+      childAddresses: params.childAddresses,
+      syncProgress: params.syncProgress,
+      cachedIntervals: params.cachedIntervals,
+      from,
+      to,
+      limit:
+        Math.round(
+          params.common.options.syncEventsQuerySize /
+            (params.indexingBuild.chains.length + 1),
+        ) + 6,
+      syncStore: params.syncStore,
+      isCatchup,
+    });
+
+    for await (const {
+      events: rawEvents,
+      checkpoint,
+      blockRange,
+    } of eventGenerator) {
+      const endClock = startClock();
+
+      let events = decodeEvents(params.common, sources, rawEvents);
+
+      params.common.logger.trace({
+        msg: "Decoded events",
+        chain: params.chain.name,
+        chain_id: params.chain.id,
+        event_count: events.length,
+        duration: endClock(),
+      });
+
+      params.common.metrics.ponder_historical_extract_duration.inc(
+        { step: "decode" },
+        endClock(),
+      );
+
+      // Removes events that have a checkpoint earlier than (or equal to)
+      // the crash recovery checkpoint.
+
+      if (crashRecoveryCheckpoint) {
+        const [left, right] = partition(
+          events,
+          (event) => event.checkpoint <= crashRecoveryCheckpoint,
+        );
+        events = right;
+
+        if (left.length > 0) {
+          params.common.logger.trace({
+            msg: "Filtered events before crash recovery checkpoint",
+            chain: params.chain.name,
+            chain_id: params.chain.id,
+            event_count: left.length,
+            checkpoint: crashRecoveryCheckpoint,
+          });
+        }
+      }
+
+      yield { chainId: params.chain.id, events, checkpoint, blockRange };
+    }
+
+    cursor = to;
+
+    if (Date.now() - lastUnfinalizedRefetch < 30_000) {
+      break;
+    }
+    lastUnfinalizedRefetch = Date.now();
+
+    const context = {
+      logger: params.common.logger.child({ action: "refetch_finalized_block" }),
+    };
+
+    const endClock = startClock();
+
+    const finalizedBlock = await _eth_getBlockByNumber(
+      rpc,
+      { blockTag: "latest" },
+      context,
+    ).then((latest) =>
+      _eth_getBlockByNumber(
+        rpc,
+        {
+          blockNumber: Math.max(
+            hexToNumber(latest.number) - params.chain.finalityBlockCount,
+            0,
+          ),
+        },
+        context,
+      ),
+    );
+
+    const finalizedBlockNumber = hexToNumber(finalizedBlock.number);
+    params.common.logger.debug({
+      msg: "Refetched finalized block for backfill cutover",
+      chain: params.chain.name,
+      chain_id: params.chain.id,
+      finalized_block: finalizedBlockNumber,
+      duration: endClock(),
+    });
+
+    if (
+      hexToNumber(finalizedBlock.number) -
+        hexToNumber(params.syncProgress.finalized.number) <=
+      params.chain.finalityBlockCount
+    ) {
+      break;
+    }
+
+    params.syncProgress.finalized = finalizedBlock;
+    isCatchup = true;
+  }
+}
+
 export async function refetchHistoricalEvents(params: {
   common: Common;
   indexingBuild: Pick<IndexingBuild, "sources" | "chains">;
@@ -621,9 +829,7 @@ export async function refetchHistoricalEvents(params: {
 }): Promise<Event[]> {
   const events: Event[] = new Array(params.events.length);
 
-  for (const chain of PONDER_INDEXING_BUILD.chains) {
-    const { childAddresses } = params.perChainSync.get(chain)!;
-
+  for (const [chain, { childAddresses }] of params.perChainSync) {
     // Note: All filters are refetched, no matter if they are resolved or not.
     const sources = params.indexingBuild.sources.filter(
       ({ filter }) => filter.chainId === chain.id,

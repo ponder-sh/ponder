@@ -1,12 +1,11 @@
-import { runCodegen } from "@/bin/utils/codegen.js";
 import {
   commitBlock,
   createIndexes,
   createTriggers,
   createViews,
   dropTriggers,
-  finalize,
-  revert,
+  finalizeOmnichain,
+  revertOmnichain,
 } from "@/database/actions.js";
 import {
   type Database,
@@ -86,8 +85,6 @@ export async function runOmnichain({
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   database: Database;
 }) {
-  runCodegen({ common });
-
   const columnAccessPattern = createColumnAccessPattern({
     indexingBuild,
   });
@@ -664,7 +661,12 @@ export async function runOmnichain({
 
                   await Promise.all(
                     tables.map(
-                      (table) => commitBlock(tx, { table, checkpoint }),
+                      (table) =>
+                        commitBlock(
+                          tx,
+                          { table, checkpoint, preBuild },
+                          context,
+                        ),
                       context,
                     ),
                   );
@@ -739,12 +741,11 @@ export async function runOmnichain({
         await database.userQB.transaction(async (tx) => {
           await dropTriggers(tx, { tables }, context);
 
-          const counts = await revert(
+          const counts = await revertOmnichain(
             tx,
             {
               tables,
               checkpoint: event.checkpoint,
-              preBuild,
             },
             context,
           );
@@ -776,12 +777,11 @@ export async function runOmnichain({
         };
         const endClock = startClock();
 
-        await finalize(
+        await finalizeOmnichain(
           database.userQB,
           {
             checkpoint: event.checkpoint,
             tables,
-            preBuild,
             namespaceBuild,
           },
           context,

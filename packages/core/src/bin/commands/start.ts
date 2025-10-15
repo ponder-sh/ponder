@@ -1,3 +1,4 @@
+import { runCodegen } from "@/bin/utils/codegen.js";
 import { createBuild } from "@/build/index.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
@@ -17,6 +18,7 @@ import type {
 import { runMultichain } from "@/runtime/multichain.js";
 import { runOmnichain } from "@/runtime/omnichain.js";
 import { createServer } from "@/server/index.js";
+import { isolatedController } from "../isolatedController.js";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 
@@ -83,6 +85,8 @@ export async function start({
     );
   }
 
+  runCodegen({ common });
+
   const build = await createBuild({ common, cliOptions });
 
   // biome-ignore lint/style/useConst: <explanation>
@@ -146,7 +150,10 @@ export async function start({
     return;
   }
 
-  const compileSchemaResult = build.compileSchema(schemaResult.result);
+  const compileSchemaResult = build.compileSchema({
+    ...schemaResult.result,
+    preBuild: preCompileResult.result,
+  });
 
   if (compileSchemaResult.status === "error") {
     common.logger.error({
@@ -292,10 +299,24 @@ export async function start({
 
   metrics.initializeIndexingMetrics(app);
 
-  if (preCompileResult.result.ordering === "omnichain") {
-    runOmnichain(app);
-  } else {
-    runMultichain(app);
+  switch (preCompileResult.result.ordering) {
+    case "omnichain":
+      runOmnichain(app);
+      break;
+    case "multichain":
+      runMultichain(app);
+      break;
+    case "isolated": {
+      isolatedController({
+        common,
+        namespaceBuild: app.namespaceBuild,
+        schemaBuild: app.schemaBuild,
+        indexingBuild: app.indexingBuild,
+        crashRecoveryCheckpoint: app.crashRecoveryCheckpoint,
+        database: app.database,
+      });
+      break;
+    }
   }
   createServer(app);
 

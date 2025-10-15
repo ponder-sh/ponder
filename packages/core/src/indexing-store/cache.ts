@@ -1,5 +1,5 @@
 import type { QB } from "@/database/queryBuilder.js";
-import { getPrimaryKeyColumns } from "@/drizzle/index.js";
+import { getPartitionName, getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import { addErrorMeta, toErrorMeta } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
@@ -274,14 +274,12 @@ export const getCopyText = (table: Table, rows: Row[]) => {
   return result;
 };
 
-export const getCopyHelper = (qb: QB) => {
+export const getCopyHelper = (qb: QB, chainId?: number) => {
   if (qb.$dialect === "pglite") {
     return async (table: Table, text: string, includeSchema = true) => {
       const target = includeSchema
-        ? `"${getTableConfig(table).schema ?? "public"}"."${getTableName(
-            table,
-          )}"`
-        : `"${getTableName(table)}"`;
+        ? `"${getTableConfig(table).schema ?? "public"}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"`
+        : `"${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"`;
       await qb.$client
         .query(`COPY ${target} FROM '/dev/blob'`, [], {
           blob: new Blob([text]),
@@ -295,10 +293,8 @@ export const getCopyHelper = (qb: QB) => {
   } else {
     return async (table: Table, text: string, includeSchema = true) => {
       const target = includeSchema
-        ? `"${getTableConfig(table).schema ?? "public"}"."${getTableName(
-            table,
-          )}"`
-        : `"${getTableName(table)}"`;
+        ? `"${getTableConfig(table).schema ?? "public"}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"`
+        : `"${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"`;
       const copyStream = qb.$client.query(
         copy.from(`COPY ${target} FROM STDIN`),
       );
@@ -348,11 +344,13 @@ export const createIndexingCache = ({
   schemaBuild: { schema },
   crashRecoveryCheckpoint,
   eventCount,
+  chainId,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   eventCount: { [eventName: string]: number };
+  chainId?: number;
 }): IndexingCache => {
   let event: Event | undefined;
   let qb: QB = undefined!;
@@ -530,7 +528,7 @@ export const createIndexingCache = ({
       };
       const flushEndClock = startClock();
 
-      const copy = getCopyHelper(qb);
+      const copy = getCopyHelper(qb, chainId);
 
       // Note `isFlushRetry` is true when the previous flush failed. When `isFlushRetry` is false, this
       // function takes an optimized fast path, with support for small batch sizes. PGlite always takes
@@ -661,19 +659,20 @@ export const createIndexingCache = ({
             // 2. Copy into temp table
             // 3. Update target table with data from temp
 
+            const target =
+              chainId === undefined
+                ? getTableName(table)
+                : getPartitionName(table, chainId);
+
             const primaryKeys = getPrimaryKeyColumns(table);
 
             const createTempTableQuery = `
-              CREATE TEMP TABLE IF NOT EXISTS "${getTableName(table)}"
-              AS SELECT * FROM "${
-                getTableConfig(table).schema ?? "public"
-              }"."${getTableName(table)}"
+              CREATE TEMP TABLE IF NOT EXISTS "${target}"
+              AS SELECT * FROM "${getTableConfig(table).schema ?? "public"}"."${target}"
               WITH NO DATA;
             `;
             const updateQuery = `
-              UPDATE "${
-                getTableConfig(table).schema ?? "public"
-              }"."${getTableName(table)}" as target
+              UPDATE "${getTableConfig(table).schema ?? "public"}"."${target}" as target
               SET ${Object.values(getTableColumns(table))
                 .map(
                   (column) =>
@@ -683,7 +682,7 @@ export const createIndexingCache = ({
                     )}" = source."${getColumnCasing(column, "snake_case")}"`,
                 )
                 .join(",\n")}
-              FROM "${getTableName(table)}" source
+              FROM "${target}" source
               WHERE ${primaryKeys
                 .map(({ sql }) => `target."${sql}" = source."${sql}"`)
                 .join(" AND ")};
@@ -774,7 +773,7 @@ export const createIndexingCache = ({
 
             await qb.wrap((db) => db.execute(updateQuery), context);
             await qb.wrap(
-              (db) => db.execute(`TRUNCATE TABLE "${getTableName(table)}"`),
+              (db) => db.execute(`TRUNCATE TABLE "${target}"`),
               context,
             );
 
@@ -882,18 +881,19 @@ export const createIndexingCache = ({
                 // 2. Copy into temp table
                 // 3. Update target table with data from temp
 
+                const target =
+                  chainId === undefined
+                    ? getTableName(table)
+                    : getPartitionName(table, chainId);
+
                 const createTempTableQuery = `
-                CREATE TEMP TABLE IF NOT EXISTS "${getTableName(table)}" 
-                AS SELECT * FROM "${
-                  getTableConfig(table).schema ?? "public"
-                }"."${getTableName(table)}"
+                CREATE TEMP TABLE IF NOT EXISTS "${target}" 
+                AS SELECT * FROM "${getTableConfig(table).schema ?? "public"}"."${target}"
                 WITH NO DATA;
               `;
 
                 const updateQuery = `
-                UPDATE "${
-                  getTableConfig(table).schema ?? "public"
-                }"."${getTableName(table)}" as target
+                UPDATE "${getTableConfig(table).schema ?? "public"}"."${target}" as target
                 SET ${Object.values(getTableColumns(table))
                   .map(
                     (column) =>
@@ -903,7 +903,7 @@ export const createIndexingCache = ({
                       )}" = source."${getColumnCasing(column, "snake_case")}"`,
                   )
                   .join(",\n")}
-                FROM "${getTableName(table)}" source
+                FROM "${target}" source
                 WHERE ${primaryKeys
                   .map(({ sql }) => `target."${sql}" = source."${sql}"`)
                   .join(" AND ")};
@@ -926,7 +926,7 @@ export const createIndexingCache = ({
                 await qb.wrap((db) => db.execute(updateQuery), context);
 
                 await qb.wrap(
-                  (db) => db.execute(`TRUNCATE TABLE "${getTableName(table)}"`),
+                  (db) => db.execute(`TRUNCATE TABLE "${target}"`),
                   context,
                 );
               } else {
