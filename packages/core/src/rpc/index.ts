@@ -155,29 +155,21 @@ const addRequestTimestamp = (bucket: Bucket) => {
 };
 
 /**
- * Calculate the requests per second for a bucket
- * using historical request timestamps.
- */
-const getRPS = (bucket: Bucket, window: 1 | 10) => {
-  const timestamp = Math.floor(Date.now() / 1000);
-
-  const rps = bucket.rps.filter((r) => timestamp - r.timestamp < window);
-
-  const requests = rps.reduce((acc, r) => acc + r.count, 0);
-  const seconds = rps.length <= 1 ? 1 : timestamp - rps[0]!.timestamp + 1;
-
-  return requests / seconds;
-};
-
-/**
  * Return `true` if the bucket is available to send a request.
  */
 const isAvailable = (bucket: Bucket) => {
-  if (
-    bucket.isActive &&
-    getRPS(bucket, 1) < bucket.rpsLimit &&
-    getRPS(bucket, 10) < bucket.rpsLimit
-  ) {
+  let isRateLimited = false;
+  for (const { timestamp, count } of bucket.rps) {
+    if (timestamp < Math.floor(Date.now() / 1000) - 10) {
+      continue;
+    }
+    if (count > bucket.rpsLimit) {
+      isRateLimited = true;
+      break;
+    }
+  }
+
+  if (bucket.isActive && isRateLimited === false) {
     return true;
   }
 
@@ -189,18 +181,23 @@ const isAvailable = (bucket: Bucket) => {
 };
 
 const increaseMaxRPS = (bucket: Bucket) => {
-  const rps = getRPS(bucket, 10);
+  if (bucket.rps.length < 10) return;
+
   if (
-    bucket.consecutiveSuccessfulRequests >= rps * SUCCESS_MULTIPLIER &&
-    rps > bucket.rpsLimit * RPS_INCREASE_QUALIFIER
+    bucket.consecutiveSuccessfulRequests <
+    bucket.rpsLimit * SUCCESS_MULTIPLIER
   ) {
-    const newRPSLimit = Math.min(
-      bucket.rpsLimit * RPS_INCREASE_FACTOR,
-      MAX_RPS,
-    );
-    bucket.rpsLimit = newRPSLimit;
-    bucket.consecutiveSuccessfulRequests = 0;
+    return;
   }
+
+  for (const { count } of bucket.rps) {
+    if (count < bucket.rpsLimit * RPS_INCREASE_QUALIFIER) {
+      return;
+    }
+  }
+
+  bucket.rpsLimit = Math.min(bucket.rpsLimit * RPS_INCREASE_FACTOR, MAX_RPS);
+  bucket.consecutiveSuccessfulRequests = 0;
 };
 
 const decreaseMaxRPS = (bucket: Bucket) => {
@@ -294,7 +291,7 @@ export const createRpc = ({
     }
   }
 
-  const buckets = backends.map(
+  const buckets: Bucket[] = backends.map(
     ({ request, hostname }, index) =>
       ({
         index,
@@ -369,6 +366,8 @@ export const createRpc = ({
             msg: "All JSON-RPC providers are inactive due to rate limiting",
             chain: chain.name,
             chain_id: chain.id,
+            is_active: JSON.stringify(buckets.map((b) => b.isActive)),
+            rate_limits: JSON.stringify(buckets.map((b) => b.rpsLimit)),
           });
         }, 5_000);
       }
@@ -529,7 +528,6 @@ export const createRpc = ({
 
               scheduleBucketActivation(bucket);
 
-              // @ts-expect-error typescript bug
               if (buckets.every((b) => b.isActive === false)) {
                 logger.warn({
                   msg: "All JSON-RPC providers are inactive",
