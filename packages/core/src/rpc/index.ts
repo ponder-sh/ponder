@@ -163,9 +163,17 @@ const isAvailable = (bucket: Bucket) => {
     if (timestamp < Math.floor(Date.now() / 1000) - 10) {
       continue;
     }
-    if (count + 1 > bucket.rpsLimit) {
-      isRateLimited = true;
-      break;
+    // Note: Add 1 to account for the request that will be made
+    if (timestamp === Math.floor(Date.now() / 1000)) {
+      if (count + 1 > bucket.rpsLimit) {
+        isRateLimited = true;
+        break;
+      }
+    } else {
+      if (count > bucket.rpsLimit) {
+        isRateLimited = true;
+        break;
+      }
     }
   }
 
@@ -366,6 +374,7 @@ export const createRpc = ({
             chain: chain.name,
             chain_id: chain.id,
             is_active: JSON.stringify(buckets.map((b) => b.isActive)),
+            rps: JSON.stringify(buckets.map((b) => b.rps)),
             rate_limits: JSON.stringify(buckets.map((b) => b.rpsLimit)),
           });
         }, 5_000);
