@@ -1,11 +1,59 @@
 import { type AddressInfo, createServer } from "node:net";
+import { buildLogFactory } from "@/build/factory.js";
 import { factory } from "@/config/address.js";
-import { createConfig } from "@/config/index.js";
-import type { Chain, Status } from "@/internal/types.js";
-import type { Address, Chain as ViemChain } from "viem";
+import type { Common } from "@/internal/common.js";
+import type {
+  AccountMetadata,
+  AccountSource,
+  BlockSource,
+  Chain,
+  ContractMetadata,
+  ContractSource,
+  Event,
+  Factory,
+  FilterAddress,
+  IndexingFunctions,
+  LogFactory,
+  Source,
+  Status,
+  TransactionFilter,
+} from "@/internal/types.js";
+import {
+  buildEvents,
+  decodeEvents,
+  syncBlockToInternal,
+  syncLogToInternal,
+  syncTraceToInternal,
+  syncTransactionReceiptToInternal,
+  syncTransactionToInternal,
+} from "@/runtime/events.js";
+import {
+  defaultBlockFilterInclude,
+  defaultLogFilterInclude,
+  defaultTraceFilterInclude,
+  defaultTransactionFilterInclude,
+  defaultTransactionReceiptInclude,
+  defaultTransferFilterInclude,
+} from "@/runtime/filter.js";
+import { buildAbiEvents, buildAbiFunctions } from "@/utils/abi.js";
+import { toLowerCase } from "@/utils/lowercase.js";
+import {
+  type Address,
+  type Chain as ViemChain,
+  toEventSelector,
+  toFunctionSelector,
+} from "viem";
 import { http, createPublicClient, createTestClient, getAbiItem } from "viem";
 import { mainnet } from "viem/chains";
+import { vi } from "vitest";
 import { erc20ABI, factoryABI, pairABI } from "./generated.js";
+import type {
+  mintErc20,
+  simulateBlock,
+  swapPair,
+  transferErc20,
+  transferEth,
+} from "./simulate.js";
 
 // Anvil test setup adapted from @viem/anvil `example-vitest` repository.
 // https://github.com/wagmi-dev/anvil.js/tree/main/examples/example-vitest
@@ -39,136 +87,419 @@ export const publicClient = createPublicClient({
   transport: http(),
 });
 
-export const getBlockNumber = async () =>
-  publicClient.getBlockNumber().then(Number);
-
-export const getErc20ConfigAndIndexingFunctions = (params: {
+export const getErc20IndexingBuild = <
+  includeCallTraces extends boolean = false,
+>(params: {
   address: Address;
-  includeCallTraces?: boolean;
+  includeCallTraces?: includeCallTraces;
   includeTransactionReceipts?: boolean;
-}) => {
-  const config = createConfig({
-    chains: {
-      mainnet: {
-        id: 1,
-        rpc: `http://127.0.0.1:8545/${poolId}`,
-      },
-    },
-    contracts: {
-      Erc20: {
-        abi: erc20ABI,
-        chain: "mainnet",
-        address: params.address,
-        includeCallTraces: params.includeCallTraces,
-        includeTransactionReceipts: params.includeTransactionReceipts,
-      },
-    },
-  });
-
-  const rawIndexingFunctions = params.includeCallTraces
-    ? [
-        { name: "Erc20.transfer()", fn: () => {} },
-        {
-          name: "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)",
-          fn: () => {},
-        },
-      ]
-    : [
-        {
-          name: "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)",
-          fn: () => {},
-        },
+}): includeCallTraces extends true
+  ? {
+      sources: [
+        ContractSource<"trace", undefined, undefined, undefined>,
+        ContractSource<"log", undefined, undefined, undefined>,
       ];
+      indexingFunctions: IndexingFunctions;
+    }
+  : {
+      sources: [ContractSource<"log", undefined, undefined, undefined>];
+      indexingFunctions: IndexingFunctions;
+    } => {
+  const contractMetadata = {
+    type: "contract",
+    abi: erc20ABI,
+    abiEvents: buildAbiEvents({ abi: erc20ABI }),
+    abiFunctions: buildAbiFunctions({ abi: erc20ABI }),
+    name: "Erc20",
+    chain: getChain(),
+  } satisfies ContractMetadata;
 
-  return { config, rawIndexingFunctions };
+  const sources = params.includeCallTraces
+    ? ([
+        {
+          filter: {
+            type: "trace",
+            chainId: 1,
+            fromAddress: undefined,
+            toAddress: toLowerCase(params.address),
+            callType: "CALL",
+            functionSelector: toFunctionSelector(
+              getAbiItem({ abi: erc20ABI, name: "transfer" }),
+            ),
+            includeReverted: false,
+            fromBlock: undefined,
+            toBlock: undefined,
+            hasTransactionReceipt: params.includeTransactionReceipts ?? false,
+            include: defaultTraceFilterInclude.concat(
+              params.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude.map(
+                    (value) => `transactionReceipt.${value}` as const,
+                  )
+                : [],
+            ),
+          },
+          ...contractMetadata,
+        },
+        {
+          filter: {
+            type: "log",
+            chainId: 1,
+            address: toLowerCase(params.address),
+            topic0: toEventSelector(
+              getAbiItem({ abi: erc20ABI, name: "Transfer" }),
+            ),
+            topic1: null,
+            topic2: null,
+            topic3: null,
+            fromBlock: undefined,
+            toBlock: undefined,
+            hasTransactionReceipt: params.includeTransactionReceipts ?? false,
+            include: defaultLogFilterInclude.concat(
+              params.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude.map(
+                    (value) => `transactionReceipt.${value}` as const,
+                  )
+                : [],
+            ),
+          },
+          ...contractMetadata,
+        },
+      ] satisfies [ContractSource, ContractSource])
+    : ([
+        {
+          filter: {
+            type: "log",
+            chainId: 1,
+            address: toLowerCase(params.address),
+            topic0: toEventSelector(
+              getAbiItem({ abi: erc20ABI, name: "Transfer" }),
+            ),
+            topic1: null,
+            topic2: null,
+            topic3: null,
+            fromBlock: undefined,
+            toBlock: undefined,
+            hasTransactionReceipt: params.includeTransactionReceipts ?? false,
+            include: defaultLogFilterInclude.concat(
+              params.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude.map(
+                    (value) => `transactionReceipt.${value}` as const,
+                  )
+                : [],
+            ),
+          },
+          ...contractMetadata,
+        },
+      ] satisfies [ContractSource]);
+
+  const indexingFunctions = params.includeCallTraces
+    ? {
+        "Erc20.transfer()": vi.fn(),
+        "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+          vi.fn(),
+        "Erc20:setup": vi.fn(),
+      }
+    : {
+        "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
+          vi.fn(),
+        "Erc20:setup": vi.fn(),
+      };
+
+  // @ts-ignore
+  return { sources, indexingFunctions };
 };
 
-export const getPairWithFactoryConfigAndIndexingFunctions = (params: {
+export const getPairWithFactoryIndexingBuild = <
+  includeCallTraces extends boolean = false,
+>(params: {
   address: Address;
-  includeCallTraces?: boolean;
+  includeCallTraces?: includeCallTraces;
   includeTransactionReceipts?: boolean;
-}) => {
-  const config = createConfig({
-    chains: {
-      mainnet: {
-        id: 1,
-        rpc: `http://127.0.0.1:8545/${poolId}`,
-      },
-    },
-    contracts: {
-      Pair: {
-        abi: pairABI,
-        chain: "mainnet",
-        address: factory({
-          address: params.address,
-          event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
-          parameter: "pair",
-        }),
-        includeCallTraces: params.includeCallTraces,
-        includeTransactionReceipts: params.includeTransactionReceipts,
-      },
-    },
-  });
+}): includeCallTraces extends true
+  ? {
+      sources: [
+        ContractSource<"trace", undefined, undefined, LogFactory>,
+        ContractSource<"log", LogFactory, undefined, undefined>,
+      ];
+      indexingFunctions: IndexingFunctions;
+    }
+  : {
+      sources: [ContractSource<"log", LogFactory, undefined, undefined>];
+      indexingFunctions: IndexingFunctions;
+    } => {
+  const contractMetadata = {
+    type: "contract",
+    abi: pairABI,
+    abiEvents: buildAbiEvents({ abi: pairABI }),
+    abiFunctions: buildAbiFunctions({ abi: pairABI }),
+    name: "Pair",
+    chain: getChain(),
+  } satisfies ContractMetadata;
 
-  const rawIndexingFunctions = params.includeCallTraces
-    ? [
-        { name: "Pair.swap()", fn: () => {} },
-        { name: "Pair:Swap", fn: () => {} },
-      ]
-    : [{ name: "Pair:Swap", fn: () => {} }];
+  const pairAddress = buildLogFactory({
+    chainId: 1,
+    fromBlock: undefined,
+    toBlock: undefined,
+    ...factory({
+      address: params.address,
+      event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
+      parameter: "pair",
+    }),
+  }) satisfies FilterAddress<Factory>;
 
-  return { config, rawIndexingFunctions };
+  const sources = params.includeCallTraces
+    ? ([
+        {
+          filter: {
+            type: "trace",
+            chainId: 1,
+            fromAddress: undefined,
+            toAddress: pairAddress,
+            callType: "CALL",
+            functionSelector: toFunctionSelector(
+              getAbiItem({ abi: pairABI, name: "swap" }),
+            ),
+            includeReverted: false,
+            fromBlock: undefined,
+            toBlock: undefined,
+            hasTransactionReceipt: params.includeTransactionReceipts ?? false,
+            include: defaultTraceFilterInclude.concat(
+              params.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude.map(
+                    (value) => `transactionReceipt.${value}` as const,
+                  )
+                : [],
+            ),
+          },
+          ...contractMetadata,
+        },
+        {
+          filter: {
+            type: "log",
+            chainId: 1,
+            address: pairAddress,
+            topic0: toEventSelector(getAbiItem({ abi: pairABI, name: "Swap" })),
+            topic1: null,
+            topic2: null,
+            topic3: null,
+            fromBlock: undefined,
+            toBlock: undefined,
+            hasTransactionReceipt: params.includeTransactionReceipts ?? false,
+            include: defaultLogFilterInclude.concat(
+              params.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude.map(
+                    (value) => `transactionReceipt.${value}` as const,
+                  )
+                : [],
+            ),
+          },
+          ...contractMetadata,
+        },
+      ] satisfies [ContractSource, ContractSource])
+    : ([
+        {
+          filter: {
+            type: "log",
+            chainId: 1,
+            address: pairAddress,
+            topic0: toEventSelector(getAbiItem({ abi: pairABI, name: "Swap" })),
+            topic1: null,
+            topic2: null,
+            topic3: null,
+            fromBlock: undefined,
+            toBlock: undefined,
+            hasTransactionReceipt: params.includeTransactionReceipts ?? false,
+            include: defaultLogFilterInclude.concat(
+              params.includeTransactionReceipts
+                ? defaultTransactionReceiptInclude.map(
+                    (value) => `transactionReceipt.${value}` as const,
+                  )
+                : [],
+            ),
+          },
+          ...contractMetadata,
+        },
+      ] satisfies [ContractSource]);
+
+  const indexingFunctions = params.includeCallTraces
+    ? {
+        "Pair.swap()": vi.fn(),
+        "Pair:Swap": vi.fn(),
+        "Pair:setup": vi.fn(),
+      }
+    : {
+        "Pair:Swap": vi.fn(),
+        "Pair:setup": vi.fn(),
+      };
+
+  // @ts-ignore
+  return { sources, indexingFunctions };
 };
 
-export const getBlocksConfigAndIndexingFunctions = (params: {
+export const getBlocksIndexingBuild = (params: {
   interval: number;
-}) => {
-  const config = createConfig({
-    chains: {
-      mainnet: {
-        id: 1,
-        rpc: `http://127.0.0.1:8545/${poolId}`,
-      },
-    },
-    blocks: {
-      Blocks: {
-        chain: "mainnet",
+}): {
+  sources: [BlockSource];
+  indexingFunctions: IndexingFunctions;
+} => {
+  const sources = [
+    {
+      filter: {
+        type: "block",
+        chainId: 1,
         interval: params.interval,
+        offset: 0,
+        fromBlock: undefined,
+        toBlock: undefined,
+        hasTransactionReceipt: false,
+        include: defaultBlockFilterInclude,
       },
+      type: "block",
+      name: "Blocks",
+      chain: getChain(),
     },
-  });
+  ] satisfies [BlockSource];
 
-  const rawIndexingFunctions = [{ name: "Blocks:block", fn: () => {} }];
+  const indexingFunctions = {
+    "Blocks:block": vi.fn(),
+  };
 
-  return { config, rawIndexingFunctions };
+  return { sources, indexingFunctions };
 };
 
-export const getAccountsConfigAndIndexingFunctions = (params: {
+export const getAccountsIndexingBuild = (params: {
   address: Address;
-}) => {
-  const config = createConfig({
-    chains: {
-      mainnet: {
-        id: 1,
-        rpc: `http://127.0.0.1:8545/${poolId}`,
-      },
+}): {
+  sources: [
+    AccountSource<"transaction", undefined, undefined>,
+    AccountSource<"transaction", undefined, undefined>,
+    AccountSource<"transfer", undefined, undefined>,
+    AccountSource<"transfer", undefined, undefined>,
+  ];
+  indexingFunctions: IndexingFunctions;
+} => {
+  const accountMetadata = {
+    type: "account",
+    name: "Accounts",
+    chain: getChain(),
+  } satisfies AccountMetadata;
+
+  const sources = [
+    {
+      filter: {
+        type: "transaction",
+        chainId: 1,
+        fromAddress: undefined,
+        toAddress: toLowerCase(params.address),
+        includeReverted: false,
+        fromBlock: undefined,
+        toBlock: undefined,
+        hasTransactionReceipt: true,
+        include: defaultTransactionFilterInclude,
+      } satisfies TransactionFilter,
+      ...accountMetadata,
     },
-    accounts: {
-      Accounts: {
-        chain: "mainnet",
-        address: params.address,
-      },
+    {
+      filter: {
+        type: "transaction",
+        chainId: 1,
+        fromAddress: toLowerCase(params.address),
+        toAddress: undefined,
+        includeReverted: false,
+        fromBlock: undefined,
+        toBlock: undefined,
+        hasTransactionReceipt: true,
+        include: defaultTransactionFilterInclude,
+      } satisfies TransactionFilter,
+      ...accountMetadata,
     },
+    {
+      filter: {
+        type: "transfer",
+        chainId: 1,
+        fromAddress: undefined,
+        toAddress: toLowerCase(params.address),
+        includeReverted: false,
+        fromBlock: undefined,
+        toBlock: undefined,
+        hasTransactionReceipt: false,
+        include: defaultTransferFilterInclude,
+      },
+      ...accountMetadata,
+    },
+    {
+      filter: {
+        type: "transfer",
+        chainId: 1,
+        fromAddress: toLowerCase(params.address),
+        toAddress: undefined,
+        includeReverted: false,
+        fromBlock: undefined,
+        toBlock: undefined,
+        hasTransactionReceipt: false,
+        include: defaultTransferFilterInclude,
+      },
+      ...accountMetadata,
+    },
+  ] satisfies [AccountSource, AccountSource, AccountSource, AccountSource];
+
+  const indexingFunctions = {
+    "Accounts:transaction:from": vi.fn(),
+    "Accounts:transaction:to": vi.fn(),
+    "Accounts:transfer:from": vi.fn(),
+    "Accounts:transfer:to": vi.fn(),
+  };
+
+  return { sources, indexingFunctions };
+};
+
+export const getSimulatedEvent = ({
+  source,
+  blockData,
+}: {
+  source: Source;
+  blockData:
+    | Awaited<ReturnType<typeof simulateBlock>>
+    | Awaited<ReturnType<typeof mintErc20>>
+    | Awaited<ReturnType<typeof transferErc20>>
+    | Awaited<ReturnType<typeof transferEth>>
+    | Awaited<ReturnType<typeof swapPair>>;
+}): Event => {
+  const rawEvents = buildEvents({
+    sources: [source],
+    blocks: [syncBlockToInternal({ block: blockData.block })],
+    // @ts-ignore
+    logs: blockData.log ? [syncLogToInternal({ log: blockData.log })] : [],
+    // @ts-ignore
+    transactions: blockData.transaction
+      ? // @ts-ignore
+        [syncTransactionToInternal({ transaction: blockData.transaction })]
+      : [],
+    // @ts-ignore
+    transactionReceipts: blockData.transactionReceipt
+      ? [
+          syncTransactionReceiptToInternal({
+            // @ts-ignore
+            transactionReceipt: blockData.transactionReceipt,
+          }),
+        ]
+      : [],
+    // @ts-ignore
+    traces: blockData.trace
+      ? // @ts-ignore
+        [syncTraceToInternal({ trace: blockData.trace })]
+      : [],
+    childAddresses: new Map(),
+    chainId: 1,
   });
 
-  const rawIndexingFunctions = [
-    { name: "Accounts:transaction:from", fn: () => {} },
-    { name: "Accounts:transaction:to", fn: () => {} },
-    { name: "Accounts:transfer:from", fn: () => {} },
-    { name: "Accounts:transfer:to", fn: () => {} },
-  ];
+  const events = decodeEvents({} as Common, [source], rawEvents);
 
-  return { config, rawIndexingFunctions };
+  if (events.length !== 1) {
+    throw new Error("getSimulatedEvent() failed to construct the event");
+  }
+
+  return events[0]!;
 };
 
 export const getChain = (params?: {

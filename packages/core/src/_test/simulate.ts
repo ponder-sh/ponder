@@ -1,10 +1,20 @@
+import type {
+  SyncBlock,
+  SyncLog,
+  SyncTrace,
+  SyncTransaction,
+  SyncTransactionReceipt,
+} from "@/internal/types.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import {
   http,
   type Address,
   type Hex,
   createWalletClient,
+  encodeFunctionData,
+  encodeFunctionResult,
   multicall3Abi,
+  numberToHex,
 } from "viem";
 import Erc20Bytecode from "./contracts/out/ERC20.sol/ERC20.json";
 import FactoryBytecode from "./contracts/out/Factory.sol/Factory.json";
@@ -13,7 +23,9 @@ import { erc20ABI, factoryABI, pairABI, revertABI } from "./generated.js";
 import { anvil, publicClient, testClient } from "./utils.js";
 
 /** Deploy Erc20 contract and mine block. */
-export const deployErc20 = async (params: { sender: Address }) => {
+export const deployErc20 = async (params: { sender: Address }): Promise<{
+  address: Address;
+}> => {
   const walletClient = createWalletClient({
     chain: anvil,
     transport: http(),
@@ -27,15 +39,17 @@ export const deployErc20 = async (params: { sender: Address }) => {
   });
 
   await testClient.mine({ blocks: 1 });
-  const { contractAddress } = await publicClient.waitForTransactionReceipt({
+  const { contractAddress } = await publicClient.getTransactionReceipt({
     hash,
   });
 
-  return { address: contractAddress!, hash };
+  return { address: contractAddress! };
 };
 
 /** Deploy Factory contract and mine block. */
-export const deployFactory = async (params: { sender: Address }) => {
+export const deployFactory = async (params: { sender: Address }): Promise<{
+  address: Address;
+}> => {
   const walletClient = createWalletClient({
     chain: anvil,
     transport: http(),
@@ -48,15 +62,17 @@ export const deployFactory = async (params: { sender: Address }) => {
   });
 
   await testClient.mine({ blocks: 1 });
-  const { contractAddress } = await publicClient.waitForTransactionReceipt({
+  const { contractAddress } = await publicClient.getTransactionReceipt({
     hash,
   });
 
-  return { address: contractAddress!, hash };
+  return { address: contractAddress! };
 };
 
 /** Deploy Revert contract and mine block. */
-export const deployRevert = async (params: { sender: Address }) => {
+export const deployRevert = async (params: { sender: Address }): Promise<{
+  address: Address;
+}> => {
   const walletClient = createWalletClient({
     chain: anvil,
     transport: http(),
@@ -69,14 +85,16 @@ export const deployRevert = async (params: { sender: Address }) => {
   });
 
   await testClient.mine({ blocks: 1 });
-  const { contractAddress } = await publicClient.waitForTransactionReceipt({
+  const { contractAddress } = await publicClient.getTransactionReceipt({
     hash,
   });
 
-  return { address: contractAddress!, hash };
+  return { address: contractAddress! };
 };
 
-export const deployMulticall = async (params: { sender: Address }) => {
+export const deployMulticall = async (params: { sender: Address }): Promise<{
+  address: Address;
+}> => {
   const walletClient = createWalletClient({
     chain: anvil,
     transport: http(),
@@ -90,70 +108,24 @@ export const deployMulticall = async (params: { sender: Address }) => {
   });
 
   await testClient.mine({ blocks: 1 });
-  const { contractAddress } = await publicClient.waitForTransactionReceipt({
+  const { contractAddress } = await publicClient.getTransactionReceipt({
     hash,
   });
 
-  return { address: contractAddress!, hash };
-};
-
-/** Mint Erc20 tokens and mine block. */
-export const mintErc20 = async (params: {
-  erc20: Address;
-  to: Address;
-  amount: bigint;
-  sender: Address;
-}) => {
-  const walletClient = createWalletClient({
-    chain: anvil,
-    transport: http(),
-    account: params.sender,
-  });
-
-  const hash = await walletClient.writeContract({
-    abi: erc20ABI,
-    functionName: "mint",
-    address: params.erc20,
-    args: [params.to, params.amount],
-  });
-
-  await testClient.mine({ blocks: 1 });
-  await publicClient.waitForTransactionReceipt({ hash });
-
-  return { hash };
-};
-
-/** Transfer Erc20 tokens and mine block. */
-export const transferErc20 = async (params: {
-  erc20: Address;
-  to: Address;
-  amount: bigint;
-  sender: Address;
-}) => {
-  const walletClient = createWalletClient({
-    chain: anvil,
-    transport: http(),
-    account: params.sender,
-  });
-
-  const hash = await walletClient.writeContract({
-    abi: erc20ABI,
-    functionName: "transfer",
-    address: params.erc20,
-    args: [params.to, params.amount],
-  });
-
-  await testClient.mine({ blocks: 1 });
-  await publicClient.waitForTransactionReceipt({ hash });
-
-  return { hash };
+  return { address: contractAddress! };
 };
 
 /** Create pair and mine block. */
 export const createPair = async (params: {
   factory: Address;
   sender: Address;
-}) => {
+}): Promise<{
+  address: Address;
+  block: SyncBlock;
+  transaction: SyncTransaction;
+  transactionReceipt: SyncTransactionReceipt;
+  log: SyncLog;
+}> => {
   const walletClient = createWalletClient({
     chain: anvil,
     transport: http(),
@@ -169,11 +141,137 @@ export const createPair = async (params: {
   const hash = await walletClient.writeContract(request);
 
   await testClient.mine({ blocks: 1 });
-  await publicClient.waitForTransactionReceipt({
-    hash,
+
+  const block = await publicClient.request({
+    method: "eth_getBlockByNumber",
+    params: ["latest", true],
+  });
+  const receipt = await publicClient.request({
+    method: "eth_getTransactionReceipt",
+    params: [hash],
   });
 
-  return { result: toLowerCase(result), hash };
+  return {
+    address: toLowerCase(result),
+    block: block! as SyncBlock,
+    transaction: block!.transactions[0]! as SyncTransaction,
+    transactionReceipt: receipt!,
+    log: receipt!.logs[0]!,
+  };
+};
+
+/** Mint Erc20 tokens and mine block. */
+export const mintErc20 = async (params: {
+  erc20: Address;
+  to: Address;
+  amount: bigint;
+  sender: Address;
+}): Promise<{
+  block: SyncBlock;
+  log: SyncLog;
+  transaction: SyncTransaction;
+  transactionReceipt: SyncTransactionReceipt;
+}> => {
+  const walletClient = createWalletClient({
+    chain: anvil,
+    transport: http(),
+    account: params.sender,
+  });
+
+  const hash = await walletClient.writeContract({
+    abi: erc20ABI,
+    functionName: "mint",
+    address: params.erc20,
+    args: [params.to, params.amount],
+  });
+
+  await testClient.mine({ blocks: 1 });
+
+  const block = await publicClient.request({
+    method: "eth_getBlockByNumber",
+    params: ["latest", true],
+  });
+  const receipt = await publicClient.request({
+    method: "eth_getTransactionReceipt",
+    params: [hash],
+  });
+
+  return {
+    block: block! as SyncBlock,
+    transaction: block!.transactions[0]! as SyncTransaction,
+    transactionReceipt: receipt!,
+    log: receipt!.logs[0]!,
+  };
+};
+
+/** Transfer Erc20 tokens and mine block. */
+export const transferErc20 = async (params: {
+  erc20: Address;
+  to: Address;
+  amount: bigint;
+  sender: Address;
+}): Promise<{
+  block: SyncBlock;
+  transaction: SyncTransaction;
+  transactionReceipt: SyncTransactionReceipt;
+  trace: SyncTrace;
+  log: SyncLog;
+}> => {
+  const walletClient = createWalletClient({
+    chain: anvil,
+    transport: http(),
+    account: params.sender,
+  });
+
+  const hash = await walletClient.writeContract({
+    abi: erc20ABI,
+    functionName: "transfer",
+    address: params.erc20,
+    args: [params.to, params.amount],
+  });
+
+  await testClient.mine({ blocks: 1 });
+
+  const block = await publicClient.request({
+    method: "eth_getBlockByNumber",
+    params: ["latest", true],
+  });
+  const receipt = await publicClient.request({
+    method: "eth_getTransactionReceipt",
+    params: [hash],
+  });
+
+  const trace = {
+    trace: {
+      type: "CALL",
+      from: params.sender,
+      to: params.erc20,
+      gas: "0x0",
+      gasUsed: "0x0",
+      input: encodeFunctionData({
+        abi: erc20ABI,
+        functionName: "transfer",
+        args: [params.to, params.amount],
+      }),
+      output: encodeFunctionResult({
+        abi: erc20ABI,
+        functionName: "transfer",
+        result: true,
+      }),
+      value: "0x0",
+      index: 0,
+      subcalls: 0,
+    },
+    transactionHash: hash,
+  } satisfies SyncTrace;
+
+  return {
+    block: block! as SyncBlock,
+    transaction: block!.transactions[0]! as SyncTransaction,
+    transactionReceipt: receipt! as SyncTransactionReceipt,
+    trace,
+    log: receipt!.logs[0]!,
+  };
 };
 
 /** Swap tokens in pair and mine block. */
@@ -183,7 +281,13 @@ export const swapPair = async (params: {
   amount1Out: bigint;
   to: Address;
   sender: Address;
-}) => {
+}): Promise<{
+  block: SyncBlock;
+  transaction: SyncTransaction;
+  transactionReceipt: SyncTransactionReceipt;
+  trace: SyncTrace;
+  log: SyncLog;
+}> => {
   const walletClient = createWalletClient({
     chain: anvil,
     transport: http(),
@@ -198,9 +302,43 @@ export const swapPair = async (params: {
   });
 
   await testClient.mine({ blocks: 1 });
-  await publicClient.waitForTransactionReceipt({ hash });
 
-  return { hash };
+  const block = await publicClient.request({
+    method: "eth_getBlockByNumber",
+    params: ["latest", true],
+  });
+  const receipt = await publicClient.request({
+    method: "eth_getTransactionReceipt",
+    params: [hash],
+  });
+
+  const trace = {
+    trace: {
+      type: "CALL",
+      from: params.sender,
+      to: params.pair,
+      gas: "0x0",
+      gasUsed: "0x0",
+      input: encodeFunctionData({
+        abi: pairABI,
+        functionName: "swap",
+        args: [params.amount0Out, params.amount1Out, params.to],
+      }),
+      output: undefined,
+      value: "0x0",
+      index: 0,
+      subcalls: 0,
+    },
+    transactionHash: hash,
+  } satisfies SyncTrace;
+
+  return {
+    block: block! as SyncBlock,
+    transaction: block!.transactions[0]! as SyncTransaction,
+    transactionReceipt: receipt! as SyncTransactionReceipt,
+    trace,
+    log: receipt!.logs[0]!,
+  };
 };
 
 /** Transfer native tokens and mine block. */
@@ -208,7 +346,12 @@ export const transferEth = async (params: {
   to: Address;
   amount: bigint;
   sender: Address;
-}) => {
+}): Promise<{
+  block: SyncBlock;
+  transaction: SyncTransaction;
+  transactionReceipt: SyncTransactionReceipt;
+  trace: SyncTrace;
+}> => {
   const walletClient = createWalletClient({
     chain: anvil,
     transport: http(),
@@ -221,7 +364,47 @@ export const transferEth = async (params: {
   });
 
   await testClient.mine({ blocks: 1 });
-  await publicClient.waitForTransactionReceipt({ hash });
 
-  return { hash };
+  const block = await publicClient.request({
+    method: "eth_getBlockByNumber",
+    params: ["latest", true],
+  });
+  const receipt = await publicClient.request({
+    method: "eth_getTransactionReceipt",
+    params: [hash],
+  });
+
+  const trace = {
+    trace: {
+      type: "CALL",
+      from: params.sender,
+      to: params.to,
+      gas: "0x0",
+      gasUsed: "0x0",
+      input: "0x",
+      output: undefined,
+      value: numberToHex(params.amount),
+      index: 0,
+      subcalls: 0,
+    },
+    transactionHash: hash,
+  } satisfies SyncTrace;
+
+  return {
+    block: block! as SyncBlock,
+    transaction: block!.transactions[0]! as SyncTransaction,
+    transactionReceipt: receipt! as SyncTransactionReceipt,
+    trace,
+  };
+};
+
+export const simulateBlock = async (): Promise<{ block: SyncBlock }> => {
+  await testClient.mine({ blocks: 1 });
+
+  const block = await publicClient.request({
+    method: "eth_getBlockByNumber",
+    params: ["latest", true],
+  });
+
+  return { block: block! as SyncBlock };
 };

@@ -1,3 +1,4 @@
+import { EMPTY_LOG_FILTER } from "@/_test/constants.js";
 import type { LogFactory, LogFilter } from "@/internal/types.js";
 import type { Hex } from "viem";
 import { expect, test } from "vitest";
@@ -34,17 +35,9 @@ test("isFilterInBloom returns false for out of range blocks", () => {
   } as const;
 
   const filter = {
-    type: "log",
-    chainId: 1,
-    address: undefined,
-    topic0: null,
-    topic1: null,
-    topic2: null,
-    topic3: null,
-    hasTransactionReceipt: false,
+    ...EMPTY_LOG_FILTER,
     fromBlock: 10,
     toBlock: 20,
-    include: [],
   } satisfies LogFilter;
 
   expect(isFilterInBloom({ block, filter })).toBe(false);
@@ -58,18 +51,9 @@ test("isFilterInBloom returns false for missing topics", () => {
   } as const;
 
   const filter = {
-    type: "log",
-    chainId: 1,
-    address: undefined,
+    ...EMPTY_LOG_FILTER,
     topic0:
       "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
-    topic1: null,
-    topic2: null,
-    topic3: null,
-    hasTransactionReceipt: false,
-    fromBlock: undefined,
-    toBlock: undefined,
-    include: [],
   } satisfies LogFilter;
 
   expect(isFilterInBloom({ block, filter })).toBe(false);
@@ -82,19 +66,7 @@ test("isFilterInBloom returns true for undefined address", () => {
       "0x00000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002020000000000000000000000000000000000000000000008000000001000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
   } as const;
 
-  const filter = {
-    type: "log",
-    chainId: 1,
-    address: undefined,
-    topic0: null,
-    topic1: null,
-    topic2: null,
-    topic3: null,
-    hasTransactionReceipt: false,
-    fromBlock: undefined,
-    toBlock: undefined,
-    include: [],
-  } satisfies LogFilter;
+  const filter = EMPTY_LOG_FILTER;
 
   expect(isFilterInBloom({ block, filter })).toBe(true);
 });
@@ -107,8 +79,7 @@ test("isFilterInBloom returns true for factory with new child address", () => {
   } as const;
 
   const filter = {
-    type: "log",
-    chainId: 1,
+    ...EMPTY_LOG_FILTER,
     address: {
       id: `log_${"0xef2d6d194084c2de36e0dabfce45d046b37d1106"}_${1}_topic${1}_${"0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc"}_${"undefined"}_${"undefined"}`,
       type: "log",
@@ -120,14 +91,6 @@ test("isFilterInBloom returns true for factory with new child address", () => {
       fromBlock: undefined,
       toBlock: undefined,
     } satisfies LogFactory,
-    topic0: null,
-    topic1: null,
-    topic2: null,
-    topic3: null,
-    hasTransactionReceipt: false,
-    fromBlock: undefined,
-    toBlock: undefined,
-    include: [],
   } satisfies LogFilter;
 
   expect(isFilterInBloom({ block, filter })).toBe(true);
@@ -141,8 +104,7 @@ test("isFilterInBloom returns true for factory without new child address", () =>
   } as const;
 
   const filter = {
-    type: "log",
-    chainId: 1,
+    ...EMPTY_LOG_FILTER,
     address: {
       id: `log_${"0xef2d6d194084c2de36e0dabfce45d046b37d1106"}_${1}_topic${1}_${"0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc"}_${"undefined"}_${"undefined"}`,
       type: "log",
@@ -156,13 +118,6 @@ test("isFilterInBloom returns true for factory without new child address", () =>
     } satisfies LogFactory,
     topic0:
       "0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb",
-    topic1: null,
-    topic2: null,
-    topic3: null,
-    hasTransactionReceipt: false,
-    fromBlock: undefined,
-    toBlock: undefined,
-    include: [],
   } satisfies LogFilter;
 
   expect(isFilterInBloom({ block, filter })).toBe(true);
@@ -176,17 +131,8 @@ test("isFilterInBloom returns true for array of addresses", () => {
   } as const;
 
   const filter = {
-    type: "log",
-    chainId: 1,
+    ...EMPTY_LOG_FILTER,
     address: ["0xef2d6d194084c2de36e0dabfce45d046b37d1106"],
-    topic0: null,
-    topic1: null,
-    topic2: null,
-    topic3: null,
-    hasTransactionReceipt: false,
-    fromBlock: undefined,
-    toBlock: undefined,
-    include: [],
   } satisfies LogFilter;
 
   expect(isFilterInBloom({ block, filter })).toBe(true);

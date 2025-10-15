@@ -5,14 +5,9 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { setupAnvil } from "@/_test/setup.js";
-import {
-  getBlocksConfigAndIndexingFunctions,
-  getChain,
-  testClient,
-} from "@/_test/utils.js";
-import { buildConfig, buildIndexingFunctions } from "@/build/config.js";
+import { getBlocksIndexingBuild, getChain, testClient } from "@/_test/utils.js";
 import type { Chain } from "@/internal/types.js";
-import { _eth_getBlockByNumber, _eth_getLogs } from "@/rpc/actions.js";
+import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
 import { MAX_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
@@ -42,18 +37,8 @@ test("getLocalEventGenerator()", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -97,18 +82,8 @@ test("getLocalEventGenerator() pagination", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   await testClient.mine({ blocks: 2 });
@@ -152,18 +127,8 @@ test("getLocalEventGenerator() pagination with zero interval", async (context) =
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   await testClient.mine({ blocks: 2 });
@@ -207,18 +172,8 @@ test("getLocalSyncGenerator()", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -265,18 +220,8 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -354,18 +299,8 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -442,18 +377,11 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
 test("getHistoricalEventsMultichain()", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const chain = getChain();
+  const rpc = createRpc({ chain, common: context.common });
+
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources, rpcs, chains } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -467,40 +395,36 @@ test("getHistoricalEventsMultichain()", async (context) => {
     }
   >();
 
-  for (const chain of chains) {
-    const cachedIntervals = await getCachedIntervals({
-      chain,
-      syncStore,
-      sources,
-    });
+  const cachedIntervals = await getCachedIntervals({
+    chain,
+    syncStore,
+    sources,
+  });
 
-    const syncProgress = await getLocalSyncProgress({
-      common: context.common,
-      sources,
-      chain,
-      rpc: rpcs[0]!,
-      finalizedBlock: await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 1 }),
-      cachedIntervals,
-    });
+  const syncProgress = await getLocalSyncProgress({
+    common: context.common,
+    sources,
+    chain,
+    rpc,
+    finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 1 }),
+    cachedIntervals,
+  });
 
-    const childAddresses = await getChildAddresses({
-      sources,
-      syncStore,
-    });
+  const childAddresses = await getChildAddresses({
+    sources,
+    syncStore,
+  });
 
-    perChainSync.set(chain, { syncProgress, childAddresses, cachedIntervals });
-  }
+  perChainSync.set(chain, { syncProgress, childAddresses, cachedIntervals });
 
   const events = await drainAsyncGenerator(
     getHistoricalEventsMultichain({
       common: context.common,
       indexingBuild: {
         sources,
-        chains,
-        rpcs,
-        finalizedBlocks: [
-          await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 1 }),
-        ],
+        chains: [chain],
+        rpcs: [rpc],
+        finalizedBlocks: [await _eth_getBlockByNumber(rpc, { blockNumber: 1 })],
       },
       crashRecoveryCheckpoint: undefined,
       perChainSync,
@@ -515,18 +439,11 @@ test("getHistoricalEventsMultichain()", async (context) => {
 test("getHistoricalEvents() omnichain", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const chain = getChain();
+  const rpc = createRpc({ chain, common: context.common });
+
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources, rpcs, chains } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   await testClient.mine({ blocks: 1 });
@@ -540,40 +457,36 @@ test("getHistoricalEvents() omnichain", async (context) => {
     }
   >();
 
-  for (const chain of chains) {
-    const cachedIntervals = await getCachedIntervals({
-      chain,
-      syncStore,
-      sources,
-    });
+  const cachedIntervals = await getCachedIntervals({
+    chain,
+    syncStore,
+    sources,
+  });
 
-    const syncProgress = await getLocalSyncProgress({
-      common: context.common,
-      sources,
-      chain,
-      rpc: rpcs[0]!,
-      finalizedBlock: await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 1 }),
-      cachedIntervals,
-    });
+  const syncProgress = await getLocalSyncProgress({
+    common: context.common,
+    sources,
+    chain,
+    rpc,
+    finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 1 }),
+    cachedIntervals,
+  });
 
-    const childAddresses = await getChildAddresses({
-      sources,
-      syncStore,
-    });
+  const childAddresses = await getChildAddresses({
+    sources,
+    syncStore,
+  });
 
-    perChainSync.set(chain, { syncProgress, childAddresses, cachedIntervals });
-  }
+  perChainSync.set(chain, { syncProgress, childAddresses, cachedIntervals });
 
   const events = await drainAsyncGenerator(
     getHistoricalEventsMultichain({
       common: context.common,
       indexingBuild: {
         sources,
-        chains,
-        rpcs,
-        finalizedBlocks: [
-          await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 1 }),
-        ],
+        chains: [chain],
+        rpcs: [rpc],
+        finalizedBlocks: [await _eth_getBlockByNumber(rpc, { blockNumber: 1 })],
       },
       crashRecoveryCheckpoint: undefined,
       perChainSync,
@@ -588,18 +501,11 @@ test("getHistoricalEvents() omnichain", async (context) => {
 test("getHistoricalEvents() with crash recovery checkpoint", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
-  const { config, rawIndexingFunctions } = getBlocksConfigAndIndexingFunctions({
+  const chain = getChain();
+  const rpc = createRpc({ chain, common: context.common });
+
+  const { sources } = getBlocksIndexingBuild({
     interval: 1,
-  });
-  const configBuild = buildConfig({
-    common: context.common,
-    config,
-  });
-  const { sources, rpcs, chains } = await buildIndexingFunctions({
-    common: context.common,
-    config,
-    rawIndexingFunctions,
-    configBuild,
   });
 
   await testClient.mine({ blocks: 2 });
@@ -613,40 +519,36 @@ test("getHistoricalEvents() with crash recovery checkpoint", async (context) => 
     }
   >();
 
-  for (const chain of chains) {
-    const cachedIntervals = await getCachedIntervals({
-      chain,
-      syncStore,
-      sources,
-    });
+  const cachedIntervals = await getCachedIntervals({
+    chain,
+    syncStore,
+    sources,
+  });
 
-    const syncProgress = await getLocalSyncProgress({
-      common: context.common,
-      sources,
-      chain,
-      rpc: rpcs[0]!,
-      finalizedBlock: await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 2 }),
-      cachedIntervals,
-    });
+  const syncProgress = await getLocalSyncProgress({
+    common: context.common,
+    sources,
+    chain,
+    rpc,
+    finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 2 }),
+    cachedIntervals,
+  });
 
-    const childAddresses = await getChildAddresses({
-      sources,
-      syncStore,
-    });
+  const childAddresses = await getChildAddresses({
+    sources,
+    syncStore,
+  });
 
-    perChainSync.set(chain, { syncProgress, childAddresses, cachedIntervals });
-  }
+  perChainSync.set(chain, { syncProgress, childAddresses, cachedIntervals });
 
   const events = await drainAsyncGenerator(
     getHistoricalEventsMultichain({
       common: context.common,
       indexingBuild: {
         sources,
-        chains,
-        rpcs,
-        finalizedBlocks: [
-          await _eth_getBlockByNumber(rpcs[0]!, { blockNumber: 2 }),
-        ],
+        chains: [chain],
+        rpcs: [rpc],
+        finalizedBlocks: [await _eth_getBlockByNumber(rpc, { blockNumber: 2 })],
       },
       crashRecoveryCheckpoint: [
         { chainId: 1, checkpoint: MAX_CHECKPOINT_STRING },
