@@ -624,6 +624,7 @@ export const createRpc = ({
               msg: "Created JSON-RPC polling subscription",
               chain: chain.name,
               chain_id: chain.id,
+              polling_interval: chain.pollingInterval,
             });
 
             interval = setInterval(async () => {
