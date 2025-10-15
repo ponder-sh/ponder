@@ -3,7 +3,6 @@ import { expect, test } from "vitest";
 import {
   bufferAsyncGenerator,
   createCallbackGenerator,
-  drainAsyncGenerator,
   mergeAsyncGenerators,
 } from "./generators.js";
 
