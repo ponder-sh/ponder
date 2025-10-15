@@ -668,6 +668,8 @@ export async function buildIndexingFunctions({
         logs.push({
           level: "warn",
           msg: "No registered indexing functions",
+          chain: source.chain.name,
+          chain_id: source.chain.id,
           name: source.name,
           type: source.filter.type,
         });
@@ -917,6 +919,8 @@ export async function buildIndexingFunctions({
         logs.push({
           level: "debug",
           msg: "No registered indexing functions",
+          chain: source.chain.name,
+          chain_id: source.chain.id,
           name: eventName,
           type: source.filter.type,
         });
@@ -960,14 +964,16 @@ export async function buildIndexingFunctions({
     )
   )
     .flat()
-    .filter((blockSource) => {
+    .filter((source) => {
       const hasRegisteredIndexingFunction =
-        indexingFunctions[`${blockSource.name}:block`] !== undefined;
+        indexingFunctions[`${source.name}:block`] !== undefined;
       if (!hasRegisteredIndexingFunction) {
         logs.push({
           level: "warn",
           msg: "No registered indexing functions",
-          name: blockSource.name,
+          chain: source.chain.name,
+          chain_id: source.chain.id,
+          name: source.name,
           type: "block",
         });
       }
