@@ -1,4 +1,4 @@
-import type { LogFactory, LogFilter } from "@/internal/types.js";
+import type { FilterAddress, LogFactory, LogFilter } from "@/internal/types.js";
 import type { Hex } from "viem";
 import { expect, test } from "vitest";
 import { isFilterInBloom, isInBloom } from "./bloom.js";
@@ -48,6 +48,21 @@ test("isFilterInBloom returns false for out of range blocks", () => {
   } satisfies LogFilter;
 
   expect(isFilterInBloom({ block, filter })).toBe(false);
+
+  // @ts-expect-error
+  filter.address = {
+    id: "id",
+    type: "log",
+    chainId: 1,
+    address: "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+    eventSelector:
+      "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+    childAddressLocation: "topic1",
+    fromBlock: 2,
+    toBlock: 20,
+  } satisfies FilterAddress<LogFactory>;
+
+  expect(isFilterInBloom({ block, filter })).toBe(true);
 });
 
 test("isFilterInBloom returns false for missing topics", () => {

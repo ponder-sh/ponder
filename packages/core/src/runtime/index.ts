@@ -10,7 +10,11 @@ import type {
 import type { SyncBlock } from "@/internal/types.js";
 import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
-import { isAddressFactory } from "@/runtime/filter.js";
+import {
+  filterFromBlock,
+  filterToIntervals,
+  isAddressFactory,
+} from "@/runtime/filter.js";
 import { getFragments } from "@/runtime/fragments.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
@@ -20,6 +24,8 @@ import {
 } from "@/utils/checkpoint.js";
 import {
   type Interval,
+  intervalBounds,
+  intervalDifference,
   intervalIntersection,
   intervalIntersectionMany,
   sortIntervals,
@@ -99,30 +105,7 @@ export async function getLocalSyncProgress(params: {
   const filters = params.sources.map(({ filter }) => filter);
 
   // Earliest `fromBlock` among all `filters`
-  const start = Math.min(
-    ...filters.flatMap((filter) => {
-      const fromBlocks: number[] = [filter.fromBlock ?? 0];
-      switch (filter.type) {
-        case "log":
-          if (isAddressFactory(filter.address)) {
-            fromBlocks.push(filter.address.fromBlock ?? 0);
-          }
-          break;
-        case "transaction":
-        case "trace":
-        case "transfer":
-          if (isAddressFactory(filter.fromAddress)) {
-            fromBlocks.push(filter.fromAddress.fromBlock ?? 0);
-          }
-
-          if (isAddressFactory(filter.toAddress)) {
-            fromBlocks.push(filter.toAddress.fromBlock ?? 0);
-          }
-      }
-
-      return fromBlocks;
-    }),
-  );
+  const start = Math.min(...filters.map(filterFromBlock));
 
   const cached = getCachedBlock({
     filters,
@@ -242,35 +225,28 @@ export const getCachedBlock = ({
   cachedIntervals: CachedIntervals;
 }): number | undefined => {
   const latestCompletedBlocks = filters.map((filter) => {
-    const requiredInterval = [
-      filter.fromBlock ?? 0,
-      filter.toBlock ?? Number.POSITIVE_INFINITY,
-    ] satisfies Interval;
+    const filterIntervals = filterToIntervals(filter);
     const fragmentIntervals = cachedIntervals.get(filter)!;
 
     const completedIntervals = sortIntervals(
       intervalIntersection(
-        [requiredInterval],
+        filterIntervals,
         intervalIntersectionMany(
           fragmentIntervals.map(({ intervals }) => intervals),
         ),
       ),
     );
+    const missingIntervals = intervalDifference(
+      filterIntervals,
+      completedIntervals,
+    );
 
-    if (completedIntervals.length === 0) {
-      // Use `fromBlock` - 1 as completed block if no intervals are complete.
-      if ((filter.fromBlock ?? 0) === 0) return undefined;
-      return filter.fromBlock! - 1;
+    if (missingIntervals.length === 0) {
+      return intervalBounds(completedIntervals)[1];
     }
 
-    const earliestCompletedInterval = completedIntervals[0]!;
-    if (earliestCompletedInterval[0] !== (filter.fromBlock ?? 0)) {
-      // Use `fromBlock` - 1 as completed block if the earliest
-      // completed interval does not start at `fromBlock`.
-      if ((filter.fromBlock ?? 0) === 0) return undefined;
-      return filter.fromBlock! - 1;
-    }
-    return earliestCompletedInterval[1];
+    if (missingIntervals[0]![0] === 0) return undefined;
+    return missingIntervals[0]![0] - 1;
   });
 
   if (latestCompletedBlocks.every((block) => block !== undefined)) {

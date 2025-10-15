@@ -1,5 +1,9 @@
 import type { LogFilter, SyncBlock } from "@/internal/types.js";
-import { isAddressFactory } from "@/runtime/filter.js";
+import {
+  filterFromBlock,
+  filterToBlock,
+  isAddressFactory,
+} from "@/runtime/filter.js";
 import { type Hex, hexToBytes, hexToNumber, keccak256 } from "viem";
 
 export const zeroLogsBloom =
@@ -42,8 +46,8 @@ export function isFilterInBloom({
 }): boolean {
   // Return `false` for out of range blocks
   if (
-    hexToNumber(block.number) < (filter.fromBlock ?? 0) ||
-    hexToNumber(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+    hexToNumber(block.number) < filterFromBlock(filter) ||
+    hexToNumber(block.number) > filterToBlock(filter)
   ) {
     return false;
   }
