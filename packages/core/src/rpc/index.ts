@@ -163,7 +163,7 @@ const isAvailable = (bucket: Bucket) => {
     if (timestamp < Math.floor(Date.now() / 1000) - 10) {
       continue;
     }
-    if (count > bucket.rpsLimit) {
+    if (count + 1 > bucket.rpsLimit) {
       isRateLimited = true;
       break;
     }
@@ -201,8 +201,7 @@ const increaseMaxRPS = (bucket: Bucket) => {
 };
 
 const decreaseMaxRPS = (bucket: Bucket) => {
-  const newRPSLimit = Math.max(bucket.rpsLimit * RPS_DECREASE_FACTOR, MIN_RPS);
-  bucket.rpsLimit = newRPSLimit;
+  bucket.rpsLimit = Math.max(bucket.rpsLimit * RPS_DECREASE_FACTOR, MIN_RPS);
   bucket.consecutiveSuccessfulRequests = 0;
 };
 
