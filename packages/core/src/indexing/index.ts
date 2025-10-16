@@ -608,13 +608,13 @@ export const createIndexing = ({
             blockProxy.underlying = event.event.block as Block;
             proxyEvent.block = blockProxy.proxy;
 
-            transactionProxy.eventName = event.name;
             if (event.event.transaction !== undefined) {
+              transactionProxy.eventName = event.name;
               transactionProxy.underlying = event.event
                 .transaction as Transaction;
+              // @ts-expect-error
+              proxyEvent.transaction = transactionProxy.proxy;
             }
-            // @ts-expect-error
-            proxyEvent.transaction = transactionProxy.proxy;
 
             if (event.event.transactionReceipt !== undefined) {
               transactionReceiptProxy.eventName = event.name;

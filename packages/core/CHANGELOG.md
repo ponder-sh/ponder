@@ -1,5 +1,13 @@
 # ponder
 
+## 0.14.1
+
+### Patch Changes
+
+- [#2118](https://github.com/ponder-sh/ponder/pull/2118) [`c7dd63d`](https://github.com/ponder-sh/ponder/commit/c7dd63d1cdcc8c4174ea7022fd16c9fea9457890) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with `event.transaction` that caused `TypeError: Cannot read properties of undefined (reading 'hash')`.
+
+- [#2123](https://github.com/ponder-sh/ponder/pull/2123) [`33868d2`](https://github.com/ponder-sh/ponder/commit/33868d2a49894ccef0c233f12e137cb3eae118c0) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in `v0.14` that caused the warning `All JSON-RPC providers are inactive due to rate limiting`.
+
 ## 0.14.0
 
 ### Minor Changes
