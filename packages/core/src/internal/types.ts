@@ -305,7 +305,7 @@ export type Chain = {
   ws?: string;
   pollingInterval: number;
   finalityBlockCount: number;
-  disableCache: boolean;
+  disableCache: boolean | "disable-writes";
   viemChain: ViemChain | undefined;
 };
 

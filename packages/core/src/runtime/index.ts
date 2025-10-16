@@ -216,7 +216,7 @@ export async function getCachedIntervals(params: {
    * Note: `intervalsCache` is not updated after a new interval is synced.
    */
   let cachedIntervals: CachedIntervals;
-  if (params.chain.disableCache) {
+  if (params.chain.disableCache === true) {
     cachedIntervals = new Map();
     for (const { filter } of params.sources) {
       cachedIntervals.set(filter, []);
