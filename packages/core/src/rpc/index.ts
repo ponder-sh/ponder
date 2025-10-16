@@ -373,8 +373,6 @@ export const createRpc = ({
             msg: "All JSON-RPC providers are inactive due to rate limiting",
             chain: chain.name,
             chain_id: chain.id,
-            is_active: JSON.stringify(buckets.map((b) => b.isActive)),
-            rps: JSON.stringify(buckets.map((b) => b.rps)),
             rate_limits: JSON.stringify(buckets.map((b) => b.rpsLimit)),
           });
         }, 5_000);
