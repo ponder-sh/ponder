@@ -142,34 +142,26 @@ const addLatency = (bucket: Bucket, latency: number, success: boolean) => {
  * Return `true` if the bucket is available to send a request.
  */
 const isAvailable = (bucket: Bucket) => {
-  let isRateLimited = false;
+  if (bucket.isActive === false) return false;
+
   for (const { timestamp, count } of bucket.rps) {
-    if (timestamp < Math.floor(Date.now() / 1000) - 10) {
-      continue;
-    }
     // Note: Add 1 to account for the request that will be made
     if (timestamp === Math.floor(Date.now() / 1000)) {
       if (count + 1 > bucket.rpsLimit) {
-        isRateLimited = true;
-        break;
+        return false;
       }
     } else {
       if (count > bucket.rpsLimit) {
-        isRateLimited = true;
-        break;
+        return false;
       }
     }
   }
 
-  if (bucket.isActive && isRateLimited === false) {
-    return true;
+  if (bucket.isWarmingUp && bucket.activeConnections > 3) {
+    return false;
   }
 
-  if (bucket.isActive && bucket.isWarmingUp && bucket.activeConnections < 3) {
-    return true;
-  }
-
-  return false;
+  return true;
 };
 
 const increaseMaxRPS = (bucket: Bucket) => {
@@ -410,7 +402,7 @@ export const createRpc = ({
       const logger = context?.logger ?? common.logger;
 
       // Remove old request per second data
-      const timestamp = Math.floor(Date.now() / 1000);
+      let timestamp = Math.floor(Date.now() / 1000);
       for (const bucket of buckets) {
         bucket.rps = bucket.rps.filter((r) => r.timestamp > timestamp - 10);
       }
@@ -431,6 +423,7 @@ export const createRpc = ({
           });
 
           // Add request per second data
+          timestamp = Math.floor(Date.now() / 1000);
           if (
             bucket.rps.length === 0 ||
             bucket.rps[bucket.rps.length - 1]!.timestamp < timestamp
