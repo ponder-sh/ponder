@@ -9,7 +9,7 @@ import type { QueryWithTypings } from "drizzle-orm";
 import { pgSchema } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
 import superjson from "superjson";
-import { beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import { client } from "./index.js";
 
 beforeEach(setupCommon);
@@ -238,4 +238,53 @@ test("client.db load", async (context) => {
   });
 
   await Promise.all(promises);
+});
+
+test("client.db deduplication", async (context) => {
+  globalThis.PONDER_COMMON = context.common;
+  globalThis.PONDER_NAMESPACE_BUILD = {
+    schema: "public",
+    viewsSchema: undefined,
+  };
+
+  const account = onchainTable("account", (p) => ({
+    address: p.hex().primaryKey(),
+    balance: p.bigint(),
+  }));
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema: { account } },
+  });
+
+  globalThis.PONDER_DATABASE = database;
+
+  const app = new Hono().use(
+    client({
+      db: database.readonlyQB.raw,
+      schema: { account },
+    }),
+  );
+
+  const transactionSpy = vi.spyOn(database.readonlyQB.raw, "transaction");
+
+  const query = {
+    sql: "SELECT 1",
+    params: [],
+  };
+
+  const promise1 = app.request(`/sql/db?${queryToParams(query)}`);
+  const promise2 = app.request(`/sql/db?${queryToParams(query)}`);
+  const promise3 = app.request(`/sql/db?${queryToParams(query)}`);
+
+  const [response1, response2, response3] = await Promise.all([
+    promise1,
+    promise2,
+    promise3,
+  ]);
+
+  expect(response1.status).toBe(200);
+  expect(response2.status).toBe(200);
+  expect(response3.status).toBe(200);
+
+  expect(transactionSpy).toHaveBeenCalledTimes(1);
 });

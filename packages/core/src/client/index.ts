@@ -1,7 +1,7 @@
+import crypto from "node:crypto";
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
-import { wait } from "@/utils/wait.js";
 import type { QueryWithTypings } from "drizzle-orm";
 import type { PgSession } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
@@ -15,6 +15,9 @@ import { validateQuery } from "./parse.js";
  *
  * @param db - Drizzle database instance
  * @param schema - Ponder schema
+ * @param wait - Maximum number of milliseconds to wait before executing
+ * the query. During this period, if an identical request is received
+ * from another client, it is deduplicated. Default: `10`.
  *
  * @example
  * ```ts
@@ -32,7 +35,8 @@ import { validateQuery } from "./parse.js";
  */
 export const client = ({
   db,
-}: { db: ReadonlyDrizzle<Schema>; schema: Schema }) => {
+  wait = 10,
+}: { db: ReadonlyDrizzle<Schema>; schema: Schema; wait?: number }) => {
   if (
     globalThis.PONDER_COMMON === undefined ||
     globalThis.PONDER_DATABASE === undefined ||
@@ -49,6 +53,8 @@ export const client = ({
   let statusResolver = promiseWithResolvers<void>();
 
   const channel = `${globalThis.PONDER_NAMESPACE_BUILD.schema}_status_channel`;
+
+  const dedupeMap = new Map<string, Promise<unknown>>();
 
   if (driver.dialect === "pglite") {
     driver.instance.query(`LISTEN "${channel}"`).then(() => {
@@ -95,7 +101,7 @@ export const client = ({
               client?.release();
               client = undefined;
 
-              await wait(250);
+              await new Promise((resolve) => setTimeout(resolve, 250));
 
               resolve();
             });
@@ -110,7 +116,7 @@ export const client = ({
             client?.release();
             client = undefined;
 
-            await wait(250);
+            await new Promise((resolve) => setTimeout(resolve, 250));
 
             resolve();
           }
@@ -127,35 +133,57 @@ export const client = ({
       }
       const query = superjson.parse(queryString) as QueryWithTypings;
 
-      if (driver.dialect === "pglite") {
-        try {
-          await validateQuery(query.sql);
-          const result = await session
-            .prepareQuery(query, undefined, undefined, false)
-            .execute();
-          return c.json(result as object);
-        } catch (error) {
-          (error as Error).stack = undefined;
-          return c.text((error as Error).message, 500);
-        }
-      } else {
-        try {
-          await validateQuery(query.sql);
+      try {
+        await validateQuery(query.sql);
+      } catch (error) {
+        (error as Error).stack = undefined;
+        return c.text((error as Error).message, 500);
+      }
 
-          const result =
-            await globalThis.PONDER_DATABASE.readonlyQB.raw.transaction(
-              (tx) => {
-                return tx._.session
-                  .prepareQuery(query, undefined, undefined, false)
-                  .execute();
-              },
-              { accessMode: "read only" },
-            );
-          return c.json(result as object);
-        } catch (error) {
-          (error as Error).stack = undefined;
-          return c.text((error as Error).message, 500);
-        }
+      const queryHash = crypto
+        .createHash("md5")
+        .update(query.sql)
+        .digest("hex");
+
+      let resultPromise: Promise<unknown>;
+
+      if (dedupeMap.has(queryHash)) {
+        resultPromise = dedupeMap.get(queryHash)!;
+      } else {
+        const pwr = promiseWithResolvers<unknown>();
+        dedupeMap.set(queryHash, pwr.promise);
+        resultPromise = pwr.promise;
+
+        setTimeout(() => {
+          dedupeMap.delete(queryHash);
+
+          if (driver.dialect === "pglite") {
+            session
+              .prepareQuery(query, undefined, undefined, false)
+              .execute()
+              .then(pwr.resolve)
+              .catch(pwr.reject);
+          } else {
+            globalThis.PONDER_DATABASE.readonlyQB.raw
+              .transaction(
+                (tx) => {
+                  return tx._.session
+                    .prepareQuery(query, undefined, undefined, false)
+                    .execute();
+                },
+                { accessMode: "read only" },
+              )
+              .then(pwr.resolve)
+              .catch(pwr.reject);
+          }
+        }, wait);
+      }
+
+      try {
+        return c.json((await resultPromise) as object);
+      } catch (error) {
+        (error as Error).stack = undefined;
+        return c.text((error as Error).message, 500);
       }
     }
 
