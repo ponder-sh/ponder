@@ -138,22 +138,6 @@ const addLatency = (bucket: Bucket, latency: number, success: boolean) => {
     bucket.latencyMetadata.successfulLatencies;
 };
 
-const addRequestTimestamp = (bucket: Bucket) => {
-  const timestamp = Math.floor(Date.now() / 1000);
-  if (
-    bucket.rps.length === 0 ||
-    bucket.rps[bucket.rps.length - 1]!.timestamp < timestamp
-  ) {
-    bucket.rps.push({ count: 1, timestamp });
-  } else {
-    bucket.rps[bucket.rps.length - 1]!.count++;
-  }
-
-  if (bucket.rps.length > 10) {
-    bucket.rps.shift()!;
-  }
-};
-
 /**
  * Return `true` if the bucket is available to send a request.
  */
@@ -425,6 +409,12 @@ export const createRpc = ({
     worker: async ({ body, context }) => {
       const logger = context?.logger ?? common.logger;
 
+      // Remove old request per second data
+      const timestamp = Math.floor(Date.now() / 1000);
+      for (const bucket of buckets) {
+        bucket.rps = bucket.rps.filter((r) => r.timestamp > timestamp - 10);
+      }
+
       for (let i = 0; i <= RETRY_COUNT; i++) {
         const bucket = await getBucket();
         const endClock = startClock();
@@ -440,7 +430,15 @@ export const createRpc = ({
             method: body.method,
           });
 
-          addRequestTimestamp(bucket);
+          // Add request per second data
+          if (
+            bucket.rps.length === 0 ||
+            bucket.rps[bucket.rps.length - 1]!.timestamp < timestamp
+          ) {
+            bucket.rps.push({ count: 1, timestamp });
+          } else {
+            bucket.rps[bucket.rps.length - 1]!.count++;
+          }
 
           const response = await bucket.request(body);
 
