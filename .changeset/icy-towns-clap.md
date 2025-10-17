@@ -2,4 +2,4 @@
 "ponder": patch
 ---
 
-Fixed a bug with @ponder/client query parsing.
+Fixed a bug with `@ponder/client` query parsing.
