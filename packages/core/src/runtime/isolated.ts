@@ -533,15 +533,18 @@ export async function runIsolated({
     indexingErrorHandler,
   });
 
-  for await (const event of getRealtimeEventsIsolated({
-    common,
-    indexingBuild,
-    chain,
-    syncProgress,
-    childAddresses,
-    unfinalizedBlocks,
-    syncStore,
-  })) {
+  for await (const event of bufferAsyncGenerator(
+    getRealtimeEventsIsolated({
+      common,
+      indexingBuild,
+      chain,
+      syncProgress,
+      childAddresses,
+      unfinalizedBlocks,
+      syncStore,
+    }),
+    100,
+  )) {
     switch (event.type) {
       case "block": {
         const context = {

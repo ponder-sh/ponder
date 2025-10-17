@@ -589,15 +589,18 @@ export async function* getRealtimeEventsIsolated(params: {
     1,
   );
 
-  const eventGenerator = getRealtimeEventGenerator({
-    common: params.common,
-    chain: params.chain,
-    rpc,
-    sources,
-    syncProgress: params.syncProgress,
-    childAddresses: params.childAddresses,
-    syncStore: params.syncStore,
-  });
+  const eventGenerator = bufferAsyncGenerator(
+    getRealtimeEventGenerator({
+      common: params.common,
+      chain: params.chain,
+      rpc,
+      sources,
+      syncProgress: params.syncProgress,
+      childAddresses: params.childAddresses,
+      syncStore: params.syncStore,
+    }),
+    100,
+  );
 
   for await (const { chain, event } of eventGenerator) {
     const sources = params.indexingBuild.sources.filter(
