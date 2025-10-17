@@ -241,6 +241,9 @@ test("client.db load", async (context) => {
 });
 
 test("client.db cache", async (context) => {
+  // "spy" not possible with pglite
+  if (context.databaseConfig.kind !== "postgres") return;
+
   globalThis.PONDER_COMMON = context.common;
   globalThis.PONDER_NAMESPACE_BUILD = {
     schema: "public",
