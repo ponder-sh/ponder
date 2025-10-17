@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { EventEmitter } from "node:events";
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
@@ -46,7 +47,11 @@ export const client = ({
   // @ts-ignore
   const session: PgSession = db._.session;
   const driver = globalThis.PONDER_DATABASE.driver;
-  let statusResolver = promiseWithResolvers<void>();
+  const statusEmitter = new EventEmitter();
+
+  globalThis.PONDER_COMMON.apiShutdown.add(() => {
+    statusEmitter.removeAllListeners();
+  });
 
   const channel = `${globalThis.PONDER_NAMESPACE_BUILD.schema}_status_channel`;
 
@@ -54,9 +59,8 @@ export const client = ({
 
   if (driver.dialect === "pglite") {
     driver.instance.query(`LISTEN "${channel}"`).then(() => {
-      driver.instance.onNotification(async () => {
-        statusResolver.resolve();
-        statusResolver = promiseWithResolvers();
+      driver.instance.onNotification(() => {
+        statusEmitter.emit("status_update");
       });
     });
   } else {
@@ -84,8 +88,7 @@ export const client = ({
             });
 
             client.on("notification", () => {
-              statusResolver.resolve();
-              statusResolver = promiseWithResolvers();
+              statusEmitter.emit("status_update");
             });
 
             client.on("error", async (error) => {
@@ -122,14 +125,9 @@ export const client = ({
   }
 
   // Clear cache on status change
-  (async () => {
-    while (true) {
-      try {
-        cache.clear();
-      } catch {}
-      await statusResolver.promise;
-    }
-  })();
+  statusEmitter.on("status_update", () => {
+    cache.clear();
+  });
 
   return createMiddleware(async (c, next) => {
     if (c.req.path === "/sql/db") {
@@ -198,12 +196,17 @@ export const client = ({
       c.header("Connection", "keep-alive");
 
       return streamSSE(c, async (stream) => {
-        while (stream.closed === false && stream.aborted === false) {
+        const callback = async () => {
+          if (stream.closed === true) return;
           try {
             await stream.writeSSE({ data: "" });
           } catch {}
-          await statusResolver.promise;
-        }
+        };
+
+        statusEmitter.on("status_update", callback);
+        stream.onAbort(() => {
+          statusEmitter.removeListener("status_update", callback);
+        });
       });
     }
 
