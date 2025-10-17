@@ -2,4 +2,4 @@
 "ponder": patch
 ---
 
-Fixed `ponder_realtime_latency" metric.
+Fixed `ponder_realtime_latency` metric.
