@@ -279,9 +279,10 @@ export const createSyncStore = ({
       let rows: Awaited<(typeof queries)[number]> = [];
 
       if (queries.length > 1) {
-        const batchSize = Math.floor(
-          common.options.databaseMaxQueryParameters / 3,
-        );
+        // Note: This query has no parameters, but there is a bug with
+        // drizzle causing a "maximum call stack size exceeded" error.
+        // Related: https://github.com/drizzle-team/drizzle-orm/issues/1740
+        const batchSize = 200;
 
         for (let i = 0; i < queries.length; i += batchSize) {
           const _rows = await database.syncQB.wrap(
