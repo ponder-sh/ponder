@@ -77,6 +77,15 @@ export class NotNullConstraintError extends NonRetryableUserError {
   }
 }
 
+export class InvalidStoreAccessError extends NonRetryableUserError {
+  override name = "InvalidStoreAccessError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, InvalidStoreAccessError.prototype);
+  }
+}
+
 export class RecordNotFoundError extends NonRetryableUserError {
   override name = "RecordNotFoundError";
 

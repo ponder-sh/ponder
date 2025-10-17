@@ -1,3 +1,8 @@
+import { type Worker, parentPort } from "node:worker_threads";
+import {
+  type PromiseWithResolvers,
+  promiseWithResolvers,
+} from "@/utils/promiseWithResolvers.js";
 import { truncate } from "@/utils/truncate.js";
 import { getTableName, isTable } from "drizzle-orm";
 import prometheus from "prom-client";
@@ -16,6 +21,9 @@ const httpRequestSizeBytes = [
   10, 100, 1_000, 5_000, 10_000, 50_000, 100_000, 500_000, 1_000_000, 5_000_000,
   10_000_000,
 ];
+
+const GET_METRICS_REQ = "prom-client:getMetricsReq";
+const GET_METRICS_RES = "prom-client:getMetricsRes";
 
 export class MetricsService {
   registry: prometheus.Registry;
@@ -474,6 +482,110 @@ export class MetricsService {
     this.ponder_http_server_request_duration_ms.reset();
     this.ponder_http_server_request_size_bytes.reset();
     this.ponder_http_server_response_size_bytes.reset();
+  }
+}
+
+// type MetricsAggregationRequest
+// type MetricsAggregationResponse
+
+export class AggregateMetricsService extends MetricsService {
+  workers: Worker[];
+  requests: Map<
+    number,
+    {
+      responses: string[];
+      pending: number;
+      pwr: PromiseWithResolvers<void>;
+    }
+  >;
+  requestId: number;
+
+  constructor(workers: Worker[]) {
+    super();
+
+    this.workers = workers;
+    this.requests = new Map();
+    this.requestId = 0;
+
+    for (const worker of workers) {
+      worker.on("message", (message) => {
+        // TODO(kyle) message type
+        if (message.type === GET_METRICS_RES) {
+          const request = this.requests.get(message.requestId);
+
+          if (request === undefined) return;
+
+          if (message.error) {
+            request.pwr.reject(new Error(message.error));
+            return;
+          }
+
+          request.responses.push(message.metrics);
+          request.pending--;
+          if (request.pending === 0) {
+            request.pwr.resolve();
+          }
+        }
+      });
+    }
+
+    setInterval(() => {
+      this.aggregateMetrics();
+    }, 1_000);
+  }
+
+  async aggregateMetrics() {
+    const requestId = this.requestId++;
+    const pwr = promiseWithResolvers<void>();
+
+    this.requests.set(requestId, {
+      responses: [],
+      pending: this.workers.length,
+      pwr,
+    });
+
+    for (const worker of this.workers) {
+      worker.postMessage({ type: GET_METRICS_REQ, requestId });
+    }
+
+    await pwr.promise;
+
+    const request = this.requests.get(requestId)!;
+    this.requests.delete(requestId);
+
+    // TODO(kyle) include main thread metrics in the aggregation
+    this.registry = prometheus.AggregatorRegistry.aggregate(request.responses);
+  }
+
+  // TODO(kyle) reset, initialize
+}
+
+export class IsolatedMetricsService extends MetricsService {
+  constructor() {
+    super();
+
+    if (parentPort) {
+      parentPort.on("message", (message) => {
+        if (message.type === GET_METRICS_REQ) {
+          this.registry
+            .getMetricsAsJSON()
+            .then((metrics) => {
+              parentPort!.postMessage({
+                type: GET_METRICS_RES,
+                requestId: message.requestId,
+                metrics,
+              });
+            })
+            .catch((error) => {
+              parentPort!.postMessage({
+                type: GET_METRICS_RES,
+                requestId: message.requestId,
+                error: error.message,
+              });
+            });
+        }
+      });
+    }
   }
 }
 

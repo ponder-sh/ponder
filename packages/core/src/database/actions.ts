@@ -1,5 +1,10 @@
-import { getPrimaryKeyColumns } from "@/drizzle/index.js";
-import { getTableNames } from "@/drizzle/index.js";
+import {
+  getPartitionName,
+  getPrimaryKeyColumns,
+  getReorgTableName,
+  getTriggerFnName,
+  getTriggerName,
+} from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import type { Logger } from "@/internal/logger.js";
 import type {
@@ -9,12 +14,16 @@ import type {
 } from "@/internal/types.js";
 import { MAX_CHECKPOINT_STRING, decodeCheckpoint } from "@/utils/checkpoint.js";
 import {
+  type SQL,
   type Table,
   type View,
+  and,
   eq,
   getTableColumns,
   getTableName,
   getViewName,
+  lte,
+  sql,
 } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { getPonderCheckpointTable } from "./index.js";
@@ -41,7 +50,7 @@ export const createIndexes = async (
 
 export const createTriggers = async (
   qb: QB,
-  { tables }: { tables: Table[] },
+  { tables, chainId }: { tables: Table[]; chainId?: number },
   context?: { logger?: Logger },
 ) => {
   await qb.transaction(
@@ -58,17 +67,17 @@ export const createTriggers = async (
           await tx.wrap({ label: "create_trigger" }, (tx) =>
             tx.execute(
               `
-  CREATE OR REPLACE FUNCTION "${schema}".${getTableNames(table).triggerFn}
+  CREATE OR REPLACE FUNCTION "${schema}".${getTriggerFnName(table, chainId)}
   RETURNS TRIGGER AS $$
   BEGIN
   IF TG_OP = 'INSERT' THEN
-  INSERT INTO "${schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+  INSERT INTO "${schema}"."${getReorgTableName(table)}" (${columnNames.join(",")}, operation, checkpoint)
   VALUES (${columnNames.map((name) => `NEW.${name}`).join(",")}, 0, '${MAX_CHECKPOINT_STRING}');
   ELSIF TG_OP = 'UPDATE' THEN
-  INSERT INTO "${schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+  INSERT INTO "${schema}"."${getReorgTableName(table)}" (${columnNames.join(",")}, operation, checkpoint)
   VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 1, '${MAX_CHECKPOINT_STRING}');
   ELSIF TG_OP = 'DELETE' THEN
-  INSERT INTO "${schema}"."${getTableName(getReorgTable(table))}" (${columnNames.join(",")}, operation, checkpoint)
+  INSERT INTO "${schema}"."${getReorgTableName(table)}" (${columnNames.join(",")}, operation, checkpoint)
   VALUES (${columnNames.map((name) => `OLD.${name}`).join(",")}, 2, '${MAX_CHECKPOINT_STRING}');
   END IF;
   RETURN NULL;
@@ -80,9 +89,9 @@ export const createTriggers = async (
           await tx.wrap({ label: "create_trigger" }, (tx) =>
             tx.execute(
               `
-  CREATE OR REPLACE TRIGGER "${getTableNames(table).trigger}"
-  AFTER INSERT OR UPDATE OR DELETE ON "${schema}"."${getTableName(table)}"
-  FOR EACH ROW EXECUTE FUNCTION "${schema}".${getTableNames(table).triggerFn};
+  CREATE OR REPLACE TRIGGER "${getTriggerName(table, chainId)}"
+  AFTER INSERT OR UPDATE OR DELETE ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"
+  FOR EACH ROW EXECUTE FUNCTION "${schema}".${getTriggerFnName(table, chainId)};
   `,
             ),
           );
@@ -96,7 +105,7 @@ export const createTriggers = async (
 
 export const dropTriggers = async (
   qb: QB,
-  { tables }: { tables: Table[] },
+  { tables, chainId }: { tables: Table[]; chainId?: number },
   context?: { logger?: Logger },
 ) => {
   await qb.transaction(
@@ -107,7 +116,7 @@ export const dropTriggers = async (
 
           await tx.wrap({ label: "drop_trigger" }, (tx) =>
             tx.execute(
-              `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${schema}"."${getTableName(table)}"`,
+              `DROP TRIGGER IF EXISTS "${getTriggerName(table, chainId)}" ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"`,
             ),
           );
         }),
@@ -222,16 +231,14 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
   );
 };
 
-export const revert = async (
+export const revertOmnichain = async (
   qb: QB,
   {
     checkpoint,
     tables,
-    preBuild,
   }: {
     checkpoint: string;
     tables: Table[];
-    preBuild: Pick<PreBuild, "ordering">;
   },
   context?: { logger?: Logger },
 ): Promise<number[]> => {
@@ -241,33 +248,84 @@ export const revert = async (
     { label: "revert" },
     async (tx) => {
       const counts: number[] = [];
-      if (preBuild.ordering === "multichain") {
-        const minOperationId = await tx
-          .wrap((tx) =>
-            tx.execute(`
+
+      for (const table of tables) {
+        const primaryKeyColumns = getPrimaryKeyColumns(table);
+        const schema = getTableConfig(table).schema ?? "public";
+
+        const result = await tx.wrap((tx) =>
+          tx.execute(`
+WITH reverted1 AS (
+  DELETE FROM "${schema}"."${getReorgTableName(table)}"
+  WHERE checkpoint > '${checkpoint}' RETURNING * 
+), reverted2 AS (
+  SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1
+  GROUP BY ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}
+), reverted3 AS (
+  SELECT ${Object.values(getTableColumns(table))
+    .map((column) => `reverted1."${getColumnCasing(column, "snake_case")}"`)
+    .join(", ")}, reverted1.operation FROM reverted2
+  INNER JOIN reverted1
+  ON ${primaryKeyColumns.map(({ sql }) => `reverted2."${sql}" = reverted1."${sql}"`).join("AND ")}
+  AND reverted2.operation_id = reverted1.operation_id
+), ${getRevertSql({ table })};`),
+        );
+
+        // @ts-ignore
+        counts.push(result.rows[0]!.count);
+      }
+
+      return counts;
+    },
+    undefined,
+    context,
+  );
+};
+
+export const revertMultichain = async (
+  qb: QB,
+  {
+    checkpoint,
+    tables,
+  }: {
+    checkpoint: string;
+    tables: Table[];
+  },
+  context?: { logger?: Logger },
+): Promise<number[]> => {
+  if (tables.length === 0) return [];
+
+  return qb.transaction(
+    { label: "revert" },
+    async (tx) => {
+      const counts: number[] = [];
+
+      const minOperationId = await tx
+        .wrap((tx) =>
+          tx.execute(`
 SELECT MIN(operation_id) AS operation_id FROM (
 ${tables
   .map(
     (table) => `
-SELECT MIN(operation_id) AS operation_id FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(getReorgTable(table))}"
+SELECT MIN(operation_id) AS operation_id FROM "${getTableConfig(table).schema ?? "public"}"."${getReorgTableName(table)}"
 WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
 AND checkpoint > '${checkpoint}'`,
   )
   .join(" UNION ALL ")}) AS all_mins;`),
-          )
-          .then((result) => {
-            // @ts-ignore
-            return result.rows[0]?.operation_id as string | null;
-          });
+        )
+        .then((result) => {
+          // @ts-ignore
+          return result.rows[0]?.operation_id as string | null;
+        });
 
-        for (const table of tables) {
-          const primaryKeyColumns = getPrimaryKeyColumns(table);
-          const schema = getTableConfig(table).schema ?? "public";
+      for (const table of tables) {
+        const primaryKeyColumns = getPrimaryKeyColumns(table);
+        const schema = getTableConfig(table).schema ?? "public";
 
-          const result = await tx.wrap((tx) =>
-            tx.execute(`
+        const result = await tx.wrap((tx) =>
+          tx.execute(`
 WITH reverted1 AS (
-  DELETE FROM "${schema}"."${getTableName(getReorgTable(table))}"
+  DELETE FROM "${schema}"."${getReorgTableName(table)}"
   WHERE ${minOperationId!} IS NOT NULL AND operation_id >= ${minOperationId!}
   RETURNING * 
 ), reverted2 AS (
@@ -281,21 +339,46 @@ WITH reverted1 AS (
   ON ${primaryKeyColumns.map(({ sql }) => `reverted2."${sql}" = reverted1."${sql}"`).join("AND ")}
   AND reverted2.operation_id = reverted1.operation_id
 ), ${getRevertSql({ table })};`),
-          );
+        );
 
-          // @ts-ignore
-          counts.push(result.rows[0]!.count);
-        }
-      } else {
-        for (const table of tables) {
-          const primaryKeyColumns = getPrimaryKeyColumns(table);
-          const schema = getTableConfig(table).schema ?? "public";
+        // @ts-ignore
+        counts.push(result.rows[0]!.count);
+      }
 
-          const result = await tx.wrap((tx) =>
-            tx.execute(`
+      return counts;
+    },
+    undefined,
+    context,
+  );
+};
+
+export const revertIsolated = async (
+  qb: QB,
+  {
+    checkpoint,
+    tables,
+  }: {
+    checkpoint: string;
+    tables: Table[];
+  },
+  context?: { logger?: Logger },
+) => {
+  if (tables.length === 0) return [];
+
+  return qb.transaction(
+    { label: "revert" },
+    async (tx) => {
+      const counts: number[] = [];
+
+      for (const table of tables) {
+        const primaryKeyColumns = getPrimaryKeyColumns(table);
+        const schema = getTableConfig(table).schema ?? "public";
+
+        const result = await tx.wrap((tx) =>
+          tx.execute(`
 WITH reverted1 AS (
-  DELETE FROM "${schema}"."${getTableName(getReorgTable(table))}"
-  WHERE checkpoint > '${checkpoint}' RETURNING * 
+  DELETE FROM "${schema}"."${getReorgTableName(table)}"
+  WHERE checkpoint > '${checkpoint}' AND SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)} RETURNING * 
 ), reverted2 AS (
   SELECT ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}, MIN(operation_id) AS operation_id FROM reverted1
   GROUP BY ${primaryKeyColumns.map(({ sql }) => `"${sql}"`).join(", ")}
@@ -307,11 +390,10 @@ WITH reverted1 AS (
   ON ${primaryKeyColumns.map(({ sql }) => `reverted2."${sql}" = reverted1."${sql}"`).join("AND ")}
   AND reverted2.operation_id = reverted1.operation_id
 ), ${getRevertSql({ table })};`),
-          );
+        );
 
-          // @ts-ignore
-          counts.push(result.rows[0]!.count);
-        }
+        // @ts-ignore
+        counts.push(result.rows[0]!.count);
       }
 
       return counts;
@@ -321,23 +403,72 @@ WITH reverted1 AS (
   );
 };
 
-export const finalize = async (
+export const finalizeOmnichain = async (
   qb: QB,
   {
     checkpoint,
     tables,
-    preBuild,
     namespaceBuild,
   }: {
     checkpoint: string;
     tables: Table[];
-    preBuild: Pick<PreBuild, "ordering">;
     namespaceBuild: NamespaceBuild;
   },
   context?: { logger?: Logger },
-): Promise<void> => {
+) => {
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
 
+  // TODO(kyle) is this breaking an invariant?
+  if (tables.length === 0) {
+    await qb.wrap(
+      (db) =>
+        db
+          .update(PONDER_CHECKPOINT)
+          .set({ finalizedCheckpoint: checkpoint, safeCheckpoint: checkpoint }),
+      context,
+    );
+    return;
+  }
+
+  return qb.transaction(
+    { label: "finalize" },
+    async (tx) => {
+      await tx.wrap((tx) =>
+        tx.update(PONDER_CHECKPOINT).set({
+          finalizedCheckpoint: checkpoint,
+          safeCheckpoint: checkpoint,
+        }),
+      );
+
+      for (const table of tables) {
+        await tx.wrap((tx) =>
+          tx
+            .delete(getReorgTable(table))
+            .where(lte(getReorgTable(table).checkpoint, checkpoint)),
+        );
+      }
+    },
+    undefined,
+    context,
+  );
+};
+
+export const finalizeMultichain = async (
+  qb: QB,
+  {
+    checkpoint,
+    tables,
+    namespaceBuild,
+  }: {
+    checkpoint: string;
+    tables: Table[];
+    namespaceBuild: NamespaceBuild;
+  },
+  context?: { logger?: Logger },
+) => {
+  const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
+
+  // TODO(kyle) is this breaking an invariant?
   if (tables.length === 0) {
     await qb.wrap(
       (db) =>
@@ -354,22 +485,21 @@ export const finalize = async (
   return qb.transaction(
     { label: "finalize" },
     async (tx) => {
-      if (preBuild.ordering === "multichain") {
-        await tx.wrap((tx) =>
-          tx
-            .update(PONDER_CHECKPOINT)
-            .set({ finalizedCheckpoint: checkpoint })
-            .where(
-              eq(
-                PONDER_CHECKPOINT.chainId,
-                Number(decodeCheckpoint(checkpoint).chainId),
-              ),
+      await tx.wrap((tx) =>
+        tx
+          .update(PONDER_CHECKPOINT)
+          .set({ finalizedCheckpoint: checkpoint })
+          .where(
+            eq(
+              PONDER_CHECKPOINT.chainId,
+              Number(decodeCheckpoint(checkpoint).chainId),
             ),
-        );
+          ),
+      );
 
-        const minOperationId = await tx
-          .wrap((tx) =>
-            tx.execute(`
+      const minOperationId = await tx
+        .wrap((tx) =>
+          tx.execute(`
 SELECT MIN(operation_id) AS operation_id FROM (
 ${tables
   .map(
@@ -382,14 +512,14 @@ WHERE checkpoint > (
 )`,
   )
   .join(" UNION ALL ")}) AS all_mins;`),
-          )
-          .then((result) => {
-            // @ts-ignore
-            return result.rows[0]?.operation_id as string | null;
-          });
+        )
+        .then((result) => {
+          // @ts-ignore
+          return result.rows[0]?.operation_id as string | null;
+        });
 
-        const result = await tx.wrap((tx) =>
-          tx.execute(`
+      const result = await tx.wrap((tx) =>
+        tx.execute(`
     WITH ${tables
       .map(
         (table, index) => `
@@ -405,39 +535,18 @@ WHERE checkpoint > (
         .map((_, index) => `SELECT checkpoint FROM deleted_${index}`)
         .join(" UNION ALL ")}
     )
-    SELECT MAX(checkpoint) as safe_checkpoint, SUBSTRING(checkpoint, 11, 16)::numeric as chain_id, COUNT(*) AS deleted_count 
+    SELECT MAX(checkpoint) as safe_checkpoint, SUBSTRING(checkpoint, 11, 16)::numeric as chain_id
     FROM all_deleted
     GROUP BY SUBSTRING(checkpoint, 11, 16)::numeric;`),
-        );
+      );
 
-        for (const { chain_id, safe_checkpoint } of result.rows) {
-          await tx.wrap((tx) =>
-            tx
-              .update(PONDER_CHECKPOINT)
-              .set({ safeCheckpoint: safe_checkpoint as string })
-              .where(eq(PONDER_CHECKPOINT.chainId, chain_id as number)),
-          );
-        }
-      } else {
+      for (const { chain_id, safe_checkpoint } of result.rows) {
         await tx.wrap((tx) =>
-          tx.update(PONDER_CHECKPOINT).set({
-            finalizedCheckpoint: checkpoint,
-            safeCheckpoint: checkpoint,
-          }),
+          tx
+            .update(PONDER_CHECKPOINT)
+            .set({ safeCheckpoint: safe_checkpoint as string })
+            .where(eq(PONDER_CHECKPOINT.chainId, chain_id as number)),
         );
-
-        for (const table of tables) {
-          await tx
-            .wrap((tx) =>
-              tx.execute(`
-WITH deleted AS (
-  DELETE FROM "${getTableConfig(table).schema ?? "public"}"."${getTableName(getReorgTable(table))}"
-  WHERE checkpoint <= '${checkpoint}'
-  RETURNING *
-) SELECT COUNT(*) AS deleted_count FROM deleted;`),
-            )
-            .then((result) => Number(result.rows[0]!.deleted_count));
-        }
       }
     },
     undefined,
@@ -445,19 +554,80 @@ WITH deleted AS (
   );
 };
 
+export const finalizeIsolated = async (
+  qb: QB,
+  {
+    checkpoint,
+    tables,
+    namespaceBuild,
+  }: {
+    checkpoint: string;
+    tables: Table[];
+    namespaceBuild: NamespaceBuild;
+  },
+  context?: { logger?: Logger },
+) => {
+  const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
+  const chainId = Number(decodeCheckpoint(checkpoint).chainId);
+
+  if (tables.length === 0) {
+    await qb.wrap(
+      (db) =>
+        db
+          .update(PONDER_CHECKPOINT)
+          .set({ finalizedCheckpoint: checkpoint, safeCheckpoint: checkpoint })
+          .where(eq(PONDER_CHECKPOINT.chainId, chainId)),
+      context,
+    );
+    return;
+  }
+  return qb.transaction({ label: "finalize" }, async (tx) => {
+    await tx.wrap((tx) =>
+      tx
+        .update(PONDER_CHECKPOINT)
+        .set({ finalizedCheckpoint: checkpoint, safeCheckpoint: checkpoint })
+        .where(eq(PONDER_CHECKPOINT.chainId, chainId)),
+    );
+
+    for (const table of tables) {
+      await tx.wrap((tx) =>
+        tx
+          .delete(getReorgTable(table))
+          .where(
+            and(
+              lte(getReorgTable(table).checkpoint, checkpoint),
+              eq(sql`chain_id`, chainId),
+            ),
+          ),
+      );
+    }
+  });
+};
+
 export const commitBlock = async (
   qb: QB,
-  { checkpoint, table }: { checkpoint: string; table: Table },
+  {
+    checkpoint,
+    table,
+    preBuild,
+  }: { checkpoint: string; table: Table; preBuild: Pick<PreBuild, "ordering"> },
   context?: { logger?: Logger },
 ) => {
   const reorgTable = getReorgTable(table);
+  let whereClause: SQL;
+  if (preBuild.ordering === "isolated") {
+    const chainId = Number(decodeCheckpoint(checkpoint).chainId);
+    whereClause = and(
+      eq(reorgTable.checkpoint, MAX_CHECKPOINT_STRING),
+      eq(sql`chain_id`, chainId),
+    )!;
+  } else {
+    whereClause = eq(reorgTable.checkpoint, MAX_CHECKPOINT_STRING);
+  }
+
   await qb.wrap(
     { label: "commit_block" },
-    (db) =>
-      db
-        .update(reorgTable)
-        .set({ checkpoint })
-        .where(eq(reorgTable.checkpoint, MAX_CHECKPOINT_STRING)),
+    (db) => db.update(reorgTable).set({ checkpoint }).where(whereClause),
     context,
   );
 };

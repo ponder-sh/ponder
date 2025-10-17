@@ -1,6 +1,7 @@
+import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getSql } from "@/drizzle/kit/index.js";
 import { BuildError } from "@/internal/errors.js";
-import type { Schema } from "@/internal/types.js";
+import type { PreBuild, Schema } from "@/internal/types.js";
 import {
   SQL,
   getTableColumns,
@@ -21,7 +22,10 @@ import {
   getViewConfig,
 } from "drizzle-orm/pg-core";
 
-export const buildSchema = ({ schema }: { schema: Schema }) => {
+export const buildSchema = ({
+  schema,
+  preBuild,
+}: { schema: Schema; preBuild: Pick<PreBuild, "ordering"> }) => {
   const statements = getSql(schema);
 
   const tableNames = new Set<string>();
@@ -31,6 +35,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
   for (const [name, s] of Object.entries(schema)) {
     if (is(s, PgTable)) {
       let hasPrimaryKey = false;
+      let hasChainIdColumn = false;
 
       for (const [columnName, column] of Object.entries(getTableColumns(s))) {
         if (column.primary) {
@@ -90,6 +95,32 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
               `Schema validation failed: '${name}.${columnName}' is a default column and default columns with raw sql are unsupported.`,
             );
           }
+        }
+
+        if (
+          columnName.toLowerCase() === "chain_id" ||
+          columnName.toLowerCase() === "chainid"
+        ) {
+          hasChainIdColumn = true;
+        }
+      }
+
+      if (preBuild.ordering === "isolated") {
+        if (hasChainIdColumn === false) {
+          throw new Error(
+            `Schema validation failed: '${name}' does not have required 'chain_id' column.`,
+          );
+        }
+
+        if (
+          getPrimaryKeyColumns(s).some(
+            ({ js }) =>
+              js.toLowerCase() === "chainid" || js.toLowerCase() === "chain_id",
+          ) === false
+        ) {
+          throw new Error(
+            `Schema validation failed: '${name}.chain_id' column is required to be in the primary key when ordering is 'isolated'.`,
+          );
         }
       }
 
@@ -225,9 +256,12 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
   return { statements };
 };
 
-export const safeBuildSchema = ({ schema }: { schema: Schema }) => {
+export const safeBuildSchema = ({
+  schema,
+  preBuild,
+}: { schema: Schema; preBuild: Pick<PreBuild, "ordering"> }) => {
   try {
-    const result = buildSchema({ schema });
+    const result = buildSchema({ schema, preBuild });
 
     return {
       status: "success",

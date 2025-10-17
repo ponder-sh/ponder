@@ -1,11 +1,9 @@
 import {
   commitBlock,
-  createIndexes,
   createTriggers,
-  createViews,
   dropTriggers,
-  finalizeMultichain,
-  revertMultichain,
+  finalizeIsolated,
+  revertIsolated,
 } from "@/database/actions.js";
 import {
   type Database,
@@ -29,7 +27,6 @@ import {
 } from "@/internal/errors.js";
 import { getAppProgress } from "@/internal/metrics.js";
 import type {
-  Chain,
   CrashRecoveryCheckpoint,
   IndexingBuild,
   IndexingErrorHandler,
@@ -53,22 +50,16 @@ import {
 } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
-import { eq, getTableName, isTable, isView, sql } from "drizzle-orm";
+import { eq, getTableName, isTable, sql } from "drizzle-orm";
 import {
-  getHistoricalEventsMultichain,
+  getHistoricalEventsIsolated,
   refetchHistoricalEvents,
 } from "./historical.js";
-import {
-  type CachedIntervals,
-  type ChildAddresses,
-  type SyncProgress,
-  getCachedIntervals,
-  getChildAddresses,
-} from "./index.js";
+import { getCachedIntervals, getChildAddresses } from "./index.js";
 import { initSyncProgress } from "./init.js";
-import { getRealtimeEventsMultichain } from "./realtime.js";
+import { getRealtimeEventsIsolated } from "./realtime.js";
 
-export async function runMultichain({
+export async function runIsolated({
   common,
   preBuild,
   namespaceBuild,
@@ -76,6 +67,7 @@ export async function runMultichain({
   indexingBuild,
   crashRecoveryCheckpoint,
   database,
+  onReady,
 }: {
   common: Common;
   preBuild: PreBuild;
@@ -84,7 +76,10 @@ export async function runMultichain({
   indexingBuild: IndexingBuild;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   database: Database;
+  onReady: () => void;
 }) {
+  const chain = indexingBuild.chains[0]!;
+
   const columnAccessPattern = createColumnAccessPattern({
     indexingBuild,
   });
@@ -129,6 +124,7 @@ export async function runMultichain({
     schemaBuild,
     crashRecoveryCheckpoint,
     eventCount,
+    chainId: chain.id,
   });
 
   const historicalIndexingStore = createHistoricalIndexingStore({
@@ -138,107 +134,82 @@ export async function runMultichain({
     indexingErrorHandler,
   });
 
-  const perChainSync = new Map<
-    Chain,
-    {
-      syncProgress: SyncProgress;
-      childAddresses: ChildAddresses;
-      cachedIntervals: CachedIntervals;
-      unfinalizedBlocks: Omit<
-        Extract<RealtimeSyncEvent, { type: "block" }>,
-        "type"
-      >[];
-    }
-  >();
   const seconds: Seconds = {};
 
-  await Promise.all(
-    indexingBuild.chains.map(async (chain) => {
-      const sources = indexingBuild.sources.filter(
-        ({ filter }) => filter.chainId === chain.id,
-      );
+  const sources = indexingBuild.sources.filter(
+    ({ filter }) => filter.chainId === chain.id,
+  );
 
-      const cachedIntervals = await getCachedIntervals({
-        chain,
-        sources,
-        syncStore,
-      });
-      const syncProgress = await initSyncProgress({
-        common,
-        sources,
-        chain,
-        rpc: indexingBuild.rpcs[indexingBuild.chains.indexOf(chain)]!,
-        finalizedBlock:
-          indexingBuild.finalizedBlocks[indexingBuild.chains.indexOf(chain)]!,
-        cachedIntervals,
-      });
-      const childAddresses = await getChildAddresses({
-        sources,
-        syncStore,
-      });
-      const unfinalizedBlocks: Omit<
-        Extract<RealtimeSyncEvent, { type: "block" }>,
-        "type"
-      >[] = [];
+  const cachedIntervals = await getCachedIntervals({
+    chain,
+    sources,
+    syncStore,
+  });
+  const syncProgress = await initSyncProgress({
+    common,
+    sources,
+    chain,
+    rpc: indexingBuild.rpcs[0]!,
+    finalizedBlock: indexingBuild.finalizedBlocks[0]!,
+    cachedIntervals,
+  });
+  const childAddresses = await getChildAddresses({
+    sources,
+    syncStore,
+  });
+  const unfinalizedBlocks: Omit<
+    Extract<RealtimeSyncEvent, { type: "block" }>,
+    "type"
+  >[] = [];
 
-      perChainSync.set(chain, {
-        syncProgress,
-        childAddresses,
-        cachedIntervals,
-        unfinalizedBlocks,
-      });
+  const start = Number(
+    decodeCheckpoint(syncProgress.getCheckpoint({ tag: "start" }))
+      .blockTimestamp,
+  );
 
-      const _crashRecoveryCheckpoint = crashRecoveryCheckpoint?.find(
-        ({ chainId }) => chainId === chain.id,
-      )?.checkpoint;
-      const start = Number(
-        decodeCheckpoint(syncProgress.getCheckpoint({ tag: "start" }))
-          .blockTimestamp,
-      );
+  const end = Number(
+    decodeCheckpoint(
+      min(
+        syncProgress.getCheckpoint({ tag: "end" }),
+        syncProgress.getCheckpoint({ tag: "finalized" }),
+      ),
+    ).blockTimestamp,
+  );
 
-      const end = Number(
-        decodeCheckpoint(
-          min(
-            syncProgress.getCheckpoint({ tag: "end" }),
-            syncProgress.getCheckpoint({ tag: "finalized" }),
-          ),
-        ).blockTimestamp,
-      );
+  const _crashRecoveryCheckpoint = crashRecoveryCheckpoint?.find(
+    ({ chainId }) => chainId === chain.id,
+  )?.checkpoint;
 
-      const cached = Math.min(
-        Number(
-          decodeCheckpoint(_crashRecoveryCheckpoint ?? ZERO_CHECKPOINT_STRING)
-            .blockTimestamp,
-        ),
-        end,
-      );
+  const cached = Math.min(
+    Number(
+      decodeCheckpoint(_crashRecoveryCheckpoint ?? ZERO_CHECKPOINT_STRING)
+        .blockTimestamp,
+    ),
+    end,
+  );
 
-      seconds[chain.name] = { start, end, cached };
+  seconds[chain.name] = { start, end, cached };
 
-      const label = { chain: chain.name };
-      common.metrics.ponder_historical_total_indexing_seconds.set(
-        label,
-        Math.max(seconds[chain.name]!.end - seconds[chain.name]!.start, 0),
-      );
-      common.metrics.ponder_historical_cached_indexing_seconds.set(
-        label,
-        Math.max(seconds[chain.name]!.cached - seconds[chain.name]!.start, 0),
-      );
-      common.metrics.ponder_historical_completed_indexing_seconds.set(label, 0);
-      common.metrics.ponder_indexing_timestamp.set(
-        label,
-        Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
-      );
-    }),
+  const label = { chain: chain.name };
+  common.metrics.ponder_historical_total_indexing_seconds.set(
+    label,
+    Math.max(seconds[chain.name]!.end - seconds[chain.name]!.start, 0),
+  );
+  common.metrics.ponder_historical_cached_indexing_seconds.set(
+    label,
+    Math.max(seconds[chain.name]!.cached - seconds[chain.name]!.start, 0),
+  );
+  common.metrics.ponder_historical_completed_indexing_seconds.set(label, 0);
+  common.metrics.ponder_indexing_timestamp.set(
+    label,
+    Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
   );
 
   const startTimestamp = Math.round(Date.now() / 1000);
-  for (const chain of indexingBuild.chains) {
-    common.metrics.ponder_historical_start_timestamp_seconds.set(
-      { chain: chain.name },
-      startTimestamp,
-    );
-  }
+  common.metrics.ponder_historical_start_timestamp_seconds.set(
+    label,
+    startTimestamp,
+  );
 
   // Reset the start timestamp so the eta estimate doesn't include
   // the startup time.
@@ -267,15 +238,9 @@ export async function runMultichain({
             indexingBuild.chains.map((chain) => ({
               chainName: chain.name,
               chainId: chain.id,
-              latestCheckpoint: perChainSync
-                .get(chain)!
-                .syncProgress.getCheckpoint({ tag: "start" }),
-              safeCheckpoint: perChainSync
-                .get(chain)!
-                .syncProgress.getCheckpoint({ tag: "start" }),
-              finalizedCheckpoint: perChainSync
-                .get(chain)!
-                .syncProgress.getCheckpoint({ tag: "start" }),
+              latestCheckpoint: syncProgress.getCheckpoint({ tag: "start" }),
+              finalizedCheckpoint: syncProgress.getCheckpoint({ tag: "start" }),
+              safeCheckpoint: syncProgress.getCheckpoint({ tag: "start" }),
             })),
           )
           .onConflictDoUpdate({
@@ -300,6 +265,8 @@ export async function runMultichain({
 
     common.logger.info({
       msg: "Updated backfill indexing progress",
+      chain: chain.name,
+      chain_id: chain.id,
       progress: formatPercentage(progress),
       estimate: formatEta(eta * 1_000),
     });
@@ -318,13 +285,19 @@ export async function runMultichain({
     checkpoint,
     blockRange,
   } of recordAsyncGenerator(
-    getHistoricalEventsMultichain({
-      common,
-      indexingBuild,
-      crashRecoveryCheckpoint,
-      perChainSync,
-      syncStore,
-    }),
+    bufferAsyncGenerator(
+      getHistoricalEventsIsolated({
+        common,
+        chain,
+        indexingBuild,
+        crashRecoveryCheckpoint,
+        syncProgress,
+        childAddresses,
+        cachedIntervals,
+        syncStore,
+      }),
+      1,
+    ),
     (params) => {
       common.metrics.ponder_historical_concurrency_group_duration.inc(
         { group: "extract" },
@@ -340,8 +313,6 @@ export async function runMultichain({
       logger: common.logger.child({ action: "index_block_range" }),
     };
     const indexStartClock = startClock();
-
-    const chain = indexingBuild.chains.find((chain) => chain.id === chainId)!;
 
     indexingCache.qb = database.userQB;
     await Promise.all([
@@ -461,7 +432,7 @@ export async function runMultichain({
             events = await refetchHistoricalEvents({
               common,
               indexingBuild,
-              perChainSync,
+              perChainSync: new Map([[chain, { childAddresses }]]),
               syncStore,
               events,
             });
@@ -507,73 +478,46 @@ export async function runMultichain({
   // checkpoint is between the last processed event and the finalized
   // checkpoint.
 
-  for (const chain of indexingBuild.chains) {
-    const label = { chain: chain.name };
-    common.metrics.ponder_historical_completed_indexing_seconds.set(
-      label,
-      Math.max(
-        seconds[chain.name]!.end -
-          Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
-        0,
-      ),
-    );
-    common.metrics.ponder_indexing_timestamp.set(
-      { chain: chain.name },
-      seconds[chain.name]!.end,
-    );
-  }
+  common.metrics.ponder_historical_completed_indexing_seconds.set(
+    label,
+    Math.max(
+      seconds[chain.name]!.end -
+        Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
+      0,
+    ),
+  );
+  common.metrics.ponder_indexing_timestamp.set(
+    { chain: chain.name },
+    seconds[chain.name]!.end,
+  );
 
   const endTimestamp = Math.round(Date.now() / 1000);
-  for (const chain of indexingBuild.chains) {
-    common.metrics.ponder_historical_end_timestamp_seconds.set(
-      { chain: chain.name },
-      endTimestamp,
-    );
-  }
+  common.metrics.ponder_historical_end_timestamp_seconds.set(
+    { chain: chain.name },
+    endTimestamp,
+  );
 
   common.logger.info({
-    msg: "Completed backfill indexing across all chains",
+    msg: "Completed backfill indexing",
+    chain: chain.name,
+    chain_id: chain.id,
     duration: backfillEndClock(),
   });
   clearInterval(etaInterval);
 
   const tables = Object.values(schemaBuild.schema).filter(isTable);
-  const views = Object.values(schemaBuild.schema).filter(isView);
 
-  let endClock = startClock();
+  const endClock = startClock();
 
-  await createIndexes(database.adminQB, { statements: schemaBuild.statements });
-
-  if (schemaBuild.statements.indexes.sql.length > 0) {
-    common.logger.info({
-      msg: "Created database indexes",
-      count: schemaBuild.statements.indexes.sql.length,
-      duration: endClock(),
-    });
-  }
-
-  endClock = startClock();
-
-  await createTriggers(database.adminQB, { tables });
+  await createTriggers(database.adminQB, { tables, chainId: chain.id });
 
   common.logger.debug({
     msg: "Created database triggers",
+    chain: chain.name,
+    chain_id: chain.id,
     count: tables.length,
     duration: endClock(),
   });
-
-  if (namespaceBuild.viewsSchema !== undefined) {
-    const endClock = startClock();
-
-    await createViews(database.adminQB, { tables, views, namespaceBuild });
-
-    common.logger.info({
-      msg: "Created database views",
-      schema: namespaceBuild.viewsSchema,
-      count: tables.length,
-      duration: endClock(),
-    });
-  }
 
   await database.adminQB.wrap({ label: "update_ready" }, (db) =>
     db
@@ -581,10 +525,7 @@ export async function runMultichain({
       .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` }),
   );
 
-  common.logger.info({
-    msg: "Started returning 200 responses",
-    endpoint: "/ready",
-  });
+  onReady();
 
   const realtimeIndexingStore = createRealtimeIndexingStore({
     common,
@@ -593,10 +534,13 @@ export async function runMultichain({
   });
 
   for await (const event of bufferAsyncGenerator(
-    getRealtimeEventsMultichain({
+    getRealtimeEventsIsolated({
       common,
       indexingBuild,
-      perChainSync,
+      chain,
+      syncProgress,
+      childAddresses,
+      unfinalizedBlocks,
       syncStore,
     }),
     100,
@@ -722,9 +666,9 @@ export async function runMultichain({
 
         await database.userQB.transaction(
           async (tx) => {
-            await dropTriggers(tx, { tables }, context);
+            await dropTriggers(tx, { tables, chainId: chain.id }, context);
 
-            const counts = await revertMultichain(
+            const counts = await revertIsolated(
               tx,
               {
                 checkpoint: event.checkpoint,
@@ -736,12 +680,14 @@ export async function runMultichain({
             for (const [index, table] of tables.entries()) {
               common.logger.debug({
                 msg: "Reverted reorged database rows",
+                chain: chain.name,
+                chain_id: chain.id,
                 table: getTableName(table),
                 row_count: counts[index],
               });
             }
 
-            await createTriggers(tx, { tables }, context);
+            await createTriggers(tx, { tables, chainId: chain.id }, context);
           },
           undefined,
           context,
@@ -763,7 +709,7 @@ export async function runMultichain({
         };
         const endClock = startClock();
 
-        await finalizeMultichain(
+        await finalizeIsolated(
           database.userQB,
           {
             checkpoint: event.checkpoint,
@@ -789,7 +735,9 @@ export async function runMultichain({
   }
 
   common.logger.info({
-    msg: "Completed indexing across all chains",
+    msg: "Completed indexing",
+    chain: chain.name,
+    chain_id: chain.id,
     duration: backfillEndClock(),
   });
 }
