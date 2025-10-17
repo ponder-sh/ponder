@@ -86,7 +86,6 @@ export const validateQuery = async (
     if (shouldValidateInnerNode) {
       try {
         // @ts-ignore
-
         ALLOW_LIST.get(getNodeType(node))!.validate?.(node[getNodeType(node)]);
       } catch (error) {
         ALLOW_CACHE.set(hash, false);
@@ -111,8 +110,6 @@ export const validateQuery = async (
       if (firstKey) ALLOW_CACHE.delete(firstKey);
     }
   }
-
-  ALLOW_CACHE.set(hash, true);
 };
 
 /**
