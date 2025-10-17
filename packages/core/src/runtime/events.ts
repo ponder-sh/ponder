@@ -568,6 +568,7 @@ export const decodeEvents = (
             } catch (err) {
               logDecodeFailureCount++;
               if (!logDecodeFailureSelectors.has(selector)) {
+                logDecodeFailureSelectors.add(selector);
                 common.logger.debug({
                   msg: "Failed to decode matched event log using provided ABI item",
                   chain: source.chain.name,
@@ -630,6 +631,7 @@ export const decodeEvents = (
             } catch (err) {
               traceDecodeFailureCount++;
               if (!traceDecodeFailureSelectors.has(selector)) {
+                traceDecodeFailureSelectors.add(selector);
                 common.logger.debug({
                   msg: "Failed to decode matched call trace using provided ABI item",
                   chain: source.chain.name,
