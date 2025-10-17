@@ -124,29 +124,22 @@ export async function* recordAsyncGenerator<T>(
 /**
  * Creates an async generator that yields values from a callback.
  */
-export function createCallbackGenerator<T, P>(): {
-  callback: (value: T) => Promise<P>;
-  generator: AsyncGenerator<
-    { value: T; onComplete: (value: P) => void },
-    void,
-    unknown
-  >;
+export function createCallbackGenerator<T>(): {
+  callback: (value: T) => void;
+  generator: AsyncGenerator<T, void, unknown>;
 } {
-  const buffer: { value: T; onComplete: (value: P) => void }[] = [];
+  const buffer: T[] = [];
   let pwr = promiseWithResolvers<void>();
 
-  const callback = async (value: T) => {
-    const { resolve, promise } = promiseWithResolvers<P>();
-    buffer.push({ value, onComplete: resolve });
+  const callback = (value: T) => {
+    buffer.push(value);
     pwr.resolve();
-    return promise;
   };
 
   async function* generator() {
     while (true) {
       if (buffer.length > 0) {
-        const { value, onComplete } = buffer.shift()!;
-        yield { value, onComplete };
+        yield buffer.shift()!;
       } else {
         await pwr.promise;
         pwr = promiseWithResolvers<void>();
