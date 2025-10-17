@@ -15,14 +15,14 @@ import type { ResolvedSchema } from "./index.js";
 import { getPonderQueryOptions } from "./utils.js";
 
 export function usePonderQuery<
-  queryResult = unknown,
+  queryFnData = unknown,
   error = DefaultError,
-  result = queryResult,
+  data = queryFnData,
 >(
   params: {
-    queryFn: (db: Client<ResolvedSchema>["db"]) => Promise<queryResult>;
-  } & Omit<UseQueryOptions<queryResult, error, result>, "queryFn" | "queryKey">,
-): UseQueryResult<result, error> {
+    queryFn: (db: Client<ResolvedSchema>["db"]) => Promise<queryFnData>;
+  } & Omit<UseQueryOptions<queryFnData, error, data>, "queryFn" | "queryKey">,
+): UseQueryResult<data, error> {
   const queryClient = useQueryClient();
 
   const client = usePonderClient();
