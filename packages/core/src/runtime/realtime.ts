@@ -111,17 +111,6 @@ export async function* getRealtimeEventsOmnichain(params: {
           syncStore: params.syncStore,
         }),
         100,
-        (bufferSize) => {
-          if (bufferSize < 100) return;
-
-          params.common.logger.warn({
-            msg: "Live indexing reached buffer limit, applying backpressure",
-            chain: chain.name,
-            chain_id: chain.id,
-            buffer_size: bufferSize,
-            pipeline_step: "fetch block data",
-          });
-        },
       );
     })
     .filter(
@@ -367,17 +356,6 @@ export async function* getRealtimeEventsMultichain(params: {
           syncStore: params.syncStore,
         }),
         100,
-        (bufferSize) => {
-          if (bufferSize < 100) return;
-
-          params.common.logger.warn({
-            msg: "Live indexing reached buffer limit, applying backpressure",
-            chain: chain.name,
-            chain_id: chain.id,
-            buffer_size: bufferSize,
-            pipeline_step: "fetch block data",
-          });
-        },
       );
     })
     .filter(
