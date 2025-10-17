@@ -84,8 +84,13 @@ export const validateQuery = async (
     }
 
     if (shouldValidateInnerNode) {
-      // @ts-ignore
-      ALLOW_LIST.get(getNodeType(node))!.validate?.(node[getNodeType(node)]);
+      try {
+        // @ts-ignore
+        ALLOW_LIST.get(getNodeType(node))!.validate?.(node[getNodeType(node)]);
+      } catch (error) {
+        ALLOW_CACHE.set(hash, false);
+        throw error;
+      }
     }
 
     for (const child of ALLOW_LIST.get(getNodeType(node))!.children(
