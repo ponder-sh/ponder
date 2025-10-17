@@ -48,7 +48,10 @@ import {
   min,
 } from "@/utils/checkpoint.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
-import { recordAsyncGenerator } from "@/utils/generators.js";
+import {
+  bufferAsyncGenerator,
+  recordAsyncGenerator,
+} from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
 import { eq, getTableName, isTable, isView, sql } from "drizzle-orm";
@@ -592,12 +595,15 @@ export async function runMultichain({
     indexingErrorHandler,
   });
 
-  for await (const event of getRealtimeEventsMultichain({
-    common,
-    indexingBuild,
-    perChainSync,
-    syncStore,
-  })) {
+  for await (const event of bufferAsyncGenerator(
+    getRealtimeEventsMultichain({
+      common,
+      indexingBuild,
+      perChainSync,
+      syncStore,
+    }),
+    Number.POSITIVE_INFINITY,
+  )) {
     switch (event.type) {
       case "block": {
         const context = {

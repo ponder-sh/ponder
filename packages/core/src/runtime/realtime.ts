@@ -100,18 +100,15 @@ export async function* getRealtimeEventsOmnichain(params: {
         1,
       );
 
-      return bufferAsyncGenerator(
-        getRealtimeEventGenerator({
-          common: params.common,
-          chain,
-          rpc,
-          sources,
-          syncProgress,
-          childAddresses,
-          syncStore: params.syncStore,
-        }),
-        Number.POSITIVE_INFINITY,
-      );
+      return getRealtimeEventGenerator({
+        common: params.common,
+        chain,
+        rpc,
+        sources,
+        syncProgress,
+        childAddresses,
+        syncStore: params.syncStore,
+      });
     })
     .filter(
       (
@@ -345,18 +342,15 @@ export async function* getRealtimeEventsMultichain(params: {
         1,
       );
 
-      return bufferAsyncGenerator(
-        getRealtimeEventGenerator({
-          common: params.common,
-          chain,
-          rpc,
-          sources,
-          syncProgress,
-          childAddresses,
-          syncStore: params.syncStore,
-        }),
-        Number.POSITIVE_INFINITY,
-      );
+      return getRealtimeEventGenerator({
+        common: params.common,
+        chain,
+        rpc,
+        sources,
+        syncProgress,
+        childAddresses,
+        syncStore: params.syncStore,
+      });
     })
     .filter(
       (
