@@ -231,18 +231,24 @@ export const createSyncStore = ({
         });
       }
 
-      await database.syncQB.wrap(
-        { label: "insert_intervals" },
-        (db) =>
-          db
-            .insert(PONDER_SYNC.intervals)
-            .values(values)
-            .onConflictDoUpdate({
-              target: PONDER_SYNC.intervals.fragmentId,
-              set: { blocks: sql`intervals.blocks + excluded.blocks` },
-            }),
-        context,
+      const batchSize = Math.floor(
+        common.options.databaseMaxQueryParameters / 3,
       );
+
+      for (let i = 0; i < values.length; i += batchSize) {
+        await database.syncQB.wrap(
+          { label: "insert_intervals" },
+          (db) =>
+            db
+              .insert(PONDER_SYNC.intervals)
+              .values(values.slice(i, i + batchSize))
+              .onConflictDoUpdate({
+                target: PONDER_SYNC.intervals.fragmentId,
+                set: { blocks: sql`intervals.blocks + excluded.blocks` },
+              }),
+          context,
+        );
+      }
     },
     getIntervals: async ({ filters }, context) => {
       const queries = filters.flatMap((filter, i) => {
@@ -261,9 +267,8 @@ export const createSyncStore = ({
                 .select({ blocks: sql.raw("unnest(blocks)").as("blocks") })
                 .from(PONDER_SYNC.intervals)
                 .where(
-                  inArray(
-                    PONDER_SYNC.intervals.fragmentId,
-                    fragment.adjacentIds,
+                  sql.raw(
+                    `fragment_id IN (${fragment.adjacentIds.map((id) => `'${id}'`).join(", ")})`,
                   ),
                 )
                 .as("unnested"),
@@ -271,16 +276,29 @@ export const createSyncStore = ({
         );
       });
 
-      let rows: Awaited<(typeof queries)[number]>;
+      let rows: Awaited<(typeof queries)[number]> = [];
 
       if (queries.length > 1) {
-        rows = await database.syncQB.wrap(
-          { label: "select_intervals" },
-          () =>
-            // @ts-expect-error
-            unionAll(...queries),
-          context,
-        );
+        // Note: This query has no parameters, but there is a bug with
+        // drizzle causing a "maximum call stack size exceeded" error.
+        // Related: https://github.com/drizzle-team/drizzle-orm/issues/1740
+        const batchSize = 200;
+
+        for (let i = 0; i < queries.length; i += batchSize) {
+          const _rows = await database.syncQB.wrap(
+            { label: "select_intervals" },
+            () =>
+              // @ts-expect-error
+              unionAll(...queries.slice(i, i + batchSize)),
+            context,
+          );
+
+          if (i === 0) {
+            rows = _rows;
+          } else {
+            rows.push(..._rows);
+          }
+        }
       } else {
         rows = await database.syncQB.wrap(
           { label: "select_intervals" },
