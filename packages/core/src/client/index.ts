@@ -196,17 +196,15 @@ export const client = ({
       c.header("Connection", "keep-alive");
 
       return streamSSE(c, async (stream) => {
-        const callback = async () => {
-          if (stream.closed === true) return;
+        while (stream.closed === false && stream.aborted === false) {
           try {
             await stream.writeSSE({ data: "" });
           } catch {}
-        };
 
-        statusEmitter.on("status_update", callback);
-        stream.onAbort(() => {
-          statusEmitter.removeListener("status_update", callback);
-        });
+          await new Promise((resolve) => {
+            statusEmitter.once("status_update", resolve);
+          });
+        }
       });
     }
 
