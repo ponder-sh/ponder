@@ -2,6 +2,7 @@
 
 import type { Client, Status } from "@ponder/client";
 import {
+  type DefaultError,
   type QueryKey,
   type UseQueryOptions,
   type UseQueryResult,
@@ -13,11 +14,15 @@ import { PonderContext } from "./context.js";
 import type { ResolvedSchema } from "./index.js";
 import { getPonderQueryOptions } from "./utils.js";
 
-export function usePonderQuery<result>(
+export function usePonderQuery<
+  queryFnData = unknown,
+  error = DefaultError,
+  data = queryFnData,
+>(
   params: {
-    queryFn: (db: Client<ResolvedSchema>["db"]) => Promise<result>;
-  } & Omit<UseQueryOptions<result>, "queryFn" | "queryKey">,
-): UseQueryResult<result> {
+    queryFn: (db: Client<ResolvedSchema>["db"]) => Promise<queryFnData>;
+  } & Omit<UseQueryOptions<queryFnData, error, data>, "queryFn" | "queryKey">,
+): UseQueryResult<data, error> {
   const queryClient = useQueryClient();
 
   const client = usePonderClient();

@@ -1,5 +1,21 @@
 # @ponder/react
 
+## 0.14.2
+
+### Patch Changes
+
+- [#2119](https://github.com/ponder-sh/ponder/pull/2119) [`107f0bf`](https://github.com/ponder-sh/ponder/commit/107f0bfb31462d126593bf0a5bece89dee0bb3f6) Thanks [@noahsaso](https://github.com/noahsaso)! - Fixed `select` property types in `usePonderQuery`.
+
+- Updated dependencies []:
+  - @ponder/client@0.14.2
+
+## 0.14.1
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @ponder/client@0.14.1
+
 ## 0.14.0
 
 ### Patch Changes

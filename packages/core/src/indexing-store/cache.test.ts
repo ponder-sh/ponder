@@ -1,14 +1,17 @@
 import { ALICE, BOB } from "@/_test/constants.js";
 import {
+  setupAnvil,
   setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { deployErc20, mintErc20 } from "@/_test/simulate.js";
+import { getErc20IndexingBuild, getSimulatedEvent } from "@/_test/utils.js";
 import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
+import { getEventCount } from "@/indexing/index.js";
 import type { RetryableError } from "@/internal/errors.js";
-import type { IndexingErrorHandler, LogEvent } from "@/internal/types.js";
-import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
+import type { IndexingErrorHandler } from "@/internal/types.js";
 import { parseEther, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { createIndexingCache } from "./cache.js";
@@ -17,6 +20,7 @@ import { createHistoricalIndexingStore } from "./historical.js";
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
+beforeEach(setupAnvil);
 
 const indexingErrorHandler: IndexingErrorHandler = {
   getRetryableError: () => {
@@ -314,29 +318,23 @@ test("prefetch() uses profile metadata", async (context) => {
     schemaBuild: { schema },
   });
 
-  const event = {
-    type: "log",
-    chainId: 1,
-    checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "Contract:Event",
-    event: {
-      id: ZERO_CHECKPOINT_STRING,
-      args: {
-        from: zeroAddress,
-        to: ALICE,
-        amount: parseEther("1"),
-      },
-      log: {} as LogEvent["event"]["log"],
-      block: {} as LogEvent["event"]["block"],
-      transaction: {} as LogEvent["event"]["transaction"],
-    },
-  } satisfies LogEvent;
+  const { address } = await deployErc20({ sender: ALICE });
+  const blockData = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { sources, indexingFunctions } = getErc20IndexingBuild({ address });
+
+  const event = getSimulatedEvent({ source: sources[0], blockData });
 
   const indexingCache = createIndexingCache({
     common: context.common,
     schemaBuild: { schema },
     crashRecoveryCheckpoint: undefined,
-    eventCount: { "Contract:Event": 0 },
+    eventCount: getEventCount(indexingFunctions),
   });
 
   const indexingStore = createHistoricalIndexingStore({
