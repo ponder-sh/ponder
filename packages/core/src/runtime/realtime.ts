@@ -115,7 +115,7 @@ export async function* getRealtimeEventsOmnichain(params: {
           if (bufferSize < 100) return;
 
           params.common.logger.warn({
-            msg: "Detected live indexing backpressure",
+            msg: "Live indexing reached buffer limit, applying backpressure",
             chain: chain.name,
             chain_id: chain.id,
             buffer_size: bufferSize,
@@ -371,7 +371,7 @@ export async function* getRealtimeEventsMultichain(params: {
           if (bufferSize < 100) return;
 
           params.common.logger.warn({
-            msg: "Detected live indexing backpressure",
+            msg: "Live indexing reached buffer limit, applying backpressure",
             chain: chain.name,
             chain_id: chain.id,
             buffer_size: bufferSize,

@@ -623,7 +623,7 @@ export async function runOmnichain({
       if (bufferSize < 100) return;
 
       common.logger.warn({
-        msg: "Detected live indexing backpressure",
+        msg: "Live indexing reached buffer limit, applying backpressure",
         buffer_size: bufferSize,
         pipeline_step: "index block",
       });
