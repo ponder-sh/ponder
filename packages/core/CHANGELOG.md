@@ -1,5 +1,19 @@
 # ponder
 
+## 0.14.2
+
+### Patch Changes
+
+- [`3b6901f`](https://github.com/ponder-sh/ponder/commit/3b6901fc0601a60a235382728447bf0c7e3a61ee) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed `ponder_realtime_latency` metric.
+
+- [`3b6901f`](https://github.com/ponder-sh/ponder/commit/3b6901fc0601a60a235382728447bf0c7e3a61ee) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved performance of live indexing.
+
+- [#2132](https://github.com/ponder-sh/ponder/pull/2132) [`2596650`](https://github.com/ponder-sh/ponder/commit/2596650ce8614264b200f184b0a150287c91e913) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with `@ponder/client` query parsing.
+
+- [`3b6901f`](https://github.com/ponder-sh/ponder/commit/3b6901fc0601a60a235382728447bf0c7e3a61ee) Thanks [@kyscott18](https://github.com/kyscott18)! - Added query caching for `client` middleware.
+
+- [#2130](https://github.com/ponder-sh/ponder/pull/2130) [`eadc8e0`](https://github.com/ponder-sh/ponder/commit/eadc8e055cb7bcadbb7fdbefb412d776bce73773) Thanks [@typedarray](https://github.com/typedarray)! - Reduced the number of "Unable to decode..." logs produced when event logs and traces match the provided selector but cannot be decoded by the provided ABI item.
+
 ## 0.14.1
 
 ### Patch Changes
