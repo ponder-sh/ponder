@@ -1,5 +1,4 @@
 import crypto from "node:crypto";
-import { EventEmitter } from "node:events";
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
@@ -47,11 +46,7 @@ export const client = ({
   // @ts-ignore
   const session: PgSession = db._.session;
   const driver = globalThis.PONDER_DATABASE.driver;
-  const statusEmitter = new EventEmitter();
-
-  globalThis.PONDER_COMMON.apiShutdown.add(() => {
-    statusEmitter.removeAllListeners();
-  });
+  let statusResolver = promiseWithResolvers<void>();
 
   const channel = `${globalThis.PONDER_NAMESPACE_BUILD.schema}_status_channel`;
 
@@ -60,7 +55,10 @@ export const client = ({
   if (driver.dialect === "pglite") {
     driver.instance.query(`LISTEN "${channel}"`).then(() => {
       driver.instance.onNotification(() => {
-        statusEmitter.emit("status_update");
+        // Clear cache on status change
+        cache.clear();
+        statusResolver.resolve();
+        statusResolver = promiseWithResolvers<void>();
       });
     });
   } else {
@@ -88,7 +86,10 @@ export const client = ({
             });
 
             client.on("notification", () => {
-              statusEmitter.emit("status_update");
+              // Clear cache on status change
+              cache.clear();
+              statusResolver.resolve();
+              statusResolver = promiseWithResolvers<void>();
             });
 
             client.on("error", async (error) => {
@@ -123,11 +124,6 @@ export const client = ({
       }
     })();
   }
-
-  // Clear cache on status change
-  statusEmitter.on("status_update", () => {
-    cache.clear();
-  });
 
   return createMiddleware(async (c, next) => {
     if (c.req.path === "/sql/db") {
@@ -200,10 +196,7 @@ export const client = ({
           try {
             await stream.writeSSE({ data: "" });
           } catch {}
-
-          await new Promise((resolve) => {
-            statusEmitter.once("status_update", resolve);
-          });
+          await statusResolver.promise;
         }
       });
     }
