@@ -47,6 +47,7 @@ export async function* mergeAsyncGenerators<T>(
 export async function* bufferAsyncGenerator<T>(
   generator: AsyncGenerator<T>,
   size: number,
+  callback?: (bufferSize: number) => void,
 ): AsyncGenerator<T> {
   const buffer: T[] = [];
   let done = false;
@@ -58,9 +59,11 @@ export async function* bufferAsyncGenerator<T>(
     for await (const result of generator) {
       buffer.push(result);
 
+      callback?.(buffer.length);
+
       pwr1.resolve();
 
-      if (buffer.length > size) await pwr2.promise;
+      if (buffer.length >= size) await pwr2.promise;
       pwr2 = promiseWithResolvers<void>();
     }
     done = true;

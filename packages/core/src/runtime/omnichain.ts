@@ -618,7 +618,16 @@ export async function runOmnichain({
       syncStore,
       pendingEvents,
     }),
-    Number.POSITIVE_INFINITY,
+    100,
+    (bufferSize) => {
+      if (bufferSize < 100) return;
+
+      common.logger.warn({
+        msg: "Detected live indexing backpressure",
+        buffer_size: bufferSize,
+        pipeline_step: "index block",
+      });
+    },
   )) {
     switch (event.type) {
       case "block": {
