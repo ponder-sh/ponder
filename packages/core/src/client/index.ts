@@ -15,9 +15,6 @@ import { validateQuery } from "./parse.js";
  *
  * @param db - Drizzle database instance
  * @param schema - Ponder schema
- * @param wait - Maximum number of milliseconds to wait before executing
- * the query. During this period, if an identical request is received
- * from another client, it is deduplicated. Default: `10`.
  *
  * @example
  * ```ts
@@ -35,8 +32,7 @@ import { validateQuery } from "./parse.js";
  */
 export const client = ({
   db,
-  wait = 10,
-}: { db: ReadonlyDrizzle<Schema>; schema: Schema; wait?: number }) => {
+}: { db: ReadonlyDrizzle<Schema>; schema: Schema }) => {
   if (
     globalThis.PONDER_COMMON === undefined ||
     globalThis.PONDER_DATABASE === undefined ||
@@ -54,7 +50,7 @@ export const client = ({
 
   const channel = `${globalThis.PONDER_NAMESPACE_BUILD.schema}_status_channel`;
 
-  const dedupeMap = new Map<string, Promise<unknown>>();
+  const cache = new Map<string, WeakRef<Promise<unknown>>>();
 
   if (driver.dialect === "pglite") {
     driver.instance.query(`LISTEN "${channel}"`).then(() => {
@@ -125,6 +121,16 @@ export const client = ({
     })();
   }
 
+  // Clear cache on status change
+  (async () => {
+    while (true) {
+      try {
+        cache.clear();
+      } catch {}
+      await statusResolver.promise;
+    }
+  })();
+
   return createMiddleware(async (c, next) => {
     if (c.req.path === "/sql/db") {
       const queryString = c.req.query("sql");
@@ -147,36 +153,35 @@ export const client = ({
 
       let resultPromise: Promise<unknown>;
 
-      if (dedupeMap.has(queryHash)) {
-        resultPromise = dedupeMap.get(queryHash)!;
-      } else {
+      const _resultPromise = cache.get(queryHash)?.deref() ?? undefined;
+      if (_resultPromise === undefined) {
+        cache.delete(queryHash);
+
         const pwr = promiseWithResolvers<unknown>();
-        dedupeMap.set(queryHash, pwr.promise);
+        cache.set(queryHash, new WeakRef(pwr.promise));
         resultPromise = pwr.promise;
 
-        setTimeout(() => {
-          dedupeMap.delete(queryHash);
-
-          if (driver.dialect === "pglite") {
-            session
-              .prepareQuery(query, undefined, undefined, false)
-              .execute()
-              .then(pwr.resolve)
-              .catch(pwr.reject);
-          } else {
-            globalThis.PONDER_DATABASE.readonlyQB.raw
-              .transaction(
-                (tx) => {
-                  return tx._.session
-                    .prepareQuery(query, undefined, undefined, false)
-                    .execute();
-                },
-                { accessMode: "read only" },
-              )
-              .then(pwr.resolve)
-              .catch(pwr.reject);
-          }
-        }, wait);
+        if (driver.dialect === "pglite") {
+          session
+            .prepareQuery(query, undefined, undefined, false)
+            .execute()
+            .then(pwr.resolve)
+            .catch(pwr.reject);
+        } else {
+          globalThis.PONDER_DATABASE.readonlyQB.raw
+            .transaction(
+              (tx) => {
+                return tx._.session
+                  .prepareQuery(query, undefined, undefined, false)
+                  .execute();
+              },
+              { accessMode: "read only" },
+            )
+            .then(pwr.resolve)
+            .catch(pwr.reject);
+        }
+      } else {
+        resultPromise = _resultPromise;
       }
 
       try {

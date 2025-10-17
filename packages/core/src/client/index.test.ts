@@ -226,13 +226,13 @@ test("client.db load", async (context) => {
     }),
   );
 
-  const query = {
-    sql: "SELECT * FROM account",
-    params: [],
-  };
-
-  const promises = new Array(250).map(async () => {
-    const response = await app.request(`/sql/db?${queryToParams(query)}`);
+  const promises = new Array(250).map(async (_, i) => {
+    const response = await app.request(
+      `/sql/db?${queryToParams({
+        sql: `SELECT ${i}`,
+        params: [],
+      })}`,
+    );
     const result = await response.json();
     return result;
   });
@@ -240,7 +240,7 @@ test("client.db load", async (context) => {
   await Promise.all(promises);
 });
 
-test("client.db deduplication", async (context) => {
+test("client.db cache", async (context) => {
   globalThis.PONDER_COMMON = context.common;
   globalThis.PONDER_NAMESPACE_BUILD = {
     schema: "public",
