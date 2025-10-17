@@ -752,7 +752,7 @@ export const decodeEvents = (
 
   if (logDecodeFailureCount > 0) {
     common.logger.debug({
-      msg: "Failed to decode matched event logs",
+      msg: "Event batch contained logs that could not be decoded",
       failure_count: logDecodeFailureCount,
       success_count: logDecodeSuccessCount,
     });
@@ -760,7 +760,7 @@ export const decodeEvents = (
 
   if (traceDecodeFailureCount > 0) {
     common.logger.debug({
-      msg: "Failed to decode matched call traces",
+      msg: "Event batch contained traces that could not be decoded",
       failure_count: traceDecodeFailureCount,
       success_count: traceDecodeSuccessCount,
     });
