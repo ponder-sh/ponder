@@ -50,7 +50,10 @@ import {
   min,
 } from "@/utils/checkpoint.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
-import { recordAsyncGenerator } from "@/utils/generators.js";
+import {
+  bufferAsyncGenerator,
+  recordAsyncGenerator,
+} from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
 import { zipperMany } from "@/utils/zipper.js";
@@ -607,13 +610,16 @@ export async function runOmnichain({
     indexingErrorHandler,
   });
 
-  for await (const event of getRealtimeEventsOmnichain({
-    common,
-    indexingBuild,
-    perChainSync,
-    syncStore,
-    pendingEvents,
-  })) {
+  for await (const event of bufferAsyncGenerator(
+    getRealtimeEventsOmnichain({
+      common,
+      indexingBuild,
+      perChainSync,
+      syncStore,
+      pendingEvents,
+    }),
+    100,
+  )) {
     switch (event.type) {
       case "block": {
         const context = {

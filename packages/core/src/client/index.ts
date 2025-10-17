@@ -1,7 +1,7 @@
+import crypto from "node:crypto";
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
-import { wait } from "@/utils/wait.js";
 import type { QueryWithTypings } from "drizzle-orm";
 import type { PgSession } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
@@ -50,11 +50,15 @@ export const client = ({
 
   const channel = `${globalThis.PONDER_NAMESPACE_BUILD.schema}_status_channel`;
 
+  const cache = new Map<string, WeakRef<Promise<unknown>>>();
+
   if (driver.dialect === "pglite") {
     driver.instance.query(`LISTEN "${channel}"`).then(() => {
-      driver.instance.onNotification(async () => {
+      driver.instance.onNotification(() => {
+        // Clear cache on status change
+        cache.clear();
         statusResolver.resolve();
-        statusResolver = promiseWithResolvers();
+        statusResolver = promiseWithResolvers<void>();
       });
     });
   } else {
@@ -82,8 +86,10 @@ export const client = ({
             });
 
             client.on("notification", () => {
+              // Clear cache on status change
+              cache.clear();
               statusResolver.resolve();
-              statusResolver = promiseWithResolvers();
+              statusResolver = promiseWithResolvers<void>();
             });
 
             client.on("error", async (error) => {
@@ -95,7 +101,7 @@ export const client = ({
               client?.release();
               client = undefined;
 
-              await wait(250);
+              await new Promise((resolve) => setTimeout(resolve, 250));
 
               resolve();
             });
@@ -110,7 +116,7 @@ export const client = ({
             client?.release();
             client = undefined;
 
-            await wait(250);
+            await new Promise((resolve) => setTimeout(resolve, 250));
 
             resolve();
           }
@@ -127,35 +133,56 @@ export const client = ({
       }
       const query = superjson.parse(queryString) as QueryWithTypings;
 
-      if (driver.dialect === "pglite") {
-        try {
-          await validateQuery(query.sql);
-          const result = await session
-            .prepareQuery(query, undefined, undefined, false)
-            .execute();
-          return c.json(result as object);
-        } catch (error) {
-          (error as Error).stack = undefined;
-          return c.text((error as Error).message, 500);
-        }
-      } else {
-        try {
-          await validateQuery(query.sql);
+      try {
+        await validateQuery(query.sql);
+      } catch (error) {
+        (error as Error).stack = undefined;
+        return c.text((error as Error).message, 500);
+      }
 
-          const result =
-            await globalThis.PONDER_DATABASE.readonlyQB.raw.transaction(
+      const queryHash = crypto
+        .createHash("md5")
+        .update(query.sql)
+        .digest("hex");
+
+      let resultPromise: Promise<unknown>;
+
+      const _resultPromise = cache.get(queryHash)?.deref() ?? undefined;
+      if (_resultPromise === undefined) {
+        cache.delete(queryHash);
+
+        const pwr = promiseWithResolvers<unknown>();
+        cache.set(queryHash, new WeakRef(pwr.promise));
+        resultPromise = pwr.promise;
+
+        if (driver.dialect === "pglite") {
+          session
+            .prepareQuery(query, undefined, undefined, false)
+            .execute()
+            .then(pwr.resolve)
+            .catch(pwr.reject);
+        } else {
+          globalThis.PONDER_DATABASE.readonlyQB.raw
+            .transaction(
               (tx) => {
                 return tx._.session
                   .prepareQuery(query, undefined, undefined, false)
                   .execute();
               },
               { accessMode: "read only" },
-            );
-          return c.json(result as object);
-        } catch (error) {
-          (error as Error).stack = undefined;
-          return c.text((error as Error).message, 500);
+            )
+            .then(pwr.resolve)
+            .catch(pwr.reject);
         }
+      } else {
+        resultPromise = _resultPromise;
+      }
+
+      try {
+        return c.json((await resultPromise) as object);
+      } catch (error) {
+        (error as Error).stack = undefined;
+        return c.text((error as Error).message, 500);
       }
     }
 

@@ -1,5 +1,27 @@
 # ponder
 
+## 0.14.2
+
+### Patch Changes
+
+- [`3b6901f`](https://github.com/ponder-sh/ponder/commit/3b6901fc0601a60a235382728447bf0c7e3a61ee) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed `ponder_realtime_latency` metric.
+
+- [`3b6901f`](https://github.com/ponder-sh/ponder/commit/3b6901fc0601a60a235382728447bf0c7e3a61ee) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved performance of live indexing.
+
+- [#2132](https://github.com/ponder-sh/ponder/pull/2132) [`2596650`](https://github.com/ponder-sh/ponder/commit/2596650ce8614264b200f184b0a150287c91e913) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with `@ponder/client` query parsing.
+
+- [`3b6901f`](https://github.com/ponder-sh/ponder/commit/3b6901fc0601a60a235382728447bf0c7e3a61ee) Thanks [@kyscott18](https://github.com/kyscott18)! - Added query caching for `client` middleware.
+
+- [#2130](https://github.com/ponder-sh/ponder/pull/2130) [`eadc8e0`](https://github.com/ponder-sh/ponder/commit/eadc8e055cb7bcadbb7fdbefb412d776bce73773) Thanks [@typedarray](https://github.com/typedarray)! - Reduced the number of "Unable to decode..." logs produced when event logs and traces match the provided selector but cannot be decoded by the provided ABI item.
+
+## 0.14.1
+
+### Patch Changes
+
+- [#2118](https://github.com/ponder-sh/ponder/pull/2118) [`c7dd63d`](https://github.com/ponder-sh/ponder/commit/c7dd63d1cdcc8c4174ea7022fd16c9fea9457890) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with `event.transaction` that caused `TypeError: Cannot read properties of undefined (reading 'hash')`.
+
+- [#2123](https://github.com/ponder-sh/ponder/pull/2123) [`33868d2`](https://github.com/ponder-sh/ponder/commit/33868d2a49894ccef0c233f12e137cb3eae118c0) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug introduced in `v0.14` that caused the warning `All JSON-RPC providers are inactive due to rate limiting`.
+
 ## 0.14.0
 
 ### Minor Changes

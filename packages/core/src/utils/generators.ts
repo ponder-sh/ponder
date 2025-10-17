@@ -47,6 +47,7 @@ export async function* mergeAsyncGenerators<T>(
 export async function* bufferAsyncGenerator<T>(
   generator: AsyncGenerator<T>,
   size: number,
+  callback?: (bufferSize: number) => void,
 ): AsyncGenerator<T> {
   const buffer: T[] = [];
   let done = false;
@@ -58,9 +59,11 @@ export async function* bufferAsyncGenerator<T>(
     for await (const result of generator) {
       buffer.push(result);
 
+      callback?.(buffer.length);
+
       pwr1.resolve();
 
-      if (buffer.length > size) await pwr2.promise;
+      if (buffer.length >= size) await pwr2.promise;
       pwr2 = promiseWithResolvers<void>();
     }
     done = true;
@@ -124,29 +127,22 @@ export async function* recordAsyncGenerator<T>(
 /**
  * Creates an async generator that yields values from a callback.
  */
-export function createCallbackGenerator<T, P>(): {
-  callback: (value: T) => Promise<P>;
-  generator: AsyncGenerator<
-    { value: T; onComplete: (value: P) => void },
-    void,
-    unknown
-  >;
+export function createCallbackGenerator<T>(): {
+  callback: (value: T) => void;
+  generator: AsyncGenerator<T, void, unknown>;
 } {
-  const buffer: { value: T; onComplete: (value: P) => void }[] = [];
+  const buffer: T[] = [];
   let pwr = promiseWithResolvers<void>();
 
-  const callback = async (value: T) => {
-    const { resolve, promise } = promiseWithResolvers<P>();
-    buffer.push({ value, onComplete: resolve });
+  const callback = (value: T) => {
+    buffer.push(value);
     pwr.resolve();
-    return promise;
   };
 
   async function* generator() {
     while (true) {
       if (buffer.length > 0) {
-        const { value, onComplete } = buffer.shift()!;
-        yield { value, onComplete };
+        yield buffer.shift()!;
       } else {
         await pwr.promise;
         pwr = promiseWithResolvers<void>();
