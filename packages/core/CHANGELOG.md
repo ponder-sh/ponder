@@ -1,5 +1,11 @@
 # ponder
 
+## 0.14.3
+
+### Patch Changes
+
+- [#2136](https://github.com/ponder-sh/ponder/pull/2136) [`c4eb1ba`](https://github.com/ponder-sh/ponder/commit/c4eb1ba8907549c3a1778fa71e830ba11f2cecfe) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed `RangeError: Maximum call stack size exceeded` for apps with many event sources and indexing functions.
+
 ## 0.14.2
 
 ### Patch Changes
