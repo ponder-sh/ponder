@@ -44,7 +44,10 @@ import {
   min,
 } from "@/utils/checkpoint.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
-import { recordAsyncGenerator } from "@/utils/generators.js";
+import {
+  bufferAsyncGenerator,
+  recordAsyncGenerator,
+} from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
 import { eq, getTableName, isTable, sql } from "drizzle-orm";
@@ -282,16 +285,19 @@ export async function runIsolated({
     checkpoint,
     blockRange,
   } of recordAsyncGenerator(
-    getHistoricalEventsIsolated({
-      common,
-      chain,
-      indexingBuild,
-      crashRecoveryCheckpoint,
-      syncProgress,
-      childAddresses,
-      cachedIntervals,
-      syncStore,
-    }),
+    bufferAsyncGenerator(
+      getHistoricalEventsIsolated({
+        common,
+        chain,
+        indexingBuild,
+        crashRecoveryCheckpoint,
+        syncProgress,
+        childAddresses,
+        cachedIntervals,
+        syncStore,
+      }),
+      1,
+    ),
     (params) => {
       common.metrics.ponder_historical_concurrency_group_duration.inc(
         { group: "extract" },
