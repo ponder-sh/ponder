@@ -530,6 +530,14 @@ export const decodeEvents = (
 ): Event[] => {
   const events: Event[] = [];
 
+  const logDecodeFailureSelectors = new Set<Hex>();
+  let logDecodeFailureCount = 0;
+  let logDecodeSuccessCount = 0;
+
+  const traceDecodeFailureSelectors = new Set<Hex>();
+  let traceDecodeFailureCount = 0;
+  let traceDecodeSuccessCount = 0;
+
   for (const event of rawEvents) {
     const source = sources[event.sourceIndex]!;
 
@@ -537,128 +545,128 @@ export const decodeEvents = (
       case "contract": {
         switch (source.filter.type) {
           case "log": {
+            const selector = event.log!.topics[0];
+            if (selector === undefined) {
+              break;
+            }
+
+            const abiItem = source.abiEvents.bySelector[selector];
+            if (abiItem === undefined) {
+              break;
+            }
+
+            const { safeName, item } = abiItem;
+
+            let args: any;
             try {
-              if (
-                event.log!.topics[0] === undefined ||
-                source.abiEvents.bySelector[event.log!.topics[0]] === undefined
-              ) {
-                throw new Error();
-              }
-
-              const { safeName, item } =
-                source.abiEvents.bySelector[event.log!.topics[0]]!;
-
-              const args = decodeEventLog({
+              args = decodeEventLog({
                 abiItem: item,
                 data: event.log!.data,
                 topics: event.log!.topics,
               });
-
-              events.push({
-                type: "log",
-                chainId: event.chainId,
-                checkpoint: event.checkpoint,
-
-                name: `${source.name}:${safeName}`,
-
-                event: {
-                  id: event.checkpoint,
-                  args,
-                  log: event.log!,
-                  block: event.block as Block,
-                  transaction: event.transaction! as Transaction,
-                  transactionReceipt:
-                    event.transactionReceipt as TransactionReceipt,
-                },
-              });
+              logDecodeSuccessCount++;
             } catch (err) {
-              const blockNumber = event?.block?.number ?? "unknown";
-              if (source.filter.address === undefined) {
+              logDecodeFailureCount++;
+              if (!logDecodeFailureSelectors.has(selector)) {
+                logDecodeFailureSelectors.add(selector);
                 common.logger.debug({
-                  msg: "Unable to decode log, skipping it",
-                  block_number: blockNumber,
-                  log_index: event.log?.logIndex,
-                  data: event.log?.data,
-                  topics: JSON.stringify(event.log?.topics),
-                });
-              } else {
-                common.logger.warn({
-                  msg: "Unable to decode log, skipping it",
-                  block_number: blockNumber,
+                  msg: "Failed to decode matched event log using provided ABI item",
+                  chain: source.chain.name,
+                  chain_id: source.chain.id,
+                  event: safeName,
+                  block_number: event?.block?.number ?? "unknown",
                   log_index: event.log?.logIndex,
                   data: event.log?.data,
                   topics: JSON.stringify(event.log?.topics),
                 });
               }
+              break;
             }
+
+            events.push({
+              type: "log",
+              chainId: event.chainId,
+              checkpoint: event.checkpoint,
+
+              name: `${source.name}:${safeName}`,
+
+              event: {
+                id: event.checkpoint,
+                args,
+                log: event.log!,
+                block: event.block as Block,
+                transaction: event.transaction! as Transaction,
+                transactionReceipt:
+                  event.transactionReceipt as TransactionReceipt,
+              },
+            });
             break;
           }
 
           case "trace": {
+            const selector = event
+              .trace!.input.slice(0, 10)
+              .toLowerCase() as Hex;
+            const abiItem = source.abiFunctions.bySelector[selector];
+            if (abiItem === undefined) {
+              break;
+            }
+
+            const { item, safeName } = abiItem;
+
+            let decodedData: { args: readonly unknown[]; functionName: string };
+            let decodedResult: readonly unknown[];
             try {
-              const selector = event
-                .trace!.input.slice(0, 10)
-                .toLowerCase() as Hex;
-
-              if (source.abiFunctions.bySelector[selector] === undefined) {
-                throw new Error();
-              }
-
-              const { item, safeName } =
-                source.abiFunctions.bySelector[selector]!;
-
-              const { args, functionName } = decodeFunctionData({
+              decodedData = decodeFunctionData({
                 abi: [item],
                 data: event.trace!.input,
               });
 
-              const result = decodeFunctionResult({
+              decodedResult = decodeFunctionResult({
                 abi: [item],
                 data: event.trace!.output ?? "0x",
-                functionName,
+                functionName: decodedData.functionName,
               });
-
-              events.push({
-                type: "trace",
-                chainId: event.chainId,
-                checkpoint: event.checkpoint,
-
-                // NOTE: `safename` includes ()
-                name: `${source.name}.${safeName}`,
-
-                event: {
-                  id: event.checkpoint,
-                  args,
-                  result,
-                  trace: event.trace! as Trace,
-                  block: event.block as Block,
-                  transaction: event.transaction! as Transaction,
-                  transactionReceipt:
-                    event.transactionReceipt as TransactionReceipt,
-                },
-              });
+              traceDecodeSuccessCount++;
             } catch (err) {
-              const blockNumber = event?.block?.number ?? "unknown";
-              if (source.filter.toAddress === undefined) {
+              traceDecodeFailureCount++;
+              if (!traceDecodeFailureSelectors.has(selector)) {
+                traceDecodeFailureSelectors.add(selector);
                 common.logger.debug({
-                  msg: "Unable to decode trace, skipping it",
-                  block_number: blockNumber,
-                  transaction_index: event.transaction?.transactionIndex,
-                  trace_index: event.trace?.traceIndex,
-                  input: event.trace?.input,
-                  output: event.trace?.output,
-                });
-              } else {
-                common.logger.warn({
-                  msg: "Unable to decode trace, skipping it",
-                  block_number: blockNumber,
+                  msg: "Failed to decode matched call trace using provided ABI item",
+                  chain: source.chain.name,
+                  chain_id: source.chain.id,
+                  function: safeName,
+                  block_number: event?.block?.number ?? "unknown",
                   transaction_index: event.transaction?.transactionIndex,
                   trace_index: event.trace?.traceIndex,
                   input: event.trace?.input,
                   output: event.trace?.output,
                 });
               }
+              break;
             }
+
+            events.push({
+              type: "trace",
+              chainId: event.chainId,
+              checkpoint: event.checkpoint,
+
+              // NOTE: `safename` includes ()
+              name: `${source.name}.${safeName}`,
+
+              event: {
+                id: event.checkpoint,
+                args: decodedData.args,
+                result: decodedResult,
+                trace: event.trace! as Trace,
+                block: event.block as Block,
+                transaction: event.transaction! as Transaction,
+                transactionReceipt:
+                  event.transactionReceipt as TransactionReceipt,
+              },
+            });
+
             break;
           }
 
@@ -740,6 +748,22 @@ export const decodeEvents = (
       default:
         never(source);
     }
+  }
+
+  if (logDecodeFailureCount > 0) {
+    common.logger.debug({
+      msg: "Event batch contained logs that could not be decoded",
+      failure_count: logDecodeFailureCount,
+      success_count: logDecodeSuccessCount,
+    });
+  }
+
+  if (traceDecodeFailureCount > 0) {
+    common.logger.debug({
+      msg: "Event batch contained traces that could not be decoded",
+      failure_count: traceDecodeFailureCount,
+      success_count: traceDecodeSuccessCount,
+    });
   }
 
   return events;
