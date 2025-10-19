@@ -1,6 +1,13 @@
-import { onchainTable } from "ponder";
+import { onchainTable, primaryKey } from "ponder";
 
-export const account = onchainTable("account", (t) => ({
-  address: t.hex().primaryKey(),
-  balance: t.bigint().notNull(),
-}));
+export const account = onchainTable(
+  "account",
+  (t) => ({
+    chainId: t.integer().notNull(),
+    address: t.hex().notNull(),
+    balance: t.bigint().notNull(),
+  }),
+  (table) => ({
+    pk: primaryKey({ columns: [table.chainId, table.address] }),
+  }),
+);
