@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
@@ -140,19 +139,14 @@ export const client = ({
         return c.text((error as Error).message, 500);
       }
 
-      const queryHash = crypto
-        .createHash("md5")
-        .update(query.sql)
-        .digest("hex");
-
       let resultPromise: Promise<unknown>;
 
-      const _resultPromise = cache.get(queryHash)?.deref() ?? undefined;
+      const _resultPromise = cache.get(queryString)?.deref() ?? undefined;
       if (_resultPromise === undefined) {
-        cache.delete(queryHash);
+        cache.delete(queryString);
 
         const pwr = promiseWithResolvers<unknown>();
-        cache.set(queryHash, new WeakRef(pwr.promise));
+        cache.set(queryString, new WeakRef(pwr.promise));
         resultPromise = pwr.promise;
 
         if (driver.dialect === "pglite") {
