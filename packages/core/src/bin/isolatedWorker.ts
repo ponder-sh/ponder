@@ -14,12 +14,7 @@ import { runIsolated } from "@/runtime/isolated.js";
 
 if (isMainThread === false && parentPort) {
   try {
-    await isolatedWorker({
-      options: workerData.options,
-      chainId: workerData.chainId,
-      namespaceBuild: workerData.namespaceBuild,
-      crashRecoveryCheckpoint: workerData.crashRecoveryCheckpoint,
-    });
+    await isolatedWorker(workerData);
 
     parentPort!.postMessage({ type: "done" });
   } catch (err) {
@@ -38,14 +33,14 @@ if (isMainThread === false && parentPort) {
 
 export async function isolatedWorker({
   options,
-  chainId,
   namespaceBuild,
   crashRecoveryCheckpoint,
+  chainIds,
 }: {
   options: Common["options"];
-  chainId: number;
   namespaceBuild: NamespaceBuild;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
+  chainIds: number[];
 }) {
   // Note: telemetry is disabled because the main thread will report telemetry
   options.telemetryDisabled = true;
@@ -132,28 +127,14 @@ export async function isolatedWorker({
     throw indexingBuildResult.error;
   }
 
-  const chainCount = indexingBuildResult.result.chains.length;
-  const chainIndex = indexingBuildResult.result.chains.findIndex(
-    (c) => c.id === chainId,
-  );
-  indexingBuildResult.result.chains = [
-    indexingBuildResult.result.chains[chainIndex]!,
-  ];
-  indexingBuildResult.result.rpcs = [
-    indexingBuildResult.result.rpcs[chainIndex]!,
-  ];
-  indexingBuildResult.result.finalizedBlocks = [
-    indexingBuildResult.result.finalizedBlocks[chainIndex]!,
-  ];
-
   options.indexingCacheMaxBytes = Math.floor(
-    options.indexingCacheMaxBytes / chainCount,
+    options.indexingCacheMaxBytes / indexingBuildResult.result.chains.length,
   );
   options.rpcMaxConcurrency = Math.floor(
-    options.rpcMaxConcurrency / chainCount,
+    options.rpcMaxConcurrency / indexingBuildResult.result.chains.length,
   );
   options.syncEventsQuerySize = Math.floor(
-    options.syncEventsQuerySize / chainCount,
+    options.syncEventsQuerySize / indexingBuildResult.result.chains.length,
   );
 
   const database = createDatabase({
@@ -163,16 +144,33 @@ export async function isolatedWorker({
     schemaBuild: schemaBuildResult.result,
   });
 
-  await runIsolated({
-    common,
-    preBuild: preBuildResult.result,
-    namespaceBuild,
-    schemaBuild: schemaBuildResult.result,
-    indexingBuild: indexingBuildResult.result,
-    crashRecoveryCheckpoint,
-    database,
-    onReady: () => {
-      parentPort!.postMessage({ type: "ready" });
-    },
-  });
+  await Promise.all(
+    chainIds.map(async (chainId) => {
+      const chainIndex = indexingBuildResult.result.chains.findIndex(
+        (c) => c.id === chainId,
+      );
+
+      const indexingBuild = {
+        ...indexingBuildResult.result,
+        chains: [indexingBuildResult.result.chains[chainIndex]!],
+        rpcs: [indexingBuildResult.result.rpcs[chainIndex]!],
+        finalizedBlocks: [
+          indexingBuildResult.result.finalizedBlocks[chainIndex]!,
+        ],
+      };
+
+      await runIsolated({
+        common,
+        preBuild: preBuildResult.result,
+        namespaceBuild,
+        schemaBuild: schemaBuildResult.result,
+        indexingBuild,
+        crashRecoveryCheckpoint,
+        database,
+        onReady: () => {
+          parentPort!.postMessage({ type: "ready" });
+        },
+      });
+    }),
+  );
 }

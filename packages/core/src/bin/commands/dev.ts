@@ -378,6 +378,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
             isolatedController({
               common,
               database,
+              preBuild: preCompileResult.result,
               namespaceBuild: { schema, viewsSchema: undefined },
               schemaBuild: compileSchemaResult.result,
               indexingBuild: indexingBuildResult.result,

@@ -299,23 +299,20 @@ export async function start({
 
   metrics.initializeIndexingMetrics(app);
 
-  switch (preCompileResult.result.ordering) {
-    case "omnichain":
-      runOmnichain(app);
-      break;
-    case "multichain":
-      runMultichain(app);
-      break;
-    case "isolated": {
-      isolatedController({
-        common,
-        namespaceBuild: app.namespaceBuild,
-        schemaBuild: app.schemaBuild,
-        indexingBuild: app.indexingBuild,
-        crashRecoveryCheckpoint: app.crashRecoveryCheckpoint,
-        database: app.database,
-      });
-      break;
+  if (indexingBuildResult.result.chains.length === 1) {
+    isolatedController(app);
+  } else {
+    switch (preCompileResult.result.ordering) {
+      case "omnichain":
+        runOmnichain(app);
+        break;
+      case "multichain":
+        runMultichain(app);
+        break;
+      case "isolated": {
+        isolatedController(app);
+        break;
+      }
     }
   }
   createServer(app);

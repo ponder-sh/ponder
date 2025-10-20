@@ -6,16 +6,14 @@ import { type Database, getPonderMetaTable } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import { AggregateMetricsService } from "@/internal/metrics.js";
 import type {
-  Chain,
   CrashRecoveryCheckpoint,
   IndexingBuild,
   NamespaceBuild,
+  PreBuild,
   SchemaBuild,
 } from "@/internal/types.js";
-import {
-  type PromiseWithResolvers,
-  promiseWithResolvers,
-} from "@/utils/promiseWithResolvers.js";
+import { runIsolated } from "@/runtime/isolated.js";
+import { chunk } from "@/utils/chunk.js";
 import { startClock } from "@/utils/timer.js";
 import { isTable, isView, sql } from "drizzle-orm";
 import type { isolatedWorker } from "./isolatedWorker.js";
@@ -23,22 +21,11 @@ import type { isolatedWorker } from "./isolatedWorker.js";
 const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-type WorkerState = "historical" | "realtime" | "complete" | "failed";
-
-export interface WorkerInfo {
-  state: WorkerState;
-  chain: Chain;
-  worker: Worker;
-  messageHandler?: (message: any) => void;
-  exitHandler?: (code: number) => void;
-  errorHandler?: (error: Error) => void;
-  pwr: PromiseWithResolvers<void>;
-}
-
-export const perChainWorkerInfo = new Map<number, WorkerInfo>();
+type WorkerState = "backfill" | "live" | "complete";
 
 export async function isolatedController({
   common,
+  preBuild,
   namespaceBuild,
   schemaBuild,
   indexingBuild,
@@ -46,23 +33,24 @@ export async function isolatedController({
   database,
 }: {
   common: Common;
+  preBuild: PreBuild;
   namespaceBuild: NamespaceBuild;
   schemaBuild: SchemaBuild;
   indexingBuild: IndexingBuild;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   database: Database;
 }) {
-  const workerPath = path.join(__dirname, "isolatedWorker.js");
+  const backfillEndClock = startClock();
+  const perChainState = new Map<number, WorkerState>();
 
   // TODO(kyle) should the progress update be logged here?
-
-  // TODO(kyle) isAllComplete
   let isAllReady = false;
+  let isAllComplete = false;
   const callback = async () => {
     if (
       isAllReady === false &&
       indexingBuild.chains.every(
-        (chain) => perChainWorkerInfo.get(chain.id)!.state !== "historical",
+        (chain) => perChainState.get(chain.id) !== "backfill",
       )
     ) {
       isAllReady = true;
@@ -111,117 +99,133 @@ export async function isolatedController({
         endpoint: "/ready",
       });
     }
-  };
 
-  const cleanupWorker = (chain: Chain) => {
-    const workerInfo = perChainWorkerInfo.get(chain.id);
-    if (workerInfo === undefined) return;
-
-    if (workerInfo.messageHandler) {
-      workerInfo.worker.off("message", workerInfo.messageHandler);
-      workerInfo.messageHandler = undefined;
-    }
-
-    if (workerInfo.exitHandler) {
-      workerInfo.worker.off("exit", workerInfo.exitHandler);
-      workerInfo.exitHandler = undefined;
+    if (
+      isAllComplete === false &&
+      indexingBuild.chains.every(
+        (chain) => perChainState.get(chain.id) === "complete",
+      )
+    ) {
+      isAllComplete = true;
     }
   };
 
-  const setupWorker = (chain: Chain) => {
-    const pwr = promiseWithResolvers<void>();
+  if (common.options.command === "dev" || indexingBuild.chains.length === 1) {
+    common.options.indexingCacheMaxBytes = Math.floor(
+      common.options.indexingCacheMaxBytes / indexingBuild.chains.length,
+    );
+    common.options.rpcMaxConcurrency = Math.floor(
+      common.options.rpcMaxConcurrency / indexingBuild.chains.length,
+    );
+    common.options.syncEventsQuerySize = Math.floor(
+      common.options.syncEventsQuerySize / indexingBuild.chains.length,
+    );
 
-    const workerInfo: WorkerInfo = {
-      state: "historical",
-      chain,
-      worker: new Worker(workerPath, {
+    await Promise.all(
+      indexingBuild.chains.map(async (chain) => {
+        const chainIndex = indexingBuild.chains.findIndex(
+          (c) => c.id === chain.id,
+        );
+        const _indexingBuild = {
+          ...indexingBuild,
+          chains: [indexingBuild.chains[chainIndex]!],
+          rpcs: [indexingBuild.rpcs[chainIndex]!],
+          finalizedBlocks: [indexingBuild.finalizedBlocks[chainIndex]!],
+        };
+
+        perChainState.set(chain.id, "backfill");
+
+        await runIsolated({
+          common,
+          preBuild,
+          namespaceBuild,
+          schemaBuild,
+          indexingBuild: _indexingBuild,
+          crashRecoveryCheckpoint,
+          database,
+          onReady: () => {
+            perChainState.set(chain.id, "live");
+            callback();
+          },
+        });
+
+        perChainState.set(chain.id, "complete");
+        callback();
+      }),
+    );
+  } else {
+    const workerPath = path.join(__dirname, "isolatedWorker.js");
+
+    const perThreadChains = chunk(
+      indexingBuild.chains,
+      Math.ceil(indexingBuild.chains.length / common.options.maxThreads),
+    );
+
+    const perThreadWorkers: Worker[] = [];
+    for (const chains of perThreadChains) {
+      const chainIds = chains.map((chain) => chain.id);
+
+      const worker = new Worker(workerPath, {
         workerData: {
           options: common.options,
-          chainId: chain.id,
+          chainIds,
           namespaceBuild,
           crashRecoveryCheckpoint,
         } satisfies Parameters<typeof isolatedWorker>[0],
         resourceLimits: {
           maxOldGenerationSizeMb: 1024,
         },
-      }),
-      pwr,
-    };
+      });
 
-    const messageHandler = (message: any) => {
-      switch (message.type) {
-        case "ready": {
-          workerInfo.state = "realtime";
-          callback();
-          break;
-        }
-        case "done": {
-          workerInfo.state = "complete";
-          callback();
-          pwr.resolve();
-          break;
-        }
-        case "error": {
-          // const prevState = workerInfo.state;
-          workerInfo.state = "failed";
-          callback();
-          // common.logger.error({
-          //   msg: `Failed '${chain.name}' ${prevState} indexing.`,
-          //   error: message.error,
-          // });
-          pwr.reject(message.error);
-        }
+      for (const chainId of chainIds) {
+        perChainState.set(chainId, "backfill");
       }
-    };
 
-    const exitHandler = async (code: number) => {
-      if (code !== 0) {
-        const prevState = workerInfo.state;
-        workerInfo.state = "failed";
-        callback();
-        const error = new Error(
-          `Failed '${chain.name}' ${prevState} indexing with exit code ${code}.`,
-        );
-        // common.logger.error({
-        //   msg: error.message,
-        // });
-        pwr.reject(error);
-      }
-    };
+      worker.on(
+        "message",
+        (
+          message: { chainId: number } & (
+            | { type: "ready" }
+            | { type: "done" }
+            | { type: "error"; error: Error }
+          ),
+        ) => {
+          switch (message.type) {
+            case "ready": {
+              perChainState.set(message.chainId, "live");
+              callback();
+              break;
+            }
+            case "done": {
+              perChainState.set(message.chainId, "complete");
+              callback();
+              break;
+            }
+            case "error": {
+              const error = new Error(message.error.message);
+              error.stack = undefined;
+              throw error;
+            }
+          }
+        },
+      );
 
-    workerInfo.messageHandler = messageHandler;
-    workerInfo.exitHandler = exitHandler;
+      worker.on("exit", (code: number) => {
+        const error = new Error(`Worker thread exited with code ${code}.`);
+        error.stack = undefined;
+        throw error;
+      });
 
-    workerInfo.worker.on("message", messageHandler);
-    workerInfo.worker.on("exit", exitHandler);
-
-    return workerInfo;
-  };
-
-  for (const chain of indexingBuild.chains) {
-    perChainWorkerInfo.set(chain.id, setupWorker(chain));
-  }
-
-  const backfillEndClock = startClock();
-
-  common.metrics = new AggregateMetricsService(
-    Array.from(perChainWorkerInfo.values()).map(({ worker }) => worker),
-  );
-
-  common.shutdown.add(async () => {
-    for (const { pwr } of perChainWorkerInfo.values()) {
-      pwr.resolve();
+      perThreadWorkers.push(worker);
     }
-  });
 
-  Promise.allSettled(
-    Array.from(perChainWorkerInfo.values()).map(
-      async ({ pwr, chain, worker }) => {
-        return pwr.promise.finally(() => {
-          cleanupWorker(chain);
-          worker.postMessage({ type: "kill" });
-        });
-      },
-    ),
-  );
+    common.metrics = new AggregateMetricsService(perThreadWorkers);
+
+    common.shutdown.add(async () => {
+      // TODO(kyle) should we remove message and exit callbacks?
+      for (const worker of perThreadWorkers) {
+        worker.postMessage({ type: "kill" });
+      }
+    });
+  }
 }
