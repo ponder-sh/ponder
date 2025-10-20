@@ -1,5 +1,11 @@
 # ponder
 
+## 0.14.4
+
+### Patch Changes
+
+- [#2141](https://github.com/ponder-sh/ponder/pull/2141) [`ac89b60`](https://github.com/ponder-sh/ponder/commit/ac89b60306883bb9f5d27fe4e62b1a7f0bed307a) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression introduced in `0.14.2` that caused frontend frameworks to fail when bundling. Fixed the error `Reading from "node:crypto" is not handled by plugins`.
+
 ## 0.14.3
 
 ### Patch Changes
