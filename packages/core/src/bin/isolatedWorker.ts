@@ -159,6 +159,11 @@ export async function isolatedWorker({
         ],
       };
 
+      common.metrics.initializeIndexingMetrics({
+        indexingBuild,
+        schemaBuild: schemaBuildResult.result,
+      });
+
       await runIsolated({
         common,
         preBuild: preBuildResult.result,

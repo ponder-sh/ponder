@@ -4,7 +4,7 @@ import { Worker } from "node:worker_threads";
 import { createIndexes, createViews } from "@/database/actions.js";
 import { type Database, getPonderMetaTable } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
-import { AggregateMetricsService } from "@/internal/metrics.js";
+import { AggregateMetricsService, getAppProgress } from "@/internal/metrics.js";
 import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
@@ -14,6 +14,7 @@ import type {
 } from "@/internal/types.js";
 import { runIsolated } from "@/runtime/isolated.js";
 import { chunk } from "@/utils/chunk.js";
+import { formatEta, formatPercentage } from "@/utils/format.js";
 import { startClock } from "@/utils/timer.js";
 import { isTable, isView, sql } from "drizzle-orm";
 import type { isolatedWorker } from "./isolatedWorker.js";
@@ -43,7 +44,26 @@ export async function isolatedController({
   const backfillEndClock = startClock();
   const perChainState = new Map<number, WorkerState>();
 
-  // TODO(kyle) should the progress update be logged here?
+  const etaInterval = setInterval(async () => {
+    // underlying metrics collection is actually synchronous
+    // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
+    const { eta, progress } = await getAppProgress(common.metrics);
+
+    if (eta === undefined || progress === undefined) {
+      return;
+    }
+
+    common.logger.info({
+      msg: "Updated backfill indexing progress",
+      progress: formatPercentage(progress),
+      estimate: formatEta(eta * 1_000),
+    });
+  }, 5_000);
+
+  common.shutdown.add(() => {
+    clearInterval(etaInterval);
+  });
+
   let isAllReady = false;
   let isAllComplete = false;
   const callback = async () => {
@@ -59,6 +79,7 @@ export async function isolatedController({
         msg: "Completed backfill indexing across all chains",
         duration: backfillEndClock(),
       });
+      clearInterval(etaInterval);
 
       let endClock = startClock();
       await createIndexes(database.adminQB, {
@@ -219,7 +240,10 @@ export async function isolatedController({
       perThreadWorkers.push(worker);
     }
 
-    common.metrics = new AggregateMetricsService(perThreadWorkers);
+    common.metrics = new AggregateMetricsService(
+      common.metrics,
+      perThreadWorkers,
+    );
 
     common.shutdown.add(async () => {
       // TODO(kyle) should we remove message and exit callbacks?

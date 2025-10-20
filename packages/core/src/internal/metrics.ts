@@ -6,7 +6,7 @@ import {
 import { truncate } from "@/utils/truncate.js";
 import { getTableName, isTable } from "drizzle-orm";
 import prometheus from "prom-client";
-import type { IndexingBuild, SchemaBuild } from "./types.js";
+import type { IndexingBuild, PreBuild, SchemaBuild } from "./types.js";
 
 const sometimesIODurationMs = [
   0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10, 50, 100, 500, 1_000, 5_000,
@@ -399,8 +399,8 @@ export class MetricsService {
    * Get string representation for all metrics.
    * @returns Metrics encoded using Prometheus v0.0.4 format.
    */
-  async getMetrics() {
-    return await this.registry.metrics();
+  getMetrics() {
+    return this.registry.metrics();
   }
 
   initializeIndexingMetrics({
@@ -485,31 +485,42 @@ export class MetricsService {
   }
 }
 
-// type MetricsAggregationRequest
-// type MetricsAggregationResponse
+type MetricsAggregationRequest = {
+  type: typeof GET_METRICS_REQ;
+  requestId: number;
+};
+type MetricsAggregationResponse = {
+  type: typeof GET_METRICS_RES;
+  requestId: number;
+  error?: string;
+  metrics: prometheus.MetricObjectWithValues<prometheus.MetricValue<string>>[];
+};
 
 export class AggregateMetricsService extends MetricsService {
   workers: Worker[];
   requests: Map<
     number,
     {
-      responses: string[];
+      responses: prometheus.MetricObjectWithValues<
+        prometheus.MetricValue<string>
+      >[][];
       pending: number;
       pwr: PromiseWithResolvers<void>;
     }
   >;
   requestId: number;
+  mainThreadMetrics: MetricsService;
 
-  constructor(workers: Worker[]) {
+  constructor(mainThreadMetrics: MetricsService, workers: Worker[]) {
     super();
 
+    this.mainThreadMetrics = mainThreadMetrics;
     this.workers = workers;
     this.requests = new Map();
     this.requestId = 0;
 
     for (const worker of workers) {
-      worker.on("message", (message) => {
-        // TODO(kyle) message type
+      worker.on("message", (message: MetricsAggregationResponse) => {
         if (message.type === GET_METRICS_RES) {
           const request = this.requests.get(message.requestId);
 
@@ -528,13 +539,9 @@ export class AggregateMetricsService extends MetricsService {
         }
       });
     }
-
-    setInterval(() => {
-      this.aggregateMetrics();
-    }, 1_000);
   }
 
-  async aggregateMetrics() {
+  override async getMetrics() {
     const requestId = this.requestId++;
     const pwr = promiseWithResolvers<void>();
 
@@ -545,7 +552,10 @@ export class AggregateMetricsService extends MetricsService {
     });
 
     for (const worker of this.workers) {
-      worker.postMessage({ type: GET_METRICS_REQ, requestId });
+      worker.postMessage({
+        type: GET_METRICS_REQ,
+        requestId,
+      } satisfies MetricsAggregationRequest);
     }
 
     await pwr.promise;
@@ -553,11 +563,14 @@ export class AggregateMetricsService extends MetricsService {
     const request = this.requests.get(requestId)!;
     this.requests.delete(requestId);
 
-    // TODO(kyle) include main thread metrics in the aggregation
-    this.registry = prometheus.AggregatorRegistry.aggregate(request.responses);
+    return prometheus.AggregatorRegistry.aggregate([
+      ...request.responses,
+      await this.registry.getMetricsAsJSON(),
+      await this.mainThreadMetrics.registry.getMetricsAsJSON(),
+    ]).metrics();
   }
 
-  // TODO(kyle) reset, initialize
+  // Note: `resetIndexingMetrics` and `resetApiMetrics` are never called with `AggregateMetricsService`.
 }
 
 export class IsolatedMetricsService extends MetricsService {
@@ -565,7 +578,7 @@ export class IsolatedMetricsService extends MetricsService {
     super();
 
     if (parentPort) {
-      parentPort.on("message", (message) => {
+      parentPort.on("message", (message: MetricsAggregationRequest) => {
         if (message.type === GET_METRICS_REQ) {
           this.registry
             .getMetricsAsJSON()
@@ -716,36 +729,31 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
     await metrics.ponder_historical_completed_indexing_seconds.get();
   const timestampMetric = await metrics.ponder_indexing_timestamp.get();
 
-  const ordering: "multichain" | "omnichain" | undefined =
+  const ordering: PreBuild["ordering"] | undefined =
     await metrics.ponder_settings_info
       .get()
       .then((metric) => metric.values[0]?.labels.ordering as any);
-  if (ordering === undefined) {
-    return {
-      mode: "backfill",
-      progress: undefined,
-      eta: undefined,
-    };
-  } else if (ordering === "multichain") {
-    const perChainAppProgress: Awaited<ReturnType<typeof getAppProgress>>[] =
-      [];
 
-    for (const chainName of totalSecondsMetric.values.map(
-      ({ labels }) => labels.chain as string,
-    )) {
-      const totalSeconds = extractMetric(totalSecondsMetric, chainName);
-      const cachedSeconds = extractMetric(cachedSecondsMetric, chainName);
-      const completedSeconds = extractMetric(completedSecondsMetric, chainName);
-      const timestamp = extractMetric(timestampMetric, chainName);
-
-      if (
-        totalSeconds === undefined ||
-        cachedSeconds === undefined ||
-        completedSeconds === undefined ||
-        timestamp === undefined
-      ) {
-        continue;
-      }
+  switch (ordering) {
+    case undefined:
+      return {
+        mode: "backfill",
+        progress: undefined,
+        eta: undefined,
+      };
+    case "omnichain": {
+      const totalSeconds = totalSecondsMetric.values
+        .map(({ value }) => value)
+        .reduce((prev, curr) => prev + curr, 0);
+      const cachedSeconds = cachedSecondsMetric.values
+        .map(({ value }) => value)
+        .reduce((prev, curr) => prev + curr, 0);
+      const completedSeconds = completedSecondsMetric.values
+        .map(({ value }) => value)
+        .reduce((prev, curr) => prev + curr, 0);
+      const timestamp = timestampMetric.values
+        .map(({ value }) => value)
+        .reduce((prev, curr) => Math.max(prev, curr), 0);
 
       const progress =
         timestamp === 0
@@ -754,79 +762,92 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
             ? 1
             : (completedSeconds + cachedSeconds) / totalSeconds;
 
-      if (!metrics.progressMetadata[chainName]) {
-        metrics.progressMetadata[chainName] = {
-          batches: [{ elapsedSeconds: 0, completedSeconds: 0 }],
-          previousTimestamp: Date.now(),
-          previousCompletedSeconds: 0,
-          rate: 0,
-        };
+      return {
+        mode: progress === 1 ? "live" : "backfill",
+        progress: progress,
+        eta: calculateEta(
+          metrics.progressMetadata.general!,
+          totalSeconds,
+          cachedSeconds,
+          completedSeconds,
+        ),
+      };
+    }
+    case "multichain":
+    case "isolated": {
+      const perChainAppProgress: Awaited<ReturnType<typeof getAppProgress>>[] =
+        [];
+
+      for (const chainName of totalSecondsMetric.values.map(
+        ({ labels }) => labels.chain as string,
+      )) {
+        const totalSeconds = extractMetric(totalSecondsMetric, chainName);
+        const cachedSeconds = extractMetric(cachedSecondsMetric, chainName);
+        const completedSeconds = extractMetric(
+          completedSecondsMetric,
+          chainName,
+        );
+        const timestamp = extractMetric(timestampMetric, chainName);
+
+        if (
+          totalSeconds === undefined ||
+          cachedSeconds === undefined ||
+          completedSeconds === undefined ||
+          timestamp === undefined
+        ) {
+          continue;
+        }
+
+        const progress =
+          timestamp === 0
+            ? 0
+            : totalSeconds === 0
+              ? 1
+              : (completedSeconds + cachedSeconds) / totalSeconds;
+
+        if (!metrics.progressMetadata[chainName]) {
+          metrics.progressMetadata[chainName] = {
+            batches: [{ elapsedSeconds: 0, completedSeconds: 0 }],
+            previousTimestamp: Date.now(),
+            previousCompletedSeconds: 0,
+            rate: 0,
+          };
+        }
+
+        const eta: number | undefined = calculateEta(
+          metrics.progressMetadata[chainName]!,
+          totalSeconds,
+          cachedSeconds,
+          completedSeconds,
+        );
+        perChainAppProgress.push({
+          mode: progress === 1 ? "live" : "backfill",
+          progress,
+          eta,
+        });
       }
 
-      const eta: number | undefined = calculateEta(
-        metrics.progressMetadata[chainName]!,
-        totalSeconds,
-        cachedSeconds,
-        completedSeconds,
-      );
-      perChainAppProgress.push({
-        mode: progress === 1 ? "live" : "backfill",
-        progress,
-        eta,
-      });
-    }
-
-    return perChainAppProgress.reduce(
-      (prev, curr) => ({
-        mode: curr.mode === "backfill" ? curr.mode : prev.mode,
-        progress:
-          prev.progress === undefined || curr.progress === undefined
-            ? undefined
-            : Math.min(prev.progress, curr.progress),
-        eta:
-          curr.progress === 1
-            ? prev.eta
-            : prev.eta === undefined || curr.eta === undefined
+      return perChainAppProgress.reduce(
+        (prev, curr) => ({
+          mode: curr.mode === "backfill" ? curr.mode : prev.mode,
+          progress:
+            prev.progress === undefined || curr.progress === undefined
               ? undefined
-              : Math.max(prev.eta, curr.eta),
-      }),
-      {
-        mode: "live",
-        progress: 1,
-        eta: 0,
-      },
-    ) as any;
-  } else {
-    const totalSeconds = totalSecondsMetric.values
-      .map(({ value }) => value)
-      .reduce((prev, curr) => prev + curr, 0);
-    const cachedSeconds = cachedSecondsMetric.values
-      .map(({ value }) => value)
-      .reduce((prev, curr) => prev + curr, 0);
-    const completedSeconds = completedSecondsMetric.values
-      .map(({ value }) => value)
-      .reduce((prev, curr) => prev + curr, 0);
-    const timestamp = timestampMetric.values
-      .map(({ value }) => value)
-      .reduce((prev, curr) => Math.max(prev, curr), 0);
-
-    const progress =
-      timestamp === 0
-        ? 0
-        : totalSeconds === 0
-          ? 1
-          : (completedSeconds + cachedSeconds) / totalSeconds;
-
-    return {
-      mode: progress === 1 ? "live" : "backfill",
-      progress: progress,
-      eta: calculateEta(
-        metrics.progressMetadata.general!,
-        totalSeconds,
-        cachedSeconds,
-        completedSeconds,
-      ),
-    };
+              : Math.min(prev.progress, curr.progress),
+          eta:
+            curr.progress === 1
+              ? prev.eta
+              : prev.eta === undefined || curr.eta === undefined
+                ? undefined
+                : Math.max(prev.eta, curr.eta),
+        }),
+        {
+          mode: "live",
+          progress: 1,
+          eta: 0,
+        },
+      );
+    }
   }
 }
 

@@ -25,7 +25,6 @@ import {
   NonRetryableUserError,
   type RetryableError,
 } from "@/internal/errors.js";
-import { getAppProgress } from "@/internal/metrics.js";
 import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
@@ -43,7 +42,6 @@ import {
   decodeCheckpoint,
   min,
 } from "@/utils/checkpoint.js";
-import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
   bufferAsyncGenerator,
   recordAsyncGenerator,
@@ -254,27 +252,6 @@ export async function runIsolated({
       );
     });
   }
-
-  const etaInterval = setInterval(async () => {
-    // underlying metrics collection is actually synchronous
-    // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-    const { eta, progress } = await getAppProgress(common.metrics);
-    if (eta === undefined || progress === undefined) {
-      return;
-    }
-
-    common.logger.info({
-      msg: "Updated backfill indexing progress",
-      chain: chain.name,
-      chain_id: chain.id,
-      progress: formatPercentage(progress),
-      estimate: formatEta(eta * 1_000),
-    });
-  }, 5_000);
-
-  common.shutdown.add(() => {
-    clearInterval(etaInterval);
-  });
 
   const backfillEndClock = startClock();
 
@@ -503,7 +480,6 @@ export async function runIsolated({
     chain_id: chain.id,
     duration: backfillEndClock(),
   });
-  clearInterval(etaInterval);
 
   const tables = Object.values(schemaBuild.schema).filter(isTable);
 
