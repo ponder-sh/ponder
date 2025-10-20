@@ -540,10 +540,6 @@ export const createSyncStore = ({
           ).length,
       );
 
-      // As an optimization for the migration, transactions inserted before 0.8 do not
-      // contain a checkpoint. However, for correctness the checkpoint must be inserted
-      // for new transactions (using onConflictDoUpdate).
-
       for (let i = 0; i < transactions.length; i += batchSize) {
         await database.syncQB.wrap(
           { label: "insert_transactions" },
