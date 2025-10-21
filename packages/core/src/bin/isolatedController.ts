@@ -45,8 +45,6 @@ export async function isolatedController({
   const perChainState = new Map<number, WorkerState>();
 
   const etaInterval = setInterval(async () => {
-    // underlying metrics collection is actually synchronous
-    // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
     const { eta, progress } = await getAppProgress(common.metrics);
 
     if (eta === undefined || progress === undefined) {
@@ -229,7 +227,8 @@ export async function isolatedController({
             }
             case "error": {
               const error = new Error(message.error.message);
-              error.stack = undefined;
+              error.name = message.error.name;
+              error.stack = message.error.stack;
               throw error;
             }
           }
@@ -245,13 +244,18 @@ export async function isolatedController({
       perThreadWorkers.push(worker);
     }
 
+    common.logger.debug({
+      msg: "Created worker threads",
+      count: perThreadWorkers.length,
+      duration: backfillEndClock(),
+    });
+
     common.metrics = new AggregateMetricsService(
       common.metrics,
       perThreadWorkers,
     );
 
     common.shutdown.add(async () => {
-      // TODO(kyle) should we remove message and exit callbacks?
       for (const worker of perThreadWorkers) {
         worker.postMessage({ type: "kill" });
       }
