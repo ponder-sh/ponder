@@ -152,10 +152,10 @@ const isAvailable = (bucket: Bucket) => {
   }
 
   if (bucket.rps.length > 0 && bucket.rps[0]!.timestamp < now) {
-    const firstTimestamp = bucket.rps[0]!.timestamp;
+    const elapsed = now - bucket.rps[0]!.timestamp;
     const totalCount = bucket.rps.reduce((acc, rps) => acc + rps.count, 0);
 
-    if (totalCount > bucket.rpsLimit * (now - firstTimestamp)) {
+    if (totalCount > bucket.rpsLimit * (1 + elapsed)) {
       return false;
     }
   }
