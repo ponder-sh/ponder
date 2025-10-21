@@ -423,7 +423,7 @@ export const createRpc = ({
           });
 
           // Add request per second data
-          consttimestamp = Math.floor(Date.now() / 1000);
+          const timestamp = Math.floor(Date.now() / 1000);
           if (
             bucket.rps.length === 0 ||
             bucket.rps[bucket.rps.length - 1]!.timestamp < timestamp
