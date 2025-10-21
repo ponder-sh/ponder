@@ -144,16 +144,21 @@ const addLatency = (bucket: Bucket, latency: number, success: boolean) => {
 const isAvailable = (bucket: Bucket) => {
   if (bucket.isActive === false) return false;
 
-  for (const { timestamp, count } of bucket.rps) {
-    // Note: Add 1 to account for the request that will be made
-    if (timestamp === Math.floor(Date.now() / 1000)) {
-      if (count + 1 > bucket.rpsLimit) {
-        return false;
-      }
-    } else {
-      if (count > bucket.rpsLimit) {
-        return false;
-      }
+  const currentRPS = bucket.rps.find(
+    (r) => r.timestamp === Math.floor(Date.now() / 1000),
+  );
+
+  if (currentRPS && currentRPS.count + 1 > bucket.rpsLimit) {
+    return false;
+  }
+
+  if (bucket.rps.length >= 2) {
+    const firstTimestamp = bucket.rps[0]!.timestamp;
+    const lastTimestamp = bucket.rps[bucket.rps.length - 1]!.timestamp;
+    const totalCount = bucket.rps.reduce((acc, rps) => acc + rps.count, 0);
+
+    if (totalCount > bucket.rpsLimit * (lastTimestamp - firstTimestamp)) {
+      return false;
     }
   }
 
@@ -205,7 +210,7 @@ export const createRpc = ({
           request: http(chain.rpc)({
             chain: chain.viemChain,
             retryCount: 0,
-            timeout: 5_000,
+            timeout: 10_000,
           }).request,
           hostname,
         },
@@ -216,7 +221,7 @@ export const createRpc = ({
           request: webSocket(chain.rpc)({
             chain: chain.viemChain,
             retryCount: 0,
-            timeout: 5_000,
+            timeout: 10_000,
           }).request,
           hostname,
         },
@@ -234,7 +239,7 @@ export const createRpc = ({
           request: http(rpc)({
             chain: chain.viemChain,
             retryCount: 0,
-            timeout: 5_000,
+            timeout: 10_000,
           }).request,
           hostname,
         };
@@ -243,7 +248,7 @@ export const createRpc = ({
           request: webSocket(rpc)({
             chain: chain.viemChain,
             retryCount: 0,
-            timeout: 5_000,
+            timeout: 10_000,
           }).request,
           hostname,
         };
@@ -257,7 +262,7 @@ export const createRpc = ({
         request: chain.rpc({
           chain: chain.viemChain,
           retryCount: 0,
-          timeout: 5_000,
+          timeout: 10_000,
         }).request,
         hostname: "custom_transport",
       },
