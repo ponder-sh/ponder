@@ -26,8 +26,8 @@ import {
   createTriggers,
   createViews,
   dropTriggers,
-  finalize,
-  revert,
+  finalizeMultichain,
+  revertMultichain,
 } from "./actions.js";
 import { type Database, getPonderCheckpointTable } from "./index.js";
 
@@ -89,6 +89,7 @@ test("finalize()", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
     table: account,
+    preBuild: { ordering: "multichain" },
   });
 
   await indexingStore
@@ -102,12 +103,12 @@ test("finalize()", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     table: account,
+    preBuild: { ordering: "multichain" },
   });
 
-  await finalize(database.userQB, {
+  await finalizeMultichain(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     tables: [account],
-    preBuild: { ordering: "multichain" },
     namespaceBuild: { schema: "public", viewsSchema: undefined },
   });
 
@@ -137,7 +138,10 @@ test("createIndexes()", async (context) => {
   });
 
   await createIndexes(database.userQB, {
-    statements: buildSchema({ schema: { account } }).statements,
+    statements: buildSchema({
+      schema: { account },
+      preBuild: { ordering: "multichain" },
+    }).statements,
   });
 
   const indexNames = await getUserIndexNames(database, "public", "account");
@@ -207,6 +211,7 @@ test("commitBlock()", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     table: account,
+    preBuild: { ordering: "multichain" },
   });
 
   const { rows } = await database.userQB.wrap((tx) =>
@@ -222,6 +227,83 @@ test("commitBlock()", async (context) => {
       checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     },
   ]);
+});
+
+test("commitBlock() isolated", async (context) => {
+  const account = onchainTable(
+    "account",
+    (p) => ({
+      chainId: p.integer().notNull(),
+      address: p.hex().notNull(),
+      balance: p.bigint(),
+    }),
+    (table) => ({
+      pk: primaryKey({ columns: [table.chainId, table.address] }),
+    }),
+  );
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema: { account } },
+  });
+
+  await createTriggers(database.userQB, { tables: [account] });
+
+  const indexingStore = createRealtimeIndexingStore({
+    common: context.common,
+    schemaBuild: { schema: { account } },
+    indexingErrorHandler,
+  });
+  indexingStore.qb = database.userQB;
+
+  await indexingStore
+    .insert(account)
+    .values({ chainId: 1, address: zeroAddress, balance: 10n });
+
+  await commitBlock(database.userQB, {
+    checkpoint: createCheckpoint({ chainId: 2n, blockNumber: 10n }),
+    table: account,
+    preBuild: { ordering: "isolated" },
+  });
+
+  const { rows: rows1 } = await database.userQB.wrap((tx) =>
+    tx.execute(sql`SELECT * FROM _reorg__account`),
+  );
+
+  expect(rows1).toMatchInlineSnapshot(`
+    [
+      {
+        "address": "0x0000000000000000000000000000000000000000",
+        "balance": "10",
+        "chain_id": 1,
+        "checkpoint": "999999999999999999999999999999999999999999999999999999999999999999999999999",
+        "operation": 0,
+        "operation_id": 1,
+      },
+    ]
+  `);
+
+  await commitBlock(database.userQB, {
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    table: account,
+    preBuild: { ordering: "isolated" },
+  });
+
+  const { rows: rows2 } = await database.userQB.wrap((tx) =>
+    tx.execute(sql`SELECT * FROM _reorg__account`),
+  );
+
+  expect(rows2).toMatchInlineSnapshot(`
+    [
+      {
+        "address": "0x0000000000000000000000000000000000000000",
+        "balance": "10",
+        "chain_id": 1,
+        "checkpoint": "000000000000000000000000010000000000000010000000000000000000000000000000000",
+        "operation": 0,
+        "operation_id": 1,
+      },
+    ]
+  `);
 });
 
 test("revert()", async (context) => {
@@ -247,6 +329,7 @@ test("revert()", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
     table: account,
+    preBuild: { ordering: "multichain" },
   });
 
   await indexingStore
@@ -260,6 +343,7 @@ test("revert()", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     table: account,
+    preBuild: { ordering: "multichain" },
   });
 
   await indexingStore.delete(account, { address: zeroAddress });
@@ -267,13 +351,13 @@ test("revert()", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     table: account,
+    preBuild: { ordering: "multichain" },
   });
 
   await database.userQB.transaction(async (tx) => {
-    await revert(tx, {
+    await revertMultichain(tx, {
       checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
       tables: [account],
-      preBuild: { ordering: "multichain" },
     });
   });
 
@@ -316,19 +400,20 @@ test("revert() with composite primary key", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     table: test,
+    preBuild: { ordering: "multichain" },
   });
   await indexingStore.update(test, { a: 1, b: 1 }).set({ c: 1 });
 
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 12n }),
     table: test,
+    preBuild: { ordering: "multichain" },
   });
 
   await database.userQB.transaction(async (tx) => {
-    await revert(tx, {
+    await revertMultichain(tx, {
       checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
       tables: [test],
-      preBuild: { ordering: "multichain" },
     });
   });
 
@@ -349,15 +434,14 @@ test("empty schema", async (context) => {
     views: [],
     namespaceBuild: { schema: "public", viewsSchema: undefined },
   });
-  await revert(database.userQB, {
+  await revertMultichain(database.userQB, {
     tables: [],
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-    preBuild: { ordering: "multichain" },
   });
-  await finalize(database.userQB, {
+  await finalizeMultichain(database.userQB, {
     tables: [],
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-    preBuild: { ordering: "multichain" },
+
     namespaceBuild: { schema: "public", viewsSchema: undefined },
   });
 });
