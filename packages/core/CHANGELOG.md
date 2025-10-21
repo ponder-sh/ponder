@@ -1,5 +1,23 @@
 # ponder
 
+## 0.14.5
+
+### Patch Changes
+
+- [#2143](https://github.com/ponder-sh/ponder/pull/2143) [`7a5f5bb`](https://github.com/ponder-sh/ponder/commit/7a5f5bb6002bf7fae64d01b16536b45734f851f6) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed RPC rate limit handling bug that caused some apps to appear frozen after a timeout or 429 response.
+
+## 0.14.4
+
+### Patch Changes
+
+- [#2141](https://github.com/ponder-sh/ponder/pull/2141) [`ac89b60`](https://github.com/ponder-sh/ponder/commit/ac89b60306883bb9f5d27fe4e62b1a7f0bed307a) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression introduced in `0.14.2` that caused frontend frameworks to fail when bundling. Fixed the error `Reading from "node:crypto" is not handled by plugins`.
+
+## 0.14.3
+
+### Patch Changes
+
+- [#2136](https://github.com/ponder-sh/ponder/pull/2136) [`c4eb1ba`](https://github.com/ponder-sh/ponder/commit/c4eb1ba8907549c3a1778fa71e830ba11f2cecfe) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed `RangeError: Maximum call stack size exceeded` for apps with many event sources and indexing functions.
+
 ## 0.14.2
 
 ### Patch Changes
