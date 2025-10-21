@@ -12,23 +12,25 @@ import type {
 } from "@/internal/types.js";
 import { runIsolated } from "@/runtime/isolated.js";
 
-if (isMainThread === false && parentPort) {
-  try {
-    await isolatedWorker(workerData);
+if (isMainThread) {
+  throw new Error("'isolatedWorker.ts' must be run in a worker thread");
+}
 
-    parentPort!.postMessage({ type: "done" });
-  } catch (err) {
-    const error = err as Error;
+try {
+  await isolatedWorker(workerData);
 
-    parentPort!.postMessage({
-      type: "error",
-      error: {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-      },
-    });
-  }
+  parentPort!.postMessage({ type: "done" });
+} catch (err) {
+  const error = err as Error;
+
+  parentPort!.postMessage({
+    type: "error",
+    error: {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    },
+  });
 }
 
 export async function isolatedWorker({
