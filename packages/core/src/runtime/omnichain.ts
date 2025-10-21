@@ -297,14 +297,14 @@ export async function runOmnichain({
     // underlying metrics collection is actually synchronous
     // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
     const { eta, progress } = await getAppProgress(common.metrics);
-    if (eta === undefined || progress === undefined) {
+    if (eta === undefined && progress === undefined) {
       return;
     }
 
     common.logger.info({
       msg: "Updated backfill indexing progress",
-      progress: formatPercentage(progress),
-      estimate: formatEta(eta * 1_000),
+      progress: progress === undefined ? undefined : formatPercentage(progress),
+      estimate: eta === undefined ? undefined : formatEta(eta * 1_000),
     });
   }, 5_000);
 

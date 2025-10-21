@@ -47,14 +47,14 @@ export async function isolatedController({
   const etaInterval = setInterval(async () => {
     const { eta, progress } = await getAppProgress(common.metrics);
 
-    if (eta === undefined || progress === undefined) {
+    if (eta === undefined && progress === undefined) {
       return;
     }
 
     common.logger.info({
       msg: "Updated backfill indexing progress",
-      progress: formatPercentage(progress),
-      estimate: formatEta(eta * 1_000),
+      progress: progress === undefined ? undefined : formatPercentage(progress),
+      estimate: eta === undefined ? undefined : formatEta(eta * 1_000),
     });
   }, 5_000);
 

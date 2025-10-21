@@ -403,6 +403,10 @@ export class MetricsService {
     return this.registry.metrics();
   }
 
+  async getRegistry() {
+    return this.registry;
+  }
+
   initializeIndexingMetrics({
     indexingBuild,
     schemaBuild,
@@ -570,6 +574,35 @@ export class AggregateMetricsService extends MetricsService {
     ]).metrics();
   }
 
+  override async getRegistry() {
+    const requestId = this.requestId++;
+    const pwr = promiseWithResolvers<void>();
+
+    this.requests.set(requestId, {
+      responses: [],
+      pending: this.workers.length,
+      pwr,
+    });
+
+    for (const worker of this.workers) {
+      worker.postMessage({
+        type: GET_METRICS_REQ,
+        requestId,
+      } satisfies MetricsAggregationRequest);
+    }
+
+    await pwr.promise;
+
+    const request = this.requests.get(requestId)!;
+    this.requests.delete(requestId);
+
+    return prometheus.AggregatorRegistry.aggregate([
+      ...request.responses,
+      await this.registry.getMetricsAsJSON(),
+      await this.mainThreadMetrics.registry.getMetricsAsJSON(),
+    ]) as prometheus.Registry;
+  }
+
   // Note: `resetIndexingMetrics` and `resetApiMetrics` are never called with `AggregateMetricsService`.
 }
 
@@ -721,18 +754,27 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
   progress: number | undefined;
   eta: number | undefined;
 }> {
-  const totalSecondsMetric =
-    await metrics.ponder_historical_total_indexing_seconds.get();
-  const cachedSecondsMetric =
-    await metrics.ponder_historical_cached_indexing_seconds.get();
-  const completedSecondsMetric =
-    await metrics.ponder_historical_completed_indexing_seconds.get();
-  const timestampMetric = await metrics.ponder_indexing_timestamp.get();
+  // Note: `getRegistry` must be used because this function is used with "isolated" ordering.
+  const registry = await metrics.getRegistry();
 
-  const ordering: PreBuild["ordering"] | undefined =
-    await metrics.ponder_settings_info
-      .get()
-      .then((metric) => metric.values[0]?.labels.ordering as any);
+  const totalSecondsMetric = await registry
+    .getSingleMetric("ponder_historical_total_indexing_seconds")!
+    .get();
+  const cachedSecondsMetric = await registry
+    .getSingleMetric("ponder_historical_cached_indexing_seconds")!
+    .get();
+  const completedSecondsMetric = await registry
+    .getSingleMetric("ponder_historical_completed_indexing_seconds")!
+    .get();
+  const timestampMetric = await registry
+    .getSingleMetric("ponder_indexing_timestamp")!
+    .get();
+
+  const settingsMetric = await registry
+    .getSingleMetric("ponder_settings_info")!
+    .get();
+  const ordering: PreBuild["ordering"] | undefined = settingsMetric?.values[0]
+    ?.labels.ordering as any;
 
   switch (ordering) {
     case undefined:
@@ -742,16 +784,16 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
         eta: undefined,
       };
     case "omnichain": {
-      const totalSeconds = totalSecondsMetric.values
+      const totalSeconds = totalSecondsMetric?.values
         .map(({ value }) => value)
         .reduce((prev, curr) => prev + curr, 0);
-      const cachedSeconds = cachedSecondsMetric.values
+      const cachedSeconds = cachedSecondsMetric?.values
         .map(({ value }) => value)
         .reduce((prev, curr) => prev + curr, 0);
-      const completedSeconds = completedSecondsMetric.values
+      const completedSeconds = completedSecondsMetric?.values
         .map(({ value }) => value)
         .reduce((prev, curr) => prev + curr, 0);
-      const timestamp = timestampMetric.values
+      const timestamp = timestampMetric?.values
         .map(({ value }) => value)
         .reduce((prev, curr) => Math.max(prev, curr), 0);
 
@@ -778,9 +820,9 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
       const perChainAppProgress: Awaited<ReturnType<typeof getAppProgress>>[] =
         [];
 
-      for (const chainName of totalSecondsMetric.values.map(
+      for (const chainName of totalSecondsMetric?.values.map(
         ({ labels }) => labels.chain as string,
-      )) {
+      ) ?? []) {
         const totalSeconds = extractMetric(totalSecondsMetric, chainName);
         const cachedSeconds = extractMetric(cachedSecondsMetric, chainName);
         const completedSeconds = extractMetric(
