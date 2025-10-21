@@ -254,7 +254,7 @@ export async function isolatedController({
       perThreadWorkers,
     );
 
-    common.shutdown.add(async () => {
+    common.shutdown.add(() => {
       for (const worker of perThreadWorkers) {
         worker.postMessage({ type: "kill" });
       }
