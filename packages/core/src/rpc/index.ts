@@ -337,6 +337,12 @@ export const createRpc = ({
     await new Promise((resolve) => setImmediate(resolve));
 
     while (true) {
+      // Remove old request per second data
+      const timestamp = Math.floor(Date.now() / 1000);
+      for (const bucket of buckets) {
+        bucket.rps = bucket.rps.filter((r) => r.timestamp > timestamp - 10);
+      }
+
       availableBuckets = buckets.filter(isAvailable);
 
       if (availableBuckets.length > 0) {
@@ -354,7 +360,7 @@ export const createRpc = ({
         }, 5_000);
       }
 
-      await wait(10);
+      await wait(20);
     }
 
     clearTimeout(noAvailableBucketsTimer);
@@ -401,12 +407,6 @@ export const createRpc = ({
     worker: async ({ body, context }) => {
       const logger = context?.logger ?? common.logger;
 
-      // Remove old request per second data
-      let timestamp = Math.floor(Date.now() / 1000);
-      for (const bucket of buckets) {
-        bucket.rps = bucket.rps.filter((r) => r.timestamp > timestamp - 10);
-      }
-
       for (let i = 0; i <= RETRY_COUNT; i++) {
         const bucket = await getBucket();
         const endClock = startClock();
@@ -423,7 +423,7 @@ export const createRpc = ({
           });
 
           // Add request per second data
-          timestamp = Math.floor(Date.now() / 1000);
+          consttimestamp = Math.floor(Date.now() / 1000);
           if (
             bucket.rps.length === 0 ||
             bucket.rps[bucket.rps.length - 1]!.timestamp < timestamp
