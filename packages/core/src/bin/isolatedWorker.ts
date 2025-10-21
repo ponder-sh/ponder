@@ -173,9 +173,11 @@ export async function isolatedWorker({
         crashRecoveryCheckpoint,
         database,
         onReady: () => {
-          parentPort!.postMessage({ type: "ready" });
+          parentPort!.postMessage({ type: "ready", chainId });
         },
       });
+
+      parentPort!.postMessage({ type: "done", chainId });
     }),
   );
 }

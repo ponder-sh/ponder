@@ -208,11 +208,10 @@ export async function isolatedController({
       worker.on(
         "message",
         (
-          message: { chainId: number } & (
-            | { type: "ready" }
-            | { type: "done" }
-            | { type: "error"; error: Error }
-          ),
+          message:
+            | { type: "ready"; chainId: number }
+            | { type: "done"; chainId: number }
+            | { type: "error"; error: Error },
         ) => {
           switch (message.type) {
             case "ready": {
