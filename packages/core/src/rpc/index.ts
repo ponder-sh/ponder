@@ -144,20 +144,18 @@ const addLatency = (bucket: Bucket, latency: number, success: boolean) => {
 const isAvailable = (bucket: Bucket) => {
   if (bucket.isActive === false) return false;
 
-  const currentRPS = bucket.rps.find(
-    (r) => r.timestamp === Math.floor(Date.now() / 1000),
-  );
+  const now = Math.floor(Date.now() / 1000);
+  const currentRPS = bucket.rps.find((r) => r.timestamp === now);
 
   if (currentRPS && currentRPS.count + 1 > bucket.rpsLimit) {
     return false;
   }
 
-  if (bucket.rps.length >= 2) {
+  if (bucket.rps.length > 0 && bucket.rps[0]!.timestamp < now) {
     const firstTimestamp = bucket.rps[0]!.timestamp;
-    const lastTimestamp = bucket.rps[bucket.rps.length - 1]!.timestamp;
     const totalCount = bucket.rps.reduce((acc, rps) => acc + rps.count, 0);
 
-    if (totalCount > bucket.rpsLimit * (lastTimestamp - firstTimestamp)) {
+    if (totalCount > bucket.rpsLimit * (now - firstTimestamp)) {
       return false;
     }
   }
