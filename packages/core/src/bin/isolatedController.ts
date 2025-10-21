@@ -186,6 +186,11 @@ export async function isolatedController({
     for (const chains of perThreadChains) {
       const chainIds = chains.map((chain) => chain.id);
 
+      // Note: This is a hack to force color support in the worker threads
+      if (process.stdout.isTTY) {
+        process.env.FORCE_COLOR = "1";
+      }
+
       const worker = new Worker(workerPath, {
         workerData: {
           options: common.options,
