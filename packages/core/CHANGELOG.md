@@ -1,5 +1,11 @@
 # ponder
 
+## 0.14.5
+
+### Patch Changes
+
+- [#2143](https://github.com/ponder-sh/ponder/pull/2143) [`7a5f5bb`](https://github.com/ponder-sh/ponder/commit/7a5f5bb6002bf7fae64d01b16536b45734f851f6) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed RPC rate limit handling bug that caused some apps to appear frozen after a timeout or 429 response.
+
 ## 0.14.4
 
 ### Patch Changes
