@@ -97,10 +97,8 @@ export const buildSchema = ({
           }
         }
 
-        if (
-          columnName.toLowerCase() === "chain_id" ||
-          columnName.toLowerCase() === "chainid"
-        ) {
+        // TODO(kyle) It is an invariant that `getColumnCasing(column, "snake_case") === column.name`
+        if (columnName === "chainId" && column.name === "chain_id") {
           hasChainIdColumn = true;
         }
       }
@@ -108,15 +106,22 @@ export const buildSchema = ({
       if (preBuild.ordering === "isolated") {
         if (hasChainIdColumn === false) {
           throw new Error(
-            `Schema validation failed: '${name}' does not have required 'chain_id' column.`,
+            `Schema validation failed: '${name}' does not have required 'chainId' column.`,
           );
         }
 
         if (
-          getPrimaryKeyColumns(s).some(
-            ({ js }) =>
-              js.toLowerCase() === "chainid" || js.toLowerCase() === "chain_id",
-          ) === false
+          getTableColumns(s).chainId!.dataType !== "number" &&
+          getTableColumns(s).chainId!.dataType !== "bigint"
+        ) {
+          throw new Error(
+            `Schema validation failed: '${name}'.chainId column must be an integer or numeric.`,
+          );
+        }
+
+        if (
+          getPrimaryKeyColumns(s).some(({ sql }) => sql === "chain_id") ===
+          false
         ) {
           throw new Error(
             `Schema validation failed: '${name}.chain_id' column is required to be in the primary key when ordering is 'isolated'.`,

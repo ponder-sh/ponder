@@ -492,7 +492,6 @@ export const createDatabase = ({
             const schemaName = schemaBuild.statements.tables.json[i]!.schema;
             const tableName = schemaBuild.statements.tables.json[i]!.tableName;
 
-            // TODO(kyle) create partitions
             if (
               preBuild.ordering === "isolated" &&
               tableName.startsWith("_reorg__") === false
