@@ -130,7 +130,11 @@ export async function isolatedController({
     }
   };
 
-  if (common.options.command === "dev" || indexingBuild.chains.length === 1) {
+  if (
+    common.options.command === "dev" ||
+    indexingBuild.chains.length === 1 ||
+    database.driver.dialect === "pglite"
+  ) {
     common.options.indexingCacheMaxBytes = Math.floor(
       common.options.indexingCacheMaxBytes / indexingBuild.chains.length,
     );
