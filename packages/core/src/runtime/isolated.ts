@@ -5,11 +5,7 @@ import {
   finalizeIsolated,
   revertIsolated,
 } from "@/database/actions.js";
-import {
-  type Database,
-  getPonderCheckpointTable,
-  getPonderMetaTable,
-} from "@/database/index.js";
+import { type Database, getPonderCheckpointTable } from "@/database/index.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
@@ -84,7 +80,6 @@ export async function runIsolated({
   const syncStore = createSyncStore({ common, database });
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
-  const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
 
   let eventCount = getEventCount(indexingBuild.indexingFunctions);
 
