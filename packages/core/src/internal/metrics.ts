@@ -508,6 +508,7 @@ export class AggregateMetricsService extends MetricsService {
       responses: prometheus.MetricObjectWithValues<
         prometheus.MetricValue<string>
       >[][];
+      workerIds: number[];
       pending: number;
       pwr: PromiseWithResolvers<void>;
     }
@@ -536,6 +537,7 @@ export class AggregateMetricsService extends MetricsService {
           }
 
           request.responses.push(message.metrics);
+          request.workerIds.push(worker.threadId);
           request.pending--;
           if (request.pending === 0) {
             request.pwr.resolve();
@@ -551,6 +553,7 @@ export class AggregateMetricsService extends MetricsService {
 
     this.requests.set(requestId, {
       responses: [],
+      workerIds: [],
       pending: this.workers.length,
       pwr,
     });
@@ -567,8 +570,14 @@ export class AggregateMetricsService extends MetricsService {
     const request = this.requests.get(requestId)!;
     this.requests.delete(requestId);
 
+    // Sort response by worker id for consistent metrics
+    const responseIndexSort = new Array(this.workers.length)
+      .fill(0)
+      .map((_, index) => index)
+      .sort((a, b) => request.workerIds[a]! - request.workerIds[b]!);
+
     return prometheus.AggregatorRegistry.aggregate([
-      ...request.responses,
+      ...responseIndexSort.map((index) => request.responses[index]!),
       await this.registry.getMetricsAsJSON(),
       await this.mainThreadMetrics.registry.getMetricsAsJSON(),
     ]).metrics();
@@ -580,6 +589,7 @@ export class AggregateMetricsService extends MetricsService {
 
     this.requests.set(requestId, {
       responses: [],
+      workerIds: [],
       pending: this.workers.length,
       pwr,
     });
@@ -596,8 +606,14 @@ export class AggregateMetricsService extends MetricsService {
     const request = this.requests.get(requestId)!;
     this.requests.delete(requestId);
 
+    // Sort response by worker id for consistent metrics
+    const responseIndexSort = new Array(this.workers.length)
+      .fill(0)
+      .map((_, index) => index)
+      .sort((a, b) => request.workerIds[a]! - request.workerIds[b]!);
+
     return prometheus.AggregatorRegistry.aggregate([
-      ...request.responses,
+      ...responseIndexSort.map((index) => request.responses[index]!),
       await this.registry.getMetricsAsJSON(),
       await this.mainThreadMetrics.registry.getMetricsAsJSON(),
     ]) as prometheus.Registry;
