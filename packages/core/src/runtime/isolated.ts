@@ -496,12 +496,6 @@ export async function runIsolated({
     duration: endClock(),
   });
 
-  await database.adminQB.wrap({ label: "update_ready" }, (db) =>
-    db
-      .update(PONDER_META)
-      .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` }),
-  );
-
   onReady();
 
   const realtimeIndexingStore = createRealtimeIndexingStore({
