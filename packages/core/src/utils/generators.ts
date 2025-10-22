@@ -47,7 +47,7 @@ export async function* mergeAsyncGenerators<T>(
 export async function* bufferAsyncGenerator<T>(
   generator: AsyncGenerator<T>,
   size: number,
-  callback?: (bufferSize: number) => void,
+  bufferCallback?: (bufferSize: number) => void,
 ): AsyncGenerator<T> {
   const buffer: T[] = [];
   let done = false;
@@ -59,7 +59,7 @@ export async function* bufferAsyncGenerator<T>(
     for await (const result of generator) {
       buffer.push(result);
 
-      callback?.(buffer.length);
+      bufferCallback?.(buffer.length);
 
       pwr1.resolve();
 
@@ -127,7 +127,9 @@ export async function* recordAsyncGenerator<T>(
 /**
  * Creates an async generator that yields values from a callback.
  */
-export function createCallbackGenerator<T>(): {
+export function createCallbackGenerator<T>(
+  bufferCallback?: (bufferSize: number) => void,
+): {
   callback: (value: T) => void;
   generator: AsyncGenerator<T, void, unknown>;
 } {
@@ -136,6 +138,7 @@ export function createCallbackGenerator<T>(): {
 
   const callback = (value: T) => {
     buffer.push(value);
+    bufferCallback?.(buffer.length);
     pwr.resolve();
   };
 

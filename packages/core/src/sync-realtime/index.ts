@@ -927,7 +927,7 @@ export const createRealtimeSync = (
         chain_id: args.chain.id,
         block_range: JSON.stringify([
           hexToNumber(latestBlock.number) + 1,
-          hexToNumber(block.number),
+          hexToNumber(block.number) - 1,
         ]),
       });
 
@@ -961,7 +961,7 @@ export const createRealtimeSync = (
         block_range: JSON.stringify([
           hexToNumber(latestBlock.number) + 1,
           Math.min(
-            hexToNumber(block.number),
+            hexToNumber(block.number) - 1,
             hexToNumber(latestBlock.number) + MAX_QUEUED_BLOCKS,
           ),
         ]),
@@ -976,7 +976,7 @@ export const createRealtimeSync = (
         MAX_QUEUED_BLOCKS
       ) {
         args.common.logger.trace({
-          msg: "Block too far ahead of local chain",
+          msg: "Latest block too far ahead of local chain",
           chain: args.chain.name,
           chain_id: args.chain.id,
           number: hexToNumber(block.number),

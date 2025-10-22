@@ -610,6 +610,17 @@ export async function runOmnichain({
     indexingErrorHandler,
   });
 
+  const bufferCallback = (bufferSize: number) => {
+    // Note: Only log when the buffer size is greater than 1 because
+    // a buffer size of 1 is not backpressure.
+    if (bufferSize === 1) return;
+    common.logger.trace({
+      msg: "Detected live indexing backpressure",
+      buffer_size: bufferSize,
+      indexing_step: "index block",
+    });
+  };
+
   for await (const event of bufferAsyncGenerator(
     getRealtimeEventsOmnichain({
       common,
@@ -619,6 +630,7 @@ export async function runOmnichain({
       pendingEvents,
     }),
     100,
+    bufferCallback,
   )) {
     switch (event.type) {
       case "block": {
