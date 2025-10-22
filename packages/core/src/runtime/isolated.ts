@@ -130,6 +130,7 @@ export async function runIsolated({
     schemaBuild,
     indexingCache,
     indexingErrorHandler,
+    chainId: chain.id,
   });
 
   const seconds: Seconds = {};
@@ -507,6 +508,7 @@ export async function runIsolated({
     common,
     schemaBuild,
     indexingErrorHandler,
+    chainId: chain.id,
   });
 
   for await (const event of bufferAsyncGenerator(

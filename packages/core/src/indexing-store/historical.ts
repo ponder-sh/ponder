@@ -27,6 +27,7 @@ import type { IndexingCache, Row } from "./cache.js";
 import {
   type IndexingStore,
   checkOnchainTable,
+  checkTableAccess,
   validateUpdateSet,
 } from "./index.js";
 import { getPrimaryKeyCache } from "./utils.js";
@@ -36,11 +37,13 @@ export const createHistoricalIndexingStore = ({
   schemaBuild: { schema },
   indexingCache,
   indexingErrorHandler,
+  chainId,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   indexingCache: IndexingCache;
   indexingErrorHandler: IndexingErrorHandler;
+  chainId?: number;
 }): IndexingStore => {
   let qb: QB = undefined!;
   let isProcessingEvents = true;
@@ -97,6 +100,7 @@ export const createHistoricalIndexingStore = ({
         method: "find",
       });
       checkOnchainTable(table, "find");
+      checkTableAccess(table, "find", key, chainId);
       const ponderRow = await indexingCache.get({ table, key });
       const userRow = ponderRow === null ? null : copyOnWrite(ponderRow);
       return userRow;
@@ -120,6 +124,7 @@ export const createHistoricalIndexingStore = ({
               if (Array.isArray(ponderValues)) {
                 const ponderRows = [];
                 for (const value of ponderValues) {
+                  checkTableAccess(table, "insert", value, chainId);
                   const row = await indexingCache.get({ table, key: value });
 
                   if (row) {
@@ -140,6 +145,7 @@ export const createHistoricalIndexingStore = ({
                 );
                 return userRows;
               } else {
+                checkTableAccess(table, "insert", ponderValues, chainId);
                 const row = await indexingCache.get({
                   table,
                   key: ponderValues,
@@ -171,6 +177,7 @@ export const createHistoricalIndexingStore = ({
                 if (Array.isArray(userValues)) {
                   const ponderRows: Row[] = [];
                   for (const value of userValues) {
+                    checkTableAccess(table, "insert", value, chainId);
                     const ponderRowUpdate = await indexingCache.get({
                       table,
                       key: value,
@@ -230,6 +237,7 @@ export const createHistoricalIndexingStore = ({
                   );
                   return userRows;
                 } else {
+                  checkTableAccess(table, "insert", userValues, chainId);
                   const ponderRowUpdate = await indexingCache.get({
                     table,
                     key: userValues,
@@ -301,6 +309,8 @@ export const createHistoricalIndexingStore = ({
                 if (Array.isArray(ponderValues)) {
                   const ponderRows = [];
                   for (const value of ponderValues) {
+                    checkTableAccess(table, "insert", value, chainId);
+
                     if (qb.$dialect === "pglite") {
                       const row = await indexingCache.get({
                         table,
@@ -343,6 +353,8 @@ export const createHistoricalIndexingStore = ({
                     onRejected,
                   );
                 } else {
+                  checkTableAccess(table, "insert", ponderValues, chainId);
+
                   let ponderRow: Row;
                   if (qb.$dialect === "pglite") {
                     const row = await indexingCache.get({
@@ -405,6 +417,7 @@ export const createHistoricalIndexingStore = ({
             method: "update",
           });
           checkOnchainTable(table, "update");
+          checkTableAccess(table, "update", key, chainId);
 
           const ponderRowUpdate = await indexingCache.get({ table, key });
 
@@ -463,6 +476,7 @@ export const createHistoricalIndexingStore = ({
         method: "delete",
       });
       checkOnchainTable(table, "delete");
+      checkTableAccess(table, "delete", key, chainId);
       return indexingCache.delete({ table, key });
     }),
     // @ts-ignore
