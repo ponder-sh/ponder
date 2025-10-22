@@ -132,12 +132,14 @@ export class MetricsService {
       help: "Ponder version information",
       labelNames: ["version", "major", "minor", "patch"] as const,
       registers: [this.registry],
+      aggregator: "first",
     });
     this.ponder_settings_info = new prometheus.Gauge({
       name: "ponder_settings_info",
       help: "Ponder settings information",
       labelNames: ["ordering", "database", "command"] as const,
       registers: [this.registry],
+      aggregator: "first",
     });
 
     this.ponder_historical_concurrency_group_duration = new prometheus.Gauge({
@@ -145,18 +147,21 @@ export class MetricsService {
       help: "Duration of historical concurrency groups",
       labelNames: ["group"] as const,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_historical_extract_duration = new prometheus.Gauge({
       name: "ponder_historical_extract_duration",
       help: "Duration of historical extract phase",
       labelNames: ["step"] as const,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_historical_transform_duration = new prometheus.Gauge({
       name: "ponder_historical_transform_duration",
       help: "Duration of historical transform phase",
       labelNames: ["step"] as const,
       registers: [this.registry],
+      aggregator: "sum",
     });
 
     this.ponder_historical_start_timestamp_seconds = new prometheus.Gauge({
@@ -164,12 +169,14 @@ export class MetricsService {
       help: "Timestamp at which historical indexing started",
       labelNames: ["chain"] as const,
       registers: [this.registry],
+      aggregator: "min",
     });
     this.ponder_historical_end_timestamp_seconds = new prometheus.Gauge({
       name: "ponder_historical_end_timestamp_seconds",
       help: "Timestamp at which historical indexing ended",
       labelNames: ["chain"] as const,
       registers: [this.registry],
+      aggregator: "max",
     });
 
     this.ponder_historical_total_indexing_seconds = new prometheus.Gauge({
@@ -177,30 +184,35 @@ export class MetricsService {
       help: "Total number of seconds that are required",
       labelNames: ["chain"] as const,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_historical_cached_indexing_seconds = new prometheus.Gauge({
       name: "ponder_historical_cached_indexing_seconds",
       help: "Number of seconds that have been cached",
       labelNames: ["chain"] as const,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_historical_completed_indexing_seconds = new prometheus.Gauge({
       name: "ponder_historical_completed_indexing_seconds",
       help: "Number of seconds that have been completed",
       labelNames: ["chain"] as const,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_indexing_completed_events = new prometheus.Gauge({
       name: "ponder_indexing_completed_events",
       help: "Number of events that have been processed",
       labelNames: ["chain", "event"] as const,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_indexing_timestamp = new prometheus.Gauge({
       name: "ponder_indexing_timestamp",
       help: "Timestamp through which all events have been completed",
       labelNames: ["chain"] as const,
       registers: [this.registry],
+      aggregator: "first",
     });
     this.ponder_indexing_function_duration = new prometheus.Histogram({
       name: "ponder_indexing_function_duration",
@@ -208,6 +220,7 @@ export class MetricsService {
       labelNames: ["chain", "event"] as const,
       buckets: sometimesIODurationMs,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_indexing_cache_query_duration = new prometheus.Histogram({
       name: "ponder_indexing_cache_query_duration",
@@ -215,6 +228,7 @@ export class MetricsService {
       labelNames: ["table", "method"] as const,
       buckets: alwaysIODurationMs,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_indexing_rpc_action_duration = new prometheus.Histogram({
       name: "ponder_indexing_rpc_action_duration",
@@ -222,36 +236,42 @@ export class MetricsService {
       labelNames: ["action"] as const,
       buckets: sometimesIODurationMs,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_indexing_rpc_prefetch_total = new prometheus.Counter({
       name: "ponder_indexing_rpc_prefetch_total",
       help: "Number of RPC prefetches",
       labelNames: ["chain", "method", "type"] as const,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_indexing_rpc_requests_total = new prometheus.Counter({
       name: "ponder_indexing_rpc_requests_total",
       help: "Number of RPC requests",
       labelNames: ["chain", "method", "type"] as const,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_indexing_cache_requests_total = new prometheus.Counter({
       name: "ponder_indexing_cache_requests_total",
       help: "Number of cache accesses",
       labelNames: ["table", "type"] as const,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_indexing_store_queries_total = new prometheus.Counter({
       name: "ponder_indexing_store_queries_total",
       help: "Number of indexing store operations",
       labelNames: ["table", "method"] as const,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_indexing_store_raw_sql_duration = new prometheus.Histogram({
       name: "ponder_indexing_store_raw_sql_duration",
       help: "Duration of raw SQL store operations",
       buckets: alwaysIODurationMs,
       registers: [this.registry],
+      aggregator: "sum",
     });
 
     this.ponder_sync_block = new prometheus.Gauge({
@@ -259,24 +279,28 @@ export class MetricsService {
       help: "Closest-to-tip synced block number",
       labelNames: ["chain"] as const,
       registers: [this.registry],
+      aggregator: "max",
     });
     this.ponder_sync_block_timestamp = new prometheus.Gauge({
       name: "ponder_sync_block_timestamp",
       help: "Closest-to-tip synced block timestamp",
       labelNames: ["chain"] as const,
       registers: [this.registry],
+      aggregator: "max",
     });
     this.ponder_sync_is_realtime = new prometheus.Gauge({
       name: "ponder_sync_is_realtime",
       help: "Boolean (0 or 1) indicating if the sync is realtime mode",
       labelNames: ["chain"] as const,
       registers: [this.registry],
+      aggregator: "max",
     });
     this.ponder_sync_is_complete = new prometheus.Gauge({
       name: "ponder_sync_is_complete",
       help: "Boolean (0 or 1) indicating if the sync has synced all blocks",
       labelNames: ["chain"] as const,
       registers: [this.registry],
+      aggregator: "max",
     });
 
     this.ponder_historical_total_blocks = new prometheus.Gauge({
@@ -284,18 +308,21 @@ export class MetricsService {
       help: "Number of blocks required for the historical sync",
       labelNames: ["chain"] as const,
       registers: [this.registry],
+      aggregator: "max",
     });
     this.ponder_historical_cached_blocks = new prometheus.Gauge({
       name: "ponder_historical_cached_blocks",
       help: "Number of blocks that were found in the cache for the historical sync",
       labelNames: ["chain"] as const,
       registers: [this.registry],
+      aggregator: "max",
     });
     this.ponder_historical_completed_blocks = new prometheus.Gauge({
       name: "ponder_historical_completed_blocks",
       help: "Number of blocks that have been processed for the historical sync",
       labelNames: ["chain", "source", "type"] as const,
       registers: [this.registry],
+      aggregator: "max",
     });
 
     this.ponder_realtime_reorg_total = new prometheus.Counter({
@@ -303,6 +330,7 @@ export class MetricsService {
       help: "Count of how many re-orgs have occurred",
       labelNames: ["chain"] as const,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_realtime_latency = new prometheus.Histogram({
       name: "ponder_realtime_latency",
@@ -313,6 +341,7 @@ export class MetricsService {
         1_000_000,
       ],
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_realtime_block_arrival_latency = new prometheus.Histogram({
       name: "ponder_realtime_block_arrival_latency",
@@ -323,6 +352,7 @@ export class MetricsService {
         1_000_000,
       ],
       registers: [this.registry],
+      aggregator: "sum",
     });
 
     this.ponder_database_method_duration = new prometheus.Histogram({
@@ -331,18 +361,21 @@ export class MetricsService {
       labelNames: ["service", "method"] as const,
       buckets: alwaysIODurationMs,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_database_method_error_total = new prometheus.Counter({
       name: "ponder_database_method_error_total",
       help: "Total number of errors encountered during database operations",
       labelNames: ["service", "method"] as const,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_http_server_active_requests = new prometheus.Gauge({
       name: "ponder_http_server_active_requests",
       help: "Number of active HTTP server requests",
       labelNames: ["method", "path"] as const,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_http_server_request_duration_ms = new prometheus.Histogram({
       name: "ponder_http_server_request_duration_ms",
@@ -350,6 +383,7 @@ export class MetricsService {
       labelNames: ["method", "path", "status"] as const,
       buckets: alwaysIODurationMs,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_http_server_request_size_bytes = new prometheus.Histogram({
       name: "ponder_http_server_request_size_bytes",
@@ -357,6 +391,7 @@ export class MetricsService {
       labelNames: ["method", "path", "status"] as const,
       buckets: httpRequestSizeBytes,
       registers: [this.registry],
+      aggregator: "sum",
     });
     this.ponder_http_server_response_size_bytes = new prometheus.Histogram({
       name: "ponder_http_server_response_size_bytes",
@@ -364,6 +399,7 @@ export class MetricsService {
       labelNames: ["method", "path", "status"] as const,
       buckets: httpRequestSizeBytes,
       registers: [this.registry],
+      aggregator: "sum",
     });
 
     this.ponder_rpc_request_duration = new prometheus.Histogram({
@@ -372,6 +408,7 @@ export class MetricsService {
       labelNames: ["chain", "method"] as const,
       buckets: alwaysIODurationMs,
       registers: [this.registry],
+      aggregator: "sum",
     });
 
     this.ponder_rpc_request_error_total = new prometheus.Counter({
@@ -379,6 +416,7 @@ export class MetricsService {
       help: "Total count of failed RPC requests",
       labelNames: ["chain", "method"] as const,
       registers: [this.registry],
+      aggregator: "sum",
     });
 
     this.ponder_postgres_query_total = new prometheus.Counter({
@@ -386,6 +424,7 @@ export class MetricsService {
       help: "Total number of queries submitted to the database",
       labelNames: ["pool"] as const,
       registers: [this.registry],
+      aggregator: "sum",
     });
 
     prometheus.collectDefaultMetrics({
