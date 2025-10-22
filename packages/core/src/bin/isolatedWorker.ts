@@ -1,3 +1,4 @@
+import v8 from "node:v8";
 import { isMainThread, parentPort, workerData } from "node:worker_threads";
 import { createBuild } from "@/build/index.js";
 import { createDatabase } from "@/database/index.js";
