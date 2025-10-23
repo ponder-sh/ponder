@@ -1,5 +1,6 @@
 import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
+import { ShutdownError } from "@/internal/errors.js";
 import type {
   Chain,
   CrashRecoveryCheckpoint,
@@ -1079,44 +1080,74 @@ export async function* getLocalSyncGenerator(params: {
 
     const pwr = promiseWithResolvers<void>();
 
-    await params.database.syncQB.transaction(async (tx) => {
-      const syncStore = createSyncStore({ common: params.common, qb: tx });
-      const logs = await historicalSync.syncBlockRangeData({
-        interval,
-        requiredIntervals,
-        syncStore,
+    const durationTimer = setTimeout(() => {
+      params.common.logger.warn({
+        msg: "Fetching backfill JSON-RPC data is taking longer than expected",
+        chain: params.chain.name,
+        chain_id: params.chain.id,
+        block_range: JSON.stringify(interval),
+        duration: endClock(),
+      });
+    }, 5_000);
+
+    const closestToTipBlock = await params.database.syncQB
+      .transaction(async (tx) => {
+        const syncStore = createSyncStore({ common: params.common, qb: tx });
+        const logs = await historicalSync.syncBlockRangeData({
+          interval,
+          requiredIntervals,
+          syncStore,
+        });
+
+        // Wait for the previous interval to complete `syncBlockData`.
+        await promise;
+
+        if (isSyncComplete === false) {
+          // Queue the next interval
+          intervalCallback({
+            interval: [
+              Math.min(interval[1] + 1, hexToNumber(last.number)),
+              Math.min(
+                interval[1] + 1 + estimateRange,
+                hexToNumber(last.number),
+              ),
+            ],
+            promise: pwr.promise,
+          });
+        }
+
+        const closestToTipBlock = await historicalSync.syncBlockData({
+          interval,
+          requiredIntervals,
+          logs,
+          syncStore,
+        });
+        if (params.chain.disableCache === false) {
+          await syncStore.insertIntervals({
+            intervals: requiredIntervals,
+            chainId: params.chain.id,
+          });
+        }
+
+        return closestToTipBlock;
+      })
+      .catch((error) => {
+        if (error instanceof ShutdownError) {
+          throw error;
+        }
+
+        params.common.logger.warn({
+          msg: "Failed to fetch backfill JSON-RPC data",
+          chain: params.chain.name,
+          chain_id: params.chain.id,
+          block_range: JSON.stringify(interval),
+          duration: endClock(),
+          error,
+        });
+        throw error;
       });
 
-      // TODO(kyle) error handling + warning log for slow sync
-
-      // Wait for the previous interval to complete `syncBlockData`.
-      await promise;
-
-      if (isSyncComplete === false) {
-        // Queue the next interval
-        intervalCallback({
-          interval: [
-            Math.min(interval[1] + 1, hexToNumber(last.number)),
-            Math.min(interval[1] + 1 + estimateRange, hexToNumber(last.number)),
-          ],
-          promise: pwr.promise,
-        });
-      }
-
-      // TODO(kyle) return closest-to-tip block
-      await historicalSync.syncBlockData({
-        interval,
-        requiredIntervals,
-        logs,
-        syncStore,
-      });
-      if (params.chain.disableCache === false) {
-        await syncStore.insertIntervals({
-          intervals: requiredIntervals,
-          chainId: params.chain.id,
-        });
-      }
-    });
+    clearTimeout(durationTimer);
 
     if (interval[1] === hexToNumber(last.number)) {
       params.syncProgress.current = last;
@@ -1124,11 +1155,19 @@ export async function* getLocalSyncGenerator(params: {
 
     const duration = endClock();
 
-    params.common.metrics.ponder_sync_block.set(label, interval[1]);
-    // params.common.metrics.ponder_sync_block_timestamp.set(
-    //   label,
-    //   hexToNumber(params.syncProgress.current!.timestamp),
-    // );
+    if (closestToTipBlock) {
+      params.common.metrics.ponder_sync_block.set(
+        label,
+        hexToNumber(closestToTipBlock.number),
+      );
+      params.common.metrics.ponder_sync_block_timestamp.set(
+        label,
+        hexToNumber(closestToTipBlock.timestamp),
+      );
+    } else {
+      params.common.metrics.ponder_sync_block.set(label, interval[1]);
+    }
+
     params.common.metrics.ponder_historical_completed_blocks.inc(
       label,
       interval[1] - interval[0] + 1,

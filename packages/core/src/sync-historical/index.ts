@@ -76,7 +76,7 @@ export type HistoricalSync = {
     requiredIntervals: IntervalWithFilter[];
     logs: SyncLog[];
     syncStore: SyncStore;
-  }): Promise<void>;
+  }): Promise<SyncBlock | undefined>;
 };
 
 type CreateHistoricalSyncParameters = {
@@ -621,6 +621,8 @@ export const createHistoricalSync = (
         perBlockLogs.get(blockNumber)!.push(log);
       }
 
+      let closestToTipBlock: SyncBlock | undefined;
+
       const syncBlock = async (blockNumber: number) => {
         let block: SyncBlock | undefined;
 
@@ -817,6 +819,13 @@ export const createHistoricalSync = (
         }
         validateTransactionsAndBlock(block, "number");
 
+        if (
+          closestToTipBlock === undefined ||
+          hexToNumber(block.number) > hexToNumber(closestToTipBlock.number)
+        ) {
+          closestToTipBlock = block;
+        }
+
         const transactions = block.transactions.filter((transaction) => {
           let isMatched = requiredTransactions.has(transaction.hash);
           for (const filter of transactionFilters) {
@@ -913,6 +922,8 @@ export const createHistoricalSync = (
         },
         ["chain", "block_range"],
       );
+
+      return closestToTipBlock;
     },
   };
 };
