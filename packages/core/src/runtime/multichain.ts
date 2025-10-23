@@ -93,7 +93,7 @@ export async function runMultichain({
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
   const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
 
-  let eventCount = getEventCount(indexingBuild.indexingFunctions);
+  const eventCount = getEventCount(indexingBuild.indexingFunctions);
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -119,7 +119,6 @@ export async function runMultichain({
     common,
     indexingBuild,
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
@@ -356,7 +355,8 @@ export async function runMultichain({
     let endClock = startClock();
     await database.userQB.transaction(
       async (tx) => {
-        const initialEventCount = structuredClone(eventCount);
+        const initialCompletedEvents =
+          await common.metrics.ponder_indexing_completed_events.get();
 
         try {
           historicalIndexingStore.qb = tx;
@@ -445,7 +445,12 @@ export async function runMultichain({
           );
           endClock = startClock();
         } catch (error) {
-          eventCount = initialEventCount;
+          for (const value of initialCompletedEvents.values) {
+            common.metrics.ponder_indexing_completed_events.set(
+              value.labels,
+              value.value,
+            );
+          }
           indexingCache.invalidate();
           indexingCache.clear();
 
@@ -518,7 +523,7 @@ export async function runMultichain({
       ),
     );
     common.metrics.ponder_indexing_timestamp.set(
-      { chain: chain.name },
+      label,
       seconds[chain.name]!.end,
     );
   }

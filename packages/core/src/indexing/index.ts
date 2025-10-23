@@ -147,7 +147,6 @@ export const createIndexing = ({
   common,
   indexingBuild: { sources, chains, indexingFunctions },
   client,
-  eventCount,
   indexingErrorHandler,
   columnAccessPattern,
 }: {
@@ -157,7 +156,6 @@ export const createIndexing = ({
     "sources" | "chains" | "indexingFunctions"
   >;
   client: CachedViemClient;
-  eventCount: { [eventName: string]: number };
   indexingErrorHandler: IndexingErrorHandler;
   columnAccessPattern: ColumnAccessPattern;
 }): Indexing => {
@@ -230,16 +228,6 @@ export const createIndexing = ({
       endBlock: source.filter.toBlock,
     };
   }
-
-  const updateCompletedEvents = () => {
-    for (const event of Object.keys(eventCount)) {
-      const metricLabel = { event };
-      common.metrics.ponder_indexing_completed_events.set(
-        metricLabel,
-        eventCount[event]!,
-      );
-    }
-  };
 
   const executeSetup = async ({
     event,
@@ -522,7 +510,10 @@ export const createIndexing = ({
           client.event = event;
           context.client = clientByChainId[chain.id]!;
 
-          eventCount[eventName]!++;
+          common.metrics.ponder_indexing_completed_events.inc(
+            { event: eventName },
+            1,
+          );
 
           await executeSetup({ event });
         }
@@ -633,7 +624,10 @@ export const createIndexing = ({
         // @ts-expect-error
         await executeEvent({ ...event, event: proxyEvent });
 
-        eventCount[event.name]!++;
+        common.metrics.ponder_indexing_completed_events.inc(
+          { event: event.name },
+          1,
+        );
         columnAccessPattern.get(event.name)!.count++;
 
         const now = performance.now();
@@ -645,7 +639,6 @@ export const createIndexing = ({
 
         if (now - lastMetricsUpdate > METRICS_UPDATE_INTERVAL) {
           lastMetricsUpdate = now;
-          updateCompletedEvents();
           updateIndexingSeconds(event, chainById[event.chainId]!);
         }
       }
@@ -775,7 +768,6 @@ export const createIndexing = ({
       }
 
       await new Promise(setImmediate);
-      updateCompletedEvents();
       if (events.length > 0) {
         updateIndexingSeconds(
           events[events.length - 1]!,
@@ -791,12 +783,13 @@ export const createIndexing = ({
         client.event = event;
         context.client = clientByChainId[event.chainId]!;
 
-        eventCount[event.name]!++;
+        common.metrics.ponder_indexing_completed_events.inc(
+          { event: event.name },
+          1,
+        );
 
         await executeEvent(event);
       }
-
-      updateCompletedEvents();
     },
   };
 };

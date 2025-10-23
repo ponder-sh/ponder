@@ -1,6 +1,5 @@
 import path from "node:path";
 import url from "node:url";
-import v8 from "node:v8";
 import { Worker } from "node:worker_threads";
 import { createIndexes, createViews } from "@/database/actions.js";
 import { type Database, getPonderMetaTable } from "@/database/index.js";
@@ -194,9 +193,6 @@ export async function isolatedController({
         process.env.FORCE_COLOR = "1";
       }
 
-      // Note: This is a hack to set the maximum old space size for the worker threads
-      v8.setFlagsFromString("--max-old-space-size=1536");
-
       const worker = new Worker(workerPath, {
         workerData: {
           options: common.options,
@@ -204,6 +200,9 @@ export async function isolatedController({
           namespaceBuild,
           crashRecoveryCheckpoint,
         } satisfies Parameters<typeof isolatedWorker>[0],
+        resourceLimits: {
+          maxOldGenerationSizeMb: 1536, // 1.5GB
+        },
       });
 
       for (const chainId of chainIds) {

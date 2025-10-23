@@ -81,7 +81,7 @@ export async function runIsolated({
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
 
-  let eventCount = getEventCount(indexingBuild.indexingFunctions);
+  const eventCount = getEventCount(indexingBuild.indexingFunctions);
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -107,7 +107,6 @@ export async function runIsolated({
     common,
     indexingBuild,
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
@@ -300,8 +299,8 @@ export async function runIsolated({
     let endClock = startClock();
     await database.userQB.transaction(
       async (tx) => {
-        const initialEventCount = structuredClone(eventCount);
-
+        const initialCompletedEvents =
+          await common.metrics.ponder_indexing_completed_events.get();
         try {
           historicalIndexingStore.qb = tx;
           historicalIndexingStore.isProcessingEvents = true;
@@ -389,7 +388,15 @@ export async function runIsolated({
           );
           endClock = startClock();
         } catch (error) {
-          eventCount = initialEventCount;
+          // Note: This can cause a bug with "dev" command, because there are multiple instances
+          // updating the same metric.
+          for (const value of initialCompletedEvents.values) {
+            common.metrics.ponder_indexing_completed_events.set(
+              value.labels,
+              value.value,
+            );
+          }
+
           indexingCache.invalidate();
           indexingCache.clear();
 
