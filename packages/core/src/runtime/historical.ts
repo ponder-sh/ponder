@@ -1,5 +1,5 @@
+import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
-import { ShutdownError } from "@/internal/errors.js";
 import type {
   Chain,
   CrashRecoveryCheckpoint,
@@ -7,14 +7,13 @@ import type {
   IndexingBuild,
   RawEvent,
   Source,
-  SyncBlock,
 } from "@/internal/types.js";
 import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
 import { buildEvents, decodeEvents } from "@/runtime/events.js";
 import { isAddressFactory } from "@/runtime/filter.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
-import type { SyncStore } from "@/sync-store/index.js";
+import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
 import {
   MAX_CHECKPOINT,
   ZERO_CHECKPOINT,
@@ -22,9 +21,11 @@ import {
   encodeCheckpoint,
   min,
 } from "@/utils/checkpoint.js";
+import { estimate } from "@/utils/estimate.js";
 import { formatPercentage } from "@/utils/format.js";
 import {
   bufferAsyncGenerator,
+  createCallbackGenerator,
   mergeAsyncGenerators,
 } from "@/utils/generators.js";
 import {
@@ -35,9 +36,15 @@ import {
   intervalUnion,
 } from "@/utils/interval.js";
 import { partition } from "@/utils/partition.js";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { startClock } from "@/utils/timer.js";
 import { hexToNumber } from "viem";
-import type { CachedIntervals, ChildAddresses, SyncProgress } from "./index.js";
+import {
+  type CachedIntervals,
+  type ChildAddresses,
+  type SyncProgress,
+  getRequiredIntervals,
+} from "./index.js";
 import { initEventGenerator, initRefetchEvents } from "./init.js";
 import { getOmnichainCheckpoint } from "./omnichain.js";
 
@@ -56,7 +63,7 @@ export async function* getHistoricalEventsOmnichain(params: {
       cachedIntervals: CachedIntervals;
     }
   >;
-  syncStore: SyncStore;
+  database: Database;
 }): AsyncGenerator<
   | {
       type: "events";
@@ -121,7 +128,10 @@ export async function* getHistoricalEventsOmnichain(params: {
           ) {
             from = crashRecoveryCheckpoint;
           } else {
-            const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
+            const fromBlock = await createSyncStore({
+              common: params.common,
+              qb: params.database.syncQB,
+            }).getSafeCrashRecoveryBlock({
               chainId: chain.id,
               timestamp: Number(
                 decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
@@ -204,7 +214,7 @@ export async function* getHistoricalEventsOmnichain(params: {
               params.common.options.syncEventsQuerySize /
                 (params.indexingBuild.chains.length + 1),
             ) + 6,
-          syncStore: params.syncStore,
+          database: params.database,
           isCatchup,
         });
 
@@ -381,7 +391,7 @@ export async function* getHistoricalEventsMultichain(params: {
       cachedIntervals: CachedIntervals;
     }
   >;
-  syncStore: SyncStore;
+  database: Database;
 }) {
   let isCatchup = false;
   let lastUnfinalizedRefetch = Date.now();
@@ -425,7 +435,10 @@ export async function* getHistoricalEventsMultichain(params: {
           ) {
             from = crashRecoveryCheckpoint;
           } else {
-            const fromBlock = await params.syncStore.getSafeCrashRecoveryBlock({
+            const fromBlock = await createSyncStore({
+              common: params.common,
+              qb: params.database.syncQB,
+            }).getSafeCrashRecoveryBlock({
               chainId: chain.id,
               timestamp: Number(
                 decodeCheckpoint(crashRecoveryCheckpoint).blockTimestamp,
@@ -482,7 +495,7 @@ export async function* getHistoricalEventsMultichain(params: {
               params.common.options.syncEventsQuerySize /
                 (params.indexingBuild.chains.length + 1),
             ) + 6,
-          syncStore: params.syncStore,
+          database: params.database,
           isCatchup,
         });
 
@@ -772,9 +785,14 @@ export async function* getLocalEventGenerator(params: {
   from: string;
   to: string;
   limit: number;
-  syncStore: SyncStore;
+  database: Database;
   isCatchup: boolean;
 }) {
+  const syncStore = createSyncStore({
+    common: params.common,
+    qb: params.database.syncQB,
+  });
+
   const fromBlock = Number(decodeCheckpoint(params.from).blockNumber);
   const toBlock = Number(decodeCheckpoint(params.to).blockNumber);
   let cursor = fromBlock;
@@ -795,7 +813,7 @@ export async function* getLocalEventGenerator(params: {
         transactionReceipts,
         traces,
         cursor: queryCursor,
-      } = await params.syncStore.getEventData({
+      } = await syncStore.getEventData({
         filters: params.sources.map(({ filter }) => filter),
         fromBlock: cursor,
         toBlock: Math.min(syncCursor, toBlock),
@@ -866,13 +884,13 @@ export async function* getLocalSyncGenerator(params: {
   syncProgress: SyncProgress;
   childAddresses: ChildAddresses;
   cachedIntervals: CachedIntervals;
-  syncStore: SyncStore;
+  database: Database;
   isCatchup: boolean;
 }) {
   const backfillEndClock = startClock();
   const label = { chain: params.chain.name };
 
-  let cursor = hexToNumber(params.syncProgress.start.number);
+  let first = hexToNumber(params.syncProgress.start.number);
   const last =
     params.syncProgress.end === undefined
       ? params.syncProgress.finalized
@@ -1023,7 +1041,7 @@ export async function* getLocalSyncGenerator(params: {
       });
     }
 
-    cursor = hexToNumber(params.syncProgress.current.number) + 1;
+    first = hexToNumber(params.syncProgress.current.number) + 1;
   } else {
     params.common.logger.info({
       msg: "Started fetching backfill JSON-RPC data",
@@ -1035,115 +1053,136 @@ export async function* getLocalSyncGenerator(params: {
 
   const historicalSync = createHistoricalSync(params);
 
-  while (true) {
-    // Select a range of blocks to sync bounded by `finalizedBlock`.
-    // It is important for devEx that the interval is not too large, because
-    // time spent syncing ≈ time before indexing function feedback.
+  const { callback: intervalCallback, generator: intervalGenerator } =
+    createCallbackGenerator<{ interval: Interval; promise: Promise<void> }>();
 
-    const interval: Interval = [
-      Math.min(cursor, hexToNumber(last.number)),
-      Math.min(cursor + estimateRange, hexToNumber(last.number)),
-    ];
+  intervalCallback({
+    interval: [
+      first,
+      Math.min(first + estimateRange, hexToNumber(last.number)),
+    ],
+    promise: Promise.resolve(),
+  });
 
+  async function syncInterval({
+    interval,
+    promise,
+  }: { interval: Interval; promise: Promise<void> }) {
     const endClock = startClock();
 
-    const durationTimer = setTimeout(() => {
-      params.common.logger.warn({
-        msg: "Fetching backfill JSON-RPC data is taking longer than expected",
-        chain: params.chain.name,
-        chain_id: params.chain.id,
-        block_range: JSON.stringify(interval),
-        duration: endClock(),
-      });
-    }, 5_000);
+    const isSyncComplete = interval[1] === hexToNumber(last.number);
+    const requiredIntervals = getRequiredIntervals({
+      interval,
+      sources: params.sources,
+      cachedIntervals: params.cachedIntervals,
+    });
 
-    let synced: SyncBlock | undefined;
-    try {
-      synced = await historicalSync.sync(interval);
-    } catch (error) {
-      if (error instanceof ShutdownError) {
-        throw error;
+    const pwr = promiseWithResolvers<void>();
+
+    await params.database.syncQB.transaction(async (tx) => {
+      const syncStore = createSyncStore({ common: params.common, qb: tx });
+      const logs = await historicalSync.syncBlockRangeData({
+        interval,
+        requiredIntervals,
+        syncStore,
+      });
+
+      // TODO(kyle) error handling + warning log for slow sync
+
+      // Wait for the previous interval to complete `syncBlockData`.
+      await promise;
+
+      if (isSyncComplete === false) {
+        // Queue the next interval
+        intervalCallback({
+          interval: [
+            Math.min(interval[1] + 1, hexToNumber(last.number)),
+            Math.min(interval[1] + 1 + estimateRange, hexToNumber(last.number)),
+          ],
+          promise: pwr.promise,
+        });
       }
 
-      params.common.logger.warn({
-        msg: "Failed to fetch backfill JSON-RPC data",
-        chain: params.chain.name,
-        chain_id: params.chain.id,
-        block_range: JSON.stringify(interval),
-        duration: endClock(),
-        error,
+      // TODO(kyle) return closest-to-tip block
+      await historicalSync.syncBlockData({
+        interval,
+        requiredIntervals,
+        logs,
+        syncStore,
       });
-      throw error;
-    }
-
-    clearTimeout(durationTimer);
-
-    // Update cursor to record progress
-    cursor = interval[1] + 1;
-
-    // `synced` will be undefined if a cache hit occur in `historicalSync.sync()`.
-
-    if (synced === undefined) {
-      // If the all known blocks are synced, then update `syncProgress.current`, else
-      // progress to the next iteration.
-      if (interval[1] === hexToNumber(last.number)) {
-        params.syncProgress.current = last;
-      } else {
-        continue;
+      if (params.chain.disableCache === false) {
+        await syncStore.insertIntervals({
+          intervals: requiredIntervals,
+          chainId: params.chain.id,
+        });
       }
-    } else {
-      if (interval[1] === hexToNumber(last.number)) {
-        params.syncProgress.current = last;
-      } else {
-        params.syncProgress.current = synced;
-      }
+    });
 
-      const duration = endClock();
-
-      params.common.metrics.ponder_sync_block.set(
-        label,
-        hexToNumber(params.syncProgress.current!.number),
-      );
-      params.common.metrics.ponder_sync_block_timestamp.set(
-        label,
-        hexToNumber(params.syncProgress.current!.timestamp),
-      );
-      params.common.metrics.ponder_historical_completed_blocks.inc(
-        label,
-        interval[1] - interval[0] + 1,
-      );
-
-      // Use the duration and interval of the last call to `sync` to update estimate
-      // 25 <= estimate(new) <= estimate(prev) * 2 <= 100_000
-      estimateRange = Math.min(
-        Math.max(
-          25,
-          Math.round((1_000 * (interval[1] - interval[0])) / duration),
-        ),
-        estimateRange * 2,
-        100_000,
-      );
-
-      params.common.logger.trace({
-        msg: "Updated block range estimate for fetching backfill JSON-RPC data",
-        chain: params.chain.name,
-        chain_id: params.chain.id,
-        range: estimateRange,
-      });
+    if (interval[1] === hexToNumber(last.number)) {
+      params.syncProgress.current = last;
     }
 
-    yield hexToNumber(params.syncProgress.current!.number);
+    const duration = endClock();
 
-    if (params.syncProgress.isEnd() || params.syncProgress.isFinalized()) {
-      params.common.logger.info({
-        msg: "Finished fetching backfill JSON-RPC data",
-        chain: params.chain.name,
-        chain_id: params.chain.id,
-        duration: backfillEndClock(),
-      });
-      return;
-    }
+    params.common.metrics.ponder_sync_block.set(label, interval[1]);
+    // params.common.metrics.ponder_sync_block_timestamp.set(
+    //   label,
+    //   hexToNumber(params.syncProgress.current!.timestamp),
+    // );
+    params.common.metrics.ponder_historical_completed_blocks.inc(
+      label,
+      interval[1] - interval[0] + 1,
+    );
+
+    // Use the duration and interval of the last call to `sync` to update estimate
+    estimateRange = estimate({
+      from: interval[0],
+      to: interval[1],
+      target: params.common.options.command === "dev" ? 2_000 : 10_000,
+      result: duration,
+      min: 25,
+      max: 100_000,
+      prev: estimateRange,
+      maxIncrease: 1.5,
+    });
+
+    params.common.logger.trace({
+      msg: "Updated block range estimate for fetching backfill JSON-RPC data",
+      chain: params.chain.name,
+      chain_id: params.chain.id,
+      range: estimateRange,
+    });
+
+    // Resolve promise so the next interval can continue.
+    pwr.resolve();
   }
+
+  const { callback, generator } =
+    createCallbackGenerator<IteratorResult<number>>();
+
+  (async () => {
+    for await (const { interval, promise } of intervalGenerator) {
+      syncInterval({ interval, promise }).then(() => {
+        callback({ value: interval[1], done: false });
+
+        if (interval[1] === hexToNumber(last.number)) {
+          callback({ value: undefined, done: true });
+        }
+      });
+    }
+  })();
+
+  for await (const result of generator) {
+    if (result.done) break;
+    yield result.value;
+  }
+
+  params.common.logger.info({
+    msg: "Finished fetching backfill JSON-RPC data",
+    chain: params.chain.name,
+    chain_id: params.chain.id,
+    duration: backfillEndClock(),
+  });
 }
 
 /**
