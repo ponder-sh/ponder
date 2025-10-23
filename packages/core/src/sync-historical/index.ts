@@ -871,6 +871,11 @@ export const createHistoricalSync = (
           transactionsByHash.set(transaction.hash, transaction);
         }
 
+        blockCount += 1;
+        transactionCount += transactions.length;
+        receiptCount += transactionReceipts.length;
+        traceCount += traces.length;
+
         await promiseAllSettledWithThrow([
           syncStore.insertBlocks({
             blocks: [block],
@@ -899,6 +904,11 @@ export const createHistoricalSync = (
         ]);
       };
 
+      let blockCount = 0;
+      let transactionCount = 0;
+      let receiptCount = 0;
+      let traceCount = 0;
+
       const queue = createQueue({
         browser: false,
         concurrency: 40,
@@ -914,10 +924,10 @@ export const createHistoricalSync = (
           chain: args.chain.name,
           chain_id: args.chain.id,
           block_range: JSON.stringify(interval),
-          // block_count
-          // transaction_count
-          // receipt_count
-          // trace_count
+          block_count: blockCount,
+          transaction_count: transactionCount,
+          receipt_count: receiptCount,
+          trace_count: traceCount,
           duration: endClock(),
         },
         ["chain", "block_range"],
