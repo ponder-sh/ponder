@@ -267,19 +267,24 @@ export async function runMultichain({
         tx
           .insert(PONDER_CHECKPOINT)
           .values(
-            indexingBuild.chains.map((chain) => ({
-              chainName: chain.name,
-              chainId: chain.id,
-              latestCheckpoint: perChainSync
-                .get(chain)!
-                .syncProgress.getCheckpoint({ tag: "start" }),
-              safeCheckpoint: perChainSync
-                .get(chain)!
-                .syncProgress.getCheckpoint({ tag: "start" }),
-              finalizedCheckpoint: perChainSync
-                .get(chain)!
-                .syncProgress.getCheckpoint({ tag: "start" }),
-            })),
+            indexingBuild.chains.map((chain) => {
+              const initialCheckpoint = min(
+                perChainSync
+                  .get(chain)!
+                  .syncProgress.getCheckpoint({ tag: "start" }),
+                perChainSync
+                  .get(chain)!
+                  .syncProgress.getCheckpoint({ tag: "finalized" }),
+              );
+
+              return {
+                chainName: chain.name,
+                chainId: chain.id,
+                latestCheckpoint: initialCheckpoint,
+                safeCheckpoint: initialCheckpoint,
+                finalizedCheckpoint: initialCheckpoint,
+              };
+            }),
           )
           .onConflictDoUpdate({
             target: PONDER_CHECKPOINT.chainName,
