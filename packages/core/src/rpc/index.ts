@@ -29,6 +29,7 @@ import {
   type RpcError,
   type RpcTransactionReceipt,
   TimeoutError,
+  hexToNumber,
   isHex,
   webSocket,
 } from "viem";
@@ -165,31 +166,6 @@ const isAvailable = (bucket: Bucket) => {
   }
 
   return true;
-};
-
-const increaseMaxRPS = (bucket: Bucket) => {
-  if (bucket.rps.length < 10) return;
-
-  if (
-    bucket.consecutiveSuccessfulRequests <
-    bucket.rpsLimit * SUCCESS_MULTIPLIER
-  ) {
-    return;
-  }
-
-  for (const { count } of bucket.rps) {
-    if (count < bucket.rpsLimit * RPS_INCREASE_QUALIFIER) {
-      return;
-    }
-  }
-
-  bucket.rpsLimit = Math.min(bucket.rpsLimit * RPS_INCREASE_FACTOR, MAX_RPS);
-  bucket.consecutiveSuccessfulRequests = 0;
-};
-
-const decreaseMaxRPS = (bucket: Bucket) => {
-  bucket.rpsLimit = Math.max(bucket.rpsLimit * RPS_DECREASE_FACTOR, MIN_RPS);
-  bucket.consecutiveSuccessfulRequests = 0;
 };
 
 export const createRpc = ({
@@ -398,6 +374,34 @@ export const createRpc = ({
     return fastestBucket;
   };
 
+  const increaseMaxRPS = (bucket: Bucket) => {
+    if (bucket.rps.length < 10) return;
+
+    if (
+      bucket.consecutiveSuccessfulRequests <
+      bucket.rpsLimit * SUCCESS_MULTIPLIER
+    ) {
+      return;
+    }
+
+    for (const { count } of bucket.rps) {
+      if (count < bucket.rpsLimit * RPS_INCREASE_QUALIFIER) {
+        return;
+      }
+    }
+
+    bucket.rpsLimit = Math.min(bucket.rpsLimit * RPS_INCREASE_FACTOR, MAX_RPS);
+    bucket.consecutiveSuccessfulRequests = 0;
+
+    common.logger.debug({
+      msg: "Increased JSON-RPC provider RPS limit",
+      chain: chain.name,
+      chain_id: chain.id,
+      hostname: bucket.hostname,
+      rps_limit: Math.floor(bucket.rpsLimit),
+    });
+  };
+
   const queue = createQueue<
     Awaited<ReturnType<Rpc["request"]>>,
     {
@@ -516,7 +520,11 @@ export const createRpc = ({
               bucket.isActive = false;
               bucket.isWarmingUp = false;
 
-              decreaseMaxRPS(bucket);
+              bucket.rpsLimit = Math.max(
+                bucket.rpsLimit * RPS_DECREASE_FACTOR,
+                MIN_RPS,
+              );
+              bucket.consecutiveSuccessfulRequests = 0;
 
               common.logger.debug({
                 msg: "JSON-RPC provider rate limited",
@@ -629,6 +637,13 @@ export const createRpc = ({
                 const block = await _eth_getBlockByNumber(rpc, {
                   blockTag: "latest",
                 });
+                common.logger.trace({
+                  msg: "Received successful JSON-RPC polling response",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  block_number: hexToNumber(block.number),
+                  block_hash: hexToNumber(block.hash),
+                });
                 // Note: `onBlock` should never throw.
                 await onBlock(block);
               } catch (error) {
@@ -673,6 +688,12 @@ export const createRpc = ({
                     msg: "Received successful JSON-RPC WebSocket subscription data",
                     chain: chain.name,
                     chain_id: chain.id,
+                    block_number: msg.params.result.number
+                      ? hexToNumber(msg.params.result.number)
+                      : undefined,
+                    block_hash: msg.params.result.hash
+                      ? hexToNumber(msg.params.result.hash)
+                      : undefined,
                   });
                   webSocketErrorCount = 0;
 
