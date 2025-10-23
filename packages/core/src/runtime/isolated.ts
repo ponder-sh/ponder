@@ -224,18 +224,21 @@ export async function runIsolated({
 
       await indexingCache.flush();
 
+      const initialCheckpoint = min(
+        syncProgress.getCheckpoint({ tag: "start" }),
+        syncProgress.getCheckpoint({ tag: "finalized" }),
+      );
+
       await tx.wrap({ label: "update_checkpoints" }, (tx) =>
         tx
           .insert(PONDER_CHECKPOINT)
-          .values(
-            indexingBuild.chains.map((chain) => ({
-              chainName: chain.name,
-              chainId: chain.id,
-              latestCheckpoint: syncProgress.getCheckpoint({ tag: "start" }),
-              finalizedCheckpoint: syncProgress.getCheckpoint({ tag: "start" }),
-              safeCheckpoint: syncProgress.getCheckpoint({ tag: "start" }),
-            })),
-          )
+          .values({
+            chainName: chain.name,
+            chainId: chain.id,
+            latestCheckpoint: initialCheckpoint,
+            safeCheckpoint: initialCheckpoint,
+            finalizedCheckpoint: initialCheckpoint,
+          })
           .onConflictDoUpdate({
             target: PONDER_CHECKPOINT.chainName,
             set: {
@@ -535,11 +538,6 @@ export async function runIsolated({
           for (const { checkpoint, events } of perBlockEvents) {
             await database.userQB.transaction(
               async (tx) => {
-                const chain = indexingBuild.chains.find(
-                  (chain) =>
-                    chain.id === Number(decodeCheckpoint(checkpoint).chainId),
-                )!;
-
                 try {
                   realtimeIndexingStore.qb = tx;
                   realtimeIndexingStore.isProcessingEvents = true;
