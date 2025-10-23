@@ -605,7 +605,7 @@ export async function runMultichain({
       common,
       indexingBuild,
       perChainSync,
-      syncStore,
+      database,
     }),
     100,
   )) {

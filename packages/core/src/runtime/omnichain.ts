@@ -620,7 +620,7 @@ export async function runOmnichain({
       common,
       indexingBuild,
       perChainSync,
-      syncStore,
+      database,
       pendingEvents,
     }),
     100,
