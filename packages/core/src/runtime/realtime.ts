@@ -617,6 +617,19 @@ export async function* getRealtimeEventsIsolated(params: {
     1,
   );
 
+  const bufferCallback = (bufferSize: number) => {
+    // Note: Only log when the buffer size is greater than 1 because
+    // a buffer size of 1 is not backpressure.
+    if (bufferSize === 1) return;
+    params.common.logger.trace({
+      msg: "Detected live indexing backpressure",
+      chain: params.chain.name,
+      chain_id: params.chain.id,
+      buffer_size: bufferSize,
+      indexing_step: "order block events",
+    });
+  };
+
   const eventGenerator = bufferAsyncGenerator(
     getRealtimeEventGenerator({
       common: params.common,
@@ -628,6 +641,7 @@ export async function* getRealtimeEventsIsolated(params: {
       syncStore: params.syncStore,
     }),
     100,
+    bufferCallback,
   );
 
   for await (const { chain, event } of eventGenerator) {
