@@ -1,5 +1,11 @@
 # ponder
 
+## 0.14.7
+
+### Patch Changes
+
+- [#2150](https://github.com/ponder-sh/ponder/pull/2150) [`9b24574`](https://github.com/ponder-sh/ponder/commit/9b245748e8b645e78df6e348e2a22935de131e15) Thanks [@kyscott18](https://github.com/kyscott18)! - Added retries for `BlockNotFoundError: Block at number [block] could not be found`.
+
 ## 0.14.6
 
 ### Patch Changes
