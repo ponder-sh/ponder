@@ -1,98 +1,110 @@
 import { eq, onchainTable, relations } from "@/index.js";
 import { createClient } from "@ponder/client";
 import { expect, test } from "vitest";
-import { findTableNames, validateQuery } from "./parse.js";
+import {
+  getSQLQueryRelations,
+  parseSQLQuery,
+  validateAllowableSQLQuery,
+} from "./sql-parse.js";
 
-test("findTableNames", async () => {
-  let tableNames = await findTableNames(
+test("getSQLQueryRelations", async () => {
+  let relations = await getSQLQueryRelations(
     "SELECT col FROM users JOIN metadata ON users.id = metadata.id;",
   );
 
-  expect(tableNames).toMatchInlineSnapshot(`
+  expect(relations).toMatchInlineSnapshot(`
     Set {
       "users",
       "metadata",
     }
   `);
 
-  tableNames = await findTableNames("UPDATE users SET col = $1;");
+  relations = await getSQLQueryRelations("UPDATE users SET col = $1;");
 
-  expect(tableNames).toMatchInlineSnapshot(`
+  expect(relations).toMatchInlineSnapshot(`
     Set {
       "users",
     }
   `);
 
-  tableNames = await findTableNames(
+  relations = await getSQLQueryRelations(
     "DELETE FROM user_schema.table WHERE id = $1;",
   );
 
-  expect(tableNames).toMatchInlineSnapshot(`
+  expect(relations).toMatchInlineSnapshot(`
     Set {
       "table",
     }
   `);
 });
 
-test("validateQuery()", async () => {
-  await validateQuery("SELECT * FROM users;");
-  await validateQuery("SELECT u.name FROM users as u;");
+test("validateAllowableSQLQuery()", async () => {
+  await validateAllowableSQLQuery("SELECT * FROM users;");
+  await validateAllowableSQLQuery("SELECT u.name FROM users as u;");
 
-  await validateQuery("SELECT col FROM users LIMIT 1;");
-  await validateQuery(
+  await validateAllowableSQLQuery("SELECT col FROM users LIMIT 1;");
+  await validateAllowableSQLQuery(
     "SELECT col FROM users JOIN users ON users.id = users.id;",
   );
-  await validateQuery(
+  await validateAllowableSQLQuery(
     "SELECT col FROM users JOIN users ON users.id = users.id GROUP BY col ORDER BY col;",
   );
-  await validateQuery("WITH cte AS (SELECT * FROM users) SELECT * FROM cte;");
-  await validateQuery("SELECT * FROM users UNION ALL SELECT * FROM admins;");
-  await validateQuery("SELECT * FROM users WHERE col <> $1;");
+  await validateAllowableSQLQuery(
+    "WITH cte AS (SELECT * FROM users) SELECT * FROM cte;",
+  );
+  await validateAllowableSQLQuery(
+    "SELECT * FROM users UNION ALL SELECT * FROM admins;",
+  );
+  await validateAllowableSQLQuery("SELECT * FROM users WHERE col <> $1;");
 });
 
-test("validateQuery() cache", async () => {
-  await validateQuery("SELECT * FROM users;");
-  await validateQuery("SELECT * FROM users;");
+test("validateAllowableSQLQuery() cache", async () => {
+  await validateAllowableSQLQuery("SELECT * FROM users;");
+  await validateAllowableSQLQuery("SELECT * FROM users;");
 
   await expect(() =>
-    validateQuery(`SET statement_timeout = '1s';`),
+    validateAllowableSQLQuery(`SET statement_timeout = '1s';`),
   ).rejects.toThrow();
   await expect(() =>
-    validateQuery(`SET statement_timeout = '1s';`),
-  ).rejects.toThrow();
-});
-
-test("validateQuery() select into", async () => {
-  await expect(() => validateQuery("SELECT * INTO users;")).rejects.toThrow();
-});
-
-test("validateQuery() schema name", async () => {
-  await expect(() =>
-    validateQuery("SELECT * FROM offchain.metadata;"),
+    validateAllowableSQLQuery(`SET statement_timeout = '1s';`),
   ).rejects.toThrow();
 });
 
-test("validateQuery() system tables", async () => {
+test("validateAllowableSQLQuery() select into", async () => {
   await expect(() =>
-    validateQuery("SELECT * FROM pg_stat_activity;"),
+    validateAllowableSQLQuery("SELECT * INTO users;"),
   ).rejects.toThrow();
 });
 
-test("validateQuery() recursive cte", async () => {
+test("validateAllowableSQLQuery() schema name", async () => {
   await expect(() =>
-    validateQuery(
+    validateAllowableSQLQuery("SELECT * FROM offchain.metadata;"),
+  ).rejects.toThrow();
+});
+
+test("validateAllowableSQLQuery() system tables", async () => {
+  await expect(() =>
+    validateAllowableSQLQuery("SELECT * FROM pg_stat_activity;"),
+  ).rejects.toThrow();
+});
+
+test("validateAllowableSQLQuery() recursive cte", async () => {
+  await expect(() =>
+    validateAllowableSQLQuery(
       "WITH RECURSIVE infinite_cte AS (SELECT 1 AS num UNION ALL SELECT num + 1 FROM infinite_cte) SELECT * FROM infinite_cte;",
     ),
   ).rejects.toThrow();
 });
 
-test("validateQuery() function call", async () => {
-  await validateQuery("SELECT count(*) from users;");
-  await expect(() => validateQuery("SELECT blow_up();")).rejects.toThrow();
+test("validateAllowableSQLQuery() function call", async () => {
+  await validateAllowableSQLQuery("SELECT count(*) from users;");
+  await expect(() =>
+    validateAllowableSQLQuery("SELECT blow_up();"),
+  ).rejects.toThrow();
 });
 
-test("validateQuery() window def", async () => {
-  await validateQuery(`
+test("validateAllowableSQLQuery() window def", async () => {
+  await validateAllowableSQLQuery(`
   SELECT
     ohlc.pool,
     p.market_cap_usd,
@@ -144,11 +156,11 @@ test("validateQuery() window def", async () => {
   LIMIT $4`);
 });
 
-test("validateQuery() handles large query", async () => {
-  expect(() => validateQuery(query)).rejects.toThrow();
+test("parseSQLQuery() handles large query", async () => {
+  await expect(() => parseSQLQuery(query)).rejects.toThrow();
 });
 
-test("validateQuery() relational query", async () => {
+test("validateAllowableSQLQuery() relational query", async () => {
   const account = onchainTable("account", (p) => ({
     id: p.hex().primaryKey(),
     balance: p.bigint(),
@@ -205,7 +217,7 @@ test("validateQuery() relational query", async () => {
       },
     })
     .toSQL();
-  await validateQuery(query.sql);
+  await validateAllowableSQLQuery(query.sql);
 
   query = client.db.query.account
     .findFirst({
@@ -214,13 +226,13 @@ test("validateQuery() relational query", async () => {
       },
     })
     .toSQL();
-  await validateQuery(query.sql);
+  await validateAllowableSQLQuery(query.sql);
 
   query = client.db.query.account.findMany().toSQL();
-  await validateQuery(query.sql);
+  await validateAllowableSQLQuery(query.sql);
 
   query = client.db.query.account.findFirst().toSQL();
-  await validateQuery(query.sql);
+  await validateAllowableSQLQuery(query.sql);
 
   // nested relational query
   query = client.db.query.account
@@ -234,7 +246,7 @@ test("validateQuery() relational query", async () => {
       },
     })
     .toSQL();
-  await validateQuery(query.sql);
+  await validateAllowableSQLQuery(query.sql);
 
   // nested relational query with where
   query = client.db.query.account
@@ -249,7 +261,7 @@ test("validateQuery() relational query", async () => {
       },
     })
     .toSQL();
-  await validateQuery(query.sql);
+  await validateAllowableSQLQuery(query.sql);
 
   // nested relational query with limit
   query = client.db.query.account
@@ -264,7 +276,7 @@ test("validateQuery() relational query", async () => {
       },
     })
     .toSQL();
-  await validateQuery(query.sql);
+  await validateAllowableSQLQuery(query.sql);
 
   // relational query with offset
   query = client.db.query.account
@@ -275,13 +287,13 @@ test("validateQuery() relational query", async () => {
       },
     })
     .toSQL();
-  await validateQuery(query.sql);
+  await validateAllowableSQLQuery(query.sql);
 });
 
-test("validateQuery() race condition", async () => {
-  const promise1 = validateQuery("SELECT u.name FROM users as u;");
-  const promise2 = validateQuery("SELECT u.name FROM users as u;");
-  const promise3 = validateQuery("SELECT u.name FROM users as u;");
+test("validateAllowableSQLQuery() race condition", async () => {
+  const promise1 = validateAllowableSQLQuery("SELECT u.name FROM users as u;");
+  const promise2 = validateAllowableSQLQuery("SELECT u.name FROM users as u;");
+  const promise3 = validateAllowableSQLQuery("SELECT u.name FROM users as u;");
 
   await Promise.all([promise1, promise2, promise3]);
 });
