@@ -453,6 +453,7 @@ export const createRpc = ({
               body.method === "eth_getBlockByHash") &&
             context?.retryNullBlockRequest === true
           ) {
+            // Note: Throwing this error will cause the request to be retried.
             throw new BlockNotFoundError({
               // @ts-ignore
               blockNumber: body.params[0],
