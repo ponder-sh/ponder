@@ -39,8 +39,6 @@ beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
 test("createHistoricalSync()", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -58,7 +56,6 @@ test("createHistoricalSync()", async (context) => {
     sources,
     childAddresses: setupChildAddresses(sources),
     cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
   expect(historicalSync).toBeDefined();
