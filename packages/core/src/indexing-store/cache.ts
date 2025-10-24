@@ -16,6 +16,7 @@ import type {
 } from "@/internal/types.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { prettyPrint } from "@/utils/print.js";
+import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
 import { startClock } from "@/utils/timer.js";
 import {
   type Table,
@@ -815,7 +816,7 @@ export const createIndexingCache = ({
 
         // Note: Must use `Promise.allSettled` to avoid short-circuiting while queries are running.
 
-        const results = await Promise.allSettled(
+        await promiseAllSettledWithThrow(
           Array.from(cache.keys()).map(async (table) => {
             const shouldRecordBytes = cache.get(table)!.isCacheComplete;
             if (
@@ -983,18 +984,13 @@ export const createIndexingCache = ({
               });
             }
           }),
-        );
-
-        if (results.some((result) => result.status === "rejected")) {
-          const rejected = results.find(
-            (result): result is PromiseRejectedResult =>
-              result.status === "rejected",
-          )!;
-          if (rejected.reason instanceof ShutdownError) {
-            throw rejected.reason;
+        ).catch((error) => {
+          if (error instanceof ShutdownError) {
+            throw error;
           }
-          throw new RetryableError(rejected.reason.message);
-        }
+
+          throw new RetryableError(error.message);
+        });
       }
 
       isFlushRetry = false;

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type { Database } from "@/database/index.js";
+import type { QB } from "@/database/queryBuilder.js";
 import { extractBlockNumberParam } from "@/indexing/client.js";
 import type { Common } from "@/internal/common.js";
 import type { Logger } from "@/internal/logger.js";
@@ -186,11 +186,8 @@ export type SyncStore = {
 
 export const createSyncStore = ({
   common,
-  database,
-}: {
-  common: Common;
-  database: Database;
-}): SyncStore => {
+  qb,
+}: { common: Common; qb: QB<typeof PONDER_SYNC> }): SyncStore => {
   const syncStore = {
     insertIntervals: async ({ intervals, chainId }, context) => {
       if (intervals.length === 0) return;
@@ -236,7 +233,7 @@ export const createSyncStore = ({
       );
 
       for (let i = 0; i < values.length; i += batchSize) {
-        await database.syncQB.wrap(
+        await qb.wrap(
           { label: "insert_intervals" },
           (db) =>
             db
@@ -254,7 +251,7 @@ export const createSyncStore = ({
       const queries = filters.flatMap((filter, i) => {
         const fragments = getFragments(filter);
         return fragments.map((fragment, j) =>
-          database.syncQB.raw
+          qb.raw
             .select({
               mergedBlocks: sql<string>`range_agg(unnested.blocks)`.as(
                 "merged_blocks",
@@ -263,7 +260,7 @@ export const createSyncStore = ({
               fragment: sql.raw(`'${j}'`).as("fragment"),
             })
             .from(
-              database.syncQB.raw
+              qb.raw
                 .select({ blocks: sql.raw("unnest(blocks)").as("blocks") })
                 .from(PONDER_SYNC.intervals)
                 .where(
@@ -285,7 +282,7 @@ export const createSyncStore = ({
         const batchSize = 200;
 
         for (let i = 0; i < queries.length; i += batchSize) {
-          const _rows = await database.syncQB.wrap(
+          const _rows = await qb.wrap(
             { label: "select_intervals" },
             () =>
               // @ts-expect-error
@@ -300,7 +297,7 @@ export const createSyncStore = ({
           }
         }
       } else {
-        rows = await database.syncQB.wrap(
+        rows = await qb.wrap(
           { label: "select_intervals" },
           () => queries[0]!.execute(),
           context,
@@ -353,8 +350,8 @@ export const createSyncStore = ({
 
       const values: (typeof PONDER_SYNC.factoryAddresses.$inferInsert)[] = [];
 
-      const factoryInsert = database.syncQB.raw.$with("factory_insert").as(
-        database.syncQB.raw
+      const factoryInsert = qb.raw.$with("factory_insert").as(
+        qb.raw
           .insert(PONDER_SYNC.factories)
           .values({ factory: _factory })
           // @ts-expect-error bug with drizzle-orm
@@ -376,7 +373,7 @@ export const createSyncStore = ({
       }
 
       for (let i = 0; i < values.length; i += batchSize) {
-        await database.syncQB.wrap(
+        await qb.wrap(
           { label: "insert_child_addresses" },
           (db) =>
             db
@@ -390,8 +387,8 @@ export const createSyncStore = ({
     getChildAddresses: ({ factory }, context) => {
       const { id, ..._factory } = factory;
 
-      const factoryInsert = database.syncQB.raw.$with("factory_insert").as(
-        database.syncQB.raw
+      const factoryInsert = qb.raw.$with("factory_insert").as(
+        qb.raw
           .insert(PONDER_SYNC.factories)
           .values({ factory: _factory })
           // @ts-expect-error bug with drizzle-orm
@@ -402,7 +399,7 @@ export const createSyncStore = ({
           }),
       );
 
-      return database.syncQB
+      return qb
         .wrap(
           { label: "select_child_addresses" },
           (db) =>
@@ -416,9 +413,7 @@ export const createSyncStore = ({
               .where(
                 eq(
                   PONDER_SYNC.factoryAddresses.factoryId,
-                  database.syncQB.raw
-                    .select({ id: factoryInsert.id })
-                    .from(factoryInsert),
+                  qb.raw.select({ id: factoryInsert.id }).from(factoryInsert),
                 ),
               ),
           context,
@@ -437,7 +432,7 @@ export const createSyncStore = ({
         });
     },
     getSafeCrashRecoveryBlock: async ({ chainId, timestamp }, context) => {
-      const rows = await database.syncQB.wrap(
+      const rows = await qb.wrap(
         { label: "select_crash_recovery_block" },
         (db) =>
           db
@@ -476,7 +471,7 @@ export const createSyncStore = ({
       // in the db.
 
       for (let i = 0; i < logs.length; i += batchSize) {
-        await database.syncQB.wrap(
+        await qb.wrap(
           { label: "insert_logs" },
           (db) =>
             db
@@ -508,7 +503,7 @@ export const createSyncStore = ({
       );
 
       for (let i = 0; i < blocks.length; i += batchSize) {
-        await database.syncQB.wrap(
+        await qb.wrap(
           { label: "insert_blocks" },
           (db) =>
             db
@@ -541,7 +536,7 @@ export const createSyncStore = ({
       );
 
       for (let i = 0; i < transactions.length; i += batchSize) {
-        await database.syncQB.wrap(
+        await qb.wrap(
           { label: "insert_transactions" },
           (db) =>
             db
@@ -583,7 +578,7 @@ export const createSyncStore = ({
       );
 
       for (let i = 0; i < transactionReceipts.length; i += batchSize) {
-        await database.syncQB.wrap(
+        await qb.wrap(
           { label: "insert_transaction_receipts" },
           (db) =>
             db
@@ -627,7 +622,7 @@ export const createSyncStore = ({
       );
 
       for (let i = 0; i < traces.length; i += batchSize) {
-        await database.syncQB.wrap(
+        await qb.wrap(
           { label: "insert_traces" },
           (db) =>
             db
@@ -730,7 +725,7 @@ export const createSyncStore = ({
         blockSelect[column] = PONDER_SYNC.blocks[column];
       }
 
-      const blocksQuery = database.syncQB.raw
+      const blocksQuery = qb.raw
         .select(blockSelect)
         .from(PONDER_SYNC.blocks)
         .where(
@@ -757,7 +752,7 @@ export const createSyncStore = ({
         transactionSelect[column] = PONDER_SYNC.transactions[column];
       }
 
-      const transactionsQuery = database.syncQB.raw
+      const transactionsQuery = qb.raw
         .select(transactionSelect)
         .from(PONDER_SYNC.transactions)
         .where(
@@ -787,7 +782,7 @@ export const createSyncStore = ({
           PONDER_SYNC.transactionReceipts[column];
       }
 
-      const transactionReceiptsQuery = database.syncQB.raw
+      const transactionReceiptsQuery = qb.raw
         .select(transactionReceiptSelect)
         .from(PONDER_SYNC.transactionReceipts)
         .where(
@@ -821,7 +816,7 @@ export const createSyncStore = ({
         traceSelect[column] = PONDER_SYNC.traces[column];
       }
 
-      const tracesQuery = database.syncQB.raw
+      const tracesQuery = qb.raw
         .select(traceSelect)
         .from(PONDER_SYNC.traces)
         .where(
@@ -842,7 +837,7 @@ export const createSyncStore = ({
         )
         .limit(limit);
 
-      const logsQuery = database.syncQB.raw
+      const logsQuery = qb.raw
         .select({
           blockNumber: PONDER_SYNC.logs.blockNumber,
           logIndex: PONDER_SYNC.logs.logIndex,
@@ -879,35 +874,27 @@ export const createSyncStore = ({
         tracesRows,
       ] = await Promise.all([
         shouldQueryBlocks
-          ? database.syncQB.wrap({ label: "select_blocks" }, () => blocksQuery)
+          ? qb.wrap({ label: "select_blocks" }, () => blocksQuery)
           : [],
         shouldQueryTransactions
-          ? database.syncQB.wrap(
+          ? qb.wrap(
               { label: "select_transactions" },
               () => transactionsQuery,
               context,
             )
           : [],
         shouldQueryTransactionReceipts
-          ? database.syncQB.wrap(
+          ? qb.wrap(
               { label: "select_transaction_receipts" },
               () => transactionReceiptsQuery,
               context,
             )
           : [],
         shouldQueryLogs
-          ? database.syncQB.wrap(
-              { label: "select_logs" },
-              () => logsQuery,
-              context,
-            )
+          ? qb.wrap({ label: "select_logs" }, () => logsQuery, context)
           : [],
         shouldQueryTraces
-          ? database.syncQB.wrap(
-              { label: "select_traces" },
-              () => tracesQuery,
-              context,
-            )
+          ? qb.wrap({ label: "select_traces" }, () => tracesQuery, context)
           : [],
       ]);
 
@@ -1158,7 +1145,7 @@ export const createSyncStore = ({
         result,
       }));
 
-      await database.syncQB.wrap(
+      await qb.wrap(
         { label: "insert_rpc_requests" },
         (db) =>
           db
@@ -1216,7 +1203,7 @@ export const createSyncStore = ({
         );
 
         const result = await Promise.all([
-          database.syncQB.wrap(
+          qb.wrap(
             { label: "select_rpc_requests" },
             (db) =>
               db
@@ -1242,7 +1229,7 @@ export const createSyncStore = ({
           ),
           nonBlockRequestHashes.length === 0
             ? []
-            : database.syncQB.wrap(
+            : qb.wrap(
                 { label: "select_rpc_requests" },
                 (db) =>
                   db
@@ -1278,7 +1265,7 @@ export const createSyncStore = ({
         return requestHashes.map((requestHash) => results.get(requestHash));
       }
 
-      const result = await database.syncQB.wrap(
+      const result = await qb.wrap(
         { label: "select_rpc_requests" },
         (db) =>
           db
@@ -1311,7 +1298,7 @@ export const createSyncStore = ({
 
       const numbers = blocks.map(({ number }) => BigInt(hexToNumber(number)));
 
-      await database.syncQB.wrap(
+      await qb.wrap(
         { label: "delete_rpc_requests" },
         (db) =>
           db
@@ -1326,7 +1313,7 @@ export const createSyncStore = ({
       );
     },
     pruneByChain: async ({ chainId }, context) =>
-      database.syncQB.transaction(async (tx) => {
+      qb.transaction(async (tx) => {
         await tx.wrap(
           { label: "delete_logs" },
           (db) =>

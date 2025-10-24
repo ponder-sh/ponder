@@ -226,7 +226,10 @@ export async function setupDatabaseServices(
     throw err;
   });
 
-  const syncStore = createSyncStore({ common: context.common, database });
+  const syncStore = createSyncStore({
+    common: context.common,
+    qb: database.syncQB,
+  });
 
   const indexingErrorHandler: IndexingErrorHandler = {
     getRetryableError: () => {

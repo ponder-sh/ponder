@@ -94,7 +94,7 @@ export async function runOmnichain({
   const columnAccessPattern = createColumnAccessPattern({
     indexingBuild,
   });
-  const syncStore = createSyncStore({ common, database });
+  const syncStore = createSyncStore({ common, qb: database.syncQB });
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
   const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
@@ -331,7 +331,7 @@ export async function runOmnichain({
       indexingBuild,
       crashRecoveryCheckpoint,
       perChainSync,
-      syncStore,
+      database,
     }),
     (params) => {
       common.metrics.ponder_historical_concurrency_group_duration.inc(
@@ -631,7 +631,7 @@ export async function runOmnichain({
       common,
       indexingBuild,
       perChainSync,
-      syncStore,
+      database,
       pendingEvents,
     }),
     100,
