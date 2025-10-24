@@ -1080,15 +1080,18 @@ export async function* getLocalSyncGenerator(params: {
 
     const pwr = promiseWithResolvers<void>();
 
-    const durationTimer = setTimeout(() => {
-      params.common.logger.warn({
-        msg: "Fetching backfill JSON-RPC data is taking longer than expected",
-        chain: params.chain.name,
-        chain_id: params.chain.id,
-        block_range: JSON.stringify(interval),
-        duration: endClock(),
-      });
-    }, 5_000);
+    const durationTimer = setTimeout(
+      () => {
+        params.common.logger.warn({
+          msg: "Fetching backfill JSON-RPC data is taking longer than expected",
+          chain: params.chain.name,
+          chain_id: params.chain.id,
+          block_range: JSON.stringify(interval),
+          duration: endClock(),
+        });
+      },
+      params.common.options.command === "dev" ? 10_000 : 50_000,
+    );
 
     const closestToTipBlock = await params.database.syncQB
       .transaction(async (tx) => {
