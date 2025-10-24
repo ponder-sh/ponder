@@ -304,7 +304,7 @@ export const createHistoricalSync = (
       const _block = _eth_getBlockByNumber(
         args.rpc,
         { blockNumber: toHex(number) },
-        context,
+        { ...context, retryNullBlockRequest: true },
       );
       blockCache.set(number, _block);
       block = await _block;

@@ -138,7 +138,7 @@ export async function buildIndexingFunctions({
       const blockPromise = _eth_getBlockByNumber(
         rpc,
         { blockTag: "latest" },
-        context,
+        { ...context, retryNullBlockRequest: true },
       )
         .then((block) => hexToNumber((block as SyncBlock).number))
         .catch((e) => {
@@ -153,7 +153,7 @@ export async function buildIndexingFunctions({
         _eth_getBlockByNumber(
           rpc,
           { blockNumber: Math.max(latest - chain.finalityBlockCount, 0) },
-          context,
+          { ...context, retryNullBlockRequest: true },
         ).then((block) => ({
           hash: block.hash,
           parentHash: block.parentHash,

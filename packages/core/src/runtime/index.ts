@@ -131,10 +131,24 @@ export async function getLocalSyncProgress(params: {
 
   const diagnostics = await Promise.all(
     cached === undefined
-      ? [_eth_getBlockByNumber(params.rpc, { blockNumber: start })]
+      ? [
+          _eth_getBlockByNumber(
+            params.rpc,
+            { blockNumber: start },
+            { retryNullBlockRequest: true },
+          ),
+        ]
       : [
-          _eth_getBlockByNumber(params.rpc, { blockNumber: start }),
-          _eth_getBlockByNumber(params.rpc, { blockNumber: cached }),
+          _eth_getBlockByNumber(
+            params.rpc,
+            { blockNumber: start },
+            { retryNullBlockRequest: true },
+          ),
+          _eth_getBlockByNumber(
+            params.rpc,
+            { blockNumber: cached },
+            { retryNullBlockRequest: true },
+          ),
         ],
   );
 
@@ -159,9 +173,11 @@ export async function getLocalSyncProgress(params: {
       timestamp: toHex(MAX_CHECKPOINT.blockTimestamp),
     } satisfies LightBlock;
   } else {
-    syncProgress.end = await _eth_getBlockByNumber(params.rpc, {
-      blockNumber: end,
-    });
+    syncProgress.end = await _eth_getBlockByNumber(
+      params.rpc,
+      { blockNumber: end },
+      { retryNullBlockRequest: true },
+    );
   }
 
   return syncProgress;
