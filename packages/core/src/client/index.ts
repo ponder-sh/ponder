@@ -3,13 +3,18 @@ import { getLiveQueryChannelName } from "@/drizzle/index.js";
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
-import { type QueryWithTypings, isTable } from "drizzle-orm";
+import {
+  getSQLQueryRelations,
+  validateAllowableSQLQuery,
+} from "@/utils/sql-parse.js";
+import { type QueryWithTypings, getTableName, isTable } from "drizzle-orm";
 import type { PgSession } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
-// import { streamSSE } from "hono/streaming";
+import { streamSSE } from "hono/streaming";
 import type * as pg from "pg";
 import superjson from "superjson";
-import { validateQuery } from "./parse.js";
+
+type QueryString = string;
 
 /**
  * Middleware for `@ponder/client`.
@@ -46,6 +51,7 @@ export const client = ({
   }
 
   const tables = Object.values(schema).filter(isTable);
+  const tableNames = new Set(tables.map(getTableName));
   const PONDER_CHECKPOINT = getPonderCheckpointTable(
     globalThis.PONDER_NAMESPACE_BUILD.schema,
   );
@@ -57,9 +63,25 @@ export const client = ({
   // TODO(kyle) query db on startup to determine if the app is live
   /** `true` if the app is indexing live blocks. */
   let isLive = false;
-  const cache = new Map<string, WeakRef<Promise<unknown>>>();
   /** Tables that have updated in the current transaction. */
   const liveQueryUpdatedTables = new Set<string>();
+  const cache = new Map<QueryString, WeakRef<Promise<unknown>>>();
+  const liveQueryRegistry = new Map<
+    QueryString,
+    {
+      query: QueryWithTypings;
+      references: string[];
+      result: unknown;
+      streams: unknown[];
+      count: number;
+    }
+  >();
+  /** Relation name => (query string => count) */
+  const queryRelationMap = new Map<string, Map<QueryString, number>>();
+
+  for (const table of tableNames) {
+    queryRelationMap.set(table, new Map());
+  }
 
   if (driver.dialect === "pglite") {
     // driver.instance.query(`LISTEN "${channel}"`).then(() => {
@@ -111,7 +133,12 @@ export const client = ({
                 // Clear cache on status change
                 cache.clear();
 
-                // TODO(kyle) determine which live queries to update
+                for (const table of liveQueryUpdatedTables) {
+                  for (const [queryString] of queryRelationMap.get(table)!) {
+                    const liveQuery = liveQueryRegistry.get(queryString)!;
+                    // TODO(kyle) notify to re-execute query, compare results
+                  }
+                }
 
                 if (liveQueryUpdatedTables.size > 0) {
                   globalThis.PONDER_COMMON.logger.debug({
@@ -172,7 +199,7 @@ export const client = ({
       const query = superjson.parse(queryString) as QueryWithTypings;
 
       try {
-        await validateQuery(query.sql);
+        await validateAllowableSQLQuery(query.sql);
       } catch (error) {
         (error as Error).stack = undefined;
         return c.text((error as Error).message, 500);
@@ -233,14 +260,53 @@ export const client = ({
       c.header("Cache-Control", "no-cache");
       c.header("Connection", "keep-alive");
 
-      // return streamSSE(c, async (stream) => {
-      //   while (stream.closed === false && stream.aborted === false) {
-      //     try {
-      //       await stream.writeSSE({ data: "" });
-      //     } catch {}
-      //     await statusResolver.promise;
-      //   }
-      // });
+      const queryString = c.req.query("sql");
+      if (queryString === undefined) {
+        return c.text('Missing "sql" query parameter', 400);
+      }
+      const query = superjson.parse(queryString) as QueryWithTypings;
+
+      try {
+        await validateAllowableSQLQuery(query.sql);
+      } catch (error) {
+        (error as Error).stack = undefined;
+        return c.text((error as Error).message, 500);
+      }
+
+      if (liveQueryRegistry.has(queryString)) {
+        // TODO(kyle) add stream to registry
+      } else {
+        const relations = await getSQLQueryRelations(query.sql);
+
+        for (const relation of relations) {
+          if (tableNames.has(relation) === false) continue;
+
+          if (queryRelationMap.get(relation)!.has(queryString)) {
+            const count = queryRelationMap.get(relation)!.get(queryString)!;
+            queryRelationMap.get(relation)!.set(queryString, count + 1);
+          } else {
+            queryRelationMap.get(relation)!.set(queryString, 1);
+          }
+        }
+
+        // TODO(kyle) query initial result
+      }
+
+      return streamSSE(c, async (stream) => {
+        stream.onAbort(() => {
+          // TODO(kyle) remove stream from registry
+          // TODO(kyle) remove from queryRelationMap
+        });
+
+        // TODO(kyle) can we re-use the cache?
+
+        // while (stream.closed === false && stream.aborted === false) {
+        //   try {
+        //     await stream.writeSSE({ data: "" });
+        //   } catch {}
+        //   await statusResolver.promise;
+        // }
+      });
     }
 
     return next();
