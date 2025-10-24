@@ -2,6 +2,7 @@ import { runCodegen } from "@/bin/utils/codegen.js";
 import {
   commitBlock,
   createIndexes,
+  createLiveQueryTriggerAndProcedure,
   createTriggers,
   createViews,
   dropTriggers,
@@ -597,6 +598,19 @@ export async function runOmnichain({
       duration: endClock(),
     });
   }
+
+  endClock = startClock();
+
+  await createLiveQueryTriggerAndProcedure(database.adminQB, {
+    tables,
+    PONDER_CHECKPOINT,
+  });
+
+  common.logger.debug({
+    msg: "Created live query triggers and procedures",
+    count: tables.length + 1,
+    duration: endClock(),
+  });
 
   await database.adminQB.wrap({ label: "update_ready" }, (db) =>
     db

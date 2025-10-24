@@ -1,4 +1,9 @@
-import { getPrimaryKeyColumns } from "@/drizzle/index.js";
+import {
+  getLiveQueryChannelName,
+  getLiveQueryProcedureName,
+  getLiveQueryTriggerName,
+  getPrimaryKeyColumns,
+} from "@/drizzle/index.js";
 import { getTableNames } from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import type { Logger } from "@/internal/logger.js";
@@ -111,6 +116,106 @@ export const dropTriggers = async (
             ),
           );
         }),
+      );
+    },
+    undefined,
+    context,
+  );
+};
+
+export const createLiveQueryTriggerAndProcedure = async (
+  qb: QB,
+  {
+    tables,
+    PONDER_CHECKPOINT,
+  }: {
+    tables: Table[];
+    PONDER_CHECKPOINT: ReturnType<typeof getPonderCheckpointTable>;
+  },
+  context?: { logger?: Logger },
+) => {
+  await qb.transaction(
+    async (tx) => {
+      let lockId = 0;
+
+      for (const table of tables) {
+        const trigger = getLiveQueryTriggerName(table);
+        const procedure = getLiveQueryProcedureName(table);
+        const channel = getLiveQueryChannelName(table);
+        const schema = getTableConfig(table).schema ?? "public";
+
+        const tableLockId = lockId++;
+
+        await tx.wrap(
+          (tx) =>
+            tx.execute(
+              `
+CREATE OR REPLACE FUNCTION "${schema}".${procedure}
+RETURNS TRIGGER LANGUAGE plpgsql
+AS $$
+  DECLARE
+    lock_acquired BOOLEAN;
+    lock_key BIGINT := ${tableLockId};
+  BEGIN
+    SELECT pg_try_advisory_xact_lock(lock_key) INTO lock_acquired;
+
+    IF lock_acquired THEN
+      NOTIFY "${channel}";
+    END IF;
+
+    RETURN NULL;
+  END;
+$$;`,
+            ),
+          context,
+        );
+
+        await tx.wrap(
+          (tx) =>
+            tx.execute(
+              `
+CREATE OR REPLACE TRIGGER "${trigger}"
+AFTER INSERT OR UPDATE OR DELETE
+ON "${schema}"."${getTableName(table)}"
+FOR EACH STATEMENT
+EXECUTE PROCEDURE "${schema}".${procedure};`,
+            ),
+          context,
+        );
+      }
+
+      const trigger = getLiveQueryTriggerName(PONDER_CHECKPOINT);
+      const procedure = getLiveQueryProcedureName(PONDER_CHECKPOINT);
+      const channel = getLiveQueryChannelName(PONDER_CHECKPOINT);
+      const schema = getTableConfig(PONDER_CHECKPOINT).schema ?? "public";
+
+      await tx.wrap(
+        (tx) =>
+          tx.execute(
+            `
+CREATE OR REPLACE FUNCTION "${schema}".${procedure}
+RETURNS TRIGGER LANGUAGE plpgsql
+AS $$
+BEGIN
+  NOTIFY "${channel}";
+  RETURN NULL;
+END;
+$$;`,
+          ),
+        context,
+      );
+
+      await tx.wrap(
+        (tx) =>
+          tx.execute(
+            `
+CREATE OR REPLACE TRIGGER "${trigger}"
+AFTER INSERT OR UPDATE OR DELETE
+ON "${schema}"."${getTableName(PONDER_CHECKPOINT)}"
+FOR EACH STATEMENT
+EXECUTE PROCEDURE "${schema}".${procedure};`,
+          ),
+        context,
       );
     },
     undefined,

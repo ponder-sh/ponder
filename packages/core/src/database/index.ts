@@ -589,40 +589,6 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
             ),
           context,
         );
-
-        const trigger = "status_trigger";
-        const notification = "status_notify()";
-        const channel = `${namespace.schema}_status_channel`;
-
-        await tx.wrap(
-          (tx) =>
-            tx.execute(
-              `
-CREATE OR REPLACE FUNCTION "${namespace.schema}".${notification}
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
-BEGIN
-NOTIFY "${channel}";
-RETURN NULL;
-END;
-$$;`,
-            ),
-          context,
-        );
-
-        await tx.wrap(
-          (tx) =>
-            tx.execute(
-              `
-CREATE OR REPLACE TRIGGER "${trigger}"
-AFTER INSERT OR UPDATE OR DELETE
-ON "${namespace.schema}"._ponder_checkpoint
-FOR EACH STATEMENT
-EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
-            ),
-          context,
-        );
       };
 
       const tryAcquireLockAndMigrate = () =>

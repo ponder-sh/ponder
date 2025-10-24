@@ -1,10 +1,12 @@
+import { getPonderCheckpointTable } from "@/database/index.js";
+import { getLiveQueryChannelName } from "@/drizzle/index.js";
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
-import type { QueryWithTypings } from "drizzle-orm";
+import { type QueryWithTypings, isTable } from "drizzle-orm";
 import type { PgSession } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
-import { streamSSE } from "hono/streaming";
+// import { streamSSE } from "hono/streaming";
 import type * as pg from "pg";
 import superjson from "superjson";
 import { validateQuery } from "./parse.js";
@@ -31,6 +33,7 @@ import { validateQuery } from "./parse.js";
  */
 export const client = ({
   db,
+  schema,
 }: { db: ReadonlyDrizzle<Schema>; schema: Schema }) => {
   if (
     globalThis.PONDER_COMMON === undefined ||
@@ -42,24 +45,31 @@ export const client = ({
     );
   }
 
+  const tables = Object.values(schema).filter(isTable);
+  const PONDER_CHECKPOINT = getPonderCheckpointTable(
+    globalThis.PONDER_NAMESPACE_BUILD.schema,
+  );
+
   // @ts-ignore
   const session: PgSession = db._.session;
   const driver = globalThis.PONDER_DATABASE.driver;
-  let statusResolver = promiseWithResolvers<void>();
 
-  const channel = `${globalThis.PONDER_NAMESPACE_BUILD.schema}_status_channel`;
-
+  // TODO(kyle) query db on startup to determine if the app is live
+  /** `true` if the app is indexing live blocks. */
+  let isLive = false;
   const cache = new Map<string, WeakRef<Promise<unknown>>>();
+  /** Tables that have updated in the current transaction. */
+  const liveQueryUpdatedTables = new Set<string>();
 
   if (driver.dialect === "pglite") {
-    driver.instance.query(`LISTEN "${channel}"`).then(() => {
-      driver.instance.onNotification(() => {
-        // Clear cache on status change
-        cache.clear();
-        statusResolver.resolve();
-        statusResolver = promiseWithResolvers<void>();
-      });
-    });
+    // driver.instance.query(`LISTEN "${channel}"`).then(() => {
+    //   driver.instance.onNotification(() => {
+    //     // Clear cache on status change
+    //     cache.clear();
+    //     statusResolver.resolve();
+    //     statusResolver = promiseWithResolvers<void>();
+    //   });
+    // });
   } else {
     (async () => {
       let client: pg.PoolClient | undefined;
@@ -84,11 +94,35 @@ export const client = ({
               msg: `Established listen connection for "@ponder/client" middleware`,
             });
 
-            client.on("notification", () => {
-              // Clear cache on status change
-              cache.clear();
-              statusResolver.resolve();
-              statusResolver = promiseWithResolvers<void>();
+            client.on("notification", (notification) => {
+              const table = notification.channel.slice(
+                "live_query_channel_".length +
+                  (globalThis.PONDER_NAMESPACE_BUILD.schema ?? "public")
+                    .length +
+                  1,
+              );
+
+              // Note: only act when the "_ponder_checkpoint" table is updated
+              // because tables can be updated multiple times in a single transaction
+              // and the notification is only sent once for the entire transaction
+
+              if (table === "_ponder_checkpoint") {
+                isLive = true;
+                // Clear cache on status change
+                cache.clear();
+
+                // TODO(kyle) determine which live queries to update
+
+                if (liveQueryUpdatedTables.size > 0) {
+                  globalThis.PONDER_COMMON.logger.debug({
+                    msg: "Received live query table update notification",
+                    tables: JSON.stringify(Array.from(liveQueryUpdatedTables)),
+                  });
+                }
+                liveQueryUpdatedTables.clear();
+              } else {
+                liveQueryUpdatedTables.add(table);
+              }
             });
 
             client.on("error", async (error) => {
@@ -105,7 +139,12 @@ export const client = ({
               resolve();
             });
 
-            await client.query(`LISTEN "${channel}"`);
+            for (const table of tables) {
+              await client.query(`LISTEN "${getLiveQueryChannelName(table)}"`);
+            }
+            await client.query(
+              `LISTEN "${getLiveQueryChannelName(PONDER_CHECKPOINT)}"`,
+            );
           } catch (error) {
             globalThis.PONDER_COMMON.logger.warn({
               msg: `Failed listen connection for "@ponder/client" middleware`,
@@ -138,6 +177,8 @@ export const client = ({
         (error as Error).stack = undefined;
         return c.text((error as Error).message, 500);
       }
+
+      // TODO(kyle) don't use cache for non-live queries
 
       let resultPromise: Promise<unknown>;
 
@@ -181,18 +222,25 @@ export const client = ({
     }
 
     if (c.req.path === "/sql/live") {
+      if (isLive === false) {
+        return c.text(
+          "Live queries are not available until the backfill is complete",
+          503,
+        );
+      }
+
       c.header("Content-Type", "text/event-stream");
       c.header("Cache-Control", "no-cache");
       c.header("Connection", "keep-alive");
 
-      return streamSSE(c, async (stream) => {
-        while (stream.closed === false && stream.aborted === false) {
-          try {
-            await stream.writeSSE({ data: "" });
-          } catch {}
-          await statusResolver.promise;
-        }
-      });
+      // return streamSSE(c, async (stream) => {
+      //   while (stream.closed === false && stream.aborted === false) {
+      //     try {
+      //       await stream.writeSSE({ data: "" });
+      //     } catch {}
+      //     await statusResolver.promise;
+      //   }
+      // });
     }
 
     return next();
