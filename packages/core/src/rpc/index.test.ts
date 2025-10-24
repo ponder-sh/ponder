@@ -1,7 +1,8 @@
 import { setupAnvil, setupCommon } from "@/_test/setup.js";
+import { simulateBlock } from "@/_test/simulate.js";
 import { getChain } from "@/_test/utils.js";
 import { wait } from "@/utils/wait.js";
-import { beforeEach, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import { createRpc } from "./index.js";
 
 beforeEach(setupCommon);
@@ -33,6 +34,29 @@ test("createRpc() handles rate limiting", async (context) => {
   );
 
   await rpc.request({ method: "eth_blockNumber" });
+});
+
+test("createRpc() retry BlockNotFoundError", async (context) => {
+  const chain = getChain();
+  const rpc = createRpc({
+    common: context.common,
+    chain,
+  });
+
+  await simulateBlock();
+
+  vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+    new Response(JSON.stringify({ jsonrpc: "2.0", result: null, id: 1 })),
+  );
+
+  const block = await rpc.request(
+    { method: "eth_getBlockByNumber", params: ["0x1", true] },
+    {
+      retryNullBlockRequest: true,
+    },
+  );
+
+  expect(block).not.toBeNull();
 });
 
 test("https://github.com/ponder-sh/ponder/pull/2143", async (context) => {

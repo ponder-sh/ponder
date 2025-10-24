@@ -17,6 +17,7 @@ import {
 } from "@ponder/utils";
 import {
   http,
+  BlockNotFoundError,
   type EIP1193Parameters,
   type EIP1193RequestFn,
   type Hash,
@@ -63,7 +64,7 @@ export type Rpc = {
   hostnames: string[];
   request: <TParameters extends RequestParameters>(
     parameters: TParameters,
-    context?: { logger?: Logger },
+    context?: { logger?: Logger; retryNullBlockRequest?: boolean },
   ) => Promise<RequestReturnType<TParameters["method"]>>;
   subscribe: (params: {
     onBlock: (block: SyncBlock | SyncBlockHeader) => Promise<boolean>;
@@ -444,6 +445,18 @@ export const createRpc = ({
 
           if (response === undefined) {
             throw new Error("Response is undefined");
+          }
+
+          if (
+            response === null &&
+            (body.method === "eth_getBlockByNumber" ||
+              body.method === "eth_getBlockByHash") &&
+            context?.retryNullBlockRequest === true
+          ) {
+            throw new BlockNotFoundError({
+              // @ts-ignore
+              blockNumber: body.params[0],
+            });
           }
 
           const duration = endClock();
