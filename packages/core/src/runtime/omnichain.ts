@@ -1,12 +1,11 @@
-import { runCodegen } from "@/bin/utils/codegen.js";
 import {
   commitBlock,
   createIndexes,
   createTriggers,
   createViews,
   dropTriggers,
-  finalize,
-  revert,
+  finalizeOmnichain,
+  revertOmnichain,
 } from "@/database/actions.js";
 import {
   type Database,
@@ -89,8 +88,6 @@ export async function runOmnichain({
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   database: Database;
 }) {
-  runCodegen({ common });
-
   const columnAccessPattern = createColumnAccessPattern({
     indexingBuild,
   });
@@ -99,7 +96,7 @@ export async function runOmnichain({
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
   const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
 
-  let eventCount = getEventCount(indexingBuild.indexingFunctions);
+  const eventCount = getEventCount(indexingBuild.indexingFunctions);
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -125,7 +122,6 @@ export async function runOmnichain({
     common,
     indexingBuild,
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
@@ -305,14 +301,14 @@ export async function runOmnichain({
     // underlying metrics collection is actually synchronous
     // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
     const { eta, progress } = await getAppProgress(common.metrics);
-    if (eta === undefined || progress === undefined) {
+    if (eta === undefined && progress === undefined) {
       return;
     }
 
     common.logger.info({
       msg: "Updated backfill indexing progress",
-      progress: formatPercentage(progress),
-      estimate: formatEta(eta * 1_000),
+      progress: progress === undefined ? undefined : formatPercentage(progress),
+      estimate: eta === undefined ? undefined : formatEta(eta * 1_000),
     });
   }, 5_000);
 
@@ -371,7 +367,8 @@ export async function runOmnichain({
     let endClock = startClock();
     await database.userQB.transaction(
       async (tx) => {
-        const initialEventCount = structuredClone(eventCount);
+        const initialCompletedEvents =
+          await common.metrics.ponder_indexing_completed_events.get();
 
         try {
           historicalIndexingStore.qb = tx;
@@ -472,7 +469,12 @@ export async function runOmnichain({
           );
           endClock = startClock();
         } catch (error) {
-          eventCount = initialEventCount;
+          for (const value of initialCompletedEvents.values) {
+            common.metrics.ponder_indexing_completed_events.set(
+              value.labels,
+              value.value,
+            );
+          }
           indexingCache.invalidate();
           indexingCache.clear();
 
@@ -541,7 +543,7 @@ export async function runOmnichain({
       ),
     );
     common.metrics.ponder_indexing_timestamp.set(
-      { chain: chain.name },
+      label,
       seconds[chain.name]!.end,
     );
   }
@@ -687,7 +689,12 @@ export async function runOmnichain({
 
                   await Promise.all(
                     tables.map(
-                      (table) => commitBlock(tx, { table, checkpoint }),
+                      (table) =>
+                        commitBlock(
+                          tx,
+                          { table, checkpoint, preBuild },
+                          context,
+                        ),
                       context,
                     ),
                   );
@@ -762,12 +769,11 @@ export async function runOmnichain({
         await database.userQB.transaction(async (tx) => {
           await dropTriggers(tx, { tables }, context);
 
-          const counts = await revert(
+          const counts = await revertOmnichain(
             tx,
             {
               tables,
               checkpoint: event.checkpoint,
-              preBuild,
             },
             context,
           );
@@ -799,12 +805,11 @@ export async function runOmnichain({
         };
         const endClock = startClock();
 
-        await finalize(
+        await finalizeOmnichain(
           database.userQB,
           {
             checkpoint: event.checkpoint,
             tables,
-            preBuild,
             namespaceBuild,
           },
           context,

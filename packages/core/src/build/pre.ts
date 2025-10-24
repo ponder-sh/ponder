@@ -85,10 +85,7 @@ export function safeBuildPre({
   options: Pick<Options, "rootDir" | "ponderDir">;
 }) {
   try {
-    const result = buildPre({
-      config,
-      options,
-    });
+    const result = buildPre({ config, options });
 
     return {
       status: "success",

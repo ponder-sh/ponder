@@ -126,7 +126,10 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const compileSchemaResult = build.compileSchema(schemaResult.result);
+  const compileSchemaResult = build.compileSchema({
+    ...schemaResult.result,
+    preBuild: preCompileResult.result,
+  });
 
   if (compileSchemaResult.status === "error") {
     common.logger.error({

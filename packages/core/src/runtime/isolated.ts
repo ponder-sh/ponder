@@ -1,17 +1,11 @@
 import {
   commitBlock,
-  createIndexes,
   createTriggers,
-  createViews,
   dropTriggers,
-  finalizeMultichain,
-  revertMultichain,
+  finalizeIsolated,
+  revertIsolated,
 } from "@/database/actions.js";
-import {
-  type Database,
-  getPonderCheckpointTable,
-  getPonderMetaTable,
-} from "@/database/index.js";
+import { type Database, getPonderCheckpointTable } from "@/database/index.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
@@ -27,9 +21,7 @@ import {
   NonRetryableUserError,
   type RetryableError,
 } from "@/internal/errors.js";
-import { getAppProgress } from "@/internal/metrics.js";
 import type {
-  Chain,
   CrashRecoveryCheckpoint,
   IndexingBuild,
   IndexingErrorHandler,
@@ -46,29 +38,22 @@ import {
   decodeCheckpoint,
   min,
 } from "@/utils/checkpoint.js";
-import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
   bufferAsyncGenerator,
   recordAsyncGenerator,
 } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
-import { eq, getTableName, isTable, isView, sql } from "drizzle-orm";
+import { eq, getTableName, isTable, sql } from "drizzle-orm";
 import {
-  getHistoricalEventsMultichain,
+  getHistoricalEventsIsolated,
   refetchHistoricalEvents,
 } from "./historical.js";
-import {
-  type CachedIntervals,
-  type ChildAddresses,
-  type SyncProgress,
-  getCachedIntervals,
-  getChildAddresses,
-} from "./index.js";
+import { getCachedIntervals, getChildAddresses } from "./index.js";
 import { initSyncProgress } from "./init.js";
-import { getRealtimeEventsMultichain } from "./realtime.js";
+import { getRealtimeEventsIsolated } from "./realtime.js";
 
-export async function runMultichain({
+export async function runIsolated({
   common,
   preBuild,
   namespaceBuild,
@@ -76,6 +61,7 @@ export async function runMultichain({
   indexingBuild,
   crashRecoveryCheckpoint,
   database,
+  onReady,
 }: {
   common: Common;
   preBuild: PreBuild;
@@ -84,14 +70,16 @@ export async function runMultichain({
   indexingBuild: IndexingBuild;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   database: Database;
+  onReady: () => void;
 }) {
+  const chain = indexingBuild.chains[0]!;
+
   const columnAccessPattern = createColumnAccessPattern({
     indexingBuild,
   });
   const syncStore = createSyncStore({ common, database });
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
-  const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
 
   const eventCount = getEventCount(indexingBuild.indexingFunctions);
 
@@ -128,6 +116,7 @@ export async function runMultichain({
     schemaBuild,
     crashRecoveryCheckpoint,
     eventCount,
+    chainId: chain.id,
   });
 
   const historicalIndexingStore = createHistoricalIndexingStore({
@@ -135,109 +124,85 @@ export async function runMultichain({
     schemaBuild,
     indexingCache,
     indexingErrorHandler,
+    chainId: chain.id,
   });
 
-  const perChainSync = new Map<
-    Chain,
-    {
-      syncProgress: SyncProgress;
-      childAddresses: ChildAddresses;
-      cachedIntervals: CachedIntervals;
-      unfinalizedBlocks: Omit<
-        Extract<RealtimeSyncEvent, { type: "block" }>,
-        "type"
-      >[];
-    }
-  >();
   const seconds: Seconds = {};
 
-  await Promise.all(
-    indexingBuild.chains.map(async (chain) => {
-      const sources = indexingBuild.sources.filter(
-        ({ filter }) => filter.chainId === chain.id,
-      );
+  const sources = indexingBuild.sources.filter(
+    ({ filter }) => filter.chainId === chain.id,
+  );
 
-      const cachedIntervals = await getCachedIntervals({
-        chain,
-        sources,
-        syncStore,
-      });
-      const syncProgress = await initSyncProgress({
-        common,
-        sources,
-        chain,
-        rpc: indexingBuild.rpcs[indexingBuild.chains.indexOf(chain)]!,
-        finalizedBlock:
-          indexingBuild.finalizedBlocks[indexingBuild.chains.indexOf(chain)]!,
-        cachedIntervals,
-      });
-      const childAddresses = await getChildAddresses({
-        sources,
-        syncStore,
-      });
-      const unfinalizedBlocks: Omit<
-        Extract<RealtimeSyncEvent, { type: "block" }>,
-        "type"
-      >[] = [];
+  const cachedIntervals = await getCachedIntervals({
+    chain,
+    sources,
+    syncStore,
+  });
+  const syncProgress = await initSyncProgress({
+    common,
+    sources,
+    chain,
+    rpc: indexingBuild.rpcs[0]!,
+    finalizedBlock: indexingBuild.finalizedBlocks[0]!,
+    cachedIntervals,
+  });
+  const childAddresses = await getChildAddresses({
+    sources,
+    syncStore,
+  });
+  const unfinalizedBlocks: Omit<
+    Extract<RealtimeSyncEvent, { type: "block" }>,
+    "type"
+  >[] = [];
 
-      perChainSync.set(chain, {
-        syncProgress,
-        childAddresses,
-        cachedIntervals,
-        unfinalizedBlocks,
-      });
+  const start = Number(
+    decodeCheckpoint(syncProgress.getCheckpoint({ tag: "start" }))
+      .blockTimestamp,
+  );
 
-      const _crashRecoveryCheckpoint = crashRecoveryCheckpoint?.find(
-        ({ chainId }) => chainId === chain.id,
-      )?.checkpoint;
-      const start = Number(
-        decodeCheckpoint(syncProgress.getCheckpoint({ tag: "start" }))
-          .blockTimestamp,
-      );
+  const end = Number(
+    decodeCheckpoint(
+      min(
+        syncProgress.getCheckpoint({ tag: "end" }),
+        syncProgress.getCheckpoint({ tag: "finalized" }),
+      ),
+    ).blockTimestamp,
+  );
 
-      const end = Number(
-        decodeCheckpoint(
-          min(
-            syncProgress.getCheckpoint({ tag: "end" }),
-            syncProgress.getCheckpoint({ tag: "finalized" }),
-          ),
-        ).blockTimestamp,
-      );
+  const _crashRecoveryCheckpoint = crashRecoveryCheckpoint?.find(
+    ({ chainId }) => chainId === chain.id,
+  )?.checkpoint;
 
-      const cached = Math.min(
-        Number(
-          decodeCheckpoint(_crashRecoveryCheckpoint ?? ZERO_CHECKPOINT_STRING)
-            .blockTimestamp,
-        ),
-        end,
-      );
+  const cached = Math.min(
+    Number(
+      decodeCheckpoint(_crashRecoveryCheckpoint ?? ZERO_CHECKPOINT_STRING)
+        .blockTimestamp,
+    ),
+    end,
+  );
 
-      seconds[chain.name] = { start, end, cached };
+  seconds[chain.name] = { start, end, cached };
 
-      const label = { chain: chain.name };
-      common.metrics.ponder_historical_total_indexing_seconds.set(
-        label,
-        Math.max(seconds[chain.name]!.end - seconds[chain.name]!.start, 0),
-      );
-      common.metrics.ponder_historical_cached_indexing_seconds.set(
-        label,
-        Math.max(seconds[chain.name]!.cached - seconds[chain.name]!.start, 0),
-      );
-      common.metrics.ponder_historical_completed_indexing_seconds.set(label, 0);
-      common.metrics.ponder_indexing_timestamp.set(
-        label,
-        Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
-      );
-    }),
+  const label = { chain: chain.name };
+  common.metrics.ponder_historical_total_indexing_seconds.set(
+    label,
+    Math.max(seconds[chain.name]!.end - seconds[chain.name]!.start, 0),
+  );
+  common.metrics.ponder_historical_cached_indexing_seconds.set(
+    label,
+    Math.max(seconds[chain.name]!.cached - seconds[chain.name]!.start, 0),
+  );
+  common.metrics.ponder_historical_completed_indexing_seconds.set(label, 0);
+  common.metrics.ponder_indexing_timestamp.set(
+    label,
+    Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
   );
 
   const startTimestamp = Math.round(Date.now() / 1000);
-  for (const chain of indexingBuild.chains) {
-    common.metrics.ponder_historical_start_timestamp_seconds.set(
-      { chain: chain.name },
-      startTimestamp,
-    );
-  }
+  common.metrics.ponder_historical_start_timestamp_seconds.set(
+    label,
+    startTimestamp,
+  );
 
   // Reset the start timestamp so the eta estimate doesn't include
   // the startup time.
@@ -259,29 +224,21 @@ export async function runMultichain({
 
       await indexingCache.flush();
 
+      const initialCheckpoint = min(
+        syncProgress.getCheckpoint({ tag: "start" }),
+        syncProgress.getCheckpoint({ tag: "finalized" }),
+      );
+
       await tx.wrap({ label: "update_checkpoints" }, (tx) =>
         tx
           .insert(PONDER_CHECKPOINT)
-          .values(
-            indexingBuild.chains.map((chain) => {
-              const initialCheckpoint = min(
-                perChainSync
-                  .get(chain)!
-                  .syncProgress.getCheckpoint({ tag: "start" }),
-                perChainSync
-                  .get(chain)!
-                  .syncProgress.getCheckpoint({ tag: "finalized" }),
-              );
-
-              return {
-                chainName: chain.name,
-                chainId: chain.id,
-                latestCheckpoint: initialCheckpoint,
-                safeCheckpoint: initialCheckpoint,
-                finalizedCheckpoint: initialCheckpoint,
-              };
-            }),
-          )
+          .values({
+            chainName: chain.name,
+            chainId: chain.id,
+            latestCheckpoint: initialCheckpoint,
+            safeCheckpoint: initialCheckpoint,
+            finalizedCheckpoint: initialCheckpoint,
+          })
           .onConflictDoUpdate({
             target: PONDER_CHECKPOINT.chainName,
             set: {
@@ -294,25 +251,6 @@ export async function runMultichain({
     });
   }
 
-  const etaInterval = setInterval(async () => {
-    // underlying metrics collection is actually synchronous
-    // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-    const { eta, progress } = await getAppProgress(common.metrics);
-    if (eta === undefined && progress === undefined) {
-      return;
-    }
-
-    common.logger.info({
-      msg: "Updated backfill indexing progress",
-      progress: progress === undefined ? undefined : formatPercentage(progress),
-      estimate: eta === undefined ? undefined : formatEta(eta * 1_000),
-    });
-  }, 5_000);
-
-  common.shutdown.add(() => {
-    clearInterval(etaInterval);
-  });
-
   const backfillEndClock = startClock();
 
   // Run historical indexing until complete.
@@ -322,13 +260,19 @@ export async function runMultichain({
     checkpoint,
     blockRange,
   } of recordAsyncGenerator(
-    getHistoricalEventsMultichain({
-      common,
-      indexingBuild,
-      crashRecoveryCheckpoint,
-      perChainSync,
-      syncStore,
-    }),
+    bufferAsyncGenerator(
+      getHistoricalEventsIsolated({
+        common,
+        chain,
+        indexingBuild,
+        crashRecoveryCheckpoint,
+        syncProgress,
+        childAddresses,
+        cachedIntervals,
+        syncStore,
+      }),
+      1,
+    ),
     (params) => {
       common.metrics.ponder_historical_concurrency_group_duration.inc(
         { group: "extract" },
@@ -345,8 +289,6 @@ export async function runMultichain({
     };
     const indexStartClock = startClock();
 
-    const chain = indexingBuild.chains.find((chain) => chain.id === chainId)!;
-
     indexingCache.qb = database.userQB;
     await Promise.all([
       indexingCache.prefetch({ events }),
@@ -362,7 +304,6 @@ export async function runMultichain({
       async (tx) => {
         const initialCompletedEvents =
           await common.metrics.ponder_indexing_completed_events.get();
-
         try {
           historicalIndexingStore.qb = tx;
           historicalIndexingStore.isProcessingEvents = true;
@@ -450,12 +391,15 @@ export async function runMultichain({
           );
           endClock = startClock();
         } catch (error) {
+          // Note: This can cause a bug with "dev" command, because there are multiple instances
+          // updating the same metric.
           for (const value of initialCompletedEvents.values) {
             common.metrics.ponder_indexing_completed_events.set(
               value.labels,
               value.value,
             );
           }
+
           indexingCache.invalidate();
           indexingCache.clear();
 
@@ -471,7 +415,7 @@ export async function runMultichain({
             events = await refetchHistoricalEvents({
               common,
               indexingBuild,
-              perChainSync,
+              perChainSync: new Map([[chain, { childAddresses }]]),
               syncStore,
               events,
             });
@@ -517,89 +461,53 @@ export async function runMultichain({
   // checkpoint is between the last processed event and the finalized
   // checkpoint.
 
-  for (const chain of indexingBuild.chains) {
-    const label = { chain: chain.name };
-    common.metrics.ponder_historical_completed_indexing_seconds.set(
-      label,
-      Math.max(
-        seconds[chain.name]!.end -
-          Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
-        0,
-      ),
-    );
-    common.metrics.ponder_indexing_timestamp.set(
-      label,
-      seconds[chain.name]!.end,
-    );
-  }
+  common.metrics.ponder_historical_completed_indexing_seconds.set(
+    label,
+    Math.max(
+      seconds[chain.name]!.end -
+        Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
+      0,
+    ),
+  );
+  common.metrics.ponder_indexing_timestamp.set(
+    { chain: chain.name },
+    seconds[chain.name]!.end,
+  );
 
   const endTimestamp = Math.round(Date.now() / 1000);
-  for (const chain of indexingBuild.chains) {
-    common.metrics.ponder_historical_end_timestamp_seconds.set(
-      { chain: chain.name },
-      endTimestamp,
-    );
-  }
+  common.metrics.ponder_historical_end_timestamp_seconds.set(
+    { chain: chain.name },
+    endTimestamp,
+  );
 
   common.logger.info({
-    msg: "Completed backfill indexing across all chains",
+    msg: "Completed backfill indexing",
+    chain: chain.name,
+    chain_id: chain.id,
     duration: backfillEndClock(),
   });
-  clearInterval(etaInterval);
 
   const tables = Object.values(schemaBuild.schema).filter(isTable);
-  const views = Object.values(schemaBuild.schema).filter(isView);
 
-  let endClock = startClock();
+  const endClock = startClock();
 
-  await createIndexes(database.adminQB, { statements: schemaBuild.statements });
-
-  if (schemaBuild.statements.indexes.sql.length > 0) {
-    common.logger.info({
-      msg: "Created database indexes",
-      count: schemaBuild.statements.indexes.sql.length,
-      duration: endClock(),
-    });
-  }
-
-  endClock = startClock();
-
-  await createTriggers(database.adminQB, { tables });
+  await createTriggers(database.adminQB, { tables, chainId: chain.id });
 
   common.logger.debug({
     msg: "Created database triggers",
+    chain: chain.name,
+    chain_id: chain.id,
     count: tables.length,
     duration: endClock(),
   });
 
-  if (namespaceBuild.viewsSchema !== undefined) {
-    const endClock = startClock();
-
-    await createViews(database.adminQB, { tables, views, namespaceBuild });
-
-    common.logger.info({
-      msg: "Created database views",
-      schema: namespaceBuild.viewsSchema,
-      count: tables.length,
-      duration: endClock(),
-    });
-  }
-
-  await database.adminQB.wrap({ label: "update_ready" }, (db) =>
-    db
-      .update(PONDER_META)
-      .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` }),
-  );
-
-  common.logger.info({
-    msg: "Started returning 200 responses",
-    endpoint: "/ready",
-  });
+  onReady();
 
   const realtimeIndexingStore = createRealtimeIndexingStore({
     common,
     schemaBuild,
     indexingErrorHandler,
+    chainId: chain.id,
   });
 
   const bufferCallback = (bufferSize: number) => {
@@ -614,10 +522,13 @@ export async function runMultichain({
   };
 
   for await (const event of bufferAsyncGenerator(
-    getRealtimeEventsMultichain({
+    getRealtimeEventsIsolated({
       common,
       indexingBuild,
-      perChainSync,
+      chain,
+      syncProgress,
+      childAddresses,
+      unfinalizedBlocks,
       syncStore,
     }),
     100,
@@ -639,11 +550,6 @@ export async function runMultichain({
           for (const { checkpoint, events } of perBlockEvents) {
             await database.userQB.transaction(
               async (tx) => {
-                const chain = indexingBuild.chains.find(
-                  (chain) =>
-                    chain.id === Number(decodeCheckpoint(checkpoint).chainId),
-                )!;
-
                 try {
                   realtimeIndexingStore.qb = tx;
                   realtimeIndexingStore.isProcessingEvents = true;
@@ -744,9 +650,9 @@ export async function runMultichain({
 
         await database.userQB.transaction(
           async (tx) => {
-            await dropTriggers(tx, { tables }, context);
+            await dropTriggers(tx, { tables, chainId: chain.id }, context);
 
-            const counts = await revertMultichain(
+            const counts = await revertIsolated(
               tx,
               {
                 checkpoint: event.checkpoint,
@@ -758,12 +664,14 @@ export async function runMultichain({
             for (const [index, table] of tables.entries()) {
               common.logger.debug({
                 msg: "Reverted reorged database rows",
+                chain: chain.name,
+                chain_id: chain.id,
                 table: getTableName(table),
                 row_count: counts[index],
               });
             }
 
-            await createTriggers(tx, { tables }, context);
+            await createTriggers(tx, { tables, chainId: chain.id }, context);
           },
           undefined,
           context,
@@ -785,7 +693,7 @@ export async function runMultichain({
         };
         const endClock = startClock();
 
-        await finalizeMultichain(
+        await finalizeIsolated(
           database.userQB,
           {
             checkpoint: event.checkpoint,
@@ -811,7 +719,9 @@ export async function runMultichain({
   }
 
   common.logger.info({
-    msg: "Completed indexing across all chains",
+    msg: "Completed indexing",
+    chain: chain.name,
+    chain_id: chain.id,
     duration: backfillEndClock(),
   });
 }

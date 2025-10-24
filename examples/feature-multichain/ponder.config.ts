@@ -3,7 +3,7 @@ import { createConfig } from "ponder";
 import { weth9Abi } from "./abis/weth9Abi";
 
 export default createConfig({
-  ordering: "multichain",
+  ordering: "isolated",
   chains: {
     mainnet: {
       id: 1,
