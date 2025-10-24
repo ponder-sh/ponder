@@ -5,17 +5,14 @@ const client = createClient("http://localhost:42069/sql", { schema });
 
 const result = await client.db
   .select({ sum: sum(schema.account.balance) })
-  .from(schema.account)
-  .execute();
+  .from(schema.account);
 
 console.log(result);
 
+console.log("Subscribing to live updates...");
+
 const { unsubscribe } = client.live(
-  (db) =>
-    db
-      .select({ sum: sum(schema.account.balance) })
-      .from(schema.account)
-      .execute(),
+  (db) => db.select({ sum: sum(schema.account.balance) }).from(schema.account),
   (data) => {
     console.log(data);
   },

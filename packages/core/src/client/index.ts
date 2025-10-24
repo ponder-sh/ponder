@@ -2,7 +2,10 @@ import { getPonderCheckpointTable } from "@/database/index.js";
 import { getLiveQueryChannelName } from "@/drizzle/index.js";
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
-import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
+import {
+  type PromiseWithResolvers,
+  promiseWithResolvers,
+} from "@/utils/promiseWithResolvers.js";
 import {
   getSQLQueryRelations,
   validateAllowableSQLQuery,
@@ -15,6 +18,7 @@ import type * as pg from "pg";
 import superjson from "superjson";
 
 type QueryString = string;
+type QueryResult = unknown;
 
 /**
  * Middleware for `@ponder/client`.
@@ -60,28 +64,21 @@ export const client = ({
   const session: PgSession = db._.session;
   const driver = globalThis.PONDER_DATABASE.driver;
 
-  // TODO(kyle) query db on startup to determine if the app is live
-  /** `true` if the app is indexing live blocks. */
-  let isLive = false;
+  // TODO(kyle) parse views
+  const cache = new Map<QueryString, WeakRef<Promise<unknown>>>();
   /** Tables that have updated in the current transaction. */
   const liveQueryUpdatedTables = new Set<string>();
-  const cache = new Map<QueryString, WeakRef<Promise<unknown>>>();
-  const liveQueryRegistry = new Map<
-    QueryString,
-    {
-      query: QueryWithTypings;
-      references: string[];
-      result: unknown;
-      streams: unknown[];
-      count: number;
-    }
-  >();
-  /** Relation name => (query string => count) */
-  const queryRelationMap = new Map<string, Map<QueryString, number>>();
+  const perTableResolver = new Map<string, PromiseWithResolvers<void>>();
+  const perTableQueries = new Map<string, Map<QueryString, number>>();
+  /** `true` if the app is indexing live blocks. */
+  let isLive = false;
 
   for (const table of tableNames) {
-    queryRelationMap.set(table, new Map());
+    perTableResolver.set(table, promiseWithResolvers<void>());
+    perTableQueries.set(table, new Map());
   }
+
+  // TODO(kyle) query db to determine if the app is live
 
   if (driver.dialect === "pglite") {
     // driver.instance.query(`LISTEN "${channel}"`).then(() => {
@@ -130,18 +127,19 @@ export const client = ({
 
               if (table === "_ponder_checkpoint") {
                 isLive = true;
-                // Clear cache on status change
-                cache.clear();
 
                 for (const table of liveQueryUpdatedTables) {
-                  for (const [queryString] of queryRelationMap.get(table)!) {
-                    const liveQuery = liveQueryRegistry.get(queryString)!;
-                    // TODO(kyle) notify to re-execute query, compare results
+                  for (const [queryString] of perTableQueries.get(table)!) {
+                    cache.delete(queryString);
+                    // TODO(kyle) decrement count `perTableQueries`
                   }
+
+                  perTableResolver.get(table)!.resolve();
+                  perTableResolver.set(table, promiseWithResolvers<void>());
                 }
 
                 if (liveQueryUpdatedTables.size > 0) {
-                  globalThis.PONDER_COMMON.logger.debug({
+                  globalThis.PONDER_COMMON.logger.info({
                     msg: "Received live query table update notification",
                     tables: JSON.stringify(Array.from(liveQueryUpdatedTables)),
                   });
@@ -190,7 +188,24 @@ export const client = ({
     })();
   }
 
+  const getQueryResult = (query: QueryWithTypings): Promise<QueryResult> => {
+    if (driver.dialect === "pglite") {
+      return session.prepareQuery(query, undefined, undefined, false).execute();
+    } else {
+      return globalThis.PONDER_DATABASE.readonlyQB.raw.transaction(
+        (tx) => {
+          return tx._.session
+            .prepareQuery(query, undefined, undefined, false)
+            .execute();
+        },
+        { accessMode: "read only" },
+      );
+    }
+  };
+
   return createMiddleware(async (c, next) => {
+    const crypto = await import(/* webpackIgnore: true */ "node:crypto");
+
     if (c.req.path === "/sql/db") {
       const queryString = c.req.query("sql");
       if (queryString === undefined) {
@@ -205,39 +220,36 @@ export const client = ({
         return c.text((error as Error).message, 500);
       }
 
-      // TODO(kyle) don't use cache for non-live queries
+      const relations = await getSQLQueryRelations(query.sql);
+
+      for (const relation of relations) {
+        if (tableNames.has(relation) === false) continue;
+
+        if (perTableQueries.get(relation)!.has(queryString)) {
+          const count = perTableQueries.get(relation)!.get(queryString)!;
+          perTableQueries.get(relation)!.set(queryString, count + 1);
+        } else {
+          perTableQueries.get(relation)!.set(queryString, 1);
+        }
+      }
 
       let resultPromise: Promise<unknown>;
 
-      const _resultPromise = cache.get(queryString)?.deref() ?? undefined;
-      if (_resultPromise === undefined) {
-        cache.delete(queryString);
+      if (isLive === false) {
+        resultPromise = getQueryResult(query);
+      } else if (cache.has(queryString)) {
+        const resultRef = cache.get(queryString)!.deref();
 
-        const pwr = promiseWithResolvers<unknown>();
-        cache.set(queryString, new WeakRef(pwr.promise));
-        resultPromise = pwr.promise;
-
-        if (driver.dialect === "pglite") {
-          session
-            .prepareQuery(query, undefined, undefined, false)
-            .execute()
-            .then(pwr.resolve)
-            .catch(pwr.reject);
+        if (resultRef === undefined) {
+          cache.delete(queryString);
+          resultPromise = getQueryResult(query);
+          cache.set(queryString, new WeakRef(resultPromise));
         } else {
-          globalThis.PONDER_DATABASE.readonlyQB.raw
-            .transaction(
-              (tx) => {
-                return tx._.session
-                  .prepareQuery(query, undefined, undefined, false)
-                  .execute();
-              },
-              { accessMode: "read only" },
-            )
-            .then(pwr.resolve)
-            .catch(pwr.reject);
+          resultPromise = resultRef;
         }
       } else {
-        resultPromise = _resultPromise;
+        resultPromise = getQueryResult(query);
+        cache.set(queryString, new WeakRef(resultPromise));
       }
 
       try {
@@ -266,6 +278,8 @@ export const client = ({
       }
       const query = superjson.parse(queryString) as QueryWithTypings;
 
+      // TODO(kyle) normalize query string
+
       try {
         await validateAllowableSQLQuery(query.sql);
       } catch (error) {
@@ -273,39 +287,92 @@ export const client = ({
         return c.text((error as Error).message, 500);
       }
 
-      if (liveQueryRegistry.has(queryString)) {
-        // TODO(kyle) add stream to registry
-      } else {
-        const relations = await getSQLQueryRelations(query.sql);
+      const relations = await getSQLQueryRelations(query.sql);
 
-        for (const relation of relations) {
-          if (tableNames.has(relation) === false) continue;
+      for (const relation of relations) {
+        if (tableNames.has(relation) === false) continue;
 
-          if (queryRelationMap.get(relation)!.has(queryString)) {
-            const count = queryRelationMap.get(relation)!.get(queryString)!;
-            queryRelationMap.get(relation)!.set(queryString, count + 1);
-          } else {
-            queryRelationMap.get(relation)!.set(queryString, 1);
-          }
+        if (perTableQueries.get(relation)!.has(queryString)) {
+          const count = perTableQueries.get(relation)!.get(queryString)!;
+          perTableQueries.get(relation)!.set(queryString, count + 1);
+        } else {
+          perTableQueries.get(relation)!.set(queryString, 1);
         }
-
-        // TODO(kyle) query initial result
       }
+
+      let result: QueryResult;
+      if (cache.has(queryString)) {
+        const resultRef = cache.get(queryString)!.deref();
+
+        if (resultRef === undefined) {
+          cache.delete(queryString);
+          const resultPromise = getQueryResult(query);
+          cache.set(queryString, new WeakRef(resultPromise));
+          result = await resultPromise;
+        } else {
+          result = await resultRef;
+        }
+      } else {
+        const resultPromise = getQueryResult(query);
+        cache.set(queryString, new WeakRef(resultPromise));
+        result = await resultPromise;
+      }
+
+      let resultHash = crypto
+        .createHash("sha256")
+        // @ts-ignore
+        .update(JSON.stringify(result.rows))
+        .digest("hex")
+        .slice(0, 10);
 
       return streamSSE(c, async (stream) => {
         stream.onAbort(() => {
-          // TODO(kyle) remove stream from registry
-          // TODO(kyle) remove from queryRelationMap
+          // TODO(kyle) decrement count `perTableQueries`
         });
 
-        // TODO(kyle) can we re-use the cache?
+        await stream.writeSSE({ data: "" });
 
-        // while (stream.closed === false && stream.aborted === false) {
-        //   try {
-        //     await stream.writeSSE({ data: "" });
-        //   } catch {}
-        //   await statusResolver.promise;
-        // }
+        while (stream.closed === false && stream.aborted === false) {
+          await Promise.race(
+            Array.from(relations).map(
+              (relation) => perTableResolver.get(relation)!.promise,
+            ),
+          );
+
+          try {
+            let resultPromise: Promise<unknown>;
+            if (cache.has(queryString)) {
+              const resultRef = cache.get(queryString)!.deref();
+
+              if (resultRef === undefined) {
+                cache.delete(queryString);
+                resultPromise = getQueryResult(query);
+                cache.set(queryString, new WeakRef(resultPromise));
+              } else {
+                resultPromise = resultRef;
+              }
+            } else {
+              resultPromise = getQueryResult(query);
+              cache.set(queryString, new WeakRef(resultPromise));
+            }
+
+            // TODO(kyle) handle error
+
+            const result = await resultPromise;
+
+            const _resultHash = crypto
+              .createHash("sha256")
+              // @ts-ignore
+              .update(JSON.stringify(result.rows))
+              .digest("hex")
+              .slice(0, 10);
+
+            if (_resultHash === resultHash) continue;
+            resultHash = _resultHash;
+            await stream.writeSSE({ data: "" });
+          } catch {}
+          // TODO(kyle) max refresh rate
+        }
       });
     }
 

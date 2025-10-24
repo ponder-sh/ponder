@@ -138,8 +138,16 @@ export const createClient = <schema extends Schema>(
       { schema: params.schema, casing: "snake_case" },
     ),
     live: (queryFn, onData, onError) => {
+      const queryPromise = queryFn(client.db);
+
+      if ("getSQL" in queryPromise === false) {
+        throw new Error('"queryFn" must return SQL');
+      }
+
+      const query = compileQuery(queryPromise as unknown as SQLWrapper);
+
       if (sse === undefined) {
-        sse = new EventSource(getUrl(baseUrl, "live"));
+        sse = new EventSource(getUrl(baseUrl, "live", query));
       }
 
       const onDataListener = (_event: MessageEvent) => {
