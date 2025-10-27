@@ -150,8 +150,10 @@ export const createClient = <schema extends Schema>(
         sse = new EventSource(getUrl(baseUrl, "live", query));
       }
 
-      const onDataListener = (_event: MessageEvent) => {
-        queryFn(client.db).then(onData).catch(onError);
+      const onDataListener = (event: MessageEvent) => {
+        // @ts-ignore
+        const rows = JSON.parse(event.data);
+        // TODO(kyle)
       };
 
       const onErrorListener = (_event: MessageEvent) => {

@@ -9,8 +9,19 @@ import {
   getSQLQueryRelations,
   validateAllowableSQLQuery,
 } from "@/utils/sql-parse.js";
-import { type QueryWithTypings, getTableName, isTable } from "drizzle-orm";
-import type { PgSession } from "drizzle-orm/pg-core";
+import {
+  type QueryWithTypings,
+  getTableName,
+  getViewName,
+  isTable,
+  isView,
+} from "drizzle-orm";
+import {
+  type PgDialect,
+  type PgSession,
+  type PgView,
+  getViewConfig,
+} from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
 import type * as pg from "pg";
@@ -54,18 +65,22 @@ export const client = ({
   }
 
   const tables = Object.values(schema).filter(isTable);
+  const views = Object.values(schema).filter(isView);
   const tableNames = new Set(tables.map(getTableName));
+  const viewNames = new Set(views.map(getViewName));
 
   // @ts-ignore
   const session: PgSession = db._.session;
+  // @ts-ignore
+  const dialect: PgDialect = session.dialect;
   const driver = globalThis.PONDER_DATABASE.driver;
 
-  // TODO(kyle) parse views
   const cache = new Map<QueryString, WeakRef<Promise<unknown>>>();
   /** Tables that have updated in the current transaction. */
   const liveQueryUpdatedTables = new Set<string>();
   const perTableResolver = new Map<string, PromiseWithResolvers<void>>();
   const perTableQueries = new Map<string, Map<QueryString, number>>();
+  const perViewTables = new Map<string, Set<string>>();
   /** `true` if the app is indexing live blocks. */
   let isLive = false;
 
@@ -73,6 +88,53 @@ export const client = ({
     perTableResolver.set(table, promiseWithResolvers<void>());
     perTableQueries.set(table, new Map());
   }
+
+  const parseViewPromise = (async () => {
+    const unresolvedViewRelations = new Map<string, Set<string>>();
+    for (const view of views) {
+      const query = dialect.sqlToQuery(getViewConfig(view as PgView).query!);
+      const relations = await getSQLQueryRelations(query.sql);
+
+      unresolvedViewRelations.set(getViewName(view), relations);
+    }
+
+    /**
+     * Recursively resolve nested views (views that reference other views).
+     *
+     * @dev This assumes views cannot be infinitely cursive - an invariant enforced by Postgres.
+     */
+    const resolveRelation = (relation: string): Set<string> => {
+      if (perViewTables.has(relation)) {
+        return perViewTables.get(relation)!;
+      }
+
+      if (tableNames.has(relation)) {
+        return new Set([relation]);
+      }
+
+      if (viewNames.has(relation)) {
+        const result = new Set<string>();
+        for (const _relation of unresolvedViewRelations.get(relation)!) {
+          for (const __relation of resolveRelation(_relation)) {
+            result.add(__relation);
+          }
+        }
+        return result;
+      }
+
+      return new Set();
+    };
+
+    for (const [viewName, relations] of unresolvedViewRelations) {
+      const resolvedRelations = new Set<string>();
+      for (const relation of relations) {
+        for (const _relation of resolveRelation(relation)) {
+          resolvedRelations.add(_relation);
+        }
+      }
+      perViewTables.set(viewName, resolvedRelations);
+    }
+  })();
 
   if (driver.dialect === "pglite") {
     // driver.instance.query(`LISTEN "${channel}"`).then(() => {
@@ -207,6 +269,7 @@ export const client = ({
 
   return createMiddleware(async (c, next) => {
     const crypto = await import(/* webpackIgnore: true */ "node:crypto");
+    await parseViewPromise;
 
     if (c.req.path === "/sql/db") {
       const queryString = c.req.query("sql");
@@ -223,15 +286,23 @@ export const client = ({
       }
 
       const relations = await getSQLQueryRelations(query.sql);
-
+      const referencedTables = new Set<string>();
       for (const relation of relations) {
-        if (tableNames.has(relation) === false) continue;
+        if (tableNames.has(relation)) {
+          referencedTables.add(relation);
+        } else if (viewNames.has(relation)) {
+          for (const tableName of perViewTables.get(relation)!) {
+            referencedTables.add(tableName);
+          }
+        }
+      }
 
-        if (perTableQueries.get(relation)!.has(queryString)) {
-          const count = perTableQueries.get(relation)!.get(queryString)!;
-          perTableQueries.get(relation)!.set(queryString, count + 1);
+      for (const tableName of referencedTables) {
+        if (perTableQueries.get(tableName)!.has(queryString)) {
+          const count = perTableQueries.get(tableName)!.get(queryString)!;
+          perTableQueries.get(tableName)!.set(queryString, count + 1);
         } else {
-          perTableQueries.get(relation)!.set(queryString, 1);
+          perTableQueries.get(tableName)!.set(queryString, 1);
         }
       }
 
@@ -280,8 +351,6 @@ export const client = ({
       }
       const query = superjson.parse(queryString) as QueryWithTypings;
 
-      // TODO(kyle) normalize query string
-
       try {
         await validateAllowableSQLQuery(query.sql);
       } catch (error) {
@@ -290,15 +359,23 @@ export const client = ({
       }
 
       const relations = await getSQLQueryRelations(query.sql);
-
+      const referencedTables = new Set<string>();
       for (const relation of relations) {
-        if (tableNames.has(relation) === false) continue;
+        if (tableNames.has(relation)) {
+          referencedTables.add(relation);
+        } else if (viewNames.has(relation)) {
+          for (const tableName of perViewTables.get(relation)!) {
+            referencedTables.add(tableName);
+          }
+        }
+      }
 
-        if (perTableQueries.get(relation)!.has(queryString)) {
-          const count = perTableQueries.get(relation)!.get(queryString)!;
-          perTableQueries.get(relation)!.set(queryString, count + 1);
+      for (const tableName of referencedTables) {
+        if (perTableQueries.get(tableName)!.has(queryString)) {
+          const count = perTableQueries.get(tableName)!.get(queryString)!;
+          perTableQueries.get(tableName)!.set(queryString, count + 1);
         } else {
-          perTableQueries.get(relation)!.set(queryString, 1);
+          perTableQueries.get(tableName)!.set(queryString, 1);
         }
       }
 
@@ -371,7 +448,8 @@ export const client = ({
 
             if (_resultHash === resultHash) continue;
             resultHash = _resultHash;
-            await stream.writeSSE({ data: "" });
+            // @ts-ignore
+            await stream.writeSSE({ data: JSON.stringify(result.rows) });
           } catch {}
           // TODO(kyle) max refresh rate
         }

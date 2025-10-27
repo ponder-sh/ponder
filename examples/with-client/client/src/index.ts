@@ -4,8 +4,8 @@ import * as schema from "../../ponder/ponder.schema";
 const client = createClient("http://localhost:42069/sql", { schema });
 
 const result = await client.db
-  .select({ sum: sum(schema.account.balance) })
-  .from(schema.account);
+  .select({ sum: sum(schema.accountView.balance) })
+  .from(schema.accountView);
 
 console.log(result);
 
