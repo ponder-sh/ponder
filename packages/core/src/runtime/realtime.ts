@@ -103,6 +103,19 @@ export async function* getRealtimeEventsOmnichain(params: {
         1,
       );
 
+      const bufferCallback = (bufferSize: number) => {
+        // Note: Only log when the buffer size is greater than 1 because
+        // a buffer size of 1 is not backpressure.
+        if (bufferSize === 1) return;
+        params.common.logger.trace({
+          msg: "Detected live indexing backpressure",
+          chain: chain.name,
+          chain_id: chain.id,
+          buffer_size: bufferSize,
+          indexing_step: "order block events",
+        });
+      };
+
       return bufferAsyncGenerator(
         getRealtimeEventGenerator({
           common: params.common,
@@ -114,6 +127,7 @@ export async function* getRealtimeEventsOmnichain(params: {
           database: params.database,
         }),
         100,
+        bufferCallback,
       );
     })
     .filter(
@@ -348,6 +362,19 @@ export async function* getRealtimeEventsMultichain(params: {
         1,
       );
 
+      const bufferCallback = (bufferSize: number) => {
+        // Note: Only log when the buffer size is greater than 1 because
+        // a buffer size of 1 is not backpressure.
+        if (bufferSize === 1) return;
+        params.common.logger.trace({
+          msg: "Detected live indexing backpressure",
+          chain: chain.name,
+          chain_id: chain.id,
+          buffer_size: bufferSize,
+          indexing_step: "order block events",
+        });
+      };
+
       return bufferAsyncGenerator(
         getRealtimeEventGenerator({
           common: params.common,
@@ -359,6 +386,7 @@ export async function* getRealtimeEventsMultichain(params: {
           database: params.database,
         }),
         100,
+        bufferCallback,
       );
     })
     .filter(
@@ -572,11 +600,24 @@ export async function* getRealtimeEventGenerator(params: {
     factory_address_count: childCount,
   });
 
+  const bufferCallback = (bufferSize: number) => {
+    // Note: Only log when the buffer size is greater than 1 because
+    // a buffer size of 1 is not backpressure.
+    if (bufferSize === 1) return;
+    params.common.logger.trace({
+      msg: "Detected live indexing backpressure",
+      chain: params.chain.name,
+      chain_id: params.chain.id,
+      buffer_size: bufferSize,
+      indexing_step: "fetch block data",
+    });
+  };
+
   const { callback, generator } = createCallbackGenerator<{
     block: SyncBlock | SyncBlockHeader;
     blockCallback: (isAccepted: boolean) => void;
     endClock: () => number;
-  }>();
+  }>(bufferCallback);
 
   params.rpc.subscribe({
     onBlock: (block) => {
@@ -591,7 +632,17 @@ export async function* getRealtimeEventGenerator(params: {
   for await (const { block, blockCallback, endClock } of generator) {
     const arrivalMs = Date.now();
 
+    // Note: No log here because `realtimeSync.sync` logs the block
     const syncGenerator = realtimeSync.sync(block, (isAccepted) => {
+      params.common.logger.trace({
+        msg: `Block ${isAccepted ? "accepted into" : "rejected from"} live indexing`,
+        chain: params.chain.name,
+        chain_id: params.chain.id,
+        number: hexToNumber(block.number),
+        hash: block.hash,
+        duration: endClock(),
+      });
+
       if (isAccepted) {
         params.common.metrics.ponder_realtime_block_arrival_latency.observe(
           { chain: params.chain.name },

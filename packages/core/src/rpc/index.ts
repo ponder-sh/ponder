@@ -17,6 +17,7 @@ import {
 } from "@ponder/utils";
 import {
   http,
+  BlockNotFoundError,
   type EIP1193Parameters,
   type EIP1193RequestFn,
   type Hash,
@@ -29,6 +30,7 @@ import {
   type RpcError,
   type RpcTransactionReceipt,
   TimeoutError,
+  hexToNumber,
   isHex,
   webSocket,
 } from "viem";
@@ -62,7 +64,7 @@ export type Rpc = {
   hostnames: string[];
   request: <TParameters extends RequestParameters>(
     parameters: TParameters,
-    context?: { logger?: Logger },
+    context?: { logger?: Logger; retryNullBlockRequest?: boolean },
   ) => Promise<RequestReturnType<TParameters["method"]>>;
   subscribe: (params: {
     onBlock: (block: SyncBlock | SyncBlockHeader) => Promise<boolean>;
@@ -165,31 +167,6 @@ const isAvailable = (bucket: Bucket) => {
   }
 
   return true;
-};
-
-const increaseMaxRPS = (bucket: Bucket) => {
-  if (bucket.rps.length < 10) return;
-
-  if (
-    bucket.consecutiveSuccessfulRequests <
-    bucket.rpsLimit * SUCCESS_MULTIPLIER
-  ) {
-    return;
-  }
-
-  for (const { count } of bucket.rps) {
-    if (count < bucket.rpsLimit * RPS_INCREASE_QUALIFIER) {
-      return;
-    }
-  }
-
-  bucket.rpsLimit = Math.min(bucket.rpsLimit * RPS_INCREASE_FACTOR, MAX_RPS);
-  bucket.consecutiveSuccessfulRequests = 0;
-};
-
-const decreaseMaxRPS = (bucket: Bucket) => {
-  bucket.rpsLimit = Math.max(bucket.rpsLimit * RPS_DECREASE_FACTOR, MIN_RPS);
-  bucket.consecutiveSuccessfulRequests = 0;
 };
 
 export const createRpc = ({
@@ -309,6 +286,7 @@ export const createRpc = ({
   const timeouts = new Set<NodeJS.Timeout>();
 
   const scheduleBucketActivation = (bucket: Bucket) => {
+    const delay = bucket.reactivationDelay;
     const timeoutId = setTimeout(() => {
       bucket.isActive = true;
       bucket.isWarmingUp = true;
@@ -318,16 +296,16 @@ export const createRpc = ({
         chain: chain.name,
         chain_id: chain.id,
         hostname: bucket.hostname,
-        retry_delay: Math.round(bucket.reactivationDelay),
+        retry_delay: Math.round(delay),
       });
-    }, bucket.reactivationDelay);
+    }, delay);
 
     common.logger.debug({
       msg: "JSON-RPC provider deactivated due to rate limiting",
       chain: chain.name,
       chain_id: chain.id,
       hostname: bucket.hostname,
-      retry_delay: Math.round(bucket.reactivationDelay),
+      retry_delay: Math.round(delay),
     });
 
     timeouts.add(timeoutId);
@@ -398,6 +376,34 @@ export const createRpc = ({
     return fastestBucket;
   };
 
+  const increaseMaxRPS = (bucket: Bucket) => {
+    if (bucket.rps.length < 10) return;
+
+    if (
+      bucket.consecutiveSuccessfulRequests <
+      bucket.rpsLimit * SUCCESS_MULTIPLIER
+    ) {
+      return;
+    }
+
+    for (const { count } of bucket.rps) {
+      if (count < bucket.rpsLimit * RPS_INCREASE_QUALIFIER) {
+        return;
+      }
+    }
+
+    bucket.rpsLimit = Math.min(bucket.rpsLimit * RPS_INCREASE_FACTOR, MAX_RPS);
+    bucket.consecutiveSuccessfulRequests = 0;
+
+    common.logger.debug({
+      msg: "Increased JSON-RPC provider RPS limit",
+      chain: chain.name,
+      chain_id: chain.id,
+      hostname: bucket.hostname,
+      rps_limit: Math.floor(bucket.rpsLimit),
+    });
+  };
+
   const queue = createQueue<
     Awaited<ReturnType<Rpc["request"]>>,
     {
@@ -411,9 +417,35 @@ export const createRpc = ({
       const logger = context?.logger ?? common.logger;
 
       for (let i = 0; i <= RETRY_COUNT; i++) {
+        let endClock = startClock();
+        const t = setTimeout(() => {
+          logger.warn({
+            msg: "Unable to find available JSON-RPC provider within expected time",
+            chain: chain.name,
+            chain_id: chain.id,
+            rate_limit: JSON.stringify(buckets.map((b) => b.rpsLimit)),
+            is_active: JSON.stringify(buckets.map((b) => b.isActive)),
+            is_warming_up: JSON.stringify(buckets.map((b) => b.isWarmingUp)),
+            duration: 15_000,
+          });
+        }, 15_000);
         const bucket = await getBucket();
-        const endClock = startClock();
+        clearTimeout(t);
+        const getBucketDuration = endClock();
+        endClock = startClock();
         const id = crypto.randomUUID().slice(0, 8);
+
+        const surpassTimeout = setTimeout(() => {
+          logger.warn({
+            msg: "JSON-RPC request unexpectedly surpassed timeout",
+            chain: chain.name,
+            chain_id: chain.id,
+            hostname: bucket.hostname,
+            request_id: id,
+            method: body.method,
+            duration: 15_000,
+          });
+        }, 15_000);
 
         try {
           logger.trace({
@@ -423,6 +455,7 @@ export const createRpc = ({
             hostname: bucket.hostname,
             request_id: id,
             method: body.method,
+            duration: getBucketDuration,
           });
 
           // Add request per second data
@@ -440,6 +473,19 @@ export const createRpc = ({
 
           if (response === undefined) {
             throw new Error("Response is undefined");
+          }
+
+          if (
+            response === null &&
+            (body.method === "eth_getBlockByNumber" ||
+              body.method === "eth_getBlockByHash") &&
+            context?.retryNullBlockRequest === true
+          ) {
+            // Note: Throwing this error will cause the request to be retried.
+            throw new BlockNotFoundError({
+              // @ts-ignore
+              blockNumber: body.params[0],
+            });
           }
 
           const duration = endClock();
@@ -516,7 +562,11 @@ export const createRpc = ({
               bucket.isActive = false;
               bucket.isWarmingUp = false;
 
-              decreaseMaxRPS(bucket);
+              bucket.rpsLimit = Math.max(
+                bucket.rpsLimit * RPS_DECREASE_FACTOR,
+                MIN_RPS,
+              );
+              bucket.consecutiveSuccessfulRequests = 0;
 
               common.logger.debug({
                 msg: "JSON-RPC provider rate limited",
@@ -594,6 +644,8 @@ export const createRpc = ({
           await wait(duration);
         } finally {
           bucket.activeConnections--;
+
+          clearTimeout(surpassTimeout);
         }
       }
 
@@ -628,6 +680,13 @@ export const createRpc = ({
               try {
                 const block = await _eth_getBlockByNumber(rpc, {
                   blockTag: "latest",
+                });
+                common.logger.trace({
+                  msg: "Received successful JSON-RPC polling response",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  block_number: hexToNumber(block.number),
+                  block_hash: hexToNumber(block.hash),
                 });
                 // Note: `onBlock` should never throw.
                 await onBlock(block);
@@ -673,6 +732,12 @@ export const createRpc = ({
                     msg: "Received successful JSON-RPC WebSocket subscription data",
                     chain: chain.name,
                     chain_id: chain.id,
+                    block_number: msg.params.result.number
+                      ? hexToNumber(msg.params.result.number)
+                      : undefined,
+                    block_hash: msg.params.result.hash
+                      ? hexToNumber(msg.params.result.hash)
+                      : undefined,
                   });
                   webSocketErrorCount = 0;
 

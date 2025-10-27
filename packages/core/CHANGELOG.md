@@ -1,5 +1,19 @@
 # ponder
 
+## 0.14.7
+
+### Patch Changes
+
+- [#2150](https://github.com/ponder-sh/ponder/pull/2150) [`9b24574`](https://github.com/ponder-sh/ponder/commit/9b245748e8b645e78df6e348e2a22935de131e15) Thanks [@kyscott18](https://github.com/kyscott18)! - Added retries for `BlockNotFoundError: Block at number [block] could not be found`.
+
+## 0.14.6
+
+### Patch Changes
+
+- [#2146](https://github.com/ponder-sh/ponder/pull/2146) [`56f30c1`](https://github.com/ponder-sh/ponder/commit/56f30c1eea44cb09abeacdac91377f4d9c4497c8) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused apps with `startBlock: "latest"` to error with `Finalized block for chain [chain] cannot move backwards` on crash recovery.
+
+- [#2148](https://github.com/ponder-sh/ponder/pull/2148) [`535036d`](https://github.com/ponder-sh/ponder/commit/535036d1252eaa681f02338aa77130def68e20c7) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved trace logs for "live" indexing.
+
 ## 0.14.5
 
 ### Patch Changes
