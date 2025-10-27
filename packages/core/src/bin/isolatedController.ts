@@ -1,5 +1,6 @@
 import path from "node:path";
 import url from "node:url";
+import v8 from "node:v8";
 import { Worker } from "node:worker_threads";
 import { createIndexes, createViews } from "@/database/actions.js";
 import { type Database, getPonderMetaTable } from "@/database/index.js";
@@ -197,6 +198,16 @@ export async function isolatedController({
         process.env.FORCE_COLOR = "1";
       }
 
+      const heapSizeLimit = v8.getHeapStatistics().heap_size_limit;
+      const perThreadHeapSizeLimit = Math.floor(
+        heapSizeLimit / common.options.maxThreads / 1024 / 1024,
+      );
+
+      // Note: This sets `--max-old-space-size` for the worker thread.
+      // `resourceLimits` does not work because it gets overridden by
+      // CLI flags or environment variables.
+      v8.setFlagsFromString(`--max-old-space-size=${perThreadHeapSizeLimit}`);
+
       const worker = new Worker(workerPath, {
         workerData: {
           options: common.options,
@@ -204,9 +215,6 @@ export async function isolatedController({
           namespaceBuild,
           crashRecoveryCheckpoint,
         } satisfies Parameters<typeof isolatedWorker>[0],
-        resourceLimits: {
-          maxOldGenerationSizeMb: 1536, // 1.5GB
-        },
       });
 
       for (const chainId of chainIds) {
