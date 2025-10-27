@@ -409,11 +409,11 @@ export const client = ({
           // TODO(kyle) decrement count `perTableQueries`
         });
 
-        await stream.writeSSE({ data: "" });
+        await stream.writeSSE({ data: JSON.stringify(result) });
 
         while (stream.closed === false && stream.aborted === false) {
           await Promise.race(
-            Array.from(relations).map(
+            Array.from(referencedTables).map(
               (relation) => perTableResolver.get(relation)!.promise,
             ),
           );
@@ -449,7 +449,7 @@ export const client = ({
             if (_resultHash === resultHash) continue;
             resultHash = _resultHash;
             // @ts-ignore
-            await stream.writeSSE({ data: JSON.stringify(result.rows) });
+            await stream.writeSSE({ data: JSON.stringify(result) });
           } catch {}
           // TODO(kyle) max refresh rate
         }

@@ -111,9 +111,6 @@ export const createClient = <schema extends Schema>(
   baseUrl: string,
   params: { schema?: schema } = {},
 ): Client<schema> => {
-  let sse: EventSource | undefined;
-  let liveCount = 0;
-
   const client: Client<schema> = {
     db: drizzle(
       async (sql, params, _, typings) => {
@@ -140,39 +137,46 @@ export const createClient = <schema extends Schema>(
     live: (queryFn, onData, onError) => {
       const queryPromise = queryFn(client.db);
 
+      // TODO(kyle) support `.execute()`
       if ("getSQL" in queryPromise === false) {
         throw new Error('"queryFn" must return SQL');
       }
+      const queryBuilder = queryPromise as unknown as SQLWrapper;
+      const query = compileQuery(queryBuilder);
 
-      const query = compileQuery(queryPromise as unknown as SQLWrapper);
+      const sse = new EventSource(getUrl(baseUrl, "live", query));
 
-      if (sse === undefined) {
-        sse = new EventSource(getUrl(baseUrl, "live", query));
-      }
-
-      const onDataListener = (event: MessageEvent) => {
+      const onDataListener = async (event: MessageEvent) => {
         // @ts-ignore
-        const rows = JSON.parse(event.data);
-        // TODO(kyle)
+        const result = JSON.parse(event.data);
+
+        const drizzleShim = drizzle(
+          () => {
+            return Promise.resolve(result);
+          },
+          { schema: params.schema },
+        );
+
+        try {
+          // @ts-ignore
+          onData(await drizzleShim.execute(queryBuilder));
+        } catch (error) {
+          onError?.(error as Error);
+        }
       };
 
       const onErrorListener = (_event: MessageEvent) => {
         onError?.(new Error("server disconnected"));
       };
 
-      sse?.addEventListener("message", onDataListener);
-      sse?.addEventListener("error", onErrorListener);
-      liveCount = liveCount + 1;
+      sse.addEventListener("message", onDataListener);
+      sse.addEventListener("error", onErrorListener);
 
       return {
         unsubscribe: () => {
-          sse?.removeEventListener("message", onDataListener);
-          sse?.removeEventListener("error", onErrorListener);
-          liveCount = liveCount - 1;
-          if (liveCount === 0) {
-            sse?.close();
-            sse = undefined;
-          }
+          sse.removeEventListener("message", onDataListener);
+          sse.removeEventListener("error", onErrorListener);
+          sse.close();
         },
       };
     },
