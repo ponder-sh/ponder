@@ -1,5 +1,4 @@
-import { getPonderCheckpointTable } from "@/database/index.js";
-import { getLiveQueryChannelName } from "@/drizzle/index.js";
+import { getLiveQueryChannelName } from "@/drizzle/onchain.js";
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
 import {
@@ -56,9 +55,6 @@ export const client = ({
 
   const tables = Object.values(schema).filter(isTable);
   const tableNames = new Set(tables.map(getTableName));
-  const PONDER_CHECKPOINT = getPonderCheckpointTable(
-    globalThis.PONDER_NAMESPACE_BUILD.schema,
-  );
 
   // @ts-ignore
   const session: PgSession = db._.session;
@@ -77,8 +73,6 @@ export const client = ({
     perTableResolver.set(table, promiseWithResolvers<void>());
     perTableQueries.set(table, new Map());
   }
-
-  // TODO(kyle) query db to determine if the app is live
 
   if (driver.dialect === "pglite") {
     // driver.instance.query(`LISTEN "${channel}"`).then(() => {
@@ -174,8 +168,9 @@ export const client = ({
             for (const table of tables) {
               await client.query(`LISTEN "${getLiveQueryChannelName(table)}"`);
             }
+            // Note: Don't use the `getLiveQueryChannelName` function here because we want minimal imports for bundling.
             await client.query(
-              `LISTEN "${getLiveQueryChannelName(PONDER_CHECKPOINT)}"`,
+              `LISTEN "live_query_channel_${globalThis.PONDER_NAMESPACE_BUILD.schema ?? "public"}__ponder_checkpoint"`,
             );
           } catch (error) {
             globalThis.PONDER_COMMON.logger.warn({

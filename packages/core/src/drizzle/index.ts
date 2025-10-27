@@ -16,16 +16,6 @@ export const getTableNames = (table: PgTable) => {
   };
 };
 
-export const getLiveQueryTriggerName = (table: PgTable) => {
-  return `live_query_trigger_${getTableName(table)}`;
-};
-export const getLiveQueryProcedureName = (table: PgTable) => {
-  return `live_query_procedure_${getTableName(table)}()`;
-};
-export const getLiveQueryChannelName = (table: PgTable) => {
-  return `live_query_channel_${getTableConfig(table).schema ?? "public"}_${getTableName(table)}`;
-};
-
 export const getPrimaryKeyColumns = (
   table: PgTable,
 ): { sql: string; js: string }[] => {

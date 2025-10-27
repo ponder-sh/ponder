@@ -1,11 +1,11 @@
+import { getPrimaryKeyColumns } from "@/drizzle/index.js";
+import { getTableNames } from "@/drizzle/index.js";
+import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import {
   getLiveQueryChannelName,
   getLiveQueryProcedureName,
   getLiveQueryTriggerName,
-  getPrimaryKeyColumns,
-} from "@/drizzle/index.js";
-import { getTableNames } from "@/drizzle/index.js";
-import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
+} from "@/drizzle/onchain.js";
 import type { Logger } from "@/internal/logger.js";
 import type {
   NamespaceBuild,
