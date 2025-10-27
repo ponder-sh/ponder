@@ -119,7 +119,7 @@ export const createClient = <schema extends Schema>(
       async (sql, params, _, typings) => {
         const builtQuery = { sql, params, typings };
         const response = await fetch(getUrl(baseUrl, "db", builtQuery), {
-          method: "POST",
+          method: "GET",
         });
 
         if (response.ok === false) {

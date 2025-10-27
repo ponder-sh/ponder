@@ -139,11 +139,18 @@ export const client = ({
                 }
 
                 if (liveQueryUpdatedTables.size > 0) {
-                  globalThis.PONDER_COMMON.logger.info({
-                    msg: "Received live query table update notification",
+                  let queryCount = 0;
+                  for (const table of liveQueryUpdatedTables) {
+                    queryCount += perTableQueries.get(table)!.size;
+                  }
+
+                  globalThis.PONDER_COMMON.logger.debug({
+                    msg: "Updated live queries",
                     tables: JSON.stringify(Array.from(liveQueryUpdatedTables)),
+                    query_count: queryCount,
                   });
                 }
+
                 liveQueryUpdatedTables.clear();
               } else {
                 liveQueryUpdatedTables.add(table);
