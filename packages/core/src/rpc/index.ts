@@ -286,6 +286,7 @@ export const createRpc = ({
   const timeouts = new Set<NodeJS.Timeout>();
 
   const scheduleBucketActivation = (bucket: Bucket) => {
+    const delay = bucket.reactivationDelay;
     const timeoutId = setTimeout(() => {
       bucket.isActive = true;
       bucket.isWarmingUp = true;
@@ -295,16 +296,16 @@ export const createRpc = ({
         chain: chain.name,
         chain_id: chain.id,
         hostname: bucket.hostname,
-        retry_delay: Math.round(bucket.reactivationDelay),
+        retry_delay: Math.round(delay),
       });
-    }, bucket.reactivationDelay);
+    }, delay);
 
     common.logger.debug({
       msg: "JSON-RPC provider deactivated due to rate limiting",
       chain: chain.name,
       chain_id: chain.id,
       hostname: bucket.hostname,
-      retry_delay: Math.round(bucket.reactivationDelay),
+      retry_delay: Math.round(delay),
     });
 
     timeouts.add(timeoutId);
@@ -416,9 +417,35 @@ export const createRpc = ({
       const logger = context?.logger ?? common.logger;
 
       for (let i = 0; i <= RETRY_COUNT; i++) {
+        let endClock = startClock();
+        const t = setTimeout(() => {
+          logger.warn({
+            msg: "Unable to find available JSON-RPC provider within expected time",
+            chain: chain.name,
+            chain_id: chain.id,
+            rate_limit: JSON.stringify(buckets.map((b) => b.rpsLimit)),
+            is_active: JSON.stringify(buckets.map((b) => b.isActive)),
+            is_warming_up: JSON.stringify(buckets.map((b) => b.isWarmingUp)),
+            duration: 15_000,
+          });
+        }, 15_000);
         const bucket = await getBucket();
-        const endClock = startClock();
+        clearTimeout(t);
+        const getBucketDuration = endClock();
+        endClock = startClock();
         const id = crypto.randomUUID().slice(0, 8);
+
+        const surpassTimeout = setTimeout(() => {
+          logger.warn({
+            msg: "JSON-RPC request unexpectedly surpassed timeout",
+            chain: chain.name,
+            chain_id: chain.id,
+            hostname: bucket.hostname,
+            request_id: id,
+            method: body.method,
+            duration: 15_000,
+          });
+        }, 15_000);
 
         try {
           logger.trace({
@@ -428,6 +455,7 @@ export const createRpc = ({
             hostname: bucket.hostname,
             request_id: id,
             method: body.method,
+            duration: getBucketDuration,
           });
 
           // Add request per second data
@@ -616,6 +644,8 @@ export const createRpc = ({
           await wait(duration);
         } finally {
           bucket.activeConnections--;
+
+          clearTimeout(surpassTimeout);
         }
       }
 
