@@ -1057,7 +1057,10 @@ export async function* getLocalSyncGenerator(params: {
   const historicalSync = createHistoricalSync(params);
 
   const { callback: intervalCallback, generator: intervalGenerator } =
-    createCallbackGenerator<{ interval: Interval; promise: Promise<void> }>();
+    createCallbackGenerator<{
+      interval: Interval;
+      promise: Promise<void>;
+    }>();
 
   intervalCallback({
     interval: [
@@ -1201,25 +1204,17 @@ export async function* getLocalSyncGenerator(params: {
     pwr.resolve();
   }
 
-  const { callback, generator } =
-    createCallbackGenerator<IteratorResult<number>>();
-
-  (async () => {
+  async function* generator(): AsyncGenerator<number> {
     for await (const { interval, promise } of intervalGenerator) {
-      syncInterval({ interval, promise }).then(() => {
-        callback({ value: interval[1], done: false });
-
-        if (interval[1] === hexToNumber(last.number)) {
-          callback({ value: undefined, done: true });
-        }
-      });
+      await syncInterval({ interval, promise });
+      yield interval[1];
+      if (interval[1] === hexToNumber(last.number)) {
+        return;
+      }
     }
-  })();
-
-  for await (const result of generator) {
-    if (result.done) break;
-    yield result.value;
   }
+
+  yield* generator();
 
   params.common.logger.info({
     msg: "Finished fetching backfill JSON-RPC data",
