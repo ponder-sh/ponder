@@ -349,8 +349,16 @@ export const createRealtimeIndexingStore = ({
                 .execute(),
             );
 
-            // @ts-ignore
-            return { rows: result.rows.map((row) => Object.values(row)) };
+            if (method === "all") {
+              return {
+                // @ts-ignore
+                ...result,
+                // @ts-ignore
+                rows: result.rows.map((row) => Object.values(row)),
+              };
+            }
+
+            return result;
           });
         } catch (error) {
           if (error instanceof DbConnectionError) {
