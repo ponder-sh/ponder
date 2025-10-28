@@ -446,7 +446,9 @@ export const client = ({
               .digest("hex")
               .slice(0, 10);
 
-            if (_resultHash === resultHash) continue;
+            if (_resultHash === resultHash) {
+              continue;
+            }
             resultHash = _resultHash;
             // @ts-ignore
             await stream.writeSSE({ data: JSON.stringify(result) });
