@@ -200,7 +200,7 @@ export async function isolatedController({
 
       const heapSizeLimit = v8.getHeapStatistics().heap_size_limit;
       const perThreadHeapSizeLimit = Math.floor(
-        heapSizeLimit / common.options.maxThreads / 1024 / 1024,
+        heapSizeLimit / (common.options.maxThreads + 1) / 1024 / 1024,
       );
 
       // Note: This sets `--max-old-space-size` for the worker thread.
@@ -254,6 +254,15 @@ export async function isolatedController({
           }
         },
       );
+
+      worker.on("error", (error: Error) => {
+        if (nonRetryableUserErrorNames.includes(error.name)) {
+          error = new NonRetryableUserError(error.message);
+        } else {
+          error = new Error(error.message);
+        }
+        throw error;
+      });
 
       worker.on("exit", (code: number) => {
         const error = new Error(`Worker thread exited with code ${code}.`);
