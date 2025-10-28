@@ -205,7 +205,8 @@ export async function isolatedController({
 
       // Note: This sets `--max-old-space-size` for the worker thread.
       // `resourceLimits` does not work because it gets overridden by
-      // CLI flags or environment variables.
+      // CLI flags or environment variables. It does not change the heap
+      // size limit for the current main thread
       v8.setFlagsFromString(`--max-old-space-size=${perThreadHeapSizeLimit}`);
 
       const worker = new Worker(workerPath, {
