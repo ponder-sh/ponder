@@ -6,7 +6,6 @@ import type {
   FactoryId,
   LogFactory,
   LogFilter,
-  Source,
   SyncBlock,
   SyncLog,
   SyncTrace,
@@ -39,15 +38,10 @@ import {
   isTransactionFilterMatched,
   isTransferFilterMatched,
 } from "@/runtime/filter.js";
-import type {
-  CachedIntervals,
-  ChildAddresses,
-  IntervalWithFilter,
-} from "@/runtime/index.js";
+import type { ChildAddresses, IntervalWithFilter } from "@/runtime/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import { type Interval, getChunks, intervalRange } from "@/utils/interval.js";
 import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
-import { createQueue } from "@/utils/queue.js";
 import { startClock } from "@/utils/timer.js";
 import { getLogsRetryHelper } from "@ponder/utils";
 import {
@@ -83,9 +77,7 @@ type CreateHistoricalSyncParameters = {
   common: Common;
   chain: Chain;
   rpc: Rpc;
-  sources: Source[];
   childAddresses: Map<FactoryId, Map<Address, number>>;
-  cachedIntervals: CachedIntervals;
 };
 
 export const createHistoricalSync = (
@@ -623,7 +615,18 @@ export const createHistoricalSync = (
 
       let closestToTipBlock: SyncBlock | undefined;
 
-      const syncBlock = async (blockNumber: number) => {
+      const syncBlockData = async (
+        blockNumber: number,
+      ): Promise<
+        | {
+            block: SyncBlock;
+            logs: SyncLog[];
+            transactions: SyncTransaction[];
+            transactionReceipts: SyncTransactionReceipt[];
+            traces: SyncTrace[];
+          }
+        | undefined
+      > => {
         let block: SyncBlock | undefined;
 
         const requiredTransactions = new Set<Hash>();
@@ -639,12 +642,6 @@ export const createHistoricalSync = (
             args.rpc,
             { blockNumber },
             context,
-          );
-
-          validateLogsAndBlock(
-            perBlockLogs.get(blockNumber)!,
-            block!,
-            "number",
           );
 
           logs = perBlockLogs.get(blockNumber)!.filter((log) => {
@@ -677,6 +674,10 @@ export const createHistoricalSync = (
 
             return isMatched;
           });
+
+          if (logs.length > 0) {
+            validateLogsAndBlock(logs, block!, "number");
+          }
         }
 
         ////////
@@ -700,8 +701,6 @@ export const createHistoricalSync = (
               context,
             );
           }
-
-          validateTracesAndBlock(traces, block, "number");
 
           traces = traces.filter((trace) => {
             let isMatched = false;
@@ -779,6 +778,10 @@ export const createHistoricalSync = (
 
             return isMatched;
           });
+
+          if (traces.length > 0) {
+            validateTracesAndBlock(traces, block, "number");
+          }
         }
 
         ////////
@@ -817,7 +820,6 @@ export const createHistoricalSync = (
             context,
           );
         }
-        validateTransactionsAndBlock(block, "number");
 
         if (
           closestToTipBlock === undefined ||
@@ -857,6 +859,13 @@ export const createHistoricalSync = (
           return isMatched;
         });
 
+        if (transactions.length > 0) {
+          validateTransactionsAndBlock(block, "number");
+        }
+
+        // Free memory of all unused transactions
+        block.transactions = transactions;
+
         ////////
         // Transaction Receipts
         ////////
@@ -866,21 +875,40 @@ export const createHistoricalSync = (
           requiredTransactionReceipts,
         );
 
-        const transactionsByHash = new Map<Hash, SyncTransaction>();
-        for (const transaction of transactions) {
-          transactionsByHash.set(transaction.hash, transaction);
-        }
-
         blockCount += 1;
         transactionCount += transactions.length;
         receiptCount += transactionReceipts.length;
         traceCount += traces.length;
 
+        return {
+          block,
+          logs,
+          transactions,
+          transactionReceipts,
+          traces,
+        };
+      };
+
+      const writeBlockData = async (
+        blockData: NonNullable<Awaited<ReturnType<typeof syncBlockData>>>[],
+      ) => {
+        const blocks = blockData.map((blockData) => blockData.block);
+        const transactions = blockData.flatMap(
+          (blockData) => blockData.transactions,
+        );
+        const transactionReceipts = blockData.flatMap(
+          (blockData) => blockData.transactionReceipts,
+        );
+
+        const logs = blockData.flatMap((blockData) => blockData.logs);
+
+        const transactionsByHash = new Map<Hash, SyncTransaction>();
+        for (const transaction of transactions) {
+          transactionsByHash.set(transaction.hash, transaction);
+        }
+
         await promiseAllSettledWithThrow([
-          syncStore.insertBlocks({
-            blocks: [block],
-            chainId: args.chain.id,
-          }),
+          syncStore.insertBlocks({ blocks, chainId: args.chain.id }),
           syncStore.insertTransactions({
             transactions,
             chainId: args.chain.id,
@@ -890,17 +918,16 @@ export const createHistoricalSync = (
             chainId: args.chain.id,
           }),
           syncStore.insertTraces({
-            traces: traces.map((trace) => ({
-              trace,
-              block: block!,
-              transaction: transactionsByHash.get(trace.transactionHash)!,
-            })),
+            traces: blockData.flatMap((blockData, index) =>
+              blockData.traces.map((trace) => ({
+                trace,
+                block: blocks[index]!,
+                transaction: transactionsByHash.get(trace.transactionHash)!,
+              })),
+            ),
             chainId: args.chain.id,
           }),
-          syncStore.insertLogs({
-            logs,
-            chainId: args.chain.id,
-          }),
+          syncStore.insertLogs({ logs, chainId: args.chain.id }),
         ]);
       };
 
@@ -909,14 +936,37 @@ export const createHistoricalSync = (
       let receiptCount = 0;
       let traceCount = 0;
 
-      const queue = createQueue({
-        browser: false,
-        concurrency: 40,
-        initialStart: true,
-        worker: syncBlock,
-      });
+      // Same memory usage as `sync-realtime`.
+      const MAX_BLOCKS_IN_MEM = args.chain.finalityBlockCount * 2;
+      // `blockDataGenerator` and `writeBlockData` is inherently pipelined (look ahead by 1).
+      const MAX_BLOCK_DATA_BUFFER_SIZE = Math.floor(MAX_BLOCKS_IN_MEM / 2);
 
-      await Promise.all(intervalRange(interval).map(queue.add));
+      async function* blockDataGenerator(): AsyncGenerator<
+        Parameters<typeof writeBlockData>[0]
+      > {
+        const remainingBlocks = intervalRange(interval);
+        const blockDataBuffer: Awaited<Parameters<typeof writeBlockData>[0]> =
+          [];
+
+        while (remainingBlocks.length > 0) {
+          await Promise.all(
+            remainingBlocks
+              .splice(0, MAX_BLOCK_DATA_BUFFER_SIZE)
+              .map(async (blockNumber) => {
+                const blockData = await syncBlockData(blockNumber);
+                if (blockData === undefined) return;
+                blockDataBuffer.push(blockData);
+              }),
+          );
+
+          yield blockDataBuffer;
+          blockDataBuffer.length = 0;
+        }
+      }
+
+      for await (const blockData of blockDataGenerator()) {
+        await writeBlockData(blockData);
+      }
 
       args.common.logger.debug(
         {
