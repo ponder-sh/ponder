@@ -367,8 +367,9 @@ export async function runOmnichain({
     let endClock = startClock();
     await database.userQB.transaction(
       async (tx) => {
-        const initialCompletedEvents =
-          await common.metrics.ponder_indexing_completed_events.get();
+        const initialCompletedEvents = structuredClone(
+          await common.metrics.ponder_indexing_completed_events.get(),
+        );
 
         try {
           historicalIndexingStore.qb = tx;
