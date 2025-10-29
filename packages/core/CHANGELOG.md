@@ -1,5 +1,11 @@
 # ponder
 
+## 0.14.9
+
+### Patch Changes
+
+- [#2156](https://github.com/ponder-sh/ponder/pull/2156) [`615c185`](https://github.com/ponder-sh/ponder/commit/615c185958b2799c0191972488cf7839d6102865) Thanks [@kyscott18](https://github.com/kyscott18)! - Improve JSON-RPC response validation. Fixed `error: value "4294967295" is out of range for type integer`.
+
 ## 0.14.8
 
 ### Patch Changes
