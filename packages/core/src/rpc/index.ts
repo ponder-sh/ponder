@@ -741,7 +741,9 @@ export const createRpc = ({
                   });
                   webSocketErrorCount = 0;
 
-                  onBlock(standardizeBlock(msg.params.result, true));
+                  onBlock(
+                    standardizeBlock(msg.params.result, "newHeads", true),
+                  );
                 } else if (msg.result) {
                   common.logger.debug({
                     msg: "Created JSON-RPC WebSocket subscription",
