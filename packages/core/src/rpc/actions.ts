@@ -10,6 +10,7 @@ import type {
 import type { Rpc } from "@/rpc/index.js";
 import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import { PG_BIGINT_MAX, PG_INTEGER_MAX } from "@/utils/pg.js";
 import {
   type Address,
   BlockNotFoundError,
@@ -17,6 +18,7 @@ import {
   type Hex,
   type LogTopic,
   TransactionReceiptNotFoundError,
+  hexToBigInt,
   hexToNumber,
   numberToHex,
   toHex,
@@ -833,6 +835,15 @@ export const standardizeBlock = <
     block.extraData = "0x";
   }
 
+  if (hexToBigInt(block.number) > PG_BIGINT_MAX) {
+    throw new Error("'block.number' is larger than the maximum allowed value");
+  }
+  if (hexToBigInt(block.timestamp) > PG_BIGINT_MAX) {
+    throw new Error(
+      "'block.timestamp' is larger than the maximum allowed value",
+    );
+  }
+
   // Note: block headers for some providers may contain transactions hashes,
   // but Ponder coerces the transactions property to undefined.
 
@@ -924,6 +935,22 @@ export const standardizeTransaction = (
     transaction.gas = "0x0";
   }
 
+  if (hexToBigInt(transaction.blockNumber) > PG_BIGINT_MAX) {
+    throw new Error(
+      "'transaction.blockNumber' is larger than the maximum allowed value",
+    );
+  }
+  if (hexToBigInt(transaction.transactionIndex) > BigInt(PG_INTEGER_MAX)) {
+    throw new Error(
+      "'transaction.transactionIndex' is larger than the maximum allowed value",
+    );
+  }
+  if (hexToBigInt(transaction.nonce) > BigInt(PG_INTEGER_MAX)) {
+    throw new Error(
+      "'transaction.nonce' is larger than the maximum allowed value",
+    );
+  }
+
   return transaction;
 };
 
@@ -975,6 +1002,20 @@ export const standardizeLog = (log: SyncLog): SyncLog => {
     log.removed = false;
   }
 
+  if (hexToBigInt(log.blockNumber) > PG_BIGINT_MAX) {
+    throw new Error(
+      "'log.blockNumber' is larger than the maximum allowed value",
+    );
+  }
+  if (hexToBigInt(log.transactionIndex) > BigInt(PG_INTEGER_MAX)) {
+    throw new Error(
+      "'log.transactionIndex' is larger than the maximum allowed value",
+    );
+  }
+  if (hexToBigInt(log.logIndex) > BigInt(PG_INTEGER_MAX)) {
+    throw new Error("'log.logIndex' is larger than the maximum allowed value");
+  }
+
   return log;
 };
 
@@ -1013,6 +1054,9 @@ export const standardizeTrace = (trace: SyncTrace): SyncTrace => {
   if (trace.trace.gasUsed === undefined) {
     trace.trace.gasUsed = "0x0";
   }
+
+  // Note: All INTEGER and BIGINT `trace` columns are generated, not derived from
+  // RPC responses.
 
   return trace;
 };
@@ -1086,6 +1130,17 @@ export const standardizeTransactionReceipt = (
   if (receipt.type === undefined) {
     // @ts-ignore
     receipt.type = "0x0";
+  }
+
+  if (hexToBigInt(receipt.blockNumber) > PG_BIGINT_MAX) {
+    throw new Error(
+      "'receipt.blockNumber' is larger than the maximum allowed value",
+    );
+  }
+  if (hexToBigInt(receipt.transactionIndex) > BigInt(PG_INTEGER_MAX)) {
+    throw new Error(
+      "'receipt.transactionIndex' is larger than the maximum allowed value",
+    );
   }
 
   return receipt;

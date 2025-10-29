@@ -8,6 +8,9 @@ import parse from "pg-connection-string";
 const bigIntArrayParser = pg.types.getTypeParser(1016);
 pg.types.setTypeParser(1231, bigIntArrayParser);
 
+export const PG_BIGINT_MAX = 9223372036854775807n;
+export const PG_INTEGER_MAX = 2147483647;
+
 export function getDatabaseName(connectionString: string) {
   try {
     const parsed = (parse as unknown as typeof parse.parse)(connectionString);
