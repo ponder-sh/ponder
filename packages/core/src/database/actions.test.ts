@@ -262,7 +262,7 @@ test("commitBlock() isolated", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 2n, blockNumber: 10n }),
     table: account,
-    preBuild: { ordering: "isolated" },
+    preBuild: { ordering: "experimental_isolated" },
   });
 
   const { rows: rows1 } = await database.userQB.wrap((tx) =>
@@ -285,7 +285,7 @@ test("commitBlock() isolated", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     table: account,
-    preBuild: { ordering: "isolated" },
+    preBuild: { ordering: "experimental_isolated" },
   });
 
   const { rows: rows2 } = await database.userQB.wrap((tx) =>

@@ -282,7 +282,7 @@ test("buildSchema() duplicate index name", () => {
   ).toThrowError();
 });
 
-test("buildSchema isolated", () => {
+test("buildSchema exp", () => {
   const schema1 = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -291,7 +291,10 @@ test("buildSchema isolated", () => {
   };
 
   expect(() =>
-    buildSchema({ schema: schema1, preBuild: { ordering: "isolated" } }),
+    buildSchema({
+      schema: schema1,
+      preBuild: { ordering: "experimental_isolated" },
+    }),
   ).toThrowError();
 
   const schema2 = {
@@ -303,7 +306,10 @@ test("buildSchema isolated", () => {
   };
 
   expect(() =>
-    buildSchema({ schema: schema2, preBuild: { ordering: "isolated" } }),
+    buildSchema({
+      schema: schema2,
+      preBuild: { ordering: "experimental_isolated" },
+    }),
   ).toThrowError();
 
   const schema3 = {
@@ -320,7 +326,10 @@ test("buildSchema isolated", () => {
     ),
   };
 
-  buildSchema({ schema: schema3, preBuild: { ordering: "isolated" } });
+  buildSchema({
+    schema: schema3,
+    preBuild: { ordering: "experimental_isolated" },
+  });
 });
 
 test("buildSchema view", () => {
