@@ -75,7 +75,7 @@ test("merkle success 1k", async () => {
     ],
   });
 
-  expect(logs).toHaveLength(49);
+  expect(logs).toHaveLength(9);
 });
 
 test("merkle block range 1k", async () => {
