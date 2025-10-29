@@ -1,5 +1,11 @@
 # ponder
 
+## 0.14.10
+
+### Patch Changes
+
+- [#2160](https://github.com/ponder-sh/ponder/pull/2160) [`05824c2`](https://github.com/ponder-sh/ponder/commit/05824c2439ba28ff5cfced966de4b8599b3156a4) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression introduced in `0.14.0` that caused graphql `many` relations to return empty arrays.
+
 ## 0.14.9
 
 ### Patch Changes
