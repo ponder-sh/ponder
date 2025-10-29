@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.2.15
+
+### Patch Changes
+
+- [#2158](https://github.com/ponder-sh/ponder/pull/2158) [`ac518fc`](https://github.com/ponder-sh/ponder/commit/ac518fc3ed32a7d41f7b6e625eb72d2a8b665f7b) Thanks [@typedarray](https://github.com/typedarray)! - Improved eth_getLogs range error handling for eth.merkle.io.
+
 ## 0.2.14
 
 ### Patch Changes
