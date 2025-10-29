@@ -307,7 +307,7 @@ export const createHistoricalSync = (
   };
 
   /**
-   * Fetch child addresses for `factory` within `interval`
+   * Fetch child addresses for a Log `factory` within `interval`
    *
    * @dev Newly fetched child addresses are added into `args.childAddresses`
    */
