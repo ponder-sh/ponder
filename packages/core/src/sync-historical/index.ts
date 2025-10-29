@@ -427,8 +427,6 @@ export const createHistoricalSync = (
         }),
       );
 
-      // TODO(kyle) exit early if the number of logs is greater than 50k
-
       await Promise.all(
         requiredIntervals
           .filter(({ filter }) => filter.type === "log")
