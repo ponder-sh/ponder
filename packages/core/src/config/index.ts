@@ -7,7 +7,7 @@ import type { GetEventFilter } from "./eventFilter.js";
 
 export type Config = {
   database?: DatabaseConfig;
-  ordering?: "omnichain" | "multichain" | "isolated";
+  ordering?: "omnichain" | "multichain" | "experimental_isolated";
   chains: { [chainName: string]: ChainConfig<unknown> };
   contracts: { [contractName: string]: GetContract };
   accounts: { [accountName: string]: AccountConfig<unknown> };
@@ -18,7 +18,7 @@ export type Config = {
 
 export type CreateConfigReturnType<chains, contracts, accounts, blocks> = {
   database?: DatabaseConfig;
-  ordering?: "omnichain" | "multichain" | "isolated";
+  ordering?: "omnichain" | "multichain" | "experimental_isolated";
   chains: chains;
   contracts: contracts;
   accounts: accounts;
@@ -32,7 +32,7 @@ export const createConfig = <
   const blocks = {},
 >(config: {
   database?: DatabaseConfig;
-  ordering?: "omnichain" | "multichain" | "isolated";
+  ordering?: "omnichain" | "multichain" | "experimental_isolated";
   // TODO: add jsdoc to these properties.
   chains: ChainsConfig<Narrow<chains>>;
   contracts?: ContractsConfig<chains, Narrow<contracts>>;

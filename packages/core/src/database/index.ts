@@ -493,7 +493,7 @@ export const createDatabase = ({
             const tableName = schemaBuild.statements.tables.json[i]!.tableName;
 
             if (
-              preBuild.ordering === "isolated" &&
+              preBuild.ordering === "experimental_isolated" &&
               tableName.startsWith("_reorg__") === false
             ) {
               const sql = schemaBuild.statements.tables.sql[i]!;
@@ -924,7 +924,7 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
 
           // Remove triggers
 
-          if (preBuild.ordering === "isolated") {
+          if (preBuild.ordering === "experimental_isolated") {
             for (const { chainId } of checkpoints) {
               await dropTriggers(tx, { tables, chainId });
             }

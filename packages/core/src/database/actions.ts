@@ -615,7 +615,7 @@ export const commitBlock = async (
 ) => {
   const reorgTable = getReorgTable(table);
   let whereClause: SQL;
-  if (preBuild.ordering === "isolated") {
+  if (preBuild.ordering === "experimental_isolated") {
     // Note: Query must include `chain_id` because it's possible for multiple chains to be indexing in parallel.
     const chainId = Number(decodeCheckpoint(checkpoint).chainId);
     whereClause = and(

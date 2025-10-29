@@ -374,7 +374,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
               crashRecoveryCheckpoint,
             });
             break;
-          case "isolated": {
+          case "experimental_isolated": {
             isolatedController({
               common,
               database,

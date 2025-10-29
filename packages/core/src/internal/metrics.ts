@@ -809,7 +809,7 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
   progress: number | undefined;
   eta: number | undefined;
 }> {
-  // Note: `getRegistry` must be used because this function is used with "isolated" ordering.
+  // Note: `getRegistry` must be used because this function is used with "experimental_isolated" ordering.
   const registry = await metrics.getRegistry();
 
   const totalSecondsMetric = await registry
@@ -871,7 +871,7 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
       };
     }
     case "multichain":
-    case "isolated": {
+    case "experimental_isolated": {
       const perChainAppProgress: Awaited<ReturnType<typeof getAppProgress>>[] =
         [];
 

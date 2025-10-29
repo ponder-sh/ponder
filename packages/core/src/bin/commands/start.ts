@@ -306,7 +306,7 @@ export async function start({
     case "multichain":
       runMultichain(app);
       break;
-    case "isolated": {
+    case "experimental_isolated": {
       isolatedController(app);
       break;
     }

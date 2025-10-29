@@ -100,14 +100,14 @@ export default createConfig({
 
 | field        |             type                            |                                                       |
 | :----------- | :-----------------------------------------: | :---------------------------------------------------- |
-| **ordering** | `"omnichain" \| "multichain" \| "isolated"` | **Default:** `"multichain"` |
+| **ordering** | `"omnichain" \| "multichain" \| "experimental_isolated"` | **Default:** `"multichain"` |
 
 #### Guarantees
 
 The ordering strategies offer different guarantees. Omnichain ordering combines all chains into a single, unified stream of events. Multichain and isolated ordering treat each chain independently, with isolated enforcing additional constraints but taking advantage of multiple CPU cores for better performance..
 
 :::info 
-  Isolated ordering (experimental): When using ordering: "isolated", all tables in your schema must include a chainId column that is part of the primary key. This ensures complete isolation between chains and prevents any cross-chain data access.
+  Isolated ordering (experimental): When using ordering: "experimental_isolated", all tables in your schema must include a chainId column that is part of the primary key. This ensures complete isolation between chains and prevents any cross-chain data access.
 :::
 
 

@@ -103,7 +103,7 @@ export const buildSchema = ({
         }
       }
 
-      if (preBuild.ordering === "isolated") {
+      if (preBuild.ordering === "experimental_isolated") {
         if (hasChainIdColumn === false) {
           throw new Error(
             `Schema validation failed: '${name}' does not have required 'chainId' column.`,
