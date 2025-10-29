@@ -785,7 +785,9 @@ export const standardizeBlock = <
 ): block extends SyncBlock ? SyncBlock : SyncBlockHeader => {
   // required properties
   if (block.hash === undefined) {
-    const error = new RpcProviderError("'block.hash' is a required property");
+    const error = new RpcProviderError(
+      "Invalid RPC response: 'block.hash' is a required property",
+    );
     error.meta = [
       "Please report this error to the RPC operator.",
       blockIdentifier === "newHeads"
@@ -800,7 +802,9 @@ export const standardizeBlock = <
     throw error;
   }
   if (block.number === undefined) {
-    const error = new RpcProviderError("'block.number' is a required property");
+    const error = new RpcProviderError(
+      "Invalid RPC response: 'block.number' is a required property",
+    );
     error.meta = [
       "Please report this error to the RPC operator.",
       blockIdentifier === "newHeads"
@@ -816,7 +820,7 @@ export const standardizeBlock = <
   }
   if (block.timestamp === undefined) {
     const error = new RpcProviderError(
-      "'block.timestamp' is a required property",
+      "Invalid RPC response: 'block.timestamp' is a required property",
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -833,7 +837,7 @@ export const standardizeBlock = <
   }
   if (block.logsBloom === undefined) {
     const error = new RpcProviderError(
-      "'block.logsBloom' is a required property",
+      "Invalid RPC response: 'block.logsBloom' is a required property",
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -850,7 +854,7 @@ export const standardizeBlock = <
   }
   if (block.parentHash === undefined) {
     const error = new RpcProviderError(
-      "'block.parentHash' is a required property",
+      "Invalid RPC response: 'block.parentHash' is a required property",
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -909,7 +913,7 @@ export const standardizeBlock = <
 
   if (hexToBigInt(block.number) > PG_BIGINT_MAX) {
     const error = new RpcProviderError(
-      `'block.number' is larger than the maximum allowed value. ${hexToBigInt(block.number)} > ${PG_BIGINT_MAX}`,
+      `Invalid RPC response: 'block.number' (${hexToBigInt(block.number)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -926,7 +930,7 @@ export const standardizeBlock = <
   }
   if (hexToBigInt(block.timestamp) > PG_BIGINT_MAX) {
     const error = new RpcProviderError(
-      `'block.timestamp' is larger than the maximum allowed value. ${hexToBigInt(block.timestamp)} > ${PG_BIGINT_MAX}`,
+      `Invalid RPC response: 'block.timestamp' (${hexToBigInt(block.timestamp)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -951,7 +955,9 @@ export const standardizeBlock = <
     return block as block extends SyncBlock ? SyncBlock : SyncBlockHeader;
   } else {
     if (block.transactions === undefined) {
-      throw new Error("'block.transactions' is a required property");
+      throw new Error(
+        "Invalid RPC response: 'block.transactions' is a required property",
+      );
     }
 
     block.transactions = (block as SyncBlock).transactions.map((transaction) =>
@@ -990,7 +996,7 @@ export const standardizeTransaction = (
   // required properties
   if (transaction.hash === undefined) {
     const error = new RpcProviderError(
-      "'transaction.hash' is a required property",
+      "Invalid RPC response: 'transaction.hash' is a required property",
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1005,7 +1011,7 @@ export const standardizeTransaction = (
   }
   if (transaction.transactionIndex === undefined) {
     const error = new RpcProviderError(
-      "'transaction.transactionIndex' is a required property",
+      "Invalid RPC response: 'transaction.transactionIndex' is a required property",
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1020,7 +1026,7 @@ export const standardizeTransaction = (
   }
   if (transaction.blockNumber === undefined) {
     const error = new RpcProviderError(
-      "'transaction.blockNumber' is a required property",
+      "Invalid RPC response: 'transaction.blockNumber' is a required property",
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1035,7 +1041,7 @@ export const standardizeTransaction = (
   }
   if (transaction.blockHash === undefined) {
     const error = new RpcProviderError(
-      "'transaction.blockHash' is a required property",
+      "Invalid RPC response: 'transaction.blockHash' is a required property",
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1050,7 +1056,7 @@ export const standardizeTransaction = (
   }
   if (transaction.from === undefined) {
     const error = new RpcProviderError(
-      "'transaction.from' is a required property",
+      "Invalid RPC response: 'transaction.from' is a required property",
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1065,7 +1071,7 @@ export const standardizeTransaction = (
   }
   if (transaction.to === undefined) {
     const error = new RpcProviderError(
-      "'transaction.to' is a required property",
+      "Invalid RPC response: 'transaction.to' is a required property",
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1108,7 +1114,7 @@ export const standardizeTransaction = (
 
   if (hexToBigInt(transaction.blockNumber) > PG_BIGINT_MAX) {
     const error = new RpcProviderError(
-      `'transaction.blockNumber' is larger than the maximum allowed value. ${hexToBigInt(transaction.blockNumber)} > ${PG_BIGINT_MAX}`,
+      `Invalid RPC response: 'transaction.blockNumber' (${hexToBigInt(transaction.blockNumber)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1123,7 +1129,7 @@ export const standardizeTransaction = (
   }
   if (hexToBigInt(transaction.transactionIndex) > BigInt(PG_INTEGER_MAX)) {
     const error = new RpcProviderError(
-      `'transaction.transactionIndex' is larger than the maximum allowed value. ${hexToBigInt(transaction.transactionIndex)} > ${PG_INTEGER_MAX}`,
+      `Invalid RPC response: 'transaction.transactionIndex' (${hexToBigInt(transaction.transactionIndex)}) is larger than the maximum allowed value (${PG_INTEGER_MAX}).`,
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1138,7 +1144,7 @@ export const standardizeTransaction = (
   }
   if (hexToBigInt(transaction.nonce) > BigInt(PG_INTEGER_MAX)) {
     const error = new RpcProviderError(
-      `'transaction.nonce' is larger than the maximum allowed value. ${hexToBigInt(transaction.nonce)} > ${PG_INTEGER_MAX}`,
+      `Invalid RPC response: 'transaction.nonce' (${hexToBigInt(transaction.nonce)}) is larger than the maximum allowed value (${PG_INTEGER_MAX}).`,
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1178,7 +1184,7 @@ export const standardizeLog = (
   // required properties
   if (log.blockNumber === undefined) {
     const error = new RpcProviderError(
-      "'log.blockNumber' is a required property",
+      "Invalid RPC response: 'log.blockNumber' is a required property",
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1188,7 +1194,9 @@ export const standardizeLog = (
     throw error;
   }
   if (log.logIndex === undefined) {
-    const error = new RpcProviderError("'log.logIndex' is a required property");
+    const error = new RpcProviderError(
+      "Invalid RPC response: 'log.logIndex' is a required property",
+    );
     error.meta = [
       "Please report this error to the RPC operator.",
       eth_getLogsText(blockIdentifier),
@@ -1198,7 +1206,7 @@ export const standardizeLog = (
   }
   if (log.blockHash === undefined) {
     const error = new RpcProviderError(
-      "'log.blockHash' is a required property",
+      "Invalid RPC response: 'log.blockHash' is a required property",
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1208,7 +1216,9 @@ export const standardizeLog = (
     throw error;
   }
   if (log.address === undefined) {
-    const error = new RpcProviderError("'log.address' is a required property");
+    const error = new RpcProviderError(
+      "Invalid RPC response: 'log.address' is a required property",
+    );
     error.meta = [
       "Please report this error to the RPC operator.",
       eth_getLogsText(blockIdentifier),
@@ -1217,7 +1227,9 @@ export const standardizeLog = (
     throw error;
   }
   if (log.topics === undefined) {
-    const error = new RpcProviderError("'log.topics' is a required property");
+    const error = new RpcProviderError(
+      "Invalid RPC response: 'log.topics' is a required property",
+    );
     error.meta = [
       "Please report this error to the RPC operator.",
       eth_getLogsText(blockIdentifier),
@@ -1226,7 +1238,9 @@ export const standardizeLog = (
     throw error;
   }
   if (log.data === undefined) {
-    const error = new RpcProviderError("'log.data' is a required property");
+    const error = new RpcProviderError(
+      "Invalid RPC response: 'log.data' is a required property",
+    );
     error.meta = [
       "Please report this error to the RPC operator.",
       eth_getLogsText(blockIdentifier),
@@ -1248,7 +1262,7 @@ export const standardizeLog = (
 
   if (hexToBigInt(log.blockNumber) > PG_BIGINT_MAX) {
     const error = new RpcProviderError(
-      `'log.blockNumber' is larger than the maximum allowed value. ${hexToBigInt(log.blockNumber)} > ${PG_BIGINT_MAX}`,
+      `Invalid RPC response: 'log.blockNumber' (${hexToBigInt(log.blockNumber)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1259,7 +1273,7 @@ export const standardizeLog = (
   }
   if (hexToBigInt(log.transactionIndex) > BigInt(PG_INTEGER_MAX)) {
     const error = new RpcProviderError(
-      `'log.transactionIndex' is larger than the maximum allowed value. ${hexToBigInt(log.transactionIndex)} > ${PG_INTEGER_MAX}`,
+      `Invalid RPC response: 'log.transactionIndex' (${hexToBigInt(log.transactionIndex)}) is larger than the maximum allowed value (${PG_INTEGER_MAX}).`,
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1270,7 +1284,7 @@ export const standardizeLog = (
   }
   if (hexToBigInt(log.logIndex) > BigInt(PG_INTEGER_MAX)) {
     const error = new RpcProviderError(
-      `'log.logIndex' is larger than the maximum allowed value. ${hexToBigInt(log.logIndex)} > ${PG_INTEGER_MAX}`,
+      `Invalid RPC response: 'log.logIndex' (${hexToBigInt(log.logIndex)}) is larger than the maximum allowed value (${PG_INTEGER_MAX}).`,
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1303,7 +1317,7 @@ export const standardizeTrace = (
   // required properties
   if (trace.transactionHash === undefined) {
     const error = new RpcProviderError(
-      "'trace.transactionHash' is a required property",
+      "Invalid RPC response: 'trace.transactionHash' is a required property",
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1313,7 +1327,9 @@ export const standardizeTrace = (
     throw error;
   }
   if (trace.trace.type === undefined) {
-    const error = new RpcProviderError("'trace.type' is a required property");
+    const error = new RpcProviderError(
+      "Invalid RPC response: 'trace.type' is a required property",
+    );
     error.meta = [
       "Please report this error to the RPC operator.",
       debug_traceBlockText(blockIdentifier),
@@ -1322,7 +1338,9 @@ export const standardizeTrace = (
     throw error;
   }
   if (trace.trace.from === undefined) {
-    const error = new RpcProviderError("'trace.from' is a required property");
+    const error = new RpcProviderError(
+      "Invalid RPC response: 'trace.from' is a required property",
+    );
     error.meta = [
       "Please report this error to the RPC operator.",
       debug_traceBlockText(blockIdentifier),
@@ -1331,7 +1349,9 @@ export const standardizeTrace = (
     throw error;
   }
   if (trace.trace.input === undefined) {
-    const error = new RpcProviderError("'trace.input' is a required property");
+    const error = new RpcProviderError(
+      "Invalid RPC response: 'trace.input' is a required property",
+    );
     error.meta = [
       "Please report this error to the RPC operator.",
       debug_traceBlockText(blockIdentifier),
@@ -1382,7 +1402,7 @@ export const standardizeTransactionReceipt = (
   // required properties
   if (receipt.blockHash === undefined) {
     const error = new RpcProviderError(
-      "'receipt.blockHash' is a required property",
+      "Invalid RPC response: 'receipt.blockHash' is a required property",
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1395,7 +1415,7 @@ export const standardizeTransactionReceipt = (
   }
   if (receipt.blockNumber === undefined) {
     const error = new RpcProviderError(
-      "'receipt.blockNumber' is a required property",
+      "Invalid RPC response: 'receipt.blockNumber' is a required property",
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1408,7 +1428,7 @@ export const standardizeTransactionReceipt = (
   }
   if (receipt.transactionHash === undefined) {
     const error = new RpcProviderError(
-      "'receipt.transactionHash' is a required property",
+      "Invalid RPC response: 'receipt.transactionHash' is a required property",
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1421,7 +1441,7 @@ export const standardizeTransactionReceipt = (
   }
   if (receipt.transactionIndex === undefined) {
     const error = new RpcProviderError(
-      "'receipt.transactionIndex' is a required property",
+      "Invalid RPC response: 'receipt.transactionIndex' is a required property",
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1433,7 +1453,9 @@ export const standardizeTransactionReceipt = (
     throw error;
   }
   if (receipt.from === undefined) {
-    const error = new RpcProviderError("'receipt.from' is a required property");
+    const error = new RpcProviderError(
+      "Invalid RPC response: 'receipt.from' is a required property",
+    );
     error.meta = [
       "Please report this error to the RPC operator.",
       method === "eth_getBlockReceipts"
@@ -1444,7 +1466,9 @@ export const standardizeTransactionReceipt = (
     throw error;
   }
   if (receipt.to === undefined) {
-    const error = new RpcProviderError("'receipt.to' is a required property");
+    const error = new RpcProviderError(
+      "Invalid RPC response: 'receipt.to' is a required property",
+    );
     error.meta = [
       "Please report this error to the RPC operator.",
       method === "eth_getBlockReceipts"
@@ -1456,7 +1480,7 @@ export const standardizeTransactionReceipt = (
   }
   if (receipt.status === undefined) {
     const error = new RpcProviderError(
-      "'receipt.status' is a required property",
+      "Invalid RPC response: 'receipt.status' is a required property",
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1494,7 +1518,7 @@ export const standardizeTransactionReceipt = (
 
   if (hexToBigInt(receipt.blockNumber) > PG_BIGINT_MAX) {
     const error = new RpcProviderError(
-      `'receipt.blockNumber' is larger than the maximum allowed value. ${hexToBigInt(receipt.blockNumber)} > ${PG_BIGINT_MAX}`,
+      `Invalid RPC response: 'receipt.blockNumber' (${hexToBigInt(receipt.blockNumber)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
     );
     error.meta = [
       "Please report this error to the RPC operator.",
@@ -1507,7 +1531,7 @@ export const standardizeTransactionReceipt = (
   }
   if (hexToBigInt(receipt.transactionIndex) > BigInt(PG_INTEGER_MAX)) {
     const error = new RpcProviderError(
-      `'receipt.transactionIndex' is larger than the maximum allowed value. ${hexToBigInt(receipt.transactionIndex)} > ${PG_INTEGER_MAX}`,
+      `Invalid RPC response: 'receipt.transactionIndex' (${hexToBigInt(receipt.transactionIndex)}) is larger than the maximum allowed value (${PG_INTEGER_MAX}).`,
     );
     error.meta = [
       "Please report this error to the RPC operator.",
