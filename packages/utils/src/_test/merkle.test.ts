@@ -63,7 +63,7 @@ test("merkle block range 10k", async () => {
   });
 });
 
-test("merkle success 10k", async () => {
+test("merkle success 1k", async () => {
   const logs = await request({
     method: "eth_getLogs",
     params: [
