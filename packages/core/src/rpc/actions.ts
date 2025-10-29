@@ -57,7 +57,7 @@ export const _eth_getBlockByNumber = (
         throw new BlockNotFoundError({
           blockNumber: (blockNumber ?? blockTag) as any,
         });
-      return standardizeBlock(_block as SyncBlock);
+      return standardizeBlock(_block as SyncBlock, "number");
     });
 
 /**
@@ -81,7 +81,7 @@ export const _eth_getBlockByHash = (
         throw new BlockNotFoundError({
           blockHash: hash,
         });
-      return standardizeBlock(_block as SyncBlock);
+      return standardizeBlock(_block as SyncBlock, "hash");
     });
 
 /**
@@ -184,7 +184,10 @@ export const _eth_getTransactionReceipt = (
         throw new TransactionReceiptNotFoundError({
           hash,
         });
-      return standardizeTransactionReceipt(receipt as SyncTransactionReceipt);
+      return standardizeTransactionReceipt(
+        receipt as SyncTransactionReceipt,
+        "eth_getTransactionReceipt",
+      );
     });
 
 /**
@@ -210,7 +213,9 @@ export const _eth_getBlockReceipts = (
         );
       }
 
-      return receipts.map(standardizeTransactionReceipt);
+      return receipts.map((receipt) =>
+        standardizeTransactionReceipt(receipt, "eth_getBlockReceipts"),
+      );
     });
 
 /**
@@ -775,23 +780,90 @@ export const standardizeBlock = <
       }),
 >(
   block: block,
+  blockIdentifier: "number" | "hash" | "newHeads",
   isBlockHeader = false,
 ): block extends SyncBlock ? SyncBlock : SyncBlockHeader => {
   // required properties
   if (block.hash === undefined) {
-    throw new Error("'block.hash' is a required property");
+    const error = new RpcProviderError("'block.hash' is a required property");
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      blockIdentifier === "newHeads"
+        ? eth_subscribeNewHeadsText()
+        : eth_getBlockText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (block.number === undefined) {
-    throw new Error("'block.number' is a required property");
+    const error = new RpcProviderError("'block.number' is a required property");
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      blockIdentifier === "newHeads"
+        ? eth_subscribeNewHeadsText()
+        : eth_getBlockText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (block.timestamp === undefined) {
-    throw new Error("'block.timestamp' is a required property");
+    const error = new RpcProviderError(
+      "'block.timestamp' is a required property",
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      blockIdentifier === "newHeads"
+        ? eth_subscribeNewHeadsText()
+        : eth_getBlockText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (block.logsBloom === undefined) {
-    throw new Error("'block.logsBloom' is a required property");
+    const error = new RpcProviderError(
+      "'block.logsBloom' is a required property",
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      blockIdentifier === "newHeads"
+        ? eth_subscribeNewHeadsText()
+        : eth_getBlockText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (block.parentHash === undefined) {
-    throw new Error("'block.parentHash' is a required property");
+    const error = new RpcProviderError(
+      "'block.parentHash' is a required property",
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      blockIdentifier === "newHeads"
+        ? eth_subscribeNewHeadsText()
+        : eth_getBlockText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
+    ];
+    error.stack = undefined;
+    throw error;
   }
 
   // non-required properties
@@ -836,12 +908,38 @@ export const standardizeBlock = <
   }
 
   if (hexToBigInt(block.number) > PG_BIGINT_MAX) {
-    throw new Error("'block.number' is larger than the maximum allowed value");
+    const error = new RpcProviderError(
+      `'block.number' is larger than the maximum allowed value. ${hexToBigInt(block.number)} > ${PG_BIGINT_MAX}`,
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      blockIdentifier === "newHeads"
+        ? eth_subscribeNewHeadsText()
+        : eth_getBlockText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (hexToBigInt(block.timestamp) > PG_BIGINT_MAX) {
-    throw new Error(
-      "'block.timestamp' is larger than the maximum allowed value",
+    const error = new RpcProviderError(
+      `'block.timestamp' is larger than the maximum allowed value. ${hexToBigInt(block.timestamp)} > ${PG_BIGINT_MAX}`,
     );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      blockIdentifier === "newHeads"
+        ? eth_subscribeNewHeadsText()
+        : eth_getBlockText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
+    ];
+    error.stack = undefined;
+    throw error;
   }
 
   // Note: block headers for some providers may contain transactions hashes,
@@ -856,8 +954,8 @@ export const standardizeBlock = <
       throw new Error("'block.transactions' is a required property");
     }
 
-    block.transactions = (block as SyncBlock).transactions.map(
-      standardizeTransaction,
+    block.transactions = (block as SyncBlock).transactions.map((transaction) =>
+      standardizeTransaction(transaction, blockIdentifier as "number" | "hash"),
     );
 
     return block as block extends SyncBlock ? SyncBlock : SyncBlockHeader;
@@ -887,25 +985,98 @@ export const standardizeBlock = <
  */
 export const standardizeTransaction = (
   transaction: SyncTransaction,
+  blockIdentifier: "number" | "hash",
 ): SyncTransaction => {
   // required properties
   if (transaction.hash === undefined) {
-    throw new Error("'transaction.hash' is a required property");
+    const error = new RpcProviderError(
+      "'transaction.hash' is a required property",
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getBlockText(
+        blockIdentifier === "number"
+          ? hexToNumber(transaction.blockNumber)
+          : transaction.blockHash,
+      ),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (transaction.transactionIndex === undefined) {
-    throw new Error("'transaction.transactionIndex' is a required property");
+    const error = new RpcProviderError(
+      "'transaction.transactionIndex' is a required property",
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getBlockText(
+        blockIdentifier === "number"
+          ? hexToNumber(transaction.blockNumber)
+          : transaction.blockHash,
+      ),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (transaction.blockNumber === undefined) {
-    throw new Error("'transaction.blockNumber' is a required property");
+    const error = new RpcProviderError(
+      "'transaction.blockNumber' is a required property",
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getBlockText(
+        blockIdentifier === "number"
+          ? hexToNumber(transaction.blockNumber)
+          : transaction.blockHash,
+      ),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (transaction.blockHash === undefined) {
-    throw new Error("'transaction.blockHash' is a required property");
+    const error = new RpcProviderError(
+      "'transaction.blockHash' is a required property",
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getBlockText(
+        blockIdentifier === "number"
+          ? hexToNumber(transaction.blockNumber)
+          : transaction.blockHash,
+      ),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (transaction.from === undefined) {
-    throw new Error("'transaction.from' is a required property");
+    const error = new RpcProviderError(
+      "'transaction.from' is a required property",
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getBlockText(
+        blockIdentifier === "number"
+          ? hexToNumber(transaction.blockNumber)
+          : transaction.blockHash,
+      ),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (transaction.to === undefined) {
-    throw new Error("'transaction.to' is a required property");
+    const error = new RpcProviderError(
+      "'transaction.to' is a required property",
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getBlockText(
+        blockIdentifier === "number"
+          ? hexToNumber(transaction.blockNumber)
+          : transaction.blockHash,
+      ),
+    ];
+    error.stack = undefined;
+    throw error;
   }
 
   // non-required properties
@@ -936,19 +1107,49 @@ export const standardizeTransaction = (
   }
 
   if (hexToBigInt(transaction.blockNumber) > PG_BIGINT_MAX) {
-    throw new Error(
-      "'transaction.blockNumber' is larger than the maximum allowed value",
+    const error = new RpcProviderError(
+      `'transaction.blockNumber' is larger than the maximum allowed value. ${hexToBigInt(transaction.blockNumber)} > ${PG_BIGINT_MAX}`,
     );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getBlockText(
+        blockIdentifier === "number"
+          ? hexToNumber(transaction.blockNumber)
+          : transaction.blockHash,
+      ),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (hexToBigInt(transaction.transactionIndex) > BigInt(PG_INTEGER_MAX)) {
-    throw new Error(
-      "'transaction.transactionIndex' is larger than the maximum allowed value",
+    const error = new RpcProviderError(
+      `'transaction.transactionIndex' is larger than the maximum allowed value. ${hexToBigInt(transaction.transactionIndex)} > ${PG_INTEGER_MAX}`,
     );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getBlockText(
+        blockIdentifier === "number"
+          ? hexToNumber(transaction.blockNumber)
+          : transaction.blockHash,
+      ),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (hexToBigInt(transaction.nonce) > BigInt(PG_INTEGER_MAX)) {
-    throw new Error(
-      "'transaction.nonce' is larger than the maximum allowed value",
+    const error = new RpcProviderError(
+      `'transaction.nonce' is larger than the maximum allowed value. ${hexToBigInt(transaction.nonce)} > ${PG_INTEGER_MAX}`,
     );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getBlockText(
+        blockIdentifier === "number"
+          ? hexToNumber(transaction.blockNumber)
+          : transaction.blockHash,
+      ),
+    ];
+    error.stack = undefined;
+    throw error;
   }
 
   return transaction;
@@ -970,25 +1171,68 @@ export const standardizeTransaction = (
  * Non-required properties:
  * - removed
  */
-export const standardizeLog = (log: SyncLog): SyncLog => {
+export const standardizeLog = (
+  log: SyncLog,
+  blockIdentifier: number | Hash,
+): SyncLog => {
   // required properties
   if (log.blockNumber === undefined) {
-    throw new Error("'log.blockNumber' is a required property");
+    const error = new RpcProviderError(
+      "'log.blockNumber' is a required property",
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getLogsText(blockIdentifier),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (log.logIndex === undefined) {
-    throw new Error("'log.logIndex' is a required property");
+    const error = new RpcProviderError("'log.logIndex' is a required property");
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getLogsText(blockIdentifier),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (log.blockHash === undefined) {
-    throw new Error("'log.blockHash' is a required property");
+    const error = new RpcProviderError(
+      "'log.blockHash' is a required property",
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getLogsText(blockIdentifier),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (log.address === undefined) {
-    throw new Error("'log.address' is a required property");
+    const error = new RpcProviderError("'log.address' is a required property");
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getLogsText(blockIdentifier),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (log.topics === undefined) {
-    throw new Error("'log.topics' is a required property");
+    const error = new RpcProviderError("'log.topics' is a required property");
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getLogsText(blockIdentifier),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (log.data === undefined) {
-    throw new Error("'log.data' is a required property");
+    const error = new RpcProviderError("'log.data' is a required property");
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getLogsText(blockIdentifier),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (log.transactionHash === undefined) {
     log.transactionHash = zeroHash;
@@ -1003,17 +1247,37 @@ export const standardizeLog = (log: SyncLog): SyncLog => {
   }
 
   if (hexToBigInt(log.blockNumber) > PG_BIGINT_MAX) {
-    throw new Error(
-      "'log.blockNumber' is larger than the maximum allowed value",
+    const error = new RpcProviderError(
+      `'log.blockNumber' is larger than the maximum allowed value. ${hexToBigInt(log.blockNumber)} > ${PG_BIGINT_MAX}`,
     );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getLogsText(blockIdentifier),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (hexToBigInt(log.transactionIndex) > BigInt(PG_INTEGER_MAX)) {
-    throw new Error(
-      "'log.transactionIndex' is larger than the maximum allowed value",
+    const error = new RpcProviderError(
+      `'log.transactionIndex' is larger than the maximum allowed value. ${hexToBigInt(log.transactionIndex)} > ${PG_INTEGER_MAX}`,
     );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getLogsText(blockIdentifier),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (hexToBigInt(log.logIndex) > BigInt(PG_INTEGER_MAX)) {
-    throw new Error("'log.logIndex' is larger than the maximum allowed value");
+    const error = new RpcProviderError(
+      `'log.logIndex' is larger than the maximum allowed value. ${hexToBigInt(log.logIndex)} > ${PG_INTEGER_MAX}`,
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      eth_getLogsText(blockIdentifier),
+    ];
+    error.stack = undefined;
+    throw error;
   }
 
   return log;
@@ -1032,19 +1296,48 @@ export const standardizeLog = (log: SyncLog): SyncLog => {
  * - gas
  * - gasUsed
  */
-export const standardizeTrace = (trace: SyncTrace): SyncTrace => {
+export const standardizeTrace = (
+  trace: SyncTrace,
+  blockIdentifier: number | Hash,
+): SyncTrace => {
   // required properties
   if (trace.transactionHash === undefined) {
-    throw new Error("'trace.transactionHash' is a required property");
+    const error = new RpcProviderError(
+      "'trace.transactionHash' is a required property",
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      debug_traceBlockText(blockIdentifier),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (trace.trace.type === undefined) {
-    throw new Error("'trace.type' is a required property");
+    const error = new RpcProviderError("'trace.type' is a required property");
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      debug_traceBlockText(blockIdentifier),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (trace.trace.from === undefined) {
-    throw new Error("'trace.from' is a required property");
+    const error = new RpcProviderError("'trace.from' is a required property");
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      debug_traceBlockText(blockIdentifier),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (trace.trace.input === undefined) {
-    throw new Error("'trace.input' is a required property");
+    const error = new RpcProviderError("'trace.input' is a required property");
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      debug_traceBlockText(blockIdentifier),
+    ];
+    error.stack = undefined;
+    throw error;
   }
 
   // non-required properties
@@ -1084,28 +1377,95 @@ export const standardizeTrace = (trace: SyncTrace): SyncTrace => {
  */
 export const standardizeTransactionReceipt = (
   receipt: SyncTransactionReceipt,
+  method: "eth_getBlockReceipts" | "eth_getTransactionReceipt",
 ): SyncTransactionReceipt => {
   // required properties
   if (receipt.blockHash === undefined) {
-    throw new Error("'receipt.blockHash' is a required property");
+    const error = new RpcProviderError(
+      "'receipt.blockHash' is a required property",
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      method === "eth_getBlockReceipts"
+        ? eth_getBlockReceiptsText(receipt.blockHash)
+        : eth_getTransactionReceiptText(receipt.transactionHash),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (receipt.blockNumber === undefined) {
-    throw new Error("'receipt.blockNumber' is a required property");
+    const error = new RpcProviderError(
+      "'receipt.blockNumber' is a required property",
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      method === "eth_getBlockReceipts"
+        ? eth_getBlockReceiptsText(receipt.blockHash)
+        : eth_getTransactionReceiptText(receipt.transactionHash),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (receipt.transactionHash === undefined) {
-    throw new Error("'receipt.transactionHash' is a required property");
+    const error = new RpcProviderError(
+      "'receipt.transactionHash' is a required property",
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      method === "eth_getBlockReceipts"
+        ? eth_getBlockReceiptsText(receipt.blockHash)
+        : eth_getTransactionReceiptText(receipt.transactionHash),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (receipt.transactionIndex === undefined) {
-    throw new Error("'receipt.transactionIndex' is a required property");
+    const error = new RpcProviderError(
+      "'receipt.transactionIndex' is a required property",
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      method === "eth_getBlockReceipts"
+        ? eth_getBlockReceiptsText(receipt.blockHash)
+        : eth_getTransactionReceiptText(receipt.transactionHash),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (receipt.from === undefined) {
-    throw new Error("'receipt.from' is a required property");
+    const error = new RpcProviderError("'receipt.from' is a required property");
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      method === "eth_getBlockReceipts"
+        ? eth_getBlockReceiptsText(receipt.blockHash)
+        : eth_getTransactionReceiptText(receipt.transactionHash),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (receipt.to === undefined) {
-    throw new Error("'receipt.to' is a required property");
+    const error = new RpcProviderError("'receipt.to' is a required property");
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      method === "eth_getBlockReceipts"
+        ? eth_getBlockReceiptsText(receipt.blockHash)
+        : eth_getTransactionReceiptText(receipt.transactionHash),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (receipt.status === undefined) {
-    throw new Error("'receipt.status' is a required property");
+    const error = new RpcProviderError(
+      "'receipt.status' is a required property",
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      method === "eth_getBlockReceipts"
+        ? eth_getBlockReceiptsText(receipt.blockHash)
+        : eth_getTransactionReceiptText(receipt.transactionHash),
+    ];
+    error.stack = undefined;
+    throw error;
   }
 
   // non-required properties
@@ -1133,14 +1493,30 @@ export const standardizeTransactionReceipt = (
   }
 
   if (hexToBigInt(receipt.blockNumber) > PG_BIGINT_MAX) {
-    throw new Error(
-      "'receipt.blockNumber' is larger than the maximum allowed value",
+    const error = new RpcProviderError(
+      `'receipt.blockNumber' is larger than the maximum allowed value. ${hexToBigInt(receipt.blockNumber)} > ${PG_BIGINT_MAX}`,
     );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      method === "eth_getBlockReceipts"
+        ? eth_getBlockReceiptsText(receipt.blockHash)
+        : eth_getTransactionReceiptText(receipt.transactionHash),
+    ];
+    error.stack = undefined;
+    throw error;
   }
   if (hexToBigInt(receipt.transactionIndex) > BigInt(PG_INTEGER_MAX)) {
-    throw new Error(
-      "'receipt.transactionIndex' is larger than the maximum allowed value",
+    const error = new RpcProviderError(
+      `'receipt.transactionIndex' is larger than the maximum allowed value. ${hexToBigInt(receipt.transactionIndex)} > ${PG_INTEGER_MAX}`,
     );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      method === "eth_getBlockReceipts"
+        ? eth_getBlockReceiptsText(receipt.blockHash)
+        : eth_getTransactionReceiptText(receipt.transactionHash),
+    ];
+    error.stack = undefined;
+    throw error;
   }
 
   return receipt;
@@ -1189,6 +1565,17 @@ function eth_getBlockText(numberOrHash: Hex | number): string {
     {
       method: "eth_getBlockByHash",
       params: [numberOrHash, true],
+    },
+    null,
+    2,
+  )}`;
+}
+
+function eth_subscribeNewHeadsText(): string {
+  return `Block request: ${JSON.stringify(
+    {
+      method: "eth_subscribe",
+      params: ["newHeads"],
     },
     null,
     2,
