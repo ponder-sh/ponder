@@ -1,6 +1,7 @@
 import type {
   BlockFilter,
   Factory,
+  Filter,
   FilterAddress,
   FilterWithoutBlocks,
   Fragment,
@@ -557,9 +558,9 @@ const recoverTopic = (
 };
 
 export const recoverFilter = (
-  baseFilter: FilterWithoutBlocks,
+  baseFilter: Filter,
   fragments: Fragment[],
-): FilterWithoutBlocks => {
+): Filter => {
   switch (baseFilter.type) {
     case "block": {
       return baseFilter;

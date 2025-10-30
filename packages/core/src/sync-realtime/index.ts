@@ -717,10 +717,7 @@ export const createRealtimeSync = (
       let isMatched = transactionHashes.has(transaction.hash);
       for (const filter of transactionFilters) {
         if (
-          isTransactionFilterMatched({
-            filter,
-            transaction,
-          }) &&
+          isTransactionFilterMatched({ filter, transaction }) &&
           (isAddressFactory(filter.fromAddress)
             ? isAddressMatched({
                 address: transaction.from,

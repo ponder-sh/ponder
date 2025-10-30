@@ -1,3 +1,4 @@
+import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
   Chain,
@@ -6,7 +7,6 @@ import type {
   Source,
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
-import type { SyncStore } from "@/sync-store/index.js";
 import { getLocalEventGenerator, refetchLocalEvents } from "./historical.js";
 import {
   type CachedIntervals,
@@ -30,7 +30,7 @@ export async function initEventGenerator(params: {
   from: string;
   to: string;
   limit: number;
-  syncStore: SyncStore;
+  database: Database;
   isCatchup: boolean;
 }) {
   return getLocalEventGenerator(params);

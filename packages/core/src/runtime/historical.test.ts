@@ -33,7 +33,7 @@ beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
 test("getLocalEventGenerator()", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -66,7 +66,7 @@ test("getLocalEventGenerator()", async (context) => {
     childAddresses: new Map(),
     syncProgress,
     cachedIntervals,
-    syncStore,
+    database,
     from: syncProgress.getCheckpoint({ tag: "start" })!,
     to: syncProgress.getCheckpoint({ tag: "finalized" })!,
     limit: 100,
@@ -78,7 +78,7 @@ test("getLocalEventGenerator()", async (context) => {
 });
 
 test("getLocalEventGenerator() pagination", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -107,7 +107,7 @@ test("getLocalEventGenerator() pagination", async (context) => {
     common: context.common,
     chain,
     rpc,
-    syncStore,
+    database,
     sources,
     childAddresses: new Map(),
     syncProgress,
@@ -123,7 +123,7 @@ test("getLocalEventGenerator() pagination", async (context) => {
 });
 
 test("getLocalEventGenerator() pagination with zero interval", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -152,7 +152,7 @@ test("getLocalEventGenerator() pagination with zero interval", async (context) =
     common: context.common,
     chain,
     rpc,
-    syncStore,
+    database,
     sources,
     childAddresses: new Map(),
     syncProgress,
@@ -200,7 +200,7 @@ test("getLocalSyncGenerator()", async (context) => {
     sources,
     childAddresses: new Map(),
     cachedIntervals,
-    syncStore,
+    database,
     syncProgress,
     isCatchup: false,
   });
@@ -249,7 +249,7 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     childAddresses: new Map(),
     syncProgress,
     cachedIntervals,
-    syncStore,
+    database,
     isCatchup: false,
   });
 
@@ -280,7 +280,7 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     childAddresses: new Map(),
     syncProgress,
     cachedIntervals,
-    syncStore,
+    database,
     isCatchup: false,
   });
 
@@ -295,7 +295,7 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
 });
 
 test("getLocalSyncGenerator() with full cache", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -331,7 +331,7 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     childAddresses: new Map(),
     syncProgress,
     cachedIntervals,
-    syncStore,
+    database,
     isCatchup: false,
   });
 
@@ -360,7 +360,7 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     childAddresses: new Map(),
     syncProgress,
     cachedIntervals,
-    syncStore,
+    database,
     isCatchup: false,
   });
 
@@ -375,7 +375,7 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
 });
 
 test("getHistoricalEventsMultichain()", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
@@ -428,7 +428,7 @@ test("getHistoricalEventsMultichain()", async (context) => {
       },
       crashRecoveryCheckpoint: undefined,
       perChainSync,
-      syncStore,
+      database,
     }),
   );
 
@@ -437,7 +437,7 @@ test("getHistoricalEventsMultichain()", async (context) => {
 });
 
 test("getHistoricalEvents() omnichain", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
@@ -490,7 +490,7 @@ test("getHistoricalEvents() omnichain", async (context) => {
       },
       crashRecoveryCheckpoint: undefined,
       perChainSync,
-      syncStore,
+      database,
     }),
   );
 
@@ -499,7 +499,7 @@ test("getHistoricalEvents() omnichain", async (context) => {
 });
 
 test("getHistoricalEvents() with crash recovery checkpoint", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
@@ -554,7 +554,7 @@ test("getHistoricalEvents() with crash recovery checkpoint", async (context) => 
         { chainId: 1, checkpoint: MAX_CHECKPOINT_STRING },
       ],
       perChainSync,
-      syncStore,
+      database,
     }),
   );
 
