@@ -1,4 +1,8 @@
-import { ALICE, EMPTY_BLOCK_FILTER } from "@/_test/constants.js";
+import {
+  ALICE,
+  EMPTY_BLOCK_FILTER,
+  EMPTY_LOG_FILTER,
+} from "@/_test/constants.js";
 import {
   setupCleanup,
   setupCommon,
@@ -12,7 +16,13 @@ import {
   getChain,
   getErc20IndexingBuild,
 } from "@/_test/utils.js";
-import type { BlockFilter, Event, Filter, Fragment } from "@/internal/types.js";
+import type {
+  BlockFilter,
+  Event,
+  Filter,
+  Fragment,
+  LogFilter,
+} from "@/internal/types.js";
 import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
 import { encodeCheckpoint } from "@/utils/checkpoint.js";
@@ -28,7 +38,11 @@ import {
 } from "./events.js";
 import { getFragments } from "./fragments.js";
 import { mergeAsyncGeneratorsWithEventOrder } from "./historical.js";
-import { getCachedBlock, getLocalSyncProgress } from "./index.js";
+import {
+  getCachedBlock,
+  getLocalSyncProgress,
+  getRequiredIntervals,
+} from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
@@ -256,6 +270,118 @@ test("getCachedBlock() with multiple filters", async () => {
   });
 
   expect(cachedBlock).toBe(49);
+});
+
+test("getCachedBlock() with factory", async () => {
+  const filter = {
+    ...EMPTY_LOG_FILTER,
+    address: {
+      id: "id",
+      type: "log",
+      chainId: 1,
+      address: "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+      eventSelector:
+        "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+      childAddressLocation: "topic1",
+      fromBlock: 2,
+      toBlock: 5,
+    },
+    fromBlock: 10,
+    toBlock: 20,
+  } satisfies LogFilter;
+
+  let cachedIntervals = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >([[filter, [{ fragment: {} as Fragment, intervals: [[10, 20]] }]]]);
+
+  let cachedBlock = getCachedBlock({
+    filters: [filter],
+    cachedIntervals,
+  });
+
+  expect(cachedBlock).toBe(1);
+
+  cachedIntervals = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >([
+    [
+      filter,
+      [
+        {
+          fragment: {} as Fragment,
+          intervals: [
+            [2, 5],
+            [10, 18],
+          ],
+        },
+      ],
+    ],
+  ]);
+
+  cachedBlock = getCachedBlock({ filters: [filter], cachedIntervals });
+
+  expect(cachedBlock).toBe(18);
+});
+
+test.todo("getRequiredIntervals()");
+
+test("getRequiredIntervals() with factory", async () => {
+  const filter = {
+    ...EMPTY_LOG_FILTER,
+    address: {
+      id: "id",
+      type: "log",
+      chainId: 1,
+      address: "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+      eventSelector:
+        "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+      childAddressLocation: "topic1",
+      fromBlock: 2,
+      toBlock: 5,
+    },
+    fromBlock: 10,
+    toBlock: 20,
+  } satisfies LogFilter;
+
+  let cachedIntervals = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >([[filter, [{ fragment: {} as Fragment, intervals: [[2, 18]] }]]]);
+
+  let requiredIntervals = getRequiredIntervals({
+    interval: [2, 20],
+    cachedIntervals,
+  });
+
+  expect(requiredIntervals).toMatchInlineSnapshot(`
+    [
+      [
+        19,
+        20,
+      ],
+    ]
+  `);
+
+  cachedIntervals = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >([[filter, [{ fragment: {} as Fragment, intervals: [[4, 18]] }]]]);
+
+  requiredIntervals = getRequiredIntervals({
+    interval: [2, 20],
+    cachedIntervals,
+  });
+
+  expect(requiredIntervals).toMatchInlineSnapshot(`
+    [
+      [
+        2,
+        20,
+      ],
+    ]
+  `);
 });
 
 test("mergeAsyncGeneratorsWithEventOrder()", async () => {
