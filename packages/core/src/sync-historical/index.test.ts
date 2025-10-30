@@ -26,7 +26,7 @@ import {
   getPairWithFactoryIndexingBuild,
 } from "@/_test/utils.js";
 import { createRpc } from "@/rpc/index.js";
-import { getCachedIntervals } from "@/runtime/index.js";
+import { getCachedIntervals, getRequiredIntervals } from "@/runtime/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
 import { zeroAddress } from "viem";
 import { parseEther } from "viem/utils";
@@ -39,8 +39,6 @@ beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
 test("createHistoricalSync()", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -55,10 +53,7 @@ test("createHistoricalSync()", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources,
     childAddresses: setupChildAddresses(sources),
-    cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
   expect(historicalSync).toBeDefined();
@@ -89,25 +84,41 @@ test("sync() with log filter", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources,
     childAddresses: setupChildAddresses(sources),
-    cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
-  await historicalSync.sync([1, 2]);
+  const requiredIntervals = getRequiredIntervals({
+    interval: [1, 2],
+    sources,
+    cachedIntervals: setupCachedIntervals(sources),
+  });
+  const logs = await historicalSync.syncBlockRangeData({
+    interval: [1, 2],
+    requiredIntervals,
+    syncStore,
+  });
+  await historicalSync.syncBlockData({
+    interval: [1, 2],
+    requiredIntervals,
+    logs,
+    syncStore,
+  });
+  await syncStore.insertIntervals({
+    intervals: requiredIntervals,
+    chainId: chain.id,
+  });
 
-  const logs = await database.syncQB.wrap((db) =>
+  const dbLogs = await database.syncQB.wrap((db) =>
     db.select().from(ponderSyncSchema.logs).execute(),
   );
 
-  expect(logs).toHaveLength(1);
+  expect(dbLogs).toHaveLength(1);
 
-  const intervals = await database.syncQB.wrap((db) =>
+  const dbIntervals = await database.syncQB.wrap((db) =>
     db.select().from(ponderSyncSchema.intervals).execute(),
   );
 
-  expect(intervals).toHaveLength(1);
+  expect(dbIntervals).toHaveLength(1);
 });
 
 test("sync() with log filter and transaction receipts", async (context) => {
@@ -136,13 +147,29 @@ test("sync() with log filter and transaction receipts", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources,
     childAddresses: setupChildAddresses(sources),
-    cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
-  await historicalSync.sync([1, 2]);
+  const requiredIntervals = getRequiredIntervals({
+    interval: [1, 2],
+    sources,
+    cachedIntervals: setupCachedIntervals(sources),
+  });
+  const logs = await historicalSync.syncBlockRangeData({
+    interval: [1, 2],
+    requiredIntervals,
+    syncStore,
+  });
+  await historicalSync.syncBlockData({
+    interval: [1, 2],
+    requiredIntervals,
+    logs,
+    syncStore,
+  });
+  await syncStore.insertIntervals({
+    intervals: requiredIntervals,
+    chainId: chain.id,
+  });
 
   const transactionReceipts = await database.syncQB.wrap((db) =>
     db.select().from(ponderSyncSchema.transactionReceipts).execute(),
@@ -178,13 +205,29 @@ test("sync() with block filter", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources,
     childAddresses: setupChildAddresses(sources),
-    cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
-  await historicalSync.sync([1, 3]);
+  const requiredIntervals = getRequiredIntervals({
+    interval: [1, 3],
+    sources,
+    cachedIntervals: setupCachedIntervals(sources),
+  });
+  const logs = await historicalSync.syncBlockRangeData({
+    interval: [1, 3],
+    requiredIntervals,
+    syncStore,
+  });
+  await historicalSync.syncBlockData({
+    interval: [1, 3],
+    requiredIntervals,
+    logs,
+    syncStore,
+  });
+  await syncStore.insertIntervals({
+    intervals: requiredIntervals,
+    chainId: chain.id,
+  });
 
   const blocks = await database.syncQB.wrap((db) =>
     db.select().from(ponderSyncSchema.blocks).execute(),
@@ -229,22 +272,38 @@ test("sync() with log factory", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources,
     childAddresses: setupChildAddresses(sources),
-    cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
-  await historicalSync.sync([1, 3]);
+  const requiredIntervals = getRequiredIntervals({
+    interval: [1, 3],
+    sources,
+    cachedIntervals: setupCachedIntervals(sources),
+  });
+  const logs = await historicalSync.syncBlockRangeData({
+    interval: [1, 3],
+    requiredIntervals,
+    syncStore,
+  });
+  await historicalSync.syncBlockData({
+    interval: [1, 3],
+    requiredIntervals,
+    logs,
+    syncStore,
+  });
+  await syncStore.insertIntervals({
+    intervals: requiredIntervals,
+    chainId: chain.id,
+  });
 
-  const logs = await database.syncQB.wrap((db) =>
+  const dbLogs = await database.syncQB.wrap((db) =>
     db.select().from(ponderSyncSchema.logs).execute(),
   );
   const factories = await database.syncQB.wrap((db) =>
     db.select().from(ponderSyncSchema.factories).execute(),
   );
 
-  expect(logs).toHaveLength(1);
+  expect(dbLogs).toHaveLength(1);
   expect(factories).toHaveLength(1);
 
   const intervals = await database.syncQB.wrap((db) =>
@@ -307,13 +366,29 @@ test("sync() with trace filter", async (context) => {
       // @ts-ignore
       request,
     },
-    sources: sources.filter(({ filter }) => filter.type === "trace"),
     childAddresses: setupChildAddresses(sources),
-    cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
-  await historicalSync.sync([1, 3]);
+  const requiredIntervals = getRequiredIntervals({
+    interval: [1, 3],
+    sources: sources.filter(({ filter }) => filter.type === "trace"),
+    cachedIntervals: setupCachedIntervals(sources),
+  });
+  const logs = await historicalSync.syncBlockRangeData({
+    interval: [1, 3],
+    requiredIntervals,
+    syncStore,
+  });
+  await historicalSync.syncBlockData({
+    interval: [1, 3],
+    requiredIntervals,
+    logs,
+    syncStore,
+  });
+  await syncStore.insertIntervals({
+    intervals: requiredIntervals,
+    chainId: chain.id,
+  });
 
   const traces = await database.syncQB.wrap((db) =>
     db.select().from(ponderSyncSchema.traces).execute(),
@@ -351,13 +426,29 @@ test("sync() with transaction filter", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources: sources.filter(({ filter }) => filter.type === "transaction"),
     childAddresses: setupChildAddresses(sources),
-    cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
-  await historicalSync.sync([1, 1]);
+  const requiredIntervals = getRequiredIntervals({
+    interval: [1, 1],
+    sources: sources.filter(({ filter }) => filter.type === "transaction"),
+    cachedIntervals: setupCachedIntervals(sources),
+  });
+  const logs = await historicalSync.syncBlockRangeData({
+    interval: [1, 1],
+    requiredIntervals,
+    syncStore,
+  });
+  await historicalSync.syncBlockData({
+    interval: [1, 1],
+    requiredIntervals,
+    logs,
+    syncStore,
+  });
+  await syncStore.insertIntervals({
+    intervals: requiredIntervals,
+    chainId: chain.id,
+  });
 
   const transactions = await database.syncQB.wrap((db) =>
     db.select().from(ponderSyncSchema.transactions).execute(),
@@ -421,13 +512,29 @@ test("sync() with transfer filter", async (context) => {
       // @ts-ignore
       request,
     },
-    sources: sources.filter(({ filter }) => filter.type === "transfer"),
     childAddresses: setupChildAddresses(sources),
-    cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
-  await historicalSync.sync([1, 1]);
+  const requiredIntervals = getRequiredIntervals({
+    interval: [1, 1],
+    sources: sources.filter(({ filter }) => filter.type === "transfer"),
+    cachedIntervals: setupCachedIntervals(sources),
+  });
+  const logs = await historicalSync.syncBlockRangeData({
+    interval: [1, 1],
+    requiredIntervals,
+    syncStore,
+  });
+  await historicalSync.syncBlockData({
+    interval: [1, 1],
+    requiredIntervals,
+    logs,
+    syncStore,
+  });
+  await syncStore.insertIntervals({
+    intervals: requiredIntervals,
+    chainId: chain.id,
+  });
 
   const transactions = await database.syncQB.wrap((db) =>
     db.select().from(ponderSyncSchema.transactions).execute(),
@@ -472,24 +579,40 @@ test("sync() with many filters", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources: [...erc20IndexingBuild.sources, ...blocksIndexingBuild.sources],
     childAddresses: setupChildAddresses([
       ...erc20IndexingBuild.sources,
       ...blocksIndexingBuild.sources,
     ]),
+  });
+
+  const requiredIntervals = getRequiredIntervals({
+    interval: [1, 2],
+    sources: [...erc20IndexingBuild.sources, ...blocksIndexingBuild.sources],
     cachedIntervals: setupCachedIntervals([
       ...erc20IndexingBuild.sources,
       ...blocksIndexingBuild.sources,
     ]),
+  });
+  const logs = await historicalSync.syncBlockRangeData({
+    interval: [1, 2],
+    requiredIntervals,
     syncStore,
   });
+  await historicalSync.syncBlockData({
+    interval: [1, 2],
+    requiredIntervals,
+    logs,
+    syncStore,
+  });
+  await syncStore.insertIntervals({
+    intervals: requiredIntervals,
+    chainId: chain.id,
+  });
 
-  await historicalSync.sync([1, 2]);
-
-  const logs = await database.syncQB.wrap((db) =>
+  const dbLogs = await database.syncQB.wrap((db) =>
     db.select().from(ponderSyncSchema.logs).execute(),
   );
-  expect(logs).toHaveLength(1);
+  expect(dbLogs).toHaveLength(1);
 
   const blocks = await database.syncQB.wrap((db) =>
     db.select().from(ponderSyncSchema.blocks).execute(),
@@ -528,13 +651,29 @@ test("sync() with cache", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources,
     childAddresses: setupChildAddresses(sources),
-    cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
-  await historicalSync.sync([1, 2]);
+  let requiredIntervals = getRequiredIntervals({
+    interval: [1, 2],
+    sources,
+    cachedIntervals: setupCachedIntervals(sources),
+  });
+  let logs = await historicalSync.syncBlockRangeData({
+    interval: [1, 2],
+    requiredIntervals,
+    syncStore,
+  });
+  await historicalSync.syncBlockData({
+    interval: [1, 2],
+    requiredIntervals,
+    logs,
+    syncStore,
+  });
+  await syncStore.insertIntervals({
+    intervals: requiredIntervals,
+    chainId: chain.id,
+  });
 
   // re-instantiate `historicalSync` to reset the cached intervals
 
@@ -550,13 +689,29 @@ test("sync() with cache", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources,
     childAddresses: setupChildAddresses(sources),
-    cachedIntervals,
-    syncStore,
   });
 
-  await historicalSync.sync([1, 2]);
+  requiredIntervals = getRequiredIntervals({
+    interval: [1, 2],
+    sources,
+    cachedIntervals,
+  });
+  logs = await historicalSync.syncBlockRangeData({
+    interval: [1, 2],
+    requiredIntervals,
+    syncStore,
+  });
+  await historicalSync.syncBlockData({
+    interval: [1, 2],
+    requiredIntervals,
+    logs,
+    syncStore,
+  });
+  await syncStore.insertIntervals({
+    intervals: requiredIntervals,
+    chainId: chain.id,
+  });
   expect(spy).toHaveBeenCalledTimes(0);
 });
 
@@ -585,13 +740,29 @@ test("sync() with partial cache", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources,
     childAddresses: setupChildAddresses(sources),
-    cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
-  await historicalSync.sync([1, 2]);
+  let requiredIntervals = getRequiredIntervals({
+    interval: [1, 2],
+    sources,
+    cachedIntervals: setupCachedIntervals(sources),
+  });
+  let logs = await historicalSync.syncBlockRangeData({
+    interval: [1, 2],
+    requiredIntervals,
+    syncStore,
+  });
+  await historicalSync.syncBlockData({
+    interval: [1, 2],
+    requiredIntervals,
+    logs,
+    syncStore,
+  });
+  await syncStore.insertIntervals({
+    intervals: requiredIntervals,
+    chainId: chain.id,
+  });
 
   // re-instantiate `historicalSync` to reset the cached intervals
 
@@ -610,14 +781,32 @@ test("sync() with partial cache", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources,
     childAddresses: setupChildAddresses(sources),
-    cachedIntervals,
-    syncStore,
   });
 
-  await historicalSync.sync([1, 2]);
-  expect(spy).toHaveBeenCalledTimes(2);
+  requiredIntervals = getRequiredIntervals({
+    interval: [1, 2],
+    sources,
+    cachedIntervals,
+  });
+  logs = await historicalSync.syncBlockRangeData({
+    interval: [1, 2],
+    requiredIntervals,
+    syncStore,
+  });
+  await historicalSync.syncBlockData({
+    interval: [1, 2],
+    requiredIntervals,
+    logs,
+    syncStore,
+  });
+  await syncStore.insertIntervals({
+    intervals: requiredIntervals,
+    chainId: chain.id,
+  });
+
+  // `eth_getBlockByNumber` is skipped
+  expect(spy).toHaveBeenCalledTimes(1);
 
   expect(spy).toHaveBeenCalledWith(
     {
@@ -650,16 +839,33 @@ test("sync() with partial cache", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources,
     childAddresses: setupChildAddresses(sources),
-    cachedIntervals,
-    syncStore,
   });
 
   await simulateBlock();
 
-  await historicalSync.sync([1, 3]);
-  expect(spy).toHaveBeenCalledTimes(2);
+  requiredIntervals = getRequiredIntervals({
+    interval: [1, 3],
+    sources,
+    cachedIntervals,
+  });
+  logs = await historicalSync.syncBlockRangeData({
+    interval: [1, 3],
+    requiredIntervals,
+    syncStore,
+  });
+  await historicalSync.syncBlockData({
+    interval: [1, 3],
+    requiredIntervals,
+    logs,
+    syncStore,
+  });
+  await syncStore.insertIntervals({
+    intervals: requiredIntervals,
+    chainId: chain.id,
+  });
+  // `eth_getBlockByNumber` is skipped
+  expect(spy).toHaveBeenCalledTimes(1);
 
   expect(spy).toHaveBeenCalledWith(
     {
@@ -677,56 +883,6 @@ test("sync() with partial cache", async (context) => {
     },
     expect.any(Object),
   );
-});
-
-test("syncBlock() with cache", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
-
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
-  const { address } = await deployErc20({ sender: ALICE });
-  await mintErc20({
-    erc20: address,
-    to: ALICE,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
-
-  const erc20IndexingBuild = getErc20IndexingBuild({
-    address,
-  });
-
-  const blocksIndexingBuild = getBlocksIndexingBuild({
-    interval: 1,
-  });
-
-  const historicalSync = createHistoricalSync({
-    common: context.common,
-    chain,
-    rpc,
-    sources: [...erc20IndexingBuild.sources, ...blocksIndexingBuild.sources],
-    childAddresses: setupChildAddresses([
-      ...erc20IndexingBuild.sources,
-      ...blocksIndexingBuild.sources,
-    ]),
-    cachedIntervals: setupCachedIntervals([
-      ...erc20IndexingBuild.sources,
-      ...blocksIndexingBuild.sources,
-    ]),
-    syncStore,
-  });
-
-  const spy = vi.spyOn(rpc, "request");
-
-  await historicalSync.sync([1, 2]);
-
-  // 1 "eth_getLogs" request and only 2 "eth_getBlockByNumber" requests
-  // because the erc20 and block sources share the block 2
-  expect(spy).toHaveBeenCalledTimes(3);
 });
 
 test("syncAddress() handles many addresses", async (context) => {
@@ -766,20 +922,36 @@ test("syncAddress() handles many addresses", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources,
     childAddresses: setupChildAddresses(sources),
-    cachedIntervals: setupCachedIntervals(sources),
-    syncStore,
   });
 
-  await historicalSync.sync([1, 13]);
+  const requiredIntervals = getRequiredIntervals({
+    interval: [1, 13],
+    sources,
+    cachedIntervals: setupCachedIntervals(sources),
+  });
+  const logs = await historicalSync.syncBlockRangeData({
+    interval: [1, 13],
+    requiredIntervals,
+    syncStore,
+  });
+  await historicalSync.syncBlockData({
+    interval: [1, 13],
+    requiredIntervals,
+    logs,
+    syncStore,
+  });
+  await syncStore.insertIntervals({
+    intervals: requiredIntervals,
+    chainId: chain.id,
+  });
 
-  const logs = await database.syncQB.wrap((db) =>
+  const dbLogs = await database.syncQB.wrap((db) =>
     db.select().from(ponderSyncSchema.logs).execute(),
   );
   const factories = await database.syncQB.wrap((db) =>
     db.select().from(ponderSyncSchema.factoryAddresses).execute(),
   );
-  expect(logs).toHaveLength(1);
+  expect(dbLogs).toHaveLength(1);
   expect(factories).toHaveLength(11);
 });
