@@ -738,51 +738,40 @@ export const createIndexingCache = ({
               },
             );
 
-            if (result.status === "success") {
-              common.logger.warn({
-                msg: "Failed to write cached database rows",
-                type: "insert",
-                table: getTableName(table),
-                row_count: insertValues.length,
-                duration: endClock(),
+            if (result.status === "error") {
+              error = new DelayedInsertError(result.error.message);
+              error.stack = undefined;
+
+              addErrorMeta(
                 error,
-              });
+                `db.insert arguments:\n${prettyPrint(result.value.row)}`,
+              );
+
+              if (result.value.metadata.event) {
+                addErrorMeta(error, toErrorMeta(result.value.metadata.event));
+
+                common.logger.warn({
+                  msg: "Failed to write cached database rows",
+                  event: result.value.metadata.event.name,
+                  type: "insert",
+                  table: getTableName(table),
+                  row_count: insertValues.length,
+                  duration: endClock(),
+                  error,
+                });
+              } else {
+                common.logger.warn({
+                  msg: "Failed to write cached database rows",
+                  type: "insert",
+                  table: getTableName(table),
+                  row_count: insertValues.length,
+                  duration: endClock(),
+                  error,
+                });
+              }
+
               throw error;
             }
-
-            error = new DelayedInsertError(result.error.message);
-            error.stack = undefined;
-
-            addErrorMeta(
-              error,
-              `db.insert arguments:\n${prettyPrint(result.value.row)}`,
-            );
-
-            if (result.value.metadata.event) {
-              addErrorMeta(error, toErrorMeta(result.value.metadata.event));
-
-              common.logger.warn({
-                msg: "Failed to write cached database rows",
-                event: result.value.metadata.event.name,
-                type: "insert",
-                table: getTableName(table),
-                row_count: insertValues.length,
-                duration: endClock(),
-                error,
-              });
-            } else {
-              common.logger.warn({
-                msg: "Failed to write cached database rows",
-                type: "insert",
-                table: getTableName(table),
-                row_count: insertValues.length,
-                duration: endClock(),
-                error,
-              });
-            }
-            // @ts-ignore remove meta from error
-            error.meta = undefined;
-            throw error;
           }
 
           if (updateValues.length > 0) {
@@ -813,55 +802,43 @@ export const createIndexingCache = ({
               },
             );
 
-            if (result.status === "success") {
-              common.logger.warn({
-                msg: "Failed to write cached database rows",
-                type: "update",
-                table: getTableName(table),
-                row_count: updateValues.length,
-                duration: endClock(),
+            if (result.status === "error") {
+              error = new DelayedInsertError(result.error.message);
+              error.stack = undefined;
+
+              addErrorMeta(
                 error,
-              });
+                `db.update arguments:\n${prettyPrint(result.value.row)}`,
+              );
+
+              if (result.value.metadata.event) {
+                addErrorMeta(error, toErrorMeta(result.value.metadata.event));
+
+                common.logger.warn({
+                  msg: "Failed to write cached database rows",
+                  event: result.value.metadata.event.name,
+                  type: "update",
+                  table: getTableName(table),
+                  row_count: updateValues.length,
+                  duration: endClock(),
+                  error,
+                });
+              } else {
+                common.logger.warn({
+                  msg: "Failed to write cached database rows",
+                  type: "update",
+                  table: getTableName(table),
+                  row_count: updateValues.length,
+                  duration: endClock(),
+                  error,
+                });
+              }
+
               throw error;
             }
-
-            error = new DelayedInsertError(result.error.message);
-            error.stack = undefined;
-
-            addErrorMeta(
-              error,
-              `db.update arguments:\n${prettyPrint(result.value.row)}`,
-            );
-
-            if (result.value.metadata.event) {
-              addErrorMeta(error, toErrorMeta(result.value.metadata.event));
-
-              common.logger.warn({
-                msg: "Failed to write cached database rows",
-                event: result.value.metadata.event.name,
-                type: "update",
-                table: getTableName(table),
-                row_count: updateValues.length,
-                duration: endClock(),
-                error,
-              });
-            } else {
-              common.logger.warn({
-                msg: "Failed to write cached database rows",
-                type: "update",
-                table: getTableName(table),
-                row_count: updateValues.length,
-                duration: endClock(),
-                error,
-              });
-            }
-            // @ts-ignore remove meta from error
-            error.meta = undefined;
-            throw error;
           }
         }
 
-        // Note: It should never reach here unless there are no values to insert or update
         throw error;
       });
 
