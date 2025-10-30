@@ -30,7 +30,6 @@ import {
   intervalIntersection,
   intervalIntersectionMany,
   intervalUnion,
-  sortIntervals,
 } from "@/utils/interval.js";
 import { type Address, hexToNumber, toHex } from "viem";
 
@@ -291,6 +290,8 @@ export const getRequiredIntervals = (params: {
           return missingIntervals;
         }
 
+        // Note: When a filter with a factory is missing blocks,
+        // all blocks after the first missing block are also missing.
         const firstMissingBlock = missingIntervals[0]![0];
         return [
           [
@@ -340,7 +341,7 @@ export const getRequiredIntervalsWithFilters = (params: {
       Math.min(getFilterToBlock(filter), params.interval[1]),
     ] satisfies Interval;
 
-    if (filterInterval[0] >= filterInterval[1]) {
+    if (filterInterval[0] > filterInterval[1]) {
       continue;
     }
 
@@ -377,26 +378,26 @@ export const getRequiredIntervalsWithFilters = (params: {
         [filterInterval],
         fragmentIntervals,
       );
+
+      if (requiredFragmentIntervals.length === 0) continue;
       if (hasFactory) {
-        if (requiredFragmentIntervals.length > 0) {
-          const firstMissingBlock = requiredFragmentIntervals[0]![0];
-          _requiredIntervals.push({
-            fragment,
-            intervals: [
-              [
-                firstMissingBlock,
-                Math.min(params.interval[1], getFilterToBlock(filter)),
-              ],
+        // Note: When a filter with a factory is missing blocks,
+        // all blocks after the first missing block are also missing.
+        const firstMissingBlock = requiredFragmentIntervals[0]![0];
+        _requiredIntervals.push({
+          fragment,
+          intervals: [
+            [
+              firstMissingBlock,
+              Math.min(params.interval[1], getFilterToBlock(filter)),
             ],
-          });
-        }
+          ],
+        });
       } else {
-        if (requiredFragmentIntervals.length > 0) {
-          _requiredIntervals.push({
-            fragment,
-            intervals: requiredFragmentIntervals,
-          });
-        }
+        _requiredIntervals.push({
+          fragment,
+          intervals: requiredFragmentIntervals,
+        });
       }
     }
 
@@ -432,15 +433,6 @@ export const getCachedBlock = ({
     const filterIntervals = getFilterIntervals(filter);
     const fragmentIntervals = cachedIntervals.get(filter)!;
 
-    const completedIntervals = sortIntervals(
-      intervalIntersection(
-        filterIntervals,
-        intervalIntersectionMany(
-          fragmentIntervals.map(({ intervals }) => intervals),
-        ),
-      ),
-    );
-
     const missingIntervals = intervalDifference(
       filterIntervals,
       intervalIntersectionMany(
@@ -449,11 +441,11 @@ export const getCachedBlock = ({
     );
 
     if (missingIntervals.length === 0) {
-      return intervalBounds(completedIntervals)[1];
+      return getFilterToBlock(filter);
     }
 
     if (missingIntervals[0]![0] === 0) return undefined;
-
+    // First missing block -1 is the last completed block
     return missingIntervals[0]![0] - 1;
   });
 

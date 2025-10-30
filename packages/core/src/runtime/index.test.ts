@@ -325,7 +325,101 @@ test("getCachedBlock() with factory", async () => {
   expect(cachedBlock).toBe(18);
 });
 
-test.todo("getRequiredIntervals()");
+test("getRequiredIntervals()", async () => {
+  const filters = [
+    {
+      ...EMPTY_BLOCK_FILTER,
+
+      fromBlock: 0,
+      toBlock: 100,
+    },
+    {
+      ...EMPTY_BLOCK_FILTER,
+
+      offset: 1,
+      fromBlock: 50,
+      toBlock: 150,
+    },
+  ] satisfies BlockFilter[];
+
+  let cachedIntervals = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >([
+    [filters[0]!, [{ fragment: {} as Fragment, intervals: [[0, 24]] }]],
+    [filters[1]!, []],
+  ]);
+
+  let requiredIntervals = getRequiredIntervals({
+    interval: [0, 150],
+    cachedIntervals,
+  });
+
+  expect(requiredIntervals).toMatchInlineSnapshot(`
+    [
+      [
+        25,
+        100,
+      ],
+      [
+        50,
+        150,
+      ],
+    ]
+  `);
+
+  cachedIntervals = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >([
+    [filters[0]!, [{ fragment: {} as Fragment, intervals: [[0, 24]] }]],
+    [filters[1]!, [{ fragment: {} as Fragment, intervals: [[50, 102]] }]],
+  ]);
+
+  requiredIntervals = getRequiredIntervals({
+    interval: [0, 150],
+    cachedIntervals,
+  });
+
+  expect(requiredIntervals).toMatchInlineSnapshot(`
+    [
+      [
+        25,
+        100,
+      ],
+      [
+        103,
+        150,
+      ],
+    ]
+  `);
+
+  cachedIntervals = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >([
+    [filters[0]!, [{ fragment: {} as Fragment, intervals: [[0, 60]] }]],
+    [filters[1]!, []],
+  ]);
+
+  requiredIntervals = getRequiredIntervals({
+    interval: [0, 150],
+    cachedIntervals,
+  });
+
+  expect(requiredIntervals).toMatchInlineSnapshot(`
+    [
+      [
+        61,
+        100,
+      ],
+      [
+        50,
+        150,
+      ],
+    ]
+  `);
+});
 
 test("getRequiredIntervals() with factory", async () => {
   const filter = {
@@ -383,6 +477,8 @@ test("getRequiredIntervals() with factory", async () => {
     ]
   `);
 });
+
+test.todo("getRequiredIntervalsWithFilters()");
 
 test("mergeAsyncGeneratorsWithEventOrder()", async () => {
   const p1 = promiseWithResolvers<{

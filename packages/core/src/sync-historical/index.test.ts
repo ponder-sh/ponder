@@ -26,7 +26,10 @@ import {
   getPairWithFactoryIndexingBuild,
 } from "@/_test/utils.js";
 import { createRpc } from "@/rpc/index.js";
-import { getCachedIntervals, getRequiredIntervals } from "@/runtime/index.js";
+import {
+  getCachedIntervals,
+  getRequiredIntervalsWithFilters,
+} from "@/runtime/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
 import { zeroAddress } from "viem";
 import { parseEther } from "viem/utils";
@@ -87,9 +90,9 @@ test("sync() with log filter", async (context) => {
     childAddresses: setupChildAddresses(sources),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
-    sources,
+    filters: sources.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(sources),
   });
   const logs = await historicalSync.syncBlockRangeData({
@@ -150,9 +153,9 @@ test("sync() with log filter and transaction receipts", async (context) => {
     childAddresses: setupChildAddresses(sources),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
-    sources,
+    filters: sources.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(sources),
   });
   const logs = await historicalSync.syncBlockRangeData({
@@ -208,9 +211,9 @@ test("sync() with block filter", async (context) => {
     childAddresses: setupChildAddresses(sources),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 3],
-    sources,
+    filters: sources.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(sources),
   });
   const logs = await historicalSync.syncBlockRangeData({
@@ -275,9 +278,9 @@ test("sync() with log factory", async (context) => {
     childAddresses: setupChildAddresses(sources),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 3],
-    sources,
+    filters: sources.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(sources),
   });
   const logs = await historicalSync.syncBlockRangeData({
@@ -369,9 +372,11 @@ test("sync() with trace filter", async (context) => {
     childAddresses: setupChildAddresses(sources),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 3],
-    sources: sources.filter(({ filter }) => filter.type === "trace"),
+    filters: sources
+      .filter(({ filter }) => filter.type === "trace")
+      .map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(sources),
   });
   const logs = await historicalSync.syncBlockRangeData({
@@ -429,9 +434,11 @@ test("sync() with transaction filter", async (context) => {
     childAddresses: setupChildAddresses(sources),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 1],
-    sources: sources.filter(({ filter }) => filter.type === "transaction"),
+    filters: sources
+      .filter(({ filter }) => filter.type === "transaction")
+      .map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(sources),
   });
   const logs = await historicalSync.syncBlockRangeData({
@@ -515,9 +522,11 @@ test("sync() with transfer filter", async (context) => {
     childAddresses: setupChildAddresses(sources),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 1],
-    sources: sources.filter(({ filter }) => filter.type === "transfer"),
+    filters: sources
+      .filter(({ filter }) => filter.type === "transfer")
+      .map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(sources),
   });
   const logs = await historicalSync.syncBlockRangeData({
@@ -585,9 +594,12 @@ test("sync() with many filters", async (context) => {
     ]),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
-    sources: [...erc20IndexingBuild.sources, ...blocksIndexingBuild.sources],
+    filters: [
+      ...erc20IndexingBuild.sources,
+      ...blocksIndexingBuild.sources,
+    ].map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals([
       ...erc20IndexingBuild.sources,
       ...blocksIndexingBuild.sources,
@@ -654,9 +666,9 @@ test("sync() with cache", async (context) => {
     childAddresses: setupChildAddresses(sources),
   });
 
-  let requiredIntervals = getRequiredIntervals({
+  let requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
-    sources,
+    filters: sources.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(sources),
   });
   let logs = await historicalSync.syncBlockRangeData({
@@ -692,9 +704,9 @@ test("sync() with cache", async (context) => {
     childAddresses: setupChildAddresses(sources),
   });
 
-  requiredIntervals = getRequiredIntervals({
+  requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
-    sources,
+    filters: sources.map(({ filter }) => filter),
     cachedIntervals,
   });
   logs = await historicalSync.syncBlockRangeData({
@@ -743,9 +755,9 @@ test("sync() with partial cache", async (context) => {
     childAddresses: setupChildAddresses(sources),
   });
 
-  let requiredIntervals = getRequiredIntervals({
+  let requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
-    sources,
+    filters: sources.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(sources),
   });
   let logs = await historicalSync.syncBlockRangeData({
@@ -784,9 +796,9 @@ test("sync() with partial cache", async (context) => {
     childAddresses: setupChildAddresses(sources),
   });
 
-  requiredIntervals = getRequiredIntervals({
+  requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
-    sources,
+    filters: sources.map(({ filter }) => filter),
     cachedIntervals,
   });
   logs = await historicalSync.syncBlockRangeData({
@@ -844,9 +856,9 @@ test("sync() with partial cache", async (context) => {
 
   await simulateBlock();
 
-  requiredIntervals = getRequiredIntervals({
+  requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 3],
-    sources,
+    filters: sources.map(({ filter }) => filter),
     cachedIntervals,
   });
   logs = await historicalSync.syncBlockRangeData({
@@ -925,9 +937,9 @@ test("syncAddress() handles many addresses", async (context) => {
     childAddresses: setupChildAddresses(sources),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 13],
-    sources,
+    filters: sources.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(sources),
   });
   const logs = await historicalSync.syncBlockRangeData({
