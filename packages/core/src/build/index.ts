@@ -10,9 +10,9 @@ import { BuildError, RetryableError } from "@/internal/errors.js";
 import type {
   ApiBuild,
   IndexingBuild,
+  IndexingFunctions,
   NamespaceBuild,
   PreBuild,
-  RawIndexingFunctions,
   Schema,
   SchemaBuild,
 } from "@/internal/types.js";
@@ -51,7 +51,7 @@ const BUILD_ID_VERSION = "2";
 type ConfigResult = Result<{ config: Config; contentHash: string }>;
 type SchemaResult = Result<{ schema: Schema; contentHash: string }>;
 type IndexingResult = Result<{
-  indexingFunctions: RawIndexingFunctions;
+  indexingFunctions: IndexingFunctions;
   contentHash: string;
 }>;
 type ApiResult = Result<{ app: Hono }>;
@@ -422,7 +422,7 @@ export const createBuild = async ({
       const buildIndexingFunctionsResult = await safeBuildIndexingFunctions({
         common,
         config: configResult.config,
-        rawIndexingFunctions: indexingResult.indexingFunctions,
+        indexingFunctions: indexingResult.indexingFunctions,
         configBuild,
       });
       if (buildIndexingFunctionsResult.status === "error") {
@@ -446,11 +446,12 @@ export const createBuild = async ({
         status: "success",
         result: {
           buildId,
-          sources: buildIndexingFunctionsResult.sources,
           chains: buildIndexingFunctionsResult.chains,
           rpcs: buildIndexingFunctionsResult.rpcs,
           finalizedBlocks: buildIndexingFunctionsResult.finalizedBlocks,
-          indexingFunctions: buildIndexingFunctionsResult.indexingFunctions,
+          eventCallbacks: buildIndexingFunctionsResult.eventCallbacks,
+          setupCallbacks: buildIndexingFunctionsResult.setupCallbacks,
+          indexingFunctions: indexingResult.indexingFunctions,
         },
       } as const;
     },

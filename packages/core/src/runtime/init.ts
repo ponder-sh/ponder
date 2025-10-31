@@ -2,9 +2,9 @@ import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
   Chain,
+  EventCallback,
   IndexingBuild,
   RawEvent,
-  Source,
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
 import { getLocalEventGenerator, refetchLocalEvents } from "./historical.js";
@@ -19,11 +19,11 @@ export async function initEventGenerator(params: {
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
-    "sources" | "chains" | "rpcs" | "finalizedBlocks"
+    "eventCallbacks" | "chains" | "rpcs" | "finalizedBlocks"
   >;
   chain: Chain;
   rpc: Rpc;
-  sources: Source[];
+  eventCallbacks: EventCallback[];
   childAddresses: ChildAddresses;
   syncProgress: SyncProgress;
   cachedIntervals: CachedIntervals;
