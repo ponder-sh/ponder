@@ -1,5 +1,11 @@
 # ponder
 
+## 0.14.12
+
+### Patch Changes
+
+- [#2166](https://github.com/ponder-sh/ponder/pull/2166) [`a5df940`](https://github.com/ponder-sh/ponder/commit/a5df9408fac583ac2eff07fc631a66859941f7da) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved database storage size for live indexing when `disableCache: true`.
+
 ## 0.14.11
 
 ### Patch Changes
