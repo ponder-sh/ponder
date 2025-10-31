@@ -434,7 +434,8 @@ export const createHistoricalSync = (
             // Note: Skip filters that are outside the interval. This only
             // happens when the filter has a factory and the factory start block is
             // earlier than the filter start block.
-            ({ filter }) => filter.fromBlock && filter.fromBlock <= interval[1],
+            ({ filter }) =>
+              filter.fromBlock === undefined || filter.fromBlock <= interval[1],
           )
           .map(async ({ filter, interval }) => {
             let _logs: SyncLog[];
