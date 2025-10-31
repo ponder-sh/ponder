@@ -686,7 +686,7 @@ export const createRpc = ({
                   chain: chain.name,
                   chain_id: chain.id,
                   block_number: hexToNumber(block.number),
-                  block_hash: hexToNumber(block.hash),
+                  block_hash: block.hash,
                 });
                 // Note: `onBlock` should never throw.
                 await onBlock(block);
