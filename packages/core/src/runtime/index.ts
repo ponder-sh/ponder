@@ -10,7 +10,12 @@ import type {
 import type { SyncBlock } from "@/internal/types.js";
 import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
-import { isAddressFactory } from "@/runtime/filter.js";
+import {
+  getFilterFromBlock,
+  getFilterIntervals,
+  getFilterToBlock,
+  isAddressFactory,
+} from "@/runtime/filter.js";
 import { getFragments, recoverFilter } from "@/runtime/fragments.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
@@ -25,7 +30,6 @@ import {
   intervalIntersection,
   intervalIntersectionMany,
   intervalUnion,
-  sortIntervals,
 } from "@/utils/interval.js";
 import { type Address, hexToNumber, toHex } from "viem";
 
@@ -107,30 +111,7 @@ export async function getLocalSyncProgress(params: {
   const filters = params.sources.map(({ filter }) => filter);
 
   // Earliest `fromBlock` among all `filters`
-  const start = Math.min(
-    ...filters.flatMap((filter) => {
-      const fromBlocks: number[] = [filter.fromBlock ?? 0];
-      switch (filter.type) {
-        case "log":
-          if (isAddressFactory(filter.address)) {
-            fromBlocks.push(filter.address.fromBlock ?? 0);
-          }
-          break;
-        case "transaction":
-        case "trace":
-        case "transfer":
-          if (isAddressFactory(filter.fromAddress)) {
-            fromBlocks.push(filter.fromAddress.fromBlock ?? 0);
-          }
-
-          if (isAddressFactory(filter.toAddress)) {
-            fromBlocks.push(filter.toAddress.fromBlock ?? 0);
-          }
-      }
-
-      return fromBlocks;
-    }),
-  );
+  const start = Math.min(...filters.map(getFilterFromBlock));
 
   const cached = getCachedBlock({
     filters,
@@ -258,20 +239,85 @@ export async function getCachedIntervals(params: {
 }
 
 /**
+ * Returns the intervals that need to be synced to complete the `interval`.
+ *
+ * @param params.interval - The interval to sync.
+ * @param params.cachedIntervals - The cached intervals for the filters.
+ * @returns The intervals that need to be synced.
+ */
+export const getRequiredIntervals = (params: {
+  interval: Interval;
+  cachedIntervals: CachedIntervals;
+}): Interval[] => {
+  return Array.from(params.cachedIntervals.entries()).flatMap(
+    ([filter, fragmentIntervals]) => {
+      const filterIntervals = intervalIntersection(
+        [params.interval],
+        intervalUnion(getFilterIntervals(filter)),
+      );
+
+      const missingIntervals = intervalDifference(
+        filterIntervals,
+        intervalIntersectionMany(
+          fragmentIntervals.map(({ intervals }) => intervals),
+        ),
+      );
+
+      let hasFactory = false;
+      switch (filter.type) {
+        case "log":
+          if (isAddressFactory(filter.address)) {
+            hasFactory = true;
+          }
+          break;
+        case "trace":
+        case "transaction":
+        case "transfer":
+          if (isAddressFactory(filter.fromAddress)) {
+            hasFactory = true;
+          }
+          if (isAddressFactory(filter.toAddress)) {
+            hasFactory = true;
+          }
+          break;
+      }
+
+      if (hasFactory) {
+        if (missingIntervals.length === 0) {
+          return missingIntervals;
+        }
+
+        // Note: When a filter with a factory is missing blocks,
+        // all blocks after the first missing block are also missing.
+        const firstMissingBlock = missingIntervals[0]![0];
+        return [
+          [
+            firstMissingBlock,
+            Math.min(params.interval[1], getFilterToBlock(filter)),
+          ],
+        ] satisfies Interval[];
+      }
+
+      return missingIntervals;
+    },
+  );
+};
+
+/**
  * Returns the intervals that need to be synced to complete the `interval`
- * for all `sources`.
+ * for all `filters`.
  *
  * Note: This function dynamically builds filters using `recoverFilter`.
  * Fragments are used to create a minimal filter, to avoid refetching data
  * even if a filter is only partially synced.
  *
- * @param params.sources - The sources to sync.
+ * @param params.filters - The filters to sync.
  * @param params.interval - The interval to sync.
  * @param params.cachedIntervals - The cached intervals for the sources.
  * @returns The intervals that need to be synced.
  */
-export const getRequiredIntervals = (params: {
-  sources: Source[];
+export const getRequiredIntervalsWithFilters = (params: {
+  filters: Filter[];
   interval: Interval;
   cachedIntervals: CachedIntervals;
 }): IntervalWithFilter[] => {
@@ -281,92 +327,76 @@ export const getRequiredIntervals = (params: {
   // Fragments are used to create a minimal filter, to avoid refetching data even if a filter
   // is only partially synced.
 
-  for (const { filter } of params.sources) {
-    let filterIntervals: Interval[] = [
-      [
-        Math.max(filter.fromBlock ?? 0, params.interval[0]),
-        Math.min(
-          filter.toBlock ?? Number.POSITIVE_INFINITY,
-          params.interval[1],
-        ),
-      ],
-    ];
+  for (const filter of params.filters) {
+    const fragmentIntervals = params.cachedIntervals.get(filter)!;
+    const filterIntervals = intervalIntersection(
+      [params.interval],
+      intervalUnion(getFilterIntervals(filter)),
+    );
 
+    let hasFactory = false;
     switch (filter.type) {
       case "log":
         if (isAddressFactory(filter.address)) {
-          filterIntervals.push([
-            Math.max(filter.address.fromBlock ?? 0, params.interval[0]),
-            Math.min(
-              filter.address.toBlock ?? Number.POSITIVE_INFINITY,
-              params.interval[1],
-            ),
-          ]);
+          hasFactory = true;
         }
         break;
       case "trace":
       case "transaction":
       case "transfer":
         if (isAddressFactory(filter.fromAddress)) {
-          filterIntervals.push([
-            Math.max(filter.fromAddress.fromBlock ?? 0, params.interval[0]),
-            Math.min(
-              filter.fromAddress.toBlock ?? Number.POSITIVE_INFINITY,
-              params.interval[1],
-            ),
-          ]);
+          hasFactory = true;
         }
-
         if (isAddressFactory(filter.toAddress)) {
-          filterIntervals.push([
-            Math.max(filter.toAddress.fromBlock ?? 0, params.interval[0]),
-            Math.min(
-              filter.toAddress.toBlock ?? Number.POSITIVE_INFINITY,
-              params.interval[1],
-            ),
-          ]);
+          hasFactory = true;
         }
+        break;
     }
 
-    filterIntervals = filterIntervals.filter(([start, end]) => start <= end);
-
-    if (filterIntervals.length === 0) {
-      continue;
-    }
-
-    filterIntervals = intervalUnion(filterIntervals);
-
-    const completedIntervals = params.cachedIntervals.get(filter)!;
-    const _requiredIntervals: {
+    const requiredFragmentIntervals: {
       fragment: Fragment;
       intervals: Interval[];
     }[] = [];
 
     for (const {
       fragment,
-      intervals: fragmentIntervals,
-    } of completedIntervals) {
-      const requiredFragmentIntervals = intervalDifference(
+      intervals: _fragmentIntervals,
+    } of fragmentIntervals) {
+      const missingFragmentIntervals = intervalDifference(
         filterIntervals,
-        fragmentIntervals,
+        _fragmentIntervals,
       );
 
-      if (requiredFragmentIntervals.length > 0) {
-        _requiredIntervals.push({
+      if (missingFragmentIntervals.length === 0) continue;
+      if (hasFactory) {
+        // Note: When a filter with a factory is missing blocks,
+        // all blocks after the first missing block are also missing.
+        const firstMissingBlock = missingFragmentIntervals[0]![0];
+        requiredFragmentIntervals.push({
           fragment,
-          intervals: requiredFragmentIntervals,
+          intervals: [
+            [
+              firstMissingBlock,
+              Math.min(params.interval[1], getFilterToBlock(filter)),
+            ],
+          ],
+        });
+      } else {
+        requiredFragmentIntervals.push({
+          fragment,
+          intervals: missingFragmentIntervals,
         });
       }
     }
 
-    if (_requiredIntervals.length > 0) {
+    if (requiredFragmentIntervals.length > 0) {
       const requiredInterval = intervalBounds(
-        _requiredIntervals.flatMap(({ intervals }) => intervals),
+        requiredFragmentIntervals.flatMap(({ intervals }) => intervals),
       );
 
       const requiredFilter = recoverFilter(
         filter,
-        _requiredIntervals.map(({ fragment }) => fragment),
+        requiredFragmentIntervals.map(({ fragment }) => fragment),
       );
 
       requiredIntervals.push({
@@ -388,35 +418,23 @@ export const getCachedBlock = ({
   cachedIntervals: CachedIntervals;
 }): number | undefined => {
   const latestCompletedBlocks = filters.map((filter) => {
-    const requiredInterval = [
-      filter.fromBlock ?? 0,
-      filter.toBlock ?? Number.POSITIVE_INFINITY,
-    ] satisfies Interval;
     const fragmentIntervals = cachedIntervals.get(filter)!;
+    const filterIntervals = getFilterIntervals(filter);
 
-    const completedIntervals = sortIntervals(
-      intervalIntersection(
-        [requiredInterval],
-        intervalIntersectionMany(
-          fragmentIntervals.map(({ intervals }) => intervals),
-        ),
+    const missingIntervals = intervalDifference(
+      filterIntervals,
+      intervalIntersectionMany(
+        fragmentIntervals.map(({ intervals }) => intervals),
       ),
     );
 
-    if (completedIntervals.length === 0) {
-      // Use `fromBlock` - 1 as completed block if no intervals are complete.
-      if ((filter.fromBlock ?? 0) === 0) return undefined;
-      return filter.fromBlock! - 1;
+    if (missingIntervals.length === 0) {
+      return getFilterToBlock(filter);
     }
 
-    const earliestCompletedInterval = completedIntervals[0]!;
-    if (earliestCompletedInterval[0] !== (filter.fromBlock ?? 0)) {
-      // Use `fromBlock` - 1 as completed block if the earliest
-      // completed interval does not start at `fromBlock`.
-      if ((filter.fromBlock ?? 0) === 0) return undefined;
-      return filter.fromBlock! - 1;
-    }
-    return earliestCompletedInterval[1];
+    if (missingIntervals[0]![0] === 0) return undefined;
+    // First missing block -1 is the last completed block
+    return missingIntervals[0]![0] - 1;
   });
 
   if (latestCompletedBlocks.every((block) => block !== undefined)) {

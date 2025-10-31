@@ -41,6 +41,7 @@ import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.j
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { startClock } from "@/utils/timer.js";
 import { type Address, hexToNumber } from "viem";
+import { getFilterFromBlock, getFilterToBlock } from "./filter.js";
 import type { ChildAddresses, SyncProgress } from "./index.js";
 import { getOmnichainCheckpoint } from "./omnichain.js";
 
@@ -822,12 +823,7 @@ export async function handleRealtimeSyncEvent(
             for (const { filter } of params.sources) {
               const intervals = intervalIntersection(
                 [finalizedInterval],
-                [
-                  [
-                    filter.fromBlock ?? 0,
-                    filter.toBlock ?? Number.POSITIVE_INFINITY,
-                  ],
-                ],
+                [[getFilterFromBlock(filter), getFilterToBlock(filter)]],
               );
 
               for (const interval of intervals) {

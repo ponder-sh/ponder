@@ -29,6 +29,7 @@ import type {
   Transaction,
   TransactionReceipt,
 } from "@/types/eth.js";
+import { type Interval, sortIntervals } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { type Address, hexToNumber } from "viem";
 
@@ -570,4 +571,88 @@ export const unionFilterIncludeTrace = (filters: Filter[]): (keyof Trace)[] => {
     }
   }
   return Array.from(includeTrace);
+};
+
+export const getFilterFromBlock = (filter: Filter): number => {
+  const blocks: number[] = [filter.fromBlock ?? 0];
+  switch (filter.type) {
+    case "log":
+      if (isAddressFactory(filter.address)) {
+        blocks.push(filter.address.fromBlock ?? 0);
+      }
+      break;
+    case "transaction":
+    case "trace":
+    case "transfer":
+      if (isAddressFactory(filter.fromAddress)) {
+        blocks.push(filter.fromAddress.fromBlock ?? 0);
+      }
+
+      if (isAddressFactory(filter.toAddress)) {
+        blocks.push(filter.toAddress.fromBlock ?? 0);
+      }
+  }
+
+  return Math.min(...blocks);
+};
+
+export const getFilterToBlock = (filter: Filter): number => {
+  const blocks: number[] = [filter.toBlock ?? Number.POSITIVE_INFINITY];
+
+  // Note: factories cannot have toBlock > `filter.toBlock`
+
+  switch (filter.type) {
+    case "log":
+      if (isAddressFactory(filter.address)) {
+        blocks.push(filter.address.toBlock ?? Number.POSITIVE_INFINITY);
+      }
+      break;
+    case "transaction":
+    case "trace":
+    case "transfer":
+      if (isAddressFactory(filter.fromAddress)) {
+        blocks.push(filter.fromAddress.toBlock ?? Number.POSITIVE_INFINITY);
+      }
+
+      if (isAddressFactory(filter.toAddress)) {
+        blocks.push(filter.toAddress.toBlock ?? Number.POSITIVE_INFINITY);
+      }
+  }
+
+  return Math.max(...blocks);
+};
+
+export const getFilterIntervals = (filter: Filter): Interval[] => {
+  const intervals: Interval[] = [
+    [filter.fromBlock ?? 0, filter.toBlock ?? Number.POSITIVE_INFINITY],
+  ];
+
+  switch (filter.type) {
+    case "log":
+      if (isAddressFactory(filter.address)) {
+        intervals.push([
+          filter.address.fromBlock ?? 0,
+          filter.address.toBlock ?? Number.POSITIVE_INFINITY,
+        ]);
+      }
+      break;
+    case "trace":
+    case "transaction":
+    case "transfer":
+      if (isAddressFactory(filter.fromAddress)) {
+        intervals.push([
+          filter.fromAddress.fromBlock ?? 0,
+          filter.fromAddress.toBlock ?? Number.POSITIVE_INFINITY,
+        ]);
+      }
+
+      if (isAddressFactory(filter.toAddress)) {
+        intervals.push([
+          filter.toAddress.fromBlock ?? 0,
+          filter.toAddress.toBlock ?? Number.POSITIVE_INFINITY,
+        ]);
+      }
+  }
+
+  return sortIntervals(intervals);
 };

@@ -12,7 +12,6 @@ import type {
 import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
 import { buildEvents, decodeEvents } from "@/runtime/events.js";
-import { isAddressFactory } from "@/runtime/filter.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
 import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
 import {
@@ -29,13 +28,7 @@ import {
   createCallbackGenerator,
   mergeAsyncGenerators,
 } from "@/utils/generators.js";
-import {
-  type Interval,
-  intervalDifference,
-  intervalIntersectionMany,
-  intervalSum,
-  intervalUnion,
-} from "@/utils/interval.js";
+import { type Interval, intervalSum, intervalUnion } from "@/utils/interval.js";
 import { partition } from "@/utils/partition.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { startClock } from "@/utils/timer.js";
@@ -45,6 +38,7 @@ import {
   type ChildAddresses,
   type SyncProgress,
   getRequiredIntervals,
+  getRequiredIntervalsWithFilters,
 } from "./index.js";
 import { initEventGenerator, initRefetchEvents } from "./init.js";
 import { getOmnichainCheckpoint } from "./omnichain.js";
@@ -943,58 +937,9 @@ export async function* getLocalSyncGenerator(params: {
     hexToNumber(last!.number),
   ] satisfies Interval;
 
-  const requiredIntervals = Array.from(
-    params.cachedIntervals.entries(),
-  ).flatMap(([filter, fragmentIntervals]) => {
-    const filterIntervals: Interval[] = [
-      [
-        filter.fromBlock ?? 0,
-        Math.min(filter.toBlock ?? Number.POSITIVE_INFINITY, totalInterval[1]),
-      ],
-    ];
-
-    switch (filter.type) {
-      case "log":
-        if (isAddressFactory(filter.address)) {
-          filterIntervals.push([
-            filter.address.fromBlock ?? 0,
-            Math.min(
-              filter.address.toBlock ?? Number.POSITIVE_INFINITY,
-              totalInterval[1],
-            ),
-          ]);
-        }
-        break;
-      case "trace":
-      case "transaction":
-      case "transfer":
-        if (isAddressFactory(filter.fromAddress)) {
-          filterIntervals.push([
-            filter.fromAddress.fromBlock ?? 0,
-            Math.min(
-              filter.fromAddress.toBlock ?? Number.POSITIVE_INFINITY,
-              totalInterval[1],
-            ),
-          ]);
-        }
-
-        if (isAddressFactory(filter.toAddress)) {
-          filterIntervals.push([
-            filter.toAddress.fromBlock ?? 0,
-            Math.min(
-              filter.toAddress.toBlock ?? Number.POSITIVE_INFINITY,
-              totalInterval[1],
-            ),
-          ]);
-        }
-    }
-
-    return intervalDifference(
-      intervalUnion(filterIntervals),
-      intervalIntersectionMany(
-        fragmentIntervals.map(({ intervals }) => intervals),
-      ),
-    );
+  const requiredIntervals = getRequiredIntervals({
+    interval: totalInterval,
+    cachedIntervals: params.cachedIntervals,
   });
 
   const required = intervalSum(intervalUnion(requiredIntervals));
@@ -1077,9 +1022,9 @@ export async function* getLocalSyncGenerator(params: {
     const endClock = startClock();
 
     const isSyncComplete = interval[1] === hexToNumber(last.number);
-    const requiredIntervals = getRequiredIntervals({
+    const requiredIntervals = getRequiredIntervalsWithFilters({
+      filters: params.sources.map(({ filter }) => filter),
       interval,
-      sources: params.sources,
       cachedIntervals: params.cachedIntervals,
     });
 

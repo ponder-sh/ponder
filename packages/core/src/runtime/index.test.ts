@@ -1,4 +1,8 @@
-import { ALICE, EMPTY_BLOCK_FILTER } from "@/_test/constants.js";
+import {
+  ALICE,
+  EMPTY_BLOCK_FILTER,
+  EMPTY_LOG_FILTER,
+} from "@/_test/constants.js";
 import {
   setupCleanup,
   setupCommon,
@@ -12,14 +16,20 @@ import {
   getChain,
   getErc20IndexingBuild,
 } from "@/_test/utils.js";
-import type { BlockFilter, Event, Filter, Fragment } from "@/internal/types.js";
+import type {
+  BlockFilter,
+  Event,
+  Filter,
+  Fragment,
+  LogFilter,
+} from "@/internal/types.js";
 import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
 import { encodeCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
 import type { Interval } from "@/utils/interval.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
-import { parseEther } from "viem";
+import { parseEther, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import {
   syncBlockToInternal,
@@ -28,7 +38,12 @@ import {
 } from "./events.js";
 import { getFragments } from "./fragments.js";
 import { mergeAsyncGeneratorsWithEventOrder } from "./historical.js";
-import { getCachedBlock, getLocalSyncProgress } from "./index.js";
+import {
+  getCachedBlock,
+  getLocalSyncProgress,
+  getRequiredIntervals,
+  getRequiredIntervalsWithFilters,
+} from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
@@ -256,6 +271,371 @@ test("getCachedBlock() with multiple filters", async () => {
   });
 
   expect(cachedBlock).toBe(49);
+});
+
+test("getCachedBlock() with factory", async () => {
+  const filter = {
+    ...EMPTY_LOG_FILTER,
+    address: {
+      id: "id",
+      type: "log",
+      chainId: 1,
+      address: "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+      eventSelector:
+        "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+      childAddressLocation: "topic1",
+      fromBlock: 2,
+      toBlock: 5,
+    },
+    fromBlock: 10,
+    toBlock: 20,
+  } satisfies LogFilter;
+
+  let cachedIntervals = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >([[filter, [{ fragment: {} as Fragment, intervals: [[10, 20]] }]]]);
+
+  let cachedBlock = getCachedBlock({
+    filters: [filter],
+    cachedIntervals,
+  });
+
+  expect(cachedBlock).toBe(1);
+
+  cachedIntervals = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >([
+    [
+      filter,
+      [
+        {
+          fragment: {} as Fragment,
+          intervals: [
+            [2, 5],
+            [10, 18],
+          ],
+        },
+      ],
+    ],
+  ]);
+
+  cachedBlock = getCachedBlock({ filters: [filter], cachedIntervals });
+
+  expect(cachedBlock).toBe(18);
+});
+
+test("getRequiredIntervals()", async () => {
+  const filters = [
+    {
+      ...EMPTY_BLOCK_FILTER,
+
+      fromBlock: 0,
+      toBlock: 100,
+    },
+    {
+      ...EMPTY_BLOCK_FILTER,
+
+      offset: 1,
+      fromBlock: 50,
+      toBlock: 150,
+    },
+  ] satisfies BlockFilter[];
+
+  let cachedIntervals = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >([
+    [filters[0]!, [{ fragment: {} as Fragment, intervals: [[0, 24]] }]],
+    [filters[1]!, []],
+  ]);
+
+  let requiredIntervals = getRequiredIntervals({
+    interval: [0, 150],
+    cachedIntervals,
+  });
+
+  expect(requiredIntervals).toMatchInlineSnapshot(`
+    [
+      [
+        25,
+        100,
+      ],
+      [
+        50,
+        150,
+      ],
+    ]
+  `);
+
+  cachedIntervals = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >([
+    [filters[0]!, [{ fragment: {} as Fragment, intervals: [[0, 24]] }]],
+    [filters[1]!, [{ fragment: {} as Fragment, intervals: [[50, 102]] }]],
+  ]);
+
+  requiredIntervals = getRequiredIntervals({
+    interval: [0, 150],
+    cachedIntervals,
+  });
+
+  expect(requiredIntervals).toMatchInlineSnapshot(`
+    [
+      [
+        25,
+        100,
+      ],
+      [
+        103,
+        150,
+      ],
+    ]
+  `);
+
+  cachedIntervals = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >([
+    [filters[0]!, [{ fragment: {} as Fragment, intervals: [[0, 60]] }]],
+    [filters[1]!, []],
+  ]);
+
+  requiredIntervals = getRequiredIntervals({
+    interval: [0, 150],
+    cachedIntervals,
+  });
+
+  expect(requiredIntervals).toMatchInlineSnapshot(`
+    [
+      [
+        61,
+        100,
+      ],
+      [
+        50,
+        150,
+      ],
+    ]
+  `);
+});
+
+test("getRequiredIntervals() with factory", async () => {
+  const filter = {
+    ...EMPTY_LOG_FILTER,
+    address: {
+      id: "id",
+      type: "log",
+      chainId: 1,
+      address: "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+      eventSelector:
+        "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+      childAddressLocation: "topic1",
+      fromBlock: 2,
+      toBlock: 5,
+    },
+    fromBlock: 10,
+    toBlock: 20,
+  } satisfies LogFilter;
+
+  let cachedIntervals = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >([[filter, [{ fragment: {} as Fragment, intervals: [[2, 18]] }]]]);
+
+  let requiredIntervals = getRequiredIntervals({
+    interval: [2, 20],
+    cachedIntervals,
+  });
+
+  expect(requiredIntervals).toMatchInlineSnapshot(`
+    [
+      [
+        19,
+        20,
+      ],
+    ]
+  `);
+
+  cachedIntervals = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >([[filter, [{ fragment: {} as Fragment, intervals: [[4, 18]] }]]]);
+
+  requiredIntervals = getRequiredIntervals({
+    interval: [2, 20],
+    cachedIntervals,
+  });
+
+  expect(requiredIntervals).toMatchInlineSnapshot(`
+    [
+      [
+        2,
+        20,
+      ],
+    ]
+  `);
+});
+
+test("getRequiredIntervalsWithFilters()", async () => {
+  const filter: LogFilter = {
+    ...EMPTY_LOG_FILTER,
+    fromBlock: 0,
+    toBlock: 100,
+    address: zeroAddress,
+  };
+
+  let fragments = getFragments(filter);
+
+  let cachedIntervals = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >([[filter, [{ fragment: fragments[0]!.fragment, intervals: [[0, 24]] }]]]);
+
+  let requiredIntervals = getRequiredIntervalsWithFilters({
+    filters: [filter],
+    interval: [0, 100],
+    cachedIntervals,
+  });
+
+  expect(requiredIntervals).toMatchInlineSnapshot(`
+    [
+      {
+        "filter": {
+          "address": "0x0000000000000000000000000000000000000000",
+          "chainId": 1,
+          "fromBlock": 0,
+          "hasTransactionReceipt": false,
+          "include": [],
+          "toBlock": 100,
+          "topic0": null,
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "interval": [
+          25,
+          100,
+        ],
+      },
+    ]
+  `);
+
+  filter.address = [zeroAddress, ALICE];
+  fragments = getFragments(filter);
+
+  cachedIntervals = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >([
+    [
+      filter,
+      [
+        { fragment: fragments[0]!.fragment, intervals: [[0, 50]] },
+        { fragment: fragments[1]!.fragment, intervals: [[0, 24]] },
+      ],
+    ],
+  ]);
+
+  requiredIntervals = getRequiredIntervalsWithFilters({
+    filters: [filter],
+    interval: [25, 50],
+    cachedIntervals,
+  });
+
+  expect(requiredIntervals).toMatchInlineSnapshot(`
+    [
+      {
+        "filter": {
+          "address": [
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          ],
+          "chainId": 1,
+          "fromBlock": 0,
+          "hasTransactionReceipt": false,
+          "include": [],
+          "toBlock": 100,
+          "topic0": null,
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "interval": [
+          25,
+          50,
+        ],
+      },
+    ]
+  `);
+});
+
+test("getRequiredIntervalsWithFilters() with factory", async () => {
+  const filter = {
+    ...EMPTY_LOG_FILTER,
+    address: {
+      id: "id",
+      type: "log",
+      chainId: 1,
+      address: "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+      eventSelector:
+        "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+      childAddressLocation: "topic1",
+      fromBlock: 2,
+      toBlock: 5,
+    },
+    fromBlock: 10,
+    toBlock: 20,
+  } satisfies LogFilter;
+
+  const fragments = getFragments(filter);
+
+  const cachedIntervals = new Map<
+    Filter,
+    { fragment: Fragment; intervals: Interval[] }[]
+  >([[filter, [{ fragment: fragments[0]!.fragment, intervals: [[3, 24]] }]]]);
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    filters: [filter],
+    interval: [0, 100],
+    cachedIntervals,
+  });
+
+  expect(requiredIntervals).toMatchInlineSnapshot(`
+    [
+      {
+        "filter": {
+          "address": {
+            "address": "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+            "chainId": 1,
+            "childAddressLocation": "topic1",
+            "eventSelector": "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+            "fromBlock": 2,
+            "id": "id",
+            "toBlock": 5,
+            "type": "log",
+          },
+          "chainId": 1,
+          "fromBlock": 10,
+          "hasTransactionReceipt": false,
+          "include": [],
+          "toBlock": 20,
+          "topic0": null,
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "interval": [
+          2,
+          20,
+        ],
+      },
+    ]
+  `);
 });
 
 test("mergeAsyncGeneratorsWithEventOrder()", async () => {
