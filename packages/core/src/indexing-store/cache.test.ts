@@ -174,6 +174,10 @@ test("flush() update", async (context) => {
 });
 
 test("flush() recovers error", async (context) => {
+  if (context.databaseConfig.kind !== "postgres") {
+    return;
+  }
+
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),

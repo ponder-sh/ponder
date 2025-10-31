@@ -530,8 +530,6 @@ export const createIndexingCache = ({
 
       const copy = getCopyHelper(qb);
 
-      await qb.wrap((db) => db.execute("SAVEPOINT flush"), context);
-
       const flushTable = async (table: Table) => {
         const shouldRecordBytes = cache.get(table)!.isCacheComplete;
         if (
@@ -699,9 +697,13 @@ export const createIndexingCache = ({
 
       try {
         if (qb.$dialect === "postgres") {
+          await qb.wrap((db) => db.execute("SAVEPOINT flush"), context);
+
           await promiseAllSettledWithThrow(
             Array.from(cache.keys()).map(flushTable),
           );
+
+          await qb.wrap((db) => db.execute("RELEASE flush"), context);
         } else {
           // Note: pglite must run sequentially
           for (const table of cache.keys()) {
@@ -710,7 +712,7 @@ export const createIndexingCache = ({
         }
       } catch (_error) {
         let error = _error as Error;
-        if (error instanceof ShutdownError) {
+        if (error instanceof ShutdownError || qb.$dialect === "pglite") {
           throw error;
         }
 
@@ -855,8 +857,6 @@ export const createIndexingCache = ({
         // throw the original error.
         throw error;
       }
-
-      await qb.wrap((db) => db.execute("RELEASE flush"), context);
     },
     async prefetch({ events }) {
       const context = {
