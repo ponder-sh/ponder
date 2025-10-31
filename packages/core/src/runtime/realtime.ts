@@ -738,6 +738,8 @@ export async function handleRealtimeSyncEvent(
         } else break;
       }
 
+      if (params.chain.disableCache) break;
+
       // Add finalized blocks, logs, transactions, receipts, and traces to the sync-store.
 
       const childAddresses = new Map<Factory, Map<Address, number>>();
@@ -827,36 +829,29 @@ export async function handleRealtimeSyncEvent(
       // Add corresponding intervals to the sync-store
       // Note: this should happen after insertion so the database doesn't become corrupted
 
-      if (params.chain.disableCache === false) {
-        const syncedIntervals: {
-          interval: Interval;
-          filter: Filter;
-        }[] = [];
+      const syncedIntervals: {
+        interval: Interval;
+        filter: Filter;
+      }[] = [];
 
-        for (const { filter } of params.sources) {
-          const intervals = intervalIntersection(
-            [finalizedInterval],
-            [
-              [
-                filter.fromBlock ?? 0,
-                filter.toBlock ?? Number.POSITIVE_INFINITY,
-              ],
-            ],
-          );
-
-          for (const interval of intervals) {
-            syncedIntervals.push({ interval, filter });
-          }
-        }
-
-        await params.syncStore.insertIntervals(
-          {
-            intervals: syncedIntervals,
-            chainId: params.chain.id,
-          },
-          context,
+      for (const { filter } of params.sources) {
+        const intervals = intervalIntersection(
+          [finalizedInterval],
+          [[filter.fromBlock ?? 0, filter.toBlock ?? Number.POSITIVE_INFINITY]],
         );
+
+        for (const interval of intervals) {
+          syncedIntervals.push({ interval, filter });
+        }
       }
+
+      await params.syncStore.insertIntervals(
+        {
+          intervals: syncedIntervals,
+          chainId: params.chain.id,
+        },
+        context,
+      );
 
       break;
     }
