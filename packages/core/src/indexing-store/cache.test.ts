@@ -326,9 +326,14 @@ test("prefetch() uses profile metadata", async (context) => {
     sender: ALICE,
   });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({ address });
+  const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
+    address,
+  });
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0]!,
+    blockData,
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,

@@ -3,18 +3,14 @@ import { buildLogFactory } from "@/build/factory.js";
 import { factory } from "@/config/address.js";
 import type { Common } from "@/internal/common.js";
 import type {
-  AccountMetadata,
-  AccountSource,
-  BlockSource,
   Chain,
-  ContractMetadata,
-  ContractSource,
+  Contract,
   Event,
+  EventCallback,
   Factory,
   FilterAddress,
   IndexingFunctions,
-  LogFactory,
-  Source,
+  SetupCallback,
   Status,
   TransactionFilter,
 } from "@/internal/types.js";
@@ -35,7 +31,6 @@ import {
   defaultTransactionReceiptInclude,
   defaultTransferFilterInclude,
 } from "@/runtime/filter.js";
-import { buildAbiEvents, buildAbiFunctions } from "@/utils/abi.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import {
   type Address,
@@ -95,26 +90,18 @@ export const getErc20IndexingBuild = <
   includeTransactionReceipts?: boolean;
 }): includeCallTraces extends true
   ? {
-      sources: [
-        ContractSource<"trace", undefined, undefined, undefined>,
-        ContractSource<"log", undefined, undefined, undefined>,
-      ];
+      eventCallbacks: [EventCallback, EventCallback];
+      setupCallbacks: [SetupCallback];
       indexingFunctions: IndexingFunctions;
+      contracts: { [name: string]: Contract };
     }
   : {
-      sources: [ContractSource<"log", undefined, undefined, undefined>];
+      eventCallbacks: [EventCallback];
+      setupCallbacks: [SetupCallback];
       indexingFunctions: IndexingFunctions;
+      contracts: { [name: string]: Contract };
     } => {
-  const contractMetadata = {
-    type: "contract",
-    abi: erc20ABI,
-    abiEvents: buildAbiEvents({ abi: erc20ABI }),
-    abiFunctions: buildAbiFunctions({ abi: erc20ABI }),
-    name: "Erc20",
-    chain: getChain(),
-  } satisfies ContractMetadata;
-
-  const sources = params.includeCallTraces
+  const eventCallbacks = params.includeCallTraces
     ? ([
         {
           filter: {
@@ -138,7 +125,15 @@ export const getErc20IndexingBuild = <
                 : [],
             ),
           },
-          ...contractMetadata,
+          name: "Erc20.transfer()",
+          fn: vi.fn(),
+          chain: getChain(),
+          type: "contract",
+          abiItem: getAbiItem({ abi: erc20ABI, name: "transfer" }),
+          metadata: {
+            safeName: "transfer()",
+            abi: erc20ABI,
+          },
         },
         {
           filter: {
@@ -162,9 +157,18 @@ export const getErc20IndexingBuild = <
                 : [],
             ),
           },
-          ...contractMetadata,
+          name: "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)",
+          fn: vi.fn(),
+          chain: getChain(),
+          type: "contract",
+          abiItem: getAbiItem({ abi: erc20ABI, name: "Transfer" }),
+          metadata: {
+            safeName:
+              "Transfer(address indexed from, address indexed to, uint256 amount)",
+            abi: erc20ABI,
+          },
         },
-      ] satisfies [ContractSource, ContractSource])
+      ] satisfies [EventCallback, EventCallback])
     : ([
         {
           filter: {
@@ -188,25 +192,65 @@ export const getErc20IndexingBuild = <
                 : [],
             ),
           },
-          ...contractMetadata,
+          name: "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)",
+          fn: vi.fn(),
+          chain: getChain(),
+          type: "contract",
+          abiItem: getAbiItem({ abi: erc20ABI, name: "Transfer" }),
+          metadata: {
+            safeName:
+              "Transfer(address indexed from, address indexed to, uint256 amount)",
+            abi: erc20ABI,
+          },
         },
-      ] satisfies [ContractSource]);
+      ] satisfies [EventCallback]);
+
+  const setupCallbacks = [
+    {
+      name: "Erc20:setup",
+      fn: vi.fn(),
+      chain: getChain(),
+      block: undefined,
+    },
+  ] satisfies [SetupCallback];
 
   const indexingFunctions = params.includeCallTraces
-    ? {
-        "Erc20.transfer()": vi.fn(),
-        "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-          vi.fn(),
-        "Erc20:setup": vi.fn(),
-      }
-    : {
-        "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)":
-          vi.fn(),
-        "Erc20:setup": vi.fn(),
-      };
+    ? [
+        {
+          name: "Erc20.transfer()",
+          fn: vi.fn(),
+        },
+        {
+          name: "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)",
+          fn: vi.fn(),
+        },
+        {
+          name: "Erc20:setup",
+          fn: vi.fn(),
+        },
+      ]
+    : [
+        {
+          name: "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)",
+          fn: vi.fn(),
+        },
+        {
+          name: "Erc20:setup",
+          fn: vi.fn(),
+        },
+      ];
+
+  const contracts = {
+    Erc20: {
+      abi: erc20ABI,
+      address: params.address,
+      startBlock: undefined,
+      endBlock: undefined,
+    },
+  };
 
   // @ts-ignore
-  return { sources, indexingFunctions };
+  return { eventCallbacks, setupCallbacks, indexingFunctions, contracts };
 };
 
 export const getPairWithFactoryIndexingBuild = <
@@ -217,25 +261,17 @@ export const getPairWithFactoryIndexingBuild = <
   includeTransactionReceipts?: boolean;
 }): includeCallTraces extends true
   ? {
-      sources: [
-        ContractSource<"trace", undefined, undefined, LogFactory>,
-        ContractSource<"log", LogFactory, undefined, undefined>,
-      ];
+      eventCallbacks: [EventCallback, EventCallback];
+      setupCallbacks: [SetupCallback];
       indexingFunctions: IndexingFunctions;
+      contracts: { [name: string]: Contract };
     }
   : {
-      sources: [ContractSource<"log", LogFactory, undefined, undefined>];
+      eventCallbacks: [EventCallback];
+      setupCallbacks: [SetupCallback];
       indexingFunctions: IndexingFunctions;
+      contracts: { [name: string]: Contract };
     } => {
-  const contractMetadata = {
-    type: "contract",
-    abi: pairABI,
-    abiEvents: buildAbiEvents({ abi: pairABI }),
-    abiFunctions: buildAbiFunctions({ abi: pairABI }),
-    name: "Pair",
-    chain: getChain(),
-  } satisfies ContractMetadata;
-
   const pairAddress = buildLogFactory({
     chainId: 1,
     fromBlock: undefined,
@@ -247,7 +283,7 @@ export const getPairWithFactoryIndexingBuild = <
     }),
   }) satisfies FilterAddress<Factory>;
 
-  const sources = params.includeCallTraces
+  const eventCallbacks = params.includeCallTraces
     ? ([
         {
           filter: {
@@ -271,7 +307,15 @@ export const getPairWithFactoryIndexingBuild = <
                 : [],
             ),
           },
-          ...contractMetadata,
+          name: "Pair.swap()",
+          fn: vi.fn(),
+          chain: getChain(),
+          type: "contract",
+          abiItem: getAbiItem({ abi: pairABI, name: "swap" }),
+          metadata: {
+            safeName: "swap()",
+            abi: pairABI,
+          },
         },
         {
           filter: {
@@ -293,9 +337,17 @@ export const getPairWithFactoryIndexingBuild = <
                 : [],
             ),
           },
-          ...contractMetadata,
+          name: "Pair:Swap",
+          fn: vi.fn(),
+          chain: getChain(),
+          type: "contract",
+          abiItem: getAbiItem({ abi: pairABI, name: "Swap" }),
+          metadata: {
+            safeName: "Swap",
+            abi: pairABI,
+          },
         },
-      ] satisfies [ContractSource, ContractSource])
+      ] satisfies [EventCallback, EventCallback])
     : ([
         {
           filter: {
@@ -317,32 +369,62 @@ export const getPairWithFactoryIndexingBuild = <
                 : [],
             ),
           },
-          ...contractMetadata,
+          name: "Pair:Swap",
+          fn: vi.fn(),
+          chain: getChain(),
+          type: "contract",
+          abiItem: getAbiItem({ abi: pairABI, name: "Swap" }),
+          metadata: {
+            safeName: "Swap",
+            abi: pairABI,
+          },
         },
-      ] satisfies [ContractSource]);
+      ] satisfies [EventCallback]);
+
+  const setupCallbacks = [
+    {
+      name: "Pair:setup",
+      fn: vi.fn(),
+      chain: getChain(),
+      block: undefined,
+    },
+  ] satisfies [SetupCallback];
 
   const indexingFunctions = params.includeCallTraces
-    ? {
-        "Pair.swap()": vi.fn(),
-        "Pair:Swap": vi.fn(),
-        "Pair:setup": vi.fn(),
-      }
-    : {
-        "Pair:Swap": vi.fn(),
-        "Pair:setup": vi.fn(),
-      };
+    ? ([
+        { name: "Pair.swap()", fn: vi.fn() },
+        { name: "Pair:Swap", fn: vi.fn() },
+        { name: "Pair:setup", fn: vi.fn() },
+      ] satisfies [
+        IndexingFunctions[number],
+        IndexingFunctions[number],
+        IndexingFunctions[number],
+      ])
+    : ([
+        { name: "Pair:Swap", fn: vi.fn() },
+        { name: "Pair:setup", fn: vi.fn() },
+      ] satisfies [IndexingFunctions[number], IndexingFunctions[number]]);
+
+  const contracts = {
+    Pair: {
+      abi: pairABI,
+      address: params.address,
+      startBlock: undefined,
+      endBlock: undefined,
+    },
+  };
 
   // @ts-ignore
-  return { sources, indexingFunctions };
+  return { eventCallbacks, setupCallbacks, indexingFunctions, contracts };
 };
 
 export const getBlocksIndexingBuild = (params: {
   interval: number;
 }): {
-  sources: [BlockSource];
-  indexingFunctions: IndexingFunctions;
+  indexingFunctions: [IndexingFunctions[number]];
+  eventCallbacks: [EventCallback];
 } => {
-  const sources = [
+  const eventCallbacks = [
     {
       filter: {
         type: "block",
@@ -354,37 +436,27 @@ export const getBlocksIndexingBuild = (params: {
         hasTransactionReceipt: false,
         include: defaultBlockFilterInclude,
       },
-      type: "block",
-      name: "Blocks",
+      name: "Blocks:block",
+      fn: vi.fn(),
       chain: getChain(),
+      type: "block",
     },
-  ] satisfies [BlockSource];
+  ] satisfies [EventCallback];
 
-  const indexingFunctions = {
-    "Blocks:block": vi.fn(),
-  };
+  const indexingFunctions = [{ name: "Blocks:block", fn: vi.fn() }] satisfies [
+    IndexingFunctions[number],
+  ];
 
-  return { sources, indexingFunctions };
+  return { eventCallbacks, indexingFunctions };
 };
 
 export const getAccountsIndexingBuild = (params: {
   address: Address;
 }): {
-  sources: [
-    AccountSource<"transaction", undefined, undefined>,
-    AccountSource<"transaction", undefined, undefined>,
-    AccountSource<"transfer", undefined, undefined>,
-    AccountSource<"transfer", undefined, undefined>,
-  ];
+  eventCallbacks: [EventCallback, EventCallback, EventCallback, EventCallback];
   indexingFunctions: IndexingFunctions;
 } => {
-  const accountMetadata = {
-    type: "account",
-    name: "Accounts",
-    chain: getChain(),
-  } satisfies AccountMetadata;
-
-  const sources = [
+  const eventCallbacks = [
     {
       filter: {
         type: "transaction",
@@ -397,7 +469,11 @@ export const getAccountsIndexingBuild = (params: {
         hasTransactionReceipt: true,
         include: defaultTransactionFilterInclude,
       } satisfies TransactionFilter,
-      ...accountMetadata,
+      name: "Accounts:transaction:to",
+      fn: vi.fn(),
+      chain: getChain(),
+      type: "account",
+      direction: "to",
     },
     {
       filter: {
@@ -411,7 +487,11 @@ export const getAccountsIndexingBuild = (params: {
         hasTransactionReceipt: true,
         include: defaultTransactionFilterInclude,
       } satisfies TransactionFilter,
-      ...accountMetadata,
+      name: "Accounts:transaction:from",
+      fn: vi.fn(),
+      chain: getChain(),
+      type: "account",
+      direction: "from",
     },
     {
       filter: {
@@ -425,7 +505,11 @@ export const getAccountsIndexingBuild = (params: {
         hasTransactionReceipt: false,
         include: defaultTransferFilterInclude,
       },
-      ...accountMetadata,
+      name: "Accounts:transfer:to",
+      fn: vi.fn(),
+      chain: getChain(),
+      type: "account",
+      direction: "to",
     },
     {
       filter: {
@@ -439,25 +523,34 @@ export const getAccountsIndexingBuild = (params: {
         hasTransactionReceipt: false,
         include: defaultTransferFilterInclude,
       },
-      ...accountMetadata,
+      name: "Accounts:transfer:from",
+      fn: vi.fn(),
+      chain: getChain(),
+      type: "account",
+      direction: "from",
     },
-  ] satisfies [AccountSource, AccountSource, AccountSource, AccountSource];
+  ] satisfies [EventCallback, EventCallback, EventCallback, EventCallback];
 
-  const indexingFunctions = {
-    "Accounts:transaction:from": vi.fn(),
-    "Accounts:transaction:to": vi.fn(),
-    "Accounts:transfer:from": vi.fn(),
-    "Accounts:transfer:to": vi.fn(),
-  };
+  const indexingFunctions = [
+    { name: "Accounts:transaction:from", fn: vi.fn() },
+    { name: "Accounts:transaction:to", fn: vi.fn() },
+    { name: "Accounts:transfer:from", fn: vi.fn() },
+    { name: "Accounts:transfer:to", fn: vi.fn() },
+  ] satisfies [
+    IndexingFunctions[number],
+    IndexingFunctions[number],
+    IndexingFunctions[number],
+    IndexingFunctions[number],
+  ];
 
-  return { sources, indexingFunctions };
+  return { eventCallbacks, indexingFunctions };
 };
 
 export const getSimulatedEvent = ({
-  source,
+  eventCallback,
   blockData,
 }: {
-  source: Source;
+  eventCallback: EventCallback;
   blockData:
     | Awaited<ReturnType<typeof simulateBlock>>
     | Awaited<ReturnType<typeof mintErc20>>
@@ -466,7 +559,7 @@ export const getSimulatedEvent = ({
     | Awaited<ReturnType<typeof swapPair>>;
 }): Event => {
   const rawEvents = buildEvents({
-    sources: [source],
+    eventCallbacks: [eventCallback],
     blocks: [syncBlockToInternal({ block: blockData.block })],
     // @ts-ignore
     logs: blockData.log ? [syncLogToInternal({ log: blockData.log })] : [],
@@ -493,7 +586,12 @@ export const getSimulatedEvent = ({
     chainId: 1,
   });
 
-  const events = decodeEvents({} as Common, [source], rawEvents);
+  const events = decodeEvents(
+    {} as Common,
+    getChain(),
+    [eventCallback],
+    rawEvents,
+  );
 
   if (events.length !== 1) {
     throw new Error("getSimulatedEvent() failed to construct the event");

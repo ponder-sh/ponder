@@ -245,6 +245,14 @@ export type FragmentId =
   /** transfer_{chainId}_{fromAddress}_{toAddress}_{includeReceipts} */
   | `transfer_${number}_${FragmentAddressId}_${FragmentAddressId}_${0 | 1}`;
 
+// Contract
+export type Contract = {
+  abi: Abi;
+  address?: Address | readonly Address[];
+  startBlock?: number;
+  endBlock?: number;
+};
+
 // Event Callback
 
 export type EventCallback = {
@@ -324,7 +332,10 @@ export type IndexingBuild = {
   setupCallbacks: SetupCallback[][];
   /** Indexing functions registered with `ponder.on()`. */
   indexingFunctions: IndexingFunctions;
-  // TODO(kyle) contracts
+  /** Contracts for all `chains`. */
+  contracts: {
+    [name: string]: Contract;
+  }[];
 };
 
 export type ApiBuild = {

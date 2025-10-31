@@ -11,6 +11,7 @@ import {
 } from "@/internal/errors.js";
 import type {
   Chain,
+  Contract,
   Event,
   Filter,
   IndexingBuild,
@@ -142,7 +143,7 @@ export const createColumnAccessPattern = ({
 
 export const createIndexing = ({
   common,
-  indexingBuild: { eventCallbacks, setupCallbacks, chains },
+  indexingBuild: { eventCallbacks, setupCallbacks, chains, contracts },
   client,
   eventCount,
   indexingErrorHandler,
@@ -151,7 +152,7 @@ export const createIndexing = ({
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
-    "eventCallbacks" | "setupCallbacks" | "chains"
+    "eventCallbacks" | "setupCallbacks" | "chains" | "contracts"
   >;
   client: CachedViemClient;
   eventCount: { [eventName: string]: number };
@@ -167,15 +168,7 @@ export const createIndexing = ({
 
   const clientByChainId: { [chainId: number]: ReadonlyClient } = {};
   const contractsByChainId: {
-    [chainId: number]: Record<
-      string,
-      {
-        abi: Abi;
-        address?: Address | readonly Address[];
-        startBlock?: number;
-        endBlock?: number;
-      }
-    >;
+    [chainId: number]: { [name: string]: Contract };
   } = {};
 
   // build clientByChainId
@@ -183,44 +176,10 @@ export const createIndexing = ({
     clientByChainId[chain.id] = client.getClient(chain);
   }
 
-  // build contractsByChainId
-  // for (const source of sources) {
-  //   if (source.type === "block" || source.type === "account") continue;
-
-  //   let address: Address | undefined;
-
-  //   if (source.filter.type === "log") {
-  //     const _address = source.filter.address;
-  //     if (
-  //       isAddressFactory(_address) === false &&
-  //       Array.isArray(_address) === false &&
-  //       _address !== undefined
-  //     ) {
-  //       address = _address as Address;
-  //     }
-  //   } else {
-  //     const _address = source.filter.toAddress;
-  //     if (isAddressFactory(_address) === false && _address !== undefined) {
-  //       address = (_address as Address[])[0];
-  //     }
-  //   }
-
-  //   if (contractsByChainId[source.filter.chainId] === undefined) {
-  //     contractsByChainId[source.filter.chainId] = {};
-  //   }
-
-  //   // Note: multiple sources with the same contract (logs and traces)
-  //   // should only create one entry in the `contracts` object
-  //   if (contractsByChainId[source.filter.chainId]![source.name] !== undefined)
-  //     continue;
-
-  //   contractsByChainId[source.filter.chainId]![source.name] = {
-  //     abi: source.abi,
-  //     address,
-  //     startBlock: source.filter.fromBlock,
-  //     endBlock: source.filter.toBlock,
-  //   };
-  // }
+  for (let i = 0; i < chains.length; i++) {
+    const chain = chains[i]!;
+    contractsByChainId[chain.id] = contracts[i]!;
+  }
 
   const updateCompletedEvents = () => {
     for (const event of Object.keys(eventCount)) {
@@ -691,7 +650,7 @@ export const createIndexing = ({
         }
 
         // @ts-expect-error
-        source.filter.include = dedupe(filterInclude);
+        eventCallback.filter.include = dedupe(filterInclude);
       }
 
       if (isEveryFilterResolvedBefore === false && isEveryFilterResolvedAfter) {

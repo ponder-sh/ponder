@@ -5,6 +5,7 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import { zeroHash } from "viem";
 
 // Test accounts
 export const ACCOUNTS = [
@@ -19,7 +20,7 @@ export const EMPTY_LOG_FILTER: LogFilter = {
   type: "log",
   chainId: 1,
   address: undefined,
-  topic0: null,
+  topic0: zeroHash,
   topic1: null,
   topic2: null,
   topic3: null,
@@ -56,7 +57,7 @@ export const EMPTY_TRACE_FILTER: TraceFilter = {
   type: "trace",
   chainId: 1,
   callType: "CALL",
-  functionSelector: undefined,
+  functionSelector: "0x00000000",
   fromAddress: undefined,
   toAddress: undefined,
   includeReverted: false,

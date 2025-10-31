@@ -5,6 +5,7 @@ import { BuildError } from "@/internal/errors.js";
 import type {
   BlockFilter,
   Chain,
+  Contract,
   EventCallback,
   FilterAddress,
   IndexingBuild,
@@ -33,6 +34,7 @@ import { dedupe } from "@/utils/dedupe.js";
 import { getFinalityBlockCount } from "@/utils/finality.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import {
+  type Abi,
   type AbiEvent,
   type AbiFunction,
   type Address,
@@ -90,6 +92,14 @@ export async function buildIndexingFunctions({
   finalizedBlocks: LightBlock[];
   eventCallbacks: EventCallback[][];
   setupCallbacks: SetupCallback[][];
+  contracts: {
+    [name: string]: {
+      abi: Abi;
+      address?: Address | readonly Address[];
+      startBlock?: number;
+      endBlock?: number;
+    };
+  }[];
   logs: ({ level: "warn" | "info" | "debug"; msg: string } & Record<
     string,
     unknown
@@ -361,9 +371,16 @@ export async function buildIndexingFunctions({
 
   const perChainEventCallbacks: Map<number, EventCallback[]> = new Map();
   const perChainSetupCallbacks: Map<number, SetupCallback[]> = new Map();
+  const perChainContracts: Map<
+    number,
+    {
+      [name: string]: Contract;
+    }
+  > = new Map();
   for (const chain of chains) {
     perChainEventCallbacks.set(chain.id, []);
     perChainSetupCallbacks.set(chain.id, []);
+    perChainContracts.set(chain.id, {});
   }
 
   for (const source of flattenSources(config.contracts ?? {})) {
@@ -371,13 +388,6 @@ export async function buildIndexingFunctions({
 
     const fromBlock = await resolveBlockNumber(source.startBlock, chain);
     const toBlock = await resolveBlockNumber(source.endBlock, chain);
-
-    // sources.push({
-    //   ...source,
-    //   type: "contract",
-    //   startBlock: fromBlock,
-    //   endBlock: toBlock,
-    // });
 
     if (indexingFunctions.some((f) => f.name === `${source.name}:setup`)) {
       perChainSetupCallbacks.get(chain.id)!.push({
@@ -415,6 +425,13 @@ export async function buildIndexingFunctions({
       address = logFactory;
     } else {
       if (resolvedAddress !== undefined) {
+        perChainContracts.get(chain.id)![source.name] = {
+          abi: source.abi,
+          address: resolvedAddress as Address | readonly Address[],
+          startBlock: fromBlock,
+          endBlock: toBlock,
+        };
+
         for (const address of Array.isArray(resolvedAddress)
           ? resolvedAddress
           : [resolvedAddress as Address]) {
@@ -668,13 +685,6 @@ export async function buildIndexingFunctions({
     const fromBlock = await resolveBlockNumber(source.startBlock, chain);
     const toBlock = await resolveBlockNumber(source.endBlock, chain);
 
-    // sources.push({
-    //   ...source,
-    //   type: "account",
-    //   startBlock: fromBlock,
-    //   endBlock: toBlock,
-    // });
-
     const resolvedAddress = source?.address;
     if (resolvedAddress === undefined) {
       throw new Error(
@@ -851,13 +861,6 @@ export async function buildIndexingFunctions({
     const fromBlock = await resolveBlockNumber(source.startBlock, chain);
     const toBlock = await resolveBlockNumber(source.endBlock, chain);
 
-    // sources.push({
-    //   ...source,
-    //   type: "block",
-    //   startBlock: fromBlock,
-    //   endBlock: toBlock,
-    // });
-
     const eventName = `${source.name}:block`;
 
     const indexingFunction = indexingFunctions.find(
@@ -901,6 +904,7 @@ export async function buildIndexingFunctions({
   const finalizedBlocksWithSources: LightBlock[] = [];
   const eventCallbacksWithSources: EventCallback[][] = [];
   const setupCallbacksWithSources: SetupCallback[][] = [];
+  const contractsWithSources: { [name: string]: Contract }[] = [];
 
   for (let i = 0; i < chains.length; i++) {
     const chain = chains[i]!;
@@ -915,6 +919,7 @@ export async function buildIndexingFunctions({
       finalizedBlocksWithSources.push(finalizedBlocks[i]!);
       eventCallbacksWithSources.push(perChainEventCallbacks.get(chain.id)!);
       setupCallbacksWithSources.push(perChainSetupCallbacks.get(chain.id)!);
+      contractsWithSources.push(perChainContracts.get(chain.id)!);
     } else {
       logs.push({
         level: "warn",
@@ -937,6 +942,7 @@ export async function buildIndexingFunctions({
     finalizedBlocks: finalizedBlocksWithSources,
     eventCallbacks: eventCallbacksWithSources,
     setupCallbacks: setupCallbacksWithSources,
+    contracts: contractsWithSources,
     logs,
   };
 }
@@ -1081,6 +1087,7 @@ export async function safeBuildIndexingFunctions({
       finalizedBlocks: result.finalizedBlocks,
       eventCallbacks: result.eventCallbacks,
       setupCallbacks: result.setupCallbacks,
+      contracts: result.contracts,
       logs: result.logs,
     } as const;
   } catch (_error) {

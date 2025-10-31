@@ -451,6 +451,7 @@ export const createBuild = async ({
           finalizedBlocks: buildIndexingFunctionsResult.finalizedBlocks,
           eventCallbacks: buildIndexingFunctionsResult.eventCallbacks,
           setupCallbacks: buildIndexingFunctionsResult.setupCallbacks,
+          contracts: buildIndexingFunctionsResult.contracts,
           indexingFunctions: indexingResult.indexingFunctions,
         },
       } as const;
