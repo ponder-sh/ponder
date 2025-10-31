@@ -532,172 +532,184 @@ export const createIndexingCache = ({
 
       await qb.wrap((db) => db.execute("SAVEPOINT flush"), context);
 
-      await promiseAllSettledWithThrow(
-        Array.from(cache.keys()).map(async (table) => {
-          const shouldRecordBytes = cache.get(table)!.isCacheComplete;
-          if (
-            tableNames !== undefined &&
-            tableNames.has(getTableName(table)) === false
-          ) {
-            return;
-          }
+      const flushTable = async (table: Table) => {
+        const shouldRecordBytes = cache.get(table)!.isCacheComplete;
+        if (
+          tableNames !== undefined &&
+          tableNames.has(getTableName(table)) === false
+        ) {
+          return;
+        }
 
-          const tableCache = cache.get(table)!;
+        const tableCache = cache.get(table)!;
 
-          const insertValues = Array.from(insertBuffer.get(table)!.values());
-          const updateValues = Array.from(updateBuffer.get(table)!.values());
+        const insertValues = Array.from(insertBuffer.get(table)!.values());
+        const updateValues = Array.from(updateBuffer.get(table)!.values());
 
-          if (insertValues.length > 0) {
-            const endClock = startClock();
+        if (insertValues.length > 0) {
+          const endClock = startClock();
 
-            if (insertValues.length > LOW_BATCH_THRESHOLD) {
-              const text = getCopyText(
-                table,
-                insertValues.map(({ row }) => row),
-              );
-
-              await new Promise(setImmediate);
-
-              await copy(table, text);
-            } else {
-              await qb.wrap(
-                (db) =>
-                  db.insert(table).values(insertValues.map(({ row }) => row)),
-                context,
-              );
-            }
-
-            common.metrics.ponder_indexing_cache_query_duration.observe(
-              {
-                table: getTableName(table),
-                method: "flush",
-              },
-              endClock(),
+          if (insertValues.length > LOW_BATCH_THRESHOLD) {
+            const text = getCopyText(
+              table,
+              insertValues.map(({ row }) => row),
             );
 
-            let bytes = 0;
-            for (const [key, entry] of insertBuffer.get(table)!) {
-              if (shouldRecordBytes && tableCache.cache.has(key) === false) {
-                bytes += getBytes(entry.row) + getBytes(key);
-              }
-              tableCache.cache.set(key, entry.row);
-            }
-            tableCache.bytes += bytes;
-            insertBuffer.get(table)!.clear();
-
             await new Promise(setImmediate);
-          }
 
-          if (updateValues.length > 0) {
-            const primaryKeys = getPrimaryKeyColumns(table);
-
-            const endClock = startClock();
-
-            if (updateValues.length > LOW_BATCH_THRESHOLD) {
-              // Steps for flushing "update" entries:
-              // 1. Create temp table
-              // 2. Copy into temp table
-              // 3. Update target table with data from temp
-
-              const createTempTableQuery = `
-              CREATE TEMP TABLE IF NOT EXISTS "${getTableName(table)}" 
-              AS SELECT * FROM "${
-                getTableConfig(table).schema ?? "public"
-              }"."${getTableName(table)}"
-              WITH NO DATA;
-            `;
-
-              const updateQuery = `
-              UPDATE "${
-                getTableConfig(table).schema ?? "public"
-              }"."${getTableName(table)}" as target
-              SET ${Object.values(getTableColumns(table))
-                .map(
-                  (column) =>
-                    `"${getColumnCasing(
-                      column,
-                      "snake_case",
-                    )}" = source."${getColumnCasing(column, "snake_case")}"`,
-                )
-                .join(",\n")}
-              FROM "${getTableName(table)}" source
-              WHERE ${primaryKeys
-                .map(({ sql }) => `target."${sql}" = source."${sql}"`)
-                .join(" AND ")};
-            `;
-
-              await qb.wrap((db) => db.execute(createTempTableQuery), context);
-
-              const text = getCopyText(
-                table,
-                updateValues.map(({ row }) => row),
-              );
-
-              await new Promise(setImmediate);
-
-              await copy(table, text, false);
-
-              await qb.wrap((db) => db.execute(updateQuery), context);
-
-              await qb.wrap(
-                (db) => db.execute(`TRUNCATE TABLE "${getTableName(table)}"`),
-                context,
-              );
-            } else {
-              await qb.wrap(
-                (db) =>
-                  db
-                    .insert(table)
-                    .values(updateValues.map(({ row }) => row))
-                    .onConflictDoUpdate({
-                      // @ts-ignore
-                      target: primaryKeys.map(({ js }) => table[js]!),
-                      set: Object.fromEntries(
-                        Object.entries(getTableColumns(table)).map(
-                          ([columnName, column]) => [
-                            columnName,
-                            sql.raw(
-                              `excluded."${getColumnCasing(column, "snake_case")}"`,
-                            ),
-                          ],
-                        ),
-                      ),
-                    }),
-                context,
-              );
-            }
-
-            common.metrics.ponder_indexing_cache_query_duration.observe(
-              {
-                table: getTableName(table),
-                method: "flush",
-              },
-              endClock(),
+            await copy(table, text);
+          } else {
+            await qb.wrap(
+              (db) =>
+                db.insert(table).values(insertValues.map(({ row }) => row)),
+              context,
             );
-
-            let bytes = 0;
-            for (const [key, entry] of updateBuffer.get(table)!) {
-              if (shouldRecordBytes && tableCache.cache.has(key) === false) {
-                bytes += getBytes(entry.row) + getBytes(key);
-              }
-              tableCache.cache.set(key, entry.row);
-            }
-            tableCache.bytes += bytes;
-            updateBuffer.get(table)!.clear();
-
-            await new Promise(setImmediate);
           }
 
-          if (insertValues.length > 0 || updateValues.length > 0) {
-            common.logger.debug({
-              msg: "Wrote database rows",
+          common.metrics.ponder_indexing_cache_query_duration.observe(
+            {
               table: getTableName(table),
-              row_count: insertValues.length + updateValues.length,
-              duration: flushEndClock(),
-            });
+              method: "flush",
+            },
+            endClock(),
+          );
+
+          let bytes = 0;
+          for (const [key, entry] of insertBuffer.get(table)!) {
+            if (shouldRecordBytes && tableCache.cache.has(key) === false) {
+              bytes += getBytes(entry.row) + getBytes(key);
+            }
+            tableCache.cache.set(key, entry.row);
           }
-        }),
-      ).catch(async (error) => {
+          tableCache.bytes += bytes;
+          insertBuffer.get(table)!.clear();
+
+          await new Promise(setImmediate);
+        }
+
+        if (updateValues.length > 0) {
+          const primaryKeys = getPrimaryKeyColumns(table);
+
+          const endClock = startClock();
+
+          if (updateValues.length > LOW_BATCH_THRESHOLD) {
+            // Steps for flushing "update" entries:
+            // 1. Create temp table
+            // 2. Copy into temp table
+            // 3. Update target table with data from temp
+
+            const createTempTableQuery = `
+            CREATE TEMP TABLE IF NOT EXISTS "${getTableName(table)}" 
+            AS SELECT * FROM "${
+              getTableConfig(table).schema ?? "public"
+            }"."${getTableName(table)}"
+            WITH NO DATA;
+          `;
+
+            const updateQuery = `
+            UPDATE "${
+              getTableConfig(table).schema ?? "public"
+            }"."${getTableName(table)}" as target
+            SET ${Object.values(getTableColumns(table))
+              .map(
+                (column) =>
+                  `"${getColumnCasing(
+                    column,
+                    "snake_case",
+                  )}" = source."${getColumnCasing(column, "snake_case")}"`,
+              )
+              .join(",\n")}
+            FROM "${getTableName(table)}" source
+            WHERE ${primaryKeys
+              .map(({ sql }) => `target."${sql}" = source."${sql}"`)
+              .join(" AND ")};
+          `;
+
+            await qb.wrap((db) => db.execute(createTempTableQuery), context);
+
+            const text = getCopyText(
+              table,
+              updateValues.map(({ row }) => row),
+            );
+
+            await new Promise(setImmediate);
+
+            await copy(table, text, false);
+
+            await qb.wrap((db) => db.execute(updateQuery), context);
+
+            await qb.wrap(
+              (db) => db.execute(`TRUNCATE TABLE "${getTableName(table)}"`),
+              context,
+            );
+          } else {
+            await qb.wrap(
+              (db) =>
+                db
+                  .insert(table)
+                  .values(updateValues.map(({ row }) => row))
+                  .onConflictDoUpdate({
+                    // @ts-ignore
+                    target: primaryKeys.map(({ js }) => table[js]!),
+                    set: Object.fromEntries(
+                      Object.entries(getTableColumns(table)).map(
+                        ([columnName, column]) => [
+                          columnName,
+                          sql.raw(
+                            `excluded."${getColumnCasing(column, "snake_case")}"`,
+                          ),
+                        ],
+                      ),
+                    ),
+                  }),
+              context,
+            );
+          }
+
+          common.metrics.ponder_indexing_cache_query_duration.observe(
+            {
+              table: getTableName(table),
+              method: "flush",
+            },
+            endClock(),
+          );
+
+          let bytes = 0;
+          for (const [key, entry] of updateBuffer.get(table)!) {
+            if (shouldRecordBytes && tableCache.cache.has(key) === false) {
+              bytes += getBytes(entry.row) + getBytes(key);
+            }
+            tableCache.cache.set(key, entry.row);
+          }
+          tableCache.bytes += bytes;
+          updateBuffer.get(table)!.clear();
+
+          await new Promise(setImmediate);
+        }
+
+        if (insertValues.length > 0 || updateValues.length > 0) {
+          common.logger.debug({
+            msg: "Wrote database rows",
+            table: getTableName(table),
+            row_count: insertValues.length + updateValues.length,
+            duration: flushEndClock(),
+          });
+        }
+      };
+
+      try {
+        if (qb.$dialect === "postgres") {
+          await promiseAllSettledWithThrow(
+            Array.from(cache.keys()).map(flushTable),
+          );
+        } else {
+          // Note: pglite must run sequentially
+          for (const table of cache.keys()) {
+            await flushTable(table);
+          }
+        }
+      } catch (_error) {
+        let error = _error as Error;
         if (error instanceof ShutdownError) {
           throw error;
         }
@@ -839,8 +851,10 @@ export const createIndexingCache = ({
           }
         }
 
+        // Note: if we weren't able to find the exact row that caused the error,
+        // throw the original error.
         throw error;
-      });
+      }
 
       await qb.wrap((db) => db.execute("RELEASE flush"), context);
     },
