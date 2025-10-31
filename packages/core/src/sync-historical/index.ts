@@ -430,12 +430,15 @@ export const createHistoricalSync = (
       await Promise.all(
         requiredIntervals
           .filter(({ filter }) => filter.type === "log")
+          .filter(
+            // Note: Skip filters that are outside the interval. This only
+            // happens when the filter has a factory and the factory start block is
+            // earlier than the filter start block.
+            ({ filter }) => filter.fromBlock && filter.fromBlock <= interval[1],
+          )
           .map(async ({ filter, interval }) => {
             let _logs: SyncLog[];
             if (isAddressFactory((filter as LogFilter).address)) {
-              // Note: Exit early when only the factory needs to be synced
-              if ((filter.fromBlock ?? 0) > interval[1]) return;
-
               const childAddresses = args.childAddresses.get(
                 (filter as LogFilter<Factory>).address.id,
               )!;
@@ -560,44 +563,36 @@ export const createHistoricalSync = (
       const transferFilters: TransferFilter[] = [];
 
       for (const { filter, interval } of requiredIntervals) {
+        // Note: Skip filters that are outside the interval. This only
+        // happens when the filter has a factory and the factory start block is
+        // earlier than the filter start block.
+        if (filter.fromBlock && filter.fromBlock > interval[1]) {
+          continue;
+        }
+
         switch (filter.type) {
           case "block": {
-            blockFilters.push(filter as BlockFilter);
+            blockFilters.push(filter);
             break;
           }
 
           case "transaction": {
-            if (((filter as TransactionFilter).fromBlock ?? 0) > interval[1]) {
-              continue;
-            }
-
-            transactionFilters.push(filter as TransactionFilter);
+            transactionFilters.push(filter);
             break;
           }
 
           case "trace": {
-            if (((filter as TraceFilter).fromBlock ?? 0) > interval[1]) {
-              continue;
-            }
-
-            traceFilters.push(filter as TraceFilter);
+            traceFilters.push(filter);
             break;
           }
 
           case "log": {
-            if (((filter as LogFilter).fromBlock ?? 0) > interval[1]) {
-              continue;
-            }
-            logFilters.push(filter as LogFilter);
+            logFilters.push(filter);
             break;
           }
 
           case "transfer": {
-            if (((filter as TransferFilter).fromBlock ?? 0) > interval[1]) {
-              continue;
-            }
-
-            transferFilters.push(filter as TransferFilter);
+            transferFilters.push(filter);
             break;
           }
         }

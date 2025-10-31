@@ -136,6 +136,13 @@ export const createRealtimeSync = (
   const blockFilters: BlockFilter[] = [];
 
   for (const source of args.sources) {
+    if (
+      source.filter.toBlock &&
+      source.filter.toBlock <= hexToNumber(finalizedBlock.number)
+    ) {
+      continue;
+    }
+
     // Collect filters from sources
     if (source.type === "contract") {
       if (source.filter.type === "log") {
@@ -161,9 +168,21 @@ export const createRealtimeSync = (
         const { fromAddress, toAddress } = source.filter;
 
         if (isAddressFactory(fromAddress)) {
+          if (
+            fromAddress.toBlock &&
+            fromAddress.toBlock <= hexToNumber(finalizedBlock.number)
+          ) {
+            continue;
+          }
           factories.push(fromAddress);
         }
         if (isAddressFactory(toAddress)) {
+          if (
+            toAddress.toBlock &&
+            toAddress.toBlock <= hexToNumber(finalizedBlock.number)
+          ) {
+            continue;
+          }
           factories.push(toAddress);
         }
         break;
@@ -171,6 +190,12 @@ export const createRealtimeSync = (
       case "log": {
         const { address } = source.filter;
         if (isAddressFactory(address)) {
+          if (
+            address.toBlock &&
+            address.toBlock <= hexToNumber(finalizedBlock.number)
+          ) {
+            continue;
+          }
           factories.push(address);
         }
         break;
