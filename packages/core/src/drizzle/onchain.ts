@@ -4,6 +4,7 @@ import {
   type ColumnBuilderBase,
   Table,
   type Writable,
+  getTableName,
 } from "drizzle-orm";
 import { toSnakeCase } from "drizzle-orm/casing";
 import {
@@ -22,6 +23,7 @@ import {
   type TableConfig,
   ViewBuilder,
   primaryKey as drizzlePrimaryKey,
+  getTableConfig,
 } from "drizzle-orm/pg-core";
 import {
   type PgColumnsBuilders as _PgColumnsBuilders,
@@ -37,6 +39,16 @@ import {
   type PgJsonbBuilderInitial,
 } from "./json.js";
 import { PgTextBuilder, type PgTextBuilderInitial } from "./text.js";
+
+export const getLiveQueryTriggerName = (table: PgTable) => {
+  return `live_query_trigger_${getTableName(table)}`;
+};
+export const getLiveQueryProcedureName = (table: PgTable) => {
+  return `live_query_procedure_${getTableName(table)}()`;
+};
+export const getLiveQueryChannelName = (table: PgTable) => {
+  return `live_query_channel_${getTableConfig(table).schema ?? "public"}_${getTableName(table)}`;
+};
 
 /** @internal */
 function getColumnNameAndConfig<

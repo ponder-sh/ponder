@@ -21,7 +21,17 @@ import { and, eq, sql } from "drizzle-orm";
 import { index } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
-import { commitBlock, createIndexes, createTriggers } from "./actions.js";
+import {
+  commitBlock,
+  crashRecovery,
+  createIndexes,
+  createLiveQueryTriggerAndProcedure,
+  createTriggers,
+  createViews,
+  dropTriggers,
+  finalize,
+  revert,
+} from "./actions.js";
 import {
   type Database,
   TABLES,
@@ -687,6 +697,91 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
   expect(BigInt(rowAfterHeartbeat!.heartbeat_at)).toBeGreaterThan(
     row!.heartbeat_at,
   );
+
+  await context.common.shutdown.kill();
+});
+
+test("camelCase", async (context) => {
+  const accountCC = onchainTable("accountCc", (p) => ({
+    address: p.hex("addressCc").primaryKey(),
+    balance: p.bigint(),
+  }));
+
+  const accountViewCC = onchainView("accountViewCc").as((qb) =>
+    qb.select().from(accountCC),
+  );
+
+  const database = createDatabase({
+    common: context.common,
+    namespace: {
+      schema: "public",
+      viewsSchema: "viewCc",
+    },
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+    },
+    schemaBuild: {
+      schema: { accountCC, accountViewCC },
+      statements: buildSchema({ schema: { accountCC, accountViewCC } })
+        .statements,
+    },
+  });
+
+  await database.migrate({
+    buildId: "abc",
+    chains: [],
+    finalizedBlocks: [],
+  });
+
+  const tableNames = await getUserTableNames(database, "public");
+  expect(tableNames).toContain("accountCc");
+  expect(tableNames).toContain("_reorg__accountCc");
+  expect(tableNames).toContain("_ponder_meta");
+
+  const metadata = await database.userQB.wrap((db) =>
+    db.select().from(sql`_ponder_meta`),
+  );
+
+  expect(metadata).toHaveLength(1);
+
+  await createTriggers(database.userQB, { tables: [accountCC] });
+
+  await createIndexes(database.userQB, {
+    statements: buildSchema({ schema: { accountCC } }).statements,
+  });
+
+  await createViews(database.userQB, {
+    tables: [accountCC],
+    views: [accountViewCC],
+    namespaceBuild: { schema: "public", viewsSchema: "viewCc" },
+  });
+
+  await commitBlock(database.userQB, {
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    table: accountCC,
+  });
+
+  await createLiveQueryTriggerAndProcedure(database.userQB, {
+    tables: [accountCC],
+    PONDER_CHECKPOINT: getPonderCheckpointTable("viewCc"),
+  });
+
+  await revert(database.userQB, {
+    tables: [accountCC],
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    preBuild: { ordering: "multichain" },
+  });
+  await finalize(database.userQB, {
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    tables: [accountCC],
+    preBuild: { ordering: "multichain" },
+    namespaceBuild: { schema: "public", viewsSchema: "viewCc" },
+  });
+  await crashRecovery(database.userQB, {
+    table: accountCC,
+  });
+
+  await dropTriggers(database.userQB, { tables: [accountCC] });
 
   await context.common.shutdown.kill();
 });
