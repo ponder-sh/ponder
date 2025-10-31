@@ -577,10 +577,8 @@ export const decodeEvents = (
             topics: JSON.stringify(event.log?.topics),
           });
         }
-        break;
+        continue;
       }
-
-      // const chain =
 
       events.push({
         type: "log",
@@ -597,7 +595,6 @@ export const decodeEvents = (
           transactionReceipt: event.transactionReceipt as TransactionReceipt,
         },
       });
-      break;
     } else if (
       eventCallback.type === "contract" &&
       eventCallback.filter.type === "trace"
@@ -635,7 +632,7 @@ export const decodeEvents = (
             output: event.trace?.output,
           });
         }
-        break;
+        continue;
       }
 
       events.push({
@@ -654,8 +651,6 @@ export const decodeEvents = (
           transactionReceipt: event.transactionReceipt as TransactionReceipt,
         },
       });
-
-      break;
     } else if (
       eventCallback.type === "account" &&
       eventCallback.filter.type === "transaction"
