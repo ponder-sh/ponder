@@ -239,13 +239,10 @@ export async function getCachedIntervals(params: {
 }
 
 /**
- * Returns the intervals that need to be synced to complete the `interval`
- * for all `sources`.
+ * Returns the intervals that need to be synced to complete the `interval`.
  *
- *
- * @param params.sources - The sources to sync.
  * @param params.interval - The interval to sync.
- * @param params.cachedIntervals - The cached intervals for the sources.
+ * @param params.cachedIntervals - The cached intervals for the filters.
  * @returns The intervals that need to be synced.
  */
 export const getRequiredIntervals = (params: {
@@ -254,7 +251,17 @@ export const getRequiredIntervals = (params: {
 }): Interval[] => {
   return Array.from(params.cachedIntervals.entries()).flatMap(
     ([filter, fragmentIntervals]) => {
-      const filterIntervals = getFilterIntervals(filter);
+      const filterIntervals = intervalIntersection(
+        [params.interval],
+        intervalUnion(getFilterIntervals(filter)),
+      );
+
+      const missingIntervals = intervalDifference(
+        filterIntervals,
+        intervalIntersectionMany(
+          fragmentIntervals.map(({ intervals }) => intervals),
+        ),
+      );
 
       let hasFactory = false;
       switch (filter.type) {
@@ -276,16 +283,6 @@ export const getRequiredIntervals = (params: {
       }
 
       if (hasFactory) {
-        const missingIntervals = intervalDifference(
-          intervalIntersection(
-            [params.interval],
-            intervalUnion(filterIntervals),
-          ),
-          intervalIntersectionMany(
-            fragmentIntervals.map(({ intervals }) => intervals),
-          ),
-        );
-
         if (missingIntervals.length === 0) {
           return missingIntervals;
         }
@@ -301,25 +298,20 @@ export const getRequiredIntervals = (params: {
         ] satisfies Interval[];
       }
 
-      return intervalDifference(
-        intervalIntersection([params.interval], intervalUnion(filterIntervals)),
-        intervalIntersectionMany(
-          fragmentIntervals.map(({ intervals }) => intervals),
-        ),
-      );
+      return missingIntervals;
     },
   );
 };
 
 /**
  * Returns the intervals that need to be synced to complete the `interval`
- * for all `sources`.
+ * for all `filters`.
  *
  * Note: This function dynamically builds filters using `recoverFilter`.
  * Fragments are used to create a minimal filter, to avoid refetching data
  * even if a filter is only partially synced.
  *
- * @param params.sources - The sources to sync.
+ * @param params.filters - The filters to sync.
  * @param params.interval - The interval to sync.
  * @param params.cachedIntervals - The cached intervals for the sources.
  * @returns The intervals that need to be synced.
@@ -336,14 +328,11 @@ export const getRequiredIntervalsWithFilters = (params: {
   // is only partially synced.
 
   for (const filter of params.filters) {
-    const filterInterval = [
-      Math.max(getFilterFromBlock(filter), params.interval[0]),
-      Math.min(getFilterToBlock(filter), params.interval[1]),
-    ] satisfies Interval;
-
-    if (filterInterval[0] > filterInterval[1]) {
-      continue;
-    }
+    const fragmentIntervals = params.cachedIntervals.get(filter)!;
+    const filterIntervals = intervalIntersection(
+      [params.interval],
+      intervalUnion(getFilterIntervals(filter)),
+    );
 
     let hasFactory = false;
     switch (filter.type) {
@@ -364,27 +353,26 @@ export const getRequiredIntervalsWithFilters = (params: {
         break;
     }
 
-    const completedIntervals = params.cachedIntervals.get(filter)!;
-    const _requiredIntervals: {
+    const requiredFragmentIntervals: {
       fragment: Fragment;
       intervals: Interval[];
     }[] = [];
 
     for (const {
       fragment,
-      intervals: fragmentIntervals,
-    } of completedIntervals) {
-      const requiredFragmentIntervals = intervalDifference(
-        [filterInterval],
-        fragmentIntervals,
+      intervals: _fragmentIntervals,
+    } of fragmentIntervals) {
+      const missingFragmentIntervals = intervalDifference(
+        filterIntervals,
+        _fragmentIntervals,
       );
 
-      if (requiredFragmentIntervals.length === 0) continue;
+      if (missingFragmentIntervals.length === 0) continue;
       if (hasFactory) {
         // Note: When a filter with a factory is missing blocks,
         // all blocks after the first missing block are also missing.
-        const firstMissingBlock = requiredFragmentIntervals[0]![0];
-        _requiredIntervals.push({
+        const firstMissingBlock = missingFragmentIntervals[0]![0];
+        requiredFragmentIntervals.push({
           fragment,
           intervals: [
             [
@@ -394,21 +382,21 @@ export const getRequiredIntervalsWithFilters = (params: {
           ],
         });
       } else {
-        _requiredIntervals.push({
+        requiredFragmentIntervals.push({
           fragment,
-          intervals: requiredFragmentIntervals,
+          intervals: missingFragmentIntervals,
         });
       }
     }
 
-    if (_requiredIntervals.length > 0) {
+    if (requiredFragmentIntervals.length > 0) {
       const requiredInterval = intervalBounds(
-        _requiredIntervals.flatMap(({ intervals }) => intervals),
+        requiredFragmentIntervals.flatMap(({ intervals }) => intervals),
       );
 
       const requiredFilter = recoverFilter(
         filter,
-        _requiredIntervals.map(({ fragment }) => fragment),
+        requiredFragmentIntervals.map(({ fragment }) => fragment),
       );
 
       requiredIntervals.push({
@@ -430,8 +418,8 @@ export const getCachedBlock = ({
   cachedIntervals: CachedIntervals;
 }): number | undefined => {
   const latestCompletedBlocks = filters.map((filter) => {
-    const filterIntervals = getFilterIntervals(filter);
     const fragmentIntervals = cachedIntervals.get(filter)!;
+    const filterIntervals = getFilterIntervals(filter);
 
     const missingIntervals = intervalDifference(
       filterIntervals,
