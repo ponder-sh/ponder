@@ -77,6 +77,15 @@ export class NotNullConstraintError extends NonRetryableUserError {
   }
 }
 
+export class InvalidStoreAccessError extends NonRetryableUserError {
+  override name = "InvalidStoreAccessError";
+
+  constructor(message?: string | undefined) {
+    super(message);
+    Object.setPrototypeOf(this, InvalidStoreAccessError.prototype);
+  }
+}
+
 export class RecordNotFoundError extends NonRetryableUserError {
   override name = "RecordNotFoundError";
 
@@ -200,3 +209,20 @@ export class RpcProviderError extends BaseError {
     Object.setPrototypeOf(this, RpcProviderError.prototype);
   }
 }
+
+export const nonRetryableUserErrorNames = [
+  ShutdownError,
+  BuildError,
+  MigrationError,
+  UniqueConstraintError,
+  NotNullConstraintError,
+  InvalidStoreAccessError,
+  RecordNotFoundError,
+  CheckConstraintError,
+  InvalidStoreMethodError,
+  UndefinedTableError,
+  BigIntSerializationError,
+  DelayedInsertError,
+  RawSqlError,
+  IndexingFunctionError,
+].map((err) => err.name);

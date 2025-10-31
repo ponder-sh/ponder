@@ -19,7 +19,9 @@ import { createServer } from "@/server/index.js";
 import { createUi } from "@/ui/index.js";
 import { createQueue } from "@/utils/queue.js";
 import type { Result } from "@/utils/result.js";
+import { isolatedController } from "../isolatedController.js";
 import type { CliOptions } from "../ponder.js";
+import { runCodegen } from "../utils/codegen.js";
 import { createExit } from "../utils/exit.js";
 
 export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
@@ -72,6 +74,8 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       1,
     );
   }
+
+  runCodegen({ common });
 
   const build = await createBuild({ common, cliOptions });
 
@@ -174,7 +178,10 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           return;
         }
 
-        const compileSchemaResult = build.compileSchema(schemaResult.result);
+        const compileSchemaResult = build.compileSchema({
+          ...schemaResult.result,
+          preBuild: preCompileResult.result,
+        });
 
         if (compileSchemaResult.status === "error") {
           common.logger.error({
@@ -344,26 +351,41 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           schemaBuild: compileSchemaResult.result,
         });
 
-        if (preCompileResult.result.ordering === "omnichain") {
-          runOmnichain({
-            common,
-            database,
-            preBuild: preCompileResult.result,
-            namespaceBuild: { schema, viewsSchema: undefined },
-            schemaBuild: compileSchemaResult.result,
-            indexingBuild: indexingBuildResult.result,
-            crashRecoveryCheckpoint,
-          });
-        } else {
-          runMultichain({
-            common,
-            database,
-            preBuild: preCompileResult.result,
-            namespaceBuild: { schema, viewsSchema: undefined },
-            schemaBuild: compileSchemaResult.result,
-            indexingBuild: indexingBuildResult.result,
-            crashRecoveryCheckpoint,
-          });
+        switch (preCompileResult.result.ordering) {
+          case "omnichain":
+            runOmnichain({
+              common,
+              database,
+              preBuild: preCompileResult.result,
+              namespaceBuild: { schema, viewsSchema: undefined },
+              schemaBuild: compileSchemaResult.result,
+              indexingBuild: indexingBuildResult.result,
+              crashRecoveryCheckpoint,
+            });
+            break;
+          case "multichain":
+            runMultichain({
+              common,
+              database,
+              preBuild: preCompileResult.result,
+              namespaceBuild: { schema, viewsSchema: undefined },
+              schemaBuild: compileSchemaResult.result,
+              indexingBuild: indexingBuildResult.result,
+              crashRecoveryCheckpoint,
+            });
+            break;
+          case "experimental_isolated": {
+            isolatedController({
+              common,
+              database,
+              preBuild: preCompileResult.result,
+              namespaceBuild: { schema, viewsSchema: undefined },
+              schemaBuild: compileSchemaResult.result,
+              indexingBuild: indexingBuildResult.result,
+              crashRecoveryCheckpoint,
+            });
+            break;
+          }
         }
       } else {
         metrics.resetApiMetrics();

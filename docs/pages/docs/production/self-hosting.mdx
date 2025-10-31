@@ -85,6 +85,12 @@ If a Ponder app running `ponder start` crashes and restarts using the same datab
 
 ## Advanced
 
+### Resource Usage
+
+Ponder dynamically adjusts it's memory usage based on availability. To adjust the memory limit, set the `--max-old-space-size` flag for Node.js. [Read more](https://nodejs.org/api/cli.html#--max-old-space-sizesize-in-mib).
+
+When using `ordering: "experimental_isolated"`, Ponder will use up to 4 CPU cores to index blocks in parallel. 
+
 ### Scale the HTTP server
 
 If a `ponder start` instance receives a large volume of HTTP traffic (e.g. GraphQL requests), the HTTP server will contend with the indexing engine for CPU and memory resources. This can lead to degraded indexing performance and might ultimately crash the instance.
