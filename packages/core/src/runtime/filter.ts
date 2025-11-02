@@ -349,6 +349,40 @@ export const isBlockFilterMatched = ({
   return (Number(block.number) - filter.offset) % filter.interval === 0;
 };
 
+/**
+ * Group together log filters that are superadditive (combining the constraints
+ * results in a larger set than applying each individually).
+ */
+export const groupLikeLogFilters = (filters: LogFilter[]): LogFilter[][] => {
+  const constraintMap = new Map<string, LogFilter[]>();
+
+  // Filters can't be grouped if they don't have constraints
+  // on the same field.
+
+  for (const filter of filters) {
+    const hasAddress = filter.address !== undefined;
+    const hasTopic0 = filter.topic0 !== undefined;
+    const hasTopic1 = filter.topic1 !== undefined;
+    const hasTopic2 = filter.topic2 !== undefined;
+    const hasTopic3 = filter.topic3 !== undefined;
+
+    const constraintKey = [
+      hasAddress,
+      hasTopic0,
+      hasTopic1,
+      hasTopic2,
+      hasTopic3,
+    ].join("_");
+
+    if (constraintMap.has(constraintKey) === false) {
+      constraintMap.set(constraintKey, []);
+    }
+    constraintMap.get(constraintKey)!.push(filter);
+  }
+
+  return Array.from(constraintMap.values());
+};
+
 export const defaultBlockInclude: (keyof Block)[] = [
   "baseFeePerGas",
   "difficulty",
