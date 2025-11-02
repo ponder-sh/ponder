@@ -16,7 +16,6 @@ import {
   getLogsRetryHelper,
 } from "@ponder/utils";
 import {
-  http,
   BlockNotFoundError,
   type EIP1193Parameters,
   type EIP1193RequestFn,
@@ -30,12 +29,14 @@ import {
   type RpcError,
   type RpcTransactionReceipt,
   TimeoutError,
+  custom,
   hexToNumber,
   isHex,
   webSocket,
 } from "viem";
 import { WebSocket } from "ws";
 import type { DebugRpcSchema } from "../utils/debug.js";
+import { getHttpRpcClient } from "./simpleHttp.js";
 
 export type RpcSchema = [
   ...PublicRpcSchema,
@@ -180,9 +181,14 @@ export const createRpc = ({
     const protocol = new url.URL(chain.rpc).protocol;
     const hostname = new url.URL(chain.rpc).hostname;
     if (protocol === "https:" || protocol === "http:") {
+      const httpRpcClient = getHttpRpcClient(chain.rpc);
       backends = [
         {
-          request: http(chain.rpc)({
+          request: custom({
+            request(body) {
+              return httpRpcClient.request({ body });
+            },
+          })({
             chain: chain.viemChain,
             retryCount: 0,
             timeout: 10_000,
@@ -210,8 +216,13 @@ export const createRpc = ({
       const hostname = new url.URL(chain.rpc).hostname;
 
       if (protocol === "https:" || protocol === "http:") {
+        const httpRpcClient = getHttpRpcClient(rpc);
         return {
-          request: http(rpc)({
+          request: custom({
+            request(body) {
+              return httpRpcClient.request(body);
+            },
+          })({
             chain: chain.viemChain,
             retryCount: 0,
             timeout: 10_000,
