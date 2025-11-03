@@ -50,7 +50,6 @@ export function getHttpRpcClient(common: Common, url: string): HttpRpcClient {
         };
         const request = new Request(url, init);
         const response = await fetch(request);
-        clearTimeout(timeoutId);
 
         const parseTimeoutId = setTimeout(() => {
           common.logger.warn({
@@ -94,6 +93,7 @@ export function getHttpRpcClient(common: Common, url: string): HttpRpcClient {
           });
         }
 
+        clearTimeout(timeoutId);
         return data.result;
       } catch (_error) {
         const error = _error as Error;
