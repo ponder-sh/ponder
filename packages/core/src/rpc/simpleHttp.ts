@@ -19,92 +19,104 @@ export type HttpRpcClient = {
   ): Promise<HttpRequestReturnType<body>>;
 };
 
-export function getHttpRpcClient(common: Common, url: string): HttpRpcClient {
+export function getHttpRpcClient(_common: Common, url: string): HttpRpcClient {
   let id = 1;
   return {
     async request(params) {
-      const { body } = params;
+      // biome-ignore lint/suspicious/noAsyncPromiseExecutor: <explanation>
+      return new Promise(async (resolve, reject) => {
+        const { body } = params;
 
-      const fetchOptions = {
-        ...(params.fetchOptions ?? {}),
-      };
-
-      const { headers, method } = fetchOptions;
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10_000);
-
-      try {
-        const init: RequestInit = {
-          body: stringify({
-            jsonrpc: "2.0",
-            id: body.id ?? id++,
-            ...body,
-          }),
-          headers: {
-            "Content-Type": "application/json",
-            ...headers,
-          },
-          method: method || "POST",
-          signal: controller.signal,
+        const fetchOptions = {
+          ...(params.fetchOptions ?? {}),
         };
-        const request = new Request(url, init);
-        const response = await fetch(request);
 
-        const parseTimeoutId = setTimeout(() => {
-          common.logger.warn({
-            msg: "JSON-RPC response parsing is taking longer than expected",
-            url,
-            method: body.method,
-            duration: 5_000,
-          });
-        }, 5_000);
+        const { headers, method } = fetchOptions;
 
-        let data: any;
-        if (
-          response.headers.get("Content-Type")?.startsWith("application/json")
-        ) {
+        let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          controller.abort();
+
+          reader?.releaseLock();
+          reader?.cancel("Timeout");
+          reject(new TimeoutError({ body, url }));
+        }, 10_000);
+
+        try {
+          const init: RequestInit = {
+            body: stringify({
+              jsonrpc: "2.0",
+              id: body.id ?? id++,
+              ...body,
+            }),
+            headers: {
+              "Content-Type": "application/json",
+              ...headers,
+            },
+            method: method || "POST",
+            signal: controller.signal,
+          };
+          const request = new Request(url, init);
+          const response = await fetch(request);
+
+          reader = response.body?.getReader()!;
+          const chunks: Uint8Array[] = [];
+
           try {
-            data = await response.json();
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              chunks.push(value);
+            }
           } finally {
-            clearTimeout(parseTimeoutId);
+            reader.releaseLock();
           }
-        } else {
-          try {
-            data = await response.text();
-          } finally {
-            clearTimeout(parseTimeoutId);
+
+          const totalLength = chunks.reduce(
+            (sum, chunk) => sum + chunk.length,
+            0,
+          );
+          let offset = 0;
+          const fullData = new Uint8Array(totalLength);
+          for (const chunk of chunks) {
+            fullData.set(chunk, offset);
+            offset += chunk.length;
           }
+
+          const text = new TextDecoder().decode(fullData);
+
+          let data: any = text;
           try {
             data = JSON.parse(data || "{}");
           } catch (err) {
             if (response.ok) throw err;
             data = { error: data };
           }
-        }
 
-        if (!response.ok) {
-          throw new HttpRequestError({
-            body,
-            details: stringify(data.error) || response.statusText,
-            headers: response.headers,
-            status: response.status,
-            url,
-          });
-        }
+          if (!response.ok) {
+            throw new HttpRequestError({
+              body,
+              details: stringify(data.error) || response.statusText,
+              headers: response.headers,
+              status: response.status,
+              url,
+            });
+          }
 
-        clearTimeout(timeoutId);
-        return data.result;
-      } catch (_error) {
-        const error = _error as Error;
-        clearTimeout(timeoutId);
+          clearTimeout(timeoutId);
+          resolve(data.result);
+        } catch (_error) {
+          const error = _error as Error;
+          clearTimeout(timeoutId);
 
-        if (error.name === "AbortError") {
-          throw new TimeoutError({ body, url });
+          if (error.name === "AbortError") {
+            reject(new TimeoutError({ body, url }));
+          }
+          if (error instanceof HttpRequestError) reject(error);
+          reject(new HttpRequestError({ body, cause: error, url }));
         }
-        if (error instanceof HttpRequestError) throw error;
-        throw new HttpRequestError({ body, cause: error, url });
-      }
+      });
     },
   };
 }

@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+import crypto, { type UUID } from "node:crypto";
 import url from "node:url";
 import type { Common } from "@/internal/common.js";
 import type { Logger } from "@/internal/logger.js";
@@ -177,6 +177,8 @@ export const createRpc = ({
 }: { common: Common; chain: Chain; concurrency?: number }): Rpc => {
   let backends: { request: EIP1193RequestFn<RpcSchema>; hostname: string }[];
 
+  let requestId: UUID | undefined;
+
   if (typeof chain.rpc === "string") {
     const protocol = new url.URL(chain.rpc).protocol;
     const hostname = new url.URL(chain.rpc).hostname;
@@ -186,6 +188,12 @@ export const createRpc = ({
         {
           request: custom({
             request(body) {
+              if (requestId) {
+                return httpRpcClient.request({
+                  body,
+                  fetchOptions: { headers: { "X-request-id": requestId } },
+                });
+              }
               return httpRpcClient.request({ body });
             },
           })({
@@ -220,7 +228,7 @@ export const createRpc = ({
         return {
           request: custom({
             request(body) {
-              return httpRpcClient.request(body);
+              return httpRpcClient.request({ body });
             },
           })({
             chain: chain.viemChain,
@@ -444,7 +452,7 @@ export const createRpc = ({
         clearTimeout(t);
         const getBucketDuration = endClock();
         endClock = startClock();
-        const id = crypto.randomUUID().slice(0, 8);
+        const id = crypto.randomUUID();
 
         const surpassTimeout = setTimeout(() => {
           logger.warn({
@@ -480,6 +488,7 @@ export const createRpc = ({
             bucket.rps[bucket.rps.length - 1]!.count++;
           }
 
+          requestId = id;
           const response = await bucket.request(body);
 
           if (response === undefined) {
