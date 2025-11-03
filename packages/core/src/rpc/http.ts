@@ -36,6 +36,7 @@ export function getHttpRpcClient(url: string): HttpRpcClient {
         let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
         const controller = new AbortController();
         const timeoutId = setTimeout(async () => {
+          isTimeoutRejected = true;
           controller.abort();
 
           if (reader) {
@@ -43,7 +44,6 @@ export function getHttpRpcClient(url: string): HttpRpcClient {
               await reader.cancel("Timeout");
             } catch {}
           }
-          isTimeoutRejected = true;
           reject(new TimeoutError({ body, url }));
         }, 10_000);
 
