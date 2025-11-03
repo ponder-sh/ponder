@@ -4,6 +4,8 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { createLiveQueryTriggerAndProcedure } from "@/database/actions.js";
+import { getPonderCheckpointTable } from "@/database/index.js";
 import { bigint, hex, onchainTable } from "@/drizzle/onchain.js";
 import type { QueryWithTypings } from "drizzle-orm";
 import { pgSchema } from "drizzle-orm/pg-core";
@@ -259,6 +261,8 @@ test("client.db cache", async (context) => {
     schemaBuild: { schema: { account } },
   });
 
+  const PONDER_CHECKPOINT = getPonderCheckpointTable();
+
   globalThis.PONDER_DATABASE = database;
 
   const app = new Hono().use(
@@ -267,6 +271,12 @@ test("client.db cache", async (context) => {
       schema: { account },
     }),
   );
+
+  await createLiveQueryTriggerAndProcedure(database.userQB, {
+    tables: [account],
+    PONDER_CHECKPOINT,
+  });
+  await database.userQB.wrap((db) => db.delete(PONDER_CHECKPOINT));
 
   const transactionSpy = vi.spyOn(database.readonlyQB.raw, "transaction");
 

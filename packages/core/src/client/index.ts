@@ -89,42 +89,11 @@ export const client = ({
 
   const cache = new Map<QueryString, WeakRef<Promise<unknown>>>();
   const perQueryReferences = new Map<QueryString, Set<string>>();
-  const perTableQueries = new Map<string, Map<QueryString, number>>();
-
-  const registry = new FinalizationRegistry<string>((queryString) => {
-    const referencedTables = perQueryReferences.get(queryString);
-
-    cache.delete(queryString);
-    perQueryReferences.delete(queryString);
-
-    if (referencedTables === undefined) return;
-
-    for (const table of referencedTables) {
-      const count = perTableQueries.get(table)!.get(queryString);
-      if (count === undefined) continue;
-
-      if (count === 1) {
-        perTableQueries.get(table)!.delete(queryString);
-      } else {
-        perTableQueries.get(table)!.set(queryString, count - 1);
-      }
-    }
-  });
+  // TODO(kyle) when cache get deleted, delete query from `perQueryReferences`
 
   for (const table of tableNames) {
     perTableResolver.set(table, promiseWithResolvers<void>());
-    perTableQueries.set(table, new Map());
   }
-
-  setInterval(() => {
-    console.log({
-      perTableQueries: Array.from(tableNames).map(
-        (table) => perTableQueries.get(table)?.size,
-      ),
-      cache: cache.size,
-      references: perQueryReferences.size,
-    });
-  }, 1000);
 
   const parseViewPromise = (async () => {
     const unresolvedViewRelations = new Map<string, Set<string>>();
@@ -195,36 +164,34 @@ export const client = ({
 
       if (table === "_ponder_checkpoint") {
         isLive = true;
+        let invalidQueryCount = 0;
 
-        for (const table of liveQueryUpdatedTables) {
-          for (const [queryString] of perTableQueries.get(table)!) {
-            const promise = cache.get(queryString)?.deref();
-            if (promise) registry.unregister(promise);
-            cache.delete(queryString);
-            perQueryReferences.delete(queryString);
-
-            const count = perTableQueries.get(table)!.get(queryString)!;
-            if (count === 1) {
-              perTableQueries.get(table)!.delete(queryString);
-            } else {
-              perTableQueries.get(table)!.set(queryString, count - 1);
+        for (const [queryString, referencedTables] of perQueryReferences) {
+          let isQueryInvalid = false;
+          for (const table of liveQueryUpdatedTables) {
+            if (referencedTables.has(table)) {
+              isQueryInvalid = true;
+              break;
             }
           }
 
+          if (isQueryInvalid) {
+            invalidQueryCount++;
+            cache.delete(queryString);
+            perQueryReferences.delete(queryString);
+          }
+        }
+
+        for (const table of liveQueryUpdatedTables) {
           perTableResolver.get(table)!.resolve();
           perTableResolver.set(table, promiseWithResolvers<void>());
         }
 
-        if (liveQueryUpdatedTables.size > 0) {
-          let queryCount = 0;
-          for (const table of liveQueryUpdatedTables) {
-            queryCount += perTableQueries.get(table)!.size;
-          }
-
+        if (invalidQueryCount > 0) {
           globalThis.PONDER_COMMON.logger.debug({
             msg: "Updated live queries",
             tables: JSON.stringify(Array.from(liveQueryUpdatedTables)),
-            query_count: queryCount,
+            query_count: invalidQueryCount,
           });
         }
 
@@ -271,20 +238,24 @@ export const client = ({
 
               if (table === "_ponder_checkpoint") {
                 isLive = true;
+                let invalidQueryCount = 0;
 
-                for (const table of liveQueryUpdatedTables) {
-                  for (const [queryString] of perTableQueries.get(table)!) {
-                    const promise = cache.get(queryString)?.deref();
-                    if (promise) registry.unregister(promise);
+                for (const [
+                  queryString,
+                  referencedTables,
+                ] of perQueryReferences) {
+                  let isQueryInvalid = false;
+                  for (const table of liveQueryUpdatedTables) {
+                    if (referencedTables.has(table)) {
+                      isQueryInvalid = true;
+                      break;
+                    }
+                  }
+
+                  if (isQueryInvalid) {
+                    invalidQueryCount++;
                     cache.delete(queryString);
                     perQueryReferences.delete(queryString);
-
-                    const count = perTableQueries.get(table)!.get(queryString)!;
-                    if (count === 1) {
-                      perTableQueries.get(table)!.delete(queryString);
-                    } else {
-                      perTableQueries.get(table)!.set(queryString, count - 1);
-                    }
                   }
                 }
 
@@ -293,16 +264,11 @@ export const client = ({
                   perTableResolver.set(table, promiseWithResolvers<void>());
                 }
 
-                if (liveQueryUpdatedTables.size > 0) {
-                  let queryCount = 0;
-                  for (const table of liveQueryUpdatedTables) {
-                    queryCount += perTableQueries.get(table)!.size;
-                  }
-
+                if (invalidQueryCount > 0) {
                   globalThis.PONDER_COMMON.logger.debug({
                     msg: "Updated live queries",
                     tables: JSON.stringify(Array.from(liveQueryUpdatedTables)),
-                    query_count: queryCount,
+                    query_count: invalidQueryCount,
                   });
                 }
 
@@ -396,15 +362,6 @@ export const client = ({
         }
       }
 
-      for (const tableName of referencedTables) {
-        if (perTableQueries.get(tableName)!.has(queryString)) {
-          const count = perTableQueries.get(tableName)!.get(queryString)!;
-          perTableQueries.get(tableName)!.set(queryString, count + 1);
-        } else {
-          perTableQueries.get(tableName)!.set(queryString, 1);
-        }
-      }
-
       let resultPromise: Promise<unknown>;
 
       if (isLive === false) {
@@ -416,7 +373,6 @@ export const client = ({
           cache.delete(queryString);
           resultPromise = getQueryResult(query);
           cache.set(queryString, new WeakRef(resultPromise));
-          registry.register(resultPromise, queryString);
           perQueryReferences.set(queryString, referencedTables);
         } else {
           resultPromise = resultRef;
@@ -424,7 +380,6 @@ export const client = ({
       } else {
         resultPromise = getQueryResult(query);
         cache.set(queryString, new WeakRef(resultPromise));
-        registry.register(resultPromise, queryString);
         perQueryReferences.set(queryString, referencedTables);
       }
 
@@ -479,15 +434,6 @@ export const client = ({
         }
       }
 
-      for (const tableName of referencedTables) {
-        if (perTableQueries.get(tableName)!.has(queryString)) {
-          const count = perTableQueries.get(tableName)!.get(queryString)!;
-          perTableQueries.get(tableName)!.set(queryString, count + 1);
-        } else {
-          perTableQueries.get(tableName)!.set(queryString, 1);
-        }
-      }
-
       let result: QueryResult;
       if (cache.has(queryString)) {
         const resultRef = cache.get(queryString)!.deref();
@@ -496,7 +442,6 @@ export const client = ({
           cache.delete(queryString);
           const resultPromise = getQueryResult(query);
           cache.set(queryString, new WeakRef(resultPromise));
-          registry.register(resultPromise, queryString);
           perQueryReferences.set(queryString, referencedTables);
           result = await resultPromise;
         } else {
@@ -505,7 +450,6 @@ export const client = ({
       } else {
         const resultPromise = getQueryResult(query);
         cache.set(queryString, new WeakRef(resultPromise));
-        registry.register(resultPromise, queryString);
         perQueryReferences.set(queryString, referencedTables);
         result = await resultPromise;
       }
@@ -520,15 +464,6 @@ export const client = ({
       return streamSSE(c, async (stream) => {
         stream.onAbort(() => {
           liveQueryCount--;
-
-          for (const table of referencedTables) {
-            const count = perTableQueries.get(table)!.get(queryString)!;
-            if (count === 1) {
-              perTableQueries.get(table)!.delete(queryString);
-            } else {
-              perTableQueries.get(table)!.set(queryString, count - 1);
-            }
-          }
         });
 
         await stream.writeSSE({ data: JSON.stringify(result) });
@@ -549,7 +484,6 @@ export const client = ({
                 cache.delete(queryString);
                 resultPromise = getQueryResult(query);
                 cache.set(queryString, new WeakRef(resultPromise));
-                registry.register(resultPromise, queryString);
                 perQueryReferences.set(queryString, referencedTables);
               } else {
                 resultPromise = resultRef;
@@ -557,7 +491,6 @@ export const client = ({
             } else {
               resultPromise = getQueryResult(query);
               cache.set(queryString, new WeakRef(resultPromise));
-              registry.register(resultPromise, queryString);
               perQueryReferences.set(queryString, referencedTables);
             }
 
