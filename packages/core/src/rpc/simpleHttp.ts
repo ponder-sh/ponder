@@ -1,3 +1,4 @@
+import type { Common } from "@/internal/common.js";
 import { HttpRequestError, TimeoutError } from "viem";
 import {
   type HttpRequestParameters,
@@ -18,7 +19,7 @@ export type HttpRpcClient = {
   ): Promise<HttpRequestReturnType<body>>;
 };
 
-export function getHttpRpcClient(url: string): HttpRpcClient {
+export function getHttpRpcClient(common: Common, url: string): HttpRpcClient {
   let id = 1;
   return {
     async request(params) {
@@ -51,13 +52,30 @@ export function getHttpRpcClient(url: string): HttpRpcClient {
         const response = await fetch(request);
         clearTimeout(timeoutId);
 
+        const parseTimeoutId = setTimeout(() => {
+          common.logger.warn({
+            msg: "JSON-RPC response parsing is taking longer than expected",
+            url,
+            method: body.method,
+            duration: 5_000,
+          });
+        }, 5_000);
+
         let data: any;
         if (
           response.headers.get("Content-Type")?.startsWith("application/json")
-        )
-          data = await response.json();
-        else {
-          data = await response.text();
+        ) {
+          try {
+            data = await response.json();
+          } finally {
+            clearTimeout(parseTimeoutId);
+          }
+        } else {
+          try {
+            data = await response.text();
+          } finally {
+            clearTimeout(parseTimeoutId);
+          }
           try {
             data = JSON.parse(data || "{}");
           } catch (err) {
