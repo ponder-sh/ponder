@@ -36,7 +36,7 @@ import {
 } from "viem";
 import { WebSocket } from "ws";
 import type { DebugRpcSchema } from "../utils/debug.js";
-import { getHttpRpcClient } from "./simpleHttp.js";
+import { getHttpRpcClient } from "./http.js";
 
 export type RpcSchema = [
   ...PublicRpcSchema,
@@ -183,7 +183,7 @@ export const createRpc = ({
     const protocol = new url.URL(chain.rpc).protocol;
     const hostname = new url.URL(chain.rpc).hostname;
     if (protocol === "https:" || protocol === "http:") {
-      const httpRpcClient = getHttpRpcClient(common, chain.rpc, chain);
+      const httpRpcClient = getHttpRpcClient(chain.rpc);
       backends = [
         {
           request: custom({
@@ -224,10 +224,16 @@ export const createRpc = ({
       const hostname = new url.URL(chain.rpc).hostname;
 
       if (protocol === "https:" || protocol === "http:") {
-        const httpRpcClient = getHttpRpcClient(common, rpc, chain);
+        const httpRpcClient = getHttpRpcClient(rpc);
         return {
           request: custom({
             request(body) {
+              if (requestId) {
+                return httpRpcClient.request({
+                  body,
+                  fetchOptions: { headers: { "X-request-id": requestId } },
+                });
+              }
               return httpRpcClient.request({ body });
             },
           })({

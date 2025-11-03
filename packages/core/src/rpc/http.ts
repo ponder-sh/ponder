@@ -1,5 +1,3 @@
-import type { Common } from "@/internal/common.js";
-import type { Chain } from "@/internal/types.js";
 import { HttpRequestError, TimeoutError } from "viem";
 import {
   type HttpRequestParameters,
@@ -20,11 +18,7 @@ export type HttpRpcClient = {
   ): Promise<HttpRequestReturnType<body>>;
 };
 
-export function getHttpRpcClient(
-  common: Common,
-  url: string,
-  chain: Chain,
-): HttpRpcClient {
+export function getHttpRpcClient(url: string): HttpRpcClient {
   let id = 1;
   return {
     async request(params) {
@@ -45,15 +39,6 @@ export function getHttpRpcClient(
           controller.abort();
 
           if (reader) {
-            common.logger.warn({
-              msg: "JSON-RPC response body reading timed out",
-              chain: chain.name,
-              chain_id: chain.id,
-              // @ts-ignore
-              request_id: headers["X-request-id"],
-              duration: 10_000,
-            });
-
             try {
               await reader.cancel("Timeout");
             } catch {}
