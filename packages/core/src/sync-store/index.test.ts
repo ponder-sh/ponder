@@ -55,6 +55,7 @@ test("getIntervals() empty", async (context) => {
         "include": [],
         "interval": 1,
         "offset": 0,
+        "sourceId": "test",
         "toBlock": undefined,
         "type": "block",
       } => [
@@ -100,6 +101,7 @@ test("getIntervals() returns intervals", async (context) => {
         "include": [],
         "interval": 1,
         "offset": 0,
+        "sourceId": "test",
         "toBlock": undefined,
         "type": "block",
       } => [
@@ -159,6 +161,7 @@ test("getIntervals() merges intervals", async (context) => {
         "include": [],
         "interval": 1,
         "offset": 0,
+        "sourceId": "test",
         "toBlock": undefined,
         "type": "block",
       } => [
@@ -223,6 +226,7 @@ test("getIntervals() adjacent intervals", async (context) => {
         "fromBlock": undefined,
         "hasTransactionReceipt": false,
         "include": [],
+        "sourceId": "test",
         "toBlock": undefined,
         "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "topic1": null,
@@ -295,6 +299,7 @@ test("insertIntervals() merges duplicates", async (context) => {
         "include": [],
         "interval": 1,
         "offset": 0,
+        "sourceId": "test",
         "toBlock": undefined,
         "type": "block",
       } => [
@@ -350,6 +355,7 @@ test("insertIntervals() preserves fragments", async (context) => {
         "fromBlock": undefined,
         "hasTransactionReceipt": false,
         "include": [],
+        "sourceId": "test",
         "toBlock": undefined,
         "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "topic1": null,
