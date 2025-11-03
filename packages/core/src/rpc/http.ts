@@ -18,7 +18,10 @@ export type HttpRpcClient = {
   ): Promise<HttpRequestReturnType<body>>;
 };
 
-export function getHttpRpcClient(url: string): HttpRpcClient {
+export function getHttpRpcClient(
+  url: string,
+  timeoutMillis = 10_000,
+): HttpRpcClient {
   let id = 1;
   return {
     async request(params) {
@@ -45,7 +48,7 @@ export function getHttpRpcClient(url: string): HttpRpcClient {
             } catch {}
           }
           reject(new TimeoutError({ body, url }));
-        }, 10_000);
+        }, timeoutMillis);
 
         try {
           const init: RequestInit = {
