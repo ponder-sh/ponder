@@ -107,6 +107,7 @@ export const getErc20IndexingBuild = <
           filter: {
             type: "trace",
             chainId: 1,
+            sourceId: "Erc20",
             fromAddress: undefined,
             toAddress: toLowerCase(params.address),
             callType: "CALL",
@@ -139,6 +140,7 @@ export const getErc20IndexingBuild = <
           filter: {
             type: "log",
             chainId: 1,
+            sourceId: "Erc20",
             address: toLowerCase(params.address),
             topic0: toEventSelector(
               getAbiItem({ abi: erc20ABI, name: "Transfer" }),
@@ -174,6 +176,7 @@ export const getErc20IndexingBuild = <
           filter: {
             type: "log",
             chainId: 1,
+            sourceId: "Erc20",
             address: toLowerCase(params.address),
             topic0: toEventSelector(
               getAbiItem({ abi: erc20ABI, name: "Transfer" }),
@@ -289,6 +292,7 @@ export const getPairWithFactoryIndexingBuild = <
           filter: {
             type: "trace",
             chainId: 1,
+            sourceId: "Pair",
             fromAddress: undefined,
             toAddress: pairAddress,
             callType: "CALL",
@@ -321,6 +325,7 @@ export const getPairWithFactoryIndexingBuild = <
           filter: {
             type: "log",
             chainId: 1,
+            sourceId: "Pair",
             address: pairAddress,
             topic0: toEventSelector(getAbiItem({ abi: pairABI, name: "Swap" })),
             topic1: null,
@@ -353,6 +358,7 @@ export const getPairWithFactoryIndexingBuild = <
           filter: {
             type: "log",
             chainId: 1,
+            sourceId: "Pair",
             address: pairAddress,
             topic0: toEventSelector(getAbiItem({ abi: pairABI, name: "Swap" })),
             topic1: null,
@@ -429,6 +435,7 @@ export const getBlocksIndexingBuild = (params: {
       filter: {
         type: "block",
         chainId: 1,
+        sourceId: "Blocks",
         interval: params.interval,
         offset: 0,
         fromBlock: undefined,
@@ -461,6 +468,7 @@ export const getAccountsIndexingBuild = (params: {
       filter: {
         type: "transaction",
         chainId: 1,
+        sourceId: "Accounts",
         fromAddress: undefined,
         toAddress: toLowerCase(params.address),
         includeReverted: false,
@@ -479,6 +487,7 @@ export const getAccountsIndexingBuild = (params: {
       filter: {
         type: "transaction",
         chainId: 1,
+        sourceId: "Accounts",
         fromAddress: toLowerCase(params.address),
         toAddress: undefined,
         includeReverted: false,
@@ -497,6 +506,7 @@ export const getAccountsIndexingBuild = (params: {
       filter: {
         type: "transfer",
         chainId: 1,
+        sourceId: "Accounts",
         fromAddress: undefined,
         toAddress: toLowerCase(params.address),
         includeReverted: false,
@@ -515,6 +525,7 @@ export const getAccountsIndexingBuild = (params: {
       filter: {
         type: "transfer",
         chainId: 1,
+        sourceId: "Accounts",
         fromAddress: toLowerCase(params.address),
         toAddress: undefined,
         includeReverted: false,

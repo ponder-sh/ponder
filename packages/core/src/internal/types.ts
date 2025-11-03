@@ -73,6 +73,7 @@ export type FilterAddress<
 export type BlockFilter = {
   type: "block";
   chainId: number;
+  sourceId: string;
   interval: number;
   offset: number;
   fromBlock: number | undefined;
@@ -87,6 +88,7 @@ export type TransactionFilter<
 > = {
   type: "transaction";
   chainId: number;
+  sourceId: string;
   fromAddress: FilterAddress<fromFactory>;
   toAddress: FilterAddress<toFactory>;
   includeReverted: boolean;
@@ -106,6 +108,7 @@ export type TraceFilter<
 > = {
   type: "trace";
   chainId: number;
+  sourceId: string;
   fromAddress: FilterAddress<fromFactory>;
   toAddress: FilterAddress<toFactory>;
   functionSelector: Hex;
@@ -127,6 +130,7 @@ export type LogFilter<
 > = {
   type: "log";
   chainId: number;
+  sourceId: string;
   address: FilterAddress<factory>;
   topic0: Hex;
   topic1: LogTopic;
@@ -149,6 +153,7 @@ export type TransferFilter<
 > = {
   type: "transfer";
   chainId: number;
+  sourceId: string;
   fromAddress: FilterAddress<fromFactory>;
   toAddress: FilterAddress<toFactory>;
   includeReverted: boolean;

@@ -576,6 +576,7 @@ export async function buildIndexingFunctions({
       const filter = {
         type: "log",
         chainId: chain.id,
+        sourceId: source.name,
         address,
         topic0: eventSelector,
         topic1,
@@ -633,6 +634,7 @@ export async function buildIndexingFunctions({
       const filter = {
         type: "trace",
         chainId: chain.id,
+        sourceId: source.name,
         fromAddress: undefined,
         toAddress: address,
         callType: "CALL",
@@ -744,6 +746,7 @@ export async function buildIndexingFunctions({
       {
         type: "transaction",
         chainId: chain.id,
+        sourceId: source.name,
         fromAddress: undefined,
         toAddress: address,
         includeReverted: false,
@@ -755,6 +758,7 @@ export async function buildIndexingFunctions({
       {
         type: "transaction",
         chainId: chain.id,
+        sourceId: source.name,
         fromAddress: address,
         toAddress: undefined,
         includeReverted: false,
@@ -766,6 +770,7 @@ export async function buildIndexingFunctions({
       {
         type: "transfer",
         chainId: chain.id,
+        sourceId: source.name,
         fromAddress: undefined,
         toAddress: address,
         includeReverted: false,
@@ -783,6 +788,7 @@ export async function buildIndexingFunctions({
       {
         type: "transfer",
         chainId: chain.id,
+        sourceId: source.name,
         fromAddress: address,
         toAddress: undefined,
         includeReverted: false,
@@ -871,6 +877,7 @@ export async function buildIndexingFunctions({
       const filter = {
         type: "block",
         chainId: chain.id,
+        sourceId: source.name,
         interval: interval,
         offset: (fromBlock ?? 0) % interval,
         fromBlock,
