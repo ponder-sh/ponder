@@ -77,20 +77,54 @@ export const client = ({
   const dialect: PgDialect = session.dialect;
   const driver = globalThis.PONDER_DATABASE.driver;
 
-  const cache = new Map<QueryString, WeakRef<Promise<unknown>>>();
+  const perTableResolver = new Map<string, PromiseWithResolvers<void>>();
+  const perViewTables = new Map<string, Set<string>>();
+
   /** Tables that have updated in the current transaction. */
   const liveQueryUpdatedTables = new Set<string>();
-  const perTableResolver = new Map<string, PromiseWithResolvers<void>>();
-  const perTableQueries = new Map<string, Map<QueryString, number>>();
-  const perViewTables = new Map<string, Set<string>>();
+
   /** `true` if the app is indexing live blocks. */
   let isLive = false;
   let liveQueryCount = 0;
+
+  const cache = new Map<QueryString, WeakRef<Promise<unknown>>>();
+  const perQueryReferences = new Map<QueryString, Set<string>>();
+  const perTableQueries = new Map<string, Map<QueryString, number>>();
+
+  const registry = new FinalizationRegistry<string>((queryString) => {
+    const referencedTables = perQueryReferences.get(queryString);
+
+    cache.delete(queryString);
+    perQueryReferences.delete(queryString);
+
+    if (referencedTables === undefined) return;
+
+    for (const table of referencedTables) {
+      const count = perTableQueries.get(table)!.get(queryString);
+      if (count === undefined) continue;
+
+      if (count === 1) {
+        perTableQueries.get(table)!.delete(queryString);
+      } else {
+        perTableQueries.get(table)!.set(queryString, count - 1);
+      }
+    }
+  });
 
   for (const table of tableNames) {
     perTableResolver.set(table, promiseWithResolvers<void>());
     perTableQueries.set(table, new Map());
   }
+
+  setInterval(() => {
+    console.log({
+      perTableQueries: Array.from(tableNames).map(
+        (table) => perTableQueries.get(table)?.size,
+      ),
+      cache: cache.size,
+      references: perQueryReferences.size,
+    });
+  }, 1000);
 
   const parseViewPromise = (async () => {
     const unresolvedViewRelations = new Map<string, Set<string>>();
@@ -164,7 +198,10 @@ export const client = ({
 
         for (const table of liveQueryUpdatedTables) {
           for (const [queryString] of perTableQueries.get(table)!) {
+            const promise = cache.get(queryString)?.deref();
+            if (promise) registry.unregister(promise);
             cache.delete(queryString);
+            perQueryReferences.delete(queryString);
 
             const count = perTableQueries.get(table)!.get(queryString)!;
             if (count === 1) {
@@ -237,7 +274,10 @@ export const client = ({
 
                 for (const table of liveQueryUpdatedTables) {
                   for (const [queryString] of perTableQueries.get(table)!) {
+                    const promise = cache.get(queryString)?.deref();
+                    if (promise) registry.unregister(promise);
                     cache.delete(queryString);
+                    perQueryReferences.delete(queryString);
 
                     const count = perTableQueries.get(table)!.get(queryString)!;
                     if (count === 1) {
@@ -246,7 +286,9 @@ export const client = ({
                       perTableQueries.get(table)!.set(queryString, count - 1);
                     }
                   }
+                }
 
+                for (const table of liveQueryUpdatedTables) {
                   perTableResolver.get(table)!.resolve();
                   perTableResolver.set(table, promiseWithResolvers<void>());
                 }
@@ -374,12 +416,16 @@ export const client = ({
           cache.delete(queryString);
           resultPromise = getQueryResult(query);
           cache.set(queryString, new WeakRef(resultPromise));
+          registry.register(resultPromise, queryString);
+          perQueryReferences.set(queryString, referencedTables);
         } else {
           resultPromise = resultRef;
         }
       } else {
         resultPromise = getQueryResult(query);
         cache.set(queryString, new WeakRef(resultPromise));
+        registry.register(resultPromise, queryString);
+        perQueryReferences.set(queryString, referencedTables);
       }
 
       try {
@@ -450,6 +496,8 @@ export const client = ({
           cache.delete(queryString);
           const resultPromise = getQueryResult(query);
           cache.set(queryString, new WeakRef(resultPromise));
+          registry.register(resultPromise, queryString);
+          perQueryReferences.set(queryString, referencedTables);
           result = await resultPromise;
         } else {
           result = await resultRef;
@@ -457,6 +505,8 @@ export const client = ({
       } else {
         const resultPromise = getQueryResult(query);
         cache.set(queryString, new WeakRef(resultPromise));
+        registry.register(resultPromise, queryString);
+        perQueryReferences.set(queryString, referencedTables);
         result = await resultPromise;
       }
 
@@ -499,12 +549,16 @@ export const client = ({
                 cache.delete(queryString);
                 resultPromise = getQueryResult(query);
                 cache.set(queryString, new WeakRef(resultPromise));
+                registry.register(resultPromise, queryString);
+                perQueryReferences.set(queryString, referencedTables);
               } else {
                 resultPromise = resultRef;
               }
             } else {
               resultPromise = getQueryResult(query);
               cache.set(queryString, new WeakRef(resultPromise));
+              registry.register(resultPromise, queryString);
+              perQueryReferences.set(queryString, referencedTables);
             }
 
             const result = await resultPromise;
