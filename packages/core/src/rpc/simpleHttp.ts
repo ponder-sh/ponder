@@ -1,4 +1,5 @@
 import type { Common } from "@/internal/common.js";
+import type { Chain } from "@/internal/types.js";
 import { HttpRequestError, TimeoutError } from "viem";
 import {
   type HttpRequestParameters,
@@ -19,12 +20,17 @@ export type HttpRpcClient = {
   ): Promise<HttpRequestReturnType<body>>;
 };
 
-export function getHttpRpcClient(_common: Common, url: string): HttpRpcClient {
+export function getHttpRpcClient(
+  common: Common,
+  url: string,
+  chain: Chain,
+): HttpRpcClient {
   let id = 1;
   return {
     async request(params) {
       // biome-ignore lint/suspicious/noAsyncPromiseExecutor: <explanation>
       return new Promise(async (resolve, reject) => {
+        let isTimeoutRejected = false;
         const { body } = params;
 
         const fetchOptions = {
@@ -35,11 +41,26 @@ export function getHttpRpcClient(_common: Common, url: string): HttpRpcClient {
 
         let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => {
+        const timeoutId = setTimeout(async () => {
           controller.abort();
 
-          reader?.releaseLock();
-          reader?.cancel("Timeout");
+          if (reader) {
+            common.logger.warn({
+              msg: "JSON-RPC response body reading timed out",
+              chain: chain.name,
+              chain_id: chain.id,
+              // @ts-ignore
+              request_id: headers["X-request-id"],
+              duration: 10_000,
+            });
+
+            try {
+              await reader.cancel("Timeout");
+            } catch {}
+            reader.releaseLock();
+            reader = undefined;
+          }
+          isTimeoutRejected = true;
           reject(new TimeoutError({ body, url }));
         }, 10_000);
 
@@ -71,6 +92,7 @@ export function getHttpRpcClient(_common: Common, url: string): HttpRpcClient {
             }
           } finally {
             reader.releaseLock();
+            reader = undefined;
           }
 
           const totalLength = chunks.reduce(
@@ -109,6 +131,8 @@ export function getHttpRpcClient(_common: Common, url: string): HttpRpcClient {
         } catch (_error) {
           const error = _error as Error;
           clearTimeout(timeoutId);
+
+          if (isTimeoutRejected) return;
 
           if (error.name === "AbortError") {
             reject(new TimeoutError({ body, url }));

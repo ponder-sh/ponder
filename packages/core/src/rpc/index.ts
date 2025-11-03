@@ -183,7 +183,7 @@ export const createRpc = ({
     const protocol = new url.URL(chain.rpc).protocol;
     const hostname = new url.URL(chain.rpc).hostname;
     if (protocol === "https:" || protocol === "http:") {
-      const httpRpcClient = getHttpRpcClient(common, chain.rpc);
+      const httpRpcClient = getHttpRpcClient(common, chain.rpc, chain);
       backends = [
         {
           request: custom({
@@ -224,7 +224,7 @@ export const createRpc = ({
       const hostname = new url.URL(chain.rpc).hostname;
 
       if (protocol === "https:" || protocol === "http:") {
-        const httpRpcClient = getHttpRpcClient(common, rpc);
+        const httpRpcClient = getHttpRpcClient(common, rpc, chain);
         return {
           request: custom({
             request(body) {
