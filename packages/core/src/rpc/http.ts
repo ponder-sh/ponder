@@ -42,8 +42,6 @@ export function getHttpRpcClient(url: string): HttpRpcClient {
             try {
               await reader.cancel("Timeout");
             } catch {}
-            reader.releaseLock();
-            reader = undefined;
           }
           isTimeoutRejected = true;
           reject(new TimeoutError({ body, url }));
