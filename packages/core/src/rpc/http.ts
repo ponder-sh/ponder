@@ -1,4 +1,4 @@
-import { HttpRequestError, TimeoutError } from "viem";
+import { HttpRequestError, RpcRequestError, TimeoutError } from "viem";
 import {
   type HttpRequestParameters,
   type HttpRequestReturnType,
@@ -117,7 +117,18 @@ export function getHttpRpcClient(
           }
 
           clearTimeout(timeoutId);
-          resolve(data.result);
+
+          if (data.error) {
+            reject(
+              new RpcRequestError({
+                body,
+                error: data.error,
+                url: url,
+              }),
+            );
+          } else {
+            resolve(data.result);
+          }
         } catch (_error) {
           const error = _error as Error;
           clearTimeout(timeoutId);
