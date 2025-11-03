@@ -2,6 +2,7 @@ import { HttpRequestError, TimeoutError } from "viem";
 import {
   type HttpRequestParameters,
   type HttpRequestReturnType,
+  type HttpRpcClientOptions,
   stringify,
 } from "viem/utils";
 
@@ -20,7 +21,7 @@ export type HttpRpcClient = {
 
 export function getHttpRpcClient(
   url: string,
-  timeoutMillis = 10_000,
+  options?: HttpRpcClientOptions,
 ): HttpRpcClient {
   let id = 1;
   return {
@@ -42,13 +43,14 @@ export function getHttpRpcClient(
           isTimeoutRejected = true;
           controller.abort();
 
+          reject(new TimeoutError({ body, url }));
+
           if (reader) {
             try {
               await reader.cancel("Timeout");
             } catch {}
           }
-          reject(new TimeoutError({ body, url }));
-        }, timeoutMillis);
+        }, options?.timeout ?? 10_000);
 
         try {
           const init: RequestInit = {
@@ -80,6 +82,8 @@ export function getHttpRpcClient(
             reader.releaseLock();
             reader = undefined;
           }
+
+          if (isTimeoutRejected) return;
 
           const totalLength = chunks.reduce(
             (sum, chunk) => sum + chunk.length,

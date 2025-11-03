@@ -5,10 +5,6 @@ import { TimeoutError } from "viem";
 import { expect, test } from "vitest";
 import { getHttpRpcClient } from "./http.js";
 
-// import { setupAnvil, setupCommon } from "@/_test/setup.js";
-// beforeEach(setupCommon);
-// beforeEach(setupAnvil);
-
 test("slow body returns TimeoutError", async () => {
   const respDurationMs = 1500;
   const server = http.createServer((_req, res) => {
@@ -38,7 +34,9 @@ test("slow body returns TimeoutError", async () => {
 
   assert(typeof port === "number");
 
-  const client = getHttpRpcClient(`http://localhost:${port}`, 1000);
+  const client = getHttpRpcClient(`http://localhost:${port}`, {
+    timeout: 1000,
+  });
   try {
     await client.request({
       body: { method: "test", id: 1, jsonrpc: "2.0", params: ["test"] },
