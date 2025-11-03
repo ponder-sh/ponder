@@ -30,6 +30,8 @@ import superjson from "superjson";
 type QueryString = string;
 type QueryResult = unknown;
 
+const MAX_LIVE_QUERIES = 1000;
+
 /**
  * Middleware for `@ponder/client`.
  *
@@ -83,6 +85,7 @@ export const client = ({
   const perViewTables = new Map<string, Set<string>>();
   /** `true` if the app is indexing live blocks. */
   let isLive = false;
+  let liveQueryCount = 0;
 
   for (const table of tableNames) {
     perTableResolver.set(table, promiseWithResolvers<void>());
@@ -137,14 +140,62 @@ export const client = ({
   })();
 
   if (driver.dialect === "pglite") {
-    // driver.instance.query(`LISTEN "${channel}"`).then(() => {
-    //   driver.instance.onNotification(() => {
-    //     // Clear cache on status change
-    //     cache.clear();
-    //     statusResolver.resolve();
-    //     statusResolver = promiseWithResolvers<void>();
-    //   });
-    // });
+    for (const table of tables) {
+      driver.instance.query(`LISTEN "${getLiveQueryChannelName(table)}"`);
+    }
+    // Note: Don't use the `getLiveQueryChannelName` function here because we want minimal imports for bundling.
+    driver.instance.query(
+      `LISTEN "live_query_channel_${globalThis.PONDER_NAMESPACE_BUILD.schema ?? "public"}__ponder_checkpoint"`,
+    );
+
+    driver.instance.onNotification((channel) => {
+      const table = channel.slice(
+        "live_query_channel_".length +
+          (globalThis.PONDER_NAMESPACE_BUILD.schema ?? "public").length +
+          1,
+      );
+
+      // Note: only act when the "_ponder_checkpoint" table is updated
+      // because tables can be updated multiple times in a single transaction
+      // and the notification is only sent once for the entire transaction
+
+      if (table === "_ponder_checkpoint") {
+        isLive = true;
+
+        for (const table of liveQueryUpdatedTables) {
+          for (const [queryString] of perTableQueries.get(table)!) {
+            cache.delete(queryString);
+
+            const count = perTableQueries.get(table)!.get(queryString)!;
+            if (count === 1) {
+              perTableQueries.get(table)!.delete(queryString);
+            } else {
+              perTableQueries.get(table)!.set(queryString, count - 1);
+            }
+          }
+
+          perTableResolver.get(table)!.resolve();
+          perTableResolver.set(table, promiseWithResolvers<void>());
+        }
+
+        if (liveQueryUpdatedTables.size > 0) {
+          let queryCount = 0;
+          for (const table of liveQueryUpdatedTables) {
+            queryCount += perTableQueries.get(table)!.size;
+          }
+
+          globalThis.PONDER_COMMON.logger.debug({
+            msg: "Updated live queries",
+            tables: JSON.stringify(Array.from(liveQueryUpdatedTables)),
+            query_count: queryCount,
+          });
+        }
+
+        liveQueryUpdatedTables.clear();
+      } else {
+        liveQueryUpdatedTables.add(table);
+      }
+    });
   } else {
     (async () => {
       let client: pg.PoolClient | undefined;
@@ -187,7 +238,13 @@ export const client = ({
                 for (const table of liveQueryUpdatedTables) {
                   for (const [queryString] of perTableQueries.get(table)!) {
                     cache.delete(queryString);
-                    // TODO(kyle) decrement count `perTableQueries`
+
+                    const count = perTableQueries.get(table)!.get(queryString)!;
+                    if (count === 1) {
+                      perTableQueries.get(table)!.delete(queryString);
+                    } else {
+                      perTableQueries.get(table)!.set(queryString, count - 1);
+                    }
                   }
 
                   perTableResolver.get(table)!.resolve();
@@ -341,6 +398,12 @@ export const client = ({
         );
       }
 
+      if (liveQueryCount >= MAX_LIVE_QUERIES) {
+        return c.text("Maximum number of live queries reached", 503);
+      }
+
+      liveQueryCount++;
+
       c.header("Content-Type", "text/event-stream");
       c.header("Cache-Control", "no-cache");
       c.header("Connection", "keep-alive");
@@ -406,7 +469,16 @@ export const client = ({
 
       return streamSSE(c, async (stream) => {
         stream.onAbort(() => {
-          // TODO(kyle) decrement count `perTableQueries`
+          liveQueryCount--;
+
+          for (const table of referencedTables) {
+            const count = perTableQueries.get(table)!.get(queryString)!;
+            if (count === 1) {
+              perTableQueries.get(table)!.delete(queryString);
+            } else {
+              perTableQueries.get(table)!.set(queryString, count - 1);
+            }
+          }
         });
 
         await stream.writeSSE({ data: JSON.stringify(result) });
@@ -435,8 +507,6 @@ export const client = ({
               cache.set(queryString, new WeakRef(resultPromise));
             }
 
-            // TODO(kyle) handle error
-
             const result = await resultPromise;
 
             const _resultHash = crypto
@@ -446,14 +516,14 @@ export const client = ({
               .digest("hex")
               .slice(0, 10);
 
-            if (_resultHash === resultHash) {
-              continue;
-            }
+            if (_resultHash === resultHash) continue;
             resultHash = _resultHash;
+
             // @ts-ignore
             await stream.writeSSE({ data: JSON.stringify(result) });
-          } catch {}
-          // TODO(kyle) max refresh rate
+          } catch {
+            stream.abort();
+          }
         }
       });
     }
