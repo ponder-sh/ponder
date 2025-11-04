@@ -55,7 +55,7 @@ export function getHttpRpcClient(
               chain: chain.name,
               chain_id: chain.id,
               // @ts-ignore
-              request_id: headers["X-request-id"],
+              request_id: headers ? headers["X-request-id"] : undefined,
               duration: 10_000,
             });
             try {
