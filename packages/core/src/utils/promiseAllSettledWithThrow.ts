@@ -4,18 +4,24 @@
  * @dev This is very useful when dealing with multiple concurrent promises
  * in a database transaction.
  */
-export function promiseAllSettledWithThrow<T>(
+export async function promiseAllSettledWithThrow<T>(
   promises: Promise<T>[],
 ): Promise<T[]> {
-  return Promise.allSettled(promises).then((results) => {
-    if (results.some((result) => result.status === "rejected")) {
-      const rejected = results.find(
-        (result): result is PromiseRejectedResult =>
-          result.status === "rejected",
-      )!;
-      throw rejected.reason;
-    }
+  let firstError: Error | undefined;
 
-    return results.map((result) => (result as PromiseFulfilledResult<T>).value);
-  });
+  const result = await Promise.all(
+    promises.map((promise) =>
+      promise.catch((error) => {
+        if (firstError === undefined) {
+          firstError = error;
+        }
+      }),
+    ),
+  );
+
+  if (firstError === undefined) {
+    return result as T[];
+  }
+
+  throw firstError;
 }

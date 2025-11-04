@@ -255,6 +255,15 @@ export const createIndexing = ({
 
       await indexingFunction!({ context });
 
+      // Note: Check `getRetryableError` to handle user-code catching errors
+      // from the indexing store.
+
+      if (indexingErrorHandler.getRetryableError()) {
+        const retryableError = indexingErrorHandler.getRetryableError()!;
+        indexingErrorHandler.clearRetryableError();
+        throw retryableError;
+      }
+
       common.metrics.ponder_indexing_function_duration.observe(
         metricLabel,
         endClock(),
@@ -268,7 +277,7 @@ export const createIndexing = ({
       if (indexingErrorHandler.getRetryableError()) {
         const retryableError = indexingErrorHandler.getRetryableError()!;
         indexingErrorHandler.clearRetryableError();
-        throw retryableError;
+        error = retryableError;
       }
 
       if (common.shutdown.isKilled) {
@@ -296,15 +305,6 @@ export const createIndexing = ({
 
       throw error;
     }
-
-    // Note: Check `getRetryableError` to handle user-code catching errors
-    // from the indexing store.
-
-    if (indexingErrorHandler.getRetryableError()) {
-      const retryableError = indexingErrorHandler.getRetryableError()!;
-      indexingErrorHandler.clearRetryableError();
-      throw retryableError;
-    }
   };
 
   // metric label for "ponder_indexing_function_duration"
@@ -325,6 +325,15 @@ export const createIndexing = ({
         metricLabel,
         endClock(),
       );
+
+      // Note: Check `getRetryableError` to handle user-code catching errors
+      // from the indexing store.
+
+      if (indexingErrorHandler.getRetryableError()) {
+        const retryableError = indexingErrorHandler.getRetryableError()!;
+        indexingErrorHandler.clearRetryableError();
+        throw retryableError;
+      }
     } catch (_error) {
       let error = _error instanceof Error ? _error : new Error(String(_error));
 
@@ -334,7 +343,7 @@ export const createIndexing = ({
       if (indexingErrorHandler.getRetryableError()) {
         const retryableError = indexingErrorHandler.getRetryableError()!;
         indexingErrorHandler.clearRetryableError();
-        throw retryableError;
+        error = retryableError;
       }
 
       if (common.shutdown.isKilled) {
@@ -366,15 +375,6 @@ export const createIndexing = ({
       }
 
       throw error;
-    }
-
-    // Note: Check `getRetryableError` to handle user-code catching errors
-    // from the indexing store.
-
-    if (indexingErrorHandler.getRetryableError()) {
-      const retryableError = indexingErrorHandler.getRetryableError()!;
-      indexingErrorHandler.clearRetryableError();
-      throw retryableError;
     }
   };
 
