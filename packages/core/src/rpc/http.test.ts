@@ -1,11 +1,15 @@
 import assert from "node:assert";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
+import { setupCommon } from "@/_test/setup.js";
+import { getChain } from "@/_test/utils.js";
 import { TimeoutError } from "viem";
-import { expect, test } from "vitest";
+import { beforeEach, expect, test } from "vitest";
 import { getHttpRpcClient } from "./http.js";
 
-test("slow body returns TimeoutError", async () => {
+beforeEach(setupCommon);
+
+test("slow body returns TimeoutError", async (context) => {
   const respDurationMs = 1500;
   const server = http.createServer((_req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
@@ -34,9 +38,14 @@ test("slow body returns TimeoutError", async () => {
 
   assert(typeof port === "number");
 
-  const client = getHttpRpcClient(`http://localhost:${port}`, {
-    timeout: 1000,
-  });
+  const client = getHttpRpcClient(
+    context.common,
+    getChain(),
+    `http://localhost:${port}`,
+    {
+      timeout: 1000,
+    },
+  );
   try {
     await client.request({
       body: { method: "test", id: 1, jsonrpc: "2.0", params: ["test"] },
