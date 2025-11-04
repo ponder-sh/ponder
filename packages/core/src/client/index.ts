@@ -89,7 +89,12 @@ export const client = ({
 
   const cache = new Map<QueryString, WeakRef<Promise<unknown>>>();
   const perQueryReferences = new Map<QueryString, Set<string>>();
-  // TODO(kyle) when cache get deleted, delete query from `perQueryReferences`
+
+  const registry = new FinalizationRegistry<QueryString>((queryString) => {
+    // Note: When a cache entry is garbage collected, delete the key from `perQueryReferences`.
+    cache.delete(queryString);
+    perQueryReferences.delete(queryString);
+  });
 
   for (const table of tableNames) {
     perTableResolver.set(table, promiseWithResolvers<void>());
@@ -177,6 +182,10 @@ export const client = ({
 
           if (isQueryInvalid) {
             invalidQueryCount++;
+
+            const resultPromise = cache.get(queryString)?.deref();
+            if (resultPromise) registry.unregister(resultPromise);
+
             cache.delete(queryString);
             perQueryReferences.delete(queryString);
           }
@@ -254,6 +263,10 @@ export const client = ({
 
                   if (isQueryInvalid) {
                     invalidQueryCount++;
+
+                    const resultPromise = cache.get(queryString)?.deref();
+                    if (resultPromise) registry.unregister(resultPromise);
+
                     cache.delete(queryString);
                     perQueryReferences.delete(queryString);
                   }
@@ -374,6 +387,7 @@ export const client = ({
           resultPromise = getQueryResult(query);
           cache.set(queryString, new WeakRef(resultPromise));
           perQueryReferences.set(queryString, referencedTables);
+          registry.register(resultPromise, queryString);
         } else {
           resultPromise = resultRef;
         }
@@ -381,6 +395,7 @@ export const client = ({
         resultPromise = getQueryResult(query);
         cache.set(queryString, new WeakRef(resultPromise));
         perQueryReferences.set(queryString, referencedTables);
+        registry.register(resultPromise, queryString);
       }
 
       try {
@@ -443,6 +458,7 @@ export const client = ({
           const resultPromise = getQueryResult(query);
           cache.set(queryString, new WeakRef(resultPromise));
           perQueryReferences.set(queryString, referencedTables);
+          registry.register(resultPromise, queryString);
           result = await resultPromise;
         } else {
           result = await resultRef;
@@ -451,11 +467,12 @@ export const client = ({
         const resultPromise = getQueryResult(query);
         cache.set(queryString, new WeakRef(resultPromise));
         perQueryReferences.set(queryString, referencedTables);
+        registry.register(resultPromise, queryString);
         result = await resultPromise;
       }
 
       let resultHash = crypto
-        .createHash("sha256")
+        .createHash("MD5")
         // @ts-ignore
         .update(JSON.stringify(result.rows))
         .digest("hex")
@@ -485,6 +502,7 @@ export const client = ({
                 resultPromise = getQueryResult(query);
                 cache.set(queryString, new WeakRef(resultPromise));
                 perQueryReferences.set(queryString, referencedTables);
+                registry.register(resultPromise, queryString);
               } else {
                 resultPromise = resultRef;
               }
@@ -492,12 +510,13 @@ export const client = ({
               resultPromise = getQueryResult(query);
               cache.set(queryString, new WeakRef(resultPromise));
               perQueryReferences.set(queryString, referencedTables);
+              registry.register(resultPromise, queryString);
             }
 
             const result = await resultPromise;
 
             const _resultHash = crypto
-              .createHash("sha256")
+              .createHash("MD5")
               // @ts-ignore
               .update(JSON.stringify(result.rows))
               .digest("hex")
