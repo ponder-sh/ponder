@@ -649,7 +649,7 @@ export async function refetchHistoricalEvents(params: {
 }): Promise<Event[]> {
   const events: Event[] = new Array(params.events.length);
 
-  for (const chain of PONDER_INDEXING_BUILD.chains) {
+  for (const chain of params.indexingBuild.chains) {
     const { childAddresses } = params.perChainSync.get(chain)!;
 
     // Note: All filters are refetched, no matter if they are resolved or not.
