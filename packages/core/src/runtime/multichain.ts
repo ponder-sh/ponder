@@ -96,7 +96,7 @@ export async function runMultichain({
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
   const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
 
-  let eventCount = getEventCount(indexingBuild.indexingFunctions);
+  const eventCount = getEventCount(indexingBuild.indexingFunctions);
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -452,7 +452,9 @@ export async function runMultichain({
           );
           endClock = startClock();
         } catch (error) {
-          eventCount = initialEventCount;
+          for (const [event, count] of Object.entries(eventCount)) {
+            eventCount[event]! -= count - initialEventCount[event]!;
+          }
           indexingCache.invalidate();
           indexingCache.clear();
 
