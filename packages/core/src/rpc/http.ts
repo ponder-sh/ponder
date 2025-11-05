@@ -1,3 +1,4 @@
+import { URL } from "node:url";
 import type { Common } from "@/internal/common.js";
 import type { Chain } from "@/internal/types.js";
 import { HttpRequestError, RpcRequestError, TimeoutError } from "viem";
@@ -54,8 +55,11 @@ export function getHttpRpcClient(
               msg: "JSON-RPC request timed out reading response body",
               chain: chain.name,
               chain_id: chain.id,
+              hostname: new URL(url).hostname,
               // @ts-ignore
               request_id: headers ? headers["X-Request-ID"] : undefined,
+              method: body.method,
+              request: JSON.stringify(body),
               duration: timeoutMs,
             });
             try {
