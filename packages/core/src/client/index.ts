@@ -446,8 +446,6 @@ export const client = ({
           liveQueryCount--;
         });
 
-        await stream.writeSSE({ data: JSON.stringify(result) });
-
         while (stream.closed === false && stream.aborted === false) {
           await Promise.race(
             Array.from(referencedTables).map(

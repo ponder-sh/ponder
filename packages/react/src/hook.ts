@@ -35,10 +35,9 @@ export function usePonderQuery<
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
-    const { unsubscribe } = client.live(
-      () => Promise.resolve(),
-      () => queryClient.invalidateQueries({ queryKey: queryOptions.queryKey }),
-    );
+    const { unsubscribe } = client.live(queryOptions.queryFn, (data) => {
+      queryClient.setQueryData(queryOptions.queryKey, data);
+    });
     return unsubscribe;
   }, queryOptions.queryKey);
 
@@ -46,6 +45,7 @@ export function usePonderQuery<
     ...params,
     queryKey: queryOptions.queryKey,
     queryFn: queryOptions.queryFn,
+    staleTime: params.staleTime ?? Number.POSITIVE_INFINITY,
   });
 }
 
@@ -79,12 +79,13 @@ export function usePonderStatus(
     throw new Error("PonderProvider not found");
   }
 
+  // TODO(kyle)  SELECT * FROM _ponder_checkpoint;
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
-    const { unsubscribe } = client.live(
-      () => Promise.resolve(),
-      () => queryClient.invalidateQueries({ queryKey: statusQueryKey }),
-    );
+    const { unsubscribe } = client.live(client.getStatus, (data) => {
+      queryClient.setQueryData(statusQueryKey, data);
+    });
     return unsubscribe;
   }, []);
 
@@ -92,5 +93,6 @@ export function usePonderStatus(
     ...params,
     queryKey: statusQueryKey,
     queryFn: () => client.getStatus(),
+    staleTime: params.staleTime ?? Number.POSITIVE_INFINITY,
   });
 }
