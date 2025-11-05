@@ -137,51 +137,34 @@ export const createLiveQueryTriggerAndProcedure = async (
 ) => {
   await qb.transaction(
     async (tx) => {
-      for (const table of tables) {
-        const trigger = getLiveQueryTriggerName(table);
-        const procedure = getLiveQueryProcedureName(table);
-        const schema = getTableConfig(table).schema ?? "public";
+      const schema = namespaceBuild.schema;
+      const procedure = getLiveQueryProcedureName();
 
-        await tx.wrap(
-          (tx) =>
-            tx.execute(
-              `
+      await tx.wrap(
+        (tx) =>
+          tx.execute(
+            `
 CREATE OR REPLACE FUNCTION "${schema}".${procedure}
 RETURNS TRIGGER LANGUAGE plpgsql
 AS $$
-  BEGIN
-    INSERT INTO live_query_tables (table_name)
-    VALUES ('${getTableName(table)}')
-    ON CONFLICT (table_name) DO NOTHING;
-    RETURN NULL;
-  END;
+BEGIN
+  INSERT INTO live_query_tables (table_name)
+  VALUES (TG_TABLE_NAME)
+  ON CONFLICT (table_name) DO NOTHING;
+  RETURN NULL;
+END;
 $$;`,
-            ),
-          context,
-        );
+          ),
+        context,
+      );
 
-        await tx.wrap(
-          (tx) =>
-            tx.execute(
-              `
-CREATE OR REPLACE TRIGGER "${trigger}"
-AFTER INSERT OR UPDATE OR DELETE
-ON "${schema}"."${getTableName(table)}"
-FOR EACH STATEMENT
-EXECUTE PROCEDURE "${schema}".${procedure};`,
-            ),
-          context,
-        );
-      }
-
-      const schema = namespaceBuild.schema;
-      const procedure = getLiveQueryNotifyProcedureName();
+      const notifyProcedure = getLiveQueryNotifyProcedureName();
       const channel = getLiveQueryChannelName(namespaceBuild.schema);
 
       await tx.wrap(
         (tx) =>
           tx.execute(`
-CREATE OR REPLACE FUNCTION "${schema}".${procedure}
+CREATE OR REPLACE FUNCTION "${schema}".${notifyProcedure}
 RETURNS void LANGUAGE plpgsql
 AS $$
   DECLARE
@@ -196,6 +179,24 @@ AS $$
 $$;`),
         context,
       );
+
+      for (const table of tables) {
+        const trigger = getLiveQueryTriggerName();
+        const schema = getTableConfig(table).schema ?? "public";
+
+        await tx.wrap(
+          (tx) =>
+            tx.execute(
+              `
+CREATE OR REPLACE TRIGGER "${trigger}"
+AFTER INSERT OR UPDATE OR DELETE
+ON "${schema}"."${getTableName(table)}"
+FOR EACH STATEMENT
+EXECUTE PROCEDURE "${schema}".${procedure};`,
+            ),
+          context,
+        );
+      }
     },
     undefined,
     context,

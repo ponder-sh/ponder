@@ -4,7 +4,6 @@ import {
   type ColumnBuilderBase,
   Table,
   type Writable,
-  getTableName,
 } from "drizzle-orm";
 import { toSnakeCase } from "drizzle-orm/casing";
 import {
@@ -39,14 +38,14 @@ import {
 } from "./json.js";
 import { PgTextBuilder, type PgTextBuilderInitial } from "./text.js";
 
-export const getLiveQueryTriggerName = (table: PgTable) => {
-  return `live_query_trigger_${getTableName(table)}`;
+export const getLiveQueryTriggerName = () => {
+  return "live_query_trigger";
 };
-export const getLiveQueryProcedureName = (table: PgTable) => {
-  return `live_query_procedure_${getTableName(table)}()`;
+export const getLiveQueryProcedureName = () => {
+  return "live_query_procedure()";
 };
 export const getLiveQueryChannelName = (schema: string) => {
-  return `live_query_channel_${schema}`;
+  return `${schema}_live_query_channel`;
 };
 export const getLiveQueryNotifyProcedureName = () => {
   return "live_query_notify_procedure()";

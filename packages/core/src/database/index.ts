@@ -772,19 +772,18 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
             );
 
             for (const table of tables) {
-              console.log();
               await tx.wrap((tx) =>
                 tx.execute(
-                  `DROP TRIGGER IF EXISTS ${getLiveQueryTriggerName(table)} ON "${namespace.schema}"."${getTableName(table)}"`,
-                ),
-              );
-
-              await tx.wrap((tx) =>
-                tx.execute(
-                  `DROP FUNCTION IF EXISTS "${namespace.schema}".${getLiveQueryProcedureName(table)}`,
+                  `DROP TRIGGER IF EXISTS ${getLiveQueryTriggerName()} ON "${namespace.schema}"."${getTableName(table)}"`,
                 ),
               );
             }
+
+            await tx.wrap((tx) =>
+              tx.execute(
+                `DROP FUNCTION IF EXISTS "${namespace.schema}".${getLiveQueryProcedureName()}`,
+              ),
+            );
 
             await tx.wrap((tx) =>
               tx.execute(
