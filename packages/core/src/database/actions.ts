@@ -3,6 +3,7 @@ import { getTableNames } from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import {
   getLiveQueryChannelName,
+  getLiveQueryNotifyProcedureName,
   getLiveQueryProcedureName,
   getLiveQueryTriggerName,
 } from "@/drizzle/onchain.js";
@@ -127,24 +128,19 @@ export const createLiveQueryTriggerAndProcedure = async (
   qb: QB,
   {
     tables,
-    PONDER_CHECKPOINT,
+    namespaceBuild,
   }: {
     tables: Table[];
-    PONDER_CHECKPOINT: ReturnType<typeof getPonderCheckpointTable>;
+    namespaceBuild: NamespaceBuild;
   },
   context?: { logger?: Logger },
 ) => {
   await qb.transaction(
     async (tx) => {
-      let lockId = 0;
-
       for (const table of tables) {
         const trigger = getLiveQueryTriggerName(table);
         const procedure = getLiveQueryProcedureName(table);
-        const channel = getLiveQueryChannelName(table);
         const schema = getTableConfig(table).schema ?? "public";
-
-        const tableLockId = lockId++;
 
         await tx.wrap(
           (tx) =>
@@ -153,16 +149,10 @@ export const createLiveQueryTriggerAndProcedure = async (
 CREATE OR REPLACE FUNCTION "${schema}".${procedure}
 RETURNS TRIGGER LANGUAGE plpgsql
 AS $$
-  DECLARE
-    lock_acquired BOOLEAN;
-    lock_key BIGINT := ${tableLockId};
   BEGIN
-    SELECT pg_try_advisory_xact_lock(lock_key) INTO lock_acquired;
-
-    IF lock_acquired THEN
-      NOTIFY "${channel}";
-    END IF;
-
+    INSERT INTO live_query_tables (table_name)
+    VALUES ('${getTableName(table)}')
+    ON CONFLICT (table_name) DO NOTHING;
     RETURN NULL;
   END;
 $$;`,
@@ -184,37 +174,26 @@ EXECUTE PROCEDURE "${schema}".${procedure};`,
         );
       }
 
-      const trigger = getLiveQueryTriggerName(PONDER_CHECKPOINT);
-      const procedure = getLiveQueryProcedureName(PONDER_CHECKPOINT);
-      const channel = getLiveQueryChannelName(PONDER_CHECKPOINT);
-      const schema = getTableConfig(PONDER_CHECKPOINT).schema ?? "public";
+      const schema = namespaceBuild.schema;
+      const procedure = getLiveQueryNotifyProcedureName();
+      const channel = getLiveQueryChannelName(namespaceBuild.schema);
 
       await tx.wrap(
         (tx) =>
-          tx.execute(
-            `
+          tx.execute(`
 CREATE OR REPLACE FUNCTION "${schema}".${procedure}
-RETURNS TRIGGER LANGUAGE plpgsql
+RETURNS void LANGUAGE plpgsql
 AS $$
-BEGIN
-  NOTIFY "${channel}";
-  RETURN NULL;
-END;
-$$;`,
-          ),
-        context,
-      );
-
-      await tx.wrap(
-        (tx) =>
-          tx.execute(
-            `
-CREATE OR REPLACE TRIGGER "${trigger}"
-AFTER INSERT OR UPDATE OR DELETE
-ON "${schema}"."${getTableName(PONDER_CHECKPOINT)}"
-FOR EACH STATEMENT
-EXECUTE PROCEDURE "${schema}".${procedure};`,
-          ),
+  DECLARE
+    table_names json;
+  BEGIN
+    SELECT json_agg(table_name) INTO table_names
+    FROM live_query_tables;
+    
+    table_names := COALESCE(table_names, '[]'::json);
+    PERFORM pg_notify('${channel}', table_names::text);
+  END;
+$$;`),
         context,
       );
     },

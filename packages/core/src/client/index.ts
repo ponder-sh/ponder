@@ -80,9 +80,6 @@ export const client = ({
   const perTableResolver = new Map<string, PromiseWithResolvers<void>>();
   const perViewTables = new Map<string, Set<string>>();
 
-  /** Tables that have updated in the current transaction. */
-  const liveQueryUpdatedTables = new Set<string>();
-
   /** `true` if the app is indexing live blocks. */
   let isLive = false;
   let liveQueryCount = 0;
@@ -148,65 +145,48 @@ export const client = ({
   })();
 
   if (driver.dialect === "pglite") {
-    for (const table of tables) {
-      driver.instance.query(`LISTEN "${getLiveQueryChannelName(table)}"`);
-    }
-    // Note: Don't use the `getLiveQueryChannelName` function here because we want minimal imports for bundling.
-    driver.instance.query(
-      `LISTEN "live_query_channel_${globalThis.PONDER_NAMESPACE_BUILD.schema ?? "public"}__ponder_checkpoint"`,
+    const channel = getLiveQueryChannelName(
+      globalThis.PONDER_NAMESPACE_BUILD.schema,
     );
+    driver.instance.query(`LISTEN "${channel}"`);
 
-    driver.instance.onNotification((channel) => {
-      const table = channel.slice(
-        "live_query_channel_".length +
-          (globalThis.PONDER_NAMESPACE_BUILD.schema ?? "public").length +
-          1,
-      );
+    driver.instance.onNotification((payload) => {
+      const tables = JSON.parse(payload!) as string[];
 
-      // Note: only act when the "_ponder_checkpoint" table is updated
-      // because tables can be updated multiple times in a single transaction
-      // and the notification is only sent once for the entire transaction
+      isLive = true;
+      let invalidQueryCount = 0;
 
-      if (table === "_ponder_checkpoint") {
-        isLive = true;
-        let invalidQueryCount = 0;
-
-        for (const [queryString, referencedTables] of perQueryReferences) {
-          let isQueryInvalid = false;
-          for (const table of liveQueryUpdatedTables) {
-            if (referencedTables.has(table)) {
-              isQueryInvalid = true;
-              break;
-            }
-          }
-
-          if (isQueryInvalid) {
-            invalidQueryCount++;
-
-            const resultPromise = cache.get(queryString)?.deref();
-            if (resultPromise) registry.unregister(resultPromise);
-
-            cache.delete(queryString);
-            perQueryReferences.delete(queryString);
+      for (const [queryString, referencedTables] of perQueryReferences) {
+        let isQueryInvalid = false;
+        for (const table of tables) {
+          if (referencedTables.has(table)) {
+            isQueryInvalid = true;
+            break;
           }
         }
 
-        for (const table of liveQueryUpdatedTables) {
-          perTableResolver.get(table)!.resolve();
-          perTableResolver.set(table, promiseWithResolvers<void>());
-        }
+        if (isQueryInvalid) {
+          invalidQueryCount++;
 
-        if (invalidQueryCount > 0) {
-          globalThis.PONDER_COMMON.logger.debug({
-            msg: "Updated live queries",
-            tables: JSON.stringify(Array.from(liveQueryUpdatedTables)),
-            query_count: invalidQueryCount,
-          });
-        }
+          const resultPromise = cache.get(queryString)?.deref();
+          if (resultPromise) registry.unregister(resultPromise);
 
-        liveQueryUpdatedTables.clear();
-      } else {
-        liveQueryUpdatedTables.add(table);
+          cache.delete(queryString);
+          perQueryReferences.delete(queryString);
+        }
+      }
+
+      for (const table of tables) {
+        perTableResolver.get(table)!.resolve();
+        perTableResolver.set(table, promiseWithResolvers<void>());
+      }
+
+      if (invalidQueryCount > 0) {
+        globalThis.PONDER_COMMON.logger.debug({
+          msg: "Updated live queries",
+          tables: JSON.stringify(Array.from(tables)),
+          query_count: invalidQueryCount,
+        });
       }
     });
   } else {
@@ -234,60 +214,45 @@ export const client = ({
             });
 
             client.on("notification", (notification) => {
-              const table = notification.channel.slice(
-                "live_query_channel_".length +
-                  (globalThis.PONDER_NAMESPACE_BUILD.schema ?? "public")
-                    .length +
-                  1,
-              );
+              const tables = JSON.parse(notification.payload!) as string[];
 
-              // Note: only act when the "_ponder_checkpoint" table is updated
-              // because tables can be updated multiple times in a single transaction
-              // and the notification is only sent once for the entire transaction
+              isLive = true;
+              let invalidQueryCount = 0;
 
-              if (table === "_ponder_checkpoint") {
-                isLive = true;
-                let invalidQueryCount = 0;
-
-                for (const [
-                  queryString,
-                  referencedTables,
-                ] of perQueryReferences) {
-                  let isQueryInvalid = false;
-                  for (const table of liveQueryUpdatedTables) {
-                    if (referencedTables.has(table)) {
-                      isQueryInvalid = true;
-                      break;
-                    }
-                  }
-
-                  if (isQueryInvalid) {
-                    invalidQueryCount++;
-
-                    const resultPromise = cache.get(queryString)?.deref();
-                    if (resultPromise) registry.unregister(resultPromise);
-
-                    cache.delete(queryString);
-                    perQueryReferences.delete(queryString);
+              for (const [
+                queryString,
+                referencedTables,
+              ] of perQueryReferences) {
+                let isQueryInvalid = false;
+                for (const table of tables) {
+                  if (referencedTables.has(table)) {
+                    isQueryInvalid = true;
+                    break;
                   }
                 }
 
-                for (const table of liveQueryUpdatedTables) {
-                  perTableResolver.get(table)!.resolve();
-                  perTableResolver.set(table, promiseWithResolvers<void>());
-                }
+                if (isQueryInvalid) {
+                  invalidQueryCount++;
 
-                if (invalidQueryCount > 0) {
-                  globalThis.PONDER_COMMON.logger.debug({
-                    msg: "Updated live queries",
-                    tables: JSON.stringify(Array.from(liveQueryUpdatedTables)),
-                    query_count: invalidQueryCount,
-                  });
-                }
+                  const resultPromise = cache.get(queryString)?.deref();
+                  if (resultPromise) registry.unregister(resultPromise);
 
-                liveQueryUpdatedTables.clear();
-              } else {
-                liveQueryUpdatedTables.add(table);
+                  cache.delete(queryString);
+                  perQueryReferences.delete(queryString);
+                }
+              }
+
+              for (const table of tables) {
+                perTableResolver.get(table)!.resolve();
+                perTableResolver.set(table, promiseWithResolvers<void>());
+              }
+
+              if (invalidQueryCount > 0) {
+                globalThis.PONDER_COMMON.logger.debug({
+                  msg: "Updated live queries",
+                  tables: JSON.stringify(tables),
+                  query_count: invalidQueryCount,
+                });
               }
             });
 
@@ -305,13 +270,11 @@ export const client = ({
               resolve();
             });
 
-            for (const table of tables) {
-              await client.query(`LISTEN "${getLiveQueryChannelName(table)}"`);
-            }
-            // Note: Don't use the `getLiveQueryChannelName` function here because we want minimal imports for bundling.
-            await client.query(
-              `LISTEN "live_query_channel_${globalThis.PONDER_NAMESPACE_BUILD.schema ?? "public"}__ponder_checkpoint"`,
+            const channel = getLiveQueryChannelName(
+              globalThis.PONDER_NAMESPACE_BUILD.schema,
             );
+
+            await client.query(`LISTEN "${channel}"`);
           } catch (error) {
             globalThis.PONDER_COMMON.logger.warn({
               msg: `Failed listen connection for "@ponder/client" middleware`,

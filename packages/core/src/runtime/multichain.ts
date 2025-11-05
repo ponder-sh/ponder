@@ -14,6 +14,7 @@ import {
   getPonderCheckpointTable,
   getPonderMetaTable,
 } from "@/database/index.js";
+import { getLiveQueryNotifyProcedureName } from "@/drizzle/onchain.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
@@ -588,7 +589,7 @@ export async function runMultichain({
 
   await createLiveQueryTriggerAndProcedure(database.adminQB, {
     tables,
-    PONDER_CHECKPOINT,
+    namespaceBuild,
   });
 
   common.logger.debug({
@@ -656,6 +657,22 @@ export async function runMultichain({
                     chain.id === Number(decodeCheckpoint(checkpoint).chainId),
                 )!;
 
+                if (events.length === 0) {
+                  common.metrics.ponder_indexing_timestamp.set(
+                    { chain: chain.name },
+                    Number(decodeCheckpoint(checkpoint).blockTimestamp),
+                  );
+                  return;
+                }
+
+                await tx.wrap(
+                  (tx) =>
+                    tx.execute(
+                      "CREATE TEMP TABLE live_query_tables (table_name TEXT PRIMARY KEY) ON COMMIT DROP",
+                    ),
+                  context,
+                );
+
                 try {
                   realtimeIndexingStore.qb = tx;
                   realtimeIndexingStore.isProcessingEvents = true;
@@ -697,11 +714,6 @@ export async function runMultichain({
                     event_count: events.length,
                     checkpoint,
                   });
-
-                  common.metrics.ponder_indexing_timestamp.set(
-                    { chain: chain.name },
-                    Number(decodeCheckpoint(checkpoint).blockTimestamp),
-                  );
                 } catch (error) {
                   if (error instanceof NonRetryableUserError === false) {
                     common.logger.warn({
@@ -715,6 +727,19 @@ export async function runMultichain({
 
                   throw error;
                 }
+
+                await tx.wrap(
+                  (tx) =>
+                    tx.execute(
+                      `SELECT "${namespaceBuild.schema}".${getLiveQueryNotifyProcedureName()}`,
+                    ),
+                  context,
+                );
+
+                common.metrics.ponder_indexing_timestamp.set(
+                  { chain: chain.name },
+                  Number(decodeCheckpoint(checkpoint).blockTimestamp),
+                );
               },
               undefined,
               context,

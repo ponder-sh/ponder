@@ -4,6 +4,11 @@ import {
   getReorgTable,
   sqlToReorgTableName,
 } from "@/drizzle/kit/index.js";
+import {
+  getLiveQueryNotifyProcedureName,
+  getLiveQueryProcedureName,
+  getLiveQueryTriggerName,
+} from "@/drizzle/onchain.js";
 import type { Common } from "@/internal/common.js";
 import {
   MigrationError,
@@ -764,6 +769,27 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
                   `DROP TABLE IF EXISTS "${namespace.schema}"."${getTableName(PONDER_META)}" CASCADE`,
                 ),
               context,
+            );
+
+            for (const table of tables) {
+              console.log();
+              await tx.wrap((tx) =>
+                tx.execute(
+                  `DROP TRIGGER IF EXISTS ${getLiveQueryTriggerName(table)} ON "${namespace.schema}"."${getTableName(table)}"`,
+                ),
+              );
+
+              await tx.wrap((tx) =>
+                tx.execute(
+                  `DROP FUNCTION IF EXISTS "${namespace.schema}".${getLiveQueryProcedureName(table)}`,
+                ),
+              );
+            }
+
+            await tx.wrap((tx) =>
+              tx.execute(
+                `DROP FUNCTION IF EXISTS "${namespace.schema}".${getLiveQueryNotifyProcedureName()}`,
+              ),
             );
 
             await createAdminObjects(tx);

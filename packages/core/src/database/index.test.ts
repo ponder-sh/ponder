@@ -763,7 +763,7 @@ test("camelCase", async (context) => {
 
   await createLiveQueryTriggerAndProcedure(database.userQB, {
     tables: [accountCC],
-    PONDER_CHECKPOINT: getPonderCheckpointTable("viewCc"),
+    namespaceBuild: { schema: "public", viewsSchema: "viewCc" },
   });
 
   await revert(database.userQB, {

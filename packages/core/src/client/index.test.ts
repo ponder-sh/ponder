@@ -274,7 +274,7 @@ test("client.db cache", async (context) => {
 
   await createLiveQueryTriggerAndProcedure(database.userQB, {
     tables: [account],
-    PONDER_CHECKPOINT,
+    namespaceBuild: globalThis.PONDER_NAMESPACE_BUILD,
   });
   await database.userQB.wrap((db) => db.delete(PONDER_CHECKPOINT));
 

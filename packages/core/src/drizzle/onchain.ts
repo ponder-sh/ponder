@@ -23,7 +23,6 @@ import {
   type TableConfig,
   ViewBuilder,
   primaryKey as drizzlePrimaryKey,
-  getTableConfig,
 } from "drizzle-orm/pg-core";
 import {
   type PgColumnsBuilders as _PgColumnsBuilders,
@@ -46,8 +45,11 @@ export const getLiveQueryTriggerName = (table: PgTable) => {
 export const getLiveQueryProcedureName = (table: PgTable) => {
   return `live_query_procedure_${getTableName(table)}()`;
 };
-export const getLiveQueryChannelName = (table: PgTable) => {
-  return `live_query_channel_${getTableConfig(table).schema ?? "public"}_${getTableName(table)}`;
+export const getLiveQueryChannelName = (schema: string) => {
+  return `live_query_channel_${schema}`;
+};
+export const getLiveQueryNotifyProcedureName = () => {
+  return "live_query_notify_procedure()";
 };
 
 /** @internal */

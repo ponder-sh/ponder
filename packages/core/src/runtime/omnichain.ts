@@ -603,7 +603,7 @@ export async function runOmnichain({
 
   await createLiveQueryTriggerAndProcedure(database.adminQB, {
     tables,
-    PONDER_CHECKPOINT,
+    namespaceBuild,
   });
 
   common.logger.debug({
@@ -672,6 +672,24 @@ export async function runOmnichain({
                     chain.id === Number(decodeCheckpoint(checkpoint).chainId),
                 )!;
 
+                if (events.length === 0) {
+                  for (const chain of indexingBuild.chains) {
+                    common.metrics.ponder_indexing_timestamp.set(
+                      { chain: chain.name },
+                      Number(decodeCheckpoint(checkpoint).blockTimestamp),
+                    );
+                  }
+                  return;
+                }
+
+                await tx.wrap(
+                  (tx) =>
+                    tx.execute(
+                      "CREATE TEMP TABLE live_query_tables (table_name text PRIMARY KEY) ON COMMIT DROP",
+                    ),
+                  context,
+                );
+
                 try {
                   realtimeIndexingStore.qb = tx;
                   realtimeIndexingStore.isProcessingEvents = true;
@@ -714,13 +732,6 @@ export async function runOmnichain({
                     event_count: events.length,
                     checkpoint,
                   });
-
-                  for (const chain of indexingBuild.chains) {
-                    common.metrics.ponder_indexing_timestamp.set(
-                      { chain: chain.name },
-                      Number(decodeCheckpoint(checkpoint).blockTimestamp),
-                    );
-                  }
                 } catch (error) {
                   if (error instanceof NonRetryableUserError === false) {
                     common.logger.warn({
@@ -733,6 +744,21 @@ export async function runOmnichain({
                   }
 
                   throw error;
+                }
+
+                await tx.wrap(
+                  (tx) =>
+                    tx.execute(
+                      `SELECT "${namespaceBuild.schema}".notify_live_query_tables()`,
+                    ),
+                  context,
+                );
+
+                for (const chain of indexingBuild.chains) {
+                  common.metrics.ponder_indexing_timestamp.set(
+                    { chain: chain.name },
+                    Number(decodeCheckpoint(checkpoint).blockTimestamp),
+                  );
                 }
               },
               undefined,
