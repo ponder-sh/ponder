@@ -25,9 +25,11 @@ import {
   commitBlock,
   crashRecovery,
   createIndexes,
-  createLiveQueryTriggerAndProcedure,
+  createLiveQueryProcedures,
+  createLiveQueryTriggers,
   createTriggers,
   createViews,
+  dropLiveQueryTriggers,
   dropTriggers,
   finalize,
   revert,
@@ -761,10 +763,15 @@ test("camelCase", async (context) => {
     table: accountCC,
   });
 
-  await createLiveQueryTriggerAndProcedure(database.userQB, {
-    tables: [accountCC],
+  await dropTriggers(database.userQB, { tables: [accountCC] });
+
+  await createLiveQueryProcedures(database.userQB, {
     namespaceBuild: { schema: "public", viewsSchema: "viewCc" },
   });
+  await createLiveQueryTriggers(database.userQB, {
+    tables: [accountCC],
+  });
+  await dropLiveQueryTriggers(database.userQB, { tables: [accountCC] });
 
   await revert(database.userQB, {
     tables: [accountCC],
@@ -780,8 +787,6 @@ test("camelCase", async (context) => {
   await crashRecovery(database.userQB, {
     table: accountCC,
   });
-
-  await dropTriggers(database.userQB, { tables: [accountCC] });
 
   await context.common.shutdown.kill();
 });

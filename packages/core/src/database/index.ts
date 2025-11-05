@@ -1,4 +1,3 @@
-import { getTableNames } from "@/drizzle/index.js";
 import {
   SHARED_OPERATION_ID_SEQUENCE,
   getReorgTable,
@@ -7,7 +6,6 @@ import {
 import {
   getLiveQueryNotifyProcedureName,
   getLiveQueryProcedureName,
-  getLiveQueryTriggerName,
 } from "@/drizzle/onchain.js";
 import type { Common } from "@/internal/common.js";
 import {
@@ -46,7 +44,11 @@ import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
 import type { Pool } from "pg";
 import prometheus from "prom-client";
 import { hexToBigInt } from "viem";
-import { crashRecovery } from "./actions.js";
+import {
+  crashRecovery,
+  dropLiveQueryTriggers,
+  dropTriggers,
+} from "./actions.js";
 import { type QB, createQB, parseDbError } from "./queryBuilder.js";
 
 export type Database = {
@@ -771,13 +773,7 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
               context,
             );
 
-            for (const table of tables) {
-              await tx.wrap((tx) =>
-                tx.execute(
-                  `DROP TRIGGER IF EXISTS ${getLiveQueryTriggerName()} ON "${namespace.schema}"."${getTableName(table)}"`,
-                ),
-              );
-            }
+            await dropLiveQueryTriggers(tx, { tables }, context);
 
             await tx.wrap((tx) =>
               tx.execute(
@@ -891,17 +887,8 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
             return { status: "success", crashRecoveryCheckpoint } as const;
           }
 
-          // Remove triggers
-
-          for (const table of tables) {
-            await tx.wrap(
-              (tx) =>
-                tx.execute(
-                  `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
-                ),
-              context,
-            );
-          }
+          await dropTriggers(tx, { tables }, context);
+          await dropLiveQueryTriggers(tx, { tables }, context);
 
           // Remove indexes
 

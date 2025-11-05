@@ -124,15 +124,62 @@ export const dropTriggers = async (
   );
 };
 
-export const createLiveQueryTriggerAndProcedure = async (
+export const createLiveQueryTriggers = async (
   qb: QB,
-  {
-    tables,
-    namespaceBuild,
-  }: {
-    tables: Table[];
-    namespaceBuild: NamespaceBuild;
-  },
+  { tables }: { tables: Table[] },
+  context?: { logger?: Logger },
+) => {
+  await qb.transaction(
+    async (tx) => {
+      const trigger = getLiveQueryTriggerName();
+      const procedure = getLiveQueryProcedureName();
+
+      for (const table of tables) {
+        const schema = getTableConfig(table).schema ?? "public";
+
+        await tx.wrap((tx) =>
+          tx.execute(
+            `
+CREATE OR REPLACE TRIGGER "${trigger}"
+AFTER INSERT OR UPDATE OR DELETE
+ON "${schema}"."${getTableName(table)}"
+FOR EACH STATEMENT
+EXECUTE PROCEDURE "${schema}".${procedure};`,
+          ),
+        );
+      }
+    },
+    undefined,
+    context,
+  );
+};
+
+export const dropLiveQueryTriggers = async (
+  qb: QB,
+  { tables }: { tables: Table[] },
+  context?: { logger?: Logger },
+) => {
+  await qb.transaction(
+    async (tx) => {
+      const trigger = getLiveQueryTriggerName();
+      for (const table of tables) {
+        const schema = getTableConfig(table).schema ?? "public";
+
+        await tx.wrap((tx) =>
+          tx.execute(
+            `DROP TRIGGER IF EXISTS "${trigger}" ON "${schema}"."${getTableName(table)}";`,
+          ),
+        );
+      }
+    },
+    undefined,
+    context,
+  );
+};
+
+export const createLiveQueryProcedures = async (
+  qb: QB,
+  { namespaceBuild }: { namespaceBuild: NamespaceBuild },
   context?: { logger?: Logger },
 ) => {
   await qb.transaction(
@@ -179,24 +226,6 @@ AS $$
 $$;`),
         context,
       );
-
-      for (const table of tables) {
-        const trigger = getLiveQueryTriggerName();
-        const schema = getTableConfig(table).schema ?? "public";
-
-        await tx.wrap(
-          (tx) =>
-            tx.execute(
-              `
-CREATE OR REPLACE TRIGGER "${trigger}"
-AFTER INSERT OR UPDATE OR DELETE
-ON "${schema}"."${getTableName(table)}"
-FOR EACH STATEMENT
-EXECUTE PROCEDURE "${schema}".${procedure};`,
-            ),
-          context,
-        );
-      }
     },
     undefined,
     context,

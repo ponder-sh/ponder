@@ -2,9 +2,11 @@ import { runCodegen } from "@/bin/utils/codegen.js";
 import {
   commitBlock,
   createIndexes,
-  createLiveQueryTriggerAndProcedure,
+  createLiveQueryProcedures,
+  createLiveQueryTriggers,
   createTriggers,
   createViews,
+  dropLiveQueryTriggers,
   dropTriggers,
   finalize,
   revert,
@@ -588,10 +590,8 @@ export async function runMultichain({
 
   endClock = startClock();
 
-  await createLiveQueryTriggerAndProcedure(database.adminQB, {
-    tables,
-    namespaceBuild,
-  });
+  await createLiveQueryProcedures(database.adminQB, { namespaceBuild });
+  await createLiveQueryTriggers(database.adminQB, { tables });
 
   common.logger.debug({
     msg: "Created live query triggers and procedures",
@@ -782,6 +782,7 @@ export async function runMultichain({
         await database.userQB.transaction(
           async (tx) => {
             await dropTriggers(tx, { tables }, context);
+            await dropLiveQueryTriggers(tx, { tables }, context);
 
             const counts = await revert(
               tx,
@@ -802,6 +803,7 @@ export async function runMultichain({
             }
 
             await createTriggers(tx, { tables }, context);
+            await createLiveQueryTriggers(tx, { tables }, context);
           },
           undefined,
           context,

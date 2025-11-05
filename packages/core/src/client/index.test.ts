@@ -4,9 +4,17 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { createLiveQueryTriggerAndProcedure } from "@/database/actions.js";
+import {
+  createLiveQueryProcedures,
+  createLiveQueryTriggers,
+} from "@/database/actions.js";
 import { getPonderCheckpointTable } from "@/database/index.js";
-import { bigint, hex, onchainTable } from "@/drizzle/onchain.js";
+import {
+  bigint,
+  getLiveQueryNotifyProcedureName,
+  hex,
+  onchainTable,
+} from "@/drizzle/onchain.js";
 import type { QueryWithTypings } from "drizzle-orm";
 import { pgSchema } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
@@ -272,11 +280,24 @@ test("client.db cache", async (context) => {
     }),
   );
 
-  await createLiveQueryTriggerAndProcedure(database.userQB, {
+  await createLiveQueryTriggers(database.userQB, {
     tables: [account],
+  });
+  await createLiveQueryProcedures(database.userQB, {
     namespaceBuild: globalThis.PONDER_NAMESPACE_BUILD,
   });
-  await database.userQB.wrap((db) => db.delete(PONDER_CHECKPOINT));
+
+  await database.userQB.transaction(async (tx) => {
+    await tx.wrap((tx) =>
+      tx.execute(
+        "CREATE TEMP TABLE live_query_tables (table_name TEXT PRIMARY KEY) ON COMMIT DROP",
+      ),
+    );
+    await tx.wrap((tx) => tx.delete(PONDER_CHECKPOINT));
+    await tx.wrap((tx) =>
+      tx.execute(`SELECT public.${getLiveQueryNotifyProcedureName()}`),
+    );
+  });
 
   const transactionSpy = vi.spyOn(database.readonlyQB.raw, "transaction");
 

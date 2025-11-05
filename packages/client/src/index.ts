@@ -152,9 +152,10 @@ export const createClient = <schema extends Schema>(
 
       const queryPromise = queryFn(noopDatabase);
 
-      // TODO(kyle) support `.execute()`
       if ("getSQL" in queryPromise === false) {
-        throw new Error('"queryFn" must return SQL');
+        throw new Error(
+          '"queryFn" must return SQL. You may have to remove `.execute()` from your query.',
+        );
       }
       const queryBuilder =
         queryPromise as unknown as TypedQueryBuilder<unknown>;
