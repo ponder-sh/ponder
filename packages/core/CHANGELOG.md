@@ -1,5 +1,11 @@
 # ponder
 
+## 0.14.13
+
+### Patch Changes
+
+- [#2171](https://github.com/ponder-sh/ponder/pull/2171) [`5d56c55`](https://github.com/ponder-sh/ponder/commit/5d56c557596d3f6e8a4839d39b84605b7a1c2527) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed `"Invalid RPC response: 'transaction.to' is a required property"` error.
+
 ## 0.14.12
 
 ### Patch Changes
