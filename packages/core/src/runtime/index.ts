@@ -1,6 +1,7 @@
 import type { Common } from "@/internal/common.js";
 import type {
   Chain,
+  Factory,
   FactoryId,
   Filter,
   Fragment,
@@ -43,13 +44,18 @@ export type SyncProgress = {
 export type ChildAddresses = Map<FactoryId, Map<Address, number>>;
 
 export type CachedIntervals = Map<
-  Filter,
+  Filter | Factory,
   { fragment: Fragment; intervals: Interval[] }[]
 >;
 
 export type IntervalWithFilter = {
   interval: Interval;
   filter: Filter;
+};
+
+export type IntervalWithFactory = {
+  interval: Interval;
+  factory: Factory;
 };
 
 export async function getLocalSyncProgress(params: {
@@ -259,25 +265,41 @@ export async function getCachedIntervals(params: {
  * Returns the intervals that need to be synced to complete the `interval`
  * for all `sources`.
  *
- * Note: This function dynamically builds filters using `recoverFilter`.
- * Fragments are used to create a minimal filter, to avoid refetching data
- * even if a filter is only partially synced.
- *
- * @param params.sources - The sources to sync.
+ * @param params.filters - The filters to sync.
  * @param params.interval - The interval to sync.
  * @param params.cachedIntervals - The cached intervals for the sources.
  * @returns The intervals that need to be synced.
  */
-export const getRequiredIntervals = (params: {
+export const getRequiredIntervals = (): Interval[] => {};
+
+/**
+ * Returns the intervals that need to be synced to complete the `interval`
+ * for all `sources`.
+ *
+ * Note: This function dynamically builds filters using `recoverFilter`.
+ * Fragments are used to create a minimal filter, to avoid refetching data
+ * even if a filter is only partially synced.
+ *
+ * @param params.filters - The filters to sync.
+ * @param params.interval - The interval to sync.
+ * @param params.cachedIntervals - The cached intervals for the sources.
+ * @returns The intervals that need to be synced.
+ */
+export const getRequiredIntervalsWithFilters = (params: {
   filters: Filter[];
   interval: Interval;
   cachedIntervals: CachedIntervals;
-}): IntervalWithFilter[] => {
+}): {
+  intervals: IntervalWithFilter[];
+  factoryIntervals: IntervalWithFactory[];
+} => {
   const requiredIntervals: IntervalWithFilter[] = [];
 
   // Determine the requests that need to be made, and which intervals need to be inserted.
   // Fragments are used to create a minimal filter, to avoid refetching data even if a filter
   // is only partially synced.
+
+  // TODO(kyle) dedupe factories by factory id
 
   for (const filter of params.filters) {
     let filterIntervals: Interval[] = [

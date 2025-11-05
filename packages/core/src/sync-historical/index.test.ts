@@ -26,7 +26,10 @@ import {
   getPairWithFactoryIndexingBuild,
 } from "@/_test/utils.js";
 import { createRpc } from "@/rpc/index.js";
-import { getCachedIntervals, getRequiredIntervals } from "@/runtime/index.js";
+import {
+  getCachedIntervals,
+  getRequiredIntervalsWithFilters,
+} from "@/runtime/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
 import { zeroAddress } from "viem";
 import { parseEther } from "viem/utils";
@@ -87,7 +90,7 @@ test("sync() with log filter", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(eventCallbacks),
@@ -150,7 +153,7 @@ test("sync() with log filter and transaction receipts", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(eventCallbacks),
@@ -208,7 +211,7 @@ test("sync() with block filter", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 3],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(eventCallbacks),
@@ -275,7 +278,7 @@ test("sync() with log factory", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 3],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(eventCallbacks),
@@ -369,7 +372,7 @@ test("sync() with trace filter", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 3],
     filters: eventCallbacks
       .filter(({ filter }) => filter.type === "trace")
@@ -431,7 +434,7 @@ test("sync() with transaction filter", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 1],
     filters: eventCallbacks
       .filter(({ filter }) => filter.type === "transaction")
@@ -519,7 +522,7 @@ test("sync() with transfer filter", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 1],
     filters: eventCallbacks
       .filter(({ filter }) => filter.type === "transfer")
@@ -591,7 +594,7 @@ test("sync() with many filters", async (context) => {
     ]),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
     filters: [...erc20EventCallbacks, ...blocksEventCallbacks].map(
       ({ filter }) => filter,
@@ -662,7 +665,7 @@ test("sync() with cache", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  let requiredIntervals = getRequiredIntervals({
+  let requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(eventCallbacks),
@@ -700,7 +703,7 @@ test("sync() with cache", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  requiredIntervals = getRequiredIntervals({
+  requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals,
@@ -751,7 +754,7 @@ test("sync() with partial cache", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  let requiredIntervals = getRequiredIntervals({
+  let requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(eventCallbacks),
@@ -796,7 +799,7 @@ test("sync() with partial cache", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  requiredIntervals = getRequiredIntervals({
+  requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals,
@@ -856,7 +859,7 @@ test("sync() with partial cache", async (context) => {
 
   await simulateBlock();
 
-  requiredIntervals = getRequiredIntervals({
+  requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 3],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals,
@@ -937,7 +940,7 @@ test("syncAddress() handles many addresses", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 13],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(eventCallbacks),

@@ -349,6 +349,29 @@ export const isBlockFilterMatched = ({
   return (Number(block.number) - filter.offset) % filter.interval === 0;
 };
 
+export const getFilterFactories = (filter: Filter): Factory[] => {
+  const factories: Factory[] = [];
+  switch (filter.type) {
+    case "log":
+      if (isAddressFactory(filter.address)) {
+        factories.push(filter.address);
+      }
+      break;
+    case "trace":
+    case "transfer":
+    case "transaction": {
+      if (isAddressFactory(filter.fromAddress)) {
+        factories.push(filter.fromAddress);
+      }
+      if (isAddressFactory(filter.toAddress)) {
+        factories.push(filter.toAddress);
+      }
+      break;
+    }
+  }
+  return factories;
+};
+
 export const defaultBlockInclude: (keyof Block)[] = [
   "baseFeePerGas",
   "difficulty",
