@@ -280,11 +280,11 @@ test("client.db cache", async (context) => {
     }),
   );
 
-  await createLiveQueryTriggers(database.userQB, {
-    tables: [account],
-  });
   await createLiveQueryProcedures(database.userQB, {
     namespaceBuild: globalThis.PONDER_NAMESPACE_BUILD,
+  });
+  await createLiveQueryTriggers(database.userQB, {
+    tables: [account],
   });
 
   await database.userQB.transaction(async (tx) => {
