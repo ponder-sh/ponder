@@ -1197,7 +1197,7 @@ const generatePgSnapshot = (
         // 	// 					chalk.underline.blue(
         // 	// 						column.name,
         // 	// 					)
-        // 	// 				} column is confilcting with a unique constraint name already defined for ${
+        // 	// 				} column is conflicting with a unique constraint name already defined for ${
         // 	// 					chalk.underline.blue(existingUnique.columns.join(','))
         // 	// 				} columns\n`,
         // 	// 			)
