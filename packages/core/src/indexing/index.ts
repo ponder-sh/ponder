@@ -403,7 +403,7 @@ export const createIndexing = ({
   );
   // Note: There is no `log` proxy because all log columns are required.
 
-  // Note: Filters and indexing functions have a one-to-many relationship.
+  // Note: Indexing functions map to one or more filters.
   const perEventFilters = new Map<string, Filter[]>();
   const isFilterResolved = new Map<Filter, boolean>();
   for (const eventCallback of eventCallbacks.flat()) {
