@@ -83,12 +83,14 @@ export function getHttpRpcClient(
 
           reader = response.body?.getReader()!;
           const chunks: Uint8Array[] = [];
+          let totalLength = 0;
 
           try {
             while (true) {
               const { done, value } = await reader.read();
               if (done) break;
               chunks.push(value);
+              totalLength += value.length;
             }
           } finally {
             reader.releaseLock();
@@ -97,10 +99,6 @@ export function getHttpRpcClient(
 
           if (isTimeoutRejected) return;
 
-          const totalLength = chunks.reduce(
-            (sum, chunk) => sum + chunk.length,
-            0,
-          );
           let offset = 0;
           const fullData = new Uint8Array(totalLength);
           for (const chunk of chunks) {

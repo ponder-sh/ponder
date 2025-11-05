@@ -1,4 +1,3 @@
-import assert from "node:assert";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { setupCommon } from "@/_test/setup.js";
@@ -10,7 +9,9 @@ import { getHttpRpcClient } from "./http.js";
 beforeEach(setupCommon);
 
 test("slow body returns TimeoutError", async (context) => {
-  const respDurationMs = 1500;
+  const responseDelayMs = 500;
+  const timeoutMs = 300;
+
   const server = http.createServer((_req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
 
@@ -20,37 +21,34 @@ test("slow body returns TimeoutError", async (context) => {
       const elapsed = Date.now() - start;
       res.write(`data:${elapsed}\n`);
 
-      if (elapsed >= respDurationMs) {
+      if (elapsed >= responseDelayMs) {
         clearInterval(interval);
         res.end("done\n"); // final chunk terminates the response
-        console.log("stream finished");
       }
     }, 100);
   });
 
-  const port = await new Promise<number>((resolve, _reject) => {
+  const port = await new Promise<number>((resolve, reject) => {
     // Pass 0 to listen() for a random available port
     server.listen(0, () => {
-      const { port } = server.address() as AddressInfo;
+      const port = (server.address() as AddressInfo)?.port;
+      if (typeof port !== "number") {
+        reject(new Error("Failed to get available port"));
+      }
       resolve(port);
     });
   });
-
-  assert(typeof port === "number");
 
   const client = getHttpRpcClient(
     context.common,
     getChain(),
     `http://localhost:${port}`,
-    {
-      timeout: 1000,
-    },
+    { timeout: timeoutMs },
   );
-  try {
-    await client.request({
+
+  await expect(() =>
+    client.request({
       body: { method: "test", id: 1, jsonrpc: "2.0", params: ["test"] },
-    });
-  } catch (e) {
-    expect(e).instanceOf(TimeoutError);
-  }
+    }),
+  ).rejects.toThrow(TimeoutError);
 });
