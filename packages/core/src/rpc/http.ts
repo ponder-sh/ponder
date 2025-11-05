@@ -27,6 +27,7 @@ export function getHttpRpcClient(
   url: string,
   options?: HttpRpcClientOptions,
 ): HttpRpcClient {
+  const timeoutMs = options?.timeout ?? 10_000;
   let id = 1;
   return {
     async request(params) {
@@ -56,13 +57,13 @@ export function getHttpRpcClient(
               chain_id: chain.id,
               // @ts-ignore
               request_id: headers ? headers["X-Request-ID"] : undefined,
-              duration: 10_000,
+              duration: timeoutMs,
             });
             try {
               await reader.cancel("Timeout");
             } catch {}
           }
-        }, options?.timeout ?? 10_000);
+        }, timeoutMs);
 
         try {
           const init: RequestInit = {
