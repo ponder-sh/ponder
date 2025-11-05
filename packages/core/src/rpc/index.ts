@@ -183,7 +183,11 @@ export const createRpc = ({
     const protocol = new url.URL(chain.rpc).protocol;
     const hostname = new url.URL(chain.rpc).hostname;
     if (protocol === "https:" || protocol === "http:") {
-      const httpRpcClient = getHttpRpcClient(common, chain, chain.rpc);
+      const httpRpcClient = getHttpRpcClient(chain.rpc, {
+        common,
+        chain,
+        timeout: 10_000,
+      });
       backends = [
         {
           request: custom({
@@ -199,7 +203,6 @@ export const createRpc = ({
           })({
             chain: chain.viemChain,
             retryCount: 0,
-            timeout: 10_000,
           }).request,
           hostname,
         },
@@ -224,7 +227,11 @@ export const createRpc = ({
       const hostname = new url.URL(chain.rpc).hostname;
 
       if (protocol === "https:" || protocol === "http:") {
-        const httpRpcClient = getHttpRpcClient(common, chain, rpc);
+        const httpRpcClient = getHttpRpcClient(rpc, {
+          common,
+          chain,
+          timeout: 10_000,
+        });
         return {
           request: custom({
             request(body) {
@@ -239,7 +246,6 @@ export const createRpc = ({
           })({
             chain: chain.viemChain,
             retryCount: 0,
-            timeout: 10_000,
           }).request,
           hostname,
         };

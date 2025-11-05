@@ -22,11 +22,10 @@ export type HttpRpcClient = {
 };
 
 export function getHttpRpcClient(
-  common: Common,
-  chain: Chain,
   url: string,
-  options?: HttpRpcClientOptions,
+  options: HttpRpcClientOptions & { common: Common; chain: Chain },
 ): HttpRpcClient {
+  const { common, chain } = options;
   const timeoutMs = options?.timeout ?? 10_000;
   let id = 1;
   return {
