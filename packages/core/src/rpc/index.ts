@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+import crypto, { type UUID } from "node:crypto";
 import url from "node:url";
 import type { Common } from "@/internal/common.js";
 import type { Logger } from "@/internal/logger.js";
@@ -16,7 +16,6 @@ import {
   getLogsRetryHelper,
 } from "@ponder/utils";
 import {
-  http,
   BlockNotFoundError,
   type EIP1193Parameters,
   type EIP1193RequestFn,
@@ -30,12 +29,14 @@ import {
   type RpcError,
   type RpcTransactionReceipt,
   TimeoutError,
+  custom,
   hexToNumber,
   isHex,
   webSocket,
 } from "viem";
 import { WebSocket } from "ws";
 import type { DebugRpcSchema } from "../utils/debug.js";
+import { getHttpRpcClient } from "./http.js";
 
 export type RpcSchema = [
   ...PublicRpcSchema,
@@ -176,16 +177,32 @@ export const createRpc = ({
 }: { common: Common; chain: Chain; concurrency?: number }): Rpc => {
   let backends: { request: EIP1193RequestFn<RpcSchema>; hostname: string }[];
 
+  let requestId: UUID | undefined;
+
   if (typeof chain.rpc === "string") {
     const protocol = new url.URL(chain.rpc).protocol;
     const hostname = new url.URL(chain.rpc).hostname;
     if (protocol === "https:" || protocol === "http:") {
+      const httpRpcClient = getHttpRpcClient(chain.rpc, {
+        common,
+        chain,
+        timeout: 10_000,
+      });
       backends = [
         {
-          request: http(chain.rpc)({
+          request: custom({
+            request(body) {
+              if (requestId) {
+                return httpRpcClient.request({
+                  body,
+                  fetchOptions: { headers: { "X-Request-ID": requestId } },
+                });
+              }
+              return httpRpcClient.request({ body });
+            },
+          })({
             chain: chain.viemChain,
             retryCount: 0,
-            timeout: 10_000,
           }).request,
           hostname,
         },
@@ -210,11 +227,25 @@ export const createRpc = ({
       const hostname = new url.URL(chain.rpc).hostname;
 
       if (protocol === "https:" || protocol === "http:") {
+        const httpRpcClient = getHttpRpcClient(rpc, {
+          common,
+          chain,
+          timeout: 10_000,
+        });
         return {
-          request: http(rpc)({
+          request: custom({
+            request(body) {
+              if (requestId) {
+                return httpRpcClient.request({
+                  body,
+                  fetchOptions: { headers: { "X-Request-ID": requestId } },
+                });
+              }
+              return httpRpcClient.request({ body });
+            },
+          })({
             chain: chain.viemChain,
             retryCount: 0,
-            timeout: 10_000,
           }).request,
           hostname,
         };
@@ -433,7 +464,7 @@ export const createRpc = ({
         clearTimeout(t);
         const getBucketDuration = endClock();
         endClock = startClock();
-        const id = crypto.randomUUID().slice(0, 8);
+        const id = crypto.randomUUID();
 
         const surpassTimeout = setTimeout(() => {
           logger.warn({
@@ -469,6 +500,7 @@ export const createRpc = ({
             bucket.rps[bucket.rps.length - 1]!.count++;
           }
 
+          requestId = id;
           const response = await bucket.request(body);
 
           if (response === undefined) {
