@@ -766,6 +766,6 @@ export const recoverProfilePattern = (
     args,
     blockNumber:
       pattern.cache === "immutable" ? "latest" : event.event.block.number,
-    chainId: event.chainId,
+    chainId: event.chain.id,
   };
 };

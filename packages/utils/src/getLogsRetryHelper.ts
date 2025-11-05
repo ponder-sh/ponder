@@ -447,12 +447,29 @@ export const getLogsRetryHelper = ({
     }
   }
 
-  // merkle
+  // merkle 10k
   match = sError.match(/eth_getLogs range is too large, max is 10k blocks/);
   if (match !== null) {
     const ranges = chunk({
       params,
       range: 10_000n,
+    });
+
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
+    }
+  }
+
+  // merkle 1k
+  match = sError.match(/eth_getLogs range is too large, max is 1k blocks/);
+  if (match !== null) {
+    const ranges = chunk({
+      params,
+      range: 1_000n,
     });
 
     if (isRangeUnchanged(params, ranges) === false) {

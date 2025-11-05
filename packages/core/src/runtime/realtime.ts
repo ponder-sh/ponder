@@ -1,11 +1,12 @@
+import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
   Chain,
   Event,
+  EventCallback,
   Factory,
   Filter,
   IndexingBuild,
-  Source,
   SyncBlock,
   SyncBlockHeader,
 } from "@/internal/types.js";
@@ -23,7 +24,7 @@ import {
   type RealtimeSyncEvent,
   createRealtimeSync,
 } from "@/sync-realtime/index.js";
-import type { SyncStore } from "@/sync-store/index.js";
+import { createSyncStore } from "@/sync-store/index.js";
 import {
   ZERO_CHECKPOINT_STRING,
   blockToCheckpoint,
@@ -36,6 +37,7 @@ import {
   mergeAsyncGenerators,
 } from "@/utils/generators.js";
 import { type Interval, intervalIntersection } from "@/utils/interval.js";
+import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { startClock } from "@/utils/timer.js";
 import { type Address, hexToNumber } from "viem";
@@ -57,7 +59,7 @@ export async function* getRealtimeEventsOmnichain(params: {
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
-    "sources" | "chains" | "rpcs" | "finalizedBlocks"
+    "eventCallbacks" | "chains" | "rpcs" | "finalizedBlocks"
   >;
   perChainSync: Map<
     Chain,
@@ -70,7 +72,7 @@ export async function* getRealtimeEventsOmnichain(params: {
       >[];
     }
   >;
-  syncStore: SyncStore;
+  database: Database;
   pendingEvents: Event[];
 }): AsyncGenerator<RealtimeEvent> {
   const eventGenerators = Array.from(params.perChainSync.entries())
@@ -92,9 +94,10 @@ export async function* getRealtimeEventsOmnichain(params: {
 
       const rpc =
         params.indexingBuild.rpcs[params.indexingBuild.chains.indexOf(chain)]!;
-      const sources = params.indexingBuild.sources.filter(
-        ({ filter }) => filter.chainId === chain.id,
-      );
+      const eventCallbacks =
+        params.indexingBuild.eventCallbacks[
+          params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
+        ]!;
 
       params.common.metrics.ponder_sync_is_realtime.set(
         { chain: chain.name },
@@ -119,10 +122,10 @@ export async function* getRealtimeEventsOmnichain(params: {
           common: params.common,
           chain,
           rpc,
-          sources,
+          eventCallbacks,
           syncProgress,
           childAddresses,
-          syncStore: params.syncStore,
+          database: params.database,
         }),
         100,
         bufferCallback,
@@ -150,23 +153,24 @@ export async function* getRealtimeEventsOmnichain(params: {
     const { syncProgress, childAddresses, unfinalizedBlocks } =
       params.perChainSync.get(chain)!;
 
-    const sources = params.indexingBuild.sources.filter(
-      ({ filter }) => filter.chainId === chain.id,
-    );
+    const eventCallbacks =
+      params.indexingBuild.eventCallbacks[
+        params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
+      ]!;
 
     await handleRealtimeSyncEvent(event, {
       common: params.common,
       chain,
-      sources,
+      eventCallbacks,
       syncProgress,
       unfinalizedBlocks,
-      syncStore: params.syncStore,
+      database: params.database,
     });
 
     switch (event.type) {
       case "block": {
         const events = buildEvents({
-          sources,
+          eventCallbacks,
           chainId: chain.id,
           blocks: [syncBlockToInternal({ block: event.block })],
           logs: event.logs.map((log) => syncLogToInternal({ log })),
@@ -198,7 +202,12 @@ export async function* getRealtimeEventsOmnichain(params: {
           event_count: events.length,
         });
 
-        const decodedEvents = decodeEvents(params.common, sources, events);
+        const decodedEvents = decodeEvents(
+          params.common,
+          chain,
+          eventCallbacks,
+          events,
+        );
 
         params.common.logger.trace({
           msg: "Decoded block events",
@@ -274,7 +283,7 @@ export async function* getRealtimeEventsOmnichain(params: {
       case "reorg": {
         const isReorgedEvent = (_event: Event) => {
           if (
-            _event.chainId === chain.id &&
+            _event.chain.id === chain.id &&
             Number(_event.event.block.number) > hexToNumber(event.block.number)
           ) {
             return true;
@@ -317,7 +326,7 @@ export async function* getRealtimeEventsMultichain(params: {
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
-    "sources" | "chains" | "rpcs" | "finalizedBlocks"
+    "eventCallbacks" | "chains" | "rpcs" | "finalizedBlocks"
   >;
   perChainSync: Map<
     Chain,
@@ -330,7 +339,7 @@ export async function* getRealtimeEventsMultichain(params: {
       >[];
     }
   >;
-  syncStore: SyncStore;
+  database: Database;
 }): AsyncGenerator<RealtimeEvent> {
   const eventGenerators = Array.from(params.perChainSync.entries())
     .map(([chain, { syncProgress, childAddresses }]) => {
@@ -351,9 +360,10 @@ export async function* getRealtimeEventsMultichain(params: {
 
       const rpc =
         params.indexingBuild.rpcs[params.indexingBuild.chains.indexOf(chain)]!;
-      const sources = params.indexingBuild.sources.filter(
-        ({ filter }) => filter.chainId === chain.id,
-      );
+      const eventCallbacks =
+        params.indexingBuild.eventCallbacks[
+          params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
+        ]!;
 
       params.common.metrics.ponder_sync_is_realtime.set(
         { chain: chain.name },
@@ -378,10 +388,10 @@ export async function* getRealtimeEventsMultichain(params: {
           common: params.common,
           chain,
           rpc,
-          sources,
+          eventCallbacks,
           syncProgress,
           childAddresses,
-          syncStore: params.syncStore,
+          database: params.database,
         }),
         100,
         bufferCallback,
@@ -405,23 +415,24 @@ export async function* getRealtimeEventsMultichain(params: {
     const { syncProgress, childAddresses, unfinalizedBlocks } =
       params.perChainSync.get(chain)!;
 
-    const sources = params.indexingBuild.sources.filter(
-      ({ filter }) => filter.chainId === chain.id,
-    );
+    const eventCallbacks =
+      params.indexingBuild.eventCallbacks[
+        params.indexingBuild.chains.findIndex((c) => c.id === chain.id)
+      ]!;
 
     await handleRealtimeSyncEvent(event, {
       common: params.common,
       chain,
-      sources,
+      eventCallbacks,
       syncProgress,
       unfinalizedBlocks,
-      syncStore: params.syncStore,
+      database: params.database,
     });
 
     switch (event.type) {
       case "block": {
         const events = buildEvents({
-          sources,
+          eventCallbacks,
           chainId: chain.id,
           blocks: [syncBlockToInternal({ block: event.block })],
           logs: event.logs.map((log) => syncLogToInternal({ log })),
@@ -453,7 +464,12 @@ export async function* getRealtimeEventsMultichain(params: {
           event_count: events.length,
         });
 
-        const decodedEvents = decodeEvents(params.common, sources, events);
+        const decodedEvents = decodeEvents(
+          params.common,
+          chain,
+          eventCallbacks,
+          events,
+        );
 
         params.common.logger.trace({
           msg: "Decoded block events",
@@ -498,7 +514,7 @@ export async function* getRealtimeEventsMultichain(params: {
 
         for (const [index, event] of executedEvents.entries()) {
           const _chain = params.indexingBuild.chains.find(
-            (c) => c.id === event.chainId,
+            (c) => c.id === event.chain.id,
           )!;
           const _checkpoint = params.perChainSync
             .get(_chain)!
@@ -531,7 +547,7 @@ export async function* getRealtimeEventsMultichain(params: {
       case "reorg": {
         const isReorgedEvent = (_event: Event) => {
           if (
-            _event.chainId === chain.id &&
+            _event.chain.id === chain.id &&
             Number(_event.event.block.number) > hexToNumber(event.block.number)
           ) {
             return true;
@@ -544,7 +560,7 @@ export async function* getRealtimeEventsMultichain(params: {
         // index of the first reorged event
         let reorgIndex: number | undefined = undefined;
         for (const [index, event] of executedEvents.entries()) {
-          if (event.chainId === chain.id && event.checkpoint > checkpoint) {
+          if (event.chain.id === chain.id && event.checkpoint > checkpoint) {
             reorgIndex = index;
             break;
           }
@@ -578,10 +594,10 @@ export async function* getRealtimeEventGenerator(params: {
   common: Common;
   chain: Chain;
   rpc: Rpc;
-  sources: Source[];
+  eventCallbacks: EventCallback[];
   syncProgress: SyncProgress;
   childAddresses: ChildAddresses;
-  syncStore: SyncStore;
+  database: Database;
 }) {
   const realtimeSync = createRealtimeSync(params);
 
@@ -689,13 +705,13 @@ export async function handleRealtimeSyncEvent(
   params: {
     common: Common;
     chain: Chain;
-    sources: Source[];
+    eventCallbacks: EventCallback[];
     syncProgress: SyncProgress;
     unfinalizedBlocks: Omit<
       Extract<RealtimeSyncEvent, { type: "block" }>,
       "type"
     >[];
-    syncStore: SyncStore;
+    database: Database;
   },
 ) {
   switch (event.type) {
@@ -738,6 +754,8 @@ export async function handleRealtimeSyncEvent(
         } else break;
       }
 
+      if (params.chain.disableCache) break;
+
       // Add finalized blocks, logs, transactions, receipts, and traces to the sync-store.
 
       const childAddresses = new Map<Factory, Map<Address, number>>();
@@ -761,103 +779,88 @@ export async function handleRealtimeSyncEvent(
         logger: params.common.logger.child({ action: "finalize_block_range" }),
       };
 
-      await Promise.all([
-        params.syncStore.insertBlocks(
-          {
-            blocks: finalizedBlocks
-              .filter(({ hasMatchedFilter }) => hasMatchedFilter)
-              .map(({ block }) => block),
-            chainId: params.chain.id,
-          },
-          context,
-        ),
-        params.syncStore.insertTransactions(
-          {
-            transactions: finalizedBlocks.flatMap(
-              ({ transactions }) => transactions,
-            ),
-            chainId: params.chain.id,
-          },
-          context,
-        ),
-        params.syncStore.insertTransactionReceipts(
-          {
-            transactionReceipts: finalizedBlocks.flatMap(
-              ({ transactionReceipts }) => transactionReceipts,
-            ),
-            chainId: params.chain.id,
-          },
-          context,
-        ),
-        params.syncStore.insertLogs(
-          {
-            logs: finalizedBlocks.flatMap(({ logs }) => logs),
-            chainId: params.chain.id,
-          },
-          context,
-        ),
-        params.syncStore.insertTraces(
-          {
-            traces: finalizedBlocks.flatMap(({ traces, block, transactions }) =>
-              traces.map((trace) => ({
-                trace,
-                block: block as SyncBlock, // SyncBlock is expected for traces.length !== 0
-                transaction: transactions.find(
-                  (t) => t.hash === trace.transactionHash,
-                )!,
-              })),
-            ),
-            chainId: params.chain.id,
-          },
-          context,
-        ),
-        ...Array.from(childAddresses.entries()).map(
-          ([factory, childAddresses]) =>
-            params.syncStore.insertChildAddresses(
-              {
-                factory,
-                childAddresses,
-                chainId: params.chain.id,
-              },
-              context,
-            ),
-        ),
-      ]);
+      await params.database.syncQB.transaction(
+        async (tx) => {
+          const syncStore = createSyncStore({ common: params.common, qb: tx });
 
-      // Add corresponding intervals to the sync-store
-      // Note: this should happen after insertion so the database doesn't become corrupted
+          await promiseAllSettledWithThrow([
+            syncStore.insertBlocks({
+              blocks: finalizedBlocks
+                .filter(({ hasMatchedFilter }) => hasMatchedFilter)
+                .map(({ block }) => block),
+              chainId: params.chain.id,
+            }),
+            syncStore.insertTransactions({
+              transactions: finalizedBlocks.flatMap(
+                ({ transactions }) => transactions,
+              ),
+              chainId: params.chain.id,
+            }),
+            syncStore.insertTransactionReceipts({
+              transactionReceipts: finalizedBlocks.flatMap(
+                ({ transactionReceipts }) => transactionReceipts,
+              ),
+              chainId: params.chain.id,
+            }),
+            syncStore.insertLogs({
+              logs: finalizedBlocks.flatMap(({ logs }) => logs),
+              chainId: params.chain.id,
+            }),
+            syncStore.insertTraces({
+              traces: finalizedBlocks.flatMap(
+                ({ traces, block, transactions }) =>
+                  traces.map((trace) => ({
+                    trace,
+                    block: block as SyncBlock, // SyncBlock is expected for traces.length !== 0
+                    transaction: transactions.find(
+                      (t) => t.hash === trace.transactionHash,
+                    )!,
+                  })),
+              ),
+              chainId: params.chain.id,
+            }),
+            ...Array.from(childAddresses.entries()).map(
+              ([factory, childAddresses]) =>
+                syncStore.insertChildAddresses({
+                  factory,
+                  childAddresses,
+                  chainId: params.chain.id,
+                }),
+            ),
+          ]);
 
-      if (params.chain.disableCache === false) {
-        const syncedIntervals: {
-          interval: Interval;
-          filter: Filter;
-        }[] = [];
+          const syncedIntervals: {
+            interval: Interval;
+            filter: Filter;
+          }[] = [];
 
-        for (const { filter } of params.sources) {
-          const intervals = intervalIntersection(
-            [finalizedInterval],
-            [
+          for (const { filter } of params.eventCallbacks) {
+            const intervals = intervalIntersection(
+              [finalizedInterval],
               [
-                filter.fromBlock ?? 0,
-                filter.toBlock ?? Number.POSITIVE_INFINITY,
+                [
+                  filter.fromBlock ?? 0,
+                  filter.toBlock ?? Number.POSITIVE_INFINITY,
+                ],
               ],
-            ],
-          );
+            );
 
-          for (const interval of intervals) {
-            syncedIntervals.push({ interval, filter });
+            for (const interval of intervals) {
+              syncedIntervals.push({ interval, filter });
+            }
           }
-        }
 
-        await params.syncStore.insertIntervals(
-          {
-            intervals: syncedIntervals,
-            chainId: params.chain.id,
-          },
-          context,
-        );
-      }
-
+          await syncStore.insertIntervals(
+            {
+              intervals: syncedIntervals,
+              chainId: params.chain.id,
+            },
+            context,
+          );
+        },
+        undefined,
+        context,
+      );
       break;
     }
     case "reorg": {
@@ -883,7 +886,10 @@ export async function handleRealtimeSyncEvent(
         } else break;
       }
 
-      await params.syncStore.pruneRpcRequestResults(
+      await createSyncStore({
+        common: params.common,
+        qb: params.database.syncQB,
+      }).pruneRpcRequestResults(
         {
           chainId: params.chain.id,
           blocks: event.reorgedBlocks,

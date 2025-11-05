@@ -486,6 +486,9 @@ test("sql", async (context) => {
     },
   ]);
 
+  const result2 = await indexingStore.sql.$count(schema.account);
+  expect(result2).toBe(1);
+
   // non-null constraint
 
   expect(

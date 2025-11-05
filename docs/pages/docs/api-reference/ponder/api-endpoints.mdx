@@ -104,7 +104,7 @@ const app = new Hono();
 app.get("/balance/:address", async (c) => {
   const address = c.req.param("address");
 
-  const balance = await publicClients[8453].getBalance({ address }); // [!code focus]
+  const balance = await publicClients["base"].getBalance({ address }); // [!code focus]
 
   return c.json({ address, balance });
 });

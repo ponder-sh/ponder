@@ -1,5 +1,50 @@
 # ponder
 
+## 0.14.12
+
+### Patch Changes
+
+- [#2166](https://github.com/ponder-sh/ponder/pull/2166) [`a5df940`](https://github.com/ponder-sh/ponder/commit/a5df9408fac583ac2eff07fc631a66859941f7da) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved database storage size for live indexing when `disableCache: true`.
+
+## 0.14.11
+
+### Patch Changes
+
+- Updated dependencies [[`ac518fc`](https://github.com/ponder-sh/ponder/commit/ac518fc3ed32a7d41f7b6e625eb72d2a8b665f7b)]:
+  - @ponder/utils@0.2.15
+
+## 0.14.10
+
+### Patch Changes
+
+- [#2160](https://github.com/ponder-sh/ponder/pull/2160) [`05824c2`](https://github.com/ponder-sh/ponder/commit/05824c2439ba28ff5cfced966de4b8599b3156a4) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression introduced in `0.14.0` that caused graphql `many` relations to return empty arrays.
+
+## 0.14.9
+
+### Patch Changes
+
+- [#2156](https://github.com/ponder-sh/ponder/pull/2156) [`615c185`](https://github.com/ponder-sh/ponder/commit/615c185958b2799c0191972488cf7839d6102865) Thanks [@kyscott18](https://github.com/kyscott18)! - Improve JSON-RPC response validation. Fixed `error: value "4294967295" is out of range for type integer`.
+
+## 0.14.8
+
+### Patch Changes
+
+- [#2154](https://github.com/ponder-sh/ponder/pull/2154) [`b45f0e1`](https://github.com/ponder-sh/ponder/commit/b45f0e1b76c35b8ee25d93553d4c1302f23c88a1) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed drizzle builder queries such as `db.$count` for `context.db` and `client.db`.
+
+## 0.14.7
+
+### Patch Changes
+
+- [#2150](https://github.com/ponder-sh/ponder/pull/2150) [`9b24574`](https://github.com/ponder-sh/ponder/commit/9b245748e8b645e78df6e348e2a22935de131e15) Thanks [@kyscott18](https://github.com/kyscott18)! - Added retries for `BlockNotFoundError: Block at number [block] could not be found`.
+
+## 0.14.6
+
+### Patch Changes
+
+- [#2146](https://github.com/ponder-sh/ponder/pull/2146) [`56f30c1`](https://github.com/ponder-sh/ponder/commit/56f30c1eea44cb09abeacdac91377f4d9c4497c8) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused apps with `startBlock: "latest"` to error with `Finalized block for chain [chain] cannot move backwards` on crash recovery.
+
+- [#2148](https://github.com/ponder-sh/ponder/pull/2148) [`535036d`](https://github.com/ponder-sh/ponder/commit/535036d1252eaa681f02338aa77130def68e20c7) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved trace logs for "live" indexing.
+
 ## 0.14.5
 
 ### Patch Changes

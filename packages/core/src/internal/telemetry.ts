@@ -295,7 +295,7 @@ export function buildPayload({
 
   return {
     database_kind: preBuild?.databaseConfig.kind,
-    contract_count: indexingBuild?.sources.length ?? 0,
+    contract_count: 0,
     network_count: indexingBuild?.chains.length ?? 0,
     table_count,
     indexing_function_count,

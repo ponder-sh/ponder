@@ -33,11 +33,11 @@ beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
 test("getLocalEventGenerator()", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -46,12 +46,12 @@ test("getLocalEventGenerator()", async (context) => {
   const cachedIntervals = await getCachedIntervals({
     chain,
     syncStore,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
   });
 
   const syncProgress = await getLocalSyncProgress({
     common: context.common,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
     finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 1 }),
@@ -62,11 +62,11 @@ test("getLocalEventGenerator()", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     childAddresses: new Map(),
     syncProgress,
     cachedIntervals,
-    syncStore,
+    database,
     from: syncProgress.getCheckpoint({ tag: "start" })!,
     to: syncProgress.getCheckpoint({ tag: "finalized" })!,
     limit: 100,
@@ -78,11 +78,11 @@ test("getLocalEventGenerator()", async (context) => {
 });
 
 test("getLocalEventGenerator() pagination", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -91,12 +91,12 @@ test("getLocalEventGenerator() pagination", async (context) => {
   const cachedIntervals = await getCachedIntervals({
     chain,
     syncStore,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
   });
 
   const syncProgress = await getLocalSyncProgress({
     common: context.common,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
     finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 2 }),
@@ -107,8 +107,8 @@ test("getLocalEventGenerator() pagination", async (context) => {
     common: context.common,
     chain,
     rpc,
-    syncStore,
-    sources,
+    database,
+    eventCallbacks,
     childAddresses: new Map(),
     syncProgress,
     cachedIntervals,
@@ -123,11 +123,11 @@ test("getLocalEventGenerator() pagination", async (context) => {
 });
 
 test("getLocalEventGenerator() pagination with zero interval", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -136,12 +136,12 @@ test("getLocalEventGenerator() pagination with zero interval", async (context) =
   const cachedIntervals = await getCachedIntervals({
     chain,
     syncStore,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
   });
 
   const syncProgress = await getLocalSyncProgress({
     common: context.common,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
     finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 0 }),
@@ -152,8 +152,8 @@ test("getLocalEventGenerator() pagination with zero interval", async (context) =
     common: context.common,
     chain,
     rpc,
-    syncStore,
-    sources,
+    database,
+    eventCallbacks,
     childAddresses: new Map(),
     syncProgress,
     cachedIntervals,
@@ -172,7 +172,7 @@ test("getLocalSyncGenerator()", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -181,12 +181,12 @@ test("getLocalSyncGenerator()", async (context) => {
   const cachedIntervals = await getCachedIntervals({
     chain,
     syncStore,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
   });
 
   const syncProgress = await getLocalSyncProgress({
     common: context.common,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
     finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 1 }),
@@ -197,10 +197,10 @@ test("getLocalSyncGenerator()", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     childAddresses: new Map(),
     cachedIntervals,
-    syncStore,
+    database,
     syncProgress,
     isCatchup: false,
   });
@@ -220,7 +220,7 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -229,12 +229,12 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
   let cachedIntervals = await getCachedIntervals({
     chain,
     syncStore,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
   });
 
   let syncProgress = await getLocalSyncProgress({
     common: context.common,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
     finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 1 }),
@@ -245,11 +245,11 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     childAddresses: new Map(),
     syncProgress,
     cachedIntervals,
-    syncStore,
+    database,
     isCatchup: false,
   });
 
@@ -260,12 +260,12 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
   cachedIntervals = await getCachedIntervals({
     chain,
     syncStore,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
   });
 
   syncProgress = await getLocalSyncProgress({
     common: context.common,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
     finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 2 }),
@@ -276,11 +276,11 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     childAddresses: new Map(),
     syncProgress,
     cachedIntervals,
-    syncStore,
+    database,
     isCatchup: false,
   });
 
@@ -295,11 +295,11 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
 });
 
 test("getLocalSyncGenerator() with full cache", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -311,12 +311,12 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
   let cachedIntervals = await getCachedIntervals({
     chain,
     syncStore,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
   });
 
   let syncProgress = await getLocalSyncProgress({
     common: context.common,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
     finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 1 }),
@@ -327,11 +327,11 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     childAddresses: new Map(),
     syncProgress,
     cachedIntervals,
-    syncStore,
+    database,
     isCatchup: false,
   });
 
@@ -340,12 +340,12 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
   cachedIntervals = await getCachedIntervals({
     chain,
     syncStore,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
   });
 
   syncProgress = await getLocalSyncProgress({
     common: context.common,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
     finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 1 }),
@@ -356,11 +356,11 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     common: context.common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     childAddresses: new Map(),
     syncProgress,
     cachedIntervals,
-    syncStore,
+    database,
     isCatchup: false,
   });
 
@@ -375,12 +375,12 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
 });
 
 test("getHistoricalEventsMultichain()", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -398,12 +398,12 @@ test("getHistoricalEventsMultichain()", async (context) => {
   const cachedIntervals = await getCachedIntervals({
     chain,
     syncStore,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
   });
 
   const syncProgress = await getLocalSyncProgress({
     common: context.common,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
     finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 1 }),
@@ -411,7 +411,7 @@ test("getHistoricalEventsMultichain()", async (context) => {
   });
 
   const childAddresses = await getChildAddresses({
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     syncStore,
   });
 
@@ -421,14 +421,14 @@ test("getHistoricalEventsMultichain()", async (context) => {
     getHistoricalEventsMultichain({
       common: context.common,
       indexingBuild: {
-        sources,
+        eventCallbacks: [eventCallbacks],
         chains: [chain],
         rpcs: [rpc],
         finalizedBlocks: [await _eth_getBlockByNumber(rpc, { blockNumber: 1 })],
       },
       crashRecoveryCheckpoint: undefined,
       perChainSync,
-      syncStore,
+      database,
     }),
   );
 
@@ -437,12 +437,12 @@ test("getHistoricalEventsMultichain()", async (context) => {
 });
 
 test("getHistoricalEvents() omnichain", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -460,12 +460,12 @@ test("getHistoricalEvents() omnichain", async (context) => {
   const cachedIntervals = await getCachedIntervals({
     chain,
     syncStore,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
   });
 
   const syncProgress = await getLocalSyncProgress({
     common: context.common,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
     finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 1 }),
@@ -473,7 +473,7 @@ test("getHistoricalEvents() omnichain", async (context) => {
   });
 
   const childAddresses = await getChildAddresses({
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     syncStore,
   });
 
@@ -483,14 +483,14 @@ test("getHistoricalEvents() omnichain", async (context) => {
     getHistoricalEventsMultichain({
       common: context.common,
       indexingBuild: {
-        sources,
+        eventCallbacks: [eventCallbacks],
         chains: [chain],
         rpcs: [rpc],
         finalizedBlocks: [await _eth_getBlockByNumber(rpc, { blockNumber: 1 })],
       },
       crashRecoveryCheckpoint: undefined,
       perChainSync,
-      syncStore,
+      database,
     }),
   );
 
@@ -499,12 +499,12 @@ test("getHistoricalEvents() omnichain", async (context) => {
 });
 
 test("getHistoricalEvents() with crash recovery checkpoint", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+  const { database, syncStore } = await setupDatabaseServices(context);
 
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -522,12 +522,12 @@ test("getHistoricalEvents() with crash recovery checkpoint", async (context) => 
   const cachedIntervals = await getCachedIntervals({
     chain,
     syncStore,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
   });
 
   const syncProgress = await getLocalSyncProgress({
     common: context.common,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
     finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 2 }),
@@ -535,7 +535,7 @@ test("getHistoricalEvents() with crash recovery checkpoint", async (context) => 
   });
 
   const childAddresses = await getChildAddresses({
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     syncStore,
   });
 
@@ -545,7 +545,7 @@ test("getHistoricalEvents() with crash recovery checkpoint", async (context) => 
     getHistoricalEventsMultichain({
       common: context.common,
       indexingBuild: {
-        sources,
+        eventCallbacks: [eventCallbacks],
         chains: [chain],
         rpcs: [rpc],
         finalizedBlocks: [await _eth_getBlockByNumber(rpc, { blockNumber: 2 })],
@@ -554,7 +554,7 @@ test("getHistoricalEvents() with crash recovery checkpoint", async (context) => 
         { chainId: 1, checkpoint: MAX_CHECKPOINT_STRING },
       ],
       perChainSync,
-      syncStore,
+      database,
     }),
   );
 

@@ -3,12 +3,12 @@ import { ShutdownError } from "@/internal/errors.js";
 import type {
   BlockFilter,
   Chain,
+  EventCallback,
   Factory,
   FactoryId,
   Filter,
   LightBlock,
   LogFilter,
-  Source,
   SyncBlock,
   SyncBlockHeader,
   SyncLog,
@@ -87,7 +87,7 @@ type CreateRealtimeSyncParameters = {
   common: Common;
   chain: Chain;
   rpc: Rpc;
-  sources: Source[];
+  eventCallbacks: EventCallback[];
   syncProgress: Pick<SyncProgress, "finalized">;
   childAddresses: Map<FactoryId, Map<Address, number>>;
 };
@@ -135,30 +135,26 @@ export const createRealtimeSync = (
   const transferFilters: TransferFilter[] = [];
   const blockFilters: BlockFilter[] = [];
 
-  for (const source of args.sources) {
-    // Collect filters from sources
-    if (source.type === "contract") {
-      if (source.filter.type === "log") {
-        logFilters.push(source.filter);
-      } else if (source.filter.type === "trace") {
-        traceFilters.push(source.filter);
-      }
-    } else if (source.type === "account") {
-      if (source.filter.type === "transaction") {
-        transactionFilters.push(source.filter);
-      } else if (source.filter.type === "transfer") {
-        transferFilters.push(source.filter);
-      }
-    } else if (source.type === "block") {
-      blockFilters.push(source.filter);
+  for (const eventCallback of args.eventCallbacks) {
+    // Collect filters from event callbacks
+    if (eventCallback.filter.type === "log") {
+      logFilters.push(eventCallback.filter);
+    } else if (eventCallback.filter.type === "trace") {
+      traceFilters.push(eventCallback.filter);
+    } else if (eventCallback.filter.type === "transaction") {
+      transactionFilters.push(eventCallback.filter);
+    } else if (eventCallback.filter.type === "transfer") {
+      transferFilters.push(eventCallback.filter);
+    } else if (eventCallback.filter.type === "block") {
+      blockFilters.push(eventCallback.filter);
     }
 
     // Collect factories from sources
-    switch (source.filter.type) {
+    switch (eventCallback.filter.type) {
       case "trace":
       case "transaction":
       case "transfer": {
-        const { fromAddress, toAddress } = source.filter;
+        const { fromAddress, toAddress } = eventCallback.filter;
 
         if (isAddressFactory(fromAddress)) {
           factories.push(fromAddress);
@@ -169,7 +165,7 @@ export const createRealtimeSync = (
         break;
       }
       case "log": {
-        const { address } = source.filter;
+        const { address } = eventCallback.filter;
         if (isAddressFactory(address)) {
           factories.push(address);
         }
@@ -358,10 +354,7 @@ export const createRealtimeSync = (
       }
     }
 
-    if (
-      shouldRequestLogs === false &&
-      args.sources.some((s) => s.filter.type === "log")
-    ) {
+    if (shouldRequestLogs === false && logFilters.length > 0) {
       args.common.logger.trace({
         msg: "Skipped eth_getLogs request due to bloom filter result",
         action: "fetch_block_data",
@@ -717,10 +710,7 @@ export const createRealtimeSync = (
       let isMatched = transactionHashes.has(transaction.hash);
       for (const filter of transactionFilters) {
         if (
-          isTransactionFilterMatched({
-            filter,
-            transaction,
-          }) &&
+          isTransactionFilterMatched({ filter, transaction }) &&
           (isAddressFactory(filter.fromAddress)
             ? isAddressMatched({
                 address: transaction.from,

@@ -5,13 +5,12 @@ import type {
   Filter,
   Fragment,
   LightBlock,
-  Source,
 } from "@/internal/types.js";
 import type { SyncBlock } from "@/internal/types.js";
 import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
 import { isAddressFactory } from "@/runtime/filter.js";
-import { getFragments } from "@/runtime/fragments.js";
+import { getFragments, recoverFilter } from "@/runtime/fragments.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
   MAX_CHECKPOINT,
@@ -20,8 +19,11 @@ import {
 } from "@/utils/checkpoint.js";
 import {
   type Interval,
+  intervalBounds,
+  intervalDifference,
   intervalIntersection,
   intervalIntersectionMany,
+  intervalUnion,
   sortIntervals,
 } from "@/utils/interval.js";
 import { type Address, hexToNumber, toHex } from "viem";
@@ -45,11 +47,16 @@ export type CachedIntervals = Map<
   { fragment: Fragment; intervals: Interval[] }[]
 >;
 
+export type IntervalWithFilter = {
+  interval: Interval;
+  filter: Filter;
+};
+
 export async function getLocalSyncProgress(params: {
   common: Common;
-  sources: Source[];
   chain: Chain;
   rpc: Rpc;
+  filters: Filter[];
   finalizedBlock: LightBlock;
   cachedIntervals: CachedIntervals;
 }): Promise<SyncProgress> {
@@ -96,11 +103,10 @@ export async function getLocalSyncProgress(params: {
       );
     },
   } as SyncProgress;
-  const filters = params.sources.map(({ filter }) => filter);
 
   // Earliest `fromBlock` among all `filters`
   const start = Math.min(
-    ...filters.flatMap((filter) => {
+    ...params.filters.flatMap((filter) => {
       const fromBlocks: number[] = [filter.fromBlock ?? 0];
       switch (filter.type) {
         case "log":
@@ -125,16 +131,30 @@ export async function getLocalSyncProgress(params: {
   );
 
   const cached = getCachedBlock({
-    filters,
+    filters: params.filters,
     cachedIntervals: params.cachedIntervals,
   });
 
   const diagnostics = await Promise.all(
     cached === undefined
-      ? [_eth_getBlockByNumber(params.rpc, { blockNumber: start })]
+      ? [
+          _eth_getBlockByNumber(
+            params.rpc,
+            { blockNumber: start },
+            { retryNullBlockRequest: true },
+          ),
+        ]
       : [
-          _eth_getBlockByNumber(params.rpc, { blockNumber: start }),
-          _eth_getBlockByNumber(params.rpc, { blockNumber: cached }),
+          _eth_getBlockByNumber(
+            params.rpc,
+            { blockNumber: start },
+            { retryNullBlockRequest: true },
+          ),
+          _eth_getBlockByNumber(
+            params.rpc,
+            { blockNumber: cached },
+            { retryNullBlockRequest: true },
+          ),
         ],
   );
 
@@ -144,12 +164,12 @@ export async function getLocalSyncProgress(params: {
     syncProgress.current = diagnostics[1];
   }
 
-  if (filters.some((filter) => filter.toBlock === undefined)) {
+  if (params.filters.some((filter) => filter.toBlock === undefined)) {
     return syncProgress;
   }
 
   // Latest `toBlock` among all `filters`
-  const end = Math.max(...filters.map((filter) => filter.toBlock!));
+  const end = Math.max(...params.filters.map((filter) => filter.toBlock!));
 
   if (end > hexToNumber(params.finalizedBlock.number)) {
     syncProgress.end = {
@@ -159,44 +179,46 @@ export async function getLocalSyncProgress(params: {
       timestamp: toHex(MAX_CHECKPOINT.blockTimestamp),
     } satisfies LightBlock;
   } else {
-    syncProgress.end = await _eth_getBlockByNumber(params.rpc, {
-      blockNumber: end,
-    });
+    syncProgress.end = await _eth_getBlockByNumber(
+      params.rpc,
+      { blockNumber: end },
+      { retryNullBlockRequest: true },
+    );
   }
 
   return syncProgress;
 }
 
 export async function getChildAddresses(params: {
-  sources: Source[];
+  filters: Filter[];
   syncStore: SyncStore;
 }): Promise<ChildAddresses> {
   const childAddresses: ChildAddresses = new Map();
-  for (const source of params.sources) {
-    switch (source.filter.type) {
+  for (const filter of params.filters) {
+    switch (filter.type) {
       case "log":
-        if (isAddressFactory(source.filter.address)) {
+        if (isAddressFactory(filter.address)) {
           const _childAddresses = await params.syncStore.getChildAddresses({
-            factory: source.filter.address,
+            factory: filter.address,
           });
-          childAddresses.set(source.filter.address.id, _childAddresses);
+          childAddresses.set(filter.address.id, _childAddresses);
         }
         break;
       case "transaction":
       case "transfer":
       case "trace":
-        if (isAddressFactory(source.filter.fromAddress)) {
+        if (isAddressFactory(filter.fromAddress)) {
           const _childAddresses = await params.syncStore.getChildAddresses({
-            factory: source.filter.fromAddress,
+            factory: filter.fromAddress,
           });
-          childAddresses.set(source.filter.fromAddress.id, _childAddresses);
+          childAddresses.set(filter.fromAddress.id, _childAddresses);
         }
 
-        if (isAddressFactory(source.filter.toAddress)) {
+        if (isAddressFactory(filter.toAddress)) {
           const _childAddresses = await params.syncStore.getChildAddresses({
-            factory: source.filter.toAddress,
+            factory: filter.toAddress,
           });
-          childAddresses.set(source.filter.toAddress.id, _childAddresses);
+          childAddresses.set(filter.toAddress.id, _childAddresses);
         }
 
         break;
@@ -207,8 +229,8 @@ export async function getChildAddresses(params: {
 
 export async function getCachedIntervals(params: {
   chain: Chain;
+  filters: Filter[];
   syncStore: SyncStore;
-  sources: Source[];
 }): Promise<CachedIntervals> {
   /**
    * Intervals that have been completed for all filters in `args.sources`.
@@ -218,7 +240,7 @@ export async function getCachedIntervals(params: {
   let cachedIntervals: CachedIntervals;
   if (params.chain.disableCache) {
     cachedIntervals = new Map();
-    for (const { filter } of params.sources) {
+    for (const filter of params.filters) {
       cachedIntervals.set(filter, []);
       for (const { fragment } of getFragments(filter)) {
         cachedIntervals.get(filter)!.push({ fragment, intervals: [] });
@@ -226,12 +248,134 @@ export async function getCachedIntervals(params: {
     }
   } else {
     cachedIntervals = await params.syncStore.getIntervals({
-      filters: params.sources.map(({ filter }) => filter),
+      filters: params.filters,
     });
   }
 
   return cachedIntervals;
 }
+
+/**
+ * Returns the intervals that need to be synced to complete the `interval`
+ * for all `sources`.
+ *
+ * Note: This function dynamically builds filters using `recoverFilter`.
+ * Fragments are used to create a minimal filter, to avoid refetching data
+ * even if a filter is only partially synced.
+ *
+ * @param params.sources - The sources to sync.
+ * @param params.interval - The interval to sync.
+ * @param params.cachedIntervals - The cached intervals for the sources.
+ * @returns The intervals that need to be synced.
+ */
+export const getRequiredIntervals = (params: {
+  filters: Filter[];
+  interval: Interval;
+  cachedIntervals: CachedIntervals;
+}): IntervalWithFilter[] => {
+  const requiredIntervals: IntervalWithFilter[] = [];
+
+  // Determine the requests that need to be made, and which intervals need to be inserted.
+  // Fragments are used to create a minimal filter, to avoid refetching data even if a filter
+  // is only partially synced.
+
+  for (const filter of params.filters) {
+    let filterIntervals: Interval[] = [
+      [
+        Math.max(filter.fromBlock ?? 0, params.interval[0]),
+        Math.min(
+          filter.toBlock ?? Number.POSITIVE_INFINITY,
+          params.interval[1],
+        ),
+      ],
+    ];
+
+    switch (filter.type) {
+      case "log":
+        if (isAddressFactory(filter.address)) {
+          filterIntervals.push([
+            Math.max(filter.address.fromBlock ?? 0, params.interval[0]),
+            Math.min(
+              filter.address.toBlock ?? Number.POSITIVE_INFINITY,
+              params.interval[1],
+            ),
+          ]);
+        }
+        break;
+      case "trace":
+      case "transaction":
+      case "transfer":
+        if (isAddressFactory(filter.fromAddress)) {
+          filterIntervals.push([
+            Math.max(filter.fromAddress.fromBlock ?? 0, params.interval[0]),
+            Math.min(
+              filter.fromAddress.toBlock ?? Number.POSITIVE_INFINITY,
+              params.interval[1],
+            ),
+          ]);
+        }
+
+        if (isAddressFactory(filter.toAddress)) {
+          filterIntervals.push([
+            Math.max(filter.toAddress.fromBlock ?? 0, params.interval[0]),
+            Math.min(
+              filter.toAddress.toBlock ?? Number.POSITIVE_INFINITY,
+              params.interval[1],
+            ),
+          ]);
+        }
+    }
+
+    filterIntervals = filterIntervals.filter(([start, end]) => start <= end);
+
+    if (filterIntervals.length === 0) {
+      continue;
+    }
+
+    filterIntervals = intervalUnion(filterIntervals);
+
+    const completedIntervals = params.cachedIntervals.get(filter)!;
+    const _requiredIntervals: {
+      fragment: Fragment;
+      intervals: Interval[];
+    }[] = [];
+
+    for (const {
+      fragment,
+      intervals: fragmentIntervals,
+    } of completedIntervals) {
+      const requiredFragmentIntervals = intervalDifference(
+        filterIntervals,
+        fragmentIntervals,
+      );
+
+      if (requiredFragmentIntervals.length > 0) {
+        _requiredIntervals.push({
+          fragment,
+          intervals: requiredFragmentIntervals,
+        });
+      }
+    }
+
+    if (_requiredIntervals.length > 0) {
+      const requiredInterval = intervalBounds(
+        _requiredIntervals.flatMap(({ intervals }) => intervals),
+      );
+
+      const requiredFilter = recoverFilter(
+        filter,
+        _requiredIntervals.map(({ fragment }) => fragment),
+      );
+
+      requiredIntervals.push({
+        filter: requiredFilter,
+        interval: requiredInterval,
+      });
+    }
+  }
+
+  return requiredIntervals;
+};
 
 /** Returns the closest-to-tip block that has been synced for all `sources`. */
 export const getCachedBlock = ({

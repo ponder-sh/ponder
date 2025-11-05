@@ -453,32 +453,32 @@ export const createCachedViemClient = ({
       hasConstant,
     }: { pattern: ProfilePattern; hasConstant: boolean }) => {
       const profilePatternKey = getProfilePatternKey(pattern);
+      const eventName = (event as Event).eventCallback.name;
 
-      if (profile.get(event.name)!.has(profilePatternKey)) {
-        profile.get(event.name)!.get(profilePatternKey)!.count++;
+      if (profile.get(eventName)!.has(profilePatternKey)) {
+        profile.get(eventName)!.get(profilePatternKey)!.count++;
 
         if (hasConstant) {
-          profileConstantLRU.get(event.name)!.delete(profilePatternKey);
-          profileConstantLRU.get(event.name)!.add(profilePatternKey);
+          profileConstantLRU.get(eventName)!.delete(profilePatternKey);
+          profileConstantLRU.get(eventName)!.add(profilePatternKey);
         }
       } else {
         profile
-          .get(event.name)!
+          .get(eventName)!
           .set(profilePatternKey, { pattern, hasConstant, count: 1 });
 
         if (hasConstant) {
-          profileConstantLRU.get(event.name)!.add(profilePatternKey);
+          profileConstantLRU.get(eventName)!.add(profilePatternKey);
           if (
-            profileConstantLRU.get(event.name)!.size >
-            MAX_CONSTANT_PATTERN_COUNT
+            profileConstantLRU.get(eventName)!.size > MAX_CONSTANT_PATTERN_COUNT
           ) {
             const firstKey = profileConstantLRU
-              .get(event.name)!
+              .get(eventName)!
               .keys()
               .next().value;
             if (firstKey) {
-              profile.get(event.name)!.delete(firstKey);
-              profileConstantLRU.get(event.name)!.delete(firstKey);
+              profile.get(eventName)!.delete(firstKey);
+              profileConstantLRU.get(eventName)!.delete(firstKey);
             }
           }
         }
@@ -500,11 +500,13 @@ export const createCachedViemClient = ({
         if (
           event.type !== "setup" &&
           userBlockNumber === undefined &&
-          eventCount[event.name]! % SAMPLING_RATE === 1
+          eventCount[event.eventCallback.name]! % SAMPLING_RATE === 1
         ) {
-          if (profile.has(event.name) === false) {
-            profile.set(event.name, new Map());
-            profileConstantLRU.set(event.name, new Set());
+          const eventName = event.eventCallback.name;
+
+          if (profile.has(eventName) === false) {
+            profile.set(eventName, new Map());
+            profileConstantLRU.set(eventName, new Set());
           }
 
           // profile "readContract" and "multicall" actions
@@ -514,7 +516,7 @@ export const createCachedViemClient = ({
               args: { ...args, cache } as Parameters<
                 PonderActions["readContract"]
               >[0],
-              hints: Array.from(profile.get(event.name)!.values()),
+              hints: Array.from(profile.get(eventName)!.values()),
             });
             if (recordPatternResult) {
               addProfilePattern(recordPatternResult);
@@ -529,7 +531,7 @@ export const createCachedViemClient = ({
                 const recordPatternResult = recordProfilePattern({
                   event: event,
                   args: contract,
-                  hints: Array.from(profile.get(event.name)!.values()),
+                  hints: Array.from(profile.get(eventName)!.values()),
                 });
                 if (recordPatternResult) {
                   addProfilePattern(recordPatternResult);
@@ -564,6 +566,10 @@ export const createCachedViemClient = ({
             // @ts-ignore
             return await action(...args);
           } catch (error) {
+            const eventName =
+              event.type === "setup"
+                ? event.setupCallback.name
+                : event.eventCallback.name;
             if (
               (error instanceof BlockNotFoundError === false &&
                 error instanceof TransactionNotFoundError === false &&
@@ -576,12 +582,12 @@ export const createCachedViemClient = ({
               (args[0] as RetryableOptions).retryEmptyResponse === false
             ) {
               const chain = indexingBuild.chains.find(
-                (n) => n.id === event.chainId,
+                (n) => n.id === event.chain.id,
               )!;
               common.logger.warn({
                 msg: "Failed 'context.client' action",
                 action: actionName,
-                event: event.name,
+                event: eventName,
                 chain: chain.name,
                 chain_id: chain.id,
                 retry_count: i,
@@ -593,12 +599,12 @@ export const createCachedViemClient = ({
 
             const duration = BASE_DURATION * 2 ** i;
             const chain = indexingBuild.chains.find(
-              (n) => n.id === event.chainId,
+              (n) => n.id === event.chain.id,
             )!;
             common.logger.warn({
               msg: "Failed 'context.client' action",
               action: actionName,
-              event: event.name,
+              event: eventName,
               chain: chain.name,
               chain_id: chain.id,
               retry_count: i,
@@ -683,10 +689,13 @@ export const createCachedViemClient = ({
       const prediction: { ev: number; request: Request }[] = [];
 
       for (const event of events) {
-        if (profile.has(event.name)) {
-          for (const [, { pattern, count }] of profile.get(event.name)!) {
+        if (profile.has(event.eventCallback.name)) {
+          for (const [, { pattern, count }] of profile.get(
+            event.eventCallback.name,
+          )!) {
             // Expected value of times the prediction will be used.
-            const ev = (count * SAMPLING_RATE) / eventCount[event.name]!;
+            const ev =
+              (count * SAMPLING_RATE) / eventCount[event.eventCallback.name]!;
             prediction.push({
               ev,
               request: recoverProfilePattern(pattern, event),
@@ -808,10 +817,14 @@ export const cachedTransport =
   ({ chain: viemChain }) =>
     custom({
       async request({ method, params }) {
+        const _event = event();
         const context = {
           logger: common.logger.child({
             action: "cache JSON-RPC request",
-            event: event().name,
+            event:
+              _event.type === "setup"
+                ? _event.setupCallback.name
+                : _event.eventCallback.name,
           }),
         };
         const body = { method, params };

@@ -11,11 +11,11 @@ import { createShutdown } from "@/internal/shutdown.js";
 import { createTelemetry } from "@/internal/telemetry.js";
 import type {
   DatabaseConfig,
+  EventCallback,
   IndexingBuild,
   IndexingErrorHandler,
   NamespaceBuild,
   SchemaBuild,
-  Source,
 } from "@/internal/types.js";
 import { isAddressFactory } from "@/runtime/filter.js";
 import { getFragments } from "@/runtime/fragments.js";
@@ -226,7 +226,10 @@ export async function setupDatabaseServices(
     throw err;
   });
 
-  const syncStore = createSyncStore({ common: context.common, database });
+  const syncStore = createSyncStore({
+    common: context.common,
+    qb: database.syncQB,
+  });
 
   const indexingErrorHandler: IndexingErrorHandler = {
     getRetryableError: () => {
@@ -272,23 +275,25 @@ export async function setupAnvil() {
   };
 }
 
-export const setupChildAddresses = (sources: Source[]): ChildAddresses => {
+export const setupChildAddresses = (
+  eventCallbacks: EventCallback[],
+): ChildAddresses => {
   const childAddresses = new Map();
-  for (const source of sources) {
-    switch (source.filter.type) {
+  for (const eventCallback of eventCallbacks) {
+    switch (eventCallback.filter.type) {
       case "log":
-        if (isAddressFactory(source.filter.address)) {
-          childAddresses.set(source.filter.address.id, new Map());
+        if (isAddressFactory(eventCallback.filter.address)) {
+          childAddresses.set(eventCallback.filter.address.id, new Map());
         }
         break;
       case "transaction":
       case "transfer":
       case "trace":
-        if (isAddressFactory(source.filter.fromAddress)) {
-          childAddresses.set(source.filter.fromAddress.id, new Map());
+        if (isAddressFactory(eventCallback.filter.fromAddress)) {
+          childAddresses.set(eventCallback.filter.fromAddress.id, new Map());
         }
-        if (isAddressFactory(source.filter.toAddress)) {
-          childAddresses.set(source.filter.toAddress.id, new Map());
+        if (isAddressFactory(eventCallback.filter.toAddress)) {
+          childAddresses.set(eventCallback.filter.toAddress.id, new Map());
         }
     }
   }
@@ -296,12 +301,16 @@ export const setupChildAddresses = (sources: Source[]): ChildAddresses => {
   return childAddresses as ChildAddresses;
 };
 
-export const setupCachedIntervals = (sources: Source[]): CachedIntervals => {
+export const setupCachedIntervals = (
+  eventCallbacks: EventCallback[],
+): CachedIntervals => {
   const cachedIntervals: CachedIntervals = new Map();
-  for (const { filter } of sources) {
-    cachedIntervals.set(filter, []);
-    for (const { fragment } of getFragments(filter)) {
-      cachedIntervals.get(filter)!.push({ fragment, intervals: [] });
+  for (const eventCallback of eventCallbacks) {
+    cachedIntervals.set(eventCallback.filter, []);
+    for (const { fragment } of getFragments(eventCallback.filter)) {
+      cachedIntervals
+        .get(eventCallback.filter)!
+        .push({ fragment, intervals: [] });
     }
   }
   return cachedIntervals;

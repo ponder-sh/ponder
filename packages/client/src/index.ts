@@ -119,7 +119,7 @@ export const createClient = <schema extends Schema>(
 ): Client<schema> => {
   const client: Client<schema> = {
     db: drizzle(
-      async (sql, params, _, typings) => {
+      async (sql, params, method, typings) => {
         const builtQuery = { sql, params, typings };
         const response = await fetch(getUrl(baseUrl, "db", builtQuery), {
           method: "GET",
@@ -133,10 +133,14 @@ export const createClient = <schema extends Schema>(
 
         const result = await response.json();
 
-        return {
-          ...result,
-          rows: result.rows.map((row: object) => Object.values(row)),
-        };
+        if (method === "all") {
+          return {
+            ...result,
+            rows: result.rows.map((row: object) => Object.values(row)),
+          };
+        }
+
+        return result;
       },
       { schema: params.schema, casing: "snake_case" },
     ),
