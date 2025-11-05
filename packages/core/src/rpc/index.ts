@@ -191,7 +191,7 @@ export const createRpc = ({
               if (requestId) {
                 return httpRpcClient.request({
                   body,
-                  fetchOptions: { headers: { "X-request-id": requestId } },
+                  fetchOptions: { headers: { "X-Request-ID": requestId } },
                 });
               }
               return httpRpcClient.request({ body });
@@ -231,7 +231,7 @@ export const createRpc = ({
               if (requestId) {
                 return httpRpcClient.request({
                   body,
-                  fetchOptions: { headers: { "X-request-id": requestId } },
+                  fetchOptions: { headers: { "X-Request-ID": requestId } },
                 });
               }
               return httpRpcClient.request({ body });
