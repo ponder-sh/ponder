@@ -45,7 +45,7 @@ test("createHistoricalSync()", async (context) => {
     common: context.common,
   });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -53,7 +53,7 @@ test("createHistoricalSync()", async (context) => {
     common: context.common,
     chain,
     rpc,
-    childAddresses: setupChildAddresses(sources),
+    childAddresses: setupChildAddresses(eventCallbacks),
   });
 
   expect(historicalSync).toBeDefined();
@@ -76,7 +76,7 @@ test("sync() with log filter", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getErc20IndexingBuild({
+  const { eventCallbacks } = getErc20IndexingBuild({
     address,
   });
 
@@ -84,13 +84,13 @@ test("sync() with log filter", async (context) => {
     common: context.common,
     chain,
     rpc,
-    childAddresses: setupChildAddresses(sources),
+    childAddresses: setupChildAddresses(eventCallbacks),
   });
 
   const requiredIntervals = getRequiredIntervals({
     interval: [1, 2],
-    sources,
-    cachedIntervals: setupCachedIntervals(sources),
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
@@ -138,7 +138,7 @@ test("sync() with log filter and transaction receipts", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getErc20IndexingBuild({
+  const { eventCallbacks } = getErc20IndexingBuild({
     address,
     includeTransactionReceipts: true,
   });
@@ -147,13 +147,13 @@ test("sync() with log filter and transaction receipts", async (context) => {
     common: context.common,
     chain,
     rpc,
-    childAddresses: setupChildAddresses(sources),
+    childAddresses: setupChildAddresses(eventCallbacks),
   });
 
   const requiredIntervals = getRequiredIntervals({
     interval: [1, 2],
-    sources,
-    cachedIntervals: setupCachedIntervals(sources),
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
@@ -193,7 +193,7 @@ test("sync() with block filter", async (context) => {
     common: context.common,
   });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -205,13 +205,13 @@ test("sync() with block filter", async (context) => {
     common: context.common,
     chain,
     rpc,
-    childAddresses: setupChildAddresses(sources),
+    childAddresses: setupChildAddresses(eventCallbacks),
   });
 
   const requiredIntervals = getRequiredIntervals({
     interval: [1, 3],
-    sources,
-    cachedIntervals: setupCachedIntervals(sources),
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 3],
@@ -264,7 +264,7 @@ test("sync() with log factory", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getPairWithFactoryIndexingBuild({
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({
     address,
   });
 
@@ -272,13 +272,13 @@ test("sync() with log factory", async (context) => {
     common: context.common,
     chain,
     rpc,
-    childAddresses: setupChildAddresses(sources),
+    childAddresses: setupChildAddresses(eventCallbacks),
   });
 
   const requiredIntervals = getRequiredIntervals({
     interval: [1, 3],
-    sources,
-    cachedIntervals: setupCachedIntervals(sources),
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 3],
@@ -336,7 +336,7 @@ test("sync() with trace filter", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getErc20IndexingBuild({
+  const { eventCallbacks } = getErc20IndexingBuild({
     address,
     includeCallTraces: true,
   });
@@ -366,13 +366,15 @@ test("sync() with trace filter", async (context) => {
       // @ts-ignore
       request,
     },
-    childAddresses: setupChildAddresses(sources),
+    childAddresses: setupChildAddresses(eventCallbacks),
   });
 
   const requiredIntervals = getRequiredIntervals({
     interval: [1, 3],
-    sources: sources.filter(({ filter }) => filter.type === "trace"),
-    cachedIntervals: setupCachedIntervals(sources),
+    filters: eventCallbacks
+      .filter(({ filter }) => filter.type === "trace")
+      .map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 3],
@@ -418,7 +420,7 @@ test("sync() with transaction filter", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getAccountsIndexingBuild({
+  const { eventCallbacks } = getAccountsIndexingBuild({
     address: ALICE,
   });
 
@@ -426,13 +428,15 @@ test("sync() with transaction filter", async (context) => {
     common: context.common,
     chain,
     rpc,
-    childAddresses: setupChildAddresses(sources),
+    childAddresses: setupChildAddresses(eventCallbacks),
   });
 
   const requiredIntervals = getRequiredIntervals({
     interval: [1, 1],
-    sources: sources.filter(({ filter }) => filter.type === "transaction"),
-    cachedIntervals: setupCachedIntervals(sources),
+    filters: eventCallbacks
+      .filter(({ filter }) => filter.type === "transaction")
+      .map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 1],
@@ -485,7 +489,7 @@ test("sync() with transfer filter", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getAccountsIndexingBuild({
+  const { eventCallbacks } = getAccountsIndexingBuild({
     address: ALICE,
   });
 
@@ -512,13 +516,15 @@ test("sync() with transfer filter", async (context) => {
       // @ts-ignore
       request,
     },
-    childAddresses: setupChildAddresses(sources),
+    childAddresses: setupChildAddresses(eventCallbacks),
   });
 
   const requiredIntervals = getRequiredIntervals({
     interval: [1, 1],
-    sources: sources.filter(({ filter }) => filter.type === "transfer"),
-    cachedIntervals: setupCachedIntervals(sources),
+    filters: eventCallbacks
+      .filter(({ filter }) => filter.type === "transfer")
+      .map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 1],
@@ -567,11 +573,11 @@ test("sync() with many filters", async (context) => {
     sender: ALICE,
   });
 
-  const erc20IndexingBuild = getErc20IndexingBuild({
+  const { eventCallbacks: erc20EventCallbacks } = getErc20IndexingBuild({
     address,
   });
 
-  const blocksIndexingBuild = getBlocksIndexingBuild({
+  const { eventCallbacks: blocksEventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -580,17 +586,19 @@ test("sync() with many filters", async (context) => {
     chain,
     rpc,
     childAddresses: setupChildAddresses([
-      ...erc20IndexingBuild.sources,
-      ...blocksIndexingBuild.sources,
+      ...erc20EventCallbacks,
+      ...blocksEventCallbacks,
     ]),
   });
 
   const requiredIntervals = getRequiredIntervals({
     interval: [1, 2],
-    sources: [...erc20IndexingBuild.sources, ...blocksIndexingBuild.sources],
+    filters: [...erc20EventCallbacks, ...blocksEventCallbacks].map(
+      ({ filter }) => filter,
+    ),
     cachedIntervals: setupCachedIntervals([
-      ...erc20IndexingBuild.sources,
-      ...blocksIndexingBuild.sources,
+      ...erc20EventCallbacks,
+      ...blocksEventCallbacks,
     ]),
   });
   const logs = await historicalSync.syncBlockRangeData({
@@ -643,7 +651,7 @@ test("sync() with cache", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getErc20IndexingBuild({
+  const { eventCallbacks } = getErc20IndexingBuild({
     address,
   });
 
@@ -651,13 +659,13 @@ test("sync() with cache", async (context) => {
     common: context.common,
     chain,
     rpc,
-    childAddresses: setupChildAddresses(sources),
+    childAddresses: setupChildAddresses(eventCallbacks),
   });
 
   let requiredIntervals = getRequiredIntervals({
     interval: [1, 2],
-    sources,
-    cachedIntervals: setupCachedIntervals(sources),
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
   });
   let logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
@@ -682,19 +690,19 @@ test("sync() with cache", async (context) => {
   const cachedIntervals = await getCachedIntervals({
     chain,
     syncStore,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
   });
 
   historicalSync = createHistoricalSync({
     common: context.common,
     chain,
     rpc,
-    childAddresses: setupChildAddresses(sources),
+    childAddresses: setupChildAddresses(eventCallbacks),
   });
 
   requiredIntervals = getRequiredIntervals({
     interval: [1, 2],
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals,
   });
   logs = await historicalSync.syncBlockRangeData({
@@ -732,7 +740,7 @@ test("sync() with partial cache", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getErc20IndexingBuild({
+  const { eventCallbacks } = getErc20IndexingBuild({
     address,
   });
 
@@ -740,13 +748,13 @@ test("sync() with partial cache", async (context) => {
     common: context.common,
     chain,
     rpc,
-    childAddresses: setupChildAddresses(sources),
+    childAddresses: setupChildAddresses(eventCallbacks),
   });
 
   let requiredIntervals = getRequiredIntervals({
     interval: [1, 2],
-    sources,
-    cachedIntervals: setupCachedIntervals(sources),
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
   });
   let logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
@@ -769,24 +777,28 @@ test("sync() with partial cache", async (context) => {
   let spy = vi.spyOn(rpc, "request");
 
   // @ts-ignore
-  sources[0]!.filter.address = [sources[0]!.filter.address, zeroAddress];
+  eventCallbacks[0]!.filter.address = [
+    // @ts-ignore
+    eventCallbacks[0]!.filter.address,
+    zeroAddress,
+  ];
 
   let cachedIntervals = await getCachedIntervals({
     chain,
     syncStore,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
   });
 
   historicalSync = createHistoricalSync({
     common: context.common,
     chain,
     rpc,
-    childAddresses: setupChildAddresses(sources),
+    childAddresses: setupChildAddresses(eventCallbacks),
   });
 
   requiredIntervals = getRequiredIntervals({
     interval: [1, 2],
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals,
   });
   logs = await historicalSync.syncBlockRangeData({
@@ -832,21 +844,21 @@ test("sync() with partial cache", async (context) => {
   cachedIntervals = await getCachedIntervals({
     chain,
     syncStore,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
   });
 
   historicalSync = createHistoricalSync({
     common: context.common,
     chain,
     rpc,
-    childAddresses: setupChildAddresses(sources),
+    childAddresses: setupChildAddresses(eventCallbacks),
   });
 
   await simulateBlock();
 
   requiredIntervals = getRequiredIntervals({
     interval: [1, 3],
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals,
   });
   logs = await historicalSync.syncBlockRangeData({
@@ -914,7 +926,7 @@ test("syncAddress() handles many addresses", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getPairWithFactoryIndexingBuild({
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({
     address,
   });
 
@@ -922,13 +934,13 @@ test("syncAddress() handles many addresses", async (context) => {
     common: context.common,
     chain,
     rpc,
-    childAddresses: setupChildAddresses(sources),
+    childAddresses: setupChildAddresses(eventCallbacks),
   });
 
   const requiredIntervals = getRequiredIntervals({
     interval: [1, 13],
-    sources,
-    cachedIntervals: setupCachedIntervals(sources),
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 13],

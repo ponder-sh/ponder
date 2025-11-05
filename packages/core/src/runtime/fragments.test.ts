@@ -6,6 +6,7 @@ import {
   EMPTY_TRANSFER_FILTER,
 } from "@/_test/constants.js";
 import type { FilterWithoutBlocks } from "@/internal/types.js";
+import { zeroHash } from "viem";
 import { expect, test } from "vitest";
 import {
   decodeFragment,
@@ -70,7 +71,7 @@ test("getFragments() log filter", () => {
   const fragments = getFragments({
     ...EMPTY_LOG_FILTER,
     address: ["0xa", "0xb"],
-    topic0: ["0xc", "0xd"],
+    topic0: zeroHash,
     topic1: null,
     topic2: "0xe",
     topic3: null,
@@ -80,28 +81,20 @@ test("getFragments() log filter", () => {
     [
       {
         "adjacentIds": [
-          "log_1_0xa_0xc_null_0xe_null_0",
-          "log_1_0xa_0xc_null_0xe_null_1",
-          "log_1_0xa_0xc_null_null_null_0",
-          "log_1_0xa_0xc_null_null_null_1",
-          "log_1_0xa_null_null_0xe_null_0",
-          "log_1_0xa_null_null_0xe_null_1",
-          "log_1_0xa_null_null_null_null_0",
-          "log_1_0xa_null_null_null_null_1",
-          "log_1_null_0xc_null_0xe_null_0",
-          "log_1_null_0xc_null_0xe_null_1",
-          "log_1_null_0xc_null_null_null_0",
-          "log_1_null_0xc_null_null_null_1",
-          "log_1_null_null_null_0xe_null_0",
-          "log_1_null_null_null_0xe_null_1",
-          "log_1_null_null_null_null_null_0",
-          "log_1_null_null_null_null_null_1",
+          "log_1_0xa_0x0000000000000000000000000000000000000000000000000000000000000000_null_0xe_null_0",
+          "log_1_0xa_0x0000000000000000000000000000000000000000000000000000000000000000_null_0xe_null_1",
+          "log_1_0xa_0x0000000000000000000000000000000000000000000000000000000000000000_null_null_null_0",
+          "log_1_0xa_0x0000000000000000000000000000000000000000000000000000000000000000_null_null_null_1",
+          "log_1_null_0x0000000000000000000000000000000000000000000000000000000000000000_null_0xe_null_0",
+          "log_1_null_0x0000000000000000000000000000000000000000000000000000000000000000_null_0xe_null_1",
+          "log_1_null_0x0000000000000000000000000000000000000000000000000000000000000000_null_null_null_0",
+          "log_1_null_0x0000000000000000000000000000000000000000000000000000000000000000_null_null_null_1",
         ],
         "fragment": {
           "address": "0xa",
           "chainId": 1,
           "includeTransactionReceipts": false,
-          "topic0": "0xc",
+          "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000",
           "topic1": null,
           "topic2": "0xe",
           "topic3": null,
@@ -110,88 +103,20 @@ test("getFragments() log filter", () => {
       },
       {
         "adjacentIds": [
-          "log_1_0xa_0xd_null_0xe_null_0",
-          "log_1_0xa_0xd_null_0xe_null_1",
-          "log_1_0xa_0xd_null_null_null_0",
-          "log_1_0xa_0xd_null_null_null_1",
-          "log_1_0xa_null_null_0xe_null_0",
-          "log_1_0xa_null_null_0xe_null_1",
-          "log_1_0xa_null_null_null_null_0",
-          "log_1_0xa_null_null_null_null_1",
-          "log_1_null_0xd_null_0xe_null_0",
-          "log_1_null_0xd_null_0xe_null_1",
-          "log_1_null_0xd_null_null_null_0",
-          "log_1_null_0xd_null_null_null_1",
-          "log_1_null_null_null_0xe_null_0",
-          "log_1_null_null_null_0xe_null_1",
-          "log_1_null_null_null_null_null_0",
-          "log_1_null_null_null_null_null_1",
-        ],
-        "fragment": {
-          "address": "0xa",
-          "chainId": 1,
-          "includeTransactionReceipts": false,
-          "topic0": "0xd",
-          "topic1": null,
-          "topic2": "0xe",
-          "topic3": null,
-          "type": "log",
-        },
-      },
-      {
-        "adjacentIds": [
-          "log_1_0xb_0xc_null_0xe_null_0",
-          "log_1_0xb_0xc_null_0xe_null_1",
-          "log_1_0xb_0xc_null_null_null_0",
-          "log_1_0xb_0xc_null_null_null_1",
-          "log_1_0xb_null_null_0xe_null_0",
-          "log_1_0xb_null_null_0xe_null_1",
-          "log_1_0xb_null_null_null_null_0",
-          "log_1_0xb_null_null_null_null_1",
-          "log_1_null_0xc_null_0xe_null_0",
-          "log_1_null_0xc_null_0xe_null_1",
-          "log_1_null_0xc_null_null_null_0",
-          "log_1_null_0xc_null_null_null_1",
-          "log_1_null_null_null_0xe_null_0",
-          "log_1_null_null_null_0xe_null_1",
-          "log_1_null_null_null_null_null_0",
-          "log_1_null_null_null_null_null_1",
+          "log_1_0xb_0x0000000000000000000000000000000000000000000000000000000000000000_null_0xe_null_0",
+          "log_1_0xb_0x0000000000000000000000000000000000000000000000000000000000000000_null_0xe_null_1",
+          "log_1_0xb_0x0000000000000000000000000000000000000000000000000000000000000000_null_null_null_0",
+          "log_1_0xb_0x0000000000000000000000000000000000000000000000000000000000000000_null_null_null_1",
+          "log_1_null_0x0000000000000000000000000000000000000000000000000000000000000000_null_0xe_null_0",
+          "log_1_null_0x0000000000000000000000000000000000000000000000000000000000000000_null_0xe_null_1",
+          "log_1_null_0x0000000000000000000000000000000000000000000000000000000000000000_null_null_null_0",
+          "log_1_null_0x0000000000000000000000000000000000000000000000000000000000000000_null_null_null_1",
         ],
         "fragment": {
           "address": "0xb",
           "chainId": 1,
           "includeTransactionReceipts": false,
-          "topic0": "0xc",
-          "topic1": null,
-          "topic2": "0xe",
-          "topic3": null,
-          "type": "log",
-        },
-      },
-      {
-        "adjacentIds": [
-          "log_1_0xb_0xd_null_0xe_null_0",
-          "log_1_0xb_0xd_null_0xe_null_1",
-          "log_1_0xb_0xd_null_null_null_0",
-          "log_1_0xb_0xd_null_null_null_1",
-          "log_1_0xb_null_null_0xe_null_0",
-          "log_1_0xb_null_null_0xe_null_1",
-          "log_1_0xb_null_null_null_null_0",
-          "log_1_0xb_null_null_null_null_1",
-          "log_1_null_0xd_null_0xe_null_0",
-          "log_1_null_0xd_null_0xe_null_1",
-          "log_1_null_0xd_null_null_null_0",
-          "log_1_null_0xd_null_null_null_1",
-          "log_1_null_null_null_0xe_null_0",
-          "log_1_null_null_null_0xe_null_1",
-          "log_1_null_null_null_null_null_0",
-          "log_1_null_null_null_null_null_1",
-        ],
-        "fragment": {
-          "address": "0xb",
-          "chainId": 1,
-          "includeTransactionReceipts": false,
-          "topic0": "0xd",
+          "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000",
           "topic1": null,
           "topic2": "0xe",
           "topic3": null,
@@ -212,13 +137,13 @@ test("getFragments() log filter with transaction receipts", () => {
     [
       {
         "adjacentIds": [
-          "log_1_null_null_null_null_null_1",
+          "log_1_null_0x0000000000000000000000000000000000000000000000000000000000000000_null_null_null_1",
         ],
         "fragment": {
           "address": null,
           "chainId": 1,
           "includeTransactionReceipts": true,
-          "topic0": null,
+          "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000",
           "topic1": null,
           "topic2": null,
           "topic3": null,
@@ -245,12 +170,8 @@ test("getFragments() trace filter", () => {
         "adjacentIds": [
           "trace_1_0xa_null_0xb_0",
           "trace_1_0xa_null_0xb_1",
-          "trace_1_0xa_null_null_0",
-          "trace_1_0xa_null_null_1",
           "trace_1_null_null_0xb_0",
           "trace_1_null_null_0xb_1",
-          "trace_1_null_null_null_0",
-          "trace_1_null_null_null_1",
         ],
         "fragment": {
           "chainId": 1,
@@ -313,8 +234,8 @@ test("getFragments() factory with topic", () => {
     [
       {
         "adjacentIds": [
-          "log_1_0xa_0xb_topic1_null_null_null_null_0",
-          "log_1_0xa_0xb_topic1_null_null_null_null_1",
+          "log_1_0xa_0xb_topic1_0x0000000000000000000000000000000000000000000000000000000000000000_null_null_null_0",
+          "log_1_0xa_0xb_topic1_0x0000000000000000000000000000000000000000000000000000000000000000_null_null_null_1",
         ],
         "fragment": {
           "address": {
@@ -324,7 +245,7 @@ test("getFragments() factory with topic", () => {
           },
           "chainId": 1,
           "includeTransactionReceipts": false,
-          "topic0": null,
+          "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000",
           "topic1": null,
           "topic2": null,
           "topic3": null,
@@ -354,8 +275,8 @@ test("getFragments() factory with offset", () => {
     [
       {
         "adjacentIds": [
-          "log_1_0xa_0xb_offset64_null_null_null_null_0",
-          "log_1_0xa_0xb_offset64_null_null_null_null_1",
+          "log_1_0xa_0xb_offset64_0x0000000000000000000000000000000000000000000000000000000000000000_null_null_null_0",
+          "log_1_0xa_0xb_offset64_0x0000000000000000000000000000000000000000000000000000000000000000_null_null_null_1",
         ],
         "fragment": {
           "address": {
@@ -365,7 +286,7 @@ test("getFragments() factory with offset", () => {
           },
           "chainId": 1,
           "includeTransactionReceipts": false,
-          "topic0": null,
+          "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000",
           "topic1": null,
           "topic2": null,
           "topic3": null,
@@ -395,8 +316,8 @@ test("getFragments() multiple factories", () => {
     [
       {
         "adjacentIds": [
-          "log_1_0xa_0xc_topic1_null_null_null_null_0",
-          "log_1_0xa_0xc_topic1_null_null_null_null_1",
+          "log_1_0xa_0xc_topic1_0x0000000000000000000000000000000000000000000000000000000000000000_null_null_null_0",
+          "log_1_0xa_0xc_topic1_0x0000000000000000000000000000000000000000000000000000000000000000_null_null_null_1",
         ],
         "fragment": {
           "address": {
@@ -406,7 +327,7 @@ test("getFragments() multiple factories", () => {
           },
           "chainId": 1,
           "includeTransactionReceipts": false,
-          "topic0": null,
+          "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000",
           "topic1": null,
           "topic2": null,
           "topic3": null,
@@ -415,8 +336,8 @@ test("getFragments() multiple factories", () => {
       },
       {
         "adjacentIds": [
-          "log_1_0xb_0xc_topic1_null_null_null_null_0",
-          "log_1_0xb_0xc_topic1_null_null_null_null_1",
+          "log_1_0xb_0xc_topic1_0x0000000000000000000000000000000000000000000000000000000000000000_null_null_null_0",
+          "log_1_0xb_0xc_topic1_0x0000000000000000000000000000000000000000000000000000000000000000_null_null_null_1",
         ],
         "fragment": {
           "address": {
@@ -426,7 +347,7 @@ test("getFragments() multiple factories", () => {
           },
           "chainId": 1,
           "includeTransactionReceipts": false,
-          "topic0": null,
+          "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000",
           "topic1": null,
           "topic2": null,
           "topic3": null,
@@ -452,7 +373,7 @@ test("decodeFragment()", () => {
     ...EMPTY_LOG_FILTER,
     chainId: 1,
     address: ["0xa", "0xb"],
-    topic0: ["0xc", "0xd"],
+    topic0: zeroHash,
     topic1: null,
     topic2: "0xe",
     topic3: null,
@@ -530,7 +451,7 @@ test("recoverFilter() log filter", () => {
   const filter = {
     ...EMPTY_LOG_FILTER,
     address: ["0xa", "0xb"],
-    topic0: ["0xc", "0xd"],
+    topic0: zeroHash,
     topic1: null,
     topic2: "0xe",
     topic3: null,

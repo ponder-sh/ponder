@@ -40,7 +40,12 @@ import {
 } from "@/runtime/filter.js";
 import type { ChildAddresses, IntervalWithFilter } from "@/runtime/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
-import { type Interval, getChunks, intervalRange } from "@/utils/interval.js";
+import {
+  type Interval,
+  getChunks,
+  intervalBounds,
+  intervalRange,
+} from "@/utils/interval.js";
 import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
 import { createQueue } from "@/utils/queue.js";
 import { startClock } from "@/utils/timer.js";
@@ -48,6 +53,8 @@ import { getLogsRetryHelper } from "@ponder/utils";
 import {
   type Address,
   type Hash,
+  type Hex,
+  type LogTopic,
   type RpcError,
   hexToNumber,
   toHex,
@@ -106,25 +113,24 @@ export const createHistoricalSync = (
   // Helper functions for sync tasks
   ////////
 
+  type EthGetLogsParams = {
+    address: Address | Address[] | undefined;
+    topic0?: LogTopic;
+    topic1?: LogTopic;
+    topic2?: LogTopic;
+    topic3?: LogTopic;
+    interval: Interval;
+  };
+
   /**
    * Split "eth_getLogs" requests into ranges inferred from errors
    * and batch requests.
    */
   const syncLogsDynamic = async (
-    {
-      filter,
-      address,
-      interval,
-    }: {
-      filter: LogFilter | LogFactory;
-      interval: Interval;
-      /** Explicitly set because of the complexity of factory contracts. */
-      address: Address | Address[] | undefined;
-    },
+    { address, topic0, topic1, topic2, topic3, interval }: EthGetLogsParams,
     context?: Parameters<Rpc["request"]>[1],
   ): Promise<SyncLog[]> => {
-    //  Use the recommended range if available, else don't chunk the interval at all.
-
+    // Use the recommended range if available, else don't chunk the interval at all.
     const intervals = getChunks({
       interval,
       maxChunkSize:
@@ -132,15 +138,12 @@ export const createHistoricalSync = (
         logsRequestMetadata.estimatedRange,
     });
 
-    const topics =
-      "eventSelector" in filter
-        ? [filter.eventSelector]
-        : [
-            filter.topic0 ?? null,
-            filter.topic1 ?? null,
-            filter.topic2 ?? null,
-            filter.topic3 ?? null,
-          ];
+    const topics = [
+      topic0 ?? null,
+      topic1 ?? null,
+      topic2 ?? null,
+      topic3 ?? null,
+    ];
 
     // Note: the `topics` field is very fragile for many rpc providers, and
     // cannot handle extra "null" topics
@@ -225,7 +228,10 @@ export const createHistoricalSync = (
                 : undefined,
             };
 
-            return syncLogsDynamic({ address, interval, filter }, context);
+            return syncLogsDynamic(
+              { address, topic0, topic1, topic2, topic3, interval },
+              context,
+            );
           }),
         ),
       ),
@@ -318,9 +324,9 @@ export const createHistoricalSync = (
   ): Promise<Map<Address, number>> => {
     const logs = await syncLogsDynamic(
       {
-        filter: factory,
-        interval,
         address: factory.address,
+        topic0: factory.eventSelector,
+        interval,
       },
       context,
     );
@@ -376,118 +382,209 @@ export const createHistoricalSync = (
       const childAddresses: ChildAddresses = new Map();
       const logs: SyncLog[] = [];
 
-      await Promise.all(
-        requiredIntervals.map(async ({ filter, interval }) => {
-          switch (filter.type) {
-            case "log": {
-              if (isAddressFactory(filter.address)) {
-                const _childAddresses = await syncAddressFactory(
-                  filter.address,
+      const factoryIntervals: Map<
+        Factory["id"],
+        { factory: Factory; interval: Interval }
+      > = new Map();
+      for (const { filter, interval } of requiredIntervals) {
+        switch (filter.type) {
+          case "log": {
+            if (isAddressFactory(filter.address)) {
+              if (factoryIntervals.has(filter.address.id)) {
+                const existingInterval = factoryIntervals.get(
+                  filter.address.id,
+                )!.interval;
+
+                factoryIntervals.get(filter.address.id)!.interval =
+                  intervalBounds([existingInterval, interval]);
+              } else {
+                factoryIntervals.set(filter.address.id, {
+                  factory: filter.address,
                   interval,
-                  context,
-                );
-
-                if (_childAddresses) {
-                  childAddresses.set(filter.address.id, _childAddresses!);
-                }
-              }
-
-              break;
-            }
-            case "transaction":
-            case "trace":
-            case "transfer": {
-              if (isAddressFactory(filter.fromAddress)) {
-                const _childAddresses = await syncAddressFactory(
-                  filter.fromAddress,
-                  interval,
-                  context,
-                );
-
-                if (_childAddresses) {
-                  childAddresses.set(filter.fromAddress.id, _childAddresses!);
-                }
-              }
-
-              if (isAddressFactory(filter.toAddress)) {
-                const _childAddresses = await syncAddressFactory(
-                  filter.toAddress,
-                  interval,
-                  context,
-                );
-
-                if (_childAddresses) {
-                  childAddresses.set(filter.toAddress.id, _childAddresses!);
-                }
-              }
-
-              break;
-            }
-          }
-        }),
-      );
-
-      await Promise.all(
-        requiredIntervals
-          .filter(({ filter }) => filter.type === "log")
-          .map(async ({ filter, interval }) => {
-            let _logs: SyncLog[];
-            if (isAddressFactory((filter as LogFilter).address)) {
-              // Note: Exit early when only the factory needs to be synced
-              if ((filter.fromBlock ?? 0) > interval[1]) return;
-
-              const childAddresses = args.childAddresses.get(
-                (filter as LogFilter<Factory>).address.id,
-              )!;
-
-              _logs = await syncLogsDynamic(
-                {
-                  filter: filter as LogFilter<Factory>,
-                  interval,
-                  address:
-                    childAddresses.size >=
-                    args.common.options.factoryAddressCountThreshold
-                      ? undefined
-                      : Array.from(childAddresses.keys()),
-                },
-                context,
-              );
-
-              _logs = _logs.filter((log) =>
-                isAddressMatched({
-                  address: log.address,
-                  blockNumber: hexToNumber(log.blockNumber),
-                  childAddresses,
-                }),
-              );
-            } else {
-              _logs = await syncLogsDynamic(
-                {
-                  filter: filter as LogFilter<undefined>,
-                  interval,
-                  address: (filter as LogFilter<undefined>).address,
-                },
-                context,
-              );
-            }
-
-            for (const log of _logs) {
-              if (log.transactionHash === zeroHash) {
-                args.common.logger.warn({
-                  msg: "Detected log with empty transaction hash. This is expected for some chains like ZKsync.",
-                  action: "fetch_block_data",
-                  chain: args.chain.name,
-                  chain_id: args.chain.id,
-                  number: hexToNumber(log.blockNumber),
-                  hash: log.blockHash,
-                  logIndex: hexToNumber(log.logIndex),
                 });
               }
             }
 
-            logs.push(..._logs);
-          }),
+            break;
+          }
+          case "transaction":
+          case "trace":
+          case "transfer": {
+            if (isAddressFactory(filter.fromAddress)) {
+              if (factoryIntervals.has(filter.fromAddress.id)) {
+                const existingInterval = factoryIntervals.get(
+                  filter.fromAddress.id,
+                )!.interval;
+
+                factoryIntervals.get(filter.fromAddress.id)!.interval =
+                  intervalBounds([existingInterval, interval]);
+              } else {
+                factoryIntervals.set(filter.fromAddress.id, {
+                  factory: filter.fromAddress,
+                  interval,
+                });
+              }
+            }
+
+            if (isAddressFactory(filter.toAddress)) {
+              if (factoryIntervals.has(filter.toAddress.id)) {
+                const existingInterval = factoryIntervals.get(
+                  filter.toAddress.id,
+                )!.interval;
+
+                factoryIntervals.get(filter.toAddress.id)!.interval =
+                  intervalBounds([existingInterval, interval]);
+              } else {
+                factoryIntervals.set(filter.toAddress.id, {
+                  factory: filter.toAddress,
+                  interval,
+                });
+              }
+            }
+          }
+        }
+      }
+
+      await Promise.all(
+        Array.from(factoryIntervals.values()).map(
+          async ({ factory, interval }) => {
+            const _childAddresses = await syncAddressFactory(
+              factory,
+              interval,
+              context,
+            );
+
+            if (_childAddresses) {
+              childAddresses.set(factory.id, _childAddresses!);
+            }
+          },
+        ),
       );
+
+      const mergedEthGetLogsParams: Map<string, EthGetLogsParams> = new Map();
+      const singleEthGetLogsParams: EthGetLogsParams[] = [];
+
+      for (const { filter, interval } of requiredIntervals) {
+        if (filter.type !== "log") continue;
+
+        const hasAddress = filter.address !== undefined;
+        const hasTopic1 = filter.topic1 !== undefined;
+        const hasTopic2 = filter.topic2 !== undefined;
+        const hasTopic3 = filter.topic3 !== undefined;
+
+        if (hasAddress === false || hasTopic1 || hasTopic2 || hasTopic3) {
+          if (isAddressFactory(filter.address)) {
+            // Note: Exit early when only the factory needs to be synced
+            if ((filter.fromBlock ?? 0) > interval[1]) continue;
+
+            const childAddresses = args.childAddresses.get(filter.address.id)!;
+            singleEthGetLogsParams.push({
+              address:
+                childAddresses.size >=
+                args.common.options.factoryAddressCountThreshold
+                  ? undefined
+                  : Array.from(childAddresses.keys()),
+              topic0: filter.topic0,
+              topic1: filter.topic1,
+              topic2: filter.topic2,
+              topic3: filter.topic3,
+              interval,
+            });
+          } else {
+            singleEthGetLogsParams.push({
+              address: filter.address,
+              topic0: filter.topic0,
+              topic1: filter.topic1,
+              topic2: filter.topic2,
+              topic3: filter.topic3,
+              interval,
+            });
+          }
+
+          continue;
+        }
+
+        let addressKey: string;
+        if (isAddressFactory(filter.address)) {
+          addressKey = filter.address.id;
+        } else if (Array.isArray(filter.address)) {
+          addressKey = filter.address.join("_");
+        } else {
+          addressKey = filter.address as Address;
+        }
+
+        if (mergedEthGetLogsParams.has(addressKey) === false) {
+          if (isAddressFactory(filter.address)) {
+            // Note: Exit early when only the factory needs to be synced
+            if ((filter.fromBlock ?? 0) > interval[1]) continue;
+
+            const childAddresses = args.childAddresses.get(filter.address.id)!;
+            mergedEthGetLogsParams.set(addressKey, {
+              address:
+                childAddresses.size >=
+                args.common.options.factoryAddressCountThreshold
+                  ? undefined
+                  : Array.from(childAddresses.keys()),
+              topic0: filter.topic0,
+              topic1: filter.topic1,
+              topic2: filter.topic2,
+              topic3: filter.topic3,
+              interval,
+            });
+          } else {
+            mergedEthGetLogsParams.set(addressKey, {
+              address: filter.address,
+              topic0: filter.topic0,
+              topic1: filter.topic1,
+              topic2: filter.topic2,
+              topic3: filter.topic3,
+              interval,
+            });
+          }
+        } else {
+          const existingInterval =
+            mergedEthGetLogsParams.get(addressKey)!.interval;
+          const existingTopic0 = mergedEthGetLogsParams.get(addressKey)!
+            .topic0 as Hex | Hex[];
+
+          mergedEthGetLogsParams.get(addressKey)!.topic0 = [
+            ...(Array.isArray(existingTopic0)
+              ? existingTopic0
+              : [existingTopic0]),
+            filter.topic0,
+          ];
+          mergedEthGetLogsParams.get(addressKey)!.interval = intervalBounds([
+            existingInterval,
+            interval,
+          ]);
+        }
+      }
+
+      const ethGetLogsParams = [
+        ...singleEthGetLogsParams,
+        ...Array.from(mergedEthGetLogsParams.values()),
+      ];
+
+      await Promise.all(
+        ethGetLogsParams.map(async (params) => {
+          const _logs = await syncLogsDynamic(params, context);
+          logs.push(..._logs);
+        }),
+      );
+
+      for (const log of logs) {
+        if (log.transactionHash === zeroHash) {
+          args.common.logger.warn({
+            msg: "Detected log with empty transaction hash. This is expected for some chains like ZKsync.",
+            action: "fetch_block_data",
+            chain: args.chain.name,
+            chain_id: args.chain.id,
+            number: hexToNumber(log.blockNumber),
+            hash: log.blockHash,
+            logIndex: hexToNumber(log.logIndex),
+          });
+        }
+      }
 
       let childAddressCount = 0;
       for (const { size } of childAddresses.values()) {

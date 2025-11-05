@@ -47,13 +47,16 @@ test("request() block dependent method", async (context) => {
   });
 
   const blockData = await simulateBlock();
-  const { sources, indexingFunctions } = getBlocksIndexingBuild({
+  const { eventCallbacks, indexingFunctions } = getBlocksIndexingBuild({
     interval: 1,
   });
 
   const { syncStore } = await setupDatabaseServices(context);
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
@@ -102,7 +105,7 @@ test("request() non-block dependent method", async (context) => {
     sender: ALICE,
   });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
+  const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
     address,
   });
 
@@ -110,7 +113,10 @@ test("request() non-block dependent method", async (context) => {
   const blockNumber = await publicClient.getBlockNumber();
   const block = await publicClient.getBlock({ blockNumber: blockNumber });
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
@@ -152,13 +158,16 @@ test("request() non-cached method", async (context) => {
   });
 
   const blockData = await simulateBlock();
-  const { sources, indexingFunctions } = getBlocksIndexingBuild({
+  const { eventCallbacks, indexingFunctions } = getBlocksIndexingBuild({
     interval: 1,
   });
 
   const { syncStore } = await setupDatabaseServices(context);
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
@@ -188,13 +197,16 @@ test("request() multicall", async (context) => {
   });
 
   const blockData = await simulateBlock();
-  const { sources, indexingFunctions } = getBlocksIndexingBuild({
+  const { eventCallbacks, indexingFunctions } = getBlocksIndexingBuild({
     interval: 1,
   });
 
   const { syncStore } = await setupDatabaseServices(context);
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
@@ -329,13 +341,16 @@ test("request() multicall empty", async (context) => {
   });
 
   const blockData = await simulateBlock();
-  const { sources, indexingFunctions } = getBlocksIndexingBuild({
+  const { eventCallbacks, indexingFunctions } = getBlocksIndexingBuild({
     interval: 1,
   });
 
   const { syncStore } = await setupDatabaseServices(context);
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
@@ -393,9 +408,14 @@ test("prefetch() uses profile metadata", async (context) => {
     sender: ALICE,
   });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({ address });
+  const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
+    address,
+  });
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const eventCount = getEventCount(indexingFunctions);
 
@@ -459,10 +479,13 @@ test("request() revert", async (context) => {
 
   const { syncStore } = await setupDatabaseServices(context);
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
+  const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
     address: erc20,
   });
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
@@ -509,13 +532,18 @@ test("readContract() action retry", async (context) => {
 
   const { syncStore } = await setupDatabaseServices(context);
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({ address });
+  const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
+    address,
+  });
 
   const requestSpy = vi.spyOn(rpc, "request");
 
   requestSpy.mockReturnValueOnce(Promise.resolve("0x"));
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
@@ -552,11 +580,16 @@ test("readContract() with immutable cache", async (context) => {
 
   const { syncStore } = await setupDatabaseServices(context);
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({ address });
+  const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
+    address,
+  });
 
   const requestSpy = vi.spyOn(rpc, "request");
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
@@ -602,13 +635,18 @@ test("readContract() with no retry empty response", async (context) => {
 
   const { syncStore } = await setupDatabaseServices(context);
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({ address });
+  const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
+    address,
+  });
 
   const requestSpy = vi.spyOn(rpc, "request");
 
   requestSpy.mockReturnValueOnce(Promise.resolve("0x"));
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
@@ -640,7 +678,7 @@ test("getBlock() action retry", async (context) => {
 
   const { syncStore } = await setupDatabaseServices(context);
 
-  const { sources, indexingFunctions } = getBlocksIndexingBuild({
+  const { eventCallbacks, indexingFunctions } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -648,7 +686,10 @@ test("getBlock() action retry", async (context) => {
 
   requestSpy.mockReturnValueOnce(Promise.resolve(null));
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const cachedViemClient = createCachedViemClient({
     common: context.common,
