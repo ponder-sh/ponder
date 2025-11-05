@@ -1469,7 +1469,7 @@ export const standardizeTransactionReceipt = (
     throw error;
   }
 
-  // TODO(kyle) convert to `null`
+  // Note: `to` is a required property but can be coerced to `null`.
   if (receipt.to === undefined) {
     receipt.to = null;
   }
