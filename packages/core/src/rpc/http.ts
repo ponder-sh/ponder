@@ -116,17 +116,20 @@ export function getHttpRpcClient(
             data = { error: data };
           }
 
-          if (!response.ok) {
-            throw new HttpRequestError({
-              body,
-              details: stringify(data.error) || response.statusText,
-              headers: response.headers,
-              status: response.status,
-              url,
-            });
-          }
-
           clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            reject(
+              new HttpRequestError({
+                body,
+                details: stringify(data.error) || response.statusText,
+                headers: response.headers,
+                status: response.status,
+                url,
+              }),
+            );
+            return;
+          }
 
           if (data.error) {
             reject(
