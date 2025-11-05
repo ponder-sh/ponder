@@ -1069,20 +1069,10 @@ export const standardizeTransaction = (
     error.stack = undefined;
     throw error;
   }
+
+  // Note: `to` is a required property but can be coerced to `null`.
   if (transaction.to === undefined) {
-    const error = new RpcProviderError(
-      "Invalid RPC response: 'transaction.to' is a required property",
-    );
-    error.meta = [
-      "Please report this error to the RPC operator.",
-      eth_getBlockText(
-        blockIdentifier === "number"
-          ? hexToNumber(transaction.blockNumber)
-          : transaction.blockHash,
-      ),
-    ];
-    error.stack = undefined;
-    throw error;
+    transaction.to = null;
   }
 
   // non-required properties
@@ -1465,19 +1455,6 @@ export const standardizeTransactionReceipt = (
     error.stack = undefined;
     throw error;
   }
-  if (receipt.to === undefined) {
-    const error = new RpcProviderError(
-      "Invalid RPC response: 'receipt.to' is a required property",
-    );
-    error.meta = [
-      "Please report this error to the RPC operator.",
-      method === "eth_getBlockReceipts"
-        ? eth_getBlockReceiptsText(receipt.blockHash)
-        : eth_getTransactionReceiptText(receipt.transactionHash),
-    ];
-    error.stack = undefined;
-    throw error;
-  }
   if (receipt.status === undefined) {
     const error = new RpcProviderError(
       "Invalid RPC response: 'receipt.status' is a required property",
@@ -1490,6 +1467,11 @@ export const standardizeTransactionReceipt = (
     ];
     error.stack = undefined;
     throw error;
+  }
+
+  // TODO(kyle) convert to `null`
+  if (receipt.to === undefined) {
+    receipt.to = null;
   }
 
   // non-required properties
