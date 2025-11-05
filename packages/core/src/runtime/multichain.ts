@@ -650,21 +650,20 @@ export async function runMultichain({
           const perBlockEvents = splitEvents(event.events);
 
           for (const { checkpoint, events } of perBlockEvents) {
+            const chain = indexingBuild.chains.find(
+              (chain) =>
+                chain.id === Number(decodeCheckpoint(checkpoint).chainId),
+            )!;
+
+            if (events.length === 0) {
+              common.metrics.ponder_indexing_timestamp.set(
+                { chain: chain.name },
+                Number(decodeCheckpoint(checkpoint).blockTimestamp),
+              );
+              continue;
+            }
             await database.userQB.transaction(
               async (tx) => {
-                const chain = indexingBuild.chains.find(
-                  (chain) =>
-                    chain.id === Number(decodeCheckpoint(checkpoint).chainId),
-                )!;
-
-                if (events.length === 0) {
-                  common.metrics.ponder_indexing_timestamp.set(
-                    { chain: chain.name },
-                    Number(decodeCheckpoint(checkpoint).blockTimestamp),
-                  );
-                  return;
-                }
-
                 await tx.wrap(
                   (tx) =>
                     tx.execute(
