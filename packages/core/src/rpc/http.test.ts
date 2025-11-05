@@ -39,12 +39,11 @@ test("slow body returns TimeoutError", async (context) => {
     });
   });
 
-  const client = getHttpRpcClient(
-    context.common,
-    getChain(),
-    `http://localhost:${port}`,
-    { timeout: timeoutMs },
-  );
+  const client = getHttpRpcClient(`http://localhost:${port}`, {
+    timeout: timeoutMs,
+    common: context.common,
+    chain: getChain(),
+  });
 
   await expect(() =>
     client.request({
