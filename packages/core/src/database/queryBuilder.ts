@@ -207,7 +207,6 @@ export const createQB = <
         return result;
       } catch (e) {
         const error = parseDbError(e);
-        console.log("error", error);
 
         if (common.shutdown.isKilled) {
           throw new ShutdownError();
