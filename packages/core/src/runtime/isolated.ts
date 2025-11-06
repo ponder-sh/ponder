@@ -682,7 +682,11 @@ export async function runIsolated({
         await database.userQB.transaction(
           async (tx) => {
             await dropTriggers(tx, { tables, chainId: chain.id }, context);
-            await dropLiveQueryTriggers(tx, { tables }, context);
+            await dropLiveQueryTriggers(
+              tx,
+              { tables, chainId: chain.id },
+              context,
+            );
 
             const counts = await revertIsolated(
               tx,
