@@ -76,11 +76,15 @@ test("migrate() succeeds with empty schema", async (context) => {
       viewsSchema: undefined,
     },
     preBuild: {
+      ordering: "multichain",
       databaseConfig: context.databaseConfig,
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -134,11 +138,13 @@ test("migrate() with empty schema creates tables, views, and enums", async (cont
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account, kyle, mood, user, userView },
       statements: buildSchema({
         schema: { account, kyle, mood, user, userView },
+        preBuild: { ordering: "multichain" },
       }).statements,
     },
   });
@@ -174,10 +180,14 @@ test("migrate() throws with schema used", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
   await database.migrate({
@@ -197,10 +207,14 @@ test("migrate() throws with schema used", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -233,10 +247,14 @@ test("migrate() throws with schema used after waiting for lock", async (context)
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
   await database.migrate({
@@ -253,10 +271,14 @@ test("migrate() throws with schema used after waiting for lock", async (context)
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -282,10 +304,14 @@ test("migrate() succeeds with crash recovery", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -306,10 +332,14 @@ test("migrate() succeeds with crash recovery", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -345,10 +375,14 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
   await database.migrate({
@@ -365,10 +399,14 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -390,10 +428,14 @@ test("migrateSync()", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -418,10 +460,14 @@ test.skip("migrateSync() handles concurrent migrations", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -448,10 +494,14 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -483,6 +533,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
     table: account,
+    preBuild: { ordering: "multichain" },
   });
 
   await createTriggers(database.userQB, { tables: [account] });
@@ -494,6 +545,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     table: account,
+    preBuild: { ordering: "multichain" },
   });
 
   await database.userQB.wrap((db) =>
@@ -518,10 +570,14 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -583,10 +639,14 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -597,7 +657,10 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
   });
 
   await createIndexes(database.userQB, {
-    statements: buildSchema({ schema: { account } }).statements,
+    statements: buildSchema({
+      schema: { account },
+      preBuild: { ordering: "multichain" },
+    }).statements,
   });
 
   await database.userQB.wrap((db) =>
@@ -628,10 +691,14 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -667,10 +734,14 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 

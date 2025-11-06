@@ -1,6 +1,6 @@
+import { getPartitionName, getReorgTableName } from "@/drizzle/index.js";
 import {
   SHARED_OPERATION_ID_SEQUENCE,
-  getReorgTable,
   sqlToReorgTableName,
 } from "@/drizzle/kit/index.js";
 import {
@@ -185,7 +185,7 @@ export const createDatabase = ({
 }: {
   common: Common;
   namespace: NamespaceBuild;
-  preBuild: Pick<PreBuild, "databaseConfig">;
+  preBuild: Pick<PreBuild, "databaseConfig" | "ordering">;
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
 }): Database => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
@@ -496,27 +496,50 @@ export const createDatabase = ({
 
       const createTables = async (tx: QB) => {
         for (let i = 0; i < schemaBuild.statements.tables.sql.length; i++) {
-          await tx
-            .wrap(
-              (tx) => tx.execute(schemaBuild.statements.tables.sql[i]!),
-              context,
-            )
-            .catch((_error) => {
-              const error = _error as Error;
-              if (!error.message.includes("already exists")) throw error;
-              const e = new MigrationError(
-                `Unable to create table "${namespace.schema}"."${schemaBuild.statements.tables.json[i]!.tableName}" because a table with that name already exists.`,
+          try {
+            const schemaName = schemaBuild.statements.tables.json[i]!.schema;
+            const tableName = schemaBuild.statements.tables.json[i]!.tableName;
+
+            if (
+              preBuild.ordering === "experimental_isolated" &&
+              tableName.startsWith("_reorg__") === false
+            ) {
+              const sql = schemaBuild.statements.tables.sql[i]!;
+              await tx.wrap((tx) =>
+                tx.execute(
+                  `${sql.slice(0, sql.length - 2)} PARTITION BY LIST (chain_id);`,
+                ),
               );
-              e.stack = undefined;
-              throw e;
-            });
+
+              for (const chain of chains) {
+                await tx.wrap((tx) =>
+                  tx.execute(
+                    `CREATE TABLE "${schemaName}"."${getPartitionName(tableName, chain.id)}" PARTITION OF "${schemaName}"."${tableName}" FOR VALUES IN (${chain.id});`,
+                  ),
+                );
+              }
+            } else {
+              await tx.wrap(
+                (tx) => tx.execute(schemaBuild.statements.tables.sql[i]!),
+                context,
+              );
+            }
+          } catch (_error) {
+            let error = _error as Error;
+            if (!error.message.includes("already exists")) throw error;
+            error = new MigrationError(
+              `Unable to create table '${namespace.schema}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+            );
+            error.stack = undefined;
+            throw error;
+          }
         }
 
         for (const table of tables) {
           await tx.wrap(
             (tx) =>
               tx.execute(
-                `CREATE INDEX IF NOT EXISTS "${getTableName(table)}_checkpoint_index" ON "${namespace.schema}"."${getTableName(getReorgTable(table))}" ("checkpoint")`,
+                `CREATE INDEX IF NOT EXISTS "${getTableName(table)}_checkpoint_index" ON "${namespace.schema}"."${getReorgTableName(table)}" ("checkpoint")`,
               ),
             context,
           );
@@ -887,7 +910,15 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
             return { status: "success", crashRecoveryCheckpoint } as const;
           }
 
-          await dropTriggers(tx, { tables }, context);
+          // Remove triggers
+
+          if (preBuild.ordering === "experimental_isolated") {
+            for (const { chainId } of checkpoints) {
+              await dropTriggers(tx, { tables, chainId });
+            }
+          } else {
+            await dropTriggers(tx, { tables });
+          }
           await dropLiveQueryTriggers(tx, { tables }, context);
 
           // Remove indexes

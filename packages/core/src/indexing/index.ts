@@ -84,9 +84,7 @@ export type Context = {
 };
 
 export type Indexing = {
-  processSetupEvents: (params: {
-    db: IndexingStore;
-  }) => Promise<void>;
+  processSetupEvents: (params: { db: IndexingStore }) => Promise<void>;
   processHistoricalEvents: (params: {
     events: Event[];
     db: IndexingStore;
@@ -145,7 +143,6 @@ export const createIndexing = ({
   common,
   indexingBuild: { eventCallbacks, setupCallbacks, chains, contracts },
   client,
-  eventCount,
   indexingErrorHandler,
   columnAccessPattern,
 }: {
@@ -155,7 +152,6 @@ export const createIndexing = ({
     "eventCallbacks" | "setupCallbacks" | "chains" | "contracts"
   >;
   client: CachedViemClient;
-  eventCount: { [eventName: string]: number };
   indexingErrorHandler: IndexingErrorHandler;
   columnAccessPattern: ColumnAccessPattern;
 }): Indexing => {
@@ -180,16 +176,6 @@ export const createIndexing = ({
     const chain = chains[i]!;
     contractsByChainId[chain.id] = contracts[i]!;
   }
-
-  const updateCompletedEvents = () => {
-    for (const event of Object.keys(eventCount)) {
-      const metricLabel = { event };
-      common.metrics.ponder_indexing_completed_events.set(
-        metricLabel,
-        eventCount[event]!,
-      );
-    }
-  };
 
   const executeSetup = async (event: SetupEvent): Promise<void> => {
     const metricLabel = { event: event.setupCallback.name };
@@ -544,7 +530,10 @@ export const createIndexing = ({
         // @ts-expect-error
         await executeEvent({ ...event, event: proxyEvent });
 
-        eventCount[event.eventCallback.name]!++;
+        common.metrics.ponder_indexing_completed_events.inc(
+          { event: event.eventCallback.name },
+          1,
+        );
         columnAccessPattern.get(event.eventCallback.name)!.count++;
 
         const now = performance.now();
@@ -556,7 +545,6 @@ export const createIndexing = ({
 
         if (now - lastMetricsUpdate > METRICS_UPDATE_INTERVAL) {
           lastMetricsUpdate = now;
-          updateCompletedEvents();
           updateIndexingSeconds(event, event.chain);
         }
       }
@@ -692,7 +680,6 @@ export const createIndexing = ({
       }
 
       await new Promise(setImmediate);
-      updateCompletedEvents();
       if (events.length > 0) {
         updateIndexingSeconds(
           events[events.length - 1]!,
@@ -708,12 +695,13 @@ export const createIndexing = ({
         client.event = event;
         context.client = clientByChainId[event.chain.id]!;
 
-        eventCount[event.eventCallback.name]!++;
+        common.metrics.ponder_indexing_completed_events.inc(
+          { event: event.eventCallback.name },
+          1,
+        );
 
         await executeEvent(event);
       }
-
-      updateCompletedEvents();
     },
   };
 };

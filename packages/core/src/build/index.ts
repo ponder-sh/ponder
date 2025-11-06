@@ -66,7 +66,10 @@ export type Build = {
   }) => Promise<ApiResult>;
   namespaceCompile: () => Result<NamespaceBuild>;
   preCompile: (params: { config: Config }) => Result<PreBuild>;
-  compileSchema: (params: { schema: Schema }) => Result<SchemaBuild>;
+  compileSchema: (params: {
+    schema: Schema;
+    preBuild: PreBuild;
+  }) => Result<SchemaBuild>;
   compileConfig: (params: {
     configResult: Extract<ConfigResult, { status: "success" }>["result"];
   }) => Result<Pick<IndexingBuild, "chains" | "rpcs">>;
@@ -356,10 +359,7 @@ export const createBuild = async ({
       } as const;
     },
     preCompile({ config }): Result<PreBuild> {
-      const preBuild = safeBuildPre({
-        config,
-        options: common.options,
-      });
+      const preBuild = safeBuildPre({ config, options: common.options });
       if (preBuild.status === "error") {
         return preBuild;
       }
@@ -372,10 +372,8 @@ export const createBuild = async ({
         },
       } as const;
     },
-    compileSchema({ schema }) {
-      const buildSchemaResult = safeBuildSchema({
-        schema,
-      });
+    compileSchema({ schema, preBuild }) {
+      const buildSchemaResult = safeBuildSchema({ schema, preBuild });
 
       if (buildSchemaResult.status === "error") {
         return buildSchemaResult;

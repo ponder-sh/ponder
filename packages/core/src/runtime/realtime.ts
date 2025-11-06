@@ -590,6 +590,171 @@ export async function* getRealtimeEventsMultichain(params: {
   }
 }
 
+export async function* getRealtimeEventsIsolated(params: {
+  common: Common;
+  indexingBuild: Pick<
+    IndexingBuild,
+    "eventCallbacks" | "chains" | "rpcs" | "finalizedBlocks"
+  >;
+  chain: Chain;
+  syncProgress: SyncProgress;
+  childAddresses: ChildAddresses;
+  unfinalizedBlocks: Omit<
+    Extract<RealtimeSyncEvent, { type: "block" }>,
+    "type"
+  >[];
+  database: Database;
+}): AsyncGenerator<RealtimeEvent> {
+  if (params.syncProgress.isEnd()) {
+    params.common.logger.info({
+      msg: "Skipped live indexing (chain only requires backfill indexing)",
+      chain: params.chain.name,
+      chain_id: params.chain.id,
+      end_block: hexToNumber(params.syncProgress.end!.number),
+    });
+
+    params.common.metrics.ponder_sync_is_complete.set(
+      { chain: params.chain.name },
+      1,
+    );
+    return;
+  }
+
+  const rpc =
+    params.indexingBuild.rpcs[
+      params.indexingBuild.chains.indexOf(params.chain)
+    ]!;
+  const eventCallbacks =
+    params.indexingBuild.eventCallbacks[
+      params.indexingBuild.chains.indexOf(params.chain)
+    ]!;
+
+  params.common.metrics.ponder_sync_is_realtime.set(
+    { chain: params.chain.name },
+    1,
+  );
+
+  const bufferCallback = (bufferSize: number) => {
+    // Note: Only log when the buffer size is greater than 1 because
+    // a buffer size of 1 is not backpressure.
+    if (bufferSize === 1) return;
+    params.common.logger.trace({
+      msg: "Detected live indexing backpressure",
+      chain: params.chain.name,
+      chain_id: params.chain.id,
+      buffer_size: bufferSize,
+      indexing_step: "order block events",
+    });
+  };
+
+  const eventGenerator = bufferAsyncGenerator(
+    getRealtimeEventGenerator({
+      common: params.common,
+      chain: params.chain,
+      rpc,
+      eventCallbacks,
+      syncProgress: params.syncProgress,
+      childAddresses: params.childAddresses,
+      database: params.database,
+    }),
+    100,
+    bufferCallback,
+  );
+
+  for await (const { chain, event } of eventGenerator) {
+    await handleRealtimeSyncEvent(event, {
+      common: params.common,
+      chain,
+      eventCallbacks,
+      syncProgress: params.syncProgress,
+      unfinalizedBlocks: params.unfinalizedBlocks,
+      database: params.database,
+    });
+
+    switch (event.type) {
+      case "block": {
+        const rawEvents = buildEvents({
+          eventCallbacks,
+          chainId: chain.id,
+          blocks: [syncBlockToInternal({ block: event.block })],
+          logs: event.logs.map((log) => syncLogToInternal({ log })),
+          transactions: event.transactions.map((transaction) =>
+            syncTransactionToInternal({ transaction }),
+          ),
+          transactionReceipts: event.transactionReceipts.map(
+            (transactionReceipt) =>
+              syncTransactionReceiptToInternal({ transactionReceipt }),
+          ),
+          traces: event.traces.map((trace) =>
+            syncTraceToInternal({
+              trace,
+              block: event.block,
+              transaction: event.transactions.find(
+                (t) => t.hash === trace.transactionHash,
+              )!,
+            }),
+          ),
+          childAddresses: params.childAddresses,
+        });
+
+        params.common.logger.trace({
+          msg: "Constructed events from block",
+          chain: chain.name,
+          chain_id: chain.id,
+          number: hexToNumber(event.block.number),
+          hash: event.block.hash,
+          event_count: rawEvents.length,
+        });
+
+        const events = decodeEvents(
+          params.common,
+          chain,
+          eventCallbacks,
+          rawEvents,
+        );
+
+        params.common.logger.trace({
+          msg: "Decoded block events",
+          chain: chain.name,
+          chain_id: chain.id,
+          number: hexToNumber(event.block.number),
+          hash: event.block.hash,
+          event_count: events.length,
+        });
+
+        const checkpoint = params.syncProgress.getCheckpoint({
+          tag: "current",
+        });
+
+        yield {
+          type: "block",
+          events,
+          chain,
+          checkpoint,
+          blockCallback: event.blockCallback,
+        };
+        break;
+      }
+      case "finalize": {
+        const checkpoint = params.syncProgress.getCheckpoint({
+          tag: "finalized",
+        });
+
+        yield { type: "finalize", chain, checkpoint };
+        break;
+      }
+      case "reorg": {
+        const checkpoint = params.syncProgress.getCheckpoint({
+          tag: "current",
+        });
+
+        yield { type: "reorg", chain, checkpoint };
+        break;
+      }
+    }
+  }
+}
+
 export async function* getRealtimeEventGenerator(params: {
   common: Common;
   chain: Chain;
