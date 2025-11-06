@@ -410,7 +410,7 @@ export function buildGraphQLSchema({
                 const relationalConditions = [];
                 for (let i = 0; i < references.length; i++) {
                   const column = fields[i]!;
-                  const value = parent[references[i]!.name];
+                  const value = parent[getColumnTsName(references[i]!)];
                   relationalConditions.push(eq(column, value));
                 }
 

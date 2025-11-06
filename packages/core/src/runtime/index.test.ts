@@ -39,7 +39,7 @@ test("getLocalSyncProgress()", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -47,15 +47,15 @@ test("getLocalSyncProgress()", async (context) => {
     Filter,
     { fragment: Fragment; intervals: Interval[] }[]
   >();
-  for (const source of sources) {
-    for (const { fragment } of getFragments(source.filter)) {
-      cachedIntervals.set(source.filter, [{ fragment, intervals: [] }]);
+  for (const eventCallback of eventCallbacks) {
+    for (const { fragment } of getFragments(eventCallback.filter)) {
+      cachedIntervals.set(eventCallback.filter, [{ fragment, intervals: [] }]);
     }
   }
 
   const syncProgress = await getLocalSyncProgress({
     common: context.common,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
     finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 0 }),
@@ -72,25 +72,25 @@ test("getLocalSyncProgress() future end block", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
-  sources[0]!.filter.toBlock = 12;
+  eventCallbacks[0]!.filter.toBlock = 12;
 
   const cachedIntervals = new Map<
     Filter,
     { fragment: Fragment; intervals: Interval[] }[]
   >();
-  for (const source of sources) {
-    for (const { fragment } of getFragments(source.filter)) {
-      cachedIntervals.set(source.filter, [{ fragment, intervals: [] }]);
+  for (const eventCallback of eventCallbacks) {
+    for (const { fragment } of getFragments(eventCallback.filter)) {
+      cachedIntervals.set(eventCallback.filter, [{ fragment, intervals: [] }]);
     }
   }
 
   const syncProgress = await getLocalSyncProgress({
     common: context.common,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
     finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 0 }),
@@ -307,16 +307,16 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
 
   p1.resolve({
     events: [
-      { checkpoint: createCheckpoint(1), chainId: 1 },
-      { checkpoint: createCheckpoint(7), chainId: 1 },
+      { checkpoint: createCheckpoint(1), chain: { id: 1 } },
+      { checkpoint: createCheckpoint(7), chain: { id: 1 } },
     ] as Event[],
     checkpoint: createCheckpoint(10),
     blockRange: [1, 7],
   });
   p3.resolve({
     events: [
-      { checkpoint: createCheckpoint(2), chainId: 2 },
-      { checkpoint: createCheckpoint(5), chainId: 2 },
+      { checkpoint: createCheckpoint(2), chain: { id: 2 } },
+      { checkpoint: createCheckpoint(5), chain: { id: 2 } },
     ] as Event[],
     checkpoint: createCheckpoint(6),
     blockRange: [2, 5],
@@ -326,16 +326,16 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
 
   p4.resolve({
     events: [
-      { checkpoint: createCheckpoint(8), chainId: 2 },
-      { checkpoint: createCheckpoint(11), chainId: 2 },
+      { checkpoint: createCheckpoint(8), chain: { id: 2 } },
+      { checkpoint: createCheckpoint(11), chain: { id: 2 } },
     ] as Event[],
     checkpoint: createCheckpoint(20),
     blockRange: [8, 11],
   });
   p2.resolve({
     events: [
-      { checkpoint: createCheckpoint(8), chainId: 1 },
-      { checkpoint: createCheckpoint(13), chainId: 1 },
+      { checkpoint: createCheckpoint(8), chain: { id: 1 } },
+      { checkpoint: createCheckpoint(13), chain: { id: 1 } },
     ] as Event[],
     checkpoint: createCheckpoint(20),
     blockRange: [8, 13],
@@ -357,7 +357,9 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
           "checkpoint": "000000000100000000000000000000000000000001000000000000000000000000000000000",
           "events": [
             {
-              "chainId": 1,
+              "chain": {
+                "id": 1,
+              },
               "checkpoint": "000000000100000000000000000000000000000001000000000000000000000000000000000",
             },
           ],
@@ -371,11 +373,15 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
           "checkpoint": "000000000600000000000000000000000000000006000000000000000000000000000000000",
           "events": [
             {
-              "chainId": 2,
+              "chain": {
+                "id": 2,
+              },
               "checkpoint": "000000000200000000000000000000000000000002000000000000000000000000000000000",
             },
             {
-              "chainId": 2,
+              "chain": {
+                "id": 2,
+              },
               "checkpoint": "000000000500000000000000000000000000000005000000000000000000000000000000000",
             },
           ],
@@ -391,7 +397,9 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
           "checkpoint": "000000001000000000000000000000000000000010000000000000000000000000000000000",
           "events": [
             {
-              "chainId": 1,
+              "chain": {
+                "id": 1,
+              },
               "checkpoint": "000000000700000000000000000000000000000007000000000000000000000000000000000",
             },
           ],
@@ -405,7 +413,9 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
           "checkpoint": "000000000800000000000000000000000000000008000000000000000000000000000000000",
           "events": [
             {
-              "chainId": 2,
+              "chain": {
+                "id": 2,
+              },
               "checkpoint": "000000000800000000000000000000000000000008000000000000000000000000000000000",
             },
           ],
@@ -421,11 +431,15 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
           "checkpoint": "000000002000000000000000000000000000000020000000000000000000000000000000000",
           "events": [
             {
-              "chainId": 1,
+              "chain": {
+                "id": 1,
+              },
               "checkpoint": "000000000800000000000000000000000000000008000000000000000000000000000000000",
             },
             {
-              "chainId": 1,
+              "chain": {
+                "id": 1,
+              },
               "checkpoint": "000000001300000000000000000000000000000013000000000000000000000000000000000",
             },
           ],
@@ -439,7 +453,9 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
           "checkpoint": "000000002000000000000000000000000000000020000000000000000000000000000000000",
           "events": [
             {
-              "chainId": 2,
+              "chain": {
+                "id": 2,
+              },
               "checkpoint": "000000001100000000000000000000000000000011000000000000000000000000000000000",
             },
           ],
@@ -460,7 +476,7 @@ test("historical events match realtime events", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getErc20IndexingBuild({
+  const { eventCallbacks } = getErc20IndexingBuild({
     address,
     includeTransactionReceipts: true,
   });
@@ -476,7 +492,7 @@ test("historical events match realtime events", async (context) => {
   });
 
   const { logs: historicalLogs } = await syncStore.getEventData({
-    filters: [sources[0]!.filter],
+    filters: [eventCallbacks[0]!.filter],
     fromBlock: 0,
     toBlock: 10,
     chainId: 1,

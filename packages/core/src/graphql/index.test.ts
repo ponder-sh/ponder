@@ -555,6 +555,61 @@ test("singular with one relation", async (context) => {
   });
 });
 
+test("singular with one relation using camel case 'references' column name", async (context) => {
+  const person = onchainTable("person", (t) => ({
+    camelCaseId: t.text().primaryKey(),
+    name: t.text(),
+  }));
+
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    ownerId: t.text(),
+  }));
+
+  const petRelations = relations(pet, ({ one }) => ({
+    owner: one(person, {
+      fields: [pet.ownerId],
+      references: [person.camelCaseId],
+    }),
+  }));
+
+  const schema = { person, pet, petRelations };
+
+  const { database, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await indexingStore
+    .insert(schema.person)
+    .values({ camelCaseId: "jake", name: "jake" });
+  await indexingStore.insert(schema.pet).values([
+    { id: "dog1", ownerId: "jake" },
+    { id: "dog2", ownerId: "kyle" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      pet(id: "dog1") {
+        owner {
+          camelCaseId
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    pet: {
+      owner: { camelCaseId: "jake" },
+    },
+  });
+});
+
 test("singular with many relation", async (context) => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
@@ -597,6 +652,68 @@ test("singular with many relation", async (context) => {
   const result = await query(`
     query {
       person(id: "jake") {
+        pets {
+          items {
+            id
+          }
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    person: {
+      pets: { items: [{ id: "dog1" }, { id: "dog2" }] },
+    },
+  });
+});
+
+test("singular with many relation using camel case 'references' column name", async (context) => {
+  const person = onchainTable("person", (t) => ({
+    camelCaseId: t.text().primaryKey(),
+    name: t.text(),
+  }));
+
+  const personRelations = relations(person, ({ many }) => ({
+    pets: many(pet),
+  }));
+
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    ownerId: t.text(),
+  }));
+
+  const petRelations = relations(pet, ({ one }) => ({
+    owner: one(person, {
+      fields: [pet.ownerId],
+      references: [person.camelCaseId],
+    }),
+  }));
+
+  const schema = { person, personRelations, pet, petRelations };
+
+  const { database, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await indexingStore
+    .insert(schema.person)
+    .values({ camelCaseId: "jake", name: "jake" });
+  await indexingStore.insert(schema.pet).values([
+    { id: "dog1", ownerId: "jake" },
+    { id: "dog2", ownerId: "jake" },
+    { id: "dog3", ownerId: "kyle" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      person(camelCaseId: "jake") {
         pets {
           items {
             id

@@ -1,5 +1,23 @@
 # @ponder/client
 
+## 0.14.12
+
+## 0.14.11
+
+## 0.14.10
+
+## 0.14.9
+
+## 0.14.8
+
+### Patch Changes
+
+- [#2154](https://github.com/ponder-sh/ponder/pull/2154) [`b45f0e1`](https://github.com/ponder-sh/ponder/commit/b45f0e1b76c35b8ee25d93553d4c1302f23c88a1) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed drizzle builder queries such as `db.$count` for `context.db` and `client.db`.
+
+## 0.14.7
+
+## 0.14.6
+
 ## 0.14.5
 
 ## 0.14.4

@@ -1,3 +1,4 @@
+import { getBlocksIndexingBuild, getChain } from "@/_test/utils.js";
 import { onchainTable } from "@/drizzle/onchain.js";
 import type { BlockEvent, LogEvent, TraceEvent } from "@/internal/types.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
@@ -7,11 +8,12 @@ import { expect, test } from "vitest";
 import { recordProfilePattern, recoverProfilePattern } from "./profile.js";
 
 test("recordProfilePattern() no pattern", () => {
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
   const event = {
     type: "block",
-    chainId: 1,
+    chain: getChain(),
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
+    eventCallback: eventCallbacks[0]!,
     event: {
       id: ZERO_CHECKPOINT_STRING,
       block: { timestamp: 1n } as BlockEvent["event"]["block"],
@@ -41,11 +43,12 @@ test("recordProfilePattern() no pattern", () => {
 });
 
 test("recordProfilePattern() with undefined log event args", () => {
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
   const event = {
     type: "log",
-    chainId: 1,
+    chain: getChain(),
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
+    eventCallback: eventCallbacks[0]!,
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: undefined,
@@ -78,11 +81,12 @@ test("recordProfilePattern() with undefined log event args", () => {
 });
 
 test("recordProfilePattern() with undefined trace event args", () => {
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
   const event = {
     type: "trace",
-    chainId: 1,
+    chain: getChain(),
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
+    eventCallback: eventCallbacks[0]!,
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: undefined,
@@ -116,11 +120,12 @@ test("recordProfilePattern() with undefined trace event args", () => {
 });
 
 test("recordProfilePattern() with array log event args", () => {
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
   const event = {
     type: "log",
-    chainId: 1,
+    chain: getChain(),
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
+    eventCallback: eventCallbacks[0]!,
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: [],
@@ -153,11 +158,12 @@ test("recordProfilePattern() with array log event args", () => {
 });
 
 test("recordProfilePattern() with array trace event args", () => {
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
   const event = {
     type: "trace",
-    chainId: 1,
+    chain: getChain(),
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
+    eventCallback: eventCallbacks[0]!,
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: [],
@@ -191,11 +197,12 @@ test("recordProfilePattern() with array trace event args", () => {
 });
 
 test("recordProfilePattern() chainId", () => {
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
   const event = {
     type: "block",
-    chainId: 1,
+    chain: getChain(),
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
+    eventCallback: eventCallbacks[0]!,
     event: {
       id: ZERO_CHECKPOINT_STRING,
       block: { timestamp: 1n } as BlockEvent["event"]["block"],
@@ -240,11 +247,12 @@ test("recordProfilePattern() chainId", () => {
 });
 
 test("recordProfilePattern() log args", () => {
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
   const event = {
     type: "log",
-    chainId: 1,
+    chain: getChain(),
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
+    eventCallback: eventCallbacks[0]!,
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: {
@@ -295,11 +303,12 @@ test("recordProfilePattern() log args", () => {
 });
 
 test("recordProfilePattern() block", () => {
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
   const event = {
     type: "block",
-    chainId: 1,
+    chain: getChain(),
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
+    eventCallback: eventCallbacks[0]!,
     event: {
       id: ZERO_CHECKPOINT_STRING,
       block: { number: 3n, timestamp: 1n } as BlockEvent["event"]["block"],
@@ -345,11 +354,12 @@ test("recordProfilePattern() block", () => {
 });
 
 test("recordProfilePattern() hint", () => {
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
   const event = {
     type: "block",
-    chainId: 1,
+    chain: getChain(),
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
+    eventCallback: eventCallbacks[0]!,
     event: {
       id: ZERO_CHECKPOINT_STRING,
       block: { number: 3n, timestamp: 1n } as BlockEvent["event"]["block"],
@@ -403,11 +413,12 @@ test("recordProfilePattern() hint", () => {
 });
 
 test("recordProfilePattern() object args", () => {
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
   const event = {
     type: "log",
-    chainId: 1,
+    chain: getChain(),
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
+    eventCallback: eventCallbacks[0]!,
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: {
@@ -442,11 +453,12 @@ test("recordProfilePattern() object args", () => {
 });
 
 test("recordProfilePattern() string concat", () => {
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
   const event = {
     type: "log",
-    chainId: 1,
+    chain: getChain(),
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
+    eventCallback: eventCallbacks[0]!,
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: {
@@ -510,11 +522,12 @@ test("recordProfilePattern() string concat", () => {
 });
 
 test("recordProfilePattern() string concat mixed delimiters", () => {
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
   const event = {
     type: "log",
-    chainId: 1,
+    chain: getChain(),
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
+    eventCallback: eventCallbacks[0]!,
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: {
@@ -550,11 +563,12 @@ test("recordProfilePattern() string concat mixed delimiters", () => {
 });
 
 test("recordProfilePattern() string concat hint", () => {
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
   const event = {
     type: "log",
-    chainId: 1,
+    chain: getChain(),
     checkpoint: ZERO_CHECKPOINT_STRING,
-    name: "",
+    eventCallback: eventCallbacks[0]!,
     event: {
       id: ZERO_CHECKPOINT_STRING,
       args: {

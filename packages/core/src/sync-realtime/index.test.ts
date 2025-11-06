@@ -43,7 +43,7 @@ test("createRealtimeSync()", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -53,7 +53,7 @@ test("createRealtimeSync()", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -68,7 +68,7 @@ test("sync() handles block", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -78,7 +78,7 @@ test("sync() handles block", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -101,7 +101,7 @@ test("sync() no-op when receiving same block twice", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ chain, common });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -111,7 +111,7 @@ test("sync() no-op when receiving same block twice", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -134,7 +134,7 @@ test("sync() gets missing block", async (context) => {
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -144,7 +144,7 @@ test("sync() gets missing block", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -171,7 +171,7 @@ test("sync() catches error", async (context) => {
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -181,7 +181,7 @@ test("sync() catches error", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -215,7 +215,7 @@ test("handleBlock() block event with log", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getErc20IndexingBuild({
+  const { eventCallbacks } = getErc20IndexingBuild({
     address,
   });
 
@@ -225,7 +225,7 @@ test("handleBlock() block event with log", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -285,11 +285,11 @@ test("handleBlock() block event with log factory", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getPairWithFactoryIndexingBuild({
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({
     address,
   });
 
-  const filter = sources[0]!.filter as LogFilter<LogFactory>;
+  const filter = eventCallbacks[0]!.filter as LogFilter<LogFactory>;
 
   const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
@@ -297,7 +297,7 @@ test("handleBlock() block event with log factory", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map([[filter.address.id, new Map()]]),
   });
@@ -395,7 +395,7 @@ test("handleBlock() block event with block", async (context) => {
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -405,7 +405,7 @@ test("handleBlock() block event with block", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -451,7 +451,7 @@ test("handleBlock() block event with transaction", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getAccountsIndexingBuild({
+  const { eventCallbacks } = getAccountsIndexingBuild({
     address: ALICE,
   });
 
@@ -461,7 +461,9 @@ test("handleBlock() block event with transaction", async (context) => {
     common,
     chain,
     rpc,
-    sources: sources.filter(({ filter }) => filter.type === "transaction"),
+    eventCallbacks: eventCallbacks.filter(
+      ({ filter }) => filter.type === "transaction",
+    ),
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -506,7 +508,7 @@ test("handleBlock() block event with transfer", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getAccountsIndexingBuild({
+  const { eventCallbacks } = getAccountsIndexingBuild({
     address: ALICE,
   });
 
@@ -532,7 +534,7 @@ test("handleBlock() block event with transfer", async (context) => {
       // @ts-ignore
       request,
     },
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -585,7 +587,7 @@ test("handleBlock() block event with trace", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getErc20IndexingBuild({
+  const { eventCallbacks } = getErc20IndexingBuild({
     address,
     includeCallTraces: true,
   });
@@ -633,7 +635,7 @@ test("handleBlock() block event with trace", async (context) => {
       // @ts-ignore
       request,
     },
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -681,7 +683,7 @@ test("handleBlock() finalize event", async (context) => {
     common,
   });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -691,7 +693,7 @@ test("handleBlock() finalize event", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -734,7 +736,7 @@ test("handleReorg() finds common ancestor", async (context) => {
     common,
   });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -744,7 +746,7 @@ test("handleReorg() finds common ancestor", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });
@@ -782,7 +784,7 @@ test("handleReorg() throws error for deep reorg", async (context) => {
     common,
   });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -792,7 +794,7 @@ test("handleReorg() throws error for deep reorg", async (context) => {
     common,
     chain,
     rpc,
-    sources,
+    eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
   });

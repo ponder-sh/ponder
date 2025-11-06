@@ -11,7 +11,7 @@ import {
 } from "@/internal/errors.js";
 import type {
   Chain,
-  ContractSource,
+  Contract,
   Event,
   Filter,
   IndexingBuild,
@@ -33,7 +33,6 @@ import {
   defaultTransactionInclude,
   defaultTransactionReceiptInclude,
   defaultTransferFilterInclude,
-  isAddressFactory,
   requiredBlockFilterInclude,
   requiredLogFilterInclude,
   requiredTraceFilterInclude,
@@ -85,10 +84,7 @@ export type Context = {
 };
 
 export type Indexing = {
-  processSetupEvents: (params: {
-    db: IndexingStore;
-    chain?: Chain;
-  }) => Promise<void>;
+  processSetupEvents: (params: { db: IndexingStore }) => Promise<void>;
   processHistoricalEvents: (params: {
     events: Event[];
     db: IndexingStore;
@@ -105,7 +101,7 @@ export const getEventCount = (
   indexingFunctions: IndexingBuild["indexingFunctions"],
 ) => {
   const eventCount: { [eventName: string]: number } = {};
-  for (const eventName of Object.keys(indexingFunctions)) {
+  for (const { name: eventName } of indexingFunctions) {
     eventCount[eventName] = 0;
   }
   return eventCount;
@@ -129,7 +125,7 @@ export const createColumnAccessPattern = ({
 }): ColumnAccessPattern => {
   const columnAccessPattern = new Map<string, ColumnAccessProfile>();
 
-  for (const eventName of Object.keys(indexingBuild.indexingFunctions)) {
+  for (const { name: eventName } of indexingBuild.indexingFunctions) {
     columnAccessPattern.set(eventName, {
       block: new Set(),
       trace: new Set(),
@@ -145,7 +141,7 @@ export const createColumnAccessPattern = ({
 
 export const createIndexing = ({
   common,
-  indexingBuild: { sources, chains, indexingFunctions },
+  indexingBuild: { eventCallbacks, setupCallbacks, chains, contracts },
   client,
   indexingErrorHandler,
   columnAccessPattern,
@@ -153,7 +149,7 @@ export const createIndexing = ({
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
-    "sources" | "chains" | "indexingFunctions"
+    "eventCallbacks" | "setupCallbacks" | "chains" | "contracts"
   >;
   client: CachedViemClient;
   indexingErrorHandler: IndexingErrorHandler;
@@ -166,83 +162,41 @@ export const createIndexing = ({
     db: undefined!,
   };
 
-  const chainById: { [chainId: number]: Chain } = {};
   const clientByChainId: { [chainId: number]: ReadonlyClient } = {};
   const contractsByChainId: {
-    [chainId: number]: Record<
-      string,
-      {
-        abi: Abi;
-        address?: Address | readonly Address[];
-        startBlock?: number;
-        endBlock?: number;
-      }
-    >;
+    [chainId: number]: { [name: string]: Contract };
   } = {};
-
-  // build chainById
-  for (const chain of chains) {
-    chainById[chain.id] = chain;
-  }
 
   // build clientByChainId
   for (const chain of chains) {
     clientByChainId[chain.id] = client.getClient(chain);
   }
 
-  // build contractsByChainId
-  for (const source of sources) {
-    if (source.type === "block" || source.type === "account") continue;
-
-    let address: Address | undefined;
-
-    if (source.filter.type === "log") {
-      const _address = source.filter.address;
-      if (
-        isAddressFactory(_address) === false &&
-        Array.isArray(_address) === false &&
-        _address !== undefined
-      ) {
-        address = _address as Address;
-      }
-    } else {
-      const _address = source.filter.toAddress;
-      if (isAddressFactory(_address) === false && _address !== undefined) {
-        address = (_address as Address[])[0];
-      }
-    }
-
-    if (contractsByChainId[source.filter.chainId] === undefined) {
-      contractsByChainId[source.filter.chainId] = {};
-    }
-
-    // Note: multiple sources with the same contract (logs and traces)
-    // should only create one entry in the `contracts` object
-    if (contractsByChainId[source.filter.chainId]![source.name] !== undefined)
-      continue;
-
-    contractsByChainId[source.filter.chainId]![source.name] = {
-      abi: source.abi,
-      address,
-      startBlock: source.filter.fromBlock,
-      endBlock: source.filter.toBlock,
-    };
+  for (let i = 0; i < chains.length; i++) {
+    const chain = chains[i]!;
+    contractsByChainId[chain.id] = contracts[i]!;
   }
 
-  const executeSetup = async ({
-    event,
-  }: { event: SetupEvent }): Promise<void> => {
-    const indexingFunction = indexingFunctions[event.name];
-    const metricLabel = { event: event.name };
+  const executeSetup = async (event: SetupEvent): Promise<void> => {
+    const metricLabel = { event: event.setupCallback.name };
 
     try {
-      context.chain.id = event.chainId;
-      context.chain.name = chainById[event.chainId]!.name;
-      context.contracts = contractsByChainId[event.chainId]!;
+      context.chain.id = event.chain.id;
+      context.chain.name = event.chain.name;
+      context.contracts = contractsByChainId[event.chain.id]!;
 
       const endClock = startClock();
 
-      await indexingFunction!({ context });
+      await event.setupCallback.fn({ context });
+
+      // Note: Check `getRetryableError` to handle user-code catching errors
+      // from the indexing store.
+
+      if (indexingErrorHandler.getRetryableError()) {
+        const retryableError = indexingErrorHandler.getRetryableError()!;
+        indexingErrorHandler.clearRetryableError();
+        throw retryableError;
+      }
 
       common.metrics.ponder_indexing_function_duration.observe(
         metricLabel,
@@ -257,7 +211,7 @@ export const createIndexing = ({
       if (indexingErrorHandler.getRetryableError()) {
         const retryableError = indexingErrorHandler.getRetryableError()!;
         indexingErrorHandler.clearRetryableError();
-        throw retryableError;
+        error = retryableError;
       }
 
       if (common.shutdown.isKilled) {
@@ -270,9 +224,9 @@ export const createIndexing = ({
       const decodedCheckpoint = decodeCheckpoint(event.checkpoint);
       common.logger.error({
         msg: "Error while processing event",
-        event: event.name,
-        chain: chainById[event.chainId]!.name,
-        chain_id: event.chainId,
+        event: event.setupCallback.name,
+        chain: event.chain.name,
+        chain_id: event.chain.id,
         block_number: decodedCheckpoint.blockNumber,
         error,
       });
@@ -285,35 +239,34 @@ export const createIndexing = ({
 
       throw error;
     }
-
-    // Note: Check `getRetryableError` to handle user-code catching errors
-    // from the indexing store.
-
-    if (indexingErrorHandler.getRetryableError()) {
-      const retryableError = indexingErrorHandler.getRetryableError()!;
-      indexingErrorHandler.clearRetryableError();
-      throw retryableError;
-    }
   };
 
   // metric label for "ponder_indexing_function_duration"
   const executeEvent = async (event: Event): Promise<void> => {
-    const indexingFunction = indexingFunctions[event.name];
-    const metricLabel: { event: string } = { event: event.name };
+    const metricLabel: { event: string } = { event: event.eventCallback.name };
 
     try {
-      context.chain.id = event.chainId;
-      context.chain.name = chainById[event.chainId]!.name;
-      context.contracts = contractsByChainId[event.chainId]!;
+      context.chain.id = event.chain.id;
+      context.chain.name = event.chain.name;
+      context.contracts = contractsByChainId[event.chain.id]!;
 
       const endClock = startClock();
 
-      await indexingFunction!({ event: event.event, context });
+      await event.eventCallback.fn({ event: event.event, context });
 
       common.metrics.ponder_indexing_function_duration.observe(
         metricLabel,
         endClock(),
       );
+
+      // Note: Check `getRetryableError` to handle user-code catching errors
+      // from the indexing store.
+
+      if (indexingErrorHandler.getRetryableError()) {
+        const retryableError = indexingErrorHandler.getRetryableError()!;
+        indexingErrorHandler.clearRetryableError();
+        throw retryableError;
+      }
     } catch (_error) {
       let error = _error instanceof Error ? _error : new Error(String(_error));
 
@@ -323,7 +276,7 @@ export const createIndexing = ({
       if (indexingErrorHandler.getRetryableError()) {
         const retryableError = indexingErrorHandler.getRetryableError()!;
         indexingErrorHandler.clearRetryableError();
-        throw retryableError;
+        error = retryableError;
       }
 
       if (common.shutdown.isKilled) {
@@ -341,9 +294,9 @@ export const createIndexing = ({
 
       common.logger.error({
         msg: "Error while processing event",
-        event: event.name,
-        chain: chainById[event.chainId]!.name,
-        chain_id: event.chainId,
+        event: event.eventCallback.name,
+        chain: event.chain.name,
+        chain_id: event.chain.id,
         block_number: decodedCheckpoint.blockNumber,
         error,
       });
@@ -355,15 +308,6 @@ export const createIndexing = ({
       }
 
       throw error;
-    }
-
-    // Note: Check `getRetryableError` to handle user-code catching errors
-    // from the indexing store.
-
-    if (indexingErrorHandler.getRetryableError()) {
-      const retryableError = indexingErrorHandler.getRetryableError()!;
-      indexingErrorHandler.clearRetryableError();
-      throw retryableError;
     }
   };
 
@@ -445,78 +389,40 @@ export const createIndexing = ({
   );
   // Note: There is no `log` proxy because all log columns are required.
 
-  // Note: Filters and indexing functions have a many-to-many relationship.
-  const perFilterEventNames = new Map<Filter, string[]>();
+  // Note: Indexing functions map to one or more filters.
   const perEventFilters = new Map<string, Filter[]>();
   const isFilterResolved = new Map<Filter, boolean>();
-  for (const eventName of Object.keys(indexingFunctions)) {
-    let sourceName: string;
-    if (eventName.includes(":")) {
-      [sourceName] = eventName.split(":") as [string];
+  for (const eventCallback of eventCallbacks.flat()) {
+    if (perEventFilters.has(eventCallback.name) === false) {
+      perEventFilters.set(eventCallback.name, [eventCallback.filter]);
     } else {
-      [sourceName] = eventName.split(".") as [string];
+      perEventFilters.get(eventCallback.name)!.push(eventCallback.filter);
     }
 
-    const _sources = sources.filter((s) => s.name === sourceName);
-    for (const source of _sources) {
-      if (perFilterEventNames.has(source.filter) === false) {
-        perFilterEventNames.set(source.filter, []);
-      }
-      perFilterEventNames.get(source.filter)!.push(eventName);
-    }
-    perEventFilters.set(
-      eventName,
-      _sources.map((s) => s.filter),
-    );
-  }
-
-  for (const source of sources) {
-    isFilterResolved.set(source.filter, false);
+    isFilterResolved.set(eventCallback.filter, false);
   }
 
   return {
-    async processSetupEvents({ db, chain }) {
+    async processSetupEvents({ db }) {
       context.db = db;
-      for (const eventName of Object.keys(indexingFunctions)) {
-        if (!eventName.endsWith(":setup")) continue;
 
-        const [contractName] = eventName.split(":");
+      for (const setupCallback of setupCallbacks.flat()) {
+        const event = {
+          type: "setup",
+          chain: setupCallback.chain,
+          setupCallback,
+          checkpoint: encodeCheckpoint({
+            ...ZERO_CHECKPOINT,
+            chainId: BigInt(setupCallback.chain.id),
+            blockNumber: BigInt(setupCallback.block ?? 0),
+          }),
+          block: BigInt(setupCallback.block ?? 0),
+        } satisfies SetupEvent;
 
-        const setupChains = chain ? [chain] : chains;
-        for (const chain of setupChains) {
-          const source = sources.find(
-            (s) =>
-              s.type === "contract" &&
-              s.name === contractName &&
-              s.filter.chainId === chain.id,
-          ) as ContractSource | undefined;
+        client.event = event;
+        context.client = clientByChainId[setupCallback.chain.id]!;
 
-          if (source === undefined) continue;
-
-          const event = {
-            type: "setup",
-            chainId: chain.id,
-            checkpoint: encodeCheckpoint({
-              ...ZERO_CHECKPOINT,
-              chainId: BigInt(chain.id),
-              blockNumber: BigInt(source.filter.fromBlock ?? 0),
-            }),
-
-            name: eventName,
-
-            block: BigInt(source.filter.fromBlock ?? 0),
-          } satisfies SetupEvent;
-
-          client.event = event;
-          context.client = clientByChainId[chain.id]!;
-
-          common.metrics.ponder_indexing_completed_events.inc(
-            { event: eventName },
-            1,
-          );
-
-          await executeSetup({ event });
-        }
+        await executeSetup(event);
       }
     },
     async processHistoricalEvents({
@@ -533,7 +439,7 @@ export const createIndexing = ({
         const event = events[i]!;
 
         client.event = event;
-        context.client = clientByChainId[event.chainId]!;
+        context.client = clientByChainId[event.chain.id]!;
         cache.event = event;
 
         // Note: Create a new event object instead of mutuating the original one because
@@ -542,25 +448,25 @@ export const createIndexing = ({
 
         switch (event.type) {
           case "block": {
-            blockProxy.eventName = event.name;
+            blockProxy.eventName = event.eventCallback.name;
             blockProxy.underlying = event.event.block as Block;
             proxyEvent.block = blockProxy.proxy;
 
             break;
           }
           case "transaction": {
-            blockProxy.eventName = event.name;
+            blockProxy.eventName = event.eventCallback.name;
             blockProxy.underlying = event.event.block as Block;
             proxyEvent.block = blockProxy.proxy;
 
-            transactionProxy.eventName = event.name;
+            transactionProxy.eventName = event.eventCallback.name;
             transactionProxy.underlying = event.event
               .transaction as Transaction;
             // @ts-expect-error
             proxyEvent.transaction = transactionProxy.proxy;
 
             if (event.event.transactionReceipt !== undefined) {
-              transactionReceiptProxy.eventName = event.name;
+              transactionReceiptProxy.eventName = event.eventCallback.name;
               transactionReceiptProxy.underlying = event.event
                 .transactionReceipt as TransactionReceipt;
               // @ts-expect-error
@@ -571,25 +477,25 @@ export const createIndexing = ({
           }
           case "trace":
           case "transfer": {
-            blockProxy.eventName = event.name;
+            blockProxy.eventName = event.eventCallback.name;
             blockProxy.underlying = event.event.block as Block;
             proxyEvent.block = blockProxy.proxy;
 
-            transactionProxy.eventName = event.name;
+            transactionProxy.eventName = event.eventCallback.name;
             transactionProxy.underlying = event.event
               .transaction as Transaction;
             // @ts-expect-error
             proxyEvent.transaction = transactionProxy.proxy;
 
             if (event.event.transactionReceipt !== undefined) {
-              transactionReceiptProxy.eventName = event.name;
+              transactionReceiptProxy.eventName = event.eventCallback.name;
               transactionReceiptProxy.underlying = event.event
                 .transactionReceipt as TransactionReceipt;
               // @ts-expect-error
               proxyEvent.transactionReceipt = transactionReceiptProxy.proxy;
             }
 
-            traceProxy.eventName = event.name;
+            traceProxy.eventName = event.eventCallback.name;
             traceProxy.underlying = event.event.trace as Trace;
             // @ts-expect-error
             proxyEvent.trace = traceProxy.proxy;
@@ -597,12 +503,12 @@ export const createIndexing = ({
             break;
           }
           case "log": {
-            blockProxy.eventName = event.name;
+            blockProxy.eventName = event.eventCallback.name;
             blockProxy.underlying = event.event.block as Block;
             proxyEvent.block = blockProxy.proxy;
 
             if (event.event.transaction !== undefined) {
-              transactionProxy.eventName = event.name;
+              transactionProxy.eventName = event.eventCallback.name;
               transactionProxy.underlying = event.event
                 .transaction as Transaction;
               // @ts-expect-error
@@ -610,7 +516,7 @@ export const createIndexing = ({
             }
 
             if (event.event.transactionReceipt !== undefined) {
-              transactionReceiptProxy.eventName = event.name;
+              transactionReceiptProxy.eventName = event.eventCallback.name;
               transactionReceiptProxy.underlying = event.event
                 .transactionReceipt as TransactionReceipt;
               // @ts-expect-error
@@ -625,10 +531,10 @@ export const createIndexing = ({
         await executeEvent({ ...event, event: proxyEvent });
 
         common.metrics.ponder_indexing_completed_events.inc(
-          { event: event.name },
+          { event: event.eventCallback.name },
           1,
         );
-        columnAccessPattern.get(event.name)!.count++;
+        columnAccessPattern.get(event.eventCallback.name)!.count++;
 
         const now = performance.now();
 
@@ -639,54 +545,48 @@ export const createIndexing = ({
 
         if (now - lastMetricsUpdate > METRICS_UPDATE_INTERVAL) {
           lastMetricsUpdate = now;
-          updateIndexingSeconds(event, chainById[event.chainId]!);
+          updateIndexingSeconds(event, event.chain);
         }
       }
 
       let isEveryFilterResolvedBefore = true;
       let isEveryFilterResolvedAfter = true;
 
-      for (const source of sources) {
-        const eventNames = perFilterEventNames.get(source.filter)!;
-
-        if (isFilterResolved.get(source.filter)) continue;
+      for (const eventCallback of eventCallbacks.flat()) {
+        if (isFilterResolved.get(eventCallback.filter)) continue;
 
         isEveryFilterResolvedBefore = false;
 
-        if (
-          eventNames.some(
-            (eventName) => columnAccessPattern.get(eventName)!.count < 100,
-          )
-        ) {
+        if (columnAccessPattern.get(eventCallback.name)!.count < 100) {
           isEveryFilterResolvedAfter = false;
           continue;
         }
-        isFilterResolved.set(source.filter, true);
+        isFilterResolved.set(eventCallback.filter, true);
 
         const filterInclude: Filter["include"] = [];
 
-        for (const eventName of eventNames) {
-          const columnAccessProfile = columnAccessPattern.get(eventName)!;
-          columnAccessProfile.resolved = true;
+        const columnAccessProfile = columnAccessPattern.get(
+          eventCallback.name,
+        )!;
+        columnAccessProfile.resolved = true;
 
-          for (const column of columnAccessProfile.block) {
-            filterInclude.push(`block.${column}` as const);
-          }
-          for (const column of columnAccessProfile.transaction) {
-            // @ts-expect-error
-            filterInclude.push(`transaction.${column}` as const);
-          }
-          for (const column of columnAccessProfile.transactionReceipt) {
-            // @ts-expect-error
-            filterInclude.push(`transactionReceipt.${column}` as const);
-          }
-          for (const column of columnAccessProfile.trace) {
-            // @ts-expect-error
-            filterInclude.push(`trace.${column}` as const);
-          }
+        for (const column of columnAccessProfile.block) {
+          filterInclude.push(`block.${column}` as const);
+        }
+        for (const column of columnAccessProfile.transaction) {
+          // @ts-expect-error
+          filterInclude.push(`transaction.${column}` as const);
+        }
+        for (const column of columnAccessProfile.transactionReceipt) {
+          // @ts-expect-error
+          filterInclude.push(`transactionReceipt.${column}` as const);
+        }
+        for (const column of columnAccessProfile.trace) {
+          // @ts-expect-error
+          filterInclude.push(`trace.${column}` as const);
         }
 
-        switch (source.filter.type) {
+        switch (eventCallback.filter.type) {
           case "block": {
             filterInclude.push(...requiredBlockFilterInclude);
             break;
@@ -699,34 +599,46 @@ export const createIndexing = ({
           case "trace": {
             // @ts-expect-error
             filterInclude.push(...requiredTraceFilterInclude);
-            if (source.filter.hasTransactionReceipt) {
-              // @ts-expect-error
-              filterInclude.push(...requiredTransactionReceiptInclude);
+            if (eventCallback.filter.hasTransactionReceipt) {
+              filterInclude.push(
+                // @ts-expect-error
+                ...requiredTransactionReceiptInclude.map(
+                  (value) => `transactionReceipt.${value}` as const,
+                ),
+              );
             }
             break;
           }
           case "log": {
             // @ts-expect-error
             filterInclude.push(...requiredLogFilterInclude);
-            if (source.filter.hasTransactionReceipt) {
-              // @ts-expect-error
-              filterInclude.push(...requiredTransactionReceiptInclude);
+            if (eventCallback.filter.hasTransactionReceipt) {
+              filterInclude.push(
+                // @ts-expect-error
+                ...requiredTransactionReceiptInclude.map(
+                  (value) => `transactionReceipt.${value}` as const,
+                ),
+              );
             }
             break;
           }
           case "transfer": {
             // @ts-expect-error
             filterInclude.push(...requiredTransferFilterInclude);
-            if (source.filter.hasTransactionReceipt) {
-              // @ts-expect-error
-              filterInclude.push(...requiredTransactionReceiptInclude);
+            if (eventCallback.filter.hasTransactionReceipt) {
+              filterInclude.push(
+                // @ts-expect-error
+                ...requiredTransactionReceiptInclude.map(
+                  (value) => `transactionReceipt.${value}` as const,
+                ),
+              );
             }
             break;
           }
         }
 
         // @ts-expect-error
-        source.filter.include = dedupe(filterInclude);
+        eventCallback.filter.include = dedupe(filterInclude);
       }
 
       if (isEveryFilterResolvedBefore === false && isEveryFilterResolvedAfter) {
@@ -771,7 +683,7 @@ export const createIndexing = ({
       if (events.length > 0) {
         updateIndexingSeconds(
           events[events.length - 1]!,
-          chainById[events[events.length - 1]!.chainId]!,
+          events[events.length - 1]!.chain,
         );
       }
     },
@@ -781,10 +693,10 @@ export const createIndexing = ({
         const event = events[i]!;
 
         client.event = event;
-        context.client = clientByChainId[event.chainId]!;
+        context.client = clientByChainId[event.chain.id]!;
 
         common.metrics.ponder_indexing_completed_events.inc(
-          { event: event.name },
+          { event: event.eventCallback.name },
           1,
         );
 

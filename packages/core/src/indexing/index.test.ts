@@ -65,9 +65,10 @@ test("createIndexing()", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
-    address: zeroAddress,
-  });
+  const { eventCallbacks, setupCallbacks, indexingFunctions, contracts } =
+    getErc20IndexingBuild({
+      address: zeroAddress,
+    });
 
   const eventCount = getEventCount(indexingFunctions);
   const columnAccessPattern = createColumnAccessPattern({
@@ -84,9 +85,10 @@ test("createIndexing()", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      sources,
+      eventCallbacks: [eventCallbacks],
+      setupCallbacks: [setupCallbacks],
       chains: [chain],
-      indexingFunctions,
+      contracts: [contracts],
     },
     client: cachedViemClient,
     indexingErrorHandler,
@@ -105,7 +107,7 @@ test("processSetupEvents() empty", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
+  const { indexingFunctions, contracts } = getErc20IndexingBuild({
     address: zeroAddress,
   });
 
@@ -124,9 +126,10 @@ test("processSetupEvents() empty", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      sources,
+      eventCallbacks: [[]],
+      setupCallbacks: [[]],
       chains: [chain],
-      indexingFunctions,
+      contracts: [contracts],
     },
     client: cachedViemClient,
     indexingErrorHandler,
@@ -145,9 +148,10 @@ test("processSetupEvents()", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
-    address: zeroAddress,
-  });
+  const { eventCallbacks, setupCallbacks, indexingFunctions, contracts } =
+    getErc20IndexingBuild({
+      address: zeroAddress,
+    });
 
   const eventCount = getEventCount(indexingFunctions);
   const columnAccessPattern = createColumnAccessPattern({
@@ -164,9 +168,10 @@ test("processSetupEvents()", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      sources,
+      eventCallbacks: [eventCallbacks],
+      setupCallbacks: [setupCallbacks],
       chains: [chain],
-      indexingFunctions,
+      contracts: [contracts],
     },
     client: cachedViemClient,
     indexingErrorHandler,
@@ -175,16 +180,16 @@ test("processSetupEvents()", async (context) => {
 
   await indexing.processSetupEvents({ db: indexingStore });
 
-  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledOnce();
-  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledWith({
+  expect(setupCallbacks[0]!.fn).toHaveBeenCalledOnce();
+  expect(setupCallbacks[0]!.fn).toHaveBeenCalledWith({
     context: {
       chain: { id: 1, name: "mainnet" },
       contracts: {
         Erc20: {
           abi: expect.any(Object),
           address: zeroAddress,
-          startBlock: sources[0]!.filter.fromBlock,
-          endBlock: sources[0]!.filter.toBlock,
+          startBlock: undefined,
+          endBlock: undefined,
         },
       },
       client: expect.any(Object),
@@ -210,9 +215,10 @@ test("processEvent()", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
-    address,
-  });
+  const { eventCallbacks, setupCallbacks, indexingFunctions, contracts } =
+    getErc20IndexingBuild({
+      address,
+    });
 
   const eventCount = getEventCount(indexingFunctions);
   const columnAccessPattern = createColumnAccessPattern({
@@ -229,29 +235,25 @@ test("processEvent()", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      sources,
+      eventCallbacks: [eventCallbacks],
+      setupCallbacks: [setupCallbacks],
       chains: [chain],
-      indexingFunctions,
+      contracts: [contracts],
     },
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
   });
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   await indexing.processRealtimeEvents({ db: indexingStore, events: [event] });
 
-  expect(
-    indexingFunctions[
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
-    ],
-  ).toHaveBeenCalledTimes(1);
-  expect(
-    indexingFunctions[
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
-    ],
-  ).toHaveBeenCalledWith({
+  expect(eventCallbacks[0]!.fn).toHaveBeenCalledTimes(1);
+  expect(eventCallbacks[0]!.fn).toHaveBeenCalledWith({
     event: {
       id: expect.any(String),
       args: expect.any(Object),
@@ -267,8 +269,8 @@ test("processEvent()", async (context) => {
           abi: expect.any(Object),
           // @ts-ignore
           address,
-          startBlock: sources[0]!.filter.fromBlock,
-          endBlock: sources[0]!.filter.toBlock,
+          startBlock: undefined,
+          endBlock: undefined,
         },
       },
       client: expect.any(Object),
@@ -294,9 +296,10 @@ test("processEvents eventCount", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
-    address,
-  });
+  const { eventCallbacks, setupCallbacks, indexingFunctions, contracts } =
+    getErc20IndexingBuild({
+      address,
+    });
 
   const eventCount = getEventCount(indexingFunctions);
   const columnAccessPattern = createColumnAccessPattern({
@@ -313,16 +316,20 @@ test("processEvents eventCount", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      sources,
+      eventCallbacks: [eventCallbacks],
+      setupCallbacks: [setupCallbacks],
       chains: [chain],
-      indexingFunctions,
+      contracts: [contracts],
     },
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
   });
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   await indexing.processRealtimeEvents({ db: indexingStore, events: [event] });
 
@@ -349,15 +356,14 @@ test("executeSetup() context.client", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
-    address: zeroAddress,
-  });
+  const { eventCallbacks, setupCallbacks, indexingFunctions, contracts } =
+    getErc20IndexingBuild({
+      address: zeroAddress,
+    });
 
   const eventCount = getEventCount(indexingFunctions);
 
-  indexingFunctions["Erc20:setup"] = async ({
-    context,
-  }: { context: Context }) => {
+  setupCallbacks[0]!.fn = async ({ context }: { context: Context }) => {
     await context.client.getBalance({ address: BOB });
   };
 
@@ -375,9 +381,10 @@ test("executeSetup() context.client", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      sources,
+      eventCallbacks: [eventCallbacks],
+      setupCallbacks: [setupCallbacks],
       chains: [chain],
-      indexingFunctions,
+      contracts: [contracts],
     },
     client: cachedViemClient,
     indexingErrorHandler,
@@ -407,13 +414,12 @@ test("executeSetup() context.db", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
-    address: zeroAddress,
-  });
+  const { eventCallbacks, setupCallbacks, indexingFunctions, contracts } =
+    getErc20IndexingBuild({
+      address: zeroAddress,
+    });
 
-  indexingFunctions["Erc20:setup"] = async ({
-    context,
-  }: { context: Context }) => {
+  setupCallbacks[0]!.fn = async ({ context }: { context: Context }) => {
     await context.db
       .insert(account)
       .values({ address: zeroAddress, balance: 10n });
@@ -435,9 +441,10 @@ test("executeSetup() context.db", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      sources,
+      eventCallbacks: [eventCallbacks],
+      setupCallbacks: [setupCallbacks],
       chains: [chain],
-      indexingFunctions,
+      contracts: [contracts],
     },
     client: cachedViemClient,
     indexingErrorHandler,
@@ -466,9 +473,10 @@ test("executeSetup() metrics", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
-    address: zeroAddress,
-  });
+  const { eventCallbacks, setupCallbacks, indexingFunctions, contracts } =
+    getErc20IndexingBuild({
+      address: zeroAddress,
+    });
 
   const eventCount = getEventCount(indexingFunctions);
 
@@ -486,9 +494,10 @@ test("executeSetup() metrics", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      indexingFunctions,
-      sources,
+      eventCallbacks: [eventCallbacks],
+      setupCallbacks: [setupCallbacks],
       chains: [chain],
+      contracts: [contracts],
     },
     client: cachedViemClient,
     indexingErrorHandler,
@@ -510,9 +519,10 @@ test("executeSetup() error", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
-    address: zeroAddress,
-  });
+  const { eventCallbacks, setupCallbacks, indexingFunctions, contracts } =
+    getErc20IndexingBuild({
+      address: zeroAddress,
+    });
 
   const eventCount = getEventCount(indexingFunctions);
 
@@ -530,9 +540,10 @@ test("executeSetup() error", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      sources,
+      eventCallbacks: [eventCallbacks],
+      setupCallbacks: [setupCallbacks],
       chains: [chain],
-      indexingFunctions,
+      contracts: [contracts],
     },
     client: cachedViemClient,
     indexingErrorHandler,
@@ -540,13 +551,13 @@ test("executeSetup() error", async (context) => {
   });
 
   // @ts-ignore
-  indexingFunctions["Erc20:setup"].mockRejectedValue(new Error());
+  setupCallbacks[0]!.fn.mockRejectedValue(new Error());
 
   await expect(() =>
     indexing.processSetupEvents({ db: indexingStore }),
   ).rejects.toThrowError();
 
-  expect(indexingFunctions["Erc20:setup"]).toHaveBeenCalledTimes(1);
+  expect(setupCallbacks[0]!.fn).toHaveBeenCalledTimes(1);
 });
 
 test("processEvents() context.client", async (context) => {
@@ -566,15 +577,14 @@ test("processEvents() context.client", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
-    address,
-  });
+  const { eventCallbacks, setupCallbacks, indexingFunctions, contracts } =
+    getErc20IndexingBuild({
+      address,
+    });
 
   const eventCount = getEventCount(indexingFunctions);
 
-  indexingFunctions[
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
-  ] = async ({ context }: { context: Context }) => {
+  eventCallbacks[0]!.fn = async ({ context }: { context: Context }) => {
     await context.client.getBalance({ address: BOB });
   };
 
@@ -592,9 +602,10 @@ test("processEvents() context.client", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      indexingFunctions,
-      sources,
+      eventCallbacks: [eventCallbacks],
+      setupCallbacks: [setupCallbacks],
       chains: [chain],
+      contracts: [contracts],
     },
     client: cachedViemClient,
     indexingErrorHandler,
@@ -603,7 +614,10 @@ test("processEvents() context.client", async (context) => {
 
   const getBalanceSpy = vi.spyOn(rpc, "request");
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
   await indexing.processRealtimeEvents({ db: indexingStore, events: [event] });
 
   expect(getBalanceSpy).toHaveBeenCalledTimes(1);
@@ -633,17 +647,16 @@ test("processEvents() context.db", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
-    address,
-  });
+  const { eventCallbacks, setupCallbacks, indexingFunctions, contracts } =
+    getErc20IndexingBuild({
+      address,
+    });
 
   const eventCount = getEventCount(indexingFunctions);
 
   let i = 0;
 
-  indexingFunctions[
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
-  ] = async ({ context }: { event: any; context: Context }) => {
+  eventCallbacks[0]!.fn = async ({ context }: { context: Context }) => {
     await context.db.insert(account).values({
       address: `0x000000000000000000000000000000000000000${i++}`,
       balance: 10n,
@@ -664,9 +677,10 @@ test("processEvents() context.db", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      indexingFunctions,
-      sources,
+      eventCallbacks: [eventCallbacks],
+      setupCallbacks: [setupCallbacks],
       chains: [chain],
+      contracts: [contracts],
     },
     client: cachedViemClient,
     indexingErrorHandler,
@@ -675,7 +689,10 @@ test("processEvents() context.db", async (context) => {
 
   const insertSpy = vi.spyOn(indexingStore, "insert");
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
   await indexing.processRealtimeEvents({ db: indexingStore, events: [event] });
 
   expect(insertSpy).toHaveBeenCalledTimes(1);
@@ -702,9 +719,10 @@ test("processEvents() metrics", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
-    address,
-  });
+  const { eventCallbacks, setupCallbacks, indexingFunctions, contracts } =
+    getErc20IndexingBuild({
+      address,
+    });
 
   const eventCount = getEventCount(indexingFunctions);
 
@@ -722,16 +740,20 @@ test("processEvents() metrics", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      indexingFunctions,
-      sources,
+      eventCallbacks: [eventCallbacks],
+      setupCallbacks: [setupCallbacks],
       chains: [chain],
+      contracts: [contracts],
     },
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
   });
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   await indexing.processRealtimeEvents({ events: [event], db: indexingStore });
 
@@ -756,9 +778,10 @@ test("processEvents() error", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
-    address,
-  });
+  const { eventCallbacks, setupCallbacks, indexingFunctions, contracts } =
+    getErc20IndexingBuild({
+      address,
+    });
 
   const eventCount = getEventCount(indexingFunctions);
 
@@ -776,30 +799,28 @@ test("processEvents() error", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      sources,
+      eventCallbacks: [eventCallbacks],
+      setupCallbacks: [setupCallbacks],
       chains: [chain],
-      indexingFunctions,
+      contracts: [contracts],
     },
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
   });
 
-  indexingFunctions[
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
-    // @ts-ignore
-  ]!.mockRejectedValue(new Error());
+  // @ts-ignore
+  eventCallbacks[0]!.fn.mockRejectedValue(new Error());
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
   await expect(() =>
     indexing.processRealtimeEvents({ db: indexingStore, events: [event] }),
   ).rejects.toThrowError();
 
-  expect(
-    indexingFunctions[
-      "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
-    ],
-  ).toHaveBeenCalledTimes(1);
+  expect(eventCallbacks[0]!.fn).toHaveBeenCalledTimes(1);
 });
 
 test("processEvents() error with missing event object properties", async (context) => {
@@ -819,15 +840,16 @@ test("processEvents() error with missing event object properties", async (contex
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
-    address,
-  });
+  const { eventCallbacks, setupCallbacks, indexingFunctions, contracts } =
+    getErc20IndexingBuild({
+      address,
+    });
 
   const eventCount = getEventCount(indexingFunctions);
 
-  indexingFunctions[
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
-  ] = async ({ event }: { event: any; context: Context }) => {
+  eventCallbacks[0]!.fn = async ({
+    event,
+  }: { event: any; context: Context }) => {
     // biome-ignore lint/performance/noDelete: <explanation>
     delete event.transaction;
     throw new Error("empty transaction");
@@ -847,16 +869,20 @@ test("processEvents() error with missing event object properties", async (contex
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      indexingFunctions,
-      sources,
+      eventCallbacks: [eventCallbacks],
+      setupCallbacks: [setupCallbacks],
       chains: [chain],
+      contracts: [contracts],
     },
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
   });
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
   await expect(() =>
     indexing.processRealtimeEvents({ events: [event], db: indexingStore }),
   ).rejects.toThrowError();
@@ -879,22 +905,18 @@ test("processEvents() column selection", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
-    address,
-  });
-
-  // TODO(kyle) remove setup functions from column selection resolution
-  // @ts-ignore
-  // biome-ignore lint/performance/noDelete: <explanation>
-  delete indexingFunctions["Erc20:setup"];
+  const { eventCallbacks, setupCallbacks, indexingFunctions, contracts } =
+    getErc20IndexingBuild({
+      address,
+    });
 
   const eventCount = getEventCount(indexingFunctions);
 
   let count = 0;
 
-  indexingFunctions[
-    "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)"
-  ] = async ({ event }: { event: any; context: Context }) => {
+  eventCallbacks[0]!.fn = async ({
+    event,
+  }: { event: any; context: Context }) => {
     event.transaction.gas;
     event.transaction.maxFeePerGas;
     if (count++ === 1001) {
@@ -916,16 +938,20 @@ test("processEvents() column selection", async (context) => {
   const indexing = createIndexing({
     common,
     indexingBuild: {
-      sources,
+      eventCallbacks: [eventCallbacks],
+      setupCallbacks: [setupCallbacks],
       chains: [chain],
-      indexingFunctions,
+      contracts: [contracts],
     },
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
   });
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const events = Array.from({ length: 1001 }).map(() => event);
 
@@ -936,7 +962,7 @@ test("processEvents() column selection", async (context) => {
     updateIndexingSeconds: vi.fn(),
   });
 
-  expect(sources[0]!.filter.include).toMatchInlineSnapshot(`
+  expect(eventCallbacks[0]!.filter.include).toMatchInlineSnapshot(`
     [
       "transaction.gas",
       "transaction.maxFeePerGas",
@@ -990,13 +1016,16 @@ test("ponderActions getBalance()", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
+  const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
     address,
   });
 
   const eventCount = getEventCount(indexingFunctions);
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -1030,13 +1059,16 @@ test("ponderActions getCode()", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
+  const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
     address,
   });
 
   const eventCount = getEventCount(indexingFunctions);
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -1071,13 +1103,16 @@ test("ponderActions getStorageAt()", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
+  const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
     address,
   });
 
   const eventCount = getEventCount(indexingFunctions);
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -1115,13 +1150,16 @@ test("ponderActions readContract()", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
+  const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
     address,
   });
 
   const eventCount = getEventCount(indexingFunctions);
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -1160,13 +1198,16 @@ test("ponderActions readContract() blockNumber", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
+  const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
     address,
   });
 
   const eventCount = getEventCount(indexingFunctions);
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -1205,13 +1246,16 @@ test("ponderActions readContract() ContractFunctionZeroDataError", async (contex
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
+  const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
     address,
   });
 
   const eventCount = getEventCount(indexingFunctions);
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   // Mock requestQueue.request to throw ContractFunctionZeroDataError
   const requestSpy = vi.spyOn(rpc, "request");
@@ -1255,13 +1299,16 @@ test("ponderActions multicall()", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { indexingFunctions, sources } = getErc20IndexingBuild({
+  const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
     address,
   });
 
   const eventCount = getEventCount(indexingFunctions);
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,
@@ -1311,13 +1358,16 @@ test("ponderActions multicall() allowFailure", async (context) => {
   const chain = getChain();
   const rpc = createRpc({ common, chain });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({
+  const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
     address,
   });
 
   const eventCount = getEventCount(indexingFunctions);
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
 
   const cachedViemClient = createCachedViemClient({
     common,

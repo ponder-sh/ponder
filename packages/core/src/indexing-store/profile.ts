@@ -63,7 +63,7 @@ const matchEventParameters = (
   event: Event,
   value: any,
 ): ProfilePattern[keyof ProfilePattern] | undefined => {
-  if (eq(event.chainId, value)) {
+  if (eq(event.chain.id, value)) {
     return { type: "derived", value: ["chainId"] };
   }
 
@@ -515,7 +515,7 @@ export const recoverProfilePattern = (
     if (_pattern.type === "derived") {
       const { value, fn } = _pattern;
       if (value[0] === "chainId") {
-        result[key] = event.chainId;
+        result[key] = event.chain.id;
       } else {
         let _result: unknown = event.event;
         for (const prop of value) {
@@ -534,7 +534,7 @@ export const recoverProfilePattern = (
       result[key] = values
         .map(({ value, fn }) => {
           if (value[0] === "chainId") {
-            return event.chainId;
+            return event.chain.id;
           } else {
             let _result: unknown = event.event;
             for (const prop of value) {

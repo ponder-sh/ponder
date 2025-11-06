@@ -88,7 +88,7 @@ export async function runMultichain({
   const columnAccessPattern = createColumnAccessPattern({
     indexingBuild,
   });
-  const syncStore = createSyncStore({ common, database });
+  const syncStore = createSyncStore({ common, qb: database.syncQB });
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
   const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
@@ -153,18 +153,17 @@ export async function runMultichain({
 
   await Promise.all(
     indexingBuild.chains.map(async (chain) => {
-      const sources = indexingBuild.sources.filter(
-        ({ filter }) => filter.chainId === chain.id,
-      );
+      const eventCallbacks =
+        indexingBuild.eventCallbacks[indexingBuild.chains.indexOf(chain)]!;
 
       const cachedIntervals = await getCachedIntervals({
         chain,
-        sources,
+        filters: eventCallbacks.map(({ filter }) => filter),
         syncStore,
       });
       const syncProgress = await initSyncProgress({
         common,
-        sources,
+        filters: eventCallbacks.map(({ filter }) => filter),
         chain,
         rpc: indexingBuild.rpcs[indexingBuild.chains.indexOf(chain)]!,
         finalizedBlock:
@@ -172,7 +171,7 @@ export async function runMultichain({
         cachedIntervals,
       });
       const childAddresses = await getChildAddresses({
-        sources,
+        filters: eventCallbacks.map(({ filter }) => filter),
         syncStore,
       });
       const unfinalizedBlocks: Omit<
@@ -327,7 +326,7 @@ export async function runMultichain({
       indexingBuild,
       crashRecoveryCheckpoint,
       perChainSync,
-      syncStore,
+      database,
     }),
     (params) => {
       common.metrics.ponder_historical_concurrency_group_duration.inc(
@@ -619,7 +618,7 @@ export async function runMultichain({
       common,
       indexingBuild,
       perChainSync,
-      syncStore,
+      database,
     }),
     100,
     bufferCallback,

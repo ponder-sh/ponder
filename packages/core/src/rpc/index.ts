@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+import crypto, { type UUID } from "node:crypto";
 import url from "node:url";
 import type { Common } from "@/internal/common.js";
 import type { Logger } from "@/internal/logger.js";
@@ -16,7 +16,7 @@ import {
   getLogsRetryHelper,
 } from "@ponder/utils";
 import {
-  http,
+  BlockNotFoundError,
   type EIP1193Parameters,
   type EIP1193RequestFn,
   type Hash,
@@ -29,12 +29,14 @@ import {
   type RpcError,
   type RpcTransactionReceipt,
   TimeoutError,
+  custom,
   hexToNumber,
   isHex,
   webSocket,
 } from "viem";
 import { WebSocket } from "ws";
 import type { DebugRpcSchema } from "../utils/debug.js";
+import { getHttpRpcClient } from "./http.js";
 
 export type RpcSchema = [
   ...PublicRpcSchema,
@@ -63,7 +65,7 @@ export type Rpc = {
   hostnames: string[];
   request: <TParameters extends RequestParameters>(
     parameters: TParameters,
-    context?: { logger?: Logger },
+    context?: { logger?: Logger; retryNullBlockRequest?: boolean },
   ) => Promise<RequestReturnType<TParameters["method"]>>;
   subscribe: (params: {
     onBlock: (block: SyncBlock | SyncBlockHeader) => Promise<boolean>;
@@ -175,16 +177,32 @@ export const createRpc = ({
 }: { common: Common; chain: Chain; concurrency?: number }): Rpc => {
   let backends: { request: EIP1193RequestFn<RpcSchema>; hostname: string }[];
 
+  let requestId: UUID | undefined;
+
   if (typeof chain.rpc === "string") {
     const protocol = new url.URL(chain.rpc).protocol;
     const hostname = new url.URL(chain.rpc).hostname;
     if (protocol === "https:" || protocol === "http:") {
+      const httpRpcClient = getHttpRpcClient(chain.rpc, {
+        common,
+        chain,
+        timeout: 10_000,
+      });
       backends = [
         {
-          request: http(chain.rpc)({
+          request: custom({
+            request(body) {
+              if (requestId) {
+                return httpRpcClient.request({
+                  body,
+                  fetchOptions: { headers: { "X-Request-ID": requestId } },
+                });
+              }
+              return httpRpcClient.request({ body });
+            },
+          })({
             chain: chain.viemChain,
             retryCount: 0,
-            timeout: 10_000,
           }).request,
           hostname,
         },
@@ -209,11 +227,25 @@ export const createRpc = ({
       const hostname = new url.URL(chain.rpc).hostname;
 
       if (protocol === "https:" || protocol === "http:") {
+        const httpRpcClient = getHttpRpcClient(rpc, {
+          common,
+          chain,
+          timeout: 10_000,
+        });
         return {
-          request: http(rpc)({
+          request: custom({
+            request(body) {
+              if (requestId) {
+                return httpRpcClient.request({
+                  body,
+                  fetchOptions: { headers: { "X-Request-ID": requestId } },
+                });
+              }
+              return httpRpcClient.request({ body });
+            },
+          })({
             chain: chain.viemChain,
             retryCount: 0,
-            timeout: 10_000,
           }).request,
           hostname,
         };
@@ -285,6 +317,7 @@ export const createRpc = ({
   const timeouts = new Set<NodeJS.Timeout>();
 
   const scheduleBucketActivation = (bucket: Bucket) => {
+    const delay = bucket.reactivationDelay;
     const timeoutId = setTimeout(() => {
       bucket.isActive = true;
       bucket.isWarmingUp = true;
@@ -294,16 +327,16 @@ export const createRpc = ({
         chain: chain.name,
         chain_id: chain.id,
         hostname: bucket.hostname,
-        retry_delay: Math.round(bucket.reactivationDelay),
+        retry_delay: Math.round(delay),
       });
-    }, bucket.reactivationDelay);
+    }, delay);
 
     common.logger.debug({
       msg: "JSON-RPC provider deactivated due to rate limiting",
       chain: chain.name,
       chain_id: chain.id,
       hostname: bucket.hostname,
-      retry_delay: Math.round(bucket.reactivationDelay),
+      retry_delay: Math.round(delay),
     });
 
     timeouts.add(timeoutId);
@@ -415,9 +448,35 @@ export const createRpc = ({
       const logger = context?.logger ?? common.logger;
 
       for (let i = 0; i <= RETRY_COUNT; i++) {
+        let endClock = startClock();
+        const t = setTimeout(() => {
+          logger.warn({
+            msg: "Unable to find available JSON-RPC provider within expected time",
+            chain: chain.name,
+            chain_id: chain.id,
+            rate_limit: JSON.stringify(buckets.map((b) => b.rpsLimit)),
+            is_active: JSON.stringify(buckets.map((b) => b.isActive)),
+            is_warming_up: JSON.stringify(buckets.map((b) => b.isWarmingUp)),
+            duration: 15_000,
+          });
+        }, 15_000);
         const bucket = await getBucket();
-        const endClock = startClock();
-        const id = crypto.randomUUID().slice(0, 8);
+        clearTimeout(t);
+        const getBucketDuration = endClock();
+        endClock = startClock();
+        const id = crypto.randomUUID();
+
+        const surpassTimeout = setTimeout(() => {
+          logger.warn({
+            msg: "JSON-RPC request unexpectedly surpassed timeout",
+            chain: chain.name,
+            chain_id: chain.id,
+            hostname: bucket.hostname,
+            request_id: id,
+            method: body.method,
+            duration: 15_000,
+          });
+        }, 15_000);
 
         try {
           logger.trace({
@@ -427,6 +486,7 @@ export const createRpc = ({
             hostname: bucket.hostname,
             request_id: id,
             method: body.method,
+            duration: getBucketDuration,
           });
 
           // Add request per second data
@@ -440,10 +500,24 @@ export const createRpc = ({
             bucket.rps[bucket.rps.length - 1]!.count++;
           }
 
+          requestId = id;
           const response = await bucket.request(body);
 
           if (response === undefined) {
             throw new Error("Response is undefined");
+          }
+
+          if (
+            response === null &&
+            (body.method === "eth_getBlockByNumber" ||
+              body.method === "eth_getBlockByHash") &&
+            context?.retryNullBlockRequest === true
+          ) {
+            // Note: Throwing this error will cause the request to be retried.
+            throw new BlockNotFoundError({
+              // @ts-ignore
+              blockNumber: body.params[0],
+            });
           }
 
           const duration = endClock();
@@ -602,6 +676,8 @@ export const createRpc = ({
           await wait(duration);
         } finally {
           bucket.activeConnections--;
+
+          clearTimeout(surpassTimeout);
         }
       }
 
@@ -642,7 +718,7 @@ export const createRpc = ({
                   chain: chain.name,
                   chain_id: chain.id,
                   block_number: hexToNumber(block.number),
-                  block_hash: hexToNumber(block.hash),
+                  block_hash: block.hash,
                 });
                 // Note: `onBlock` should never throw.
                 await onBlock(block);
@@ -697,7 +773,9 @@ export const createRpc = ({
                   });
                   webSocketErrorCount = 0;
 
-                  onBlock(standardizeBlock(msg.params.result, true));
+                  onBlock(
+                    standardizeBlock(msg.params.result, "newHeads", true),
+                  );
                 } else if (msg.result) {
                   common.logger.debug({
                     msg: "Created JSON-RPC WebSocket subscription",

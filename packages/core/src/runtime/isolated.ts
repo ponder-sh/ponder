@@ -77,7 +77,7 @@ export async function runIsolated({
   const columnAccessPattern = createColumnAccessPattern({
     indexingBuild,
   });
-  const syncStore = createSyncStore({ common, database });
+  const syncStore = createSyncStore({ common, qb: database.syncQB });
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
 
@@ -129,25 +129,24 @@ export async function runIsolated({
 
   const seconds: Seconds = {};
 
-  const sources = indexingBuild.sources.filter(
-    ({ filter }) => filter.chainId === chain.id,
-  );
+  const eventCallbacks =
+    indexingBuild.eventCallbacks[indexingBuild.chains.indexOf(chain)]!;
 
   const cachedIntervals = await getCachedIntervals({
     chain,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     syncStore,
   });
   const syncProgress = await initSyncProgress({
     common,
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc: indexingBuild.rpcs[0]!,
     finalizedBlock: indexingBuild.finalizedBlocks[0]!,
     cachedIntervals,
   });
   const childAddresses = await getChildAddresses({
-    sources,
+    filters: eventCallbacks.map(({ filter }) => filter),
     syncStore,
   });
   const unfinalizedBlocks: Omit<
@@ -269,7 +268,7 @@ export async function runIsolated({
         syncProgress,
         childAddresses,
         cachedIntervals,
-        syncStore,
+        database,
       }),
       1,
     ),
@@ -531,7 +530,7 @@ export async function runIsolated({
       syncProgress,
       childAddresses,
       unfinalizedBlocks,
-      syncStore,
+      database,
     }),
     100,
     bufferCallback,
