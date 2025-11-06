@@ -541,36 +541,12 @@ export const createHistoricalSync = (
         ["chain", "block_range"],
       );
 
-      const factories = new Map<FactoryId, Factory>();
-      for (const { filter } of requiredIntervals) {
-        switch (filter.type) {
-          case "log": {
-            if (isAddressFactory(filter.address)) {
-              factories.set(filter.address.id, filter.address);
-            }
-            break;
-          }
-
-          case "transaction":
-          case "trace":
-          case "transfer": {
-            if (isAddressFactory(filter.fromAddress)) {
-              factories.set(filter.fromAddress.id, filter.fromAddress);
-            }
-            if (isAddressFactory(filter.toAddress)) {
-              factories.set(filter.toAddress.id, filter.toAddress);
-            }
-            break;
-          }
-        }
-      }
-
       await promiseAllSettledWithThrow(
         Array.from(childAddresses.entries()).map(
           ([factoryId, childAddresses]) =>
             syncStore.insertChildAddresses(
               {
-                factory: factories.get(factoryId)!,
+                factory: factoryIntervalsById.get(factoryId)!.factory,
                 childAddresses,
                 chainId: args.chain.id,
               },
