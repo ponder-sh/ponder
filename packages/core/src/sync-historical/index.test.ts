@@ -97,17 +97,19 @@ test("sync() with log filter", async (context) => {
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -160,17 +162,19 @@ test("sync() with log filter and transaction receipts", async (context) => {
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -218,17 +222,19 @@ test("sync() with block filter", async (context) => {
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 3],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 3],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -271,7 +277,7 @@ test("sync() with log factory", async (context) => {
     address,
   });
 
-  const historicalSync = await createHistoricalSync({
+  const historicalSync = createHistoricalSync({
     common: context.common,
     chain,
     rpc,
@@ -285,17 +291,19 @@ test("sync() with log factory", async (context) => {
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 3],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 3],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -313,7 +321,7 @@ test("sync() with log factory", async (context) => {
     db.select().from(ponderSyncSchema.intervals).execute(),
   );
 
-  expect(intervals).toHaveLength(1);
+  expect(intervals).toHaveLength(2);
 });
 
 test("sync() with trace filter", async (context) => {
@@ -381,17 +389,19 @@ test("sync() with trace filter", async (context) => {
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 3],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 3],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -443,17 +453,19 @@ test("sync() with transaction filter", async (context) => {
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 1],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 1],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -531,17 +543,19 @@ test("sync() with transfer filter", async (context) => {
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 1],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 1],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -606,17 +620,19 @@ test("sync() with many filters", async (context) => {
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -672,17 +688,19 @@ test("sync() with cache", async (context) => {
   });
   let logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -710,17 +728,19 @@ test("sync() with cache", async (context) => {
   });
   logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
   expect(spy).toHaveBeenCalledTimes(0);
@@ -761,17 +781,19 @@ test("sync() with partial cache", async (context) => {
   });
   let logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -806,17 +828,19 @@ test("sync() with partial cache", async (context) => {
   });
   logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -866,17 +890,19 @@ test("sync() with partial cache", async (context) => {
   });
   logs = await historicalSync.syncBlockRangeData({
     interval: [1, 3],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 3],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
   // `eth_getBlockByNumber` is skipped
@@ -947,17 +973,19 @@ test("syncAddress() handles many addresses", async (context) => {
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 13],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 13],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 

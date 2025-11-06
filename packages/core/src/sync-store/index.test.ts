@@ -85,6 +85,7 @@ test("getIntervals() returns intervals", async (context) => {
         interval: [0, 4],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
 
@@ -136,6 +137,7 @@ test("getIntervals() merges intervals", async (context) => {
         interval: [0, 4],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
 
@@ -146,6 +148,7 @@ test("getIntervals() merges intervals", async (context) => {
         interval: [5, 8],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
   const intervals = await syncStore.getIntervals({
@@ -199,6 +202,7 @@ test("getIntervals() adjacent intervals", async (context) => {
         interval: [0, 4],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
 
@@ -210,6 +214,7 @@ test("getIntervals() adjacent intervals", async (context) => {
         interval: [5, 8],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
   const intervals = await syncStore.getIntervals({
@@ -269,6 +274,7 @@ test("insertIntervals() merges duplicates", async (context) => {
         interval: [0, 4],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
 
@@ -283,6 +289,7 @@ test("insertIntervals() merges duplicates", async (context) => {
         interval: [5, 8],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
 
@@ -337,6 +344,7 @@ test("insertIntervals() preserves fragments", async (context) => {
         interval: [0, 4],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
 

@@ -17,8 +17,8 @@ import type {
   NamespaceBuild,
   SchemaBuild,
 } from "@/internal/types.js";
-import { isAddressFactory } from "@/runtime/filter.js";
-import { getFragments } from "@/runtime/fragments.js";
+import { getFilterFactories, isAddressFactory } from "@/runtime/filter.js";
+import { getFactoryFragments, getFragments } from "@/runtime/fragments.js";
 import type { CachedIntervals, ChildAddresses } from "@/runtime/index.js";
 import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
 import { createPglite } from "@/utils/pglite.js";
@@ -311,6 +311,12 @@ export const setupCachedIntervals = (
       cachedIntervals
         .get(eventCallback.filter)!
         .push({ fragment, intervals: [] });
+    }
+    for (const factory of getFilterFactories(eventCallback.filter)) {
+      cachedIntervals.set(factory, []);
+      for (const fragment of getFactoryFragments(factory)) {
+        cachedIntervals.get(factory)!.push({ fragment, intervals: [] });
+      }
     }
   }
   return cachedIntervals;
