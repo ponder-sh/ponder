@@ -10,7 +10,12 @@ import type {
 import type { SyncBlock } from "@/internal/types.js";
 import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
-import { getFilterFactories, isAddressFactory } from "@/runtime/filter.js";
+import {
+  getFilterFactories,
+  getFilterFromBlock,
+  getFilterToBlock,
+  isAddressFactory,
+} from "@/runtime/filter.js";
 import { getFragments, recoverFilter } from "@/runtime/fragments.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
@@ -18,7 +23,6 @@ import {
   blockToCheckpoint,
   encodeCheckpoint,
 } from "@/utils/checkpoint.js";
-import { dedupe } from "@/utils/dedupe.js";
 import {
   type Interval,
   intervalBounds,
@@ -111,32 +115,8 @@ export async function getLocalSyncProgress(params: {
     },
   } as SyncProgress;
 
-  // TODO(kyle) consider factories
   // Earliest `fromBlock` among all `filters`
-  const start = Math.min(
-    ...params.filters.flatMap((filter) => {
-      const fromBlocks: number[] = [filter.fromBlock ?? 0];
-      switch (filter.type) {
-        case "log":
-          if (isAddressFactory(filter.address)) {
-            fromBlocks.push(filter.address.fromBlock ?? 0);
-          }
-          break;
-        case "transaction":
-        case "trace":
-        case "transfer":
-          if (isAddressFactory(filter.fromAddress)) {
-            fromBlocks.push(filter.fromAddress.fromBlock ?? 0);
-          }
-
-          if (isAddressFactory(filter.toAddress)) {
-            fromBlocks.push(filter.toAddress.fromBlock ?? 0);
-          }
-      }
-
-      return fromBlocks;
-    }),
-  );
+  const start = Math.min(...params.filters.map(getFilterFromBlock));
 
   const cached = getCachedBlock({
     filters: params.filters,
@@ -496,10 +476,6 @@ export const getRequiredIntervalsWithFilters = (params: {
     }
   }
 
-  // TODO(kyle) dedupe factories by factory id
-
-  dedupe(requiredFactoryIntervals, ({ factory }) => factory.id);
-
   return {
     intervals: requiredIntervals,
     factoryIntervals: requiredFactoryIntervals,
@@ -568,8 +544,7 @@ export const getCachedBlock = ({
     );
 
     if (missingIntervals.length === 0 && missingFactoryIntervals.length === 0) {
-      // TODO(kyle) getFilterToBlock
-      return filter.toBlock ?? Number.POSITIVE_INFINITY;
+      return getFilterToBlock(filter);
     }
 
     missingIntervals = sortIntervals([

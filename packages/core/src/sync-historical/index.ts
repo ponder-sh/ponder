@@ -371,6 +371,30 @@ export const createHistoricalSync = (
       const childAddresses: ChildAddresses = new Map();
       const logs: SyncLog[] = [];
 
+      // Dedupe factory intervals by factory id
+
+      const factoryIntervalsById: Map<
+        Factory["id"],
+        { factory: Factory; interval: Interval }
+      > = new Map();
+
+      for (const { factory, interval } of requiredFactoryIntervals) {
+        if (factoryIntervalsById.has(factory.id)) {
+          const existingInterval = factoryIntervalsById.get(
+            factory.id,
+          )!.interval;
+
+          factoryIntervalsById.get(factory.id)!.interval = intervalBounds([
+            existingInterval,
+            interval,
+          ]);
+        } else {
+          factoryIntervalsById.set(factory.id, { factory, interval });
+        }
+      }
+
+      requiredFactoryIntervals = Array.from(factoryIntervalsById.values());
+
       await Promise.all(
         requiredFactoryIntervals.map(async ({ factory, interval }) => {
           childAddresses.set(
