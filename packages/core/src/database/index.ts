@@ -46,6 +46,7 @@ import prometheus from "prom-client";
 import { hexToBigInt } from "viem";
 import {
   crashRecovery,
+  createLiveQueryProcedures,
   dropLiveQueryTriggers,
   dropTriggers,
 } from "./actions.js";
@@ -617,6 +618,12 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
             tx.execute(
               `CREATE SEQUENCE IF NOT EXISTS "${namespace.schema}"."${SHARED_OPERATION_ID_SEQUENCE}" AS integer INCREMENT BY 1`,
             ),
+          context,
+        );
+
+        await createLiveQueryProcedures(
+          tx,
+          { namespaceBuild: namespace },
           context,
         );
       };

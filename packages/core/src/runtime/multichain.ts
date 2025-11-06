@@ -1,7 +1,6 @@
 import {
   commitBlock,
   createIndexes,
-  createLiveQueryProcedures,
   createLiveQueryTriggers,
   createTriggers,
   createViews,
@@ -591,15 +590,6 @@ export async function runMultichain({
 
   endClock = startClock();
 
-  await createLiveQueryProcedures(database.adminQB, { namespaceBuild });
-  await createLiveQueryTriggers(database.adminQB, { tables });
-
-  common.logger.debug({
-    msg: "Created live query triggers and procedures",
-    count: tables.length + 1,
-    duration: endClock(),
-  });
-
   await database.adminQB.wrap({ label: "update_ready" }, (db) =>
     db
       .update(PONDER_META)
@@ -645,116 +635,108 @@ export async function runMultichain({
         };
         const endClock = startClock();
 
-        if (event.events.length > 0) {
-          // Events must be run block-by-block, so that `database.commitBlock` can accurately
-          // update the temporary `checkpoint` value set in the trigger.
+        await database.userQB.transaction(
+          async (tx) => {
+            if (event.events.length > 0) {
+              await tx.wrap(
+                (tx) =>
+                  tx.execute(
+                    "CREATE TEMP TABLE live_query_tables (table_name TEXT PRIMARY KEY) ON COMMIT DROP",
+                  ),
+                context,
+              );
+            }
 
-          const perBlockEvents = splitEvents(event.events);
+            // Events must be run block-by-block, so that `database.commitBlock` can accurately
+            // update the temporary `checkpoint` value set in the trigger.
+            for (const { checkpoint, events } of splitEvents(event.events)) {
+              const chain = indexingBuild.chains.find(
+                (chain) =>
+                  chain.id === Number(decodeCheckpoint(checkpoint).chainId),
+              )!;
 
-          for (const { checkpoint, events } of perBlockEvents) {
-            const chain = indexingBuild.chains.find(
-              (chain) =>
-                chain.id === Number(decodeCheckpoint(checkpoint).chainId),
-            )!;
+              try {
+                realtimeIndexingStore.qb = tx;
+                realtimeIndexingStore.isProcessingEvents = true;
 
-            if (events.length === 0) {
+                common.logger.trace({
+                  msg: "Processing block events",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                  event_count: events.length,
+                });
+
+                await indexing.processRealtimeEvents({
+                  events,
+                  db: realtimeIndexingStore,
+                });
+
+                common.logger.trace({
+                  msg: "Processed block events",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                  event_count: events.length,
+                });
+
+                realtimeIndexingStore.isProcessingEvents = false;
+
+                await Promise.all(
+                  tables.map((table) =>
+                    commitBlock(tx, { table, checkpoint, preBuild }, context),
+                  ),
+                );
+
+                common.logger.trace({
+                  msg: "Committed reorg data for block",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                  event_count: events.length,
+                  checkpoint,
+                });
+              } catch (error) {
+                if (error instanceof NonRetryableUserError === false) {
+                  common.logger.warn({
+                    msg: "Failed to index block",
+                    chain: chain.name,
+                    chain_id: chain.id,
+                    number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                    error: error,
+                  });
+                }
+
+                throw error;
+              }
+
               common.metrics.ponder_indexing_timestamp.set(
                 { chain: chain.name },
                 Number(decodeCheckpoint(checkpoint).blockTimestamp),
               );
-              continue;
             }
-            await database.userQB.transaction(
-              async (tx) => {
-                await tx.wrap(
-                  (tx) =>
-                    tx.execute(
-                      "CREATE TEMP TABLE live_query_tables (table_name TEXT PRIMARY KEY) ON COMMIT DROP",
-                    ),
-                  context,
-                );
 
-                try {
-                  realtimeIndexingStore.qb = tx;
-                  realtimeIndexingStore.isProcessingEvents = true;
+            if (event.events.length > 0) {
+              await tx.wrap(
+                (tx) =>
+                  tx.execute(
+                    `SELECT "${namespaceBuild.schema}".${getLiveQueryNotifyProcedureName()}`,
+                  ),
+                context,
+              );
+            }
 
-                  common.logger.trace({
-                    msg: "Processing block events",
-                    chain: chain.name,
-                    chain_id: chain.id,
-                    number: Number(decodeCheckpoint(checkpoint).blockNumber),
-                    event_count: events.length,
-                  });
-
-                  await indexing.processRealtimeEvents({
-                    events,
-                    db: realtimeIndexingStore,
-                  });
-
-                  common.logger.trace({
-                    msg: "Processed block events",
-                    chain: chain.name,
-                    chain_id: chain.id,
-                    number: Number(decodeCheckpoint(checkpoint).blockNumber),
-                    event_count: events.length,
-                  });
-
-                  realtimeIndexingStore.isProcessingEvents = false;
-
-                  await Promise.all(
-                    tables.map((table) =>
-                      commitBlock(tx, { table, checkpoint, preBuild }, context),
-                    ),
-                  );
-
-                  common.logger.trace({
-                    msg: "Committed reorg data for block",
-                    chain: chain.name,
-                    chain_id: chain.id,
-                    number: Number(decodeCheckpoint(checkpoint).blockNumber),
-                    event_count: events.length,
-                    checkpoint,
-                  });
-                } catch (error) {
-                  if (error instanceof NonRetryableUserError === false) {
-                    common.logger.warn({
-                      msg: "Failed to index block",
-                      chain: chain.name,
-                      chain_id: chain.id,
-                      number: Number(decodeCheckpoint(checkpoint).blockNumber),
-                      error: error,
-                    });
-                  }
-
-                  throw error;
-                }
-
-                await tx.wrap(
-                  (tx) =>
-                    tx.execute(
-                      `SELECT "${namespaceBuild.schema}".${getLiveQueryNotifyProcedureName()}`,
-                    ),
-                  context,
-                );
-
-                common.metrics.ponder_indexing_timestamp.set(
-                  { chain: chain.name },
-                  Number(decodeCheckpoint(checkpoint).blockTimestamp),
-                );
-              },
-              undefined,
+            await tx.wrap(
+              { label: "update_checkpoints" },
+              (db) =>
+                db
+                  .update(PONDER_CHECKPOINT)
+                  .set({ latestCheckpoint: event.checkpoint })
+                  .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
               context,
             );
-          }
-        }
-
-        await database.userQB.wrap(
-          { label: "update_checkpoints" },
-          (db) =>
-            db
-              .update(PONDER_CHECKPOINT)
-              .set({ latestCheckpoint: event.checkpoint })
-              .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
+          },
+          undefined,
           context,
         );
 
@@ -803,6 +785,7 @@ export async function runMultichain({
             }
 
             await createTriggers(tx, { tables }, context);
+            // TODO(kyle) what if all apps aren't ready
             await createLiveQueryTriggers(tx, { tables }, context);
           },
           undefined,

@@ -1,11 +1,14 @@
 import {
   commitBlock,
+  createLiveQueryTriggers,
   createTriggers,
+  dropLiveQueryTriggers,
   dropTriggers,
   finalizeIsolated,
   revertIsolated,
 } from "@/database/actions.js";
 import { type Database, getPonderCheckpointTable } from "@/database/index.js";
+import { getLiveQueryNotifyProcedureName } from "@/drizzle/onchain.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
@@ -542,88 +545,111 @@ export async function runIsolated({
         };
         const endClock = startClock();
 
-        if (event.events.length > 0) {
-          // Events must be run block-by-block, so that `database.commitBlock` can accurately
-          // update the temporary `checkpoint` value set in the trigger.
+        await database.userQB.transaction(
+          async (tx) => {
+            if (event.events.length > 0) {
+              await tx.wrap(
+                (tx) =>
+                  tx.execute(
+                    "CREATE TEMP TABLE live_query_tables (table_name text PRIMARY KEY) ON COMMIT DROP",
+                  ),
+                context,
+              );
+            }
 
-          const perBlockEvents = splitEvents(event.events);
+            // Events must be run block-by-block, so that `database.commitBlock` can accurately
+            // update the temporary `checkpoint` value set in the trigger.
+            for (const { checkpoint, events } of splitEvents(event.events)) {
+              try {
+                realtimeIndexingStore.qb = tx;
+                realtimeIndexingStore.isProcessingEvents = true;
 
-          for (const { checkpoint, events } of perBlockEvents) {
-            await database.userQB.transaction(
-              async (tx) => {
-                try {
-                  realtimeIndexingStore.qb = tx;
-                  realtimeIndexingStore.isProcessingEvents = true;
+                common.logger.trace({
+                  msg: "Processing block events",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                  event_count: events.length,
+                });
 
-                  common.logger.trace({
-                    msg: "Processing block events",
-                    chain: chain.name,
-                    chain_id: chain.id,
-                    number: Number(decodeCheckpoint(checkpoint).blockNumber),
-                    event_count: events.length,
-                  });
+                await indexing.processRealtimeEvents({
+                  events,
+                  db: realtimeIndexingStore,
+                });
 
-                  await indexing.processRealtimeEvents({
-                    events,
-                    db: realtimeIndexingStore,
-                  });
+                common.logger.trace({
+                  msg: "Processed block events",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                  event_count: events.length,
+                });
 
-                  common.logger.trace({
-                    msg: "Processed block events",
-                    chain: chain.name,
-                    chain_id: chain.id,
-                    number: Number(decodeCheckpoint(checkpoint).blockNumber),
-                    event_count: events.length,
-                  });
+                realtimeIndexingStore.isProcessingEvents = false;
 
-                  realtimeIndexingStore.isProcessingEvents = false;
+                await Promise.all(
+                  tables.map((table) =>
+                    commitBlock(tx, { table, checkpoint, preBuild }, context),
+                  ),
+                );
 
-                  await Promise.all(
-                    tables.map((table) =>
-                      commitBlock(tx, { table, checkpoint, preBuild }, context),
+                common.logger.trace({
+                  msg: "Committed reorg data for block",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                  event_count: events.length,
+                  checkpoint,
+                });
+
+                await tx.wrap(
+                  (tx) =>
+                    tx.execute(
+                      `SELECT "${namespaceBuild.schema}".${getLiveQueryNotifyProcedureName()}`,
                     ),
-                  );
+                  context,
+                );
 
-                  common.logger.trace({
-                    msg: "Committed reorg data for block",
+                common.metrics.ponder_indexing_timestamp.set(
+                  { chain: chain.name },
+                  Number(decodeCheckpoint(checkpoint).blockTimestamp),
+                );
+              } catch (error) {
+                if (error instanceof NonRetryableUserError === false) {
+                  common.logger.warn({
+                    msg: "Failed to index block",
                     chain: chain.name,
                     chain_id: chain.id,
                     number: Number(decodeCheckpoint(checkpoint).blockNumber),
-                    event_count: events.length,
-                    checkpoint,
+                    error: error,
                   });
-
-                  common.metrics.ponder_indexing_timestamp.set(
-                    { chain: chain.name },
-                    Number(decodeCheckpoint(checkpoint).blockTimestamp),
-                  );
-                } catch (error) {
-                  if (error instanceof NonRetryableUserError === false) {
-                    common.logger.warn({
-                      msg: "Failed to index block",
-                      chain: chain.name,
-                      chain_id: chain.id,
-                      number: Number(decodeCheckpoint(checkpoint).blockNumber),
-                      error: error,
-                    });
-                  }
-
-                  throw error;
                 }
-              },
-              undefined,
+
+                throw error;
+              }
+            }
+
+            if (event.events.length > 0) {
+              await tx.wrap(
+                (tx) =>
+                  tx.execute(
+                    `SELECT "${namespaceBuild.schema}".notify_live_query_tables()`,
+                  ),
+                context,
+              );
+            }
+
+            await tx.wrap(
+              { label: "update_checkpoints" },
+              (db) =>
+                db
+                  .update(PONDER_CHECKPOINT)
+                  .set({ latestCheckpoint: event.checkpoint })
+                  .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
               context,
             );
-          }
-        }
-
-        await database.userQB.wrap(
-          { label: "update_checkpoints" },
-          (db) =>
-            db
-              .update(PONDER_CHECKPOINT)
-              .set({ latestCheckpoint: event.checkpoint })
-              .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
+          },
+          undefined,
           context,
         );
 
@@ -652,6 +678,7 @@ export async function runIsolated({
         await database.userQB.transaction(
           async (tx) => {
             await dropTriggers(tx, { tables, chainId: chain.id }, context);
+            await dropLiveQueryTriggers(tx, { tables }, context);
 
             const counts = await revertIsolated(
               tx,
@@ -673,6 +700,7 @@ export async function runIsolated({
             }
 
             await createTriggers(tx, { tables, chainId: chain.id }, context);
+            await createLiveQueryTriggers(tx, { tables }, context);
           },
           undefined,
           context,
