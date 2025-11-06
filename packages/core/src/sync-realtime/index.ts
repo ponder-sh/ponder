@@ -34,6 +34,7 @@ import {
 import type { Rpc } from "@/rpc/index.js";
 import {
   getChildAddress,
+  getFilterFactories,
   isAddressFactory,
   isAddressMatched,
   isBlockFilterMatched,
@@ -136,6 +137,13 @@ export const createRealtimeSync = (
   const blockFilters: BlockFilter[] = [];
 
   for (const eventCallback of args.eventCallbacks) {
+    if (
+      eventCallback.filter.toBlock &&
+      eventCallback.filter.toBlock <= hexToNumber(finalizedBlock.number)
+    ) {
+      continue;
+    }
+
     // Collect filters from event callbacks
     if (eventCallback.filter.type === "log") {
       logFilters.push(eventCallback.filter);
@@ -149,28 +157,15 @@ export const createRealtimeSync = (
       blockFilters.push(eventCallback.filter);
     }
 
-    // Collect factories from sources
-    switch (eventCallback.filter.type) {
-      case "trace":
-      case "transaction":
-      case "transfer": {
-        const { fromAddress, toAddress } = eventCallback.filter;
+    for (const factory of getFilterFactories(eventCallback.filter)) {
+      if (
+        factory.toBlock &&
+        factory.toBlock <= hexToNumber(finalizedBlock.number)
+      ) {
+        continue;
+      }
 
-        if (isAddressFactory(fromAddress)) {
-          factories.push(fromAddress);
-        }
-        if (isAddressFactory(toAddress)) {
-          factories.push(toAddress);
-        }
-        break;
-      }
-      case "log": {
-        const { address } = eventCallback.filter;
-        if (isAddressFactory(address)) {
-          factories.push(address);
-        }
-        break;
-      }
+      factories.push(factory);
     }
   }
 
