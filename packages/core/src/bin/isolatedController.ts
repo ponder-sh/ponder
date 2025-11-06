@@ -159,6 +159,7 @@ export async function isolatedController({
           chains: [indexingBuild.chains[chainIndex]!],
           rpcs: [indexingBuild.rpcs[chainIndex]!],
           finalizedBlocks: [indexingBuild.finalizedBlocks[chainIndex]!],
+          eventCallbacks: [indexingBuild.eventCallbacks[chainIndex]!],
         };
 
         perChainState.set(chain.id, "backfill");

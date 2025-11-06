@@ -159,6 +159,9 @@ export async function isolatedWorker({
         finalizedBlocks: [
           indexingBuildResult.result.finalizedBlocks[chainIndex]!,
         ],
+        eventCallbacks: [
+          indexingBuildResult.result.eventCallbacks[chainIndex]!,
+        ],
       };
 
       common.metrics.initializeIndexingMetrics({
