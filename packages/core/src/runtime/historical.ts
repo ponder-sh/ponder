@@ -28,7 +28,7 @@ import {
   createCallbackGenerator,
   mergeAsyncGenerators,
 } from "@/utils/generators.js";
-import { type Interval, intervalSum, intervalUnion } from "@/utils/interval.js";
+import { type Interval, intervalSum } from "@/utils/interval.js";
 import { partition } from "@/utils/partition.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { startClock } from "@/utils/timer.js";
@@ -961,7 +961,7 @@ export async function* getLocalSyncGenerator(params: {
     cachedIntervals: params.cachedIntervals,
   });
 
-  const required = intervalSum(intervalUnion(requiredIntervals));
+  const required = intervalSum(requiredIntervals);
   const total = totalInterval[1] - totalInterval[0] + 1;
 
   params.common.metrics.ponder_historical_total_blocks.set(label, total);

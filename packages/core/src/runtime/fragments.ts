@@ -540,13 +540,14 @@ export const decodeFragment = (fragmentId: FragmentId): Fragment => {
   }
 };
 
-const recoverAddress = (
-  baseAddress: FilterAddress,
+const recoverAddress = <filterAddress extends FilterAddress>(
+  baseAddress: filterAddress,
   fragmentAddresses: FragmentAddress[],
-): FilterAddress => {
-  if (baseAddress === undefined) return undefined;
-  if (typeof baseAddress === "string") return baseAddress;
-  if (Array.isArray(baseAddress)) return dedupe(fragmentAddresses) as Address[];
+): filterAddress => {
+  if (baseAddress === undefined) return undefined as filterAddress;
+  if (typeof baseAddress === "string") return baseAddress as filterAddress;
+  if (Array.isArray(baseAddress))
+    return dedupe(fragmentAddresses) as filterAddress;
 
   // Note: At this point, `baseAddress` is a factory. We explicitly don't try to recover the factory
   // address from the fragments because we want a `insertChildAddresses` and `getChildAddresses` to
