@@ -3,6 +3,7 @@ import { createConfig } from "ponder";
 import { PoolManagerAbi } from "./abis/PoolManager";
 
 export default createConfig({
+  ordering: "experimental_isolated",
   chains: {
     mainnet: {
       id: 1,

@@ -1,5 +1,5 @@
 import type { QB } from "@/database/queryBuilder.js";
-import { getPrimaryKeyColumns } from "@/drizzle/index.js";
+import { getPartitionName, getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import { addErrorMeta, toErrorMeta } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
@@ -274,14 +274,12 @@ export const getCopyText = (table: Table, rows: Row[]) => {
   return result;
 };
 
-export const getCopyHelper = (qb: QB) => {
+export const getCopyHelper = (qb: QB, chainId?: number) => {
   if (qb.$dialect === "pglite") {
     return async (table: Table, text: string, includeSchema = true) => {
       const target = includeSchema
-        ? `"${getTableConfig(table).schema ?? "public"}"."${getTableName(
-            table,
-          )}"`
-        : `"${getTableName(table)}"`;
+        ? `"${getTableConfig(table).schema ?? "public"}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"`
+        : `"${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"`;
       await qb.$client
         .query(`COPY ${target} FROM '/dev/blob'`, [], {
           blob: new Blob([text]),
@@ -295,10 +293,8 @@ export const getCopyHelper = (qb: QB) => {
   } else {
     return async (table: Table, text: string, includeSchema = true) => {
       const target = includeSchema
-        ? `"${getTableConfig(table).schema ?? "public"}"."${getTableName(
-            table,
-          )}"`
-        : `"${getTableName(table)}"`;
+        ? `"${getTableConfig(table).schema ?? "public"}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"`
+        : `"${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"`;
       const copyStream = qb.$client.query(
         copy.from(`COPY ${target} FROM STDIN`),
       );
@@ -348,11 +344,13 @@ export const createIndexingCache = ({
   schemaBuild: { schema },
   crashRecoveryCheckpoint,
   eventCount,
+  chainId,
 }: {
   common: Common;
   schemaBuild: Pick<SchemaBuild, "schema">;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   eventCount: { [eventName: string]: number };
+  chainId?: number;
 }): IndexingCache => {
   let event: Event | undefined;
   let qb: QB = undefined!;
@@ -532,7 +530,7 @@ export const createIndexingCache = ({
       };
       const flushEndClock = startClock();
 
-      const copy = getCopyHelper(qb);
+      const copy = getCopyHelper(qb, chainId);
 
       const flushTable = async (table: Table) => {
         const shouldRecordBytes = cache.get(table)!.isCacheComplete;
@@ -544,6 +542,11 @@ export const createIndexingCache = ({
         }
 
         const tableCache = cache.get(table)!;
+
+        const target =
+          chainId === undefined
+            ? getTableName(table)
+            : getPartitionName(table, chainId);
 
         const insertValues = Array.from(insertBuffer.get(table)!.values());
         const updateValues = Array.from(updateBuffer.get(table)!.values());
@@ -601,31 +604,25 @@ export const createIndexingCache = ({
             // 3. Update target table with data from temp
 
             const createTempTableQuery = `
-            CREATE TEMP TABLE IF NOT EXISTS "${getTableName(table)}" 
-            AS SELECT * FROM "${
-              getTableConfig(table).schema ?? "public"
-            }"."${getTableName(table)}"
-            WITH NO DATA;
-          `;
+              CREATE TEMP TABLE IF NOT EXISTS "${target}" 
+              AS SELECT * FROM "${getTableConfig(table).schema ?? "public"}"."${target}"
+              WITH NO DATA;`;
 
             const updateQuery = `
-            UPDATE "${
-              getTableConfig(table).schema ?? "public"
-            }"."${getTableName(table)}" as target
-            SET ${Object.values(getTableColumns(table))
-              .map(
-                (column) =>
-                  `"${getColumnCasing(
-                    column,
-                    "snake_case",
-                  )}" = source."${getColumnCasing(column, "snake_case")}"`,
-              )
-              .join(",\n")}
-            FROM "${getTableName(table)}" source
-            WHERE ${primaryKeys
-              .map(({ sql }) => `target."${sql}" = source."${sql}"`)
-              .join(" AND ")};
-          `;
+              UPDATE "${getTableConfig(table).schema ?? "public"}"."${target}" as target
+              SET ${Object.values(getTableColumns(table))
+                .map(
+                  (column) =>
+                    `"${getColumnCasing(
+                      column,
+                      "snake_case",
+                    )}" = source."${getColumnCasing(column, "snake_case")}"`,
+                )
+                .join(",\n")}
+              FROM "${target}" source
+              WHERE ${primaryKeys
+                .map(({ sql }) => `target."${sql}" = source."${sql}"`)
+                .join(" AND ")};`;
 
             await qb.wrap((db) => db.execute(createTempTableQuery), context);
 
@@ -633,15 +630,12 @@ export const createIndexingCache = ({
               table,
               updateValues.map(({ row }) => row),
             );
-
             await new Promise(setImmediate);
 
             await copy(table, text, false);
-
             await qb.wrap((db) => db.execute(updateQuery), context);
-
             await qb.wrap(
-              (db) => db.execute(`TRUNCATE TABLE "${getTableName(table)}"`),
+              (db) => db.execute(`TRUNCATE TABLE "${target}"`),
               context,
             );
           } else {
@@ -692,7 +686,7 @@ export const createIndexingCache = ({
         if (insertValues.length > 0 || updateValues.length > 0) {
           common.logger.debug({
             msg: "Wrote database rows",
-            table: getTableName(table),
+            table: target,
             row_count: insertValues.length + updateValues.length,
             duration: flushEndClock(),
           });
@@ -733,6 +727,11 @@ export const createIndexingCache = ({
           ) {
             continue;
           }
+
+          const target =
+            chainId === undefined
+              ? getTableName(table)
+              : getPartitionName(table, chainId);
 
           const insertValues = Array.from(insertBuffer.get(table)!.values());
           const updateValues = Array.from(updateBuffer.get(table)!.values());
@@ -793,11 +792,14 @@ export const createIndexingCache = ({
           }
 
           if (updateValues.length > 0) {
+            // Steps for flushing "update" entries:
+            // 1. Create temp table
+            // 2. Copy into temp table
+            // 3. Update target table with data from temp
+
             const createTempTableQuery = `
-              CREATE TEMP TABLE IF NOT EXISTS "${getTableName(table)}"
-              AS SELECT * FROM "${
-                getTableConfig(table).schema ?? "public"
-              }"."${getTableName(table)}"
+              CREATE TEMP TABLE IF NOT EXISTS "${target}"
+              AS SELECT * FROM "${getTableConfig(table).schema ?? "public"}"."${target}"
               WITH NO DATA;
             `;
 
@@ -818,6 +820,11 @@ export const createIndexingCache = ({
 
                 await qb.wrap((db) => db.execute("SAVEPOINT flush"), context);
               },
+            );
+
+            await qb.wrap(
+              (db) => db.execute(`TRUNCATE TABLE "${target}"`),
+              context,
             );
 
             if (result.status === "error") {

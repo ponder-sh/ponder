@@ -6,14 +6,26 @@ import {
 } from "drizzle-orm/pg-core";
 import { getColumnCasing, sqlToReorgTableName } from "./kit/index.js";
 
-export const getTableNames = (table: PgTable) => {
-  const sql = getTableName(table);
+export const getPartitionName = (table: string | PgTable, chainId: number) => {
+  return `${typeof table === "string" ? table : getTableName(table)}_${chainId}`;
+};
 
-  return {
-    reorg: sqlToReorgTableName(sql),
-    trigger: sqlToReorgTableName(sql),
-    triggerFn: `operation_reorg__${sql}()`,
-  };
+export const getReorgTableName = (table: string | PgTable) => {
+  return sqlToReorgTableName(
+    typeof table === "string" ? table : getTableName(table),
+  );
+};
+
+export const getTriggerName = (table: PgTable, chainId?: number) => {
+  return chainId === undefined
+    ? getReorgTableName(table)
+    : `${getReorgTableName(table)}_${chainId}`;
+};
+
+export const getTriggerFnName = (table: PgTable, chainId?: number) => {
+  return chainId === undefined
+    ? `operation_reorg__${getTableName(table)}()`
+    : `operation_reorg__${getTableName(table)}_${chainId}()`;
 };
 
 export const getPrimaryKeyColumns = (

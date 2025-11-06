@@ -91,7 +91,6 @@ test("createIndexing()", async (context) => {
       contracts: [contracts],
     },
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
@@ -133,7 +132,6 @@ test("processSetupEvents() empty", async (context) => {
       contracts: [contracts],
     },
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
@@ -176,7 +174,6 @@ test("processSetupEvents()", async (context) => {
       contracts: [contracts],
     },
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
@@ -244,7 +241,6 @@ test("processEvent()", async (context) => {
       contracts: [contracts],
     },
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
@@ -326,7 +322,6 @@ test("processEvents eventCount", async (context) => {
       contracts: [contracts],
     },
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
@@ -347,12 +342,6 @@ test("processEvents eventCount", async (context) => {
           "event": "Erc20:Transfer(address indexed from, address indexed to, uint256 amount)",
         },
         "value": 1,
-      },
-      {
-        "labels": {
-          "event": "Erc20:setup",
-        },
-        "value": 0,
       },
     ]
   `);
@@ -398,7 +387,6 @@ test("executeSetup() context.client", async (context) => {
       contracts: [contracts],
     },
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
@@ -459,7 +447,6 @@ test("executeSetup() context.db", async (context) => {
       contracts: [contracts],
     },
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
@@ -513,7 +500,6 @@ test("executeSetup() metrics", async (context) => {
       contracts: [contracts],
     },
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
@@ -560,7 +546,6 @@ test("executeSetup() error", async (context) => {
       contracts: [contracts],
     },
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
@@ -623,7 +608,6 @@ test("processEvents() context.client", async (context) => {
       contracts: [contracts],
     },
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
@@ -699,7 +683,6 @@ test("processEvents() context.db", async (context) => {
       contracts: [contracts],
     },
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
@@ -763,7 +746,6 @@ test("processEvents() metrics", async (context) => {
       contracts: [contracts],
     },
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
@@ -823,7 +805,6 @@ test("processEvents() error", async (context) => {
       contracts: [contracts],
     },
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
@@ -894,7 +875,6 @@ test("processEvents() error with missing event object properties", async (contex
       contracts: [contracts],
     },
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
@@ -964,7 +944,6 @@ test("processEvents() column selection", async (context) => {
       contracts: [contracts],
     },
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
