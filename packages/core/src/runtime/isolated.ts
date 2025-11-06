@@ -496,6 +496,10 @@ export async function runIsolated({
   const endClock = startClock();
 
   await createTriggers(database.adminQB, { tables, chainId: chain.id });
+  await createLiveQueryTriggers(database.adminQB, {
+    tables,
+    chainId: chain.id,
+  });
 
   common.logger.debug({
     msg: "Created database triggers",
@@ -700,7 +704,11 @@ export async function runIsolated({
             }
 
             await createTriggers(tx, { tables, chainId: chain.id }, context);
-            await createLiveQueryTriggers(tx, { tables }, context);
+            await createLiveQueryTriggers(
+              tx,
+              { tables, chainId: chain.id },
+              context,
+            );
           },
           undefined,
           context,

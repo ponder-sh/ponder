@@ -4,7 +4,6 @@ import v8 from "node:v8";
 import { Worker } from "node:worker_threads";
 import {
   createIndexes,
-  createLiveQueryProcedures,
   createLiveQueryTriggers,
   createViews,
 } from "@/database/actions.js";

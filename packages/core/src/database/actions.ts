@@ -1,9 +1,9 @@
 import {
   getPartitionName,
   getPrimaryKeyColumns,
+  getReorgProcedureName,
   getReorgTableName,
-  getTriggerFnName,
-  getTriggerName,
+  getReorgTriggerName,
 } from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import {
@@ -73,7 +73,7 @@ export const createTriggers = async (
           await tx.wrap({ label: "create_trigger" }, (tx) =>
             tx.execute(
               `
-  CREATE OR REPLACE FUNCTION "${schema}".${getTriggerFnName(table, chainId)}
+  CREATE OR REPLACE FUNCTION "${schema}".${getReorgProcedureName(table)}
   RETURNS TRIGGER AS $$
   BEGIN
   IF TG_OP = 'INSERT' THEN
@@ -95,9 +95,9 @@ export const createTriggers = async (
           await tx.wrap({ label: "create_trigger" }, (tx) =>
             tx.execute(
               `
-  CREATE OR REPLACE TRIGGER "${getTriggerName(table, chainId)}"
+  CREATE OR REPLACE TRIGGER "${getReorgTriggerName()}"
   AFTER INSERT OR UPDATE OR DELETE ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"
-  FOR EACH ROW EXECUTE FUNCTION "${schema}".${getTriggerFnName(table, chainId)};
+  FOR EACH ROW EXECUTE FUNCTION "${schema}".${getReorgProcedureName(table)};
   `,
             ),
           );
@@ -122,7 +122,7 @@ export const dropTriggers = async (
 
           await tx.wrap({ label: "drop_trigger" }, (tx) =>
             tx.execute(
-              `DROP TRIGGER IF EXISTS "${getTriggerName(table, chainId)}" ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"`,
+              `DROP TRIGGER IF EXISTS "${getReorgTriggerName()}" ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"`,
             ),
           );
         }),
@@ -135,7 +135,7 @@ export const dropTriggers = async (
 
 export const createLiveQueryTriggers = async (
   qb: QB,
-  { tables }: { tables: Table[] },
+  { tables, chainId }: { tables: Table[]; chainId?: number },
   context?: { logger?: Logger },
 ) => {
   await qb.transaction(
@@ -151,7 +151,7 @@ export const createLiveQueryTriggers = async (
             `
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
-ON "${schema}"."${getTableName(table)}"
+ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"
 FOR EACH STATEMENT
 EXECUTE PROCEDURE "${schema}".${procedure};`,
           ),
@@ -165,7 +165,7 @@ EXECUTE PROCEDURE "${schema}".${procedure};`,
 
 export const dropLiveQueryTriggers = async (
   qb: QB,
-  { tables }: { tables: Table[] },
+  { tables, chainId }: { tables: Table[]; chainId?: number },
   context?: { logger?: Logger },
 ) => {
   await qb.transaction(
@@ -176,7 +176,7 @@ export const dropLiveQueryTriggers = async (
 
         await tx.wrap((tx) =>
           tx.execute(
-            `DROP TRIGGER IF EXISTS "${trigger}" ON "${schema}"."${getTableName(table)}";`,
+            `DROP TRIGGER IF EXISTS "${trigger}" ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}";`,
           ),
         );
       }

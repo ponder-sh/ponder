@@ -568,6 +568,7 @@ export async function runMultichain({
   endClock = startClock();
 
   await createTriggers(database.adminQB, { tables });
+  await createLiveQueryTriggers(database.adminQB, { tables });
 
   common.logger.debug({
     msg: "Created database triggers",
