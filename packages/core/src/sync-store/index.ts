@@ -49,6 +49,7 @@ import type {
   IntervalWithFilter,
 } from "@/runtime/index.js";
 import type { Interval } from "@/utils/interval.js";
+import { intervalUnion } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
 import { startClock } from "@/utils/timer.js";
@@ -419,6 +420,31 @@ export const createSyncStore = ({
               index += 1;
 
               result.get(factory)!.push({ fragment, intervals });
+            }
+
+            // Note: This is a stand-in for a migration to the `intervals` table
+            // required in `v0.15`. It is an invariant that filter with factories
+            // have a row in the intervals table for both the filter and the factory.
+            // If this invariant is broken, it must be because of the migration from
+            // `v0.14` to `v0.15`. In this case, we can assume that the factory interval
+            // is the same as the filter interval.
+
+            const filterIntervals = intervalUnion(
+              result.get(filter)!.flatMap(({ intervals }) => intervals),
+            );
+            const factoryIntervals = intervalUnion(
+              result.get(factory)!.flatMap(({ intervals }) => intervals),
+            );
+
+            if (
+              filterIntervals.length > 0 &&
+              factoryIntervals.length === 0 &&
+              filter.fromBlock === factory.fromBlock &&
+              filter.toBlock === factory.toBlock
+            ) {
+              for (const factoryInterval of result.get(factory)!) {
+                factoryInterval.intervals = filterIntervals;
+              }
             }
           }
         }
