@@ -106,15 +106,18 @@ export const client = ({
 
   (async () => {
     while (globalThis.PONDER_COMMON.apiShutdown.isKilled === false) {
-      isReady = await globalThis.PONDER_DATABASE.adminQB.wrap(
-        { label: "select_ready" },
-        (db) =>
-          db
-            .select()
-            .from(getPonderMetaTable(globalThis.PONDER_NAMESPACE_BUILD.schema))
-            .then((result) => result[0]!.value.is_ready === 1),
-      );
-      await await new Promise((resolve) => setTimeout(resolve, 1000));
+      try {
+        isReady = await globalThis.PONDER_DATABASE.readonlyQB.wrap(
+          { label: "select_ready" },
+          (db) =>
+            db
+              .select()
+              .from(getPonderMetaTable())
+              .then((result) => result[0]!.value.is_ready === 1),
+        );
+      } catch {}
+      if (isReady) return;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   })();
 

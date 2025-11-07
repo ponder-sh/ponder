@@ -4,13 +4,9 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import {
-  createLiveQueryProcedures,
-  createLiveQueryTriggers,
-} from "@/database/actions.js";
-import { getPonderCheckpointTable } from "@/database/index.js";
+import { getPonderMetaTable } from "@/database/index.js";
 import { bigint, hex, onchainTable } from "@/drizzle/onchain.js";
-import type { QueryWithTypings } from "drizzle-orm";
+import { type QueryWithTypings, sql } from "drizzle-orm";
 import { pgSchema } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
 import superjson from "superjson";
@@ -264,7 +260,7 @@ test("client.db cache", async (context) => {
     schemaBuild: { schema: { account } },
   });
 
-  const PONDER_CHECKPOINT = getPonderCheckpointTable();
+  const PONDER_META = getPonderMetaTable();
 
   globalThis.PONDER_DATABASE = database;
 
@@ -275,22 +271,13 @@ test("client.db cache", async (context) => {
     }),
   );
 
-  await createLiveQueryProcedures(database.userQB, {
-    namespaceBuild: globalThis.PONDER_NAMESPACE_BUILD,
-  });
-  await createLiveQueryTriggers(database.userQB, {
-    tables: [account],
-    namespaceBuild: globalThis.PONDER_NAMESPACE_BUILD,
-  });
+  await database.adminQB.wrap({ label: "update_ready" }, (db) =>
+    db
+      .update(PONDER_META)
+      .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` }),
+  );
 
-  await database.userQB.transaction(async (tx) => {
-    await tx.wrap((tx) =>
-      tx.execute(
-        "CREATE TEMP TABLE live_query_tables (table_name TEXT PRIMARY KEY) ON COMMIT DROP",
-      ),
-    );
-    await tx.wrap((tx) => tx.delete(PONDER_CHECKPOINT));
-  });
+  await new Promise((resolve) => setTimeout(resolve, 1000));
 
   const transactionSpy = vi.spyOn(database.readonlyQB.raw, "transaction");
 
