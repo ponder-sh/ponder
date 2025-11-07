@@ -1,3 +1,4 @@
+import type { PonderApp5 } from "@/database/index.js";
 import { getLiveQueryChannelName } from "@/drizzle/onchain.js";
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
@@ -21,6 +22,8 @@ import {
   type PgSession,
   type PgView,
   getViewConfig,
+  pgSchema,
+  pgTable,
 } from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
@@ -31,6 +34,23 @@ type QueryString = string;
 type QueryResult = unknown;
 
 const MAX_LIVE_QUERIES = 1000;
+
+/**
+ * @dev This is copied to avoid bundling another dependency.
+ */
+const getPonderMetaTable = (schema?: string) => {
+  if (schema === undefined || schema === "public") {
+    return pgTable("_ponder_meta", (t) => ({
+      key: t.text().primaryKey().$type<"app">(),
+      value: t.jsonb().$type<PonderApp5>().notNull(),
+    }));
+  }
+
+  return pgSchema(schema).table("_ponder_meta", (t) => ({
+    key: t.text().primaryKey().$type<"app">(),
+    value: t.jsonb().$type<PonderApp5>().notNull(),
+  }));
+};
 
 /**
  * Middleware for `@ponder/client`.
@@ -81,8 +101,22 @@ export const client = ({
   const perViewTables = new Map<string, Set<string>>();
 
   /** `true` if the app is indexing live blocks. */
-  let isLive = false;
   let liveQueryCount = 0;
+  let isReady = false;
+
+  (async () => {
+    while (globalThis.PONDER_COMMON.apiShutdown.isKilled === false) {
+      isReady = await globalThis.PONDER_DATABASE.adminQB.wrap(
+        { label: "select_ready" },
+        (db) =>
+          db
+            .select()
+            .from(getPonderMetaTable(globalThis.PONDER_NAMESPACE_BUILD.schema))
+            .then((result) => result[0]!.value.is_ready === 1),
+      );
+      await await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  })();
 
   const cache = new Map<QueryString, WeakRef<Promise<unknown>>>();
   const perQueryReferences = new Map<QueryString, Set<string>>();
@@ -152,8 +186,6 @@ export const client = ({
 
     driver.instance.onNotification((_, payload) => {
       const tables = JSON.parse(payload!) as string[];
-
-      isLive = true;
       let invalidQueryCount = 0;
 
       for (const [queryString, referencedTables] of perQueryReferences) {
@@ -215,8 +247,6 @@ export const client = ({
 
             client.on("notification", (notification) => {
               const tables = JSON.parse(notification.payload!) as string[];
-
-              isLive = true;
               let invalidQueryCount = 0;
 
               for (const [
@@ -340,7 +370,7 @@ export const client = ({
 
       let resultPromise: Promise<unknown>;
 
-      if (isLive === false) {
+      if (isReady === false) {
         resultPromise = getQueryResult(query);
       } else if (cache.has(queryString)) {
         const resultRef = cache.get(queryString)!.deref();
@@ -370,7 +400,7 @@ export const client = ({
     }
 
     if (c.req.path === "/sql/live") {
-      if (isLive === false) {
+      if (isReady === false) {
         return c.text(
           "Live queries are not available until the backfill is complete",
           503,

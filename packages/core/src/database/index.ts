@@ -620,12 +620,6 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
             ),
           context,
         );
-
-        await createLiveQueryProcedures(
-          tx,
-          { namespaceBuild: namespace },
-          context,
-        );
       };
 
       const tryAcquireLockAndMigrate = () =>
@@ -683,6 +677,11 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
             await createEnums(tx);
             await createTables(tx);
             await createViews(tx);
+            await createLiveQueryProcedures(
+              tx,
+              { namespaceBuild: namespace },
+              context,
+            );
 
             common.logger.info({
               msg: "Created database tables",
@@ -816,6 +815,11 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
             );
 
             await createAdminObjects(tx);
+            await createLiveQueryProcedures(
+              tx,
+              { namespaceBuild: namespace },
+              context,
+            );
 
             common.logger.debug({
               msg: "Reset internal database objects",
