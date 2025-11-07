@@ -256,13 +256,24 @@ RETURNS TRIGGER LANGUAGE plpgsql
 AS $$
   DECLARE
     table_names json;
+    table_exists boolean := false;
   BEGIN
-    SELECT json_agg(table_name) INTO table_names
-    FROM live_query_tables;
-    
-    table_names := COALESCE(table_names, '[]'::json);
-    PERFORM pg_notify('${channel}', table_names::text);
-    RETURN NULL
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_name = 'live_query_tables'
+      AND table_type = 'LOCAL TEMPORARY'
+    ) INTO table_exists;
+
+    IF table_exists THEN
+      SELECT json_agg(table_name) INTO table_names
+      FROM live_query_tables;
+
+      table_names := COALESCE(table_names, '[]'::json);
+      PERFORM pg_notify('${channel}', table_names::text);
+    END IF;
+
+    RETURN NULL;
   END;
 $$;`),
         context,
@@ -356,12 +367,23 @@ RETURNS TRIGGER LANGUAGE plpgsql
 AS $$
   DECLARE
     table_names json;
+    table_exists boolean := false;
   BEGIN
-    SELECT json_agg(table_name) INTO table_names
-    FROM live_query_tables;
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_name = 'live_query_tables'
+      AND table_type = 'LOCAL TEMPORARY'
+    ) INTO table_exists;
 
-    table_names := COALESCE(table_names, '[]'::json);
-    PERFORM pg_notify('${channel}', table_names::text);
+    IF table_exists THEN
+      SELECT json_agg(table_name) INTO table_names
+      FROM live_query_tables;
+
+      table_names := COALESCE(table_names, '[]'::json);
+      PERFORM pg_notify('${channel}', table_names::text);
+    END IF;
+
     RETURN NULL;
   END;
 $$;`),

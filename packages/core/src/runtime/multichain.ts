@@ -14,7 +14,6 @@ import {
   getPonderCheckpointTable,
   getPonderMetaTable,
 } from "@/database/index.js";
-import { getLiveQueryNotifyProcedureName } from "@/drizzle/onchain.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";

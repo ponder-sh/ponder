@@ -31,8 +31,8 @@ import {
   createViews,
   dropLiveQueryTriggers,
   dropTriggers,
-  finalize,
-  revert,
+  finalizeMultichain,
+  revertMultichain,
 } from "./actions.js";
 import {
   type Database,
@@ -792,11 +792,14 @@ test("camelCase", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { accountCC, accountViewCC },
-      statements: buildSchema({ schema: { accountCC, accountViewCC } })
-        .statements,
+      statements: buildSchema({
+        schema: { accountCC, accountViewCC },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -820,7 +823,10 @@ test("camelCase", async (context) => {
   await createTriggers(database.userQB, { tables: [accountCC] });
 
   await createIndexes(database.userQB, {
-    statements: buildSchema({ schema: { accountCC } }).statements,
+    statements: buildSchema({
+      schema: { accountCC },
+      preBuild: { ordering: "multichain" },
+    }).statements,
   });
 
   await createViews(database.userQB, {
@@ -832,6 +838,7 @@ test("camelCase", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     table: accountCC,
+    preBuild: { ordering: "multichain" },
   });
 
   await dropTriggers(database.userQB, { tables: [accountCC] });
@@ -841,18 +848,20 @@ test("camelCase", async (context) => {
   });
   await createLiveQueryTriggers(database.userQB, {
     tables: [accountCC],
+    namespaceBuild: { schema: "public", viewsSchema: "viewCc" },
   });
-  await dropLiveQueryTriggers(database.userQB, { tables: [accountCC] });
+  await dropLiveQueryTriggers(database.userQB, {
+    tables: [accountCC],
+    namespaceBuild: { schema: "public", viewsSchema: "viewCc" },
+  });
 
-  await revert(database.userQB, {
+  await revertMultichain(database.userQB, {
     tables: [accountCC],
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-    preBuild: { ordering: "multichain" },
   });
-  await finalize(database.userQB, {
+  await finalizeMultichain(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
     tables: [accountCC],
-    preBuild: { ordering: "multichain" },
     namespaceBuild: { schema: "public", viewsSchema: "viewCc" },
   });
   await crashRecovery(database.userQB, {

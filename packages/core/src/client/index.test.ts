@@ -9,12 +9,7 @@ import {
   createLiveQueryTriggers,
 } from "@/database/actions.js";
 import { getPonderCheckpointTable } from "@/database/index.js";
-import {
-  bigint,
-  getLiveQueryNotifyProcedureName,
-  hex,
-  onchainTable,
-} from "@/drizzle/onchain.js";
+import { bigint, hex, onchainTable } from "@/drizzle/onchain.js";
 import type { QueryWithTypings } from "drizzle-orm";
 import { pgSchema } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
@@ -285,6 +280,7 @@ test("client.db cache", async (context) => {
   });
   await createLiveQueryTriggers(database.userQB, {
     tables: [account],
+    namespaceBuild: globalThis.PONDER_NAMESPACE_BUILD,
   });
 
   await database.userQB.transaction(async (tx) => {
@@ -294,9 +290,6 @@ test("client.db cache", async (context) => {
       ),
     );
     await tx.wrap((tx) => tx.delete(PONDER_CHECKPOINT));
-    await tx.wrap((tx) =>
-      tx.execute(`SELECT public.${getLiveQueryNotifyProcedureName()}`),
-    );
   });
 
   const transactionSpy = vi.spyOn(database.readonlyQB.raw, "transaction");

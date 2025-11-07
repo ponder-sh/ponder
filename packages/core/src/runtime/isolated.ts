@@ -8,7 +8,6 @@ import {
   revertIsolated,
 } from "@/database/actions.js";
 import { type Database, getPonderCheckpointTable } from "@/database/index.js";
-import { getLiveQueryNotifyProcedureName } from "@/drizzle/onchain.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
@@ -614,14 +613,6 @@ export async function runIsolated({
                   event_count: events.length,
                   checkpoint,
                 });
-
-                await tx.wrap(
-                  (tx) =>
-                    tx.execute(
-                      `SELECT "${namespaceBuild.schema}".${getLiveQueryNotifyProcedureName()}`,
-                    ),
-                  context,
-                );
 
                 common.metrics.ponder_indexing_timestamp.set(
                   { chain: chain.name },
