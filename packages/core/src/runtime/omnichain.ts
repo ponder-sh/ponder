@@ -654,13 +654,23 @@ export async function runOmnichain({
         await database.userQB.transaction(
           async (tx) => {
             if (event.events.length > 0) {
-              await tx.wrap(
-                (tx) =>
-                  tx.execute(
-                    "CREATE TEMP TABLE live_query_tables (table_name text PRIMARY KEY) ON COMMIT DROP",
-                  ),
-                context,
-              );
+              if (database.userQB.$dialect === "postgres") {
+                await tx.wrap(
+                  (tx) =>
+                    tx.execute(
+                      "CREATE TEMP TABLE live_query_tables (table_name TEXT PRIMARY KEY) ON COMMIT DROP",
+                    ),
+                  context,
+                );
+              } else {
+                await tx.wrap(
+                  (tx) =>
+                    tx.execute(
+                      "CREATE TEMP TABLE IF NOT EXISTS live_query_tables (table_name TEXT PRIMARY KEY)",
+                    ),
+                  context,
+                );
+              }
             }
 
             // Events must be run block-by-block, so that `database.commitBlock` can accurately
@@ -744,6 +754,12 @@ export async function runOmnichain({
                   ),
                 context,
               );
+              if (database.userQB.$dialect === "pglite") {
+                await tx.wrap(
+                  (tx) => tx.execute("TRUNCATE TABLE live_query_tables"),
+                  context,
+                );
+              }
             }
 
             await tx.wrap(

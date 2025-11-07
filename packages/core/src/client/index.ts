@@ -150,7 +150,7 @@ export const client = ({
     );
     driver.instance.query(`LISTEN "${channel}"`);
 
-    driver.instance.onNotification((payload) => {
+    driver.instance.onNotification((_, payload) => {
       const tables = JSON.parse(payload!) as string[];
 
       isLive = true;
