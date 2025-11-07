@@ -3,7 +3,11 @@ import crypto from "node:crypto";
 import { type PonderApp, start } from "@ponder/bin/commands/start.js";
 import { createQB } from "@ponder/database/queryBuilder.js";
 import { getPrimaryKeyColumns } from "@ponder/drizzle/index.js";
-import type { Factory, FragmentAddress } from "@ponder/internal/types.js";
+import type {
+  EventCallback,
+  Factory,
+  FragmentAddress,
+} from "@ponder/internal/types.js";
 import { _eth_getBlockByNumber } from "@ponder/rpc/actions.js";
 import { createRpc } from "@ponder/rpc/index.js";
 import {
@@ -287,15 +291,19 @@ const onBuild = async (app: PonderApp) => {
 
   if (APP_ID === "super-assessment") {
     const random = seedrandom(`${SEED}_super_assessment_filter`);
-    app.indexingBuild.sources = app.indexingBuild.sources.filter(() => {
-      if (random() < SIM_PARAMS.SUPER_ASSESSMENT_FILTER_RATE) {
-        return false;
-      }
-      return true;
-    });
+    for (let i = 0; i < app.indexingBuild.eventCallbacks.length; i++) {
+      app.indexingBuild.eventCallbacks[i] = app.indexingBuild.eventCallbacks[
+        i
+      ]!.filter(() => {
+        if (random() < SIM_PARAMS.SUPER_ASSESSMENT_FILTER_RATE) {
+          return false;
+        }
+        return true;
+      });
+    }
 
-    if (app.indexingBuild.sources.length === 0) {
-      console.error("Invalid app configuration: no sources");
+    if (app.indexingBuild.eventCallbacks.flat().length === 0) {
+      console.error("Invalid app configuration: no event callbacks");
       process.exit(0);
     }
 
@@ -303,24 +311,24 @@ const onBuild = async (app: PonderApp) => {
     const rpcsWithSources: typeof app.indexingBuild.rpcs = [];
     const finalizedBlocksWithSources: typeof app.indexingBuild.finalizedBlocks =
       [];
-
+    const eventCallbacksWithSources: EventCallback[][] = [];
     for (let i = 0; i < app.indexingBuild.chains.length; i++) {
       const chain = app.indexingBuild.chains[i]!;
       const rpc = app.indexingBuild.rpcs[i]!;
       const finalizedBlock = app.indexingBuild.finalizedBlocks[i]!;
-      const hasSources = app.indexingBuild.sources.some(
-        (source) => source.chain.name === chain.name,
-      );
-      if (hasSources) {
+      const eventCallbacks = app.indexingBuild.eventCallbacks[i]!;
+      if (eventCallbacks.length > 0) {
         chainsWithSources.push(chain);
         rpcsWithSources.push(rpc);
         finalizedBlocksWithSources.push(finalizedBlock);
+        eventCallbacksWithSources.push(eventCallbacks);
       }
     }
 
     app.indexingBuild.chains = chainsWithSources;
     app.indexingBuild.rpcs = rpcsWithSources;
     app.indexingBuild.finalizedBlocks = finalizedBlocksWithSources;
+    app.indexingBuild.eventCallbacks = eventCallbacksWithSources;
 
     // build super assessment expected tables
 
@@ -328,8 +336,8 @@ const onBuild = async (app: PonderApp) => {
       migrationsFolder: "./apps/super-assessment/migrations",
     });
 
-    for (const source of app.indexingBuild.sources) {
-      const filter = source.filter;
+    for (const eventCallback of app.indexingBuild.eventCallbacks.flat()) {
+      const filter = eventCallback.filter;
       const blockConditions = [
         filter.fromBlock
           ? gte(PONDER_SYNC.blocks.number, BigInt(filter.fromBlock))
@@ -354,7 +362,7 @@ const onBuild = async (app: PonderApp) => {
 
             await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
               APP_DB.select({
-                name: sql.raw(`'${source.name}:block'`).as("name"),
+                name: sql.raw(`'${eventCallback.name}'`).as("name"),
                 id: blockCheckpoint.as("id"),
                 chainId: PONDER_SYNC.blocks.chainId,
                 number: PONDER_SYNC.blocks.number,
@@ -405,9 +413,7 @@ const onBuild = async (app: PonderApp) => {
 
             await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
               APP_DB.select({
-                name: sql
-                  .raw(`'${source.name}:transaction:${isFrom ? "from" : "to"}'`)
-                  .as("name"),
+                name: sql.raw(`'${eventCallback.name}'`).as("name"),
                 id: transactionCheckpoint.as("id"),
                 chainId: PONDER_SYNC.transactions.chainId,
                 number: PONDER_SYNC.blocks.number,
@@ -433,9 +439,7 @@ const onBuild = async (app: PonderApp) => {
 
             await APP_DB.insert(SUPER_ASSESSMENT.transactions).select(
               APP_DB.select({
-                name: sql
-                  .raw(`'${source.name}:transaction:${isFrom ? "from" : "to"}'`)
-                  .as("name"),
+                name: sql.raw(`'${eventCallback.name}'`).as("name"),
                 id: transactionCheckpoint.as("id"),
                 chainId: PONDER_SYNC.transactions.chainId,
                 transactionIndex: PONDER_SYNC.transactions.transactionIndex,
@@ -461,9 +465,7 @@ const onBuild = async (app: PonderApp) => {
 
             await APP_DB.insert(SUPER_ASSESSMENT.transactionReceipts).select(
               APP_DB.select({
-                name: sql
-                  .raw(`'${source.name}:transaction:${isFrom ? "from" : "to"}'`)
-                  .as("name"),
+                name: sql.raw(`'${eventCallback.name}'`).as("name"),
                 id: transactionCheckpoint.as("id"),
                 chainId: PONDER_SYNC.transactions.chainId,
                 transactionIndex:
@@ -532,7 +534,7 @@ const onBuild = async (app: PonderApp) => {
 
             await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
               APP_DB.select({
-                name: sql.raw(`'${source.name}.transfer()'`).as("name"),
+                name: sql.raw(`'${eventCallback.name}'`).as("name"),
                 id: traceCheckpoint.as("id"),
                 chainId: PONDER_SYNC.traces.chainId,
                 number: PONDER_SYNC.blocks.number,
@@ -548,7 +550,7 @@ const onBuild = async (app: PonderApp) => {
 
             await APP_DB.insert(SUPER_ASSESSMENT.transactions).select(
               APP_DB.select({
-                name: sql.raw(`'${source.name}.transfer()'`).as("name"),
+                name: sql.raw(`'${eventCallback.name}'`).as("name"),
                 id: traceCheckpoint.as("id"),
                 chainId: PONDER_SYNC.traces.chainId,
                 transactionIndex: PONDER_SYNC.transactions.transactionIndex,
@@ -572,7 +574,7 @@ const onBuild = async (app: PonderApp) => {
             if (fragment.includeTransactionReceipts) {
               await APP_DB.insert(SUPER_ASSESSMENT.transactionReceipts).select(
                 APP_DB.select({
-                  name: sql.raw(`'${source.name}.transfer()'`).as("name"),
+                  name: sql.raw(`'${eventCallback.name}'`).as("name"),
                   id: traceCheckpoint.as("id"),
                   chainId: PONDER_SYNC.traces.chainId,
                   transactionIndex:
@@ -597,7 +599,7 @@ const onBuild = async (app: PonderApp) => {
 
             await APP_DB.insert(SUPER_ASSESSMENT.traces).select(
               APP_DB.select({
-                name: sql.raw(`'${source.name}.transfer()'`).as("name"),
+                name: sql.raw(`'${eventCallback.name}'`).as("name"),
                 id: traceCheckpoint.as("id"),
                 chainId: PONDER_SYNC.traces.chainId,
                 traceIndex: PONDER_SYNC.traces.traceIndex,
@@ -648,7 +650,7 @@ const onBuild = async (app: PonderApp) => {
 
             await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
               APP_DB.select({
-                name: sql.raw(`'${source.name}:Transfer'`).as("name"),
+                name: sql.raw(`'${eventCallback.name}'`).as("name"),
                 id: logCheckpoint.as("id"),
                 chainId: PONDER_SYNC.logs.chainId,
                 number: PONDER_SYNC.blocks.number,
@@ -664,7 +666,7 @@ const onBuild = async (app: PonderApp) => {
 
             await APP_DB.insert(SUPER_ASSESSMENT.transactions).select(
               APP_DB.select({
-                name: sql.raw(`'${source.name}:Transfer'`).as("name"),
+                name: sql.raw(`'${eventCallback.name}'`).as("name"),
                 id: logCheckpoint.as("id"),
                 chainId: PONDER_SYNC.logs.chainId,
                 transactionIndex: PONDER_SYNC.transactions.transactionIndex,
@@ -685,7 +687,7 @@ const onBuild = async (app: PonderApp) => {
             if (fragment.includeTransactionReceipts) {
               await APP_DB.insert(SUPER_ASSESSMENT.transactionReceipts).select(
                 APP_DB.select({
-                  name: sql.raw(`'${source.name}:Transfer'`).as("name"),
+                  name: sql.raw(`'${eventCallback.name}'`).as("name"),
                   id: logCheckpoint.as("id"),
                   chainId: PONDER_SYNC.logs.chainId,
                   transactionIndex:
@@ -710,7 +712,7 @@ const onBuild = async (app: PonderApp) => {
 
             await APP_DB.insert(SUPER_ASSESSMENT.logs).select(
               APP_DB.select({
-                name: sql.raw(`'${source.name}:Transfer'`).as("name"),
+                name: sql.raw(`'${eventCallback.name}'`).as("name"),
                 id: logCheckpoint.as("id"),
                 chainId: PONDER_SYNC.logs.chainId,
                 logIndex: PONDER_SYNC.logs.logIndex,
@@ -762,9 +764,7 @@ const onBuild = async (app: PonderApp) => {
 
             await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
               APP_DB.select({
-                name: sql
-                  .raw(`'${source.name}:transfer:${isFrom ? "from" : "to"}'`)
-                  .as("name"),
+                name: sql.raw(`'${eventCallback.name}'`).as("name"),
                 id: transferCheckpoint.as("id"),
                 chainId: PONDER_SYNC.traces.chainId,
                 number: PONDER_SYNC.blocks.number,
@@ -780,9 +780,7 @@ const onBuild = async (app: PonderApp) => {
 
             await APP_DB.insert(SUPER_ASSESSMENT.transactions).select(
               APP_DB.select({
-                name: sql
-                  .raw(`'${source.name}:transfer:${isFrom ? "from" : "to"}'`)
-                  .as("name"),
+                name: sql.raw(`'${eventCallback.name}'`).as("name"),
                 id: transferCheckpoint.as("id"),
                 chainId: PONDER_SYNC.traces.chainId,
                 transactionIndex: PONDER_SYNC.transactions.transactionIndex,
@@ -806,9 +804,7 @@ const onBuild = async (app: PonderApp) => {
             if (fragment.includeTransactionReceipts) {
               await APP_DB.insert(SUPER_ASSESSMENT.transactionReceipts).select(
                 APP_DB.select({
-                  name: sql
-                    .raw(`'${source.name}:transfer:${isFrom ? "from" : "to"}'`)
-                    .as("name"),
+                  name: sql.raw(`'${eventCallback.name}'`).as("name"),
                   id: transferCheckpoint.as("id"),
                   chainId: PONDER_SYNC.traces.chainId,
                   transactionIndex:
@@ -833,9 +829,7 @@ const onBuild = async (app: PonderApp) => {
 
             await APP_DB.insert(SUPER_ASSESSMENT.traces).select(
               APP_DB.select({
-                name: sql
-                  .raw(`'${source.name}:transfer:${isFrom ? "from" : "to"}'`)
-                  .as("name"),
+                name: sql.raw(`'${eventCallback.name}'`).as("name"),
                 id: transferCheckpoint.as("id"),
                 chainId: PONDER_SYNC.traces.chainId,
                 traceIndex: PONDER_SYNC.traces.traceIndex,
@@ -1226,9 +1220,10 @@ const onBuild = async (app: PonderApp) => {
     const rpc = app.indexingBuild.rpcs[i]!;
 
     const intervals = intervalUnion(
-      app.indexingBuild.sources
-        .filter(({ filter }) => filter.chainId === chain.id)
-        .map(({ filter }) => [filter.fromBlock!, filter.toBlock!]),
+      app.indexingBuild.eventCallbacks[i]!.map(({ filter }) => [
+        filter.fromBlock!,
+        filter.toBlock!,
+      ]),
     );
 
     const end = intervals[intervals.length - 1]![1];
