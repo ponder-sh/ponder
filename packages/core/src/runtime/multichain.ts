@@ -802,7 +802,6 @@ export async function runMultichain({
             }
 
             await createTriggers(tx, { tables }, context);
-            // TODO(kyle) what if all apps aren't ready
             await createLiveQueryTriggers(tx, { tables }, context);
           },
           undefined,
