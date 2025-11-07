@@ -568,7 +568,7 @@ export async function runMultichain({
   endClock = startClock();
 
   await createTriggers(database.adminQB, { tables });
-  await createLiveQueryTriggers(database.adminQB, { tables });
+  await createLiveQueryTriggers(database.adminQB, { namespaceBuild, tables });
 
   common.logger.debug({
     msg: "Created database triggers",
@@ -638,24 +638,22 @@ export async function runMultichain({
 
         await database.userQB.transaction(
           async (tx) => {
-            if (event.events.length > 0) {
-              if (database.userQB.$dialect === "postgres") {
-                await tx.wrap(
-                  (tx) =>
-                    tx.execute(
-                      "CREATE TEMP TABLE live_query_tables (table_name TEXT PRIMARY KEY) ON COMMIT DROP",
-                    ),
-                  context,
-                );
-              } else {
-                await tx.wrap(
-                  (tx) =>
-                    tx.execute(
-                      "CREATE TEMP TABLE IF NOT EXISTS live_query_tables (table_name TEXT PRIMARY KEY)",
-                    ),
-                  context,
-                );
-              }
+            if (database.userQB.$dialect === "postgres") {
+              await tx.wrap(
+                (tx) =>
+                  tx.execute(
+                    "CREATE TEMP TABLE live_query_tables (table_name TEXT PRIMARY KEY) ON COMMIT DROP",
+                  ),
+                context,
+              );
+            } else {
+              await tx.wrap(
+                (tx) =>
+                  tx.execute(
+                    "CREATE TEMP TABLE IF NOT EXISTS live_query_tables (table_name TEXT PRIMARY KEY)",
+                  ),
+                context,
+              );
             }
 
             // Events must be run block-by-block, so that `database.commitBlock` can accurately
@@ -727,22 +725,6 @@ export async function runMultichain({
               );
             }
 
-            if (event.events.length > 0) {
-              await tx.wrap(
-                (tx) =>
-                  tx.execute(
-                    `SELECT "${namespaceBuild.schema}".${getLiveQueryNotifyProcedureName()}`,
-                  ),
-                context,
-              );
-              if (database.userQB.$dialect === "pglite") {
-                await tx.wrap(
-                  (tx) => tx.execute("TRUNCATE TABLE live_query_tables"),
-                  context,
-                );
-              }
-            }
-
             await tx.wrap(
               { label: "update_checkpoints" },
               (db) =>
@@ -752,6 +734,13 @@ export async function runMultichain({
                   .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
               context,
             );
+
+            if (database.userQB.$dialect === "pglite") {
+              await tx.wrap(
+                (tx) => tx.execute("TRUNCATE TABLE live_query_tables"),
+                context,
+              );
+            }
           },
           undefined,
           context,
@@ -782,7 +771,11 @@ export async function runMultichain({
         await database.userQB.transaction(
           async (tx) => {
             await dropTriggers(tx, { tables }, context);
-            await dropLiveQueryTriggers(tx, { tables }, context);
+            await dropLiveQueryTriggers(
+              tx,
+              { namespaceBuild, tables },
+              context,
+            );
 
             const counts = await revertMultichain(
               tx,
@@ -802,7 +795,11 @@ export async function runMultichain({
             }
 
             await createTriggers(tx, { tables }, context);
-            await createLiveQueryTriggers(tx, { tables }, context);
+            await createLiveQueryTriggers(
+              tx,
+              { namespaceBuild, tables },
+              context,
+            );
           },
           undefined,
           context,

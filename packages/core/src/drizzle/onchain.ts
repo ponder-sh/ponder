@@ -47,6 +47,12 @@ export const getLiveQueryProcedureName = () => {
 export const getLiveQueryChannelName = (schema: string) => {
   return `${schema}_live_query_channel`;
 };
+export const getLiveQueryNotifyTriggerName = () => {
+  return "live_query_notify_trigger";
+};
+export const getViewsLiveQueryNotifyTriggerName = (schema?: string) => {
+  return `${schema}_live_query_notify_trigger`;
+};
 export const getLiveQueryNotifyProcedureName = () => {
   return "live_query_notify_procedure()";
 };

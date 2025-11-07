@@ -497,6 +497,7 @@ export async function runIsolated({
 
   await createTriggers(database.adminQB, { tables, chainId: chain.id });
   await createLiveQueryTriggers(database.adminQB, {
+    namespaceBuild,
     tables,
     chainId: chain.id,
   });
@@ -551,11 +552,19 @@ export async function runIsolated({
 
         await database.userQB.transaction(
           async (tx) => {
-            if (event.events.length > 0) {
+            if (database.userQB.$dialect === "postgres") {
               await tx.wrap(
                 (tx) =>
                   tx.execute(
-                    "CREATE TEMP TABLE live_query_tables (table_name text PRIMARY KEY) ON COMMIT DROP",
+                    "CREATE TEMP TABLE live_query_tables (table_name TEXT PRIMARY KEY) ON COMMIT DROP",
+                  ),
+                context,
+              );
+            } else {
+              await tx.wrap(
+                (tx) =>
+                  tx.execute(
+                    "CREATE TEMP TABLE IF NOT EXISTS live_query_tables (table_name TEXT PRIMARY KEY)",
                   ),
                 context,
               );
@@ -633,16 +642,6 @@ export async function runIsolated({
               }
             }
 
-            if (event.events.length > 0) {
-              await tx.wrap(
-                (tx) =>
-                  tx.execute(
-                    `SELECT "${namespaceBuild.schema}".notify_live_query_tables()`,
-                  ),
-                context,
-              );
-            }
-
             await tx.wrap(
               { label: "update_checkpoints" },
               (db) =>
@@ -652,6 +651,16 @@ export async function runIsolated({
                   .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
               context,
             );
+
+            if (
+              event.events.length > 0 &&
+              database.userQB.$dialect === "pglite"
+            ) {
+              await tx.wrap(
+                (tx) => tx.execute("TRUNCATE TABLE live_query_tables"),
+                context,
+              );
+            }
           },
           undefined,
           context,
@@ -684,7 +693,7 @@ export async function runIsolated({
             await dropTriggers(tx, { tables, chainId: chain.id }, context);
             await dropLiveQueryTriggers(
               tx,
-              { tables, chainId: chain.id },
+              { namespaceBuild, tables, chainId: chain.id },
               context,
             );
 
@@ -710,7 +719,7 @@ export async function runIsolated({
             await createTriggers(tx, { tables, chainId: chain.id }, context);
             await createLiveQueryTriggers(
               tx,
-              { tables, chainId: chain.id },
+              { namespaceBuild, tables, chainId: chain.id },
               context,
             );
           },

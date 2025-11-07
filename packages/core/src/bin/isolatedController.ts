@@ -2,11 +2,7 @@ import path from "node:path";
 import url from "node:url";
 import v8 from "node:v8";
 import { Worker } from "node:worker_threads";
-import {
-  createIndexes,
-  createLiveQueryTriggers,
-  createViews,
-} from "@/database/actions.js";
+import { createIndexes, createViews } from "@/database/actions.js";
 import { type Database, getPonderMetaTable } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import {
@@ -116,14 +112,6 @@ export async function isolatedController({
         });
 
         endClock = startClock();
-
-        await createLiveQueryTriggers(database.adminQB, { tables });
-
-        common.logger.debug({
-          msg: "Created live query triggers and procedures",
-          count: tables.length + 1,
-          duration: endClock(),
-        });
       }
 
       await database.adminQB.wrap({ label: "update_ready" }, (db) =>

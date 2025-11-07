@@ -9,8 +9,10 @@ import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import {
   getLiveQueryChannelName,
   getLiveQueryNotifyProcedureName,
+  getLiveQueryNotifyTriggerName,
   getLiveQueryProcedureName,
   getLiveQueryTriggerName,
+  getViewsLiveQueryNotifyTriggerName,
 } from "@/drizzle/onchain.js";
 import type { Logger } from "@/internal/logger.js";
 import type {
@@ -135,11 +137,29 @@ export const dropTriggers = async (
 
 export const createLiveQueryTriggers = async (
   qb: QB,
-  { tables, chainId }: { tables: Table[]; chainId?: number },
+  {
+    namespaceBuild,
+    tables,
+    chainId,
+  }: { namespaceBuild: NamespaceBuild; tables: Table[]; chainId?: number },
   context?: { logger?: Logger },
 ) => {
   await qb.transaction(
     async (tx) => {
+      const notifyProcedure = getLiveQueryNotifyProcedureName();
+      const notifyTrigger = getLiveQueryNotifyTriggerName();
+
+      await tx.wrap((tx) =>
+        tx.execute(
+          `
+CREATE OR REPLACE TRIGGER "${notifyTrigger}"
+AFTER INSERT OR UPDATE OR DELETE
+ON "${namespaceBuild.schema}"._ponder_checkpoint
+FOR EACH STATEMENT
+EXECUTE PROCEDURE "${namespaceBuild.schema}".${notifyProcedure};`,
+        ),
+      );
+
       const trigger = getLiveQueryTriggerName();
       const procedure = getLiveQueryProcedureName();
 
@@ -165,11 +185,22 @@ EXECUTE PROCEDURE "${schema}".${procedure};`,
 
 export const dropLiveQueryTriggers = async (
   qb: QB,
-  { tables, chainId }: { tables: Table[]; chainId?: number },
+  {
+    namespaceBuild,
+    tables,
+    chainId,
+  }: { namespaceBuild: NamespaceBuild; tables: Table[]; chainId?: number },
   context?: { logger?: Logger },
 ) => {
   await qb.transaction(
     async (tx) => {
+      const notifyTrigger = getLiveQueryNotifyTriggerName();
+      await tx.wrap((tx) =>
+        tx.execute(
+          `DROP TRIGGER IF EXISTS "${notifyTrigger}" ON "${namespaceBuild.schema}"._ponder_checkpoint;`,
+        ),
+      );
+
       const trigger = getLiveQueryTriggerName();
       for (const table of tables) {
         const schema = getTableConfig(table).schema ?? "public";
@@ -221,7 +252,7 @@ $$;`,
         (tx) =>
           tx.execute(`
 CREATE OR REPLACE FUNCTION "${schema}".${notifyProcedure}
-RETURNS void LANGUAGE plpgsql
+RETURNS TRIGGER LANGUAGE plpgsql
 AS $$
   DECLARE
     table_names json;
@@ -231,6 +262,7 @@ AS $$
     
     table_names := COALESCE(table_names, '[]'::json);
     PERFORM pg_notify('${channel}', table_names::text);
+    RETURN NULL
   END;
 $$;`),
         context,
@@ -314,30 +346,40 @@ export const createViews = async (
         ),
       );
 
-      const trigger = `status_${namespaceBuild.viewsSchema}_trigger`;
-      const notification = "status_notify()";
-      const channel = `${namespaceBuild.viewsSchema}_status_channel`;
+      const notifyProcedure = getLiveQueryNotifyProcedureName();
+      const channel = getLiveQueryChannelName(namespaceBuild.viewsSchema!);
 
       await tx.wrap((tx) =>
         tx.execute(`
-CREATE OR REPLACE FUNCTION "${namespaceBuild.viewsSchema}".${notification}
-RETURNS TRIGGER
-LANGUAGE plpgsql
+CREATE OR REPLACE FUNCTION "${namespaceBuild.viewsSchema}".${notifyProcedure}
+RETURNS TRIGGER LANGUAGE plpgsql
 AS $$
-BEGIN
-NOTIFY "${channel}";
-RETURN NULL;
-END;
+  DECLARE
+    table_names json;
+  BEGIN
+    SELECT json_agg(table_name) INTO table_names
+    FROM live_query_tables;
+
+    table_names := COALESCE(table_names, '[]'::json);
+    PERFORM pg_notify('${channel}', table_names::text);
+    RETURN NULL;
+  END;
 $$;`),
       );
 
+      const trigger = getViewsLiveQueryNotifyTriggerName(
+        namespaceBuild.viewsSchema,
+      );
+
       await tx.wrap((tx) =>
-        tx.execute(`
+        tx.execute(
+          `
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
-ON "${namespaceBuild.schema}"._ponder_checkpoint
+ON "${namespaceBuild.schema!}"._ponder_checkpoint
 FOR EACH STATEMENT
-EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
+EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notifyProcedure};`,
+        ),
       );
     },
     undefined,

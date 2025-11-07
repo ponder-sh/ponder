@@ -803,8 +803,6 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
               context,
             );
 
-            await dropLiveQueryTriggers(tx, { tables }, context);
-
             await tx.wrap((tx) =>
               tx.execute(
                 `DROP FUNCTION IF EXISTS "${namespace.schema}".${getLiveQueryProcedureName()}`,
@@ -922,11 +920,20 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
           if (preBuild.ordering === "experimental_isolated") {
             for (const { chainId } of checkpoints) {
               await dropTriggers(tx, { tables, chainId });
+              await dropLiveQueryTriggers(
+                tx,
+                { namespaceBuild: namespace, tables, chainId },
+                context,
+              );
             }
           } else {
             await dropTriggers(tx, { tables });
+            await dropLiveQueryTriggers(
+              tx,
+              { namespaceBuild: namespace, tables },
+              context,
+            );
           }
-          await dropLiveQueryTriggers(tx, { tables }, context);
 
           // Remove indexes
 
