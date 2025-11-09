@@ -425,13 +425,6 @@ export async function buildIndexingFunctions({
       address = logFactory;
     } else {
       if (resolvedAddress !== undefined) {
-        perChainContracts.get(chain.id)![source.name] = {
-          abi: source.abi,
-          address: resolvedAddress as Address | readonly Address[],
-          startBlock: fromBlock,
-          endBlock: toBlock,
-        };
-
         for (const address of Array.isArray(resolvedAddress)
           ? resolvedAddress
           : [resolvedAddress as Address]) {
@@ -454,6 +447,15 @@ export async function buildIndexingFunctions({
         : resolvedAddress !== undefined
           ? toLowerCase(resolvedAddress as Address)
           : undefined;
+
+      if (validatedAddress !== undefined) {
+        perChainContracts.get(chain.id)![source.name] = {
+          abi: source.abi,
+          address: validatedAddress,
+          startBlock: fromBlock,
+          endBlock: toBlock,
+        };
+      }
 
       address = validatedAddress;
     }
