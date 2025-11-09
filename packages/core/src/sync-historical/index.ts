@@ -1003,14 +1003,16 @@ export const createHistoricalSync = (
         100,
       );
 
-      const queue = createQueue({
-        browser: false,
-        initialStart: true,
-        concurrency: MAX_BLOCKS_IN_MEM,
-        worker: syncBlockData,
-      });
+      if (requiredIntervals.length > 0) {
+        const queue = createQueue({
+          browser: false,
+          initialStart: true,
+          concurrency: MAX_BLOCKS_IN_MEM,
+          worker: syncBlockData,
+        });
 
-      await Promise.all(intervalRange(interval).map(queue.add));
+        await Promise.all(intervalRange(interval).map(queue.add));
+      }
 
       args.common.logger.debug(
         {
