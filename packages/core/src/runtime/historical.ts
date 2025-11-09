@@ -8,6 +8,7 @@ import type {
   EventCallback,
   IndexingBuild,
   RawEvent,
+  SyncBlock,
 } from "@/internal/types.js";
 import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
@@ -1285,10 +1286,13 @@ export async function* getLocalSyncGenerator(params: {
     promise: Promise.resolve(),
   });
 
+  /**
+   * @returns `true` if any data was inserted into the database.
+   */
   async function syncInterval({
     interval,
     promise,
-  }: { interval: Interval; promise: Promise<void> }) {
+  }: { interval: Interval; promise: Promise<void> }): Promise<boolean> {
     const endClock = startClock();
 
     const isSyncComplete = interval[1] === hexToNumber(last.number);
@@ -1298,85 +1302,119 @@ export async function* getLocalSyncGenerator(params: {
       cachedIntervals: params.cachedIntervals,
     });
 
-    const pwr = promiseWithResolvers<void>();
+    let closestToTipBlock: SyncBlock | undefined;
+    if (requiredIntervals.length > 0) {
+      const pwr = promiseWithResolvers<void>();
 
-    const durationTimer = setTimeout(
-      () => {
-        params.common.logger.warn({
-          msg: "Fetching backfill JSON-RPC data is taking longer than expected",
-          chain: params.chain.name,
-          chain_id: params.chain.id,
-          block_range: JSON.stringify(interval),
-          duration: endClock(),
-        });
-      },
-      params.common.options.command === "dev" ? 10_000 : 50_000,
-    );
-
-    const closestToTipBlock = await params.database.syncQB
-      .transaction(async (tx) => {
-        const syncStore = createSyncStore({ common: params.common, qb: tx });
-        const logs = await historicalSync.syncBlockRangeData({
-          interval,
-          requiredIntervals,
-          syncStore,
-        });
-
-        // Wait for the previous interval to complete `syncBlockData`.
-        await promise;
-
-        if (isSyncComplete === false) {
-          // Queue the next interval
-          intervalCallback({
-            interval: [
-              Math.min(interval[1] + 1, hexToNumber(last.number)),
-              Math.min(
-                interval[1] + 1 + estimateRange,
-                hexToNumber(last.number),
-              ),
-            ],
-            promise: pwr.promise,
+      const durationTimer = setTimeout(
+        () => {
+          params.common.logger.warn({
+            msg: "Fetching backfill JSON-RPC data is taking longer than expected",
+            chain: params.chain.name,
+            chain_id: params.chain.id,
+            block_range: JSON.stringify(interval),
+            duration: endClock(),
           });
-        }
+        },
+        params.common.options.command === "dev" ? 10_000 : 50_000,
+      );
 
-        const closestToTipBlock = await historicalSync.syncBlockData({
-          interval,
-          requiredIntervals,
-          logs,
-          syncStore,
-        });
-        if (params.chain.disableCache === false) {
-          await syncStore.insertIntervals({
-            intervals: requiredIntervals,
-            chainId: params.chain.id,
+      closestToTipBlock = await params.database.syncQB
+        .transaction(async (tx) => {
+          const syncStore = createSyncStore({ common: params.common, qb: tx });
+          const logs = await historicalSync.syncBlockRangeData({
+            interval,
+            requiredIntervals,
+            syncStore,
           });
-        }
 
-        return closestToTipBlock;
-      })
-      .catch((error) => {
-        if (error instanceof ShutdownError) {
+          // Wait for the previous interval to complete `syncBlockData`.
+          await promise;
+
+          if (isSyncComplete === false) {
+            // Queue the next interval
+            intervalCallback({
+              interval: [
+                Math.min(interval[1] + 1, hexToNumber(last.number)),
+                Math.min(
+                  interval[1] + 1 + estimateRange,
+                  hexToNumber(last.number),
+                ),
+              ],
+              promise: pwr.promise,
+            });
+          }
+
+          const closestToTipBlock = await historicalSync.syncBlockData({
+            interval,
+            requiredIntervals,
+            logs,
+            syncStore,
+          });
+          if (params.chain.disableCache === false) {
+            await syncStore.insertIntervals({
+              intervals: requiredIntervals,
+              chainId: params.chain.id,
+            });
+          }
+
+          return closestToTipBlock;
+        })
+        .catch((error) => {
+          if (error instanceof ShutdownError) {
+            throw error;
+          }
+
+          params.common.logger.warn({
+            msg: "Failed to fetch backfill JSON-RPC data",
+            chain: params.chain.name,
+            chain_id: params.chain.id,
+            block_range: JSON.stringify(interval),
+            duration: endClock(),
+            error,
+          });
           throw error;
-        }
-
-        params.common.logger.warn({
-          msg: "Failed to fetch backfill JSON-RPC data",
-          chain: params.chain.name,
-          chain_id: params.chain.id,
-          block_range: JSON.stringify(interval),
-          duration: endClock(),
-          error,
         });
-        throw error;
+
+      clearTimeout(durationTimer);
+
+      const duration = endClock();
+
+      // Use the duration and interval of the last call to `sync` to update estimate
+      estimateRange = estimate({
+        from: interval[0],
+        to: interval[1],
+        target: params.common.options.command === "dev" ? 2_000 : 10_000,
+        result: duration,
+        min: 25,
+        max: 100_000,
+        prev: estimateRange,
+        maxIncrease: 1.5,
       });
 
-    clearTimeout(durationTimer);
+      params.common.logger.trace({
+        msg: "Updated block range estimate for fetching backfill JSON-RPC data",
+        chain: params.chain.name,
+        chain_id: params.chain.id,
+        range: estimateRange,
+      });
+
+      // Resolve promise so the next interval can continue.
+      pwr.resolve();
+    } else if (isSyncComplete === false) {
+      // Queue the next interval
+      intervalCallback({
+        interval: [
+          Math.min(interval[1] + 1, hexToNumber(last.number)),
+          Math.min(interval[1] + 1 + estimateRange, hexToNumber(last.number)),
+        ],
+        promise: Promise.resolve(),
+      });
+    }
 
     if (interval[1] === hexToNumber(last.number)) {
       params.syncProgress.current = last;
     }
-
-    const duration = endClock();
 
     if (closestToTipBlock) {
       params.common.metrics.ponder_sync_block.set(
@@ -1396,27 +1434,7 @@ export async function* getLocalSyncGenerator(params: {
       interval[1] - interval[0] + 1,
     );
 
-    // Use the duration and interval of the last call to `sync` to update estimate
-    estimateRange = estimate({
-      from: interval[0],
-      to: interval[1],
-      target: params.common.options.command === "dev" ? 2_000 : 10_000,
-      result: duration,
-      min: 25,
-      max: 100_000,
-      prev: estimateRange,
-      maxIncrease: 1.5,
-    });
-
-    params.common.logger.trace({
-      msg: "Updated block range estimate for fetching backfill JSON-RPC data",
-      chain: params.chain.name,
-      chain_id: params.chain.id,
-      range: estimateRange,
-    });
-
-    // Resolve promise so the next interval can continue.
-    pwr.resolve();
+    return requiredIntervals.length > 0;
   }
 
   const { callback, generator } =
@@ -1426,8 +1444,10 @@ export async function* getLocalSyncGenerator(params: {
     for await (const { interval, promise } of intervalGenerator) {
       // Note: this relies on the invariant that `syncInterval`
       // will always resolve promises in the order it was called.
-      syncInterval({ interval, promise }).then(() => {
-        callback({ value: interval[1], done: false });
+      syncInterval({ interval, promise }).then((didInsertData) => {
+        if (didInsertData) {
+          callback({ value: interval[1], done: false });
+        }
 
         if (interval[1] === hexToNumber(last.number)) {
           callback({ value: undefined, done: true });
