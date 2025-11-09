@@ -1402,6 +1402,9 @@ export async function* getLocalSyncGenerator(params: {
       // Resolve promise so the next interval can continue.
       pwr.resolve();
     } else if (isSyncComplete === false) {
+      // Wait for the previous interval to complete `syncBlockData`.
+      await promise;
+
       // Queue the next interval
       intervalCallback({
         interval: [
@@ -1445,11 +1448,12 @@ export async function* getLocalSyncGenerator(params: {
       // Note: this relies on the invariant that `syncInterval`
       // will always resolve promises in the order it was called.
       syncInterval({ interval, promise }).then((didInsertData) => {
-        if (didInsertData) {
+        const isDone = interval[1] === hexToNumber(last.number);
+        if (didInsertData || isDone) {
           callback({ value: interval[1], done: false });
         }
 
-        if (interval[1] === hexToNumber(last.number)) {
+        if (isDone) {
           callback({ value: undefined, done: true });
         }
       });
