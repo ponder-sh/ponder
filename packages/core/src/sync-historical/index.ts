@@ -32,6 +32,7 @@ import {
   isAddressFactory,
   isAddressMatched,
   isBlockFilterMatched,
+  isBlockInFilter,
   isLogFactoryMatched,
   isLogFilterMatched,
   isTraceFilterMatched,
@@ -770,7 +771,10 @@ export const createHistoricalSync = (
         ////////
 
         const shouldRequestTraces =
-          traceFilters.length > 0 || transferFilters.length > 0;
+          traceFilters.some((filter) => isBlockInFilter(filter, blockNumber)) ||
+          transferFilters.some((filter) =>
+            isBlockInFilter(filter, blockNumber),
+          );
 
         let traces: SyncTrace[] = [];
         if (shouldRequestTraces) {
@@ -894,7 +898,12 @@ export const createHistoricalSync = (
         ////////
 
         // Return early if no data is fetched
-        if (block === undefined && transactionFilters.length === 0) {
+        if (
+          block === undefined &&
+          transactionFilters.every((filter) =>
+            isBlockInFilter(filter, blockNumber),
+          ) === false
+        ) {
           return;
         }
 
@@ -948,9 +957,6 @@ export const createHistoricalSync = (
           validateTransactionsAndBlock(block, "number");
         }
 
-        // Free memory of all unused transactions
-        block.transactions = transactions;
-
         const transactionsByHash = new Map<Hash, SyncTransaction>();
         for (const transaction of transactions) {
           transactionsByHash.set(transaction.hash, transaction);
@@ -969,6 +975,9 @@ export const createHistoricalSync = (
         transactionCount += transactions.length;
         receiptCount += transactionReceipts.length;
         traceCount += traces.length;
+
+        // Free memory of all unused transactions
+        block.transactions = transactions;
 
         await promiseAllSettledWithThrow([
           syncStore.insertBlocks({ blocks: [block], chainId: args.chain.id }),
