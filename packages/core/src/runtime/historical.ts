@@ -1401,18 +1401,20 @@ export async function* getLocalSyncGenerator(params: {
 
       // Resolve promise so the next interval can continue.
       pwr.resolve();
-    } else if (isSyncComplete === false) {
+    } else {
       // Wait for the previous interval to complete `syncBlockData`.
       await promise;
 
-      // Queue the next interval
-      intervalCallback({
-        interval: [
-          Math.min(interval[1] + 1, hexToNumber(last.number)),
-          Math.min(interval[1] + 1 + estimateRange, hexToNumber(last.number)),
-        ],
-        promise: Promise.resolve(),
-      });
+      if (isSyncComplete === false) {
+        // Queue the next interval
+        intervalCallback({
+          interval: [
+            Math.min(interval[1] + 1, hexToNumber(last.number)),
+            Math.min(interval[1] + 1 + estimateRange, hexToNumber(last.number)),
+          ],
+          promise: Promise.resolve(),
+        });
+      }
     }
 
     if (interval[1] === hexToNumber(last.number)) {
