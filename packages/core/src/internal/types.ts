@@ -316,7 +316,7 @@ export type PreBuild = {
   /** Database type and configuration */
   databaseConfig: DatabaseConfig;
   /** Ordering of events */
-  ordering: "omnichain" | "multichain";
+  ordering: "omnichain" | "multichain" | "experimental_isolated";
 };
 
 export type SchemaBuild = {

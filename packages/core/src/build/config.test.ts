@@ -859,7 +859,7 @@ test("buildIndexingFunctions() block source", async (context) => {
   expect(eventCallbacks).toHaveLength(1);
 
   expect(eventCallbacks[0]![0]?.chain.name).toBe("mainnet");
-  expect(eventCallbacks[0]![0]?.name).toBe("a");
+  expect(eventCallbacks[0]![0]?.name).toBe("a:block");
   expect(eventCallbacks[0]![0]?.filter.type).toBe("block");
   // @ts-ignore
   expect(eventCallbacks[0]![0]?.filter.interval).toBe(1);

@@ -421,6 +421,18 @@ export const getFilterToBlock = (filter: Filter): number => {
   return Math.max(...blocks);
 };
 
+export const isBlockInFilter = (filter: Filter, blockNumber: number) => {
+  // Return `false` for out of range blocks
+  if (
+    blockNumber < (filter.fromBlock ?? 0) ||
+    blockNumber > (filter.toBlock ?? Number.POSITIVE_INFINITY)
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
 export const defaultBlockInclude: (keyof Block)[] = [
   "baseFeePerGas",
   "difficulty",

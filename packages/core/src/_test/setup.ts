@@ -198,6 +198,7 @@ export async function setupDatabaseServices(
 }> {
   const { statements } = buildSchema({
     schema: overrides.schemaBuild?.schema ?? {},
+    preBuild: { ordering: "multichain" },
   });
 
   const database = createDatabase({
@@ -208,6 +209,7 @@ export async function setupDatabaseServices(
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: overrides.schemaBuild?.schema ?? {},

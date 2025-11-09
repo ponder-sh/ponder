@@ -422,16 +422,16 @@ export async function buildIndexingFunctions({
         toBlock: factoryToBlock,
       });
 
+      perChainContracts.get(chain.id)![source.name] = {
+        abi: source.abi,
+        address: undefined,
+        startBlock: fromBlock,
+        endBlock: toBlock,
+      };
+
       address = logFactory;
     } else {
       if (resolvedAddress !== undefined) {
-        perChainContracts.get(chain.id)![source.name] = {
-          abi: source.abi,
-          address: resolvedAddress as Address | readonly Address[],
-          startBlock: fromBlock,
-          endBlock: toBlock,
-        };
-
         for (const address of Array.isArray(resolvedAddress)
           ? resolvedAddress
           : [resolvedAddress as Address]) {
@@ -454,6 +454,13 @@ export async function buildIndexingFunctions({
         : resolvedAddress !== undefined
           ? toLowerCase(resolvedAddress as Address)
           : undefined;
+
+      perChainContracts.get(chain.id)![source.name] = {
+        abi: source.abi,
+        address: validatedAddress,
+        startBlock: fromBlock,
+        endBlock: toBlock,
+      };
 
       address = validatedAddress;
     }
@@ -888,7 +895,7 @@ export async function buildIndexingFunctions({
 
       const eventCallback = {
         filter,
-        name: source.name,
+        name: eventName,
         fn: indexingFunction.fn,
         chain,
         type: "block",

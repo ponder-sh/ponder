@@ -1,12 +1,11 @@
-import { runCodegen } from "@/bin/utils/codegen.js";
 import {
   commitBlock,
   createIndexes,
   createTriggers,
   createViews,
   dropTriggers,
-  finalize,
-  revert,
+  finalizeMultichain,
+  revertMultichain,
 } from "@/database/actions.js";
 import {
   type Database,
@@ -86,8 +85,6 @@ export async function runMultichain({
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   database: Database;
 }) {
-  runCodegen({ common });
-
   const columnAccessPattern = createColumnAccessPattern({
     indexingBuild,
   });
@@ -122,7 +119,6 @@ export async function runMultichain({
     common,
     indexingBuild,
     client: cachedViemClient,
-    eventCount,
     indexingErrorHandler,
     columnAccessPattern,
   });
@@ -301,14 +297,14 @@ export async function runMultichain({
     // underlying metrics collection is actually synchronous
     // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
     const { eta, progress } = await getAppProgress(common.metrics);
-    if (eta === undefined || progress === undefined) {
+    if (eta === undefined && progress === undefined) {
       return;
     }
 
     common.logger.info({
       msg: "Updated backfill indexing progress",
-      progress: formatPercentage(progress),
-      estimate: formatEta(eta * 1_000),
+      progress: progress === undefined ? undefined : formatPercentage(progress),
+      estimate: eta === undefined ? undefined : formatEta(eta * 1_000),
     });
   }, 5_000);
 
@@ -363,7 +359,9 @@ export async function runMultichain({
     let endClock = startClock();
     await database.userQB.transaction(
       async (tx) => {
-        const initialEventCount = structuredClone(eventCount);
+        const initialCompletedEvents = structuredClone(
+          await common.metrics.ponder_indexing_completed_events.get(),
+        );
 
         try {
           historicalIndexingStore.qb = tx;
@@ -452,8 +450,11 @@ export async function runMultichain({
           );
           endClock = startClock();
         } catch (error) {
-          for (const [event, count] of Object.entries(eventCount)) {
-            eventCount[event]! -= count - initialEventCount[event]!;
+          for (const value of initialCompletedEvents.values) {
+            common.metrics.ponder_indexing_completed_events.set(
+              value.labels,
+              value.value,
+            );
           }
           indexingCache.invalidate();
           indexingCache.clear();
@@ -527,7 +528,7 @@ export async function runMultichain({
       ),
     );
     common.metrics.ponder_indexing_timestamp.set(
-      { chain: chain.name },
+      label,
       seconds[chain.name]!.end,
     );
   }
@@ -672,7 +673,7 @@ export async function runMultichain({
 
                   await Promise.all(
                     tables.map((table) =>
-                      commitBlock(tx, { table, checkpoint }, context),
+                      commitBlock(tx, { table, checkpoint, preBuild }, context),
                     ),
                   );
 
@@ -745,12 +746,11 @@ export async function runMultichain({
           async (tx) => {
             await dropTriggers(tx, { tables }, context);
 
-            const counts = await revert(
+            const counts = await revertMultichain(
               tx,
               {
                 checkpoint: event.checkpoint,
                 tables,
-                preBuild,
               },
               context,
             );
@@ -785,12 +785,11 @@ export async function runMultichain({
         };
         const endClock = startClock();
 
-        await finalize(
+        await finalizeMultichain(
           database.userQB,
           {
             checkpoint: event.checkpoint,
             tables,
-            preBuild,
             namespaceBuild,
           },
           context,
