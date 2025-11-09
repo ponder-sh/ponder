@@ -895,7 +895,7 @@ export async function buildIndexingFunctions({
 
       const eventCallback = {
         filter,
-        name: source.name,
+        name: eventName,
         fn: indexingFunction.fn,
         chain,
         type: "block",
