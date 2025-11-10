@@ -118,7 +118,10 @@ export const SIM_PARAMS = {
     APP_ID === "super-assessment"
       ? undefined
       : pick([0, 0.001, 0.002], "realtime-shutdown-rate"),
-  ORDERING: pick(["multichain", "omnichain"], "ordering"),
+  ORDERING:
+    APP_ID === "assessment"
+      ? pick(["multichain", "omnichain", "experimental_isolated"], "ordering")
+      : pick(["multichain", "omnichain"], "ordering"),
   REALTIME_BLOCK_HAS_TRANSACTIONS: pick(
     [true, false],
     "realtime-block-has-transactions",
@@ -243,6 +246,7 @@ process.env.PONDER_TELEMETRY_DISABLED = "true";
 process.env.DATABASE_URL = `${DATABASE_URL!}/${UUID}`;
 process.env.DATABASE_SCHEMA = "public";
 process.env.SEED = SEED;
+process.env.ORDERING = SIM_PARAMS.ORDERING;
 
 const pwr = promiseWithResolvers<void>();
 
@@ -257,8 +261,9 @@ const pwr = promiseWithResolvers<void>();
 const onBuild = async (app: PonderApp) => {
   APP = app;
 
-  app.preBuild.ordering = SIM_PARAMS.ORDERING as "multichain" | "omnichain";
   app.common.options.syncEventsQuerySize = 200;
+  // Note: this forces the app to run in a single thread.
+  app.common.options.maxThreads = 1;
 
   app.common.logger.warn({
     msg: "Mocking syncQB, adminQB, userQB, and readonlyQB",

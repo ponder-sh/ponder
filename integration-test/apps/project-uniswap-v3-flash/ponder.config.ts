@@ -4,6 +4,8 @@ import { UniswapV3FactoryAbi } from "./abis/UniswapV3FactoryAbi";
 import { UniswapV3PoolAbi } from "./abis/UniswapV3PoolAbi";
 
 export default createConfig({
+  // @ts-ignore
+  ordering: process.env.ORDERING,
   database: {
     kind: "postgres",
     connectionString: process.env.DATABASE_URL,
