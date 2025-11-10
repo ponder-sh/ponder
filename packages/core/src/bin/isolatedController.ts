@@ -137,7 +137,8 @@ export async function isolatedController({
   if (
     common.options.command === "dev" ||
     indexingBuild.chains.length === 1 ||
-    database.driver.dialect === "pglite"
+    database.driver.dialect === "pglite" ||
+    common.options.maxThreads === 1
   ) {
     common.options.indexingCacheMaxBytes = Math.floor(
       common.options.indexingCacheMaxBytes / indexingBuild.chains.length,
@@ -160,6 +161,8 @@ export async function isolatedController({
           rpcs: [indexingBuild.rpcs[chainIndex]!],
           finalizedBlocks: [indexingBuild.finalizedBlocks[chainIndex]!],
           eventCallbacks: [indexingBuild.eventCallbacks[chainIndex]!],
+          setupCallbacks: [indexingBuild.setupCallbacks[chainIndex]!],
+          contracts: [indexingBuild.contracts[chainIndex]!],
         };
 
         perChainState.set(chain.id, "backfill");

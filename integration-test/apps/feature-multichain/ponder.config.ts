@@ -3,6 +3,8 @@ import { createConfig } from "ponder";
 import { weth9Abi } from "./abis/weth9Abi";
 
 export default createConfig({
+  // @ts-ignore
+  ordering: process.env.ORDERING,
   database: {
     kind: "postgres",
     connectionString: process.env.DATABASE_URL,

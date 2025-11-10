@@ -3,6 +3,8 @@ import { BasePaintAbi } from "./abis/BasePaintAbi";
 import { BasePaintBrushAbi } from "./abis/BasePaintBrushAbi";
 
 export default createConfig({
+  // @ts-ignore
+  ordering: process.env.ORDERING,
   database: {
     kind: "postgres",
     connectionString: process.env.DATABASE_URL,
