@@ -135,8 +135,6 @@ export async function getLocalSyncProgress(params: {
     cachedIntervals: params.cachedIntervals,
   });
 
-  console.log(params.chain.name, cached, start);
-
   const diagnostics = await Promise.all(
     cached === undefined
       ? [
