@@ -1,5 +1,25 @@
 # Migration guide [Upgrade to a new version of Ponder]
 
+## 0.15
+
+### Breaking changes
+
+None.
+
+### New features
+
+#### `ordering: "experimental_isolated"`
+
+A new ordering mode, `experimental_isolated`, is available. This mode isolates each chain, requiring each table in the schema to include a `chain_id` column in the primary key. It also takes advantage of mulitple CPU cores for better performance.
+
+Visit the [documentation](https://ponder.sh/docs/api-reference/ponder/config#ordering) for details.
+
+#### Improved SQL over HTTP scalability
+
+SQL over HTTP queries are cached and selectively invalidated only when a table referenced by the query is updated.
+
+Live queries are now guaranteed to be updated *only when the query result changes*.
+
 ## 0.14
 
 ### Breaking changes
