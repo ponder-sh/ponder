@@ -152,6 +152,15 @@ export async function isolatedWorker({
         (c) => c.id === chainId,
       );
 
+      console.log(
+        chainId,
+        JSON.stringify(
+          indexingBuildResult.result.eventCallbacks[chainIndex]!,
+          null,
+          2,
+        ),
+      );
+
       const indexingBuild = {
         ...indexingBuildResult.result,
         chains: [indexingBuildResult.result.chains[chainIndex]!],
