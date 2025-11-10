@@ -10,6 +10,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useContext, useEffect, useMemo } from "react";
+import { decodeCheckpoint } from "./checkpoint.js";
 import { PonderContext } from "./context.js";
 import type { ResolvedSchema } from "./index.js";
 import { getPonderQueryOptions } from "./utils.js";
@@ -67,32 +68,40 @@ export function usePonderQueryOptions<T>(
   return getPonderQueryOptions(client, queryFn);
 }
 
-const statusQueryKey = ["status"];
-
-export function usePonderStatus(
-  params: Omit<UseQueryOptions<Status>, "queryFn" | "queryKey">,
-): UseQueryResult<Status> {
-  const queryClient = useQueryClient();
-
-  const client = useContext(PonderContext);
-  if (client === undefined) {
-    throw new Error("PonderProvider not found");
-  }
-
-  // TODO(kyle)  SELECT * FROM _ponder_checkpoint;
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
-  useEffect(() => {
-    const { unsubscribe } = client.live(client.getStatus, (data) => {
-      queryClient.setQueryData(statusQueryKey, data);
-    });
-    return unsubscribe;
-  }, []);
-
-  return useQuery({
+export function usePonderStatus<error = DefaultError>(
+  params: Omit<
+    UseQueryOptions<
+      { chainName: string; chainId: number; latestCheckpoint: string }[],
+      error,
+      Status
+    >,
+    "queryFn" | "queryKey" | "select"
+  >,
+): UseQueryResult<Status, error> {
+  return usePonderQuery<
+    { chainName: string; chainId: number; latestCheckpoint: string }[],
+    error,
+    Status
+  >({
     ...params,
-    queryKey: statusQueryKey,
-    queryFn: () => client.getStatus(),
-    staleTime: params.staleTime ?? Number.POSITIVE_INFINITY,
+    queryFn: (db) => db.execute("SELECT * FROM _ponder_checkpoint"),
+    select(checkpoints) {
+      const status: Status = {};
+      for (const { chainName, chainId, latestCheckpoint } of checkpoints.sort(
+        (a, b) => (a.chainId > b.chainId ? 1 : -1),
+      )) {
+        status[chainName] = {
+          id: chainId,
+          block: {
+            number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
+            timestamp: Number(
+              decodeCheckpoint(latestCheckpoint).blockTimestamp,
+            ),
+          },
+        };
+      }
+
+      return status;
+    },
   });
 }

@@ -11,7 +11,7 @@ import {
 } from "drizzle-orm";
 import { type PgDialect, isPgEnum } from "drizzle-orm/pg-core";
 import { type PgRemoteDatabase, drizzle } from "drizzle-orm/pg-proxy";
-import type { TypedQueryBuilder } from "drizzle-orm/query-builders/query-builder";
+import { TypedQueryBuilder } from "drizzle-orm/query-builders/query-builder";
 import { EventSource } from "eventsource";
 import superjson from "superjson";
 
@@ -157,8 +157,7 @@ export const createClient = <schema extends Schema>(
           '"queryFn" must return SQL. You may have to remove `.execute()` from your query.',
         );
       }
-      const queryBuilder =
-        queryPromise as unknown as TypedQueryBuilder<unknown>;
+      const queryBuilder = queryPromise as unknown as SQLWrapper;
       const query = compileQuery(queryBuilder);
 
       const sse = new EventSource(getUrl(baseUrl, "live", query));
@@ -182,11 +181,16 @@ export const createClient = <schema extends Schema>(
             { schema: params.schema },
           );
 
-          const fields = queryBuilder._.selectedFields as Record<
-            string,
-            unknown
-          >;
-          const orderedFields = orderSelectedFields(fields);
+          let orderedFields: SelectedFieldsOrdered<AnyColumn> | undefined =
+            undefined;
+
+          if (queryBuilder instanceof TypedQueryBuilder) {
+            const fields = queryBuilder._.selectedFields as Record<
+              string,
+              unknown
+            >;
+            orderedFields = orderSelectedFields(fields);
+          }
 
           onData(
             // @ts-ignore
