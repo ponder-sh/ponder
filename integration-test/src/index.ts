@@ -858,6 +858,7 @@ const onBuild = async (app: PonderApp) => {
 
   if (SIM_PARAMS.MAX_UNCACHED_BLOCKS > 0) {
     for (const interval of await APP_DB.select().from(PONDER_SYNC.intervals)) {
+      if (interval.fragmentId.startsWith("factory_")) continue;
       const intervals: [number, number][] = JSON.parse(
         `[${interval.blocks.slice(1, -1)}]`,
       );

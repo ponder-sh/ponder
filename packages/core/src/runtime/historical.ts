@@ -1252,7 +1252,7 @@ export async function* getLocalSyncGenerator(params: {
     });
 
     let closestToTipBlock: SyncBlock | undefined;
-    if (requiredIntervals.length > 0) {
+    if (requiredIntervals.length > 0 || requiredFactoryIntervals.length > 0) {
       const pwr = promiseWithResolvers<void>();
 
       const durationTimer = setTimeout(
