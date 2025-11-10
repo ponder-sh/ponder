@@ -8,8 +8,12 @@ import {
   Table,
   is,
   isTable,
+  mapRelationalRow,
 } from "drizzle-orm";
 import { type PgDialect, isPgEnum } from "drizzle-orm/pg-core";
+import { PgCountBuilder } from "drizzle-orm/pg-core/query-builders/count";
+import { PgRelationalQuery } from "drizzle-orm/pg-core/query-builders/query";
+import { PgRaw } from "drizzle-orm/pg-core/query-builders/raw";
 import { type PgRemoteDatabase, drizzle } from "drizzle-orm/pg-proxy";
 import { TypedQueryBuilder } from "drizzle-orm/query-builders/query-builder";
 import { EventSource } from "eventsource";
@@ -181,20 +185,16 @@ export const createClient = <schema extends Schema>(
             { schema: params.schema },
           );
 
-          let orderedFields: SelectedFieldsOrdered<AnyColumn> | undefined =
-            undefined;
+          let data: unknown;
 
           if (queryBuilder instanceof TypedQueryBuilder) {
             const fields = queryBuilder._.selectedFields as Record<
               string,
               unknown
             >;
-            orderedFields = orderSelectedFields(fields);
-          }
+            const orderedFields = orderSelectedFields(fields);
 
-          onData(
-            // @ts-ignore
-            await drizzleShim._.session
+            data = await drizzleShim._.session
               .prepareQuery(
                 query,
                 // @ts-ignore
@@ -202,8 +202,49 @@ export const createClient = <schema extends Schema>(
                 undefined,
                 false,
               )
-              .execute(),
-          );
+              .execute();
+          } else if (queryBuilder instanceof PgRelationalQuery) {
+            // @ts-ignore
+            const selection = queryBuilder._toSQL().query.selection;
+            data = await drizzleShim._.session
+              .prepareQuery(
+                query,
+                undefined,
+                undefined,
+                true,
+                (rawRows, mapColumnValue) => {
+                  const rows = rawRows.map((row) =>
+                    mapRelationalRow(
+                      // @ts-ignore
+                      queryBuilder.schema,
+                      // @ts-ignore
+                      queryBuilder.tableConfig,
+                      // @ts-ignore
+                      row,
+                      selection,
+                      mapColumnValue,
+                    ),
+                  );
+                  // @ts-ignore
+                  if (queryBuilder.mode === "first") {
+                    return rows[0];
+                  }
+                  return rows;
+                },
+              )
+              .execute();
+          } else if (queryBuilder instanceof PgRaw) {
+            data = await drizzleShim._.session
+              .prepareQuery(query, undefined, undefined, false)
+              .execute();
+          } else if (queryBuilder instanceof PgCountBuilder) {
+            data = await drizzleShim._.session.count(queryBuilder.getSQL());
+          } else {
+            throw new Error("Unsupported query builder");
+          }
+
+          // @ts-ignore
+          onData(data);
         } catch (error) {
           onError?.(error as Error);
         }
