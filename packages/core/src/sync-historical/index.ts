@@ -900,7 +900,7 @@ export const createHistoricalSync = (
         // Return early if no data is fetched
         if (
           block === undefined &&
-          transactionFilters.every((filter) =>
+          transactionFilters.some((filter) =>
             isBlockInFilter(filter, blockNumber),
           ) === false
         ) {
