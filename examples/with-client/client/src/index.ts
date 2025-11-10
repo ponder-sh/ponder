@@ -4,24 +4,24 @@ import * as schema from "../../ponder/ponder.schema";
 const client = createClient("http://localhost:42069/sql", { schema });
 
 const result = await client.db
-  .select({ balance: schema.accountView.balance })
-  .from(schema.accountView)
-  .orderBy(desc(schema.accountView.balance))
+  .select({ balance: schema.account.balance })
+  .from(schema.account)
+  .orderBy(desc(schema.account.balance))
   .limit(1);
 
-console.log(result);
+console.log(result[0]);
 
 console.log("Subscribing to live updates...");
 
 const { unsubscribe } = client.live(
   (db) =>
     db
-      .select({ balance: schema.accountView.balance })
-      .from(schema.accountView)
-      .orderBy(desc(schema.accountView.balance))
+      .select({ balance: schema.account.balance })
+      .from(schema.account)
+      .orderBy(desc(schema.account.balance))
       .limit(1),
   (data) => {
-    console.log(data);
+    console.log(data[0]);
   },
   (error) => {
     console.error(error);
