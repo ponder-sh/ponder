@@ -1,4 +1,3 @@
-import { findTableNames, validateQuery } from "@/client/parse.js";
 import type { QB } from "@/database/queryBuilder.js";
 import type { Common } from "@/internal/common.js";
 import {
@@ -13,6 +12,7 @@ import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
 import { copy, copyOnWrite } from "@/utils/copy.js";
 import { createLock } from "@/utils/mutex.js";
 import { prettyPrint } from "@/utils/print.js";
+import { getSQLQueryRelations, isReadonlySQLQuery } from "@/utils/sql-parse.js";
 import { startClock } from "@/utils/timer.js";
 import {
   type QueryWithTypings,
@@ -482,11 +482,7 @@ export const createHistoricalIndexingStore = ({
     // @ts-ignore
     sql: drizzle(
       storeMethodWrapper(async (_sql, params, method, typings) => {
-        let isSelectOnly = false;
-        try {
-          await validateQuery(_sql, false);
-          isSelectOnly = true;
-        } catch {}
+        const isSelectOnly = await isReadonlySQLQuery(_sql);
 
         if (isSelectOnly === false) {
           await indexingCache.flush();
@@ -495,19 +491,19 @@ export const createHistoricalIndexingStore = ({
         } else {
           // Note: Not all nodes are implemented in the parser,
           // so we need to try/catch to avoid throwing an error.
-          let refNames: Set<string> | undefined;
+          let relations: Set<string> | undefined;
           try {
-            refNames = await findTableNames(_sql);
+            relations = await getSQLQueryRelations(_sql);
           } catch {}
 
           if (
-            Array.from(refNames ?? []).some((refName) =>
+            Array.from(relations ?? []).some((refName) =>
               views.some((view) => getViewName(view) === refName),
             )
           ) {
             await indexingCache.flush();
           } else {
-            await indexingCache.flush({ tableNames: refNames });
+            await indexingCache.flush({ tableNames: relations });
           }
         }
 

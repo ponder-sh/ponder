@@ -10,6 +10,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useContext, useEffect, useMemo } from "react";
+import { decodeCheckpoint } from "./checkpoint.js";
 import { PonderContext } from "./context.js";
 import type { ResolvedSchema } from "./index.js";
 import { getPonderQueryOptions } from "./utils.js";
@@ -35,10 +36,9 @@ export function usePonderQuery<
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
-    const { unsubscribe } = client.live(
-      () => Promise.resolve(),
-      () => queryClient.invalidateQueries({ queryKey: queryOptions.queryKey }),
-    );
+    const { unsubscribe } = client.live(queryOptions.queryFn, (data) => {
+      queryClient.setQueryData(queryOptions.queryKey, data);
+    });
     return unsubscribe;
   }, queryOptions.queryKey);
 
@@ -46,6 +46,7 @@ export function usePonderQuery<
     ...params,
     queryKey: queryOptions.queryKey,
     queryFn: queryOptions.queryFn,
+    staleTime: params.staleTime ?? Number.POSITIVE_INFINITY,
   });
 }
 
@@ -67,30 +68,40 @@ export function usePonderQueryOptions<T>(
   return getPonderQueryOptions(client, queryFn);
 }
 
-const statusQueryKey = ["status"];
-
-export function usePonderStatus(
-  params: Omit<UseQueryOptions<Status>, "queryFn" | "queryKey">,
-): UseQueryResult<Status> {
-  const queryClient = useQueryClient();
-
-  const client = useContext(PonderContext);
-  if (client === undefined) {
-    throw new Error("PonderProvider not found");
-  }
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
-  useEffect(() => {
-    const { unsubscribe } = client.live(
-      () => Promise.resolve(),
-      () => queryClient.invalidateQueries({ queryKey: statusQueryKey }),
-    );
-    return unsubscribe;
-  }, []);
-
-  return useQuery({
+export function usePonderStatus<error = DefaultError>(
+  params: Omit<
+    UseQueryOptions<
+      { chainName: string; chainId: number; latestCheckpoint: string }[],
+      error,
+      Status
+    >,
+    "queryFn" | "queryKey" | "select"
+  >,
+): UseQueryResult<Status, error> {
+  return usePonderQuery<
+    { chainName: string; chainId: number; latestCheckpoint: string }[],
+    error,
+    Status
+  >({
     ...params,
-    queryKey: statusQueryKey,
-    queryFn: () => client.getStatus(),
+    queryFn: (db) => db.execute("SELECT * FROM _ponder_checkpoint"),
+    select(checkpoints) {
+      const status: Status = {};
+      for (const { chainName, chainId, latestCheckpoint } of checkpoints.sort(
+        (a, b) => (a.chainId > b.chainId ? 1 : -1),
+      )) {
+        status[chainName] = {
+          id: chainId,
+          block: {
+            number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
+            timestamp: Number(
+              decodeCheckpoint(latestCheckpoint).blockTimestamp,
+            ),
+          },
+        };
+      }
+
+      return status;
+    },
   });
 }

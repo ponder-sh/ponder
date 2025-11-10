@@ -3,6 +3,10 @@ import {
   SHARED_OPERATION_ID_SEQUENCE,
   sqlToReorgTableName,
 } from "@/drizzle/kit/index.js";
+import {
+  getLiveQueryNotifyProcedureName,
+  getLiveQueryProcedureName,
+} from "@/drizzle/onchain.js";
 import type { Common } from "@/internal/common.js";
 import {
   MigrationError,
@@ -40,7 +44,12 @@ import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
 import type { Pool } from "pg";
 import prometheus from "prom-client";
 import { hexToBigInt } from "viem";
-import { crashRecovery, dropTriggers } from "./actions.js";
+import {
+  crashRecovery,
+  createLiveQueryProcedures,
+  dropLiveQueryTriggers,
+  dropTriggers,
+} from "./actions.js";
 import { type QB, createQB, parseDbError } from "./queryBuilder.js";
 
 export type Database = {
@@ -611,40 +620,6 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
             ),
           context,
         );
-
-        const trigger = "status_trigger";
-        const notification = "status_notify()";
-        const channel = `${namespace.schema}_status_channel`;
-
-        await tx.wrap(
-          (tx) =>
-            tx.execute(
-              `
-CREATE OR REPLACE FUNCTION "${namespace.schema}".${notification}
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
-BEGIN
-NOTIFY "${channel}";
-RETURN NULL;
-END;
-$$;`,
-            ),
-          context,
-        );
-
-        await tx.wrap(
-          (tx) =>
-            tx.execute(
-              `
-CREATE OR REPLACE TRIGGER "${trigger}"
-AFTER INSERT OR UPDATE OR DELETE
-ON "${namespace.schema}"._ponder_checkpoint
-FOR EACH STATEMENT
-EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
-            ),
-          context,
-        );
       };
 
       const tryAcquireLockAndMigrate = () =>
@@ -702,6 +677,11 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             await createEnums(tx);
             await createTables(tx);
             await createViews(tx);
+            await createLiveQueryProcedures(
+              tx,
+              { namespaceBuild: namespace },
+              context,
+            );
 
             common.logger.info({
               msg: "Created database tables",
@@ -822,7 +802,24 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
               context,
             );
 
+            await tx.wrap((tx) =>
+              tx.execute(
+                `DROP FUNCTION IF EXISTS "${namespace.schema}".${getLiveQueryProcedureName()}`,
+              ),
+            );
+
+            await tx.wrap((tx) =>
+              tx.execute(
+                `DROP FUNCTION IF EXISTS "${namespace.schema}".${getLiveQueryNotifyProcedureName()}`,
+              ),
+            );
+
             await createAdminObjects(tx);
+            await createLiveQueryProcedures(
+              tx,
+              { namespaceBuild: namespace },
+              context,
+            );
 
             common.logger.debug({
               msg: "Reset internal database objects",
@@ -927,9 +924,19 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
           if (preBuild.ordering === "experimental_isolated") {
             for (const { chainId } of checkpoints) {
               await dropTriggers(tx, { tables, chainId });
+              await dropLiveQueryTriggers(
+                tx,
+                { namespaceBuild: namespace, tables, chainId },
+                context,
+              );
             }
           } else {
             await dropTriggers(tx, { tables });
+            await dropLiveQueryTriggers(
+              tx,
+              { namespaceBuild: namespace, tables },
+              context,
+            );
           }
 
           // Remove indexes

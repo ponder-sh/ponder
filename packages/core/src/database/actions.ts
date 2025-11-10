@@ -1,11 +1,19 @@
 import {
   getPartitionName,
   getPrimaryKeyColumns,
+  getReorgProcedureName,
   getReorgTableName,
-  getTriggerFnName,
-  getTriggerName,
+  getReorgTriggerName,
 } from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
+import {
+  getLiveQueryChannelName,
+  getLiveQueryNotifyProcedureName,
+  getLiveQueryNotifyTriggerName,
+  getLiveQueryProcedureName,
+  getLiveQueryTriggerName,
+  getViewsLiveQueryNotifyTriggerName,
+} from "@/drizzle/onchain.js";
 import type { Logger } from "@/internal/logger.js";
 import type {
   NamespaceBuild,
@@ -67,7 +75,7 @@ export const createTriggers = async (
           await tx.wrap({ label: "create_trigger" }, (tx) =>
             tx.execute(
               `
-  CREATE OR REPLACE FUNCTION "${schema}".${getTriggerFnName(table, chainId)}
+  CREATE OR REPLACE FUNCTION "${schema}".${getReorgProcedureName(table)}
   RETURNS TRIGGER AS $$
   BEGIN
   IF TG_OP = 'INSERT' THEN
@@ -89,9 +97,9 @@ export const createTriggers = async (
           await tx.wrap({ label: "create_trigger" }, (tx) =>
             tx.execute(
               `
-  CREATE OR REPLACE TRIGGER "${getTriggerName(table, chainId)}"
+  CREATE OR REPLACE TRIGGER "${getReorgTriggerName()}"
   AFTER INSERT OR UPDATE OR DELETE ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"
-  FOR EACH ROW EXECUTE FUNCTION "${schema}".${getTriggerFnName(table, chainId)};
+  FOR EACH ROW EXECUTE FUNCTION "${schema}".${getReorgProcedureName(table)};
   `,
             ),
           );
@@ -116,10 +124,159 @@ export const dropTriggers = async (
 
           await tx.wrap({ label: "drop_trigger" }, (tx) =>
             tx.execute(
-              `DROP TRIGGER IF EXISTS "${getTriggerName(table, chainId)}" ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"`,
+              `DROP TRIGGER IF EXISTS "${getReorgTriggerName()}" ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"`,
             ),
           );
         }),
+      );
+    },
+    undefined,
+    context,
+  );
+};
+
+export const createLiveQueryTriggers = async (
+  qb: QB,
+  {
+    namespaceBuild,
+    tables,
+    chainId,
+  }: { namespaceBuild: NamespaceBuild; tables: Table[]; chainId?: number },
+  context?: { logger?: Logger },
+) => {
+  await qb.transaction(
+    async (tx) => {
+      const notifyProcedure = getLiveQueryNotifyProcedureName();
+      const notifyTrigger = getLiveQueryNotifyTriggerName();
+
+      await tx.wrap((tx) =>
+        tx.execute(
+          `
+CREATE OR REPLACE TRIGGER "${notifyTrigger}"
+AFTER INSERT OR UPDATE OR DELETE
+ON "${namespaceBuild.schema}"._ponder_checkpoint
+FOR EACH STATEMENT
+EXECUTE PROCEDURE "${namespaceBuild.schema}".${notifyProcedure};`,
+        ),
+      );
+
+      const trigger = getLiveQueryTriggerName();
+      const procedure = getLiveQueryProcedureName();
+
+      for (const table of tables) {
+        const schema = getTableConfig(table).schema ?? "public";
+
+        await tx.wrap((tx) =>
+          tx.execute(
+            `
+CREATE OR REPLACE TRIGGER "${trigger}"
+AFTER INSERT OR UPDATE OR DELETE
+ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"
+FOR EACH STATEMENT
+EXECUTE PROCEDURE "${schema}".${procedure};`,
+          ),
+        );
+      }
+    },
+    undefined,
+    context,
+  );
+};
+
+export const dropLiveQueryTriggers = async (
+  qb: QB,
+  {
+    namespaceBuild,
+    tables,
+    chainId,
+  }: { namespaceBuild: NamespaceBuild; tables: Table[]; chainId?: number },
+  context?: { logger?: Logger },
+) => {
+  await qb.transaction(
+    async (tx) => {
+      const notifyTrigger = getLiveQueryNotifyTriggerName();
+      await tx.wrap((tx) =>
+        tx.execute(
+          `DROP TRIGGER IF EXISTS "${notifyTrigger}" ON "${namespaceBuild.schema}"._ponder_checkpoint;`,
+        ),
+      );
+
+      const trigger = getLiveQueryTriggerName();
+      for (const table of tables) {
+        const schema = getTableConfig(table).schema ?? "public";
+
+        await tx.wrap((tx) =>
+          tx.execute(
+            `DROP TRIGGER IF EXISTS "${trigger}" ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}";`,
+          ),
+        );
+      }
+    },
+    undefined,
+    context,
+  );
+};
+
+export const createLiveQueryProcedures = async (
+  qb: QB,
+  { namespaceBuild }: { namespaceBuild: NamespaceBuild },
+  context?: { logger?: Logger },
+) => {
+  await qb.transaction(
+    async (tx) => {
+      const schema = namespaceBuild.schema;
+      const procedure = getLiveQueryProcedureName();
+
+      await tx.wrap(
+        (tx) =>
+          tx.execute(
+            `
+CREATE OR REPLACE FUNCTION "${schema}".${procedure}
+RETURNS TRIGGER LANGUAGE plpgsql
+AS $$
+BEGIN
+  INSERT INTO live_query_tables (table_name)
+  VALUES (TG_TABLE_NAME)
+  ON CONFLICT (table_name) DO NOTHING;
+  RETURN NULL;
+END;
+$$;`,
+          ),
+        context,
+      );
+
+      const notifyProcedure = getLiveQueryNotifyProcedureName();
+      const channel = getLiveQueryChannelName(namespaceBuild.schema);
+
+      await tx.wrap(
+        (tx) =>
+          tx.execute(`
+CREATE OR REPLACE FUNCTION "${schema}".${notifyProcedure}
+RETURNS TRIGGER LANGUAGE plpgsql
+AS $$
+  DECLARE
+    table_names json;
+    table_exists boolean := false;
+  BEGIN
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_name = 'live_query_tables'
+      AND table_type = 'LOCAL TEMPORARY'
+    ) INTO table_exists;
+
+    IF table_exists THEN
+      SELECT json_agg(table_name) INTO table_names
+      FROM live_query_tables;
+
+      table_names := COALESCE(table_names, '[]'::json);
+      PERFORM pg_notify('${channel}', table_names::text);
+    END IF;
+
+    RETURN NULL;
+  END;
+$$;`),
+        context,
       );
     },
     undefined,
@@ -200,30 +357,51 @@ export const createViews = async (
         ),
       );
 
-      const trigger = `status_${namespaceBuild.viewsSchema}_trigger`;
-      const notification = "status_notify()";
-      const channel = `${namespaceBuild.viewsSchema}_status_channel`;
+      const notifyProcedure = getLiveQueryNotifyProcedureName();
+      const channel = getLiveQueryChannelName(namespaceBuild.viewsSchema!);
 
       await tx.wrap((tx) =>
         tx.execute(`
-CREATE OR REPLACE FUNCTION "${namespaceBuild.viewsSchema}".${notification}
-RETURNS TRIGGER
-LANGUAGE plpgsql
+CREATE OR REPLACE FUNCTION "${namespaceBuild.viewsSchema}".${notifyProcedure}
+RETURNS TRIGGER LANGUAGE plpgsql
 AS $$
-BEGIN
-NOTIFY "${channel}";
-RETURN NULL;
-END;
+  DECLARE
+    table_names json;
+    table_exists boolean := false;
+  BEGIN
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_name = 'live_query_tables'
+      AND table_type = 'LOCAL TEMPORARY'
+    ) INTO table_exists;
+
+    IF table_exists THEN
+      SELECT json_agg(table_name) INTO table_names
+      FROM live_query_tables;
+
+      table_names := COALESCE(table_names, '[]'::json);
+      PERFORM pg_notify('${channel}', table_names::text);
+    END IF;
+
+    RETURN NULL;
+  END;
 $$;`),
       );
 
+      const trigger = getViewsLiveQueryNotifyTriggerName(
+        namespaceBuild.viewsSchema,
+      );
+
       await tx.wrap((tx) =>
-        tx.execute(`
+        tx.execute(
+          `
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
-ON "${namespaceBuild.schema}"._ponder_checkpoint
+ON "${namespaceBuild.schema!}"._ponder_checkpoint
 FOR EACH STATEMENT
-EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notification};`),
+EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notifyProcedure};`,
+        ),
       );
     },
     undefined,

@@ -181,7 +181,7 @@ The `@ponder/client` package re-exports all Drizzle utility functions (like `des
 
 ### Live queries
 
-Live queries are automatically updated when the underlying data changes. Ponder uses Server-Sent Events to stream updates to the client every time a new block is processed.
+Live queries are automatically updated when the underlying data changes. Ponder uses Server-Sent Events to stream updates to the **only when the query result changes**.
 
 :::code-group
 
@@ -467,4 +467,3 @@ Here are the measures taken by the `client` middleware to prevent malicious quer
   SET statement_timeout = '500ms';
   SET lock_timeout = '500ms';
   ```
-

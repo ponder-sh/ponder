@@ -16,7 +16,9 @@ export function getPonderQueryOptions<T>(
 
   // @ts-expect-error
   if ("getSQL" in queryPromise === false) {
-    throw new Error('"queryFn" must return SQL');
+    throw new Error(
+      '"queryFn" must return SQL. You may have to remove `.execute()` from your query.',
+    );
   }
 
   const query = compileQuery(queryPromise as unknown as SQLWrapper);

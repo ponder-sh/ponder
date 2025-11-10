@@ -16,16 +16,12 @@ export const getReorgTableName = (table: string | PgTable) => {
   );
 };
 
-export const getTriggerName = (table: PgTable, chainId?: number) => {
-  return chainId === undefined
-    ? getReorgTableName(table)
-    : `${getReorgTableName(table)}_${chainId}`;
+export const getReorgTriggerName = () => {
+  return "reorg_trigger";
 };
 
-export const getTriggerFnName = (table: PgTable, chainId?: number) => {
-  return chainId === undefined
-    ? `operation_reorg__${getTableName(table)}()`
-    : `operation_reorg__${getTableName(table)}_${chainId}()`;
+export const getReorgProcedureName = (table: PgTable) => {
+  return `operation_reorg__${getTableName(table)}()`;
 };
 
 export const getPrimaryKeyColumns = (

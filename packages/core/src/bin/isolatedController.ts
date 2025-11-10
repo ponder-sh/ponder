@@ -110,6 +110,8 @@ export async function isolatedController({
           count: tables.length,
           duration: endClock(),
         });
+
+        endClock = startClock();
       }
 
       await database.adminQB.wrap({ label: "update_ready" }, (db) =>

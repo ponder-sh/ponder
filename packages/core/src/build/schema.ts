@@ -216,6 +216,12 @@ export const buildSchema = ({
         );
       }
 
+      if (viewConfig.query === undefined) {
+        throw new Error(
+          `Schema validation failed: view '${getViewName(s)}' has no underlying query.`,
+        );
+      }
+
       if (viewConfig)
         for (const [columnName, column] of Object.entries(
           viewConfig.selectedFields,
