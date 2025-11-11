@@ -96,6 +96,7 @@ function AccountList() {
 | Parameter        | Type                                                     | Description                                             |
 | ---------------- | -------------------------------------------------------- | ------------------------------------------------------- |
 | `params.queryFn` | `(db: Client["db"]) => Promise<Result>`                  | Required query builder callback using the `db` argument |
+| `params.live`    | `boolean`                                                | Whether to subscribe to live updates (default: `true`) |
 | `...params`      | `Omit<UseQueryOptions<Result>, "queryFn" \| "queryKey">` | All `useQuery` options except `queryFn` and `queryKey`  |
 
 #### Returns
