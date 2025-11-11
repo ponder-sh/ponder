@@ -57,12 +57,6 @@ export type Filter =
   | TransferFilter
   | TransactionFilter
   | TraceFilter;
-export type FilterWithoutBlocks =
-  | Omit<BlockFilter, "fromBlock" | "toBlock">
-  | Omit<TransactionFilter, "fromBlock" | "toBlock">
-  | Omit<TraceFilter, "fromBlock" | "toBlock">
-  | Omit<LogFilter, "fromBlock" | "toBlock">
-  | Omit<TransferFilter, "fromBlock" | "toBlock">;
 
 /** Filter that matches addresses. */
 export type Factory = LogFactory;
@@ -235,6 +229,13 @@ export type Fragment =
       fromAddress: FragmentAddress;
       toAddress: FragmentAddress;
       includeTransactionReceipts: boolean;
+    }
+  | {
+      type: "factory_log";
+      chainId: number;
+      address: Address;
+      eventSelector: Factory["eventSelector"];
+      childAddressLocation: Factory["childAddressLocation"];
     };
 
 /** Minimum slice of a {@link Filter} */
@@ -248,7 +249,9 @@ export type FragmentId =
   /** log_{chainId}_{address}_{topic0}_{topic1}_{topic2}_{topic3}_{includeReceipts} */
   | `log_${number}_${FragmentAddressId}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${0 | 1}`
   /** transfer_{chainId}_{fromAddress}_{toAddress}_{includeReceipts} */
-  | `transfer_${number}_${FragmentAddressId}_${FragmentAddressId}_${0 | 1}`;
+  | `transfer_${number}_${FragmentAddressId}_${FragmentAddressId}_${0 | 1}`
+  /** factory_log_{chainId}_{address}_{eventSelector}_{childAddressLocation} */
+  | `factory_log_${number}_${Address}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}`;
 
 // Contract
 export type Contract = {

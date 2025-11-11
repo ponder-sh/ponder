@@ -349,6 +349,78 @@ export const isBlockFilterMatched = ({
   return (Number(block.number) - filter.offset) % filter.interval === 0;
 };
 
+export const getFilterFactories = (filter: Filter): Factory[] => {
+  const factories: Factory[] = [];
+  switch (filter.type) {
+    case "log":
+      if (isAddressFactory(filter.address)) {
+        factories.push(filter.address);
+      }
+      break;
+    case "trace":
+    case "transfer":
+    case "transaction": {
+      if (isAddressFactory(filter.fromAddress)) {
+        factories.push(filter.fromAddress);
+      }
+      if (isAddressFactory(filter.toAddress)) {
+        factories.push(filter.toAddress);
+      }
+      break;
+    }
+  }
+  return factories;
+};
+
+export const getFilterFromBlock = (filter: Filter): number => {
+  const blocks: number[] = [filter.fromBlock ?? 0];
+  switch (filter.type) {
+    case "log":
+      if (isAddressFactory(filter.address)) {
+        blocks.push(filter.address.fromBlock ?? 0);
+      }
+      break;
+    case "transaction":
+    case "trace":
+    case "transfer":
+      if (isAddressFactory(filter.fromAddress)) {
+        blocks.push(filter.fromAddress.fromBlock ?? 0);
+      }
+
+      if (isAddressFactory(filter.toAddress)) {
+        blocks.push(filter.toAddress.fromBlock ?? 0);
+      }
+  }
+
+  return Math.min(...blocks);
+};
+
+export const getFilterToBlock = (filter: Filter): number => {
+  const blocks: number[] = [filter.toBlock ?? Number.POSITIVE_INFINITY];
+
+  // Note: factories cannot have toBlock > `filter.toBlock`
+
+  switch (filter.type) {
+    case "log":
+      if (isAddressFactory(filter.address)) {
+        blocks.push(filter.address.toBlock ?? Number.POSITIVE_INFINITY);
+      }
+      break;
+    case "transaction":
+    case "trace":
+    case "transfer":
+      if (isAddressFactory(filter.fromAddress)) {
+        blocks.push(filter.fromAddress.toBlock ?? Number.POSITIVE_INFINITY);
+      }
+
+      if (isAddressFactory(filter.toAddress)) {
+        blocks.push(filter.toAddress.toBlock ?? Number.POSITIVE_INFINITY);
+      }
+  }
+
+  return Math.max(...blocks);
+};
+
 export const isBlockInFilter = (filter: Filter, blockNumber: number) => {
   // Return `false` for out of range blocks
   if (

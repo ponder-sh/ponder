@@ -41,6 +41,7 @@ import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.j
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { startClock } from "@/utils/timer.js";
 import { type Address, hexToNumber } from "viem";
+import { getFilterFactories } from "./filter.js";
 import type { ChildAddresses, SyncProgress } from "./index.js";
 import { getOmnichainCheckpoint } from "./omnichain.js";
 
@@ -994,13 +995,18 @@ export async function handleRealtimeSyncEvent(
             ),
           ]);
 
-          const syncedIntervals: {
+          const intervals: {
             interval: Interval;
             filter: Filter;
           }[] = [];
 
+          const factoryIntervals: {
+            interval: Interval;
+            factory: Factory;
+          }[] = [];
+
           for (const { filter } of params.eventCallbacks) {
-            const intervals = intervalIntersection(
+            const completedIntervals = intervalIntersection(
               [finalizedInterval],
               [
                 [
@@ -1010,14 +1016,31 @@ export async function handleRealtimeSyncEvent(
               ],
             );
 
-            for (const interval of intervals) {
-              syncedIntervals.push({ interval, filter });
+            for (const interval of completedIntervals) {
+              intervals.push({ interval, filter });
+            }
+
+            for (const factory of getFilterFactories(filter)) {
+              const completedIntervals = intervalIntersection(
+                [finalizedInterval],
+                [
+                  [
+                    factory.fromBlock ?? 0,
+                    factory.toBlock ?? Number.POSITIVE_INFINITY,
+                  ],
+                ],
+              );
+
+              for (const interval of completedIntervals) {
+                factoryIntervals.push({ interval, factory });
+              }
             }
           }
 
           await syncStore.insertIntervals(
             {
-              intervals: syncedIntervals,
+              intervals,
+              factoryIntervals,
               chainId: params.chain.id,
             },
             context,

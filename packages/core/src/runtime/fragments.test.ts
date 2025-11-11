@@ -5,7 +5,7 @@ import {
   EMPTY_TRANSACTION_FILTER,
   EMPTY_TRANSFER_FILTER,
 } from "@/_test/constants.js";
-import type { FilterWithoutBlocks } from "@/internal/types.js";
+import type { Filter } from "@/internal/types.js";
 import { zeroHash } from "viem";
 import { expect, test } from "vitest";
 import {
@@ -435,7 +435,7 @@ test("recoverFilter() transaction filter", () => {
     ...EMPTY_TRANSACTION_FILTER,
     fromAddress: "0xa",
     toAddress: "0xb",
-  } satisfies FilterWithoutBlocks;
+  } satisfies Filter;
 
   const fragments = getFragments(filter);
 
@@ -455,7 +455,7 @@ test("recoverFilter() log filter", () => {
     topic1: null,
     topic2: "0xe",
     topic3: null,
-  } satisfies FilterWithoutBlocks;
+  } satisfies Filter;
 
   const fragments = getFragments(filter);
 
@@ -474,7 +474,7 @@ test("recoverFilter() trace filter", () => {
     functionSelector: "0xb",
     fromAddress: "0xa",
     toAddress: undefined,
-  } satisfies FilterWithoutBlocks;
+  } satisfies Filter;
 
   const fragments = getFragments(filter);
 
@@ -491,7 +491,7 @@ test("recoverFilter() transfer filter", () => {
     ...EMPTY_TRANSFER_FILTER,
     fromAddress: "0xa",
     toAddress: undefined,
-  } satisfies FilterWithoutBlocks;
+  } satisfies Filter;
 
   const fragments = getFragments(filter);
 
@@ -516,7 +516,7 @@ test("recoverFilter() factory", () => {
       fromBlock: undefined,
       toBlock: undefined,
     },
-  } satisfies FilterWithoutBlocks;
+  } satisfies Filter;
 
   const fragments = getFragments(filter);
 
@@ -541,7 +541,7 @@ test("recoverFilter() multiple factories", () => {
       fromBlock: undefined,
       toBlock: undefined,
     },
-  } satisfies FilterWithoutBlocks;
+  } satisfies Filter;
 
   const fragments = getFragments(filter);
 

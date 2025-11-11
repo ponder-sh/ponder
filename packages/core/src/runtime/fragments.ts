@@ -3,7 +3,6 @@ import type {
   Factory,
   Filter,
   FilterAddress,
-  FilterWithoutBlocks,
   Fragment,
   FragmentAddress,
   FragmentAddressId,
@@ -25,9 +24,12 @@ export const isFragmentAddressFactory = (
   return true;
 };
 
-export const getFragments = (
-  filter: FilterWithoutBlocks,
-): FragmentReturnType => {
+type FragmentReturnType = {
+  fragment: Fragment;
+  adjacentIds: FragmentId[];
+}[];
+
+export const getFragments = (filter: Filter): FragmentReturnType => {
   switch (filter.type) {
     case "block":
       return getBlockFilterFragment(filter as BlockFilter);
@@ -42,10 +44,25 @@ export const getFragments = (
   }
 };
 
-type FragmentReturnType = {
-  fragment: Fragment;
-  adjacentIds: FragmentId[];
-}[];
+export const getFactoryFragments = (factory: Factory): Fragment[] => {
+  const fragments: Fragment[] = [];
+
+  for (const fragmentAddress of Array.isArray(factory.address)
+    ? factory.address
+    : [factory.address]) {
+    const fragment = {
+      type: "factory_log",
+      chainId: factory.chainId,
+      address: fragmentAddress,
+      eventSelector: factory.eventSelector,
+      childAddressLocation: factory.childAddressLocation,
+    } satisfies Fragment;
+
+    fragments.push(fragment);
+  }
+
+  return fragments;
+};
 
 export const getAddressFragments = (
   address: Address | Address[] | Factory | undefined,
@@ -315,6 +332,8 @@ export const encodeFragment = (fragment: Fragment): FragmentId => {
       return `log_${fragment.chainId}_${fragmentAddressToId(fragment.address)}_${fragment.topic0}_${fragment.topic1}_${fragment.topic2}_${fragment.topic3}_${fragment.includeTransactionReceipts ? 1 : 0}`;
     case "transfer":
       return `transfer_${fragment.chainId}_${fragmentAddressToId(fragment.fromAddress)}_${fragmentAddressToId(fragment.toAddress)}_${fragment.includeTransactionReceipts ? 1 : 0}`;
+    case "factory_log":
+      return `factory_log_${fragment.chainId}_${fragment.address}_${fragment.eventSelector}_${fragment.childAddressLocation}`;
   }
 };
 
@@ -506,16 +525,29 @@ export const decodeFragment = (fragmentId: FragmentId): Fragment => {
         includeTransactionReceipts: includeTxr === "1",
       };
     }
+    case "factory_log": {
+      const [, chainId, address, eventSelector, childAddressLocation] =
+        fragmentId.split("_");
+      return {
+        type: "factory_log",
+        chainId: Number(chainId),
+        address: address as Address,
+        eventSelector: eventSelector as Factory["eventSelector"],
+        childAddressLocation:
+          childAddressLocation as Factory["childAddressLocation"],
+      };
+    }
   }
 };
 
-const recoverAddress = (
-  baseAddress: FilterAddress,
+const recoverAddress = <filterAddress extends FilterAddress>(
+  baseAddress: filterAddress,
   fragmentAddresses: FragmentAddress[],
-): FilterAddress => {
-  if (baseAddress === undefined) return undefined;
-  if (typeof baseAddress === "string") return baseAddress;
-  if (Array.isArray(baseAddress)) return dedupe(fragmentAddresses) as Address[];
+): filterAddress => {
+  if (baseAddress === undefined) return undefined as filterAddress;
+  if (typeof baseAddress === "string") return baseAddress as filterAddress;
+  if (Array.isArray(baseAddress))
+    return dedupe(fragmentAddresses) as filterAddress;
 
   // Note: At this point, `baseAddress` is a factory. We explicitly don't try to recover the factory
   // address from the fragments because we want a `insertChildAddresses` and `getChildAddresses` to

@@ -7,7 +7,6 @@ import type {
   BlockFilter,
   Factory,
   Filter,
-  FilterWithoutBlocks,
   Fragment,
   FragmentId,
   InternalBlock,
@@ -33,14 +32,24 @@ import type {
 } from "@/internal/types.js";
 import type { RequestParameters } from "@/rpc/index.js";
 import {
+  getFilterFactories,
   isAddressFactory,
   unionFilterIncludeBlock,
   unionFilterIncludeTrace,
   unionFilterIncludeTransaction,
   unionFilterIncludeTransactionReceipt,
 } from "@/runtime/filter.js";
-import { encodeFragment, getFragments } from "@/runtime/fragments.js";
+import {
+  encodeFragment,
+  getFactoryFragments,
+  getFragments,
+} from "@/runtime/fragments.js";
+import type {
+  IntervalWithFactory,
+  IntervalWithFilter,
+} from "@/runtime/index.js";
 import type { Interval } from "@/utils/interval.js";
+import { intervalUnion } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
 import { startClock } from "@/utils/timer.js";
@@ -58,7 +67,11 @@ import {
   or,
   sql,
 } from "drizzle-orm";
-import { type PgColumn, unionAll } from "drizzle-orm/pg-core";
+import {
+  type PgColumn,
+  type PgSelectBase,
+  unionAll,
+} from "drizzle-orm/pg-core";
 import { type Address, hexToNumber, isHex } from "viem";
 import {
   encodeBlock,
@@ -72,7 +85,8 @@ import * as PONDER_SYNC from "./schema.js";
 export type SyncStore = {
   insertIntervals(
     args: {
-      intervals: { filter: FilterWithoutBlocks; interval: Interval }[];
+      intervals: IntervalWithFilter[];
+      factoryIntervals: IntervalWithFactory[];
       chainId: number;
     },
     context?: { logger?: Logger },
@@ -80,7 +94,9 @@ export type SyncStore = {
   getIntervals(
     args: { filters: Filter[] },
     context?: { logger?: Logger },
-  ): Promise<Map<Filter, { fragment: Fragment; intervals: Interval[] }[]>>;
+  ): Promise<
+    Map<Filter | Factory, { fragment: Fragment; intervals: Interval[] }[]>
+  >;
   insertChildAddresses(
     args: {
       factory: Factory;
@@ -189,8 +205,11 @@ export const createSyncStore = ({
   qb,
 }: { common: Common; qb: QB<typeof PONDER_SYNC> }): SyncStore => {
   const syncStore = {
-    insertIntervals: async ({ intervals, chainId }, context) => {
-      if (intervals.length === 0) return;
+    insertIntervals: async (
+      { intervals, factoryIntervals, chainId },
+      context,
+    ) => {
+      if (intervals.length === 0 && factoryIntervals.length === 0) return;
 
       const perFragmentIntervals = new Map<FragmentId, Interval[]>();
       const values: (typeof PONDER_SYNC.intervals.$inferInsert)[] = [];
@@ -200,6 +219,17 @@ export const createSyncStore = ({
       for (const { filter, interval } of intervals) {
         for (const fragment of getFragments(filter)) {
           const fragmentId = encodeFragment(fragment.fragment);
+          if (perFragmentIntervals.has(fragmentId) === false) {
+            perFragmentIntervals.set(fragmentId, []);
+          }
+
+          perFragmentIntervals.get(fragmentId)!.push(interval);
+        }
+      }
+
+      for (const { factory, interval } of factoryIntervals) {
+        for (const fragment of getFactoryFragments(factory)) {
+          const fragmentId = encodeFragment(fragment);
           if (perFragmentIntervals.has(fragmentId) === false) {
             perFragmentIntervals.set(fragmentId, []);
           }
@@ -248,30 +278,67 @@ export const createSyncStore = ({
       }
     },
     getIntervals: async ({ filters }, context) => {
-      const queries = filters.flatMap((filter, i) => {
+      const queries: PgSelectBase<
+        "unnested",
+        {
+          mergedBlocks: SQL.Aliased<string>;
+          fragment: SQL.Aliased<unknown>;
+        },
+        "partial"
+      >[] = [];
+      let index = 0;
+
+      for (const filter of filters) {
         const fragments = getFragments(filter);
-        return fragments.map((fragment, j) =>
-          qb.raw
-            .select({
-              mergedBlocks: sql<string>`range_agg(unnested.blocks)`.as(
-                "merged_blocks",
+
+        for (const fragment of fragments) {
+          queries.push(
+            qb.raw
+              .select({
+                mergedBlocks: sql<string>`range_agg(unnested.blocks)`.as(
+                  "merged_blocks",
+                ),
+                fragment: sql.raw(`'${index++}'`).as("fragment"),
+              })
+              .from(
+                qb.raw
+                  .select({ blocks: sql.raw("unnest(blocks)").as("blocks") })
+                  .from(PONDER_SYNC.intervals)
+                  .where(
+                    sql.raw(
+                      `fragment_id IN (${fragment.adjacentIds.map((id) => `'${id}'`).join(", ")})`,
+                    ),
+                  )
+                  .as("unnested"),
               ),
-              filter: sql.raw(`'${i}'`).as("filter"),
-              fragment: sql.raw(`'${j}'`).as("fragment"),
-            })
-            .from(
-              qb.raw
-                .select({ blocks: sql.raw("unnest(blocks)").as("blocks") })
-                .from(PONDER_SYNC.intervals)
-                .where(
-                  sql.raw(
-                    `fragment_id IN (${fragment.adjacentIds.map((id) => `'${id}'`).join(", ")})`,
+          );
+
+          for (const factory of getFilterFactories(filter)) {
+            for (const fragment of getFactoryFragments(factory)) {
+              queries.push(
+                qb.raw
+                  .select({
+                    mergedBlocks: sql<string>`range_agg(unnested.blocks)`.as(
+                      "merged_blocks",
+                    ),
+                    fragment: sql.raw(`'${index++}'`).as("fragment"),
+                  })
+                  .from(
+                    qb.raw
+                      .select({
+                        blocks: sql.raw("unnest(blocks)").as("blocks"),
+                      })
+                      .from(PONDER_SYNC.intervals)
+                      .where(
+                        sql.raw(`fragment_id = '${encodeFragment(fragment)}'`),
+                      )
+                      .as("unnested"),
                   ),
-                )
-                .as("unnested"),
-            ),
-        );
-      });
+              );
+            }
+          }
+        }
+      }
 
       let rows: Awaited<(typeof queries)[number]> = [];
 
@@ -305,22 +372,22 @@ export const createSyncStore = ({
       }
 
       const result = new Map<
-        Filter,
+        Filter | Factory,
         { fragment: Fragment; intervals: Interval[] }[]
       >();
 
       // NOTE: `interval[1]` must be rounded down in order to offset the previous
       // rounding.
 
-      for (let i = 0; i < filters.length; i++) {
-        const filter = filters[i]!;
+      index = 0;
+
+      for (const filter of filters) {
         const fragments = getFragments(filter);
         result.set(filter, []);
-        for (let j = 0; j < fragments.length; j++) {
-          const fragment = fragments[j]!;
+
+        for (const fragment of fragments) {
           const intervals = rows
-            .filter((row) => row.filter === `${i}`)
-            .filter((row) => row.fragment === `${j}`)
+            .filter((row) => row.fragment === `${index}`)
             .map((row) =>
               (row.mergedBlocks
                 ? (JSON.parse(
@@ -330,7 +397,56 @@ export const createSyncStore = ({
               ).map((interval) => [interval[0], interval[1] - 1] as Interval),
             )[0]!;
 
+          index += 1;
+
           result.get(filter)!.push({ fragment: fragment.fragment, intervals });
+
+          for (const factory of getFilterFactories(filter)) {
+            result.set(factory, []);
+            for (const fragment of getFactoryFragments(factory)) {
+              const intervals = rows
+                .filter((row) => row.fragment === `${index}`)
+                .map((row) =>
+                  (row.mergedBlocks
+                    ? (JSON.parse(
+                        `[${row.mergedBlocks.slice(1, -1)}]`,
+                      ) as Interval[])
+                    : []
+                  ).map(
+                    (interval) => [interval[0], interval[1] - 1] as Interval,
+                  ),
+                )[0]!;
+
+              index += 1;
+
+              result.get(factory)!.push({ fragment, intervals });
+            }
+
+            // Note: This is a stand-in for a migration to the `intervals` table
+            // required in `v0.15`. It is an invariant that filter with factories
+            // have a row in the intervals table for both the filter and the factory.
+            // If this invariant is broken, it must be because of the migration from
+            // `v0.14` to `v0.15`. In this case, we can assume that the factory interval
+            // is the same as the filter interval.
+
+            const filterIntervals = intervalUnion(
+              result.get(filter)!.flatMap(({ intervals }) => intervals),
+            );
+            const factoryIntervals = intervalUnion(
+              result.get(factory)!.flatMap(({ intervals }) => intervals),
+            );
+
+            if (
+              filterIntervals.length > 0 &&
+              factoryIntervals.length === 0 &&
+              filter.fromBlock === factory.fromBlock &&
+              filter.toBlock === factory.toBlock
+            ) {
+              for (const factoryInterval of result.get(factory)!) {
+                factoryInterval.intervals = filterIntervals;
+              }
+            }
+          }
         }
       }
 

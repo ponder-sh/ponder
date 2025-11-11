@@ -26,7 +26,10 @@ import {
   getPairWithFactoryIndexingBuild,
 } from "@/_test/utils.js";
 import { createRpc } from "@/rpc/index.js";
-import { getCachedIntervals, getRequiredIntervals } from "@/runtime/index.js";
+import {
+  getCachedIntervals,
+  getRequiredIntervalsWithFilters,
+} from "@/runtime/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
 import { zeroAddress } from "viem";
 import { parseEther } from "viem/utils";
@@ -87,24 +90,26 @@ test("sync() with log filter", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(eventCallbacks),
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -150,24 +155,26 @@ test("sync() with log filter and transaction receipts", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(eventCallbacks),
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -208,24 +215,26 @@ test("sync() with block filter", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 3],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(eventCallbacks),
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 3],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 3],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -268,31 +277,33 @@ test("sync() with log factory", async (context) => {
     address,
   });
 
-  const historicalSync = await createHistoricalSync({
+  const historicalSync = createHistoricalSync({
     common: context.common,
     chain,
     rpc,
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 3],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(eventCallbacks),
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 3],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 3],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -310,7 +321,7 @@ test("sync() with log factory", async (context) => {
     db.select().from(ponderSyncSchema.intervals).execute(),
   );
 
-  expect(intervals).toHaveLength(1);
+  expect(intervals).toHaveLength(2);
 });
 
 test("sync() with trace filter", async (context) => {
@@ -369,7 +380,7 @@ test("sync() with trace filter", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 3],
     filters: eventCallbacks
       .filter(({ filter }) => filter.type === "trace")
@@ -378,17 +389,19 @@ test("sync() with trace filter", async (context) => {
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 3],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 3],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -431,7 +444,7 @@ test("sync() with transaction filter", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 1],
     filters: eventCallbacks
       .filter(({ filter }) => filter.type === "transaction")
@@ -440,17 +453,19 @@ test("sync() with transaction filter", async (context) => {
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 1],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 1],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -519,7 +534,7 @@ test("sync() with transfer filter", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 1],
     filters: eventCallbacks
       .filter(({ filter }) => filter.type === "transfer")
@@ -528,17 +543,19 @@ test("sync() with transfer filter", async (context) => {
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 1],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 1],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -591,7 +608,7 @@ test("sync() with many filters", async (context) => {
     ]),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
     filters: [...erc20EventCallbacks, ...blocksEventCallbacks].map(
       ({ filter }) => filter,
@@ -603,17 +620,19 @@ test("sync() with many filters", async (context) => {
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -662,24 +681,26 @@ test("sync() with cache", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  let requiredIntervals = getRequiredIntervals({
+  let requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(eventCallbacks),
   });
   let logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -700,24 +721,26 @@ test("sync() with cache", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  requiredIntervals = getRequiredIntervals({
+  requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals,
   });
   logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
   expect(spy).toHaveBeenCalledTimes(0);
@@ -751,24 +774,26 @@ test("sync() with partial cache", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  let requiredIntervals = getRequiredIntervals({
+  let requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(eventCallbacks),
   });
   let logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -796,24 +821,26 @@ test("sync() with partial cache", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  requiredIntervals = getRequiredIntervals({
+  requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 2],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals,
   });
   logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 2],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 
@@ -856,24 +883,26 @@ test("sync() with partial cache", async (context) => {
 
   await simulateBlock();
 
-  requiredIntervals = getRequiredIntervals({
+  requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 3],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals,
   });
   logs = await historicalSync.syncBlockRangeData({
     interval: [1, 3],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 3],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
   // `eth_getBlockByNumber` is skipped
@@ -937,24 +966,26 @@ test("syncAddress() handles many addresses", async (context) => {
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
-  const requiredIntervals = getRequiredIntervals({
+  const requiredIntervals = getRequiredIntervalsWithFilters({
     interval: [1, 13],
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals: setupCachedIntervals(eventCallbacks),
   });
   const logs = await historicalSync.syncBlockRangeData({
     interval: [1, 13],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
   await historicalSync.syncBlockData({
     interval: [1, 13],
-    requiredIntervals,
+    requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
   await syncStore.insertIntervals({
-    intervals: requiredIntervals,
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
     chainId: chain.id,
   });
 

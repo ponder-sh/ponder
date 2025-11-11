@@ -85,6 +85,7 @@ test("getIntervals() returns intervals", async (context) => {
         interval: [0, 4],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
 
@@ -136,6 +137,7 @@ test("getIntervals() merges intervals", async (context) => {
         interval: [0, 4],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
 
@@ -146,6 +148,7 @@ test("getIntervals() merges intervals", async (context) => {
         interval: [5, 8],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
   const intervals = await syncStore.getIntervals({
@@ -199,6 +202,7 @@ test("getIntervals() adjacent intervals", async (context) => {
         interval: [0, 4],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
 
@@ -210,6 +214,7 @@ test("getIntervals() adjacent intervals", async (context) => {
         interval: [5, 8],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
   const intervals = await syncStore.getIntervals({
@@ -257,6 +262,119 @@ test("getIntervals() adjacent intervals", async (context) => {
   `);
 });
 
+test("getIntervals() 0.15 migration", async (context) => {
+  const { syncStore } = await setupDatabaseServices(context);
+
+  const filter = {
+    ...EMPTY_LOG_FILTER,
+    address: {
+      id: "id",
+      type: "log",
+      chainId: 1,
+      address: "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+      eventSelector:
+        "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+      childAddressLocation: "topic1",
+      fromBlock: 10,
+      toBlock: 20,
+    },
+    fromBlock: 10,
+    toBlock: 20,
+  } satisfies LogFilter;
+
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter,
+        interval: [10, 20],
+      },
+    ],
+    factoryIntervals: [],
+    chainId: 1,
+  });
+
+  const intervals = await syncStore.getIntervals({
+    filters: [filter],
+  });
+
+  expect(intervals).toMatchInlineSnapshot(`
+    Map {
+      {
+        "address": {
+          "address": "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+          "chainId": 1,
+          "childAddressLocation": "topic1",
+          "eventSelector": "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+          "fromBlock": 10,
+          "id": "id",
+          "toBlock": 20,
+          "type": "log",
+        },
+        "chainId": 1,
+        "fromBlock": 10,
+        "hasTransactionReceipt": false,
+        "include": [],
+        "sourceId": "test",
+        "toBlock": 20,
+        "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "topic1": null,
+        "topic2": null,
+        "topic3": null,
+        "type": "log",
+      } => [
+        {
+          "fragment": {
+            "address": {
+              "address": "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+              "childAddressLocation": "topic1",
+              "eventSelector": "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+            },
+            "chainId": 1,
+            "includeTransactionReceipts": false,
+            "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "topic1": null,
+            "topic2": null,
+            "topic3": null,
+            "type": "log",
+          },
+          "intervals": [
+            [
+              10,
+              20,
+            ],
+          ],
+        },
+      ],
+      {
+        "address": "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+        "chainId": 1,
+        "childAddressLocation": "topic1",
+        "eventSelector": "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+        "fromBlock": 10,
+        "id": "id",
+        "toBlock": 20,
+        "type": "log",
+      } => [
+        {
+          "fragment": {
+            "address": "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+            "chainId": 1,
+            "childAddressLocation": "topic1",
+            "eventSelector": "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+            "type": "factory_log",
+          },
+          "intervals": [
+            [
+              10,
+              20,
+            ],
+          ],
+        },
+      ],
+    }
+  `);
+});
+
 test("insertIntervals() merges duplicates", async (context) => {
   const { syncStore } = await setupDatabaseServices(context);
 
@@ -269,6 +387,7 @@ test("insertIntervals() merges duplicates", async (context) => {
         interval: [0, 4],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
 
@@ -283,6 +402,7 @@ test("insertIntervals() merges duplicates", async (context) => {
         interval: [5, 8],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
 
@@ -337,6 +457,7 @@ test("insertIntervals() preserves fragments", async (context) => {
         interval: [0, 4],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
 

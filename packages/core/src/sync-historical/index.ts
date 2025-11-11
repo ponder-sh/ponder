@@ -4,7 +4,6 @@ import type {
   Chain,
   Factory,
   FactoryId,
-  LogFactory,
   LogFilter,
   SyncBlock,
   SyncLog,
@@ -39,7 +38,11 @@ import {
   isTransactionFilterMatched,
   isTransferFilterMatched,
 } from "@/runtime/filter.js";
-import type { ChildAddresses, IntervalWithFilter } from "@/runtime/index.js";
+import type {
+  ChildAddresses,
+  IntervalWithFactory,
+  IntervalWithFilter,
+} from "@/runtime/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
   type Interval,
@@ -69,6 +72,7 @@ export type HistoricalSync = {
   syncBlockRangeData(params: {
     interval: Interval;
     requiredIntervals: IntervalWithFilter[];
+    requiredFactoryIntervals: IntervalWithFactory[];
     syncStore: SyncStore;
   }): Promise<SyncLog[]>;
   /**
@@ -314,12 +318,12 @@ export const createHistoricalSync = (
   };
 
   /**
-   * Fetch child addresses for a Log `factory` within `interval`
+   * Fetch child addresses for `factory` within `interval`
    *
    * @dev Newly fetched child addresses are added into `args.childAddresses`
    */
-  const syncLogAddressFactory = async (
-    factory: LogFactory,
+  const syncAddressFactory = async (
+    factory: Factory,
     interval: Interval,
     context?: Parameters<Rpc["request"]>[1],
   ): Promise<Map<Address, number>> => {
@@ -354,28 +358,13 @@ export const createHistoricalSync = (
     return childAddresses;
   };
 
-  /**
-   * Fetch child addresses for `factory` within `interval`
-   */
-  const syncAddressFactory = async (
-    factory: Factory,
-    interval: Interval,
-    context?: Parameters<Rpc["request"]>[1],
-  ): Promise<Map<Address, number> | undefined> => {
-    const factoryInterval: Interval = [
-      Math.max(factory.fromBlock ?? 0, interval[0]),
-      Math.min(factory.toBlock ?? Number.POSITIVE_INFINITY, interval[1]),
-    ];
-
-    if (factoryInterval[0] <= factoryInterval[1]) {
-      return syncLogAddressFactory(factory, factoryInterval, context);
-    }
-
-    return undefined;
-  };
-
   return {
-    async syncBlockRangeData({ interval, requiredIntervals, syncStore }) {
+    async syncBlockRangeData({
+      interval,
+      requiredIntervals,
+      requiredFactoryIntervals,
+      syncStore,
+    }) {
       const context = {
         logger: args.common.logger.child({ action: "fetch_block_data" }),
       };
@@ -383,83 +372,37 @@ export const createHistoricalSync = (
       const childAddresses: ChildAddresses = new Map();
       const logs: SyncLog[] = [];
 
-      const factoryIntervals: Map<
+      // Dedupe factory intervals by factory id
+
+      const factoryIntervalsById: Map<
         Factory["id"],
         { factory: Factory; interval: Interval }
       > = new Map();
-      for (const { filter, interval } of requiredIntervals) {
-        switch (filter.type) {
-          case "log": {
-            if (isAddressFactory(filter.address)) {
-              if (factoryIntervals.has(filter.address.id)) {
-                const existingInterval = factoryIntervals.get(
-                  filter.address.id,
-                )!.interval;
 
-                factoryIntervals.get(filter.address.id)!.interval =
-                  intervalBounds([existingInterval, interval]);
-              } else {
-                factoryIntervals.set(filter.address.id, {
-                  factory: filter.address,
-                  interval,
-                });
-              }
-            }
+      for (const { factory, interval } of requiredFactoryIntervals) {
+        if (factoryIntervalsById.has(factory.id)) {
+          const existingInterval = factoryIntervalsById.get(
+            factory.id,
+          )!.interval;
 
-            break;
-          }
-          case "transaction":
-          case "trace":
-          case "transfer": {
-            if (isAddressFactory(filter.fromAddress)) {
-              if (factoryIntervals.has(filter.fromAddress.id)) {
-                const existingInterval = factoryIntervals.get(
-                  filter.fromAddress.id,
-                )!.interval;
-
-                factoryIntervals.get(filter.fromAddress.id)!.interval =
-                  intervalBounds([existingInterval, interval]);
-              } else {
-                factoryIntervals.set(filter.fromAddress.id, {
-                  factory: filter.fromAddress,
-                  interval,
-                });
-              }
-            }
-
-            if (isAddressFactory(filter.toAddress)) {
-              if (factoryIntervals.has(filter.toAddress.id)) {
-                const existingInterval = factoryIntervals.get(
-                  filter.toAddress.id,
-                )!.interval;
-
-                factoryIntervals.get(filter.toAddress.id)!.interval =
-                  intervalBounds([existingInterval, interval]);
-              } else {
-                factoryIntervals.set(filter.toAddress.id, {
-                  factory: filter.toAddress,
-                  interval,
-                });
-              }
-            }
-          }
+          factoryIntervalsById.get(factory.id)!.interval = intervalBounds([
+            existingInterval,
+            interval,
+          ]);
+        } else {
+          factoryIntervalsById.set(factory.id, { factory, interval });
         }
       }
 
-      await Promise.all(
-        Array.from(factoryIntervals.values()).map(
-          async ({ factory, interval }) => {
-            const _childAddresses = await syncAddressFactory(
-              factory,
-              interval,
-              context,
-            );
+      requiredFactoryIntervals = Array.from(factoryIntervalsById.values());
 
-            if (_childAddresses) {
-              childAddresses.set(factory.id, _childAddresses!);
-            }
-          },
-        ),
+      await Promise.all(
+        requiredFactoryIntervals.map(async ({ factory, interval }) => {
+          childAddresses.set(
+            factory.id,
+            await syncAddressFactory(factory, interval, context)!,
+          );
+        }),
       );
 
       const mergedEthGetLogsParams: Map<string, EthGetLogsParams> = new Map();
@@ -475,9 +418,6 @@ export const createHistoricalSync = (
 
         if (hasAddress === false || hasTopic1 || hasTopic2 || hasTopic3) {
           if (isAddressFactory(filter.address)) {
-            // Note: Exit early when only the factory needs to be synced
-            if ((filter.fromBlock ?? 0) > interval[1]) continue;
-
             const childAddresses = args.childAddresses.get(filter.address.id)!;
             singleEthGetLogsParams.push({
               address:
@@ -516,9 +456,6 @@ export const createHistoricalSync = (
 
         if (mergedEthGetLogsParams.has(addressKey) === false) {
           if (isAddressFactory(filter.address)) {
-            // Note: Exit early when only the factory needs to be synced
-            if ((filter.fromBlock ?? 0) > interval[1]) continue;
-
             const childAddresses = args.childAddresses.get(filter.address.id)!;
             mergedEthGetLogsParams.set(addressKey, {
               address:
@@ -605,36 +542,12 @@ export const createHistoricalSync = (
         ["chain", "block_range"],
       );
 
-      const factories = new Map<FactoryId, Factory>();
-      for (const { filter } of requiredIntervals) {
-        switch (filter.type) {
-          case "log": {
-            if (isAddressFactory(filter.address)) {
-              factories.set(filter.address.id, filter.address);
-            }
-            break;
-          }
-
-          case "transaction":
-          case "trace":
-          case "transfer": {
-            if (isAddressFactory(filter.fromAddress)) {
-              factories.set(filter.fromAddress.id, filter.fromAddress);
-            }
-            if (isAddressFactory(filter.toAddress)) {
-              factories.set(filter.toAddress.id, filter.toAddress);
-            }
-            break;
-          }
-        }
-      }
-
       await promiseAllSettledWithThrow(
         Array.from(childAddresses.entries()).map(
           ([factoryId, childAddresses]) =>
             syncStore.insertChildAddresses(
               {
-                factory: factories.get(factoryId)!,
+                factory: factoryIntervalsById.get(factoryId)!.factory,
                 childAddresses,
                 chainId: args.chain.id,
               },
@@ -657,44 +570,25 @@ export const createHistoricalSync = (
       const logFilters: LogFilter[] = [];
       const transferFilters: TransferFilter[] = [];
 
-      for (const { filter, interval } of requiredIntervals) {
+      for (const { filter } of requiredIntervals) {
         switch (filter.type) {
           case "block": {
             blockFilters.push(filter as BlockFilter);
             break;
           }
-
           case "transaction": {
-            if (((filter as TransactionFilter).fromBlock ?? 0) > interval[1]) {
-              continue;
-            }
-
             transactionFilters.push(filter as TransactionFilter);
             break;
           }
-
           case "trace": {
-            if (((filter as TraceFilter).fromBlock ?? 0) > interval[1]) {
-              continue;
-            }
-
             traceFilters.push(filter as TraceFilter);
             break;
           }
-
           case "log": {
-            if (((filter as LogFilter).fromBlock ?? 0) > interval[1]) {
-              continue;
-            }
             logFilters.push(filter as LogFilter);
             break;
           }
-
           case "transfer": {
-            if (((filter as TransferFilter).fromBlock ?? 0) > interval[1]) {
-              continue;
-            }
-
             transferFilters.push(filter as TransferFilter);
             break;
           }
@@ -1012,16 +906,18 @@ export const createHistoricalSync = (
         100,
       );
 
-      const queue = createQueue({
-        browser: false,
-        initialStart: true,
-        concurrency: MAX_BLOCKS_IN_MEM,
-        worker: syncBlockData,
-      });
+      if (requiredIntervals.length > 0) {
+        const queue = createQueue({
+          browser: false,
+          initialStart: true,
+          concurrency: MAX_BLOCKS_IN_MEM,
+          worker: syncBlockData,
+        });
 
-      await Promise.all(
-        intervalRange(interval).map((blockNumber) => queue.add(blockNumber)),
-      );
+        await Promise.all(
+          intervalRange(interval).map((blockNumber) => queue.add(blockNumber)),
+        );
+      }
 
       args.common.logger.debug(
         {
