@@ -91,6 +91,9 @@ export const client = ({
   const tableNames = new Set(tables.map(getTableName));
   const viewNames = new Set(views.map(getViewName));
 
+  // Note: Add system tables to the live query registry.
+  tableNames.add("_ponder_checkpoint");
+
   // @ts-ignore
   const session: PgSession = db._.session;
   // @ts-ignore
@@ -189,6 +192,7 @@ export const client = ({
 
     driver.instance.onNotification((_, payload) => {
       const tables = JSON.parse(payload!) as string[];
+      tables.push("_ponder_checkpoint");
       let invalidQueryCount = 0;
 
       for (const [queryString, referencedTables] of perQueryReferences) {
@@ -250,6 +254,7 @@ export const client = ({
 
             client.on("notification", (notification) => {
               const tables = JSON.parse(notification.payload!) as string[];
+              tables.push("_ponder_checkpoint");
               let invalidQueryCount = 0;
 
               for (const [

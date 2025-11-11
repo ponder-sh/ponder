@@ -22,8 +22,10 @@ export function usePonderQuery<
 >(
   params: {
     queryFn: (db: Client<ResolvedSchema>["db"]) => Promise<queryFnData>;
+    live?: boolean;
   } & Omit<UseQueryOptions<queryFnData, error, data>, "queryFn" | "queryKey">,
 ): UseQueryResult<data, error> {
+  const live = params.live ?? true;
   const queryClient = useQueryClient();
 
   const client = usePonderClient();
@@ -36,17 +38,21 @@ export function usePonderQuery<
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
+    if (live === false) return;
+
     const { unsubscribe } = client.live(queryOptions.queryFn, (data) => {
       queryClient.setQueryData(queryOptions.queryKey, data);
     });
     return unsubscribe;
-  }, queryOptions.queryKey);
+  }, [...queryOptions.queryKey, live]);
 
   return useQuery({
     ...params,
     queryKey: queryOptions.queryKey,
     queryFn: queryOptions.queryFn,
-    staleTime: params.staleTime ?? Number.POSITIVE_INFINITY,
+    staleTime: live
+      ? (params.staleTime ?? Number.POSITIVE_INFINITY)
+      : params.staleTime,
   });
 }
 
@@ -69,9 +75,9 @@ export function usePonderQueryOptions<T>(
 }
 
 export function usePonderStatus<error = DefaultError>(
-  params: Omit<
+  params?: { live?: boolean } & Omit<
     UseQueryOptions<
-      { chainName: string; chainId: number; latestCheckpoint: string }[],
+      { chain_name: string; chain_id: number; latest_checkpoint: string }[],
       error,
       Status
     >,
@@ -79,7 +85,7 @@ export function usePonderStatus<error = DefaultError>(
   >,
 ): UseQueryResult<Status, error> {
   return usePonderQuery<
-    { chainName: string; chainId: number; latestCheckpoint: string }[],
+    { chain_name: string; chain_id: number; latest_checkpoint: string }[],
     error,
     Status
   >({
@@ -87,15 +93,17 @@ export function usePonderStatus<error = DefaultError>(
     queryFn: (db) => db.execute("SELECT * FROM _ponder_checkpoint"),
     select(checkpoints) {
       const status: Status = {};
-      for (const { chainName, chainId, latestCheckpoint } of checkpoints.sort(
-        (a, b) => (a.chainId > b.chainId ? 1 : -1),
-      )) {
-        status[chainName] = {
-          id: chainId,
+      for (const {
+        chain_name,
+        chain_id,
+        latest_checkpoint,
+      } of checkpoints.sort((a, b) => (a.chain_id > b.chain_id ? 1 : -1))) {
+        status[chain_name] = {
+          id: chain_id,
           block: {
-            number: Number(decodeCheckpoint(latestCheckpoint).blockNumber),
+            number: Number(decodeCheckpoint(latest_checkpoint).blockNumber),
             timestamp: Number(
-              decodeCheckpoint(latestCheckpoint).blockTimestamp,
+              decodeCheckpoint(latest_checkpoint).blockTimestamp,
             ),
           },
         };
