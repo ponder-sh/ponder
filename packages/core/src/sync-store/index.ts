@@ -192,8 +192,6 @@ export const createSyncStore = ({
     insertIntervals: async ({ intervals, chainId }, context) => {
       if (intervals.length === 0) return;
 
-      console.log(chainId, intervals);
-
       const perFragmentIntervals = new Map<FragmentId, Interval[]>();
       const values: (typeof PONDER_SYNC.intervals.$inferInsert)[] = [];
 
