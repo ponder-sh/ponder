@@ -173,6 +173,60 @@ test("flush() update", async (context) => {
   });
 });
 
+test("flush() recovers error", async (context) => {
+  if (context.databaseConfig.kind !== "postgres") {
+    return;
+  }
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount: {},
+  });
+
+  const indexingStore = createHistoricalIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
+
+    await indexingStore.insert(schema.account).values({
+      address: zeroAddress,
+      balance: 10n,
+    });
+
+    await indexingCache.flush();
+
+    await indexingStore.insert(schema.account).values({
+      address: zeroAddress,
+      balance: 10n,
+    });
+
+    await expect(() =>
+      indexingCache.flush(),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(
+      `[DelayedInsertError: duplicate key value violates unique constraint "account_pkey"]`,
+    );
+  });
+});
+
 test("flush() encoding", async (context) => {
   const e = onchainEnum("e", ["a", "b", "c"]);
   const schema = {
@@ -326,9 +380,14 @@ test("prefetch() uses profile metadata", async (context) => {
     sender: ALICE,
   });
 
-  const { sources, indexingFunctions } = getErc20IndexingBuild({ address });
+  const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
+    address,
+  });
 
-  const event = getSimulatedEvent({ source: sources[0], blockData });
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0]!,
+    blockData,
+  });
 
   const indexingCache = createIndexingCache({
     common: context.common,

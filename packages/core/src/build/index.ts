@@ -10,9 +10,9 @@ import { BuildError, RetryableError } from "@/internal/errors.js";
 import type {
   ApiBuild,
   IndexingBuild,
+  IndexingFunctions,
   NamespaceBuild,
   PreBuild,
-  RawIndexingFunctions,
   Schema,
   SchemaBuild,
 } from "@/internal/types.js";
@@ -51,7 +51,7 @@ const BUILD_ID_VERSION = "2";
 type ConfigResult = Result<{ config: Config; contentHash: string }>;
 type SchemaResult = Result<{ schema: Schema; contentHash: string }>;
 type IndexingResult = Result<{
-  indexingFunctions: RawIndexingFunctions;
+  indexingFunctions: IndexingFunctions;
   contentHash: string;
 }>;
 type ApiResult = Result<{ app: Hono }>;
@@ -66,7 +66,10 @@ export type Build = {
   }) => Promise<ApiResult>;
   namespaceCompile: () => Result<NamespaceBuild>;
   preCompile: (params: { config: Config }) => Result<PreBuild>;
-  compileSchema: (params: { schema: Schema }) => Result<SchemaBuild>;
+  compileSchema: (params: {
+    schema: Schema;
+    preBuild: PreBuild;
+  }) => Result<SchemaBuild>;
   compileConfig: (params: {
     configResult: Extract<ConfigResult, { status: "success" }>["result"];
   }) => Result<Pick<IndexingBuild, "chains" | "rpcs">>;
@@ -356,10 +359,7 @@ export const createBuild = async ({
       } as const;
     },
     preCompile({ config }): Result<PreBuild> {
-      const preBuild = safeBuildPre({
-        config,
-        options: common.options,
-      });
+      const preBuild = safeBuildPre({ config, options: common.options });
       if (preBuild.status === "error") {
         return preBuild;
       }
@@ -372,10 +372,8 @@ export const createBuild = async ({
         },
       } as const;
     },
-    compileSchema({ schema }) {
-      const buildSchemaResult = safeBuildSchema({
-        schema,
-      });
+    compileSchema({ schema, preBuild }) {
+      const buildSchemaResult = safeBuildSchema({ schema, preBuild });
 
       if (buildSchemaResult.status === "error") {
         return buildSchemaResult;
@@ -422,7 +420,7 @@ export const createBuild = async ({
       const buildIndexingFunctionsResult = await safeBuildIndexingFunctions({
         common,
         config: configResult.config,
-        rawIndexingFunctions: indexingResult.indexingFunctions,
+        indexingFunctions: indexingResult.indexingFunctions,
         configBuild,
       });
       if (buildIndexingFunctionsResult.status === "error") {
@@ -446,11 +444,13 @@ export const createBuild = async ({
         status: "success",
         result: {
           buildId,
-          sources: buildIndexingFunctionsResult.sources,
           chains: buildIndexingFunctionsResult.chains,
           rpcs: buildIndexingFunctionsResult.rpcs,
           finalizedBlocks: buildIndexingFunctionsResult.finalizedBlocks,
-          indexingFunctions: buildIndexingFunctionsResult.indexingFunctions,
+          eventCallbacks: buildIndexingFunctionsResult.eventCallbacks,
+          setupCallbacks: buildIndexingFunctionsResult.setupCallbacks,
+          contracts: buildIndexingFunctionsResult.contracts,
+          indexingFunctions: indexingResult.indexingFunctions,
         },
       } as const;
     },

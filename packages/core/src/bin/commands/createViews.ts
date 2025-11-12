@@ -10,6 +10,11 @@ import {
   createDatabase,
   getPonderMetaTable,
 } from "@/database/index.js";
+import {
+  getLiveQueryChannelName,
+  getLiveQueryNotifyProcedureName,
+  getViewsLiveQueryNotifyTriggerName,
+} from "@/drizzle/onchain.js";
 import { sql } from "@/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
@@ -257,24 +262,39 @@ export async function createViews({
     ),
   );
 
-  const trigger = `status_${cliOptions.viewsSchema}_trigger`;
-  const notification = "status_notify()";
-  const channel = `${cliOptions.viewsSchema}_status_channel`;
+  const notifyProcedure = getLiveQueryNotifyProcedureName();
+  const channel = getLiveQueryChannelName(cliOptions.viewsSchema);
 
   await database.adminQB.wrap((db) =>
-    db.execute(
-      `
-CREATE OR REPLACE FUNCTION "${cliOptions.viewsSchema}".${notification}
-RETURNS TRIGGER
-LANGUAGE plpgsql
+    db.execute(`
+CREATE OR REPLACE FUNCTION "${cliOptions.viewsSchema}".${notifyProcedure}
+RETURNS TRIGGER LANGUAGE plpgsql
 AS $$
-BEGIN
-NOTIFY "${channel}";
-RETURN NULL;
-END;
-$$;`,
-    ),
+  DECLARE
+    table_names json;
+    table_exists boolean := false;
+  BEGIN
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_name = 'live_query_tables'
+      AND table_type = 'LOCAL TEMPORARY'
+    ) INTO table_exists;
+
+    IF table_exists THEN
+      SELECT json_agg(table_name) INTO table_names
+      FROM live_query_tables;
+
+      table_names := COALESCE(table_names, '[]'::json);
+      PERFORM pg_notify('${channel}', table_names::text);
+    END IF;
+
+    RETURN NULL;
+  END;
+$$;`),
   );
+
+  const trigger = getViewsLiveQueryNotifyTriggerName(cliOptions.viewsSchema);
 
   await database.adminQB.wrap((db) =>
     db.execute(
@@ -283,7 +303,7 @@ CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
 ON "${cliOptions.schema!}"._ponder_checkpoint
 FOR EACH STATEMENT
-EXECUTE PROCEDURE "${cliOptions.viewsSchema}".${notification};`,
+EXECUTE PROCEDURE "${cliOptions.viewsSchema}".${notifyProcedure};`,
     ),
   );
 

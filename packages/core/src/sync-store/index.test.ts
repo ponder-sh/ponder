@@ -25,7 +25,7 @@ import {
   getErc20IndexingBuild,
   getPairWithFactoryIndexingBuild,
 } from "@/_test/utils.js";
-import type { LogFilter } from "@/internal/types.js";
+import type { Factory, LogFilter } from "@/internal/types.js";
 import { orderObject } from "@/utils/order.js";
 import { sql } from "drizzle-orm";
 import { hexToBigInt, hexToNumber, parseEther, zeroAddress } from "viem";
@@ -55,6 +55,7 @@ test("getIntervals() empty", async (context) => {
         "include": [],
         "interval": 1,
         "offset": 0,
+        "sourceId": "test",
         "toBlock": undefined,
         "type": "block",
       } => [
@@ -84,6 +85,7 @@ test("getIntervals() returns intervals", async (context) => {
         interval: [0, 4],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
 
@@ -100,6 +102,7 @@ test("getIntervals() returns intervals", async (context) => {
         "include": [],
         "interval": 1,
         "offset": 0,
+        "sourceId": "test",
         "toBlock": undefined,
         "type": "block",
       } => [
@@ -134,6 +137,7 @@ test("getIntervals() merges intervals", async (context) => {
         interval: [0, 4],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
 
@@ -144,6 +148,7 @@ test("getIntervals() merges intervals", async (context) => {
         interval: [5, 8],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
   const intervals = await syncStore.getIntervals({
@@ -159,6 +164,7 @@ test("getIntervals() merges intervals", async (context) => {
         "include": [],
         "interval": 1,
         "offset": 0,
+        "sourceId": "test",
         "toBlock": undefined,
         "type": "block",
       } => [
@@ -196,6 +202,7 @@ test("getIntervals() adjacent intervals", async (context) => {
         interval: [0, 4],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
 
@@ -207,6 +214,7 @@ test("getIntervals() adjacent intervals", async (context) => {
         interval: [5, 8],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
   const intervals = await syncStore.getIntervals({
@@ -223,8 +231,9 @@ test("getIntervals() adjacent intervals", async (context) => {
         "fromBlock": undefined,
         "hasTransactionReceipt": false,
         "include": [],
+        "sourceId": "test",
         "toBlock": undefined,
-        "topic0": null,
+        "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "topic1": null,
         "topic2": null,
         "topic3": null,
@@ -235,7 +244,7 @@ test("getIntervals() adjacent intervals", async (context) => {
             "address": "0x0000000000000000000000000000000000000000",
             "chainId": 1,
             "includeTransactionReceipts": false,
-            "topic0": null,
+            "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000",
             "topic1": null,
             "topic2": null,
             "topic3": null,
@@ -245,6 +254,119 @@ test("getIntervals() adjacent intervals", async (context) => {
             [
               0,
               8,
+            ],
+          ],
+        },
+      ],
+    }
+  `);
+});
+
+test("getIntervals() 0.15 migration", async (context) => {
+  const { syncStore } = await setupDatabaseServices(context);
+
+  const filter = {
+    ...EMPTY_LOG_FILTER,
+    address: {
+      id: "id",
+      type: "log",
+      chainId: 1,
+      address: "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+      eventSelector:
+        "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+      childAddressLocation: "topic1",
+      fromBlock: 10,
+      toBlock: 20,
+    },
+    fromBlock: 10,
+    toBlock: 20,
+  } satisfies LogFilter;
+
+  await syncStore.insertIntervals({
+    intervals: [
+      {
+        filter,
+        interval: [10, 20],
+      },
+    ],
+    factoryIntervals: [],
+    chainId: 1,
+  });
+
+  const intervals = await syncStore.getIntervals({
+    filters: [filter],
+  });
+
+  expect(intervals).toMatchInlineSnapshot(`
+    Map {
+      {
+        "address": {
+          "address": "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+          "chainId": 1,
+          "childAddressLocation": "topic1",
+          "eventSelector": "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+          "fromBlock": 10,
+          "id": "id",
+          "toBlock": 20,
+          "type": "log",
+        },
+        "chainId": 1,
+        "fromBlock": 10,
+        "hasTransactionReceipt": false,
+        "include": [],
+        "sourceId": "test",
+        "toBlock": 20,
+        "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "topic1": null,
+        "topic2": null,
+        "topic3": null,
+        "type": "log",
+      } => [
+        {
+          "fragment": {
+            "address": {
+              "address": "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+              "childAddressLocation": "topic1",
+              "eventSelector": "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+            },
+            "chainId": 1,
+            "includeTransactionReceipts": false,
+            "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "topic1": null,
+            "topic2": null,
+            "topic3": null,
+            "type": "log",
+          },
+          "intervals": [
+            [
+              10,
+              20,
+            ],
+          ],
+        },
+      ],
+      {
+        "address": "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+        "chainId": 1,
+        "childAddressLocation": "topic1",
+        "eventSelector": "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+        "fromBlock": 10,
+        "id": "id",
+        "toBlock": 20,
+        "type": "log",
+      } => [
+        {
+          "fragment": {
+            "address": "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+            "chainId": 1,
+            "childAddressLocation": "topic1",
+            "eventSelector": "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+            "type": "factory_log",
+          },
+          "intervals": [
+            [
+              10,
+              20,
             ],
           ],
         },
@@ -265,6 +387,7 @@ test("insertIntervals() merges duplicates", async (context) => {
         interval: [0, 4],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
 
@@ -279,6 +402,7 @@ test("insertIntervals() merges duplicates", async (context) => {
         interval: [5, 8],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
 
@@ -295,6 +419,7 @@ test("insertIntervals() merges duplicates", async (context) => {
         "include": [],
         "interval": 1,
         "offset": 0,
+        "sourceId": "test",
         "toBlock": undefined,
         "type": "block",
       } => [
@@ -332,6 +457,7 @@ test("insertIntervals() preserves fragments", async (context) => {
         interval: [0, 4],
       },
     ],
+    factoryIntervals: [],
     chainId: 1,
   });
 
@@ -350,8 +476,9 @@ test("insertIntervals() preserves fragments", async (context) => {
         "fromBlock": undefined,
         "hasTransactionReceipt": false,
         "include": [],
+        "sourceId": "test",
         "toBlock": undefined,
-        "topic0": null,
+        "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "topic1": null,
         "topic2": null,
         "topic3": null,
@@ -362,7 +489,7 @@ test("insertIntervals() preserves fragments", async (context) => {
             "address": "0x0000000000000000000000000000000000000000",
             "chainId": 1,
             "includeTransactionReceipts": false,
-            "topic0": null,
+            "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000",
             "topic1": null,
             "topic2": null,
             "topic3": null,
@@ -380,7 +507,7 @@ test("insertIntervals() preserves fragments", async (context) => {
             "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
             "chainId": 1,
             "includeTransactionReceipts": false,
-            "topic0": null,
+            "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000",
             "topic1": null,
             "topic2": null,
             "topic3": null,
@@ -407,9 +534,9 @@ test("getChildAddresses()", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getPairWithFactoryIndexingBuild({ address });
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({ address });
 
-  const filter = sources[0]!.filter;
+  const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
 
   await syncStore.insertChildAddresses({
     factory: filter.address,
@@ -433,9 +560,9 @@ test("getChildAddresses() empty", async (context) => {
 
   const { address } = await deployFactory({ sender: ALICE });
 
-  const { sources } = getPairWithFactoryIndexingBuild({ address });
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({ address });
 
-  const filter = sources[0]!.filter;
+  const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
 
   const addresses = await syncStore.getChildAddresses({
     factory: filter.address,
@@ -453,9 +580,9 @@ test("getChildAddresses() distinct", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getPairWithFactoryIndexingBuild({ address });
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({ address });
 
-  const filter = sources[0]!.filter;
+  const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
 
   await syncStore.insertChildAddresses({
     factory: filter.address,
@@ -524,9 +651,9 @@ test("insertChildAddresses()", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getPairWithFactoryIndexingBuild({ address });
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({ address });
 
-  const filter = sources[0]!.filter;
+  const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
 
   await syncStore.insertChildAddresses({
     factory: filter.address,
@@ -830,7 +957,7 @@ test("getEventBlockData() pagination", async (context) => {
   const blockData1 = await simulateBlock();
   const blockData2 = await simulateBlock();
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
@@ -838,7 +965,7 @@ test("getEventBlockData() pagination", async (context) => {
   await syncStore.insertBlocks({ blocks: [blockData2.block], chainId: 1 });
 
   const { blocks, cursor } = await syncStore.getEventData({
-    filters: [sources[0].filter],
+    filters: [eventCallbacks[0].filter],
     fromBlock: 0,
     toBlock: 10,
     chainId: 1,
@@ -848,7 +975,7 @@ test("getEventBlockData() pagination", async (context) => {
   expect(blocks).toHaveLength(1);
 
   const { blocks: blocks2 } = await syncStore.getEventData({
-    filters: [sources[0].filter],
+    filters: [eventCallbacks[0].filter],
     fromBlock: cursor,
     toBlock: 10,
     chainId: 1,
@@ -978,8 +1105,8 @@ test("getEventBlockData() pagination with multiple filters", async (context) => 
 
   const { blocks, cursor } = await syncStore.getEventData({
     filters: [
-      erc20IndexingBuild.sources[0].filter,
-      blocksIndexingBuild.sources[0].filter,
+      erc20IndexingBuild.eventCallbacks[0].filter,
+      blocksIndexingBuild.eventCallbacks[0].filter,
     ],
     fromBlock: 0,
     toBlock: 10,

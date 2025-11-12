@@ -1,12 +1,12 @@
+import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
   Chain,
+  EventCallback,
   IndexingBuild,
   RawEvent,
-  Source,
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
-import type { SyncStore } from "@/sync-store/index.js";
 import { getLocalEventGenerator, refetchLocalEvents } from "./historical.js";
 import {
   type CachedIntervals,
@@ -19,18 +19,18 @@ export async function initEventGenerator(params: {
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
-    "sources" | "chains" | "rpcs" | "finalizedBlocks"
+    "eventCallbacks" | "chains" | "rpcs" | "finalizedBlocks"
   >;
   chain: Chain;
   rpc: Rpc;
-  sources: Source[];
+  eventCallbacks: EventCallback[];
   childAddresses: ChildAddresses;
   syncProgress: SyncProgress;
   cachedIntervals: CachedIntervals;
   from: string;
   to: string;
   limit: number;
-  syncStore: SyncStore;
+  database: Database;
   isCatchup: boolean;
 }) {
   return getLocalEventGenerator(params);

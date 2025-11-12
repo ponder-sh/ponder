@@ -1,8 +1,8 @@
 import type {
   BlockFilter,
   Factory,
+  Filter,
   FilterAddress,
-  FilterWithoutBlocks,
   Fragment,
   FragmentAddress,
   FragmentAddressId,
@@ -24,9 +24,12 @@ export const isFragmentAddressFactory = (
   return true;
 };
 
-export const getFragments = (
-  filter: FilterWithoutBlocks,
-): FragmentReturnType => {
+type FragmentReturnType = {
+  fragment: Fragment;
+  adjacentIds: FragmentId[];
+}[];
+
+export const getFragments = (filter: Filter): FragmentReturnType => {
   switch (filter.type) {
     case "block":
       return getBlockFilterFragment(filter as BlockFilter);
@@ -41,10 +44,25 @@ export const getFragments = (
   }
 };
 
-type FragmentReturnType = {
-  fragment: Fragment;
-  adjacentIds: FragmentId[];
-}[];
+export const getFactoryFragments = (factory: Factory): Fragment[] => {
+  const fragments: Fragment[] = [];
+
+  for (const fragmentAddress of Array.isArray(factory.address)
+    ? factory.address
+    : [factory.address]) {
+    const fragment = {
+      type: "factory_log",
+      chainId: factory.chainId,
+      address: fragmentAddress,
+      eventSelector: factory.eventSelector,
+      childAddressLocation: factory.childAddressLocation,
+    } satisfies Fragment;
+
+    fragments.push(fragment);
+  }
+
+  return fragments;
+};
 
 export const getAddressFragments = (
   address: Address | Address[] | Factory | undefined,
@@ -158,38 +176,30 @@ export const getTraceFilterFragments = ({
 
   for (const fromAddressFragment of fromAddressFragments) {
     for (const toAddressFragment of toAddressFragments) {
-      for (const fragmentFunctionSelector of Array.isArray(functionSelector)
-        ? functionSelector
-        : [functionSelector]) {
-        const fragment = {
-          type: "trace",
-          chainId,
-          fromAddress: fromAddressFragment.fragment,
-          toAddress: toAddressFragment.fragment,
-          functionSelector: fragmentFunctionSelector ?? null,
-          includeTransactionReceipts: filter.hasTransactionReceipt,
-        } satisfies Fragment;
+      const fragment = {
+        type: "trace",
+        chainId,
+        fromAddress: fromAddressFragment.fragment,
+        toAddress: toAddressFragment.fragment,
+        functionSelector,
+        includeTransactionReceipts: filter.hasTransactionReceipt,
+      } satisfies Fragment;
 
-        const adjacentIds: FragmentId[] = [];
+      const adjacentIds: FragmentId[] = [];
 
-        for (const fromAddressAdjacentId of fromAddressFragment.adjacentIds) {
-          for (const toAddressAdjacentId of toAddressFragment.adjacentIds) {
-            for (const adjacentFunctionSelector of fragmentFunctionSelector
-              ? [fragmentFunctionSelector, null]
-              : [null]) {
-              for (const adjacentTxr of filter.hasTransactionReceipt
-                ? [1]
-                : [0, 1]) {
-                adjacentIds.push(
-                  `trace_${chainId}_${fromAddressAdjacentId}_${toAddressAdjacentId}_${adjacentFunctionSelector}_${adjacentTxr as 0 | 1}`,
-                );
-              }
-            }
+      for (const fromAddressAdjacentId of fromAddressFragment.adjacentIds) {
+        for (const toAddressAdjacentId of toAddressFragment.adjacentIds) {
+          for (const adjacentTxr of filter.hasTransactionReceipt
+            ? [1]
+            : [0, 1]) {
+            adjacentIds.push(
+              `trace_${chainId}_${fromAddressAdjacentId}_${toAddressAdjacentId}_${functionSelector}_${adjacentTxr as 0 | 1}`,
+            );
           }
         }
-
-        fragments.push({ fragment, adjacentIds });
       }
+
+      fragments.push({ fragment, adjacentIds });
     }
   }
 
@@ -207,57 +217,50 @@ export const getLogFilterFragments = ({
 }: Omit<LogFilter, "fromBlock" | "toBlock">): FragmentReturnType => {
   const fragments: FragmentReturnType = [];
   const addressFragments = getAddressFragments(address);
+  const eventSelector = topic0;
 
   for (const addressFragment of addressFragments) {
-    for (const fragmentTopic0 of Array.isArray(topic0) ? topic0 : [topic0]) {
-      for (const fragmentTopic1 of Array.isArray(topic1) ? topic1 : [topic1]) {
-        for (const fragmentTopic2 of Array.isArray(topic2)
-          ? topic2
-          : [topic2]) {
-          for (const fragmentTopic3 of Array.isArray(topic3)
-            ? topic3
-            : [topic3]) {
-            const fragment = {
-              type: "log",
-              chainId,
-              address: addressFragment.fragment,
-              topic0: fragmentTopic0 ?? null,
-              topic1: fragmentTopic1 ?? null,
-              topic2: fragmentTopic2 ?? null,
-              topic3: fragmentTopic3 ?? null,
-              includeTransactionReceipts: filter.hasTransactionReceipt,
-            } satisfies Fragment;
+    for (const fragmentTopic1 of Array.isArray(topic1) ? topic1 : [topic1]) {
+      for (const fragmentTopic2 of Array.isArray(topic2) ? topic2 : [topic2]) {
+        for (const fragmentTopic3 of Array.isArray(topic3)
+          ? topic3
+          : [topic3]) {
+          const fragment = {
+            type: "log",
+            chainId,
+            address: addressFragment.fragment,
+            topic0: eventSelector,
+            topic1: fragmentTopic1 ?? null,
+            topic2: fragmentTopic2 ?? null,
+            topic3: fragmentTopic3 ?? null,
+            includeTransactionReceipts: filter.hasTransactionReceipt,
+          } satisfies Fragment;
 
-            const adjacentIds: FragmentId[] = [];
+          const adjacentIds: FragmentId[] = [];
 
-            for (const addressAdjacentId of addressFragment.adjacentIds) {
-              for (const adjacentTopic0 of fragmentTopic0
-                ? [fragmentTopic0, null]
+          for (const addressAdjacentId of addressFragment.adjacentIds) {
+            for (const adjacentTopic1 of fragmentTopic1
+              ? [fragmentTopic1, null]
+              : [null]) {
+              for (const adjacentTopic2 of fragmentTopic2
+                ? [fragmentTopic2, null]
                 : [null]) {
-                for (const adjacentTopic1 of fragmentTopic1
-                  ? [fragmentTopic1, null]
+                for (const adjacentTopic3 of fragmentTopic3
+                  ? [fragmentTopic3, null]
                   : [null]) {
-                  for (const adjacentTopic2 of fragmentTopic2
-                    ? [fragmentTopic2, null]
-                    : [null]) {
-                    for (const adjacentTopic3 of fragmentTopic3
-                      ? [fragmentTopic3, null]
-                      : [null]) {
-                      for (const adjacentTxr of filter.hasTransactionReceipt
-                        ? [1]
-                        : [0, 1]) {
-                        adjacentIds.push(
-                          `log_${chainId}_${addressAdjacentId}_${adjacentTopic0}_${adjacentTopic1}_${adjacentTopic2}_${adjacentTopic3}_${adjacentTxr as 0 | 1}`,
-                        );
-                      }
-                    }
+                  for (const adjacentTxr of filter.hasTransactionReceipt
+                    ? [1]
+                    : [0, 1]) {
+                    adjacentIds.push(
+                      `log_${chainId}_${addressAdjacentId}_${eventSelector}_${adjacentTopic1}_${adjacentTopic2}_${adjacentTopic3}_${adjacentTxr as 0 | 1}`,
+                    );
                   }
                 }
               }
             }
-
-            fragments.push({ fragment, adjacentIds });
           }
+
+          fragments.push({ fragment, adjacentIds });
         }
       }
     }
@@ -329,6 +332,8 @@ export const encodeFragment = (fragment: Fragment): FragmentId => {
       return `log_${fragment.chainId}_${fragmentAddressToId(fragment.address)}_${fragment.topic0}_${fragment.topic1}_${fragment.topic2}_${fragment.topic3}_${fragment.includeTransactionReceipts ? 1 : 0}`;
     case "transfer":
       return `transfer_${fragment.chainId}_${fragmentAddressToId(fragment.fromAddress)}_${fragmentAddressToId(fragment.toAddress)}_${fragment.includeTransactionReceipts ? 1 : 0}`;
+    case "factory_log":
+      return `factory_log_${fragment.chainId}_${fragment.address}_${fragment.eventSelector}_${fragment.childAddressLocation}`;
   }
 };
 
@@ -453,7 +458,7 @@ export const decodeFragment = (fragmentId: FragmentId): Fragment => {
           type: "log",
           chainId: Number(chainId),
           address: fragmentAddress,
-          topic0: topic0! === "null" ? null : (topic0 as Hex),
+          topic0: topic0 as Hex,
           topic1: topic1! === "null" ? null : (topic1 as Hex),
           topic2: topic2! === "null" ? null : (topic2 as Hex),
           topic3: topic3! === "null" ? null : (topic3 as Hex),
@@ -468,7 +473,7 @@ export const decodeFragment = (fragmentId: FragmentId): Fragment => {
         type: "log",
         chainId: Number(chainId),
         address: fragmentAddress,
-        topic0: topic0! === "null" ? null : (topic0 as Hex),
+        topic0: topic0 as Hex,
         topic1: topic1! === "null" ? null : (topic1 as Hex),
         topic2: topic2! === "null" ? null : (topic2 as Hex),
         topic3: topic3! === "null" ? null : (topic3 as Hex),
@@ -520,31 +525,35 @@ export const decodeFragment = (fragmentId: FragmentId): Fragment => {
         includeTransactionReceipts: includeTxr === "1",
       };
     }
+    case "factory_log": {
+      const [, chainId, address, eventSelector, childAddressLocation] =
+        fragmentId.split("_");
+      return {
+        type: "factory_log",
+        chainId: Number(chainId),
+        address: address as Address,
+        eventSelector: eventSelector as Factory["eventSelector"],
+        childAddressLocation:
+          childAddressLocation as Factory["childAddressLocation"],
+      };
+    }
   }
 };
 
-const recoverAddress = (
-  baseAddress: FilterAddress,
+const recoverAddress = <filterAddress extends FilterAddress>(
+  baseAddress: filterAddress,
   fragmentAddresses: FragmentAddress[],
-): FilterAddress => {
-  if (baseAddress === undefined) return undefined;
-  if (typeof baseAddress === "string") return baseAddress;
-  if (Array.isArray(baseAddress)) return dedupe(fragmentAddresses) as Address[];
+): filterAddress => {
+  if (baseAddress === undefined) return undefined as filterAddress;
+  if (typeof baseAddress === "string") return baseAddress as filterAddress;
+  if (Array.isArray(baseAddress))
+    return dedupe(fragmentAddresses) as filterAddress;
 
   // Note: At this point, `baseAddress` is a factory. We explicitly don't try to recover the factory
   // address from the fragments because we want a `insertChildAddresses` and `getChildAddresses` to
   // use the factory as a stable key.
 
   return baseAddress;
-};
-
-const recoverSelector = (
-  base: Hex | Hex[] | undefined,
-  fragments: (Hex | null)[],
-): Hex | Hex[] | undefined => {
-  if (base === undefined) return undefined;
-  if (typeof base === "string") return base;
-  return dedupe(fragments) as Hex[];
 };
 
 const recoverTopic = (
@@ -557,9 +566,9 @@ const recoverTopic = (
 };
 
 export const recoverFilter = (
-  baseFilter: FilterWithoutBlocks,
+  baseFilter: Filter,
   fragments: Fragment[],
-): FilterWithoutBlocks => {
+): Filter => {
   switch (baseFilter.type) {
     case "block": {
       return baseFilter;
@@ -596,14 +605,7 @@ export const recoverFilter = (
             (fragment) => fragment.toAddress,
           ),
         ),
-        functionSelector: recoverSelector(
-          baseFilter.functionSelector,
-          fragments.map(
-            (fragment) =>
-              (fragment as Extract<Fragment, { type: "trace" }>)
-                .functionSelector,
-          ),
-        ),
+        functionSelector: baseFilter.functionSelector,
       };
     }
     case "log": {
@@ -615,13 +617,7 @@ export const recoverFilter = (
             (fragment) => fragment.address,
           ),
         ),
-        topic0: recoverTopic(
-          baseFilter.topic0,
-          fragments.map(
-            (fragment) =>
-              (fragment as Extract<Fragment, { type: "log" }>).topic0,
-          ),
-        ),
+        topic0: baseFilter.topic0,
         topic1: recoverTopic(
           baseFilter.topic1,
           fragments.map(

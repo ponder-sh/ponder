@@ -9,7 +9,6 @@ import type {
   Transfer,
 } from "@/types/eth.js";
 import type { PartialExcept, Prettify } from "@/types/utils.js";
-import type { AbiEvents, AbiFunctions } from "@/utils/abi.js";
 import type { Trace as DebugTrace } from "@/utils/debug.js";
 import type { PGliteOptions } from "@/utils/pglite.js";
 import type { PGlite } from "@electric-sql/pglite";
@@ -17,6 +16,8 @@ import type { Hono } from "hono";
 import type { PoolConfig } from "pg";
 import type {
   Abi,
+  AbiEvent,
+  AbiFunction,
   Address,
   BlockTag,
   Hex,
@@ -40,17 +41,12 @@ export type DatabaseConfig =
 // Indexing
 
 /** Indexing functions as defined in `ponder.on()` */
-export type RawIndexingFunctions = {
+export type IndexingFunctions = {
   /** Name of the event */
   name: string;
   /** Callback function */
   fn: (...args: any) => any;
 }[];
-
-/** Indexing functions for event callbacks */
-export type IndexingFunctions = {
-  [eventName: string]: (...args: any) => any;
-};
 
 // Filters
 
@@ -61,12 +57,6 @@ export type Filter =
   | TransferFilter
   | TransactionFilter
   | TraceFilter;
-export type FilterWithoutBlocks =
-  | Omit<BlockFilter, "fromBlock" | "toBlock">
-  | Omit<TransactionFilter, "fromBlock" | "toBlock">
-  | Omit<TraceFilter, "fromBlock" | "toBlock">
-  | Omit<LogFilter, "fromBlock" | "toBlock">
-  | Omit<TransferFilter, "fromBlock" | "toBlock">;
 
 /** Filter that matches addresses. */
 export type Factory = LogFactory;
@@ -77,6 +67,7 @@ export type FilterAddress<
 export type BlockFilter = {
   type: "block";
   chainId: number;
+  sourceId: string;
   interval: number;
   offset: number;
   fromBlock: number | undefined;
@@ -91,6 +82,7 @@ export type TransactionFilter<
 > = {
   type: "transaction";
   chainId: number;
+  sourceId: string;
   fromAddress: FilterAddress<fromFactory>;
   toAddress: FilterAddress<toFactory>;
   includeReverted: boolean;
@@ -110,9 +102,10 @@ export type TraceFilter<
 > = {
   type: "trace";
   chainId: number;
+  sourceId: string;
   fromAddress: FilterAddress<fromFactory>;
   toAddress: FilterAddress<toFactory>;
-  functionSelector: Hex | Hex[] | undefined;
+  functionSelector: Hex;
   callType: Trace["type"] | undefined;
   includeReverted: boolean;
   fromBlock: number | undefined;
@@ -131,8 +124,9 @@ export type LogFilter<
 > = {
   type: "log";
   chainId: number;
+  sourceId: string;
   address: FilterAddress<factory>;
-  topic0: LogTopic;
+  topic0: Hex;
   topic1: LogTopic;
   topic2: LogTopic;
   topic3: LogTopic;
@@ -153,6 +147,7 @@ export type TransferFilter<
 > = {
   type: "transfer";
   chainId: number;
+  sourceId: string;
   fromAddress: FilterAddress<fromFactory>;
   toAddress: FilterAddress<toFactory>;
   includeReverted: boolean;
@@ -215,14 +210,14 @@ export type Fragment =
       chainId: number;
       fromAddress: FragmentAddress;
       toAddress: FragmentAddress;
-      functionSelector: Hex | null;
+      functionSelector: Hex;
       includeTransactionReceipts: boolean;
     }
   | {
       type: "log";
       chainId: number;
       address: FragmentAddress;
-      topic0: FragmentTopic;
+      topic0: Hex;
       topic1: FragmentTopic;
       topic2: FragmentTopic;
       topic3: FragmentTopic;
@@ -234,6 +229,13 @@ export type Fragment =
       fromAddress: FragmentAddress;
       toAddress: FragmentAddress;
       includeTransactionReceipts: boolean;
+    }
+  | {
+      type: "factory_log";
+      chainId: number;
+      address: Address;
+      eventSelector: Factory["eventSelector"];
+      childAddressLocation: Factory["childAddressLocation"];
     };
 
 /** Minimum slice of a {@link Filter} */
@@ -247,53 +249,40 @@ export type FragmentId =
   /** log_{chainId}_{address}_{topic0}_{topic1}_{topic2}_{topic3}_{includeReceipts} */
   | `log_${number}_${FragmentAddressId}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${0 | 1}`
   /** transfer_{chainId}_{fromAddress}_{toAddress}_{includeReceipts} */
-  | `transfer_${number}_${FragmentAddressId}_${FragmentAddressId}_${0 | 1}`;
+  | `transfer_${number}_${FragmentAddressId}_${FragmentAddressId}_${0 | 1}`
+  /** factory_log_{chainId}_{address}_{eventSelector}_{childAddressLocation} */
+  | `factory_log_${number}_${Address}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}`;
 
-// Sources
-
-/** Event source that matches {@link Event}s containing an underlying filter and metadata. */
-export type Source = ContractSource | AccountSource | BlockSource;
-
-export type ContractSource<
-  filter extends "log" | "trace" = "log" | "trace",
-  factory extends Factory | undefined = Factory | undefined,
-  fromFactory extends Factory | undefined = Factory | undefined,
-  toFactory extends Factory | undefined = Factory | undefined,
-> = {
-  filter: filter extends "log"
-    ? LogFilter<factory>
-    : TraceFilter<fromFactory, toFactory>;
-} & ContractMetadata;
-
-export type AccountSource<
-  filter extends "transaction" | "transfer" = "transaction" | "transfer",
-  fromFactory extends Factory | undefined = Factory | undefined,
-  toFactory extends Factory | undefined = Factory | undefined,
-> = {
-  filter: filter extends "transaction"
-    ? TransactionFilter<fromFactory, toFactory>
-    : TransferFilter<fromFactory, toFactory>;
-} & AccountMetadata;
-
-export type BlockSource = { filter: BlockFilter } & BlockMetadata;
-
-export type ContractMetadata = {
-  type: "contract";
+// Contract
+export type Contract = {
   abi: Abi;
-  abiEvents: AbiEvents;
-  abiFunctions: AbiFunctions;
-  name: string;
-  chain: Chain;
+  address?: Address | readonly Address[];
+  startBlock?: number;
+  endBlock?: number;
 };
-export type AccountMetadata = {
-  type: "account";
+
+// Event Callback
+
+export type EventCallback = {
+  filter: Filter;
   name: string;
+  fn: (...args: any) => any;
   chain: Chain;
-};
-export type BlockMetadata = {
-  type: "block";
+} & (
+  | {
+      type: "contract";
+      abiItem: AbiEvent | AbiFunction;
+      metadata: { safeName: string; abi: Abi };
+    }
+  | { type: "account"; direction: "from" | "to" }
+  | { type: "block" }
+);
+
+export type SetupCallback = {
   name: string;
+  fn: (...args: any) => any;
   chain: Chain;
+  block: number | undefined;
 };
 
 // Chain
@@ -327,7 +316,7 @@ export type PreBuild = {
   /** Database type and configuration */
   databaseConfig: DatabaseConfig;
   /** Ordering of events */
-  ordering: "omnichain" | "multichain";
+  ordering: "omnichain" | "multichain" | "experimental_isolated";
 };
 
 export type SchemaBuild = {
@@ -339,16 +328,22 @@ export type SchemaBuild = {
 export type IndexingBuild = {
   /** Ten character hex string identifier. */
   buildId: string;
-  /** Sources to index. */
-  sources: Source[];
   /** Chains to index. */
   chains: Chain[];
   /** RPCs for all `chains`. */
   rpcs: Rpc[];
   /** Finalized blocks for all `chains`. */
   finalizedBlocks: LightBlock[];
-  /** Event callbacks for all `sources`.  */
+  /** Event callbacks for all `chains`.  */
+  eventCallbacks: EventCallback[][];
+  /** Setup callbacks for all `chains`. */
+  setupCallbacks: SetupCallback[][];
+  /** Indexing functions registered with `ponder.on()`. */
   indexingFunctions: IndexingFunctions;
+  /** Contracts for all `chains`. */
+  contracts: {
+    [name: string]: Contract;
+  }[];
 };
 
 export type ApiBuild = {
@@ -489,9 +484,9 @@ export type UserLog = Log;
 // Events
 
 export type RawEvent = {
-  chainId: number;
-  sourceIndex: number;
   checkpoint: string;
+  chainId: number;
+  eventCallbackIndex: number;
   log?: UserLog;
   block: UserBlock;
   transaction?: UserTransaction;
@@ -508,22 +503,18 @@ export type Event =
 
 export type SetupEvent = {
   type: "setup";
-  chainId: number;
   checkpoint: string;
-
-  /** `${source.name}:setup` */
-  name: string;
+  chain: Chain;
+  setupCallback: SetupCallback;
 
   block: bigint;
 };
 
 export type BlockEvent = {
   type: "block";
-  chainId: number;
   checkpoint: string;
-
-  /** `${source.name}:block` */
-  name: string;
+  chain: Chain;
+  eventCallback: EventCallback;
 
   event: {
     id: string;
@@ -533,11 +524,9 @@ export type BlockEvent = {
 
 export type TransactionEvent = {
   type: "transaction";
-  chainId: number;
   checkpoint: string;
-
-  /** `${source.name}.{safeName}()` */
-  name: string;
+  chain: Chain;
+  eventCallback: EventCallback;
 
   event: {
     id: string;
@@ -549,11 +538,9 @@ export type TransactionEvent = {
 
 export type TraceEvent = {
   type: "trace";
-  chainId: number;
   checkpoint: string;
-
-  /** `${source.name}:transfer:from` | `${source.name}:transfer:to` */
-  name: string;
+  chain: Chain;
+  eventCallback: EventCallback;
 
   event: {
     id: string;
@@ -568,11 +555,9 @@ export type TraceEvent = {
 
 export type LogEvent = {
   type: "log";
-  chainId: number;
   checkpoint: string;
-
-  /** `${source.name}:${safeName}` */
-  name: string;
+  chain: Chain;
+  eventCallback: EventCallback;
 
   event: {
     id: string;
@@ -586,11 +571,9 @@ export type LogEvent = {
 
 export type TransferEvent = {
   type: "transfer";
-  chainId: number;
   checkpoint: string;
-
-  /** `${source.name}:transfer:from` | `${source.name}:transfer:to` */
-  name: string;
+  chain: Chain;
+  eventCallback: EventCallback;
 
   event: {
     id: string;

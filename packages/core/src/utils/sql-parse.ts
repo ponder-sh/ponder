@@ -11,42 +11,14 @@ type ValidatorNode<
 const getNodeType = (node: Node) => Object.keys(node)[0]!;
 
 const ALLOW_CACHE = new Map<string, boolean>();
-const TABLE_NAMES_CACHE = new Map<string, Set<string>>();
+const RELATIONS_CACHE = new Map<string, Set<string>>();
 
-/**
- * Validate a SQL query.
- *
- * @param sql - SQL query
- * @param shouldValidateInnerNode - `true` if the properties of each ast node should be validated, else only the allow list is checked
- */
-export const validateQuery = async (
-  sql: string,
-  shouldValidateInnerNode = true,
-) => {
+export const parseSQLQuery = async (sql: string): Promise<Node> => {
   // @ts-ignore
   const Parser = await import(/* webpackIgnore: true */ "pg-query-emscripten");
-  const crypto = await import(/* webpackIgnore: true */ "node:crypto");
 
   if (sql.length > 5_000) {
     throw new Error("Invalid query");
-  }
-
-  const hash = crypto
-    .createHash("sha256")
-    .update(sql)
-    .digest("hex")
-    .slice(0, 10);
-
-  if (shouldValidateInnerNode) {
-    if (ALLOW_CACHE.has(hash)) {
-      const result = ALLOW_CACHE.get(hash)!;
-
-      ALLOW_CACHE.delete(hash);
-      ALLOW_CACHE.set(hash, result);
-
-      if (result) return;
-      throw new Error("Invalid query");
-    }
   }
 
   const { parse } = await Parser.default();
@@ -56,41 +28,104 @@ export const validateQuery = async (
   };
 
   if (parseResult.error !== null) {
-    ALLOW_CACHE.set(hash, false);
     throw new Error(parseResult.error);
   }
 
   if (parseResult.parse_tree.stmts.length === 0) {
-    ALLOW_CACHE.set(hash, false);
     throw new Error("Invalid query");
   }
 
   if (parseResult.parse_tree.stmts.length > 1) {
-    ALLOW_CACHE.set(hash, false);
     throw new Error("Multiple statements not supported");
   }
 
   const stmt = parseResult.parse_tree.stmts[0]!;
 
   if (stmt.stmt === undefined) {
-    ALLOW_CACHE.set(hash, false);
     throw new Error("Invalid query");
+  }
+
+  return stmt.stmt;
+};
+
+/**
+ * Validate a SQL query.
+ *
+ * @param sql - SQL query
+ */
+export const validateAllowableSQLQuery = async (sql: string) => {
+  const crypto = await import(/* webpackIgnore: true */ "node:crypto");
+
+  const hash = crypto
+    .createHash("sha256")
+    .update(sql)
+    .digest("hex")
+    .slice(0, 10);
+
+  if (ALLOW_CACHE.has(hash)) {
+    const result = ALLOW_CACHE.get(hash)!;
+
+    ALLOW_CACHE.delete(hash);
+    ALLOW_CACHE.set(hash, result);
+
+    if (result) return;
+    throw new Error("Invalid query");
+  }
+
+  let root: Node;
+  try {
+    root = await parseSQLQuery(sql);
+  } catch (error) {
+    ALLOW_CACHE.set(hash, false);
+    throw error;
   }
 
   const validate = (node: Node) => {
     if (ALLOW_LIST.has(getNodeType(node)) === false) {
-      ALLOW_CACHE.set(hash, false);
       throw new Error(`${getNodeType(node)} not supported`);
     }
 
-    if (shouldValidateInnerNode) {
-      try {
-        // @ts-ignore
-        ALLOW_LIST.get(getNodeType(node))!.validate?.(node[getNodeType(node)]);
-      } catch (error) {
-        ALLOW_CACHE.set(hash, false);
-        throw error;
-      }
+    // @ts-ignore
+    ALLOW_LIST.get(getNodeType(node))!.validate?.(node[getNodeType(node)]);
+
+    for (const child of ALLOW_LIST.get(getNodeType(node))!.children(
+      // @ts-ignore
+      node[getNodeType(node)],
+    )) {
+      validate(child);
+    }
+  };
+
+  try {
+    validate(root);
+  } catch (error) {
+    ALLOW_CACHE.set(hash, false);
+    throw error;
+  }
+
+  ALLOW_CACHE.set(hash, true);
+  if (ALLOW_CACHE.size > 1_000_000) {
+    const firstKey = ALLOW_CACHE.keys().next().value;
+    if (firstKey) ALLOW_CACHE.delete(firstKey);
+  }
+};
+
+/**
+ * Return `true` if the SQL query is readonly, else `false`.
+ *
+ * @param sql - SQL query
+ */
+export const isReadonlySQLQuery = async (sql: string): Promise<boolean> => {
+  let root: Node;
+  try {
+    root = await parseSQLQuery(sql);
+  } catch {
+    return false;
+  }
+
+  const validate = (node: Node) => {
+    if (ALLOW_LIST.has(getNodeType(node)) === false) {
+      throw new Error(`${getNodeType(node)} not supported`);
     }
 
     for (const child of ALLOW_LIST.get(getNodeType(node))!.children(
@@ -101,25 +136,22 @@ export const validateQuery = async (
     }
   };
 
-  validate(stmt.stmt);
-
-  if (shouldValidateInnerNode) {
-    ALLOW_CACHE.set(hash, true);
-    if (ALLOW_CACHE.size > 1_000_000) {
-      const firstKey = ALLOW_CACHE.keys().next().value;
-      if (firstKey) ALLOW_CACHE.delete(firstKey);
-    }
+  try {
+    validate(root);
+    return true;
+  } catch {
+    return false;
   }
 };
 
 /**
- * Find all table names in a SQL query.
+ * Find all referenced relations in a SQL query.
  *
  * @param sql - SQL query
  */
-export const findTableNames = async (sql: string) => {
-  // @ts-ignore
-  const Parser = await import(/* webpackIgnore: true */ "pg-query-emscripten");
+export const getSQLQueryRelations = async (
+  sql: string,
+): Promise<Set<string>> => {
   const crypto = await import(/* webpackIgnore: true */ "node:crypto");
 
   if (sql.length > 5_000) {
@@ -132,38 +164,16 @@ export const findTableNames = async (sql: string) => {
     .digest("hex")
     .slice(0, 10);
 
-  if (TABLE_NAMES_CACHE.has(hash)) {
-    const result = TABLE_NAMES_CACHE.get(hash)!;
+  if (RELATIONS_CACHE.has(hash)) {
+    const result = RELATIONS_CACHE.get(hash)!;
 
-    TABLE_NAMES_CACHE.delete(hash);
-    TABLE_NAMES_CACHE.set(hash, result);
+    RELATIONS_CACHE.delete(hash);
+    RELATIONS_CACHE.set(hash, result);
 
     return result;
   }
 
-  const { parse } = await Parser.default();
-  const parseResult = parse(sql) as {
-    parse_tree: { stmts: RawStmt[] };
-    error: string | null;
-  };
-
-  if (parseResult.error !== null) {
-    throw new Error(parseResult.error);
-  }
-
-  if (parseResult.parse_tree.stmts.length === 0) {
-    throw new Error("Invalid query");
-  }
-
-  if (parseResult.parse_tree.stmts.length > 1) {
-    throw new Error("Multiple statements not supported");
-  }
-
-  const stmt = parseResult.parse_tree.stmts[0]!;
-
-  if (stmt.stmt === undefined) {
-    throw new Error("Invalid query");
-  }
+  const root = await parseSQLQuery(sql);
 
   const find = (node: Node) => {
     if (FIND_LIST.has(getNodeType(node)) === false) {
@@ -171,8 +181,8 @@ export const findTableNames = async (sql: string) => {
     }
 
     if (getNodeType(node) === "RangeVar") {
-      const tableName = (node as { RangeVar: RangeVar }).RangeVar.relname;
-      if (tableName) tableNames.add(tableName);
+      const relation = (node as { RangeVar: RangeVar }).RangeVar.relname;
+      if (relation) relations.add(relation);
     }
 
     for (const child of FIND_LIST.get(getNodeType(node))!.children(
@@ -183,16 +193,16 @@ export const findTableNames = async (sql: string) => {
     }
   };
 
-  const tableNames = new Set<string>();
-  find(stmt.stmt);
+  const relations = new Set<string>();
+  find(root);
 
-  TABLE_NAMES_CACHE.set(hash, tableNames);
-  if (TABLE_NAMES_CACHE.size > 1_000_000) {
-    const firstKey = TABLE_NAMES_CACHE.keys().next().value;
-    if (firstKey) TABLE_NAMES_CACHE.delete(firstKey);
+  RELATIONS_CACHE.set(hash, relations);
+  if (RELATIONS_CACHE.size > 1_000_000) {
+    const firstKey = RELATIONS_CACHE.keys().next().value;
+    if (firstKey) RELATIONS_CACHE.delete(firstKey);
   }
 
-  return tableNames;
+  return relations;
 };
 
 // https://github.com/launchql/pgsql-parser/blob/f1df82ed4358e47c682e007bc5aa306b58f25514/packages/types/src/types.ts#L38

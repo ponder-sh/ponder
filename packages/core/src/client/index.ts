@@ -1,13 +1,56 @@
+import type { PonderApp5 } from "@/database/index.js";
+import { getLiveQueryChannelName } from "@/drizzle/onchain.js";
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
-import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
-import type { QueryWithTypings } from "drizzle-orm";
-import type { PgSession } from "drizzle-orm/pg-core";
+import {
+  type PromiseWithResolvers,
+  promiseWithResolvers,
+} from "@/utils/promiseWithResolvers.js";
+import {
+  getSQLQueryRelations,
+  validateAllowableSQLQuery,
+} from "@/utils/sql-parse.js";
+import {
+  type QueryWithTypings,
+  getTableName,
+  getViewName,
+  isTable,
+  isView,
+} from "drizzle-orm";
+import {
+  type PgDialect,
+  type PgSession,
+  type PgView,
+  getViewConfig,
+  pgSchema,
+  pgTable,
+} from "drizzle-orm/pg-core";
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
 import type * as pg from "pg";
 import superjson from "superjson";
-import { validateQuery } from "./parse.js";
+
+type QueryString = string;
+type QueryResult = unknown;
+
+const MAX_LIVE_QUERIES = 1000;
+
+/**
+ * @dev This is copied to avoid bundling another dependency.
+ */
+const getPonderMetaTable = (schema?: string) => {
+  if (schema === undefined || schema === "public") {
+    return pgTable("_ponder_meta", (t) => ({
+      key: t.text().primaryKey().$type<"app">(),
+      value: t.jsonb().$type<PonderApp5>().notNull(),
+    }));
+  }
+
+  return pgSchema(schema).table("_ponder_meta", (t) => ({
+    key: t.text().primaryKey().$type<"app">(),
+    value: t.jsonb().$type<PonderApp5>().notNull(),
+  }));
+};
 
 /**
  * Middleware for `@ponder/client`.
@@ -31,6 +74,7 @@ import { validateQuery } from "./parse.js";
  */
 export const client = ({
   db,
+  schema,
 }: { db: ReadonlyDrizzle<Schema>; schema: Schema }) => {
   if (
     globalThis.PONDER_COMMON === undefined ||
@@ -42,23 +86,147 @@ export const client = ({
     );
   }
 
+  const tables = Object.values(schema).filter(isTable);
+  const views = Object.values(schema).filter(isView);
+  const tableNames = new Set(tables.map(getTableName));
+  const viewNames = new Set(views.map(getViewName));
+
+  // Note: Add system tables to the live query registry.
+  tableNames.add("_ponder_checkpoint");
+
   // @ts-ignore
   const session: PgSession = db._.session;
+  // @ts-ignore
+  const dialect: PgDialect = session.dialect;
   const driver = globalThis.PONDER_DATABASE.driver;
-  let statusResolver = promiseWithResolvers<void>();
 
-  const channel = `${globalThis.PONDER_NAMESPACE_BUILD.schema}_status_channel`;
+  const perTableResolver = new Map<string, PromiseWithResolvers<void>>();
+  const perViewTables = new Map<string, Set<string>>();
 
-  const cache = new Map<string, WeakRef<Promise<unknown>>>();
+  /** `true` if the app is indexing live blocks. */
+  let liveQueryCount = 0;
+  let isReady = false;
+
+  (async () => {
+    while (globalThis.PONDER_COMMON.apiShutdown.isKilled === false) {
+      try {
+        isReady = await globalThis.PONDER_DATABASE.readonlyQB.wrap(
+          { label: "select_ready" },
+          (db) =>
+            db
+              .select()
+              .from(getPonderMetaTable())
+              .then((result) => result[0]!.value.is_ready === 1),
+        );
+      } catch {}
+      if (isReady) return;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  })();
+
+  const cache = new Map<QueryString, WeakRef<Promise<unknown>>>();
+  const perQueryReferences = new Map<QueryString, Set<string>>();
+
+  const registry = new FinalizationRegistry<QueryString>((queryString) => {
+    // Note: When a cache entry is garbage collected, delete the key from `perQueryReferences`.
+    cache.delete(queryString);
+    perQueryReferences.delete(queryString);
+  });
+
+  for (const table of tableNames) {
+    perTableResolver.set(table, promiseWithResolvers<void>());
+  }
+
+  const parseViewPromise = (async () => {
+    const unresolvedViewRelations = new Map<string, Set<string>>();
+    for (const view of views) {
+      const query = dialect.sqlToQuery(getViewConfig(view as PgView).query!);
+      const relations = await getSQLQueryRelations(query.sql);
+
+      unresolvedViewRelations.set(getViewName(view), relations);
+    }
+
+    /**
+     * Recursively resolve nested views (views that reference other views).
+     *
+     * @dev This assumes views cannot be infinitely cursive - an invariant enforced by Postgres.
+     */
+    const resolveRelation = (relation: string): Set<string> => {
+      if (perViewTables.has(relation)) {
+        return perViewTables.get(relation)!;
+      }
+
+      if (tableNames.has(relation)) {
+        return new Set([relation]);
+      }
+
+      if (viewNames.has(relation)) {
+        const result = new Set<string>();
+        for (const _relation of unresolvedViewRelations.get(relation)!) {
+          for (const __relation of resolveRelation(_relation)) {
+            result.add(__relation);
+          }
+        }
+        return result;
+      }
+
+      return new Set();
+    };
+
+    for (const [viewName, relations] of unresolvedViewRelations) {
+      const resolvedRelations = new Set<string>();
+      for (const relation of relations) {
+        for (const _relation of resolveRelation(relation)) {
+          resolvedRelations.add(_relation);
+        }
+      }
+      perViewTables.set(viewName, resolvedRelations);
+    }
+  })();
 
   if (driver.dialect === "pglite") {
-    driver.instance.query(`LISTEN "${channel}"`).then(() => {
-      driver.instance.onNotification(() => {
-        // Clear cache on status change
-        cache.clear();
-        statusResolver.resolve();
-        statusResolver = promiseWithResolvers<void>();
-      });
+    const channel = getLiveQueryChannelName(
+      globalThis.PONDER_NAMESPACE_BUILD.schema,
+    );
+    driver.instance.query(`LISTEN "${channel}"`);
+
+    driver.instance.onNotification((_, payload) => {
+      const tables = JSON.parse(payload!) as string[];
+      tables.push("_ponder_checkpoint");
+      let invalidQueryCount = 0;
+
+      for (const [queryString, referencedTables] of perQueryReferences) {
+        let isQueryInvalid = false;
+        for (const table of tables) {
+          if (referencedTables.has(table)) {
+            isQueryInvalid = true;
+            break;
+          }
+        }
+
+        if (isQueryInvalid) {
+          invalidQueryCount++;
+
+          const resultPromise = cache.get(queryString)?.deref();
+          if (resultPromise) registry.unregister(resultPromise);
+
+          cache.delete(queryString);
+          perQueryReferences.delete(queryString);
+        }
+      }
+
+      for (const table of tables) {
+        perTableResolver.get(table)!.resolve();
+        perTableResolver.set(table, promiseWithResolvers<void>());
+      }
+
+      if (invalidQueryCount > 0) {
+        globalThis.PONDER_COMMON.logger.debug({
+          msg: "Updated live queries",
+          tables: JSON.stringify(Array.from(tables)),
+          query_count: invalidQueryCount,
+        });
+      }
     });
   } else {
     (async () => {
@@ -84,11 +252,46 @@ export const client = ({
               msg: `Established listen connection for "@ponder/client" middleware`,
             });
 
-            client.on("notification", () => {
-              // Clear cache on status change
-              cache.clear();
-              statusResolver.resolve();
-              statusResolver = promiseWithResolvers<void>();
+            client.on("notification", (notification) => {
+              const tables = JSON.parse(notification.payload!) as string[];
+              tables.push("_ponder_checkpoint");
+              let invalidQueryCount = 0;
+
+              for (const [
+                queryString,
+                referencedTables,
+              ] of perQueryReferences) {
+                let isQueryInvalid = false;
+                for (const table of tables) {
+                  if (referencedTables.has(table)) {
+                    isQueryInvalid = true;
+                    break;
+                  }
+                }
+
+                if (isQueryInvalid) {
+                  invalidQueryCount++;
+
+                  const resultPromise = cache.get(queryString)?.deref();
+                  if (resultPromise) registry.unregister(resultPromise);
+
+                  cache.delete(queryString);
+                  perQueryReferences.delete(queryString);
+                }
+              }
+
+              for (const table of tables) {
+                perTableResolver.get(table)!.resolve();
+                perTableResolver.set(table, promiseWithResolvers<void>());
+              }
+
+              if (invalidQueryCount > 0) {
+                globalThis.PONDER_COMMON.logger.debug({
+                  msg: "Updated live queries",
+                  tables: JSON.stringify(tables),
+                  query_count: invalidQueryCount,
+                });
+              }
             });
 
             client.on("error", async (error) => {
@@ -104,6 +307,10 @@ export const client = ({
 
               resolve();
             });
+
+            const channel = getLiveQueryChannelName(
+              globalThis.PONDER_NAMESPACE_BUILD.schema,
+            );
 
             await client.query(`LISTEN "${channel}"`);
           } catch (error) {
@@ -124,7 +331,25 @@ export const client = ({
     })();
   }
 
+  const getQueryResult = (query: QueryWithTypings): Promise<QueryResult> => {
+    if (driver.dialect === "pglite") {
+      return session.prepareQuery(query, undefined, undefined, false).execute();
+    } else {
+      return globalThis.PONDER_DATABASE.readonlyQB.raw.transaction(
+        (tx) => {
+          return tx._.session
+            .prepareQuery(query, undefined, undefined, false)
+            .execute();
+        },
+        { accessMode: "read only" },
+      );
+    }
+  };
+
   return createMiddleware(async (c, next) => {
+    const crypto = await import(/* webpackIgnore: true */ "node:crypto");
+    await parseViewPromise;
+
     if (c.req.path === "/sql/db") {
       const queryString = c.req.query("sql");
       if (queryString === undefined) {
@@ -133,43 +358,45 @@ export const client = ({
       const query = superjson.parse(queryString) as QueryWithTypings;
 
       try {
-        await validateQuery(query.sql);
+        await validateAllowableSQLQuery(query.sql);
       } catch (error) {
         (error as Error).stack = undefined;
         return c.text((error as Error).message, 500);
       }
 
+      const relations = await getSQLQueryRelations(query.sql);
+      const referencedTables = new Set<string>();
+      for (const relation of relations) {
+        if (tableNames.has(relation)) {
+          referencedTables.add(relation);
+        } else if (viewNames.has(relation)) {
+          for (const tableName of perViewTables.get(relation)!) {
+            referencedTables.add(tableName);
+          }
+        }
+      }
+
       let resultPromise: Promise<unknown>;
 
-      const _resultPromise = cache.get(queryString)?.deref() ?? undefined;
-      if (_resultPromise === undefined) {
-        cache.delete(queryString);
+      if (isReady === false) {
+        resultPromise = getQueryResult(query);
+      } else if (cache.has(queryString)) {
+        const resultRef = cache.get(queryString)!.deref();
 
-        const pwr = promiseWithResolvers<unknown>();
-        cache.set(queryString, new WeakRef(pwr.promise));
-        resultPromise = pwr.promise;
-
-        if (driver.dialect === "pglite") {
-          session
-            .prepareQuery(query, undefined, undefined, false)
-            .execute()
-            .then(pwr.resolve)
-            .catch(pwr.reject);
+        if (resultRef === undefined) {
+          cache.delete(queryString);
+          resultPromise = getQueryResult(query);
+          cache.set(queryString, new WeakRef(resultPromise));
+          perQueryReferences.set(queryString, referencedTables);
+          registry.register(resultPromise, queryString);
         } else {
-          globalThis.PONDER_DATABASE.readonlyQB.raw
-            .transaction(
-              (tx) => {
-                return tx._.session
-                  .prepareQuery(query, undefined, undefined, false)
-                  .execute();
-              },
-              { accessMode: "read only" },
-            )
-            .then(pwr.resolve)
-            .catch(pwr.reject);
+          resultPromise = resultRef;
         }
       } else {
-        resultPromise = _resultPromise;
+        resultPromise = getQueryResult(query);
+        cache.set(queryString, new WeakRef(resultPromise));
+        perQueryReferences.set(queryString, referencedTables);
+        registry.register(resultPromise, queryString);
       }
 
       try {
@@ -181,16 +408,127 @@ export const client = ({
     }
 
     if (c.req.path === "/sql/live") {
+      if (isReady === false) {
+        return c.text(
+          "Live queries are not available until the backfill is complete",
+          503,
+        );
+      }
+
+      if (liveQueryCount >= MAX_LIVE_QUERIES) {
+        return c.text("Maximum number of live queries reached", 503);
+      }
+
+      liveQueryCount++;
+
       c.header("Content-Type", "text/event-stream");
       c.header("Cache-Control", "no-cache");
       c.header("Connection", "keep-alive");
 
+      const queryString = c.req.query("sql");
+      if (queryString === undefined) {
+        return c.text('Missing "sql" query parameter', 400);
+      }
+      const query = superjson.parse(queryString) as QueryWithTypings;
+
+      try {
+        await validateAllowableSQLQuery(query.sql);
+      } catch (error) {
+        (error as Error).stack = undefined;
+        return c.text((error as Error).message, 500);
+      }
+
+      const relations = await getSQLQueryRelations(query.sql);
+      const referencedTables = new Set<string>();
+      for (const relation of relations) {
+        if (tableNames.has(relation)) {
+          referencedTables.add(relation);
+        } else if (viewNames.has(relation)) {
+          for (const tableName of perViewTables.get(relation)!) {
+            referencedTables.add(tableName);
+          }
+        }
+      }
+
+      let result: QueryResult;
+      if (cache.has(queryString)) {
+        const resultRef = cache.get(queryString)!.deref();
+
+        if (resultRef === undefined) {
+          cache.delete(queryString);
+          const resultPromise = getQueryResult(query);
+          cache.set(queryString, new WeakRef(resultPromise));
+          perQueryReferences.set(queryString, referencedTables);
+          registry.register(resultPromise, queryString);
+          result = await resultPromise;
+        } else {
+          result = await resultRef;
+        }
+      } else {
+        const resultPromise = getQueryResult(query);
+        cache.set(queryString, new WeakRef(resultPromise));
+        perQueryReferences.set(queryString, referencedTables);
+        registry.register(resultPromise, queryString);
+        result = await resultPromise;
+      }
+
+      let resultHash = crypto
+        .createHash("MD5")
+        // @ts-ignore
+        .update(JSON.stringify(result.rows))
+        .digest("hex")
+        .slice(0, 10);
+
       return streamSSE(c, async (stream) => {
+        stream.onAbort(() => {
+          liveQueryCount--;
+        });
+
         while (stream.closed === false && stream.aborted === false) {
+          await Promise.race(
+            Array.from(referencedTables).map(
+              (relation) => perTableResolver.get(relation)!.promise,
+            ),
+          );
+
           try {
-            await stream.writeSSE({ data: "" });
-          } catch {}
-          await statusResolver.promise;
+            let resultPromise: Promise<unknown>;
+            if (cache.has(queryString)) {
+              const resultRef = cache.get(queryString)!.deref();
+
+              if (resultRef === undefined) {
+                cache.delete(queryString);
+                resultPromise = getQueryResult(query);
+                cache.set(queryString, new WeakRef(resultPromise));
+                perQueryReferences.set(queryString, referencedTables);
+                registry.register(resultPromise, queryString);
+              } else {
+                resultPromise = resultRef;
+              }
+            } else {
+              resultPromise = getQueryResult(query);
+              cache.set(queryString, new WeakRef(resultPromise));
+              perQueryReferences.set(queryString, referencedTables);
+              registry.register(resultPromise, queryString);
+            }
+
+            const result = await resultPromise;
+
+            const _resultHash = crypto
+              .createHash("MD5")
+              // @ts-ignore
+              .update(JSON.stringify(result.rows))
+              .digest("hex")
+              .slice(0, 10);
+
+            if (_resultHash === resultHash) continue;
+            resultHash = _resultHash;
+
+            // @ts-ignore
+            await stream.writeSSE({ data: JSON.stringify(result) });
+          } catch {
+            stream.abort();
+          }
         }
       });
     }

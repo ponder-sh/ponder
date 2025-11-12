@@ -1,11 +1,21 @@
 import {
+  type AnyColumn,
+  Column,
   type QueryWithTypings,
+  SQL,
   type SQLWrapper,
+  type SelectedFieldsOrdered,
   Table,
+  is,
   isTable,
+  mapRelationalRow,
 } from "drizzle-orm";
 import { type PgDialect, isPgEnum } from "drizzle-orm/pg-core";
+import { PgCountBuilder } from "drizzle-orm/pg-core/query-builders/count";
+import { PgRelationalQuery } from "drizzle-orm/pg-core/query-builders/query";
+import { PgRaw } from "drizzle-orm/pg-core/query-builders/raw";
 import { type PgRemoteDatabase, drizzle } from "drizzle-orm/pg-proxy";
+import { TypedQueryBuilder } from "drizzle-orm/query-builders/query-builder";
 import { EventSource } from "eventsource";
 import superjson from "superjson";
 
@@ -111,15 +121,12 @@ export const createClient = <schema extends Schema>(
   baseUrl: string,
   params: { schema?: schema } = {},
 ): Client<schema> => {
-  let sse: EventSource | undefined;
-  let liveCount = 0;
-
   const client: Client<schema> = {
     db: drizzle(
       async (sql, params, method, typings) => {
         const builtQuery = { sql, params, typings };
         const response = await fetch(getUrl(baseUrl, "db", builtQuery), {
-          method: "POST",
+          method: "GET",
         });
 
         if (response.ok === false) {
@@ -142,31 +149,119 @@ export const createClient = <schema extends Schema>(
       { schema: params.schema, casing: "snake_case" },
     ),
     live: (queryFn, onData, onError) => {
-      if (sse === undefined) {
-        sse = new EventSource(getUrl(baseUrl, "live"));
-      }
+      const noopDatabase = drizzle(() => Promise.resolve({ rows: [] }), {
+        schema: params.schema,
+        casing: "snake_case",
+      });
 
-      const onDataListener = (_event: MessageEvent) => {
-        queryFn(client.db).then(onData).catch(onError);
+      const queryPromise = queryFn(noopDatabase);
+
+      if ("getSQL" in queryPromise === false) {
+        throw new Error(
+          '"queryFn" must return SQL. You may have to remove `.execute()` from your query.',
+        );
+      }
+      const queryBuilder = queryPromise as unknown as SQLWrapper;
+      const query = compileQuery(queryBuilder);
+
+      const sse = new EventSource(getUrl(baseUrl, "live", query));
+
+      const onDataListener = async (event: MessageEvent) => {
+        try {
+          // @ts-ignore
+          const result = JSON.parse(event.data);
+
+          const drizzleShim = drizzle(
+            (_, __, method) => {
+              if (method === "all") {
+                return Promise.resolve({
+                  ...result,
+                  rows: result.rows.map((row: object) => Object.values(row)),
+                });
+              }
+
+              return Promise.resolve(result);
+            },
+            { schema: params.schema },
+          );
+
+          let data: unknown;
+
+          if (queryBuilder instanceof TypedQueryBuilder) {
+            const fields = queryBuilder._.selectedFields as Record<
+              string,
+              unknown
+            >;
+            const orderedFields = orderSelectedFields(fields);
+
+            data = await drizzleShim._.session
+              .prepareQuery(
+                query,
+                // @ts-ignore
+                orderedFields,
+                undefined,
+                false,
+              )
+              .execute();
+          } else if (queryBuilder instanceof PgRelationalQuery) {
+            // @ts-ignore
+            const selection = queryBuilder._toSQL().query.selection;
+            data = await drizzleShim._.session
+              .prepareQuery(
+                query,
+                undefined,
+                undefined,
+                true,
+                (rawRows, mapColumnValue) => {
+                  const rows = rawRows.map((row) =>
+                    mapRelationalRow(
+                      // @ts-ignore
+                      queryBuilder.schema,
+                      // @ts-ignore
+                      queryBuilder.tableConfig,
+                      // @ts-ignore
+                      row,
+                      selection,
+                      mapColumnValue,
+                    ),
+                  );
+                  // @ts-ignore
+                  if (queryBuilder.mode === "first") {
+                    return rows[0];
+                  }
+                  return rows;
+                },
+              )
+              .execute();
+          } else if (queryBuilder instanceof PgRaw) {
+            data = await drizzleShim._.session
+              .prepareQuery(query, undefined, undefined, false)
+              .execute();
+          } else if (queryBuilder instanceof PgCountBuilder) {
+            data = await drizzleShim._.session.count(queryBuilder.getSQL());
+          } else {
+            throw new Error("Unsupported query builder");
+          }
+
+          // @ts-ignore
+          onData(data);
+        } catch (error) {
+          onError?.(error as Error);
+        }
       };
 
       const onErrorListener = (_event: MessageEvent) => {
         onError?.(new Error("server disconnected"));
       };
 
-      sse?.addEventListener("message", onDataListener);
-      sse?.addEventListener("error", onErrorListener);
-      liveCount = liveCount + 1;
+      sse.addEventListener("message", onDataListener);
+      sse.addEventListener("error", onErrorListener);
 
       return {
         unsubscribe: () => {
-          sse?.removeEventListener("message", onDataListener);
-          sse?.removeEventListener("error", onErrorListener);
-          liveCount = liveCount - 1;
-          if (liveCount === 0) {
-            sse?.close();
-            sse = undefined;
-          }
+          sse.removeEventListener("message", onDataListener);
+          sse.removeEventListener("error", onErrorListener);
+          sse.close();
         },
       };
     },
@@ -241,3 +336,32 @@ export const setDatabaseSchema = <T extends { [name: string]: unknown }>(
     }
   }
 };
+
+function orderSelectedFields<TColumn extends AnyColumn>(
+  fields: Record<string, unknown>,
+  pathPrefix?: string[],
+): SelectedFieldsOrdered<TColumn> {
+  return Object.entries(fields).reduce<SelectedFieldsOrdered<AnyColumn>>(
+    (result, [name, field]) => {
+      if (typeof name !== "string") {
+        return result;
+      }
+
+      const newPath = pathPrefix ? [...pathPrefix, name] : [name];
+      if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased)) {
+        result.push({ path: newPath, field });
+      } else if (is(field, Table)) {
+        result.push(
+          // @ts-ignore
+          ...orderSelectedFields(field[Table.Symbol.Columns], newPath),
+        );
+      } else {
+        result.push(
+          ...orderSelectedFields(field as Record<string, unknown>, newPath),
+        );
+      }
+      return result;
+    },
+    [],
+  ) as SelectedFieldsOrdered<TColumn>;
+}

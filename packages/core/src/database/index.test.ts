@@ -21,7 +21,19 @@ import { and, eq, sql } from "drizzle-orm";
 import { index } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
-import { commitBlock, createIndexes, createTriggers } from "./actions.js";
+import {
+  commitBlock,
+  crashRecovery,
+  createIndexes,
+  createLiveQueryProcedures,
+  createLiveQueryTriggers,
+  createTriggers,
+  createViews,
+  dropLiveQueryTriggers,
+  dropTriggers,
+  finalizeMultichain,
+  revertMultichain,
+} from "./actions.js";
 import {
   type Database,
   TABLES,
@@ -64,11 +76,15 @@ test("migrate() succeeds with empty schema", async (context) => {
       viewsSchema: undefined,
     },
     preBuild: {
+      ordering: "multichain",
       databaseConfig: context.databaseConfig,
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -122,11 +138,13 @@ test("migrate() with empty schema creates tables, views, and enums", async (cont
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account, kyle, mood, user, userView },
       statements: buildSchema({
         schema: { account, kyle, mood, user, userView },
+        preBuild: { ordering: "multichain" },
       }).statements,
     },
   });
@@ -162,10 +180,14 @@ test("migrate() throws with schema used", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
   await database.migrate({
@@ -185,10 +207,14 @@ test("migrate() throws with schema used", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -221,10 +247,14 @@ test("migrate() throws with schema used after waiting for lock", async (context)
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
   await database.migrate({
@@ -241,10 +271,14 @@ test("migrate() throws with schema used after waiting for lock", async (context)
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -270,10 +304,14 @@ test("migrate() succeeds with crash recovery", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -294,10 +332,14 @@ test("migrate() succeeds with crash recovery", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -333,10 +375,14 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
   await database.migrate({
@@ -353,10 +399,14 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -378,10 +428,14 @@ test("migrateSync()", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -406,10 +460,14 @@ test.skip("migrateSync() handles concurrent migrations", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -436,10 +494,14 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -471,6 +533,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 9n }),
     table: account,
+    preBuild: { ordering: "multichain" },
   });
 
   await createTriggers(database.userQB, { tables: [account] });
@@ -482,6 +545,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     table: account,
+    preBuild: { ordering: "multichain" },
   });
 
   await database.userQB.wrap((db) =>
@@ -506,10 +570,14 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -571,10 +639,14 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -585,7 +657,10 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
   });
 
   await createIndexes(database.userQB, {
-    statements: buildSchema({ schema: { account } }).statements,
+    statements: buildSchema({
+      schema: { account },
+      preBuild: { ordering: "multichain" },
+    }).statements,
   });
 
   await database.userQB.wrap((db) =>
@@ -616,10 +691,14 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -655,10 +734,14 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
     },
     preBuild: {
       databaseConfig: context.databaseConfig,
+      ordering: "multichain",
     },
     schemaBuild: {
       schema: { account },
-      statements: buildSchema({ schema: { account } }).statements,
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
     },
   });
 
@@ -687,6 +770,103 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
   expect(BigInt(rowAfterHeartbeat!.heartbeat_at)).toBeGreaterThan(
     row!.heartbeat_at,
   );
+
+  await context.common.shutdown.kill();
+});
+
+test("camelCase", async (context) => {
+  const accountCC = onchainTable("accountCc", (p) => ({
+    address: p.hex("addressCc").primaryKey(),
+    balance: p.bigint(),
+  }));
+
+  const accountViewCC = onchainView("accountViewCc").as((qb) =>
+    qb.select().from(accountCC),
+  );
+
+  const database = createDatabase({
+    common: context.common,
+    namespace: {
+      schema: "public",
+      viewsSchema: "viewCc",
+    },
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      ordering: "multichain",
+    },
+    schemaBuild: {
+      schema: { accountCC, accountViewCC },
+      statements: buildSchema({
+        schema: { accountCC, accountViewCC },
+        preBuild: { ordering: "multichain" },
+      }).statements,
+    },
+  });
+
+  await database.migrate({
+    buildId: "abc",
+    chains: [],
+    finalizedBlocks: [],
+  });
+
+  const tableNames = await getUserTableNames(database, "public");
+  expect(tableNames).toContain("accountCc");
+  expect(tableNames).toContain("_reorg__accountCc");
+  expect(tableNames).toContain("_ponder_meta");
+
+  const metadata = await database.userQB.wrap((db) =>
+    db.select().from(sql`_ponder_meta`),
+  );
+
+  expect(metadata).toHaveLength(1);
+
+  await createTriggers(database.userQB, { tables: [accountCC] });
+
+  await createIndexes(database.userQB, {
+    statements: buildSchema({
+      schema: { accountCC },
+      preBuild: { ordering: "multichain" },
+    }).statements,
+  });
+
+  await createViews(database.userQB, {
+    tables: [accountCC],
+    views: [accountViewCC],
+    namespaceBuild: { schema: "public", viewsSchema: "viewCc" },
+  });
+
+  await commitBlock(database.userQB, {
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    table: accountCC,
+    preBuild: { ordering: "multichain" },
+  });
+
+  await dropTriggers(database.userQB, { tables: [accountCC] });
+
+  await createLiveQueryProcedures(database.userQB, {
+    namespaceBuild: { schema: "public", viewsSchema: "viewCc" },
+  });
+  await createLiveQueryTriggers(database.userQB, {
+    tables: [accountCC],
+    namespaceBuild: { schema: "public", viewsSchema: "viewCc" },
+  });
+  await dropLiveQueryTriggers(database.userQB, {
+    tables: [accountCC],
+    namespaceBuild: { schema: "public", viewsSchema: "viewCc" },
+  });
+
+  await revertMultichain(database.userQB, {
+    tables: [accountCC],
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+  });
+  await finalizeMultichain(database.userQB, {
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    tables: [accountCC],
+    namespaceBuild: { schema: "public", viewsSchema: "viewCc" },
+  });
+  await crashRecovery(database.userQB, {
+    table: accountCC,
+  });
 
   await context.common.shutdown.kill();
 });

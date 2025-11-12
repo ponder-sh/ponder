@@ -12,6 +12,10 @@ import {
 } from "@/database/index.js";
 import { TABLES } from "@/database/index.js";
 import { sqlToReorgTableName } from "@/drizzle/kit/index.js";
+import {
+  getLiveQueryNotifyProcedureName,
+  getLiveQueryProcedureName,
+} from "@/drizzle/onchain.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -215,6 +219,8 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
         tablesToDrop.push(`"${schema}"."${sqlToReorgTableName(table)}"`);
         functionsToDrop.push(`"${schema}"."operation_reorg__${table}"`);
       }
+      functionsToDrop.push(`"${schema}".${getLiveQueryProcedureName()}`);
+      functionsToDrop.push(`"${schema}".${getLiveQueryNotifyProcedureName()}`);
       if ("view_names" in value) {
         for (const view of value.view_names) {
           viewsToDrop.push(`"${schema}"."${view}"`);

@@ -17,9 +17,13 @@ import {
 } from "@/_test/utils.js";
 import type {
   BlockFilter,
+  Factory,
   LogFactory,
+  LogFilter,
   SyncLog,
+  TraceFilter,
   TransactionFilter,
+  TransferFilter,
 } from "@/internal/types.js";
 import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
@@ -76,11 +80,11 @@ test("isLogFactoryMatched()", async () => {
     sender: ALICE,
   });
 
-  const { sources } = getPairWithFactoryIndexingBuild({
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({
     address,
   });
 
-  const filter = sources[0]!.filter;
+  const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
 
   let isMatched = isLogFactoryMatched({
     factory: filter.address,
@@ -114,18 +118,13 @@ test("isLogFilterMatched()", async () => {
     sender: ALICE,
   });
 
-  const { sources } = getErc20IndexingBuild({
+  const { eventCallbacks } = getErc20IndexingBuild({
     address,
   });
 
-  const filter = sources[0]!.filter;
+  const filter = eventCallbacks[0]!.filter as LogFilter;
 
   let isMatched = isLogFilterMatched({ filter, log: blockData.log });
-  expect(isMatched).toBe(true);
-
-  filter.topic0 = null;
-
-  isMatched = isLogFilterMatched({ filter, log: blockData.log });
   expect(isMatched).toBe(true);
 
   blockData.log.address = zeroAddress;
@@ -141,11 +140,11 @@ test("isBlockFilterMatched", async (context) => {
     common: context.common,
   });
 
-  const { sources } = getBlocksIndexingBuild({
+  const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
-  const filter = sources[0]!.filter as BlockFilter;
+  const filter = eventCallbacks[0]!.filter as BlockFilter;
 
   const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 0,
@@ -180,12 +179,15 @@ test("isTransactionFilterMatched()", async (context) => {
     sender: ALICE,
   });
 
-  const { sources } = getAccountsIndexingBuild({
+  const { eventCallbacks } = getAccountsIndexingBuild({
     address: ALICE,
   });
 
   // transaction:from
-  const filter = sources[1]!.filter as TransactionFilter<undefined, undefined>;
+  const filter = eventCallbacks[1]!.filter as TransactionFilter<
+    undefined,
+    undefined
+  >;
 
   const rpcBlock = await _eth_getBlockByNumber(rpc, {
     blockNumber: 1,
@@ -219,12 +221,15 @@ test("isTransactionFilterMatched() with null transaction.to", async (context) =>
     sender: ALICE,
   });
 
-  const { sources } = getAccountsIndexingBuild({
+  const { eventCallbacks } = getAccountsIndexingBuild({
     address: ALICE,
   });
 
   // transaction:to
-  const filter = sources[1]!.filter as TransactionFilter<undefined, undefined>;
+  const filter = eventCallbacks[1]!.filter as TransactionFilter<
+    undefined,
+    undefined
+  >;
   filter.toAddress = BOB.toLowerCase() as Address;
 
   const rpcBlock = await _eth_getBlockByNumber(rpc, {
@@ -253,12 +258,12 @@ test("isTransferFilterMatched()", async () => {
     sender: ALICE,
   });
 
-  const { sources } = getAccountsIndexingBuild({
+  const { eventCallbacks } = getAccountsIndexingBuild({
     address: ALICE,
   });
 
   // transfer:from
-  const filter = sources[3]!.filter;
+  const filter = eventCallbacks[3]!.filter as TransferFilter;
 
   let isMatched = isTransferFilterMatched({
     filter,
@@ -292,23 +297,14 @@ test("isTraceFilterMatched()", async () => {
     sender: ALICE,
   });
 
-  const { sources } = getErc20IndexingBuild({
+  const { eventCallbacks } = getErc20IndexingBuild({
     address,
     includeCallTraces: true,
   });
 
-  const filter = sources[0]!.filter;
+  const filter = eventCallbacks[0]!.filter as TraceFilter;
 
   let isMatched = isTraceFilterMatched({
-    filter,
-    block: blockData.block,
-    trace: blockData.trace.trace,
-  });
-  expect(isMatched).toBe(true);
-
-  filter.functionSelector = undefined;
-
-  isMatched = isTraceFilterMatched({
     filter,
     block: blockData.block,
     trace: blockData.trace.trace,

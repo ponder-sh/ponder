@@ -10,6 +10,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useContext, useEffect, useMemo } from "react";
+import { decodeCheckpoint } from "./checkpoint.js";
 import { PonderContext } from "./context.js";
 import type { ResolvedSchema } from "./index.js";
 import { getPonderQueryOptions } from "./utils.js";
@@ -21,8 +22,10 @@ export function usePonderQuery<
 >(
   params: {
     queryFn: (db: Client<ResolvedSchema>["db"]) => Promise<queryFnData>;
+    live?: boolean;
   } & Omit<UseQueryOptions<queryFnData, error, data>, "queryFn" | "queryKey">,
 ): UseQueryResult<data, error> {
+  const live = params.live ?? true;
   const queryClient = useQueryClient();
 
   const client = usePonderClient();
@@ -35,17 +38,21 @@ export function usePonderQuery<
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
-    const { unsubscribe } = client.live(
-      () => Promise.resolve(),
-      () => queryClient.invalidateQueries({ queryKey: queryOptions.queryKey }),
-    );
+    if (live === false) return;
+
+    const { unsubscribe } = client.live(queryOptions.queryFn, (data) => {
+      queryClient.setQueryData(queryOptions.queryKey, data);
+    });
     return unsubscribe;
-  }, queryOptions.queryKey);
+  }, [...queryOptions.queryKey, live]);
 
   return useQuery({
     ...params,
     queryKey: queryOptions.queryKey,
     queryFn: queryOptions.queryFn,
+    staleTime: live
+      ? (params.staleTime ?? Number.POSITIVE_INFINITY)
+      : params.staleTime,
   });
 }
 
@@ -67,30 +74,42 @@ export function usePonderQueryOptions<T>(
   return getPonderQueryOptions(client, queryFn);
 }
 
-const statusQueryKey = ["status"];
-
-export function usePonderStatus(
-  params: Omit<UseQueryOptions<Status>, "queryFn" | "queryKey">,
-): UseQueryResult<Status> {
-  const queryClient = useQueryClient();
-
-  const client = useContext(PonderContext);
-  if (client === undefined) {
-    throw new Error("PonderProvider not found");
-  }
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
-  useEffect(() => {
-    const { unsubscribe } = client.live(
-      () => Promise.resolve(),
-      () => queryClient.invalidateQueries({ queryKey: statusQueryKey }),
-    );
-    return unsubscribe;
-  }, []);
-
-  return useQuery({
+export function usePonderStatus<error = DefaultError>(
+  params?: { live?: boolean } & Omit<
+    UseQueryOptions<
+      { chain_name: string; chain_id: number; latest_checkpoint: string }[],
+      error,
+      Status
+    >,
+    "queryFn" | "queryKey" | "select"
+  >,
+): UseQueryResult<Status, error> {
+  return usePonderQuery<
+    { chain_name: string; chain_id: number; latest_checkpoint: string }[],
+    error,
+    Status
+  >({
     ...params,
-    queryKey: statusQueryKey,
-    queryFn: () => client.getStatus(),
+    queryFn: (db) => db.execute("SELECT * FROM _ponder_checkpoint"),
+    select(checkpoints) {
+      const status: Status = {};
+      for (const {
+        chain_name,
+        chain_id,
+        latest_checkpoint,
+      } of checkpoints.sort((a, b) => (a.chain_id > b.chain_id ? 1 : -1))) {
+        status[chain_name] = {
+          id: chain_id,
+          block: {
+            number: Number(decodeCheckpoint(latest_checkpoint).blockNumber),
+            timestamp: Number(
+              decodeCheckpoint(latest_checkpoint).blockTimestamp,
+            ),
+          },
+        };
+      }
+
+      return status;
+    },
   });
 }

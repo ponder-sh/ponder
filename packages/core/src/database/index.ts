@@ -1,9 +1,12 @@
-import { getTableNames } from "@/drizzle/index.js";
+import { getPartitionName, getReorgTableName } from "@/drizzle/index.js";
 import {
   SHARED_OPERATION_ID_SEQUENCE,
-  getReorgTable,
   sqlToReorgTableName,
 } from "@/drizzle/kit/index.js";
+import {
+  getLiveQueryNotifyProcedureName,
+  getLiveQueryProcedureName,
+} from "@/drizzle/onchain.js";
 import type { Common } from "@/internal/common.js";
 import {
   MigrationError,
@@ -41,7 +44,12 @@ import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
 import type { Pool } from "pg";
 import prometheus from "prom-client";
 import { hexToBigInt } from "viem";
-import { crashRecovery } from "./actions.js";
+import {
+  crashRecovery,
+  createLiveQueryProcedures,
+  dropLiveQueryTriggers,
+  dropTriggers,
+} from "./actions.js";
 import { type QB, createQB, parseDbError } from "./queryBuilder.js";
 
 export type Database = {
@@ -178,7 +186,7 @@ export const createDatabase = ({
 }: {
   common: Common;
   namespace: NamespaceBuild;
-  preBuild: Pick<PreBuild, "databaseConfig">;
+  preBuild: Pick<PreBuild, "databaseConfig" | "ordering">;
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
 }): Database => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
@@ -489,27 +497,50 @@ export const createDatabase = ({
 
       const createTables = async (tx: QB) => {
         for (let i = 0; i < schemaBuild.statements.tables.sql.length; i++) {
-          await tx
-            .wrap(
-              (tx) => tx.execute(schemaBuild.statements.tables.sql[i]!),
-              context,
-            )
-            .catch((_error) => {
-              const error = _error as Error;
-              if (!error.message.includes("already exists")) throw error;
-              const e = new MigrationError(
-                `Unable to create table "${namespace.schema}"."${schemaBuild.statements.tables.json[i]!.tableName}" because a table with that name already exists.`,
+          try {
+            const schemaName = schemaBuild.statements.tables.json[i]!.schema;
+            const tableName = schemaBuild.statements.tables.json[i]!.tableName;
+
+            if (
+              preBuild.ordering === "experimental_isolated" &&
+              tableName.startsWith("_reorg__") === false
+            ) {
+              const sql = schemaBuild.statements.tables.sql[i]!;
+              await tx.wrap((tx) =>
+                tx.execute(
+                  `${sql.slice(0, sql.length - 2)} PARTITION BY LIST (chain_id);`,
+                ),
               );
-              e.stack = undefined;
-              throw e;
-            });
+
+              for (const chain of chains) {
+                await tx.wrap((tx) =>
+                  tx.execute(
+                    `CREATE TABLE "${schemaName}"."${getPartitionName(tableName, chain.id)}" PARTITION OF "${schemaName}"."${tableName}" FOR VALUES IN (${chain.id});`,
+                  ),
+                );
+              }
+            } else {
+              await tx.wrap(
+                (tx) => tx.execute(schemaBuild.statements.tables.sql[i]!),
+                context,
+              );
+            }
+          } catch (_error) {
+            let error = _error as Error;
+            if (!error.message.includes("already exists")) throw error;
+            error = new MigrationError(
+              `Unable to create table '${namespace.schema}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+            );
+            error.stack = undefined;
+            throw error;
+          }
         }
 
         for (const table of tables) {
           await tx.wrap(
             (tx) =>
               tx.execute(
-                `CREATE INDEX IF NOT EXISTS "${getTableName(table)}_checkpoint_index" ON "${namespace.schema}"."${getTableName(getReorgTable(table))}" ("checkpoint")`,
+                `CREATE INDEX IF NOT EXISTS "${getTableName(table)}_checkpoint_index" ON "${namespace.schema}"."${getReorgTableName(table)}" ("checkpoint")`,
               ),
             context,
           );
@@ -589,40 +620,6 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
             ),
           context,
         );
-
-        const trigger = "status_trigger";
-        const notification = "status_notify()";
-        const channel = `${namespace.schema}_status_channel`;
-
-        await tx.wrap(
-          (tx) =>
-            tx.execute(
-              `
-CREATE OR REPLACE FUNCTION "${namespace.schema}".${notification}
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
-BEGIN
-NOTIFY "${channel}";
-RETURN NULL;
-END;
-$$;`,
-            ),
-          context,
-        );
-
-        await tx.wrap(
-          (tx) =>
-            tx.execute(
-              `
-CREATE OR REPLACE TRIGGER "${trigger}"
-AFTER INSERT OR UPDATE OR DELETE
-ON "${namespace.schema}"._ponder_checkpoint
-FOR EACH STATEMENT
-EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
-            ),
-          context,
-        );
       };
 
       const tryAcquireLockAndMigrate = () =>
@@ -680,6 +677,11 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
             await createEnums(tx);
             await createTables(tx);
             await createViews(tx);
+            await createLiveQueryProcedures(
+              tx,
+              { namespaceBuild: namespace },
+              context,
+            );
 
             common.logger.info({
               msg: "Created database tables",
@@ -800,7 +802,24 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
               context,
             );
 
+            await tx.wrap((tx) =>
+              tx.execute(
+                `DROP FUNCTION IF EXISTS "${namespace.schema}".${getLiveQueryProcedureName()}`,
+              ),
+            );
+
+            await tx.wrap((tx) =>
+              tx.execute(
+                `DROP FUNCTION IF EXISTS "${namespace.schema}".${getLiveQueryNotifyProcedureName()}`,
+              ),
+            );
+
             await createAdminObjects(tx);
+            await createLiveQueryProcedures(
+              tx,
+              { namespaceBuild: namespace },
+              context,
+            );
 
             common.logger.debug({
               msg: "Reset internal database objects",
@@ -902,12 +921,20 @@ EXECUTE PROCEDURE "${namespace.schema}".${notification};`,
 
           // Remove triggers
 
-          for (const table of tables) {
-            await tx.wrap(
-              (tx) =>
-                tx.execute(
-                  `DROP TRIGGER IF EXISTS "${getTableNames(table).trigger}" ON "${namespace.schema}"."${getTableName(table)}"`,
-                ),
+          if (preBuild.ordering === "experimental_isolated") {
+            for (const { chainId } of checkpoints) {
+              await dropTriggers(tx, { tables, chainId });
+              await dropLiveQueryTriggers(
+                tx,
+                { namespaceBuild: namespace, tables, chainId },
+                context,
+              );
+            }
+          } else {
+            await dropTriggers(tx, { tables });
+            await dropLiveQueryTriggers(
+              tx,
+              { namespaceBuild: namespace, tables },
               context,
             );
           }

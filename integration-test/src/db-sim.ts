@@ -40,11 +40,12 @@ export const dbSim = <
         sql !== "commit" &&
         sql.startsWith("savepoint sp") === false &&
         sql.startsWith("rollback to savepoint sp") === false &&
-        sql.startsWith("release savepoint sp") === false
-      ) {
-        // console.log("Simulated error:", sql);
+        sql.startsWith("release savepoint sp") === false &&
+        sql.startsWith("SAVEPOINT flush") === false &&
+        sql.startsWith("ROLLBACK") === false &&
+        sql.startsWith("RELEASE") === false
+      )
         throw new Error("Connection terminated unexpectedly. Simulated error.");
-      }
     }
   };
 

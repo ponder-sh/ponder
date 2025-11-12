@@ -1,6 +1,7 @@
+import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getSql } from "@/drizzle/kit/index.js";
 import { BuildError } from "@/internal/errors.js";
-import type { Schema } from "@/internal/types.js";
+import type { PreBuild, Schema } from "@/internal/types.js";
 import {
   SQL,
   getTableColumns,
@@ -21,7 +22,10 @@ import {
   getViewConfig,
 } from "drizzle-orm/pg-core";
 
-export const buildSchema = ({ schema }: { schema: Schema }) => {
+export const buildSchema = ({
+  schema,
+  preBuild,
+}: { schema: Schema; preBuild: Pick<PreBuild, "ordering"> }) => {
   const statements = getSql(schema);
 
   const tableNames = new Set<string>();
@@ -31,6 +35,7 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
   for (const [name, s] of Object.entries(schema)) {
     if (is(s, PgTable)) {
       let hasPrimaryKey = false;
+      let hasChainIdColumn = false;
 
       for (const [columnName, column] of Object.entries(getTableColumns(s))) {
         if (column.primary) {
@@ -90,6 +95,37 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
               `Schema validation failed: '${name}.${columnName}' is a default column and default columns with raw sql are unsupported.`,
             );
           }
+        }
+
+        // TODO(kyle) It is an invariant that `getColumnCasing(column, "snake_case") === column.name`
+        if (columnName === "chainId" && column.name === "chain_id") {
+          hasChainIdColumn = true;
+        }
+      }
+
+      if (preBuild.ordering === "experimental_isolated") {
+        if (hasChainIdColumn === false) {
+          throw new Error(
+            `Schema validation failed: '${name}' does not have required 'chainId' column.`,
+          );
+        }
+
+        if (
+          getTableColumns(s).chainId!.dataType !== "number" &&
+          getTableColumns(s).chainId!.dataType !== "bigint"
+        ) {
+          throw new Error(
+            `Schema validation failed: '${name}'.chainId column must be an integer or numeric.`,
+          );
+        }
+
+        if (
+          getPrimaryKeyColumns(s).some(({ sql }) => sql === "chain_id") ===
+          false
+        ) {
+          throw new Error(
+            `Schema validation failed: '${name}.chain_id' column is required to be in the primary key when ordering is 'isolated'.`,
+          );
         }
       }
 
@@ -180,6 +216,12 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
         );
       }
 
+      if (viewConfig.query === undefined) {
+        throw new Error(
+          `Schema validation failed: view '${getViewName(s)}' has no underlying query.`,
+        );
+      }
+
       if (viewConfig)
         for (const [columnName, column] of Object.entries(
           viewConfig.selectedFields,
@@ -225,9 +267,12 @@ export const buildSchema = ({ schema }: { schema: Schema }) => {
   return { statements };
 };
 
-export const safeBuildSchema = ({ schema }: { schema: Schema }) => {
+export const safeBuildSchema = ({
+  schema,
+  preBuild,
+}: { schema: Schema; preBuild: Pick<PreBuild, "ordering"> }) => {
   try {
-    const result = buildSchema({ schema });
+    const result = buildSchema({ schema, preBuild });
 
     return {
       status: "success",

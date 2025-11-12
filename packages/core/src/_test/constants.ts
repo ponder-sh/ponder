@@ -5,6 +5,7 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import { zeroHash } from "viem";
 
 // Test accounts
 export const ACCOUNTS = [
@@ -18,8 +19,9 @@ export const [ALICE, BOB] = ACCOUNTS;
 export const EMPTY_LOG_FILTER: LogFilter = {
   type: "log",
   chainId: 1,
+  sourceId: "test",
   address: undefined,
-  topic0: null,
+  topic0: zeroHash,
   topic1: null,
   topic2: null,
   topic3: null,
@@ -32,6 +34,7 @@ export const EMPTY_LOG_FILTER: LogFilter = {
 export const EMPTY_BLOCK_FILTER: BlockFilter = {
   type: "block",
   chainId: 1,
+  sourceId: "test",
   interval: 1,
   offset: 0,
   fromBlock: undefined,
@@ -43,6 +46,7 @@ export const EMPTY_BLOCK_FILTER: BlockFilter = {
 export const EMPTY_TRANSACTION_FILTER: TransactionFilter = {
   type: "transaction",
   chainId: 1,
+  sourceId: "test",
   fromAddress: undefined,
   toAddress: undefined,
   includeReverted: false,
@@ -55,8 +59,9 @@ export const EMPTY_TRANSACTION_FILTER: TransactionFilter = {
 export const EMPTY_TRACE_FILTER: TraceFilter = {
   type: "trace",
   chainId: 1,
+  sourceId: "test",
   callType: "CALL",
-  functionSelector: undefined,
+  functionSelector: "0x00000000",
   fromAddress: undefined,
   toAddress: undefined,
   includeReverted: false,
@@ -69,6 +74,7 @@ export const EMPTY_TRACE_FILTER: TraceFilter = {
 export const EMPTY_TRANSFER_FILTER: TransferFilter = {
   type: "transfer",
   chainId: 1,
+  sourceId: "test",
   fromAddress: undefined,
   toAddress: undefined,
   includeReverted: false,

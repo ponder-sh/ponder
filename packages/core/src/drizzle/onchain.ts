@@ -38,6 +38,25 @@ import {
 } from "./json.js";
 import { PgTextBuilder, type PgTextBuilderInitial } from "./text.js";
 
+export const getLiveQueryTriggerName = () => {
+  return "live_query_trigger";
+};
+export const getLiveQueryProcedureName = () => {
+  return "live_query_procedure()";
+};
+export const getLiveQueryChannelName = (schema: string) => {
+  return `${schema}_live_query_channel`;
+};
+export const getLiveQueryNotifyTriggerName = () => {
+  return "live_query_notify_trigger";
+};
+export const getViewsLiveQueryNotifyTriggerName = (schema?: string) => {
+  return `${schema}_live_query_notify_trigger`;
+};
+export const getLiveQueryNotifyProcedureName = () => {
+  return "live_query_notify_procedure()";
+};
+
 /** @internal */
 function getColumnNameAndConfig<
   TConfig extends Record<string, any> | undefined,

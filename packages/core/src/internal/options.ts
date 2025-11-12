@@ -31,6 +31,8 @@ export type Options = {
   databaseHeartbeatTimeout: number;
   databaseMaxQueryParameters: number;
 
+  maxThreads: number;
+
   factoryAddressCountThreshold: number;
 
   indexingCacheMaxBytes: number;
@@ -102,6 +104,8 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     databaseHeartbeatTimeout: 25 * 1000,
     // Half of the max query parameters for PGlite
     databaseMaxQueryParameters: 16_000,
+
+    maxThreads: 4,
 
     factoryAddressCountThreshold: 1_000,
 
