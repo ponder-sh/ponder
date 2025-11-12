@@ -1,6 +1,6 @@
 {
   "name": "ponder",
-  "version": "0.14.14",
+  "version": "0.14.15",
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
   "type": "module",
@@ -58,7 +58,6 @@
     "@escape.tech/graphql-armor-max-depth": "^2.2.0",
     "@escape.tech/graphql-armor-max-tokens": "^2.3.0",
     "@hono/node-server": "1.19.5",
-    "@ponder/utils": "workspace:*",
     "abitype": "^0.10.2",
     "ansi-escapes": "^7.0.0",
     "commander": "^12.0.0",
@@ -86,7 +85,8 @@
     "vite": "5.0.7",
     "vite-node": "1.0.2",
     "vite-tsconfig-paths": "4.3.1",
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "@ponder/utils": "0.2.16"
   },
   "devDependencies": {
     "@pgsql/types": "16.0.0",
