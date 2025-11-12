@@ -1,0 +1,208 @@
+# `ponder.schema.ts` [API reference]
+
+:::tip
+  This is a low-level reference. For an introduction and guides, visit the
+  [Schema](/docs/schema/tables) section.
+:::
+
+The `ponder.schema.ts` file defines your database tables and their relationships. Each table you include in `ponder.schema.ts` will be created as an SQL table, populated during indexing, and exposed via the GraphQL API.
+
+## File requirements
+
+The `ponder.schema.ts` must use **named exports** for tables, enums, and relations. These objects must be created using the correct functions exported from `"ponder"{:ts}`.
+
+```ts [ponder.schema.ts] {1,3}
+import { onchainTable } from "ponder";
+
+export const pets = onchainTable("pets", (t) => ({
+  name: t.text().primaryKey(),
+  age: t.integer().notNull(),
+}));
+```
+
+## `onchainTable`
+
+The `onchainTable` function accepts three positional arguments.
+
+| field           |                      type                      | description                                                                               |
+| :-------------- | :--------------------------------------------: | :---------------------------------------------------------------------------------------- |
+| **name**        |                    `string`                    | The SQL table name. Use `snake_case`.                                                     |
+| **columns**     | `(t: TableBuilder) => Record<string, Column>`  | A function that returns column definitions.                                               |
+| **constraints** | `(table: Table) => Record<string, Constraint>` | Optional function that returns table constraints like composite primary keys and indexes. |
+
+{/* prettier-ignore */}
+```ts [ponder.schema.ts]
+import { onchainTable } from "ponder";
+
+export const transferEvents = onchainTable(
+  "transfer_event", // SQL table name
+  (t) => ({ // Column definitions
+    id: t.text().primaryKey(),
+    from: t.hex().notNull(),
+    to: t.hex().notNull(),
+    value: t.bigint().notNull(),
+  }),
+  (table) => ({ // Constraints & indexes
+    fromIdx: index().on(table.from),
+  })
+);
+```
+
+### Column types
+
+The schema definition API supports most PostgreSQL data types. Here's a quick reference for the most commonly used data types. For a complete list, visit the [Drizzle documentation](https://orm.drizzle.team/docs/column-types/pg).
+
+| name             | description                                  | TypeScript type          | SQL data type         |
+| :--------------- | :------------------------------------------- | :----------------------- | :-------------------- |
+| `text{:ts}`      | UTF‐8 character sequence                     | `string`                 | `TEXT{:sql}`          |
+| `integer{:ts}`   | Signed 4‐byte integer                        | `number`                 | `INTEGER{:sql}`       |
+| `real{:ts}`      | Signed 4-byte floating‐point value           | `number`                 | `REAL{:sql}`          |
+| `boolean{:ts}`   | `true` or `false`                            | `boolean`                | `BOOLEAN{:sql}`       |
+| `timestamp{:ts}` | Date and time value (no time zone)           | `Date`                   | `TIMESTAMP{:sql}`     |
+| `json{:ts}`      | JSON object                                  | `any` or [custom](#json) | `JSON{:sql}`          |
+| `bigint{:ts}`    | Large integer (holds `uint256` and `int256`) | `bigint`                 | `NUMERIC(78,0){:sql}` |
+| `hex{:ts}`       | UTF‐8 character sequence with `0x` prefix    | `0x${string}`            | `TEXT{:sql}`          |
+
+### Column modifiers
+
+Column modifiers can be chained after column type definitions.
+
+| modifier                      | description                                    |
+| :---------------------------- | :--------------------------------------------- |
+| `.primaryKey(){:ts}`          | Marks column as the table's primary key        |
+| `.notNull(){:ts}`             | Marks column as NOT NULL                       |
+| `.array(){:ts}`               | Marks column as an array type                  |
+| `.default(value){:ts}`        | Sets a default value for column                |
+| `.$default(() => value){:ts}` | Sets a dynamic default via function            |
+| `.$type<T>(){:ts}`            | Annotates column with a custom TypeScript type |
+
+### Constraints
+
+#### Primary key
+
+Every table must have exactly one primary key defined using either the `.primaryKey()` column modifier or the `primaryKey()` function in the table constraints argument.
+
+```ts [ponder.schema.ts] {1, 5, 16}
+import { onchainTable, primaryKey } from "ponder";
+
+// Single column primary key
+export const tokens = onchainTable("tokens", (t) => ({
+  id: t.bigint().primaryKey(),
+}));
+
+// Composite primary key
+export const poolStates = onchainTable(
+  "pool_states",
+  (t) => ({
+    poolId: t.bigint().notNull(),
+    address: t.hex().notNull(),
+  }),
+  (table) => ({
+    pk: primaryKey({ columns: [table.poolId, table.address] }),
+  })
+);
+```
+
+### Indexes
+
+Create indexes using the `index()` function in the constraints & indexes argument. Ponder creates database indexes after the backfill completes, just before
+the app becomes ready.
+
+```ts [ponder.schema.ts] {1,10}
+import { onchainTable, index } from "ponder";
+
+export const persons = onchainTable(
+  "persons",
+  (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text(),
+  }),
+  (table) => ({
+    nameIdx: index().on(table.name),
+  })
+);
+```
+
+## `onchainEnum`
+
+The `onchainEnum` function accepts two positional arguments. It returns a function that can be used as a column type.
+
+| field      |    type    | description                                                       |
+| :--------- | :--------: | :---------------------------------------------------------------- |
+| **name**   |  `string`  | The SQL enum name. Use `snake_case`.                              |
+| **values** | `string[]` | An array of strings representing the allowed values for the enum. |
+
+```ts [ponder.schema.ts] {3}
+import { onchainEnum, onchainTable } from "ponder";
+
+export const color = onchainEnum("color", ["ORANGE", "BLACK"]);
+
+export const cats = onchainTable("cats", (t) => ({
+  name: t.text().primaryKey(),
+  color: color().notNull(),
+}));
+```
+
+Like any other column types, you can use modifiers like `.notNull()`, `.default()`, and `.array()` with enum columns.
+
+```ts [ponder.schema.ts] {5}
+// ...
+
+export const dogs = onchainTable("cats", (t) => ({
+  name: t.text().primaryKey(),
+  color: color().array().default([]),
+}));
+```
+
+## `onchainView`
+
+The `onchainView` function uses the Drizzle query builder API to define a custom query against other tables and views in `ponder.schema.ts`.
+
+{/* prettier-ignore */}
+```ts [ponder.schema.ts]
+import { onchainView, sql, sum, count } from "ponder";
+
+// ... `transferEvent` and other table definitions
+
+export const hourlyBucket = onchainView("hourly_bucket").as((qb) =>
+  qb
+    .select({
+      hour: sql`FLOOR(${transferEvent.timestamp} / 3600) * 3600`.as("hour"),
+      totalVolume: sum(transferEvent.amount).as("total_volume"),
+      transferCount: count().as("transfer_count"),
+    })
+    .from(transferEvent)
+    .groupBy(sql`FLOOR(${transferEvent.timestamp} / 3600)`),
+);
+```
+
+[Read more](https://orm.drizzle.team/docs/select) about the Drizzle query builder API.
+
+## `relations`
+
+Use the `relations` function to define relationships between tables.
+
+```ts [ponder.schema.ts] {1,7}
+import { onchainTable, relations } from "ponder";
+
+export const users = onchainTable("users", (t) => ({
+  id: t.text().primaryKey(),
+}));
+
+export const usersRelations = relations(users, ({ one }) => ({
+  profile: one(profiles, {
+    fields: [users.id],
+    references: [profiles.userId],
+  }),
+}));
+```
+
+### Relationship types
+
+| type             | method      | description                                    |
+| :--------------- | :---------- | :--------------------------------------------- |
+| **One-to-one**   | `one()`     | References single related record               |
+| **One-to-many**  | `many()`    | References array of related records            |
+| **Many-to-many** | Combination | Uses join table with two one-to-many relations |
+
+Read more in the [relationships guide](/docs/schema/relations) and the Drizzle [relations documentation](https://orm.drizzle.team/docs/relations).
