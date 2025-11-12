@@ -291,10 +291,11 @@ export type Chain = {
   name: string;
   id: number;
   rpc: string | string[] | Transport;
-  ws?: string;
+  ws: string | undefined;
   pollingInterval: number;
   finalityBlockCount: number;
   disableCache: boolean;
+  eth_getLogsRangeLimit: number | undefined;
   viemChain: ViemChain | undefined;
 };
 

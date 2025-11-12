@@ -556,6 +556,7 @@ export const createRpc = ({
 
           if (
             body.method === "eth_getLogs" &&
+            chain.eth_getLogsRangeLimit !== undefined &&
             isHex(body.params[0].fromBlock) &&
             isHex(body.params[0].toBlock)
           ) {
