@@ -277,7 +277,7 @@ test("client.db cache", async (context) => {
       .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` }),
   );
 
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await new Promise((resolve) => setTimeout(resolve, 1200));
 
   const transactionSpy = vi.spyOn(database.readonlyQB.raw, "transaction");
 
