@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.2.16
+
+### Patch Changes
+
+- [#2178](https://github.com/ponder-sh/ponder/pull/2178) [`ecd8bff`](https://github.com/ponder-sh/ponder/commit/ecd8bff9c42463be84a27cc64bcbb09eff8359c7) Thanks [@kyscott18](https://github.com/kyscott18)! - Improve eth_getLogs range error handling.
+
 ## 0.2.15
 
 ### Patch Changes
