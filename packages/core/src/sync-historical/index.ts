@@ -138,7 +138,7 @@ export const createHistoricalSync = (
     const intervals = getChunks({
       interval,
       maxChunkSize:
-        args.chain.eth_getLogsBlockRange ??
+        args.chain.ethGetLogsBlockRange ??
         logsRequestMetadata.confirmedRange ??
         logsRequestMetadata.estimatedRange,
     });
@@ -203,7 +203,7 @@ export const createHistoricalSync = (
           ).catch((error) => {
             // Note: skip eth_getLogs range retry logic if the chain
             // has a custom range limit.
-            if (args.chain.eth_getLogsBlockRange !== undefined) {
+            if (args.chain.ethGetLogsBlockRange !== undefined) {
               throw error;
             }
 

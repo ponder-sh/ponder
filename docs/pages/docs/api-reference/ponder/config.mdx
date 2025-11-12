@@ -155,7 +155,7 @@ export default createConfig({
 | **ws**                    |  `string`                          | **Default: `undefined`**. A webSocket endpoint for realtime indexing on this chain.                                                                                             |
 | **pollingInterval**       |  `number`                          | **Default: `1_000`**. Frequency (in ms) used when polling for new events on this chain.                                                                                         |
 | **disableCache**          |  `boolean`                         | **Default: `false`**. Disables the RPC request cache. Use when indexing a [local node](/docs/guides/foundry) like Anvil.                                                        |
-| **eth_getLogsBlockRange** |  `number`                          | **Default: `undefined`**. Maximum block range for `eth_getLogs` requests. If undefined, Ponder will attempt to determine the range limit automatically based on error messages. |
+| **ethGetLogsBlockRange** |  `number`                          | **Default: `undefined`**. Maximum block range for `eth_getLogs` requests. If undefined, Ponder will attempt to determine the range limit automatically based on error messages. |
 
 ### `contracts`
 

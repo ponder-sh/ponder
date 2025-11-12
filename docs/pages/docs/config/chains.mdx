@@ -199,7 +199,7 @@ export default createConfig({
 
 ## `eth_getLogs` range limit
 
-Ponder does its best to automatically determine the maximum block range for JSON-RPC requests with the `eth_getLogs` method. When this comes up short, you can set a manual limit with `eth_getLogsBlockRange` option. 
+Ponder does its best to automatically determine the maximum block range for JSON-RPC requests with the `eth_getLogs` method. When this comes up short, you can set a manual limit with `ethGetLogsBlockRange` option. 
 
 ```ts [ponder.config.ts]
 import { createConfig } from "ponder";
@@ -209,7 +209,7 @@ export default createConfig({
     mainnet: {
       id: 1,
       rpc: "https://eth-mainnet.g.alchemy.com/v2/...",
-      eth_getLogsBlockRange: 1000, // [!code focus]
+      ethGetLogsBlockRange: 1000, // [!code focus]
     },
   },
 });

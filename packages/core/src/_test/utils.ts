@@ -622,7 +622,7 @@ export const getChain = (params?: {
     pollingInterval: 1_000,
     finalityBlockCount: params?.finalityBlockCount ?? 1,
     disableCache: false,
-    eth_getLogsBlockRange: undefined,
+    ethGetLogsBlockRange: undefined,
     viemChain: anvil,
   } satisfies Chain;
 };

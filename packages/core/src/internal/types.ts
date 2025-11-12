@@ -295,7 +295,7 @@ export type Chain = {
   pollingInterval: number;
   finalityBlockCount: number;
   disableCache: boolean;
-  eth_getLogsBlockRange: number | undefined;
+  ethGetLogsBlockRange: number | undefined;
   viemChain: ViemChain | undefined;
 };
 

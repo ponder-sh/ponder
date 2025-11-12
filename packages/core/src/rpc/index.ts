@@ -558,7 +558,7 @@ export const createRpc = ({
             body.method === "eth_getLogs" &&
             isHex(body.params[0].fromBlock) &&
             isHex(body.params[0].toBlock) &&
-            chain.eth_getLogsBlockRange === undefined
+            chain.ethGetLogsBlockRange === undefined
           ) {
             const getLogsErrorResponse = getLogsRetryHelper({
               params: body.params as GetLogsRetryHelperParameters["params"],
