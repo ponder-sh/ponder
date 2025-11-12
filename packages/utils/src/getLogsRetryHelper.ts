@@ -175,156 +175,6 @@ export const getLogsRetryHelper = ({
     }
   }
 
-  // 1rpc
-  match = sError.match(/response size should not greater than \d+ bytes/);
-  if (match !== null) {
-    const ranges = chunk({
-      params,
-      range:
-        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
-        2n,
-    });
-
-    if (isRangeUnchanged(params, ranges) === false) {
-      return {
-        shouldRetry: true,
-        ranges,
-        isSuggestedRange: false,
-      } as const;
-    }
-  }
-
-  // zkevm
-  match = sError.match(/query returned more than \d+ results/);
-  if (match !== null) {
-    const ranges = chunk({
-      params,
-      range:
-        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
-        2n,
-    });
-
-    if (isRangeUnchanged(params, ranges) === false) {
-      return {
-        shouldRetry: true,
-        ranges,
-        isSuggestedRange: false,
-      } as const;
-    }
-  }
-
-  // llamarpc, ankr, altitude
-  match = sError.match(/query exceeds max results/);
-  if (match !== null) {
-    const ranges = chunk({
-      params,
-      range:
-        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
-        2n,
-    });
-
-    if (isRangeUnchanged(params, ranges) === false) {
-      return {
-        shouldRetry: true,
-        ranges,
-        isSuggestedRange: false,
-      } as const;
-    }
-  }
-
-  // optimism
-  match = sError.match(/backend response too large/);
-  if (match !== null) {
-    const ranges = chunk({
-      params,
-      range:
-        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
-        2n,
-    });
-
-    if (isRangeUnchanged(params, ranges) === false) {
-      return {
-        shouldRetry: true,
-        ranges,
-        isSuggestedRange: false,
-      } as const;
-    }
-  }
-
-  // optimism (new as of 11/25/24)
-  match = sError.match(/Block range is too large/);
-  if (match !== null) {
-    const ranges = chunk({
-      params,
-      range:
-        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
-        2n,
-    });
-
-    if (isRangeUnchanged(params, ranges) === false) {
-      return {
-        shouldRetry: true,
-        ranges,
-        isSuggestedRange: false,
-      } as const;
-    }
-  }
-
-  // base
-  match = sError.match(/block range too large/);
-  if (match !== null) {
-    const ranges = chunk({
-      params,
-      range: 2_000n,
-    });
-
-    if (isRangeUnchanged(params, ranges) === false) {
-      return {
-        shouldRetry: true,
-        ranges,
-        isSuggestedRange: false,
-      } as const;
-    }
-  }
-
-  // base
-  match = sError.match(/no backend is currently healthy to serve traffic/);
-  if (match !== null) {
-    const ranges = chunk({
-      params,
-      range:
-        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
-        2n,
-    });
-
-    if (isRangeUnchanged(params, ranges) === false) {
-      return {
-        shouldRetry: true,
-        ranges,
-        isSuggestedRange: false,
-      } as const;
-    }
-  }
-
-  // arbitrum
-  match = sError.match(/logs matched by query exceeds limit of \d+/);
-  if (match !== null) {
-    const ranges = chunk({
-      params,
-      range:
-        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
-        2n,
-    });
-
-    if (isRangeUnchanged(params, ranges) === false) {
-      return {
-        shouldRetry: true,
-        ranges,
-        isSuggestedRange: false,
-      } as const;
-    }
-  }
-
   // blast (paid)
   match = sError.match(
     /exceeds the range allowed for your plan \(\d+ > (\d+)\)/,
@@ -336,7 +186,7 @@ export const getLogsRetryHelper = ({
       return {
         shouldRetry: true,
         ranges,
-        isSuggestedRange: false,
+        isSuggestedRange: true,
       } as const;
     }
   }
@@ -549,25 +399,6 @@ export const getLogsRetryHelper = ({
     }
   }
 
-  // erpc
-  match = sError.match(/exceeded max allowed|range threshold exceeded/);
-  if (match !== null) {
-    const ranges = chunk({
-      params,
-      range:
-        (hexToBigInt(params[0].toBlock) - hexToBigInt(params[0].fromBlock)) /
-        2n,
-    });
-
-    if (isRangeUnchanged(params, ranges) === false) {
-      return {
-        ranges,
-        shouldRetry: true,
-        isSuggestedRange: false,
-      } as const;
-    }
-  }
-
   // tron
   match = sError.match(/exceed max block range: (\d+)/);
   if (match !== null) {
@@ -581,9 +412,31 @@ export const getLogsRetryHelper = ({
     }
   }
 
-  // valtitude
-  match = sError.match(/allowed block range threshold exceeded/);
-  if (match !== null) {
+  // catch-all
+  if (
+    // valtitude
+    sError.includes("allowed block range threshold exceeded") ||
+    // erpc
+    sError.includes("exceeded max allowed") ||
+    // erpc
+    sError.includes("range threshold exceeded") ||
+    // base
+    sError.includes("no backend is currently healthy to serve traffic") ||
+    // base, monad
+    sError.includes("block range too large") ||
+    // optimism
+    sError.includes("Block range is too large") ||
+    // optimism
+    sError.includes("backend response too large") ||
+    // llamarpc, ankr, altitude
+    sError.includes("query exceeds max results") ||
+    // arbitrum
+    /logs matched by query exceeds limit of \d+/.test(sError) ||
+    // zkevm
+    /query returned more than \d+ results/.test(sError) ||
+    // 1rpc
+    /response size should not greater than \d+ bytes/.test(sError)
+  ) {
     const ranges = chunk({
       params,
       range:
