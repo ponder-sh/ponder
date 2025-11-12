@@ -1,5 +1,21 @@
 # ponder
 
+## 1.0.0
+
+### Minor Changes
+
+- [#2163](https://github.com/ponder-sh/ponder/pull/2163) [`1c9f89d`](https://github.com/ponder-sh/ponder/commit/1c9f89d30c61f89049019ad35d69ebb87ea64996) Thanks [@kyscott18](https://github.com/kyscott18)! - Released `0.15`. Visit the [migration guide](https://ponder.sh/docs/migration-guide#015) for details.
+
+### Patch Changes
+
+- [#2163](https://github.com/ponder-sh/ponder/pull/2163) [`1c9f89d`](https://github.com/ponder-sh/ponder/commit/1c9f89d30c61f89049019ad35d69ebb87ea64996) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused HTTP requests to hang indefinitely, sometimes causing out of memory errors.
+
+- [#2163](https://github.com/ponder-sh/ponder/pull/2163) [`1c9f89d`](https://github.com/ponder-sh/ponder/commit/1c9f89d30c61f89049019ad35d69ebb87ea64996) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused duplicate key constraint errors to not print correctly during backfill indexing.
+
+- [#2163](https://github.com/ponder-sh/ponder/pull/2163) [`1c9f89d`](https://github.com/ponder-sh/ponder/commit/1c9f89d30c61f89049019ad35d69ebb87ea64996) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved memory usage while fetching backfill JSON-RPC data.
+
+- [#2163](https://github.com/ponder-sh/ponder/pull/2163) [`1c9f89d`](https://github.com/ponder-sh/ponder/commit/1c9f89d30c61f89049019ad35d69ebb87ea64996) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused factories to miss child addresses after updating the factory start block. Please note that this affects the rpc cache for apps with factories that have different start blocks than the corresponding contract or account. Affected apps will refetch block data automatically.
+
 ## 0.14.13
 
 ### Patch Changes
