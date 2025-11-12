@@ -107,7 +107,7 @@ type ChainConfig<chain> = {
    * Maximum block range for eth_getLogs. If undefined, Ponder will
    * attempt to determine the range limit automatically based on error messages.
    */
-  eth_getLogsRangeLimit?: number;
+  eth_getLogsBlockRange?: number;
 };
 
 type ChainsConfig<chains> = {} extends chains

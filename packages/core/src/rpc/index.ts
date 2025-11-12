@@ -556,9 +556,9 @@ export const createRpc = ({
 
           if (
             body.method === "eth_getLogs" &&
-            chain.eth_getLogsRangeLimit !== undefined &&
             isHex(body.params[0].fromBlock) &&
-            isHex(body.params[0].toBlock)
+            isHex(body.params[0].toBlock) &&
+            chain.eth_getLogsBlockRange === undefined
           ) {
             const getLogsErrorResponse = getLogsRetryHelper({
               params: body.params as GetLogsRetryHelperParameters["params"],
@@ -579,6 +579,11 @@ export const createRpc = ({
               });
 
               throw error;
+            } else {
+              // @ts-ignore
+              error.meta = [
+                "Tip: Use the ethGetLogsBlockRange option to override the default behavior for this chain",
+              ];
             }
           }
 

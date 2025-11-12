@@ -1049,7 +1049,7 @@ export function buildConfig({
         pollingInterval: chain.pollingInterval ?? 1_000,
         finalityBlockCount: getFinalityBlockCount({ chain: matchedChain }),
         disableCache: chain.disableCache ?? false,
-        eth_getLogsRangeLimit: chain.eth_getLogsRangeLimit,
+        eth_getLogsBlockRange: chain.eth_getLogsBlockRange,
         viemChain: matchedChain,
       } satisfies Chain;
     },
