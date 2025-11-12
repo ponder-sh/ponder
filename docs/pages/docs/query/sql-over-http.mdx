@@ -45,7 +45,7 @@ npm add @ponder/client
 
 :::
 
-### Connect to the server
+### Create a query client
 
 Use `createClient` to connect to the server at the path where you registered the middleware.
 
@@ -57,29 +57,34 @@ const client = createClient("http://localhost:42069/sql");
 
 ### Import `ponder.schema.ts`
 
-Import your schema from `ponder.schema.ts`. [Read more](#use-schema-from-a-different-repo) about schema portability.
+Import your schema from `ponder.schema.ts` and pass it to `createClient`. [Read more](#use-schema-from-a-different-repo) about schema portability.
 
 ```ts [Client project]
 import { createClient } from "@ponder/client";
 import * as schema from "../../ponder/ponder.schema"; // [!code focus]
 
-const client = createClient("http://localhost:42069/sql");
+const client = createClient("http://localhost:42069/sql", { schema }); // [!code focus]
+```
 
-const result = await client.db.select().from(schema.account);
-//   ^? { address: `0x${string}`; balance: bigint; }[]
+Now, the client is ready to send SQL over HTTP queries to the server.
+
+```ts [Client project]
+import { createClient } from "@ponder/client";
+import * as schema from "../../ponder/ponder.schema";
+
+const client = createClient("http://localhost:42069/sql", { schema });
+
+const result = await client.db.select().from(schema.account); // [!code focus]
+//   ^? { address: `0x${string}`; balance: bigint; }[] // [!code focus]
 ```
 
 ::::
 
 ## Setup React
 
-The `@ponder/react` package provides React hooks for querying your Ponder database, powered by `@ponder/client`. This package wraps [TanStack Query](https://tanstack.com/query), a popular library for managing async state in React.
+The `@ponder/react` package provides React hook bindings for the SQL over HTTP client. This package wraps [TanStack Query](https://tanstack.com/query), a popular library for managing async state in React.
 
 ::::steps
-
-### Set up `@ponder/client`
-
-First, follow the [steps above](#guide) to set up a SQL over HTTP instance using `@ponder/client`.
 
 ### Install dependencies
 
@@ -101,11 +106,22 @@ npm add @ponder/react @ponder/client @tanstack/react-query
 
 :::
 
+### Set up `@ponder/client`
+
+Follow the [steps above](#guide) to set up a SQL over HTTP query client using `@ponder/client`.
+
+```ts [lib/ponder.ts]
+import { createClient } from "@ponder/client";
+import * as schema from "../../ponder/ponder.schema"; // [!code focus]
+
+const client = createClient("http://localhost:42069/sql", { schema }); // [!code focus]
+```
+
 ### Set up `PonderProvider`
 
-Wrap your app with `PonderProvider` and include the `@ponder/client` instance. This makes the client instance available to all child components.
+Wrap your app with `PonderProvider` and include the `client` object you created in the previous step.
 
-```ts
+```ts [app/layout.tsx]
 import { PonderProvider } from "@ponder/react";
 import { client } from "../lib/ponder";
  
@@ -122,7 +138,7 @@ function App() {
 
 Inside the `PonderProvider`, wrap your app with a TanStack Query Provider. If you're already using TanStack Query, you can skip this step. [Read more](https://tanstack.com/query/latest/docs/framework/react/quick-start) about setting up TanStack Query.
 
-```ts
+```ts [app/layout.tsx]
 import { PonderProvider } from "@ponder/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"; // [!code focus]
 import { client } from "../lib/ponder";
@@ -132,9 +148,9 @@ const queryClient = new QueryClient(); // [!code focus]
 function App() {
   return (
     <PonderProvider client={client}>
-      <QueryClientProvider client={queryClient}> {/* [!code focus] */}
+      <QueryClientProvider client={queryClient}> // [!code focus]
         {/** ... */}
-      </QueryClientProvider> {/* [!code focus] */}
+      </QueryClientProvider> // [!code focus]
     </PonderProvider>
   );
 }
@@ -144,7 +160,7 @@ function App() {
 
 ## Querying
 
-The SQL over HTTP can be used to read indexed data from your Ponder database.
+The SQL over HTTP client can be used to read indexed data from your Ponder database.
 
 It's different than [direct SQL](/docs/query/direct-sql) in two key areas:
 - Schema names are automatically applied on the server using Postgres's [`search_path`](https://www.postgresql.org/docs/current/ddl-schemas.html#DDL-SCHEMAS-PATH). Table names should be unqualified.

@@ -61,11 +61,12 @@ export const sidebar = {
     {
       text: "Guides",
       items: [
-        { text: "Offchain data", link: "/docs/guides/offchain-data" },
         { text: "Factory pattern", link: "/docs/guides/factory" },
+        { text: "Isolated indexing", link: "/docs/guides/isolated-indexing" },
         { text: "Call traces", link: "/docs/guides/call-traces" },
         { text: "Transaction receipts", link: "/docs/guides/receipts" },
         { text: "Time-series data", link: "/docs/guides/time-series" },
+        { text: "Offchain data", link: "/docs/guides/offchain-data" },
         { text: "Foundry", link: "/docs/guides/foundry" },
       ],
     },
