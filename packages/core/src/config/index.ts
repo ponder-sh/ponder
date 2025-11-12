@@ -105,7 +105,7 @@ type ChainConfig<chain> = {
   disableCache?: boolean;
   /**
    * Maximum block range for eth_getLogs. If undefined, Ponder will
-   * attempt to determine the range limit automatically based on error messages.
+   * attempt to determine the block range automatically based on error messages.
    */
   ethGetLogsBlockRange?: number;
 };

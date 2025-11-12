@@ -202,7 +202,7 @@ export const createHistoricalSync = (
             context,
           ).catch((error) => {
             // Note: skip eth_getLogs range retry logic if the chain
-            // has a custom range limit.
+            // has a custom block range.
             if (args.chain.ethGetLogsBlockRange !== undefined) {
               throw error;
             }
