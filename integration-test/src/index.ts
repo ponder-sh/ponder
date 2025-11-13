@@ -56,8 +56,6 @@ const CACHED_APPS = ["the-compact", "basepaint"];
 
 // inputs
 
-console.log(process.env.SEED);
-
 const DATABASE_URL = process.env.DATABASE_URL!;
 const APP_ID = process.argv[2];
 const APP_DIR = `./apps/${APP_ID}`;
