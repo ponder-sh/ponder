@@ -6,8 +6,54 @@ on:
   workflow_dispatch:
 
 jobs:
-  integration-test:
-    name: Integration Test
+  integration-test-failure-inducing:
+    if: github.event_name == 'workflow_dispatch'
+    name: Integration Test Failure-Inducing
+    runs-on: self-hosted
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app_id: assessment
+            seed: 3938fff044d4feb11b33dbdb57bae142ec6d73029611ddff14d9d4b11ada2fe6
+          - app_id: uniswap-v4
+            seed: 31752f35f6443147d8fda82cb9b3c4a878292e9b3c52f2e36c582dba943872ed
+          - app_id: uniswap-v4
+            seed: 451a2d0e399fd375369d53bf04b652ee80730fc215963818f1a387d2aa78b198
+          - app_id: uniswap-v4
+            seed: 4ae5cc4f3594b76798249f1adb56d42dc1b544975a781f4c93b7e565507bd9cf
+          - app_id: feature-multichain
+            seed: e1802a439f23d2706e1a50b4b13aa743b931f8e2dcf1d7e39ea4b6e7dbd34640
+          - app_id: project-uniswap-v3-flash
+            seed: 98c5c3716e33ba8ea2a8ba8d36f942cf1c2fb368f2d33a5f6bf434e087487bce
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/setup
+      - uses: oven-sh/setup-bun@v2
+
+      - run: pnpm build
+      - run: pnpm install
+
+      - name: Test ${{ matrix.app_id }} ${{ matrix.seed }}
+        run: |
+          cd integration-test
+          SEED=${{ matrix.seed }}
+          UUID=$(cat /proc/sys/kernel/random/uuid)
+          pnpm test ${{ matrix.app_id }}
+        env:
+          DATABASE_URL: ${{ secrets.TEST_CONNECTION_STRING }}
+          PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
+          PONDER_RPC_URL_10: ${{ secrets.PONDER_RPC_URL_10 }}
+          PONDER_RPC_URL_130: ${{ secrets.PONDER_RPC_URL_130 }}
+          PONDER_RPC_URL_8453: ${{ secrets.PONDER_RPC_URL_8453 }}
+          PGDATABASE: railway
+          PGSSLMODE: disable
+          NODE_ENV: ci
+
+  integration-test-fuzz:
+    name: Integration Test Fuzz
     runs-on: self-hosted
     timeout-minutes: 60
     strategy:
@@ -50,7 +96,7 @@ jobs:
 
   cleanup-integration-test:
     name: Cleanup Integration Test Databases
-    needs: integration-test
+    needs: [integration-test-failure-inducing, integration-test-fuzz]
     if: ${{ always() }}
     runs-on: self-hosted
     timeout-minutes: 10
