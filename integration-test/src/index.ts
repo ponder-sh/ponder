@@ -19,7 +19,6 @@ import * as PONDER_SYNC from "@ponder/sync-store/schema.js";
 import { getChunks, intervalUnion } from "@ponder/utils/interval.js";
 import { promiseWithResolvers } from "@ponder/utils/promiseWithResolvers.js";
 import { Command } from "commander";
-import dotenv from "dotenv";
 import {
   type SQL,
   Table,
@@ -51,8 +50,6 @@ import { metadata } from "../schema.js";
 import { dbSim } from "./db-sim.js";
 import { type RpcBlockHeader, realtimeBlockEngine, sim } from "./rpc-sim.js";
 import { getJoinConditions } from "./sql.js";
-
-dotenv.config({ path: ".env.local" });
 
 // Large apps that shouldn't be synced, use cached data instead
 const CACHED_APPS = ["the-compact", "basepaint"];
@@ -148,6 +145,7 @@ const transactionReceiptConditions: SQL[] = [];
 const traceConditions: SQL[] = [];
 const logConditions: SQL[] = [];
 
+/** Returns an SQL condition that filters by address. */
 const getAddressCondition = <
   table extends
     | typeof PONDER_SYNC.logs
@@ -264,6 +262,8 @@ const onBuild = async (app: PonderApp) => {
   app.common.options.syncEventsQuerySize = 200;
   // Note: this forces the app to run in a single thread.
   app.common.options.maxThreads = 1;
+
+  // Mock database
 
   app.common.logger.warn({
     msg: "Mocking syncQB, adminQB, userQB, and readonlyQB",
@@ -854,7 +854,7 @@ const onBuild = async (app: PonderApp) => {
     }
   }
 
-  // remove uncached data
+  // Remove uncached data
 
   if (SIM_PARAMS.MAX_UNCACHED_BLOCKS > 0) {
     for (const interval of await APP_DB.select().from(PONDER_SYNC.intervals)) {
@@ -889,6 +889,8 @@ const onBuild = async (app: PonderApp) => {
       );
 
       resultIntervals = intervalUnion(resultIntervals);
+
+      // TODO(kyle) Determine which factory intervals should be removed.
 
       for (const blocks of resultIntervals) {
         const fragment = decodeFragment(interval.fragmentId);
@@ -1220,6 +1222,8 @@ const onBuild = async (app: PonderApp) => {
     // TODO(kyle) delete factories
   }
 
+  // Mock RPC
+
   const chains: Parameters<typeof realtimeBlockEngine>[0] = new Map();
   for (let i = 0; i < app.indexingBuild.chains.length; i++) {
     const chain = app.indexingBuild.chains[i]!;
@@ -1342,6 +1346,13 @@ const onBuild = async (app: PonderApp) => {
 
   return app;
 };
+
+process.on("uncaughtException", () => {
+  console.log(`\nRecreate with 'SEED=${SEED} pnpm test ${APP_ID}'`);
+});
+process.on("unhandledRejection", () => {
+  console.log(`\nRecreate with 'SEED=${SEED} pnpm test ${APP_ID}'`);
+});
 
 let kill = await start({
   cliOptions: {

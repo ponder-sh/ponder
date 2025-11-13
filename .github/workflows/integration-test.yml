@@ -2,7 +2,7 @@ name: Integration Test
 
 on:
   schedule:
-    - cron: "0 0 * * *"
+    - cron: "0 0,6,12,18 * * *"
   workflow_dispatch:
 
 jobs:
@@ -47,3 +47,17 @@ jobs:
           PGDATABASE: railway
           PGSSLMODE: disable
           NODE_ENV: ci
+
+  cleanup-integration-test:
+    name: Cleanup Integration Test Databases
+    needs: integration-test
+    if: ${{ always() }}
+    runs-on: self-hosted
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/setup
+      - uses: oven-sh/setup-bun@v2
+      - run: |
+          cd integration-test
+          pnpm cleanup-database
