@@ -36,7 +36,7 @@ jobs:
           cd integration-test
           SEED=$(openssl rand -hex 32)
           UUID=$(cat /proc/sys/kernel/random/uuid)
-          pnpm test:node ${{ matrix.app_id }}
+          pnpm test ${{ matrix.app_id }}
         env:
           DATABASE_URL: ${{ secrets.TEST_CONNECTION_STRING }}
           PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
