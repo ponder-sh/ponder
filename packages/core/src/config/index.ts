@@ -103,6 +103,11 @@ type ChainConfig<chain> = {
   maxRequestsPerSecond?: number;
   /** Disable RPC request caching. Default: `false`. */
   disableCache?: boolean;
+  /**
+   * Maximum block range for eth_getLogs. If undefined, Ponder will
+   * attempt to determine the block range automatically based on error messages.
+   */
+  ethGetLogsBlockRange?: number;
 };
 
 type ChainsConfig<chains> = {} extends chains

@@ -135,10 +135,10 @@ export const createHistoricalSync = (
     { address, topic0, topic1, topic2, topic3, interval }: EthGetLogsParams,
     context?: Parameters<Rpc["request"]>[1],
   ): Promise<SyncLog[]> => {
-    // Use the recommended range if available, else don't chunk the interval at all.
     const intervals = getChunks({
       interval,
       maxChunkSize:
+        args.chain.ethGetLogsBlockRange ??
         logsRequestMetadata.confirmedRange ??
         logsRequestMetadata.estimatedRange,
     });
@@ -201,6 +201,12 @@ export const createHistoricalSync = (
             },
             context,
           ).catch((error) => {
+            // Note: skip eth_getLogs range retry logic if the chain
+            // has a custom block range.
+            if (args.chain.ethGetLogsBlockRange !== undefined) {
+              throw error;
+            }
+
             const getLogsErrorResponse = getLogsRetryHelper({
               params: [
                 {
