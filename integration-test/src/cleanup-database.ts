@@ -10,9 +10,7 @@ const databases = await db
   .where(eq(metadata.success, true));
 
 for (const database of databases) {
-  await db.transaction(async (tx) => {
-    await tx.execute(sql.raw(`DROP DATABASE IF EXISTS "${database.id}"`));
-    await tx.delete(metadata).where(eq(metadata.id, database.id));
-  });
+  await db.execute(sql.raw(`DROP DATABASE IF EXISTS "${database.id}"`));
+  await db.delete(metadata).where(eq(metadata.id, database.id));
 }
 console.log(`Deleted ${databases.length} databases`);
