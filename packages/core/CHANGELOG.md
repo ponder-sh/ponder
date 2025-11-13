@@ -1,5 +1,11 @@
 # ponder
 
+## 0.15.2
+
+### Patch Changes
+
+- [#2177](https://github.com/ponder-sh/ponder/pull/2177) [`264388c`](https://github.com/ponder-sh/ponder/commit/264388c49ba6dd59590b3aedb3315bd3f50ad51c) Thanks [@kyscott18](https://github.com/kyscott18)! - Introduced `ethGetLogsBlockRange` to chains config. [Read more](https://ponder.sh/docs/config/chains#eth_getlogs-block-range).
+
 ## 0.15.1
 
 ### Patch Changes
