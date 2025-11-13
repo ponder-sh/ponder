@@ -43,7 +43,7 @@ jobs:
           UUID=$(cat /proc/sys/kernel/random/uuid)
           pnpm test ${{ matrix.app_id }}
         env:
-          DATABASE_URL: ${{ secrets.TEST_CONNECTION_STRING }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
           PONDER_RPC_URL_10: ${{ secrets.PONDER_RPC_URL_10 }}
           PONDER_RPC_URL_130: ${{ secrets.PONDER_RPC_URL_130 }}
@@ -85,7 +85,7 @@ jobs:
           UUID=$(cat /proc/sys/kernel/random/uuid)
           pnpm test ${{ matrix.app_id }}
         env:
-          DATABASE_URL: ${{ secrets.TEST_CONNECTION_STRING }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
           PONDER_RPC_URL_10: ${{ secrets.PONDER_RPC_URL_10 }}
           PONDER_RPC_URL_130: ${{ secrets.PONDER_RPC_URL_130 }}
