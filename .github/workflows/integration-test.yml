@@ -103,4 +103,4 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: |
           cd integration-test
-          pnpm cleanup-database
+          bun run src/cleanup-database.ts
