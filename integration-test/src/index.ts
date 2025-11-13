@@ -1238,13 +1238,32 @@ const onBuild = async (app: PonderApp) => {
 
     const end = intervals[intervals.length - 1]![1];
 
-    if (SIM_PARAMS.UNFINALIZED_BLOCKS !== 0) {
-      const { rows } = await APP_DB.execute(`
-      SELECT number FROM ponder_sync.blocks WHERE timestamp > (
-        SELECT SUBSTRING(finalized_checkpoint, 1, 10)::numeric as t FROM _ponder_checkpoint WHERE chain_name = '${chain.name}'
-      ) AND chain_id = ${chain.id} ORDER BY timestamp ASC LIMIT 1`);
+    // Mock finalized block
 
-      if (rows.length > 0) {
+    if (SIM_PARAMS.UNFINALIZED_BLOCKS !== 0) {
+      if (RESTART_COUNT === 0) {
+        app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(
+          rpc,
+          { blockNumber: end - SIM_PARAMS.UNFINALIZED_BLOCKS },
+        );
+      } else {
+        // Note: Find the first block after the finalized checkpoint
+        const { rows } = await APP_DB.execute(`
+          SELECT number FROM ponder_sync.blocks 
+          WHERE 
+            (lpad(blocks.timestamp::text, 10, '0') ||
+            lpad(blocks.chain_id::text, 16, '0') ||
+            lpad(blocks.number::text, 16, '0') ||
+            '9999999999999999' ||
+            '9' ||
+            '9999999999999999') 
+            >= (SELECT finalized_checkpoint as c FROM _ponder_checkpoint WHERE chain_name = '${chain.name}') 
+          AND chain_id = ${chain.id} ORDER BY timestamp ASC LIMIT 1`);
+
+        if (rows.length === 0) {
+          throw new Error("Unable to find finalized block after restart");
+        }
+
         app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(
           rpc,
           {
@@ -1255,13 +1274,6 @@ const onBuild = async (app: PonderApp) => {
               ),
               end - 10,
             ),
-          },
-        );
-      } else {
-        app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(
-          rpc,
-          {
-            blockNumber: end - SIM_PARAMS.UNFINALIZED_BLOCKS,
           },
         );
       }
