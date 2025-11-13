@@ -27,6 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/actions/setup
+      - uses: oven-sh/setup-bun@v2
 
       - run: pnpm build
       - run: pnpm install
