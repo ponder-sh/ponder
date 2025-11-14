@@ -139,7 +139,11 @@ export type Log = {
   data: Hex;
   /** Index of this log within its block */
   logIndex: number;
-  /** `true` if this log has been removed in a chain reorganization */
+  /**
+   * Indicates if this log was removed in a chain reorganization.
+   *
+   * Ponder automatically handles reorgs, so this will always be `false`.
+   */
   removed: boolean;
   /** List of order-dependent topics */
   topics: [Hex, ...Hex[]] | [];

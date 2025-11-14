@@ -793,6 +793,17 @@ export async function* getRealtimeEventGenerator(params: {
     });
   };
 
+  const noNewBlockWarning = () => {
+    params.common.logger.warn({
+      msg: "No new block received within expected time",
+      chain: params.chain.name,
+      chain_id: params.chain.id,
+    });
+  };
+  let noNewBlockTimer = setTimeout(noNewBlockWarning, 30_000);
+  // Hash of the most recent block received from the RPC.
+  let mostRecentHash = params.syncProgress.finalized.hash;
+
   const { callback, generator } = createCallbackGenerator<{
     block: SyncBlock | SyncBlockHeader;
     blockCallback: (isAccepted: boolean) => void;
@@ -801,6 +812,12 @@ export async function* getRealtimeEventGenerator(params: {
 
   params.rpc.subscribe({
     onBlock: (block) => {
+      if (block.hash !== mostRecentHash) {
+        mostRecentHash = block.hash;
+        clearTimeout(noNewBlockTimer);
+        noNewBlockTimer = setTimeout(noNewBlockWarning, 30_000);
+      }
+
       const pwr = promiseWithResolvers<boolean>();
       const endClock = startClock();
       callback({ block, blockCallback: pwr.resolve, endClock });

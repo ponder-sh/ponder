@@ -118,15 +118,6 @@ export const createRealtimeSync = (
   let latestFetchedBlock: LightBlock | undefined;
   let fetchAndReconcileLatestBlockErrorCount = 0;
 
-  const noNewBlockWarning = () => {
-    args.common.logger.warn({
-      msg: "No new block received within expected time",
-      chain: args.chain.name,
-      chain_id: args.chain.id,
-    });
-  };
-  let noNewBlockTimer = setTimeout(noNewBlockWarning, 30_000);
-
   const realtimeSyncLock = createLock();
 
   const factories: Factory[] = [];
@@ -1151,10 +1142,6 @@ export const createRealtimeSync = (
 
           return;
         }
-
-        // Register a warning timer if no new block is received within expected time
-        clearTimeout(noNewBlockTimer);
-        noNewBlockTimer = setTimeout(noNewBlockWarning, 30_000);
 
         // Note: It's possible that a block with the same hash as `block` is
         // currently being fetched but hasn't been fully reconciled. `latestFetchedBlock`
