@@ -16,6 +16,7 @@ import {
   isFragmentAddressFactory,
 } from "@ponder/runtime/fragments.js";
 import * as PONDER_SYNC from "@ponder/sync-store/schema.js";
+import { decodeCheckpoint } from "@ponder/utils/checkpoint";
 import { getChunks, intervalUnion } from "@ponder/utils/interval.js";
 import { promiseWithResolvers } from "@ponder/utils/promiseWithResolvers.js";
 import { Command } from "commander";
@@ -1247,29 +1248,21 @@ const onBuild = async (app: PonderApp) => {
           { blockNumber: end - SIM_PARAMS.UNFINALIZED_BLOCKS },
         );
       } else {
-        // Note: Find the first block after the finalized checkpoint
-        const { rows } = await APP_DB.execute(`
-          SELECT number FROM ponder_sync.blocks 
-          WHERE 
-            (lpad(blocks.timestamp::text, 10, '0') ||
-            lpad(blocks.chain_id::text, 16, '0') ||
-            lpad(blocks.number::text, 16, '0') ||
-            '9999999999999999' ||
-            '9' ||
-            '9999999999999999') 
-            >= (SELECT finalized_checkpoint as c FROM _ponder_checkpoint WHERE chain_name = '${chain.name}') 
-          AND chain_id = ${chain.id} ORDER BY timestamp ASC LIMIT 1`);
-
-        if (rows.length === 0) {
-          throw new Error("Unable to find finalized block after restart");
-        }
+        // Note: Use the latest indexed block to calculate the finalized block
+        const {
+          // @ts-ignore
+          rows: [{ latest_checkpoint }],
+        } = await APP_DB.execute(
+          `SELECT latest_checkpoint FROM _ponder_checkpoint WHERE chain_name = '${chain.name}'`,
+        );
 
         app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(
           rpc,
           {
             blockNumber: Math.min(
               Math.max(
-                Number(rows[0]!.number),
+                Number(decodeCheckpoint(latest_checkpoint).blockNumber) -
+                  chain.finalityBlockCount,
                 end - SIM_PARAMS.UNFINALIZED_BLOCKS,
               ),
               end - 10,
