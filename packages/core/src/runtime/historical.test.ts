@@ -7,7 +7,7 @@ import {
 import { setupAnvil } from "@/_test/setup.js";
 import { getBlocksIndexingBuild, getChain, testClient } from "@/_test/utils.js";
 import type { Chain } from "@/internal/types.js";
-import { _eth_getBlockByNumber } from "@/rpc/actions.js";
+import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
 import { MAX_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
@@ -54,7 +54,7 @@ test("getLocalEventGenerator()", async (context) => {
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
-    finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 1 }),
+    finalizedBlock: await eth_getBlockByNumber(rpc, ["0x1", true]),
     cachedIntervals,
   });
 
@@ -99,7 +99,7 @@ test("getLocalEventGenerator() pagination", async (context) => {
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
-    finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 2 }),
+    finalizedBlock: await eth_getBlockByNumber(rpc, ["0x2", true]),
     cachedIntervals,
   });
 
@@ -144,7 +144,7 @@ test("getLocalEventGenerator() pagination with zero interval", async (context) =
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
-    finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 0 }),
+    finalizedBlock: await eth_getBlockByNumber(rpc, ["0x0", true]),
     cachedIntervals,
   });
 
@@ -189,7 +189,7 @@ test("getLocalSyncGenerator()", async (context) => {
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
-    finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 1 }),
+    finalizedBlock: await eth_getBlockByNumber(rpc, ["0x1", true]),
     cachedIntervals,
   });
 
@@ -237,7 +237,7 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
-    finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 1 }),
+    finalizedBlock: await eth_getBlockByNumber(rpc, ["0x1", true]),
     cachedIntervals,
   });
 
@@ -268,7 +268,7 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
-    finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 2 }),
+    finalizedBlock: await eth_getBlockByNumber(rpc, ["0x2", true]),
     cachedIntervals,
   });
 
@@ -319,7 +319,7 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
-    finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 1 }),
+    finalizedBlock: await eth_getBlockByNumber(rpc, ["0x1", true]),
     cachedIntervals,
   });
 
@@ -348,7 +348,7 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
-    finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 1 }),
+    finalizedBlock: await eth_getBlockByNumber(rpc, ["0x1", true]),
     cachedIntervals,
   });
 
@@ -406,7 +406,7 @@ test("getHistoricalEventsMultichain()", async (context) => {
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
-    finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 1 }),
+    finalizedBlock: await eth_getBlockByNumber(rpc, ["0x1", true]),
     cachedIntervals,
   });
 
@@ -424,7 +424,7 @@ test("getHistoricalEventsMultichain()", async (context) => {
         eventCallbacks: [eventCallbacks],
         chains: [chain],
         rpcs: [rpc],
-        finalizedBlocks: [await _eth_getBlockByNumber(rpc, { blockNumber: 1 })],
+        finalizedBlocks: [await eth_getBlockByNumber(rpc, ["0x1", true])],
       },
       crashRecoveryCheckpoint: undefined,
       perChainSync,
@@ -468,7 +468,7 @@ test("getHistoricalEvents() omnichain", async (context) => {
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
-    finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 1 }),
+    finalizedBlock: await eth_getBlockByNumber(rpc, ["0x1", true]),
     cachedIntervals,
   });
 
@@ -486,7 +486,7 @@ test("getHistoricalEvents() omnichain", async (context) => {
         eventCallbacks: [eventCallbacks],
         chains: [chain],
         rpcs: [rpc],
-        finalizedBlocks: [await _eth_getBlockByNumber(rpc, { blockNumber: 1 })],
+        finalizedBlocks: [await eth_getBlockByNumber(rpc, ["0x1", true])],
       },
       crashRecoveryCheckpoint: undefined,
       perChainSync,
@@ -530,7 +530,7 @@ test("getHistoricalEvents() with crash recovery checkpoint", async (context) => 
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
-    finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 2 }),
+    finalizedBlock: await eth_getBlockByNumber(rpc, ["0x2", true]),
     cachedIntervals,
   });
 
@@ -548,7 +548,7 @@ test("getHistoricalEvents() with crash recovery checkpoint", async (context) => 
         eventCallbacks: [eventCallbacks],
         chains: [chain],
         rpcs: [rpc],
-        finalizedBlocks: [await _eth_getBlockByNumber(rpc, { blockNumber: 2 })],
+        finalizedBlocks: [await eth_getBlockByNumber(rpc, ["0x2", true])],
       },
       crashRecoveryCheckpoint: [
         { chainId: 1, checkpoint: MAX_CHECKPOINT_STRING },
