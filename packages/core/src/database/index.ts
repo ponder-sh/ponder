@@ -911,13 +911,7 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
             checkpoint: c.safeCheckpoint,
           }));
 
-          if (previousApp.is_ready === 0) {
-            await tx.wrap(
-              (tx) => tx.update(PONDER_META).set({ value: metadata }),
-              context,
-            );
-            return { status: "success", crashRecoveryCheckpoint } as const;
-          }
+          // Note: The statements below will not affect chains that are not "live".
 
           // Remove triggers
 
@@ -949,11 +943,6 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
                 ),
               context,
             );
-            common.logger.debug({
-              msg: "Dropped index",
-              index_name: indexStatement.data.name,
-              schema: namespace.schema,
-            });
           }
 
           for (const table of tables) {

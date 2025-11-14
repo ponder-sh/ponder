@@ -773,9 +773,7 @@ export const createRpc = ({
                     block_number: msg.params.result.number
                       ? hexToNumber(msg.params.result.number)
                       : undefined,
-                    block_hash: msg.params.result.hash
-                      ? hexToNumber(msg.params.result.hash)
-                      : undefined,
+                    block_hash: msg.params.result.hash,
                   });
                   webSocketErrorCount = 0;
 
