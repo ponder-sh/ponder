@@ -1151,7 +1151,6 @@ export const createRealtimeSync = (
 
           return;
         }
-        // TODO(kyle) this is affected by backpressure
 
         // Register a warning timer if no new block is received within expected time
         clearTimeout(noNewBlockTimer);
