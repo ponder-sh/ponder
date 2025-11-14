@@ -110,3 +110,8 @@ jobs:
       - run: |
           cd integration-test
           bun run src/cleanup-database.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PGDATABASE: railway
+          PGSSLMODE: disable
+          NODE_ENV: ci

@@ -158,6 +158,9 @@ export const getPonderMetaTable = (schema?: string) => {
   }));
 };
 
+/**
+ * @dev It is an invariant that `latestCheckpoint` refers to the same chain as `chainId`.
+ */
 export const getPonderCheckpointTable = (schema?: string) => {
   if (schema === undefined || schema === "public") {
     return pgTable("_ponder_checkpoint", (t) => ({
