@@ -1248,7 +1248,9 @@ const onBuild = async (app: PonderApp) => {
           { blockNumber: end - SIM_PARAMS.UNFINALIZED_BLOCKS },
         );
       } else {
-        // Note: Use the latest indexed block to calculate the finalized block
+        // Note: Use the latest indexed block as the finalized block. This ensures that
+        // the finalized block >= crash recovery checkpoint.
+
         const {
           // @ts-ignore
           rows: [{ latest_checkpoint }],
@@ -1261,8 +1263,7 @@ const onBuild = async (app: PonderApp) => {
           {
             blockNumber: Math.min(
               Math.max(
-                Number(decodeCheckpoint(latest_checkpoint).blockNumber) -
-                  chain.finalityBlockCount,
+                Number(decodeCheckpoint(latest_checkpoint).blockNumber),
                 end - SIM_PARAMS.UNFINALIZED_BLOCKS,
               ),
               end - 10,

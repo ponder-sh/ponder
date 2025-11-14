@@ -21,6 +21,8 @@ jobs:
         include:
           - app_id: assessment
             seed: 3938fff044d4feb11b33dbdb57bae142ec6d73029611ddff14d9d4b11ada2fe6
+          - app_id: assessment
+            seed: 8d07d00f53fe5beaf19c06696ea4e00120112ef753404e576372fc1fe18f4d13
           - app_id: uniswap-v4
             seed: 31752f35f6443147d8fda82cb9b3c4a878292e9b3c52f2e36c582dba943872ed
           - app_id: uniswap-v4
