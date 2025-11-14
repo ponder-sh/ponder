@@ -140,12 +140,6 @@ await APP_DB.execute(
   ),
 );
 
-const blockConditions: SQL[] = [];
-const transactionConditions: SQL[] = [];
-const transactionReceiptConditions: SQL[] = [];
-const traceConditions: SQL[] = [];
-const logConditions: SQL[] = [];
-
 /** Returns an SQL condition that filters by address. */
 const getAddressCondition = <
   table extends
@@ -414,8 +408,6 @@ const onBuild = async (app: PonderApp) => {
               eq(PONDER_SYNC.transactionReceipts.status, "0x1"),
               ...blockConditions,
             );
-
-            const isFrom = fragment.toAddress === null;
 
             await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
               APP_DB.select({
@@ -766,8 +758,6 @@ const onBuild = async (app: PonderApp) => {
               ...blockConditions,
             );
 
-            const isFrom = fragment.toAddress === null;
-
             await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
               APP_DB.select({
                 name: sql.raw(`'${eventCallback.name}'`).as("name"),
@@ -856,6 +846,13 @@ const onBuild = async (app: PonderApp) => {
   }
 
   // Remove uncached data
+
+  // SQL conditions for data that should not be deleted.
+  const blockConditions: SQL[] = [];
+  const transactionConditions: SQL[] = [];
+  const transactionReceiptConditions: SQL[] = [];
+  const traceConditions: SQL[] = [];
+  const logConditions: SQL[] = [];
 
   if (SIM_PARAMS.MAX_UNCACHED_BLOCKS > 0) {
     for (const interval of await APP_DB.select().from(PONDER_SYNC.intervals)) {
