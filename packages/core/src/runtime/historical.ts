@@ -147,9 +147,10 @@ export async function* getHistoricalEventsOmnichain(params: {
             }
           }
         } else {
+          // (all less than cursor are pending or already indexed)
           const cursor = perChainCursor.get(chain)!;
 
-          // Yield pending events from previous iterations. Note that it is possible to
+          // Yield pending events from previous iterations. Note that it is possible for
           // previous pending events to still be pending after the catchup.
 
           const events = pendingEvents.filter(
@@ -163,17 +164,19 @@ export async function* getHistoricalEventsOmnichain(params: {
                 event.checkpoint <= omnichainTo) === false,
           );
 
-          const blockRange = [
-            Number(decodeCheckpoint(cursor).blockNumber),
-            events.length > 0
-              ? Number(
-                  decodeCheckpoint(events[events.length - 1]!.checkpoint)
-                    .blockNumber,
-                )
-              : Number(decodeCheckpoint(cursor).blockNumber),
-          ] satisfies [number, number];
+          if (events.length > 0) {
+            const checkpoint = events[events.length - 1]!.checkpoint;
 
-          yield { events, checkpoint: min(cursor, omnichainTo), blockRange };
+            const blockRange = [
+              Number(decodeCheckpoint(cursor).blockNumber),
+              Number(
+                decodeCheckpoint(events[events.length - 1]!.checkpoint)
+                  .blockNumber,
+              ),
+            ] satisfies [number, number];
+
+            yield { events, checkpoint, blockRange };
+          }
 
           from = encodeCheckpoint({
             ...ZERO_CHECKPOINT,
@@ -275,15 +278,6 @@ export async function* getHistoricalEventsOmnichain(params: {
             );
             pendingEvents = pendingEvents.concat(right);
             events = left;
-            checkpoint = omnichainTo;
-
-            if (left.length > 0) {
-              blockRange[1] = Number(
-                decodeCheckpoint(left[left.length - 1]!.checkpoint).blockNumber,
-              );
-            } else {
-              blockRange[1] = blockRange[0];
-            }
 
             params.common.logger.trace({
               msg: "Filtered pending events",
@@ -292,9 +286,18 @@ export async function* getHistoricalEventsOmnichain(params: {
               event_count: right.length,
               checkpoint: omnichainTo,
             });
-          }
 
-          yield { events, checkpoint, blockRange };
+            if (left.length > 0) {
+              checkpoint = left[left.length - 1]!.checkpoint;
+              blockRange[1] = Number(
+                decodeCheckpoint(left[left.length - 1]!.checkpoint).blockNumber,
+              );
+
+              yield { events, checkpoint, blockRange };
+            }
+          } else {
+            yield { events, checkpoint, blockRange };
+          }
         }
 
         perChainCursor.set(chain, to);

@@ -763,12 +763,9 @@ importers:
       commander:
         specifier: ^12.0.0
         version: 12.0.0
-      dotenv:
-        specifier: ^16.3.1
-        version: 16.4.5
       drizzle-orm:
         specifier: 0.41.0
-        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.0)
+        version: 0.41.0(@types/pg@8.10.9)(bun-types@1.2.14)(pg@8.16.0)
       pg:
         specifier: ^8.15.6
         version: 8.16.0
@@ -778,9 +775,6 @@ importers:
       seedrandom:
         specifier: ^3.0.5
         version: 3.0.5
-      tsx:
-        specifier: ^4.19.2
-        version: 4.19.2
 
   packages/client:
     dependencies:
@@ -12039,16 +12033,6 @@ snapshots:
       kysely: 0.26.3
       pg: 8.11.3
 
-  drizzle-orm@0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.0):
-    optionalDependencies:
-      '@electric-sql/pglite': 0.2.13
-      '@opentelemetry/api': 1.7.0
-      '@types/pg': 8.10.9
-      bun-types: 1.2.14
-      gel: 2.0.2
-      kysely: 0.26.3
-      pg: 8.16.0
-
   drizzle-orm@0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.2):
     optionalDependencies:
       '@electric-sql/pglite': 0.2.13
@@ -12058,6 +12042,12 @@ snapshots:
       gel: 2.0.2
       kysely: 0.26.3
       pg: 8.16.2
+
+  drizzle-orm@0.41.0(@types/pg@8.10.9)(bun-types@1.2.14)(pg@8.16.0):
+    optionalDependencies:
+      '@types/pg': 8.10.9
+      bun-types: 1.2.14
+      pg: 8.16.0
 
   dset@3.1.4: {}
 

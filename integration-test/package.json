@@ -8,8 +8,6 @@
     "migrate": "bun run --bun drizzle-kit migrate",
     "create:app": "bun run src/create-app.ts",
     "test": "bun run src/index.ts",
-    "test:node": "tsx src/index.ts",
-    "test:bun": "bun run src/index.ts",
     "benchmark": "bun run src/benchmark.ts"
   },
   "devDependencies": {
@@ -19,11 +17,9 @@
     "@types/pg": "^8.10.9",
     "@types/seedrandom": "^3.0.8",
     "commander": "^12.0.0",
-    "dotenv": "^16.3.1",
     "drizzle-orm": "0.41.0",
     "pg": "^8.15.6",
     "ponder": "workspace:*",
-    "seedrandom": "^3.0.5",
-    "tsx": "^4.19.2"
+    "seedrandom": "^3.0.5"
   }
 }
