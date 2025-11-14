@@ -8,7 +8,7 @@ import type {
   Factory,
   FragmentAddress,
 } from "@ponder/internal/types.js";
-import { _eth_getBlockByNumber } from "@ponder/rpc/actions.js";
+import { eth_getBlockByNumber } from "@ponder/rpc/actions.js";
 import { createRpc } from "@ponder/rpc/index.js";
 import {
   decodeFragment,
@@ -42,7 +42,13 @@ import { type NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import seedrandom from "seedrandom";
-import { type Address, type RpcBlock, custom, hexToNumber } from "viem";
+import {
+  type Address,
+  type RpcBlock,
+  custom,
+  hexToNumber,
+  numberToHex,
+} from "viem";
 import packageJson from "../../packages/core/package.json" assert {
   type: "json",
 };
@@ -1241,25 +1247,23 @@ const onBuild = async (app: PonderApp) => {
       ) AND chain_id = ${chain.id} ORDER BY timestamp ASC LIMIT 1`);
 
       if (rows.length > 0) {
-        app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(
-          rpc,
-          {
-            blockNumber: Math.min(
+        app.indexingBuild.finalizedBlocks[i] = await eth_getBlockByNumber(rpc, [
+          numberToHex(
+            Math.min(
               Math.max(
                 Number(rows[0]!.number),
                 end - SIM_PARAMS.UNFINALIZED_BLOCKS,
               ),
               end - 10,
             ),
-          },
-        );
+          ),
+          false,
+        ]);
       } else {
-        app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(
-          rpc,
-          {
-            blockNumber: end - SIM_PARAMS.UNFINALIZED_BLOCKS,
-          },
-        );
+        app.indexingBuild.finalizedBlocks[i] = await eth_getBlockByNumber(rpc, [
+          numberToHex(end - SIM_PARAMS.UNFINALIZED_BLOCKS),
+          false,
+        ]);
       }
     }
 
