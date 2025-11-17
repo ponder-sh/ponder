@@ -1,4 +1,4 @@
-name: Integration Test
+name: Simulation Test
 
 on:
   schedule:
@@ -10,9 +10,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  integration-test-failure-inducing:
+  simulation-test-known-failures:
     if: github.event_name == 'workflow_dispatch'
-    name: Integration Test Failure-Inducing
+    name: Simulation Test Known Failures
     runs-on: self-hosted
     timeout-minutes: 60
     strategy:
@@ -52,7 +52,7 @@ jobs:
 
       - name: Test ${{ matrix.app_id }} ${{ matrix.seed }}
         run: |
-          cd integration-test
+          cd simulation-test
           pnpm test ${{ matrix.app_id }}
         env:
           SEED: ${{ matrix.seed }}
@@ -65,8 +65,8 @@ jobs:
           PGSSLMODE: disable
           NODE_ENV: ci
 
-  integration-test-fuzz:
-    name: Integration Test Fuzz
+  simulation-test-fuzz:
+    name: Simulation Test Fuzz
     runs-on: self-hosted
     timeout-minutes: 60
     strategy:
@@ -93,7 +93,7 @@ jobs:
 
       - name: Test ${{ matrix.app_id }} ${{ matrix.iteration }}
         run: |
-          cd integration-test
+          cd simulation-test
           pnpm test ${{ matrix.app_id }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -105,9 +105,9 @@ jobs:
           PGSSLMODE: disable
           NODE_ENV: ci
 
-  cleanup-integration-test:
-    name: Cleanup Integration Test Databases
-    needs: [integration-test-failure-inducing, integration-test-fuzz]
+  cleanup-simulation-test:
+    name: Cleanup Simulation Test Databases
+    needs: [simulation-test-known-failures, simulation-test-fuzz]
     if: ${{ always() }}
     runs-on: self-hosted
     timeout-minutes: 10
@@ -116,7 +116,7 @@ jobs:
       - uses: ./.github/actions/setup
       - uses: oven-sh/setup-bun@v2
       - run: |
-          cd integration-test
+          cd simulation-test
           bun run src/cleanup-database.ts
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

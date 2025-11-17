@@ -1,5 +1,5 @@
 {
-  "name": "integration-test",
+  "name": "simulation-test",
   "module": "index.ts",
   "type": "module",
   "private": true,

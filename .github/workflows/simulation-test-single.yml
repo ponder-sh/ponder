@@ -1,4 +1,4 @@
-name: Single Integration Test
+name: Single Simulation Test
 
 on:
   workflow_dispatch:
@@ -13,8 +13,8 @@ on:
         type: string
 
 jobs:
-  integration-test:
-    name: Single Integration Test
+  simulation-test:
+    name: Single Simulation Test
     runs-on: self-hosted
     timeout-minutes: 30
 
@@ -26,9 +26,9 @@ jobs:
       - run: pnpm build
       - run: pnpm install
 
-      - name: Test ${{ github.event.inputs.app }}
+      - name: Simulation Test ${{ github.event.inputs.app }}
         run: |
-          cd integration-test
+          cd simulation-test
           pnpm test ${{ github.event.inputs.app }}
         env:
           SEED: ${{ github.event.inputs.seed }}
