@@ -16,10 +16,10 @@ import {
   isFragmentAddressFactory,
 } from "@ponder/runtime/fragments.js";
 import * as PONDER_SYNC from "@ponder/sync-store/schema.js";
+import { decodeCheckpoint } from "@ponder/utils/checkpoint";
 import { getChunks, intervalUnion } from "@ponder/utils/interval.js";
 import { promiseWithResolvers } from "@ponder/utils/promiseWithResolvers.js";
 import { Command } from "commander";
-import dotenv from "dotenv";
 import {
   type SQL,
   Table,
@@ -57,8 +57,6 @@ import { metadata } from "../schema.js";
 import { dbSim } from "./db-sim.js";
 import { type RpcBlockHeader, realtimeBlockEngine, sim } from "./rpc-sim.js";
 import { getJoinConditions } from "./sql.js";
-
-dotenv.config({ path: ".env.local" });
 
 // Large apps that shouldn't be synced, use cached data instead
 const CACHED_APPS = ["the-compact", "basepaint"];
@@ -148,12 +146,7 @@ await APP_DB.execute(
   ),
 );
 
-const blockConditions: SQL[] = [];
-const transactionConditions: SQL[] = [];
-const transactionReceiptConditions: SQL[] = [];
-const traceConditions: SQL[] = [];
-const logConditions: SQL[] = [];
-
+/** Returns an SQL condition that filters by address. */
 const getAddressCondition = <
   table extends
     | typeof PONDER_SYNC.logs
@@ -270,6 +263,8 @@ const onBuild = async (app: PonderApp) => {
   app.common.options.syncEventsQuerySize = 200;
   // Note: this forces the app to run in a single thread.
   app.common.options.maxThreads = 1;
+
+  // Mock database
 
   app.common.logger.warn({
     msg: "Mocking syncQB, adminQB, userQB, and readonlyQB",
@@ -419,8 +414,6 @@ const onBuild = async (app: PonderApp) => {
               eq(PONDER_SYNC.transactionReceipts.status, "0x1"),
               ...blockConditions,
             );
-
-            const isFrom = fragment.toAddress === null;
 
             await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
               APP_DB.select({
@@ -771,8 +764,6 @@ const onBuild = async (app: PonderApp) => {
               ...blockConditions,
             );
 
-            const isFrom = fragment.toAddress === null;
-
             await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
               APP_DB.select({
                 name: sql.raw(`'${eventCallback.name}'`).as("name"),
@@ -860,7 +851,14 @@ const onBuild = async (app: PonderApp) => {
     }
   }
 
-  // remove uncached data
+  // Remove uncached data
+
+  // SQL conditions for data that should not be deleted.
+  const blockConditions: SQL[] = [];
+  const transactionConditions: SQL[] = [];
+  const transactionReceiptConditions: SQL[] = [];
+  const traceConditions: SQL[] = [];
+  const logConditions: SQL[] = [];
 
   if (SIM_PARAMS.MAX_UNCACHED_BLOCKS > 0) {
     for (const interval of await APP_DB.select().from(PONDER_SYNC.intervals)) {
@@ -895,6 +893,8 @@ const onBuild = async (app: PonderApp) => {
       );
 
       resultIntervals = intervalUnion(resultIntervals);
+
+      // TODO(kyle) Determine which factory intervals should be removed.
 
       for (const blocks of resultIntervals) {
         const fragment = decodeFragment(interval.fragmentId);
@@ -1226,6 +1226,8 @@ const onBuild = async (app: PonderApp) => {
     // TODO(kyle) delete factories
   }
 
+  // Mock RPC
+
   const chains: Parameters<typeof realtimeBlockEngine>[0] = new Map();
   for (let i = 0; i < app.indexingBuild.chains.length; i++) {
     const chain = app.indexingBuild.chains[i]!;
@@ -1240,28 +1242,35 @@ const onBuild = async (app: PonderApp) => {
 
     const end = intervals[intervals.length - 1]![1];
 
-    if (SIM_PARAMS.UNFINALIZED_BLOCKS !== 0) {
-      const { rows } = await APP_DB.execute(`
-      SELECT number FROM ponder_sync.blocks WHERE timestamp > (
-        SELECT SUBSTRING(finalized_checkpoint, 1, 10)::numeric as t FROM _ponder_checkpoint WHERE chain_name = '${chain.name}'
-      ) AND chain_id = ${chain.id} ORDER BY timestamp ASC LIMIT 1`);
+    // Mock finalized block
 
-      if (rows.length > 0) {
+    if (SIM_PARAMS.UNFINALIZED_BLOCKS !== 0) {
+      if (RESTART_COUNT === 0) {
+        app.indexingBuild.finalizedBlocks[i] = await eth_getBlockByNumber(rpc, [
+          numberToHex(end - SIM_PARAMS.UNFINALIZED_BLOCKS),
+          false,
+        ]);
+      } else {
+        // Note: Use the latest indexed block as the finalized block. This ensures that
+        // the finalized block >= crash recovery checkpoint.
+
+        const {
+          // @ts-ignore
+          rows: [{ latest_checkpoint }],
+        } = await APP_DB.execute(
+          `SELECT latest_checkpoint FROM _ponder_checkpoint WHERE chain_name = '${chain.name}'`,
+        );
+
         app.indexingBuild.finalizedBlocks[i] = await eth_getBlockByNumber(rpc, [
           numberToHex(
             Math.min(
               Math.max(
-                Number(rows[0]!.number),
+                Number(decodeCheckpoint(latest_checkpoint).blockNumber),
                 end - SIM_PARAMS.UNFINALIZED_BLOCKS,
               ),
               end - 10,
             ),
           ),
-          false,
-        ]);
-      } else {
-        app.indexingBuild.finalizedBlocks[i] = await eth_getBlockByNumber(rpc, [
-          numberToHex(end - SIM_PARAMS.UNFINALIZED_BLOCKS),
           false,
         ]);
       }
@@ -1346,6 +1355,13 @@ const onBuild = async (app: PonderApp) => {
 
   return app;
 };
+
+process.on("uncaughtException", () => {
+  console.log(`\nRecreate with 'SEED=${SEED} pnpm test ${APP_ID}'`);
+});
+process.on("unhandledRejection", () => {
+  console.log(`\nRecreate with 'SEED=${SEED} pnpm test ${APP_ID}'`);
+});
 
 let kill = await start({
   cliOptions: {

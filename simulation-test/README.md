@@ -1,4 +1,4 @@
-# Integration Testing
+# Simulation Testing
 
 ## Usage
 
