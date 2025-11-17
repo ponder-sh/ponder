@@ -36,20 +36,15 @@ export const eth_getBlockByNumber = <
   context?: Parameters<Rpc["request"]>[1],
 ): Promise<params[1] extends true ? SyncBlock : LightBlock> =>
   rpc
-    .request(
-      {
-        method: "eth_getBlockByNumber",
-        params,
-      },
-      context,
-    )
+    .request({ method: "eth_getBlockByNumber", params }, context)
     .then((_block) => {
       if (!_block) {
         let blockNumber: bigint;
         if (isHex(params[0])) {
           blockNumber = hexToBigInt(params[0]);
         } else {
-          // @ts-ignore
+          // @ts-ignore `BlockNotFoundError` expects a bigint, but it also just passes
+          // the `blockNumber` directly to the error message, so breaking the type constraint is fine.
           blockNumber = params[0];
         }
 
@@ -75,13 +70,7 @@ export const eth_getBlockByHash = <
   context?: Parameters<Rpc["request"]>[1],
 ): Promise<params[1] extends true ? SyncBlock : LightBlock> =>
   rpc
-    .request(
-      {
-        method: "eth_getBlockByHash",
-        params,
-      },
-      context,
-    )
+    .request({ method: "eth_getBlockByHash", params }, context)
     .then((_block) => {
       if (!_block) throw new BlockNotFoundError({ blockHash: params[0] });
       return standardizeBlock(_block as SyncBlock, {
@@ -104,12 +93,12 @@ export const eth_getLogs = async (
     params,
   };
 
-  return rpc.request(request, context).then((l) => {
-    if (l === null || l === undefined) {
+  return rpc.request(request, context).then((logs) => {
+    if (logs === null || logs === undefined) {
       throw new Error("Received invalid empty eth_getLogs response.");
     }
 
-    return (l as SyncLog[]).map((log) => standardizeLog(log, request));
+    return (logs as SyncLog[]).map((log) => standardizeLog(log, request));
   });
 };
 
@@ -125,18 +114,13 @@ export const eth_getTransactionReceipt = (
   context?: Parameters<Rpc["request"]>[1],
 ): Promise<SyncTransactionReceipt> =>
   rpc
-    .request(
-      {
-        method: "eth_getTransactionReceipt",
-        params,
-      },
-      context,
-    )
+    .request({ method: "eth_getTransactionReceipt", params }, context)
     .then((receipt) => {
-      if (!receipt)
+      if (!receipt) {
         throw new TransactionReceiptNotFoundError({
           hash: params[0],
         });
+      }
       return standardizeTransactionReceipt(receipt as SyncTransactionReceipt, {
         method: "eth_getTransactionReceipt",
         params,
@@ -155,13 +139,7 @@ export const eth_getBlockReceipts = (
   context?: Parameters<Rpc["request"]>[1],
 ): Promise<SyncTransactionReceipt[]> =>
   rpc
-    .request(
-      {
-        method: "eth_getBlockReceipts",
-        params,
-      },
-      context,
-    )
+    .request({ method: "eth_getBlockReceipts", params }, context)
     .then((receipts) => {
       if (receipts === null || receipts === undefined) {
         throw new Error(
@@ -189,13 +167,7 @@ export const debug_traceBlockByNumber = (
   context?: Parameters<Rpc["request"]>[1],
 ): Promise<SyncTrace[]> =>
   rpc
-    .request(
-      {
-        method: "debug_traceBlockByNumber",
-        params,
-      },
-      context,
-    )
+    .request({ method: "debug_traceBlockByNumber", params }, context)
     .then((traces) => {
       if (traces === null || traces === undefined) {
         throw new Error(
@@ -272,13 +244,7 @@ export const debug_traceBlockByHash = (
   context?: Parameters<Rpc["request"]>[1],
 ): Promise<SyncTrace[]> =>
   rpc
-    .request(
-      {
-        method: "debug_traceBlockByHash",
-        params,
-      },
-      context,
-    )
+    .request({ method: "debug_traceBlockByHash", params }, context)
     .then((traces) => {
       if (traces === null || traces === undefined) {
         throw new Error(

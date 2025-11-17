@@ -687,7 +687,7 @@ export const createHistoricalSync = (
             // request made to include `address` and `topics`.
             validateLogsAndBlock(
               logs,
-              block!,
+              block,
               {
                 method: "eth_getLogs",
                 params: [
