@@ -1,5 +1,17 @@
 # ponder
 
+## 0.15.3
+
+### Patch Changes
+
+- [#2183](https://github.com/ponder-sh/ponder/pull/2183) [`79b613a`](https://github.com/ponder-sh/ponder/commit/79b613abf1409e5df809ad17d27a9dece572c6bf) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved JSON-RPC response validation errors.
+
+- [#2184](https://github.com/ponder-sh/ponder/pull/2184) [`148f128`](https://github.com/ponder-sh/ponder/commit/148f12825173c64f70f44c0a006e53007ddc5764) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused an event to be processed more than once after a reorg when `ordering: "multichain"`.
+
+- [#2184](https://github.com/ponder-sh/ponder/pull/2184) [`148f128`](https://github.com/ponder-sh/ponder/commit/148f12825173c64f70f44c0a006e53007ddc5764) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where crash recovery with `ordering: "experimental_isolated"` caused a duplicate event.
+
+- [#2184](https://github.com/ponder-sh/ponder/pull/2184) [`148f128`](https://github.com/ponder-sh/ponder/commit/148f12825173c64f70f44c0a006e53007ddc5764) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused `/status` to temporarily report the incorrect block when `ordering: "omnichain"`.
+
 ## 0.15.2
 
 ### Patch Changes
